@@ -12,30 +12,26 @@ import ee.cone.c4di.c4
 import ee.cone.c4proto._
 import okio.ByteString
 
-import scala.annotation.tailrec
 import scala.collection.immutable.{Map, Queue, Seq}
 import scala.concurrent.{ExecutionContext, Future}
 
 trait UpdateFlag {
   /**
-    * Value from 0 to 63, must be unique
-    */
-  def id: Int
-
-  final lazy val flagValue: Long = math.pow(2, id).toLong
+    * Flag value must be pow(2, x), where x from 0 to 63, must be unique
+    **/
+  def flagValue: Long
 }
 
-@c4("ProtoApp") class UpdateFlagRegistryCheck(updateFlags: List[UpdateFlag]) {
-  assert(check(updateFlags.map(_.flagValue)),s"Update Flags contain duplicates: $updateFlags")
-
-  @tailrec
-  private def check(flags: List[Long]): Boolean =
-    flags match {
-      case h :: t if t.contains(h) => false
-      case _ :: t => check(t)
-      case Nil => true
-    }
-}
+@c4("ProtoApp") class UpdateFlagsCheck(
+  val updateFlags: List[UpdateFlag]
+)(
+  val flagsOk: Boolean = {
+    val flags = updateFlags.map(_.flagValue)
+    if (flags.exists(java.lang.Long.bitCount(_) != 1)) false
+    else if (flags.distinct.size != flags.size) false
+    else true
+  }
+)
 
 @protocol("ProtoApp") object QProtocolBase   {
 

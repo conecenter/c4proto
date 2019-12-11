@@ -21,7 +21,8 @@ import okio.ByteString
 
 class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
 
-@c4("ServerCompApp") class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender]) extends QMessages {
+@c4("ServerCompApp") class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender], flagsCheck: UpdateFlagsCheck) extends QMessages {
+  assert(flagsCheck.flagsOk, s"Some of the flags are incorrect: ${flagsCheck.updateFlags}")
   //import qAdapterRegistry._
   // .map(o=> nTx.setLocal(OffsetWorldKey, o+1))
   def send[M<:Product](local: Context): Context = {
@@ -44,11 +45,11 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq
 @c4("RichDataCompApp") class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(50000000L)
 
 @c4("ProtoApp") class FillTxIdUpdateFlag extends UpdateFlag {
-  val id: Int = 0
+  val flagValue: Long = 1
 }
 
 @c4("ProtoApp") class ArchiveUpdateFlag extends UpdateFlag {
-  val id: Int = 1
+  val flagValue: Long = 2
 }
 
 @c4("ProtoApp") class ToUpdateImpl(
