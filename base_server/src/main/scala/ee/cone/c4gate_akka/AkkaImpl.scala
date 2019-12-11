@@ -5,6 +5,7 @@ import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.headers.{RawHeader, `Content-Type`}
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.settings.ServerSettings
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.stream.{ActorMaterializer, Materializer, OverflowStrategy}
 import com.typesafe.scalalogging.LazyLogging
@@ -68,6 +69,12 @@ import scala.util.control.NonFatal
         handler = handler,
         interface = "localhost",
         port = port,
+        settings = ServerSettings(List(
+          "akka.http.server.parsing.max-content-length = infinite",
+          "akka.http.server.request-timeout = 600 s",
+          "akka.http.parsing.max-to-strict-bytes = infinite",
+          "akka.http.server.raw-request-uri-header = on",
+        ).mkString("\n"))
         //defapply(configOverrides: String): ServerSettings(system)//ServerSettings(system)
       )(mat)
     } yield binding
