@@ -8,11 +8,19 @@ import ee.cone.c4actor.MetaAttrProtocol.D_TxTransformNameMeta
 import ee.cone.c4actor.QProtocol.N_Update
 import ee.cone.c4actor.Types._
 import ee.cone.c4assemble._
+import ee.cone.c4di.c4
 import ee.cone.c4proto._
 import okio.ByteString
 
 import scala.collection.immutable.{Map, Queue, Seq}
 import scala.concurrent.{ExecutionContext, Future}
+
+trait UpdateFlag {
+  /**
+    * Flag value must be pow(2, x), where x from 0 to 63, must be unique
+    **/
+  def flagValue: Long
+}
 
 @protocol("ProtoApp") object QProtocolBase   {
 
@@ -26,7 +34,7 @@ import scala.concurrent.{ExecutionContext, Future}
     * @param srcId == ToPrimaryKey(orig)
     * @param valueTypeId == QAdapterRegistry.byName(orig.getClass.getName).id
     * @param value == QAdapterRegistry.byId(valueTypeId).encode(orig)
-    * @param flags == One of {0L, 1L, 2L, 4L}
+    * @param flags == '|' of UpdateFlag.flagValue{1L, 2L, 4L, 8L}
     */
   case class N_Update(
     @Id(0x0011) srcId: SrcId,
