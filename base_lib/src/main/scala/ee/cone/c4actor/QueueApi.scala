@@ -31,9 +31,9 @@ trait UpdateFlag {
   @tailrec
   private def check(flags: List[Long]): Boolean =
     flags match {
-      case h :: t if t.contains(h) ⇒ false
-      case _ :: t ⇒ check(t)
-      case Nil ⇒ true
+      case h :: t if t.contains(h) => false
+      case _ :: t => check(t)
+      case Nil => true
     }
 }
 
