@@ -8,11 +8,34 @@ import ee.cone.c4actor.MetaAttrProtocol.D_TxTransformNameMeta
 import ee.cone.c4actor.QProtocol.N_Update
 import ee.cone.c4actor.Types._
 import ee.cone.c4assemble._
+import ee.cone.c4di.c4
 import ee.cone.c4proto._
 import okio.ByteString
 
+import scala.annotation.tailrec
 import scala.collection.immutable.{Map, Queue, Seq}
 import scala.concurrent.{ExecutionContext, Future}
+
+trait UpdateFlag {
+  /**
+    * Value from 0 to 63, must be unique
+    */
+  def id: Int
+
+  final lazy val flagValue: Long = math.pow(2, id).toLong
+}
+
+@c4("ProtoApp") class UpdateFlagRegistryCheck(updateFlags: List[UpdateFlag]) {
+  assert(check(updateFlags.map(_.flagValue)),s"Update Flags contain duplicates: $updateFlags")
+
+  @tailrec
+  private def check(flags: List[Long]): Boolean =
+    flags match {
+      case h :: t if t.contains(h) ⇒ false
+      case _ :: t ⇒ check(t)
+      case Nil ⇒ true
+    }
+}
 
 @protocol("ProtoApp") object QProtocolBase   {
 
@@ -26,7 +49,7 @@ import scala.concurrent.{ExecutionContext, Future}
     * @param srcId == ToPrimaryKey(orig)
     * @param valueTypeId == QAdapterRegistry.byName(orig.getClass.getName).id
     * @param value == QAdapterRegistry.byId(valueTypeId).encode(orig)
-    * @param flags == One of {0L, 1L, 2L, 4L}
+    * @param flags == One of UpdateFlag.flagValue{0L, 1L, 2L, 4L, 8L}
     */
   case class N_Update(
     @Id(0x0011) srcId: SrcId,

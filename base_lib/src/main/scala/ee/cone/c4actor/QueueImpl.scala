@@ -43,11 +43,21 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq
 
 @c4("RichDataCompApp") class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(50000000L)
 
+@c4("ProtoApp") class FillTxIdUpdateFlag extends UpdateFlag {
+  val id: Int = 0
+}
+
+@c4("ProtoApp") class ArchiveUpdateFlag extends UpdateFlag {
+  val id: Int = 1
+}
+
 @c4("ProtoApp") class ToUpdateImpl(
   qAdapterRegistry: QAdapterRegistry,
   deCompressorRegistry: DeCompressorRegistry,
   compressorOpt: Option[RawCompressor],
-  compressionMinSize: UpdateCompressionMinSize
+  compressionMinSize: UpdateCompressionMinSize,
+  fillTxIdUpdateFlag: FillTxIdUpdateFlag,
+  archiveUpdateFlag: ArchiveUpdateFlag
 )(
   updatesAdapter: ProtoAdapter[S_Updates] with HasId =
   qAdapterRegistry.byName(classOf[QProtocol.S_Updates].getName)
@@ -58,9 +68,9 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq
   offsetAdapter: ProtoAdapter[S_Offset] with HasId =
   qAdapterRegistry.byName(classOf[QProtocol.S_Offset].getName)
     .asInstanceOf[ProtoAdapter[S_Offset] with HasId],
-  fillTxIdFlag: Long = 1L,
+  fillTxIdFlag: Long = fillTxIdUpdateFlag.flagValue,
   txIdPropId: Long = 0x001A,
-  archiveFlag: Long = 2L
+  archiveFlag: Long = archiveUpdateFlag.flagValue
 )(
   withFillTxId: Set[Long] = qAdapterRegistry.byId.collect{case (k, v) if v.props.exists(_.id == txIdPropId) => k}.toSet
 ) extends ToUpdate with LazyLogging {

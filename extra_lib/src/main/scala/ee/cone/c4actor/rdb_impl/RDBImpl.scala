@@ -201,10 +201,15 @@ case class FromExternalDBSyncTransform(srcId:SrcId)(indentedParser: IndentedPars
   }
 }
 
+@c4("FromExternalDBSyncApp") class FromExternalDBUpdateFlag extends UpdateFlag {
+  val id: Int = 3
+}
+
 @c4("FromExternalDBSyncApp") class IndentedParser(
   universalProtoAdapter: ProtoAdapter[UniversalNode], rDBTypes: RDBTypes, universalNodeFactory: UniversalNodeFactory,
+  fromExternalDBUpdateFlag: FromExternalDBUpdateFlag,
   splitter: Char = ' ', lineSplitter: String = "\n"
-) {
+)(fromExternalDBFlag: Long = fromExternalDBUpdateFlag.flagValue) {
   //@tailrec final
   private def parseProp(key: String, value: List[String]): UniversalProp = {
     import universalNodeFactory._
@@ -240,7 +245,7 @@ case class FromExternalDBSyncTransform(srcId:SrcId)(indentedParser: IndentedPars
         case node: UniversalDeleteImpl => (getNodeSrcId(node), ToByteString(Array.emptyByteArray))
         case node: UniversalNode => (getNodeSrcId(node), ToByteString(prop.encodedValue))
       }
-      N_Update(srcId, prop.tag, value, 0L)
+      N_Update(srcId, prop.tag, value, fromExternalDBFlag)
     }
   }
 }
