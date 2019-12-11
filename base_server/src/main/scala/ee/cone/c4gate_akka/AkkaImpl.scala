@@ -9,7 +9,7 @@ import akka.http.scaladsl.settings.ServerSettings
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.stream.{ActorMaterializer, Materializer, OverflowStrategy}
 import com.typesafe.scalalogging.LazyLogging
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.ConfigFactory
 import ee.cone.c4actor.{Config, Early, Executable, Execution, Observer}
 import ee.cone.c4assemble.Single
 import ee.cone.c4di.c4
