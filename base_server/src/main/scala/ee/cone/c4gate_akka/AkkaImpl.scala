@@ -21,22 +21,23 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.control.NonFatal
 
-@c4("AkkaMatApp") class AkkaMatImpl(matPromise: Promise[ActorMaterializer] = Promise()) extends AkkaMat with Executable with Early {
+@c4("AkkaMatApp") class AkkaMatImpl(configs: List[AkkaConf], matPromise: Promise[ActorMaterializer] = Promise()) extends AkkaMat with Executable with Early {
   def get: Future[ActorMaterializer] = matPromise.future
   def run(): Unit = {
-    val system = ActorSystem.create("default",ConfigFactory.parseString(
-
-      List(
-        "akka.http.server.parsing.max-content-length = infinite",
-        //"akka.http.server.parsing.max-to-strict-bytes = infinite",
-        "akka.http.server.request-timeout = 600 s",
-        "akka.http.parsing.max-to-strict-bytes = infinite",
-        "akka.http.server.raw-request-uri-header = on",
-      ).mkString("\n")
-
-    ))
+    val config = ConfigFactory.parseString(configs.sorted.mkString("\n"))
+    val system = ActorSystem.create("default",config)
     matPromise.success(ActorMaterializer.create(system))
   }
+}
+
+@c4("AkkaGatewayApp") class AkkaHttpServerConf extends AkkaConf {
+  def content: String = List(
+    "akka.http.server.parsing.max-content-length = infinite",
+    //"akka.http.server.parsing.max-to-strict-bytes = infinite",
+    "akka.http.server.request-timeout = 600 s",
+    "akka.http.parsing.max-to-strict-bytes = infinite",
+    "akka.http.server.raw-request-uri-header = on",
+  ).mkString("\n")
 }
 
 @c4("AkkaGatewayApp") class AkkaHttpServer(

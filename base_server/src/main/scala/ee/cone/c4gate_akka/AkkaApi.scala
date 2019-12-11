@@ -7,3 +7,7 @@ import scala.concurrent.Future
 trait AkkaMat {
   def get: Future[ActorMaterializer]
 }
+
+abstract class AkkaConf {
+  def content: String
+}
