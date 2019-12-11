@@ -21,7 +21,8 @@ import okio.ByteString
 
 class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
 
-@c4("ServerCompApp") class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender]) extends QMessages {
+@c4("ServerCompApp") class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender], flagsCheck: UpdateFlagsCheck) extends QMessages {
+  assert(flagsCheck.flagsOk, s"Some of the flags are incorrect: ${flagsCheck.updateFlags}")
   //import qAdapterRegistry._
   // .map(o=> nTx.setLocal(OffsetWorldKey, o+1))
   def send[M<:Product](local: Context): Context = {
@@ -43,11 +44,21 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq
 
 @c4("RichDataCompApp") class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(50000000L)
 
+@c4("ProtoApp") class FillTxIdUpdateFlag extends UpdateFlag {
+  val flagValue: Long = 1L
+}
+
+@c4("ProtoApp") class ArchiveUpdateFlag extends UpdateFlag {
+  val flagValue: Long = 2L
+}
+
 @c4("ProtoApp") class ToUpdateImpl(
   qAdapterRegistry: QAdapterRegistry,
   deCompressorRegistry: DeCompressorRegistry,
   compressorOpt: Option[RawCompressor],
-  compressionMinSize: UpdateCompressionMinSize
+  compressionMinSize: UpdateCompressionMinSize,
+  fillTxIdUpdateFlag: FillTxIdUpdateFlag,
+  archiveUpdateFlag: ArchiveUpdateFlag
 )(
   updatesAdapter: ProtoAdapter[S_Updates] with HasId =
   qAdapterRegistry.byName(classOf[QProtocol.S_Updates].getName)
@@ -58,9 +69,9 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq
   offsetAdapter: ProtoAdapter[S_Offset] with HasId =
   qAdapterRegistry.byName(classOf[QProtocol.S_Offset].getName)
     .asInstanceOf[ProtoAdapter[S_Offset] with HasId],
-  fillTxIdFlag: Long = 1L,
+  fillTxIdFlag: Long = fillTxIdUpdateFlag.flagValue,
   txIdPropId: Long = 0x001A,
-  archiveFlag: Long = 2L
+  archiveFlag: Long = archiveUpdateFlag.flagValue
 )(
   withFillTxId: Set[Long] = qAdapterRegistry.byId.collect{case (k, v) if v.props.exists(_.id == txIdPropId) => k}.toSet
 ) extends ToUpdate with LazyLogging {
