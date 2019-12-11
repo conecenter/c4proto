@@ -24,7 +24,7 @@ import scala.util.control.NonFatal
 @c4("AkkaMatApp") class AkkaMatImpl(configs: List[AkkaConf], matPromise: Promise[ActorMaterializer] = Promise()) extends AkkaMat with Executable with Early {
   def get: Future[ActorMaterializer] = matPromise.future
   def run(): Unit = {
-    val config = ConfigFactory.parseString(configs.sorted.mkString("\n"))
+    val config = ConfigFactory.parseString(configs.map(_.content).sorted.mkString("\n"))
     val system = ActorSystem.create("default",config)
     matPromise.success(ActorMaterializer.create(system))
   }

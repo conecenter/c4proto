@@ -1216,7 +1216,8 @@ push @tasks, ["ci_build_head","<builder> <req> <dir|commit> [parent]",sub{
     my($builder_comp,$req_pre,$repo_dir,$parent) = @_;
     sy(&$ssh_add());
     my $pf = &$get_head_img_tag($repo_dir,$parent);
-    my $req = "build $req_pre.$pf\n";
+    my $img = "$req_pre.$pf";
+    my $req = "build $img\n";
     my $gen_dir = $ENV{C4PROTO_DIR} || die;
     my ($host,$port) = &$get_host_port($builder_comp);
     my $conf = &$get_compose($builder_comp);
@@ -1225,6 +1226,7 @@ push @tasks, ["ci_build_head","<builder> <req> <dir|commit> [parent]",sub{
     local $ENV{C4CI_ALLOW} = $$conf{C4CI_ALLOW} || die;
     local $ENV{C4CI_CTX_DIR} = $$conf{C4CI_CTX_DIR} || die;
     sy("perl", "$gen_dir/ci.pl", "ci_arg", $req);
+    print "prod up \$C4CURRENT_STACK 'image $img'\n";
 }];
 push @tasks, ["ci_build_head_tcp","",sub{ # <host>:<port> <req> <dir|commit> [parent]
     my($addr,$req_pre,$repo_dir,$parent) = @_;
