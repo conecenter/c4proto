@@ -647,7 +647,7 @@ my $wrap_kc = sub{
     my $up_content = &$pl_head().&$pl_embed(main=>$yml_str)
         .&$interpolation_body($name)
         .q[my $ns=`cat /var/run/secrets/kubernetes.io/serviceaccount/namespace`;]
-        .q[$ENV{C4FORCE_RECREATE} and system "kubectl -n $ns delete pods/].$name.q[-0" and die $?;]
+        .q[$ENV{C4FORCE_RECREATE} and system "kubectl -n $ns delete pods/].$name.q[-0" and die $?;] #todo fix for deployment's variable pod name
         .q[pp(main=>"kubectl -n $ns apply -f-");];
     ($name,undef,$up_content);
 };
@@ -1401,6 +1401,12 @@ push @tasks, ["up-visitor", "", sub{
     &$sync_up(&$wrap_deploy($comp,$from_path,\@containers),$args);
 }];
 
+my $install_kubectl = sub{
+    "RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.14.0/bin/linux/amd64/kubectl "
+    ."&& chmod +x ./kubectl "
+    ."&& mv ./kubectl /usr/bin/kubectl "
+};
+
 push @tasks, ["up-kc_host", "", sub{
     my ($comp,$args) = @_;
     my $conf = &$get_compose($comp);
@@ -1416,9 +1422,7 @@ push @tasks, ["up-kc_host", "", sub{
             "RUN perl install.pl apt curl rsync dropbear uuid-runtime libdigest-perl-md5-perl socat lsof nano",
             "RUN perl install.pl curl $dl_frp_url",
             "RUN rm -r /etc/dropbear && ln -s /c4/dropbear /etc/dropbear ",
-            "RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.14.0/bin/linux/amd64/kubectl "
-            ."&& chmod +x ./kubectl "
-            ."&& mv ./kubectl /usr/bin/kubectl ",
+            &$install_kubectl(),
             "RUN mkdir /c4db && chown c4:c4 /c4db",
             "COPY id_rsa.pub cd.pl /",
             "USER c4",
@@ -1734,6 +1738,32 @@ push @tasks, ["cat_visitor_conf","$composes_txt",sub{
     my $from_path = &$get_tmp_dir();
     &$make_visitor_conf($comp,$from_path,[@services]);
     sy("cat $from_path/frpc.visitor.ini");
+}];
+
+push @tasks, ["up-elector","",sub{
+    my ($comp,$args) = @_;
+    my $gen_dir = $ENV{C4PROTO_DIR} || die;
+    my $img = do{
+        my $from_path = &$get_tmp_dir();
+        my $put = &$rel_put_text($from_path);
+        sy("cp $gen_dir/install.pl $gen_dir/elector.pl $from_path/");
+        &$put("Dockerfile", join "\n",
+            &$base_image_steps(),
+            "RUN perl install.pl apt curl openssh-client libjson-xs-perl ",
+            &$install_kubectl(),
+            "COPY elector.pl /",
+            "USER c4",
+            'ENTRYPOINT ["perl","/elector.pl"]',
+        );
+        &$remote_build($comp,$from_path);
+    };
+    my $from_path = &$get_tmp_dir();
+    my @containers = ({
+      image => $img, name => "elector", tty => "true", @req_small,
+    },{
+      image => $img, name => "kubectl", is_deployer => 1, @req_small,
+    });
+    &$sync_up(&$wrap_deploy($comp,$from_path,\@containers),$args);
 }];
 
 ####
