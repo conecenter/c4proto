@@ -45,11 +45,11 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq
 @c4("RichDataCompApp") class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(50000000L)
 
 @c4("ProtoApp") class FillTxIdUpdateFlag extends UpdateFlag {
-  val flagValue: Long = 1
+  val flagValue: Long = 1L
 }
 
 @c4("ProtoApp") class ArchiveUpdateFlag extends UpdateFlag {
-  val flagValue: Long = 2
+  val flagValue: Long = 2L
 }
 
 @c4("ProtoApp") class ToUpdateImpl(

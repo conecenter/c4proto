@@ -202,7 +202,7 @@ case class FromExternalDBSyncTransform(srcId:SrcId)(indentedParser: IndentedPars
 }
 
 @c4("FromExternalDBSyncApp") class FromExternalDBUpdateFlag extends UpdateFlag {
-  val flagValue: Long = 8
+  val flagValue: Long = 8L
 }
 
 @c4("FromExternalDBSyncApp") class IndentedParser(
