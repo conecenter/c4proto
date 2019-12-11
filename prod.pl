@@ -3,7 +3,7 @@
 use strict;
 use Digest::MD5 qw(md5_hex);
 
-my $sys_image_ver = "v60";
+my $sys_image_ver = "v64";
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -574,7 +574,15 @@ my $make_kc_yml = sub{
             selector => { matchLabels => { app => $name } },
             $rolling ? () : (serviceName => $name),
             template => {
-                metadata => { labels => { app => $name } },
+                metadata => {
+                    labels => {
+                        app => $name,
+                        $rolling ? (c4rolling=>"v1") : (),
+                    },
+                    annotations => {
+                        $rolling ? (c4rolling=>$rolling) : (),
+                    },
+                },
                 spec => {
                     containers => \@containers,
                     volumes => [@secret_volumes, @db4_volumes],
