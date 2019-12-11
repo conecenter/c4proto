@@ -252,6 +252,14 @@ push @tasks, ["get_last_snapshot", $composes_txt, sub{
     sy(&$get_snapshot($comp,$snnm,sub{$_[0]}));
 }];
 
+my $get_hostname = sub{
+    my($comp)=@_;
+    &$get_compose($comp)->{le_hostname} || do{
+        my ($domain_zone) = &$get_deployer_conf($comp,0,qw[domain_zone]);
+        $domain_zone && "$comp.$domain_zone";
+    };
+};
+
 my $put_snapshot = sub{
     my($auth_path,$data_path,$addr)=@_;
     my $gen_dir = $ENV{C4PROTO_DIR} || die;
@@ -262,10 +270,18 @@ my $put_snapshot = sub{
 
 push @tasks, ["put_snapshot", "$composes_txt <file_path>", sub{
     my($comp,$data_path)=@_;
-    my $host = &$get_compose($comp)->{le_hostname} || die "no le_hostname";
+    sy(&$ssh_add());
+    my $host = &$get_hostname($comp) || die "need le_hostname or domain_zone";
     my($conf_dir,$save) = @{&$get_conf_dir()};
     my $auth_path = "$conf_dir/ca/$comp/simple.auth";
     &$put_snapshot($auth_path,$data_path,"https://$host");
+}];
+push @tasks, ["put_snapshot_address", "${composes_txt} <to_address> <file_path> ", sub{
+    my($comp,$address,$data_path)=@_;
+    sy(&$ssh_add());
+    my($conf_dir,$save) = @{&$get_conf_dir()};
+    my $auth_path = "$conf_dir/ca/$comp/simple.auth";
+    &$put_snapshot($auth_path,$data_path,$address);
 }];
 push @tasks, ["put_snapshot_local", "<file_path>", sub{
     my($data_path)=@_;
@@ -830,12 +846,10 @@ my $gate_ports = sub{
     my $external_http_port = $$conf{http_port} || $http_port;
     ($host,$external_http_port,$external_broker_port);
 };
+
 my $get_ingress = sub{
     my($comp,$http_port)=@_;
-    my $hostname = &$get_compose($comp)->{le_hostname} || do{
-        my ($domain_zone) = &$get_deployer_conf($comp,0,qw[domain_zone]);
-        $domain_zone && "$comp.$domain_zone";
-    };
+    my $hostname = &$get_hostname($comp);
     $hostname ? ("ingress:$hostname"=>$http_port) : ();
 };
 
