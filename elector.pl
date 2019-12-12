@@ -45,7 +45,7 @@ push @tasks, [elector=>sub{
         #
         for my $app(@invalidate_apps){
             my @pods = &$pods_by_app($app);
-            grep{syf($$_{exec_get})=~/\bc4is-master\b/} @pods
+            grep{syf($$_{exec_get})=~/\bc4is-master\b/} @pods #todo Terminating may not report as master; we should remember set or ignore transient states?
                 or syf($pods[0]{exec_set}||die);
         }
         sleep 1;
