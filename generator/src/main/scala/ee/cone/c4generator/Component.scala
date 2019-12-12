@@ -44,13 +44,13 @@ object ComponentsGenerator extends Generator {
     } yield for {
       param"..$mods ${Name(name)}: ${Some(tpe)} = $expropt" <- params.toList
       r <- if(expropt.nonEmpty) None
-      else Option((Option((tpe,name)),q"${Term.Name(name)}.asInstanceOf[$tpe]"))
+      else Option((Option((tpe,name)),s"$name=$name.asInstanceOf[$tpe]"))
     } yield r
     val args = for { args <- list } yield for { (_,a) <- args } yield a
     val caseSeq = for {(o,_) <- list.flatten; (_,a) <- o} yield a
     val depSeq = for { (o,_) <- list.flatten; (a,_) <- o } yield getTypeKey(a)
     val objName = Term.Name(s"${tp}Component")
-    val concrete = q"Seq(new ${Type.Name(tp)}(...$args))".syntax
+    val concrete = s"Seq(new $tp${args.map(a=>s"(${a.mkString(",")})").mkString})"
     assert(cl.typeParams.isEmpty)
     //
     val inSet = depSeq.toSet

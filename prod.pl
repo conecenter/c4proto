@@ -405,7 +405,7 @@ my $interpolation_body = sub{
     my($run_comp)=@_;
     'my %vars = `cat ../'.$run_comp.'.args`=~/([\w\-\.\:\/]+)/g;'
     .'print "[$_=$vars{$_}]\n" for sort keys %vars;'
-    .'$c{main}=~s{<var:([^>]+)>}{$vars{$1}}eg;'
+    .'$c{main}=~s{<var:(\w+):([^>]+)>}{exists($vars{$1})?$vars{$1}:$2}eg;'
 };
 my $pl_head = sub{
     "#!/usr/bin/perl\n"
@@ -667,7 +667,7 @@ my $make_kc_yml = sub{
 
 my $wrap_kc = sub{
     my($name,$tmp_path,$options) = @_;
-    my $yml_str = &$make_kc_yml($name,$tmp_path,{ replicas => "<var:replicas>" },$options);
+    my $yml_str = &$make_kc_yml($name,$tmp_path,{ replicas => "<var:replicas:1>" },$options);
     my $up_content = &$pl_head().&$pl_embed(main=>$yml_str)
         .&$interpolation_body($name)
         .q[my $ns=`cat /var/run/secrets/kubernetes.io/serviceaccount/namespace`;]
@@ -858,7 +858,7 @@ my $need_deploy_cert = sub{
     sy($save) if $was_no_ca;
 };
 
-my @var_img = (image=>"<var:image>");
+my @var_img = (image=>"<var:image:''>");
 my @req_small = (req_mem=>"100Mi",req_cpu=>"250m");
 my @req_big = (req_mem=>"10Gi",req_cpu=>"1000m");
 
