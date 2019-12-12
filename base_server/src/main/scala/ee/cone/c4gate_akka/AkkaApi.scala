@@ -8,7 +8,6 @@ trait AkkaMat {
   def get: Future[ActorMaterializer]
 }
 trait C4AkkaHandler[-Income, +Outcome]{
-  def shouldHandle(income: Income): Boolean
   def handleAsync(
     income: Income,
     akkaMat: AkkaMat,
@@ -18,3 +17,9 @@ trait C4AkkaHandler[-Income, +Outcome]{
 }
 trait AkkaResponseHandler extends C4AkkaHandler[ee.cone.c4gate.HttpProtocolBase.S_HttpResponse, akka.http.scaladsl.model.HttpResponse]
 trait AkkaRequestHandler extends C4AkkaHandler[akka.http.scaladsl.model.HttpRequest, akka.http.scaladsl.model.HttpRequest]
+trait AkkaResponseHandlerProvider{
+  def get: AkkaResponseHandler
+}
+trait AkkaRequestHandlerProvider{
+  def get: AkkaRequestHandler
+}

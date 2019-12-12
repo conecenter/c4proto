@@ -3,14 +3,14 @@ package ee.cone.c4gate_akka
 
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.headers.{RawHeader, `Content-Type`}
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.headers.{RawHeader, `Content-Type`}
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.stream.{ActorMaterializer, Materializer, OverflowStrategy}
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.{Config, Executable, Execution, Observer}
 import ee.cone.c4assemble.Single
-import ee.cone.c4di.{c4, provide}
+import ee.cone.c4di.c4
 import ee.cone.c4gate.HttpProtocolBase.N_Header
 import ee.cone.c4gate_server._
 import ee.cone.c4proto.ToByteString
@@ -26,21 +26,24 @@ import scala.util.control.NonFatal
     matPromise.success(ActorMaterializer.create(system))
   }
 }
-case class AkkaRequestResponsePreHandlers(
-  defaultResponseHandler: AkkaResponseHandler,
-  defaultRequestHandler: AkkaRequestHandler,
-  additionalResponseHandlers: List[AkkaResponseHandler] = Nil,
-  additionalRequestHandlers: List[AkkaRequestHandler] = Nil,
-)
+
+@c4("AkkaGatewayApp") class AkkaDefaultRequestHandlerProvider extends AkkaRequestHandlerProvider{
+  def get: AkkaRequestHandler = AkkaDefaultRequestHandler
+}
+@c4("AkkaGatewayApp") class AkkaDefaultResponseHandlerProvider extends AkkaResponseHandlerProvider {
+  def get: AkkaResponseHandler =
+    new AkkaRedirectResponseHandler(AkkaDefaultResponseHandler)
+}
 @c4("AkkaGatewayApp") class AkkaHttpServer(
   config: Config, handler: FHttpHandler, execution: Execution, akkaMat: AkkaMat,
-  preHandlers: AkkaRequestResponseHandlerProvider,
+  requestPreHandlerProvider: AkkaRequestHandlerProvider,
+  responsePreHandlerProvider: AkkaResponseHandlerProvider,
 )(
   port: Int = config.get("C4HTTP_PORT").toInt
 ) extends Executable with LazyLogging {
-  private lazy val handlers = preHandlers.get
-  import handlers._
-  def getHandler(mat: Materializer)(implicit ec: ExecutionContext): HttpRequest=>Future[HttpResponse] = req => {
+  private lazy val requestPreHandler: AkkaRequestHandler = requestPreHandlerProvider.get
+  private lazy val responsePreHandler: AkkaResponseHandler = responsePreHandlerProvider.get
+  def getHandler(mat: Materializer)(implicit ec: ExecutionContext): HttpRequest => Future[HttpResponse] = req => {
     val method = req.method.value
     val path = req.uri.path.toString
     val rHeaders = (`Content-Type`(req.entity.contentType) :: req.headers.toList)
@@ -48,18 +51,12 @@ case class AkkaRequestResponsePreHandlers(
     logger.debug(s"req init: $method $path")
     logger.trace(s"req headers: $rHeaders")
     (for {
-      request <- additionalRequestHandlers
-        .find(_.shouldHandle(req))
-        .getOrElse(defaultRequestHandler)
-        .handleAsync(req, akkaMat)
-      entity <- request.entity.toStrict(Duration(5,MINUTES))(mat)
+      request <- requestPreHandler.handleAsync(req, akkaMat)
+      entity <- request.entity.toStrict(Duration(5, MINUTES))(mat)
       body = ToByteString(entity.getData.toArray)
       rReq = FHttpRequest(method, path, rHeaders, body)
       rResp <- handler.handle(rReq)
-      response <- additionalResponseHandlers
-        .find(_.shouldHandle(rResp))
-        .getOrElse(defaultResponseHandler)
-        .handleAsync(rResp, akkaMat)
+      response <- responsePreHandler.handleAsync(rResp, akkaMat)
     } yield response).recover{ case NonFatal(e) =>
         logger.error("http-handler",e)
         throw e
@@ -80,33 +77,36 @@ case class AkkaRequestResponsePreHandlers(
   }
 }
 
-object AkkaRedirectResponseHandler
-  extends AkkaResponseHandler with LazyLogging {
-  val headername = "redirect-inner"
-  def shouldHandle(
-    httpResponse: ee.cone.c4gate.HttpProtocolBase.S_HttpResponse
-  ): Boolean = httpResponse.headers.exists {
-    case N_Header(`headername`, _) => true
-    case _ => false
-  }
+class AkkaRedirectResponseHandler(
+  nextHandler: AkkaResponseHandler,
+) extends AkkaResponseHandler with LazyLogging {
+  val headername: String = "redirect-inner"
   def handleAsync(
     income: ee.cone.c4gate.HttpProtocolBase.S_HttpResponse,
     akkaMat: AkkaMat,
   )(
     implicit ec: ExecutionContext,
-  ): Future[HttpResponse] = income.headers.collectFirst {
-    case N_Header(`headername`, uri) =>
-      for {
-        materializer <- akkaMat.get
-        actorsys = materializer.system
-        _ = logger debug s"Redirecting resp with id=${income.srcId} to $uri"
-        response <- Http(actorsys).singleRequest(HttpRequest(uri = uri))
-        _ = logger debug "Redirect successful"
-      } yield response
-  }.getOrElse(Future.failed(new Exception("akka-redirect-response-handler-failure")))
+  ): Future[HttpResponse] = income match {
+    case response if response.headers.exists(_.key equalsIgnoreCase headername) =>
+      income.headers.collectFirst {
+        case N_Header(`headername`, uri) =>
+          for {
+            materializer <- akkaMat.get
+            actorsys = materializer.system
+            _ = logger debug s"Redirecting resp with id=${income.srcId} to $uri"
+            response <- Http(actorsys).singleRequest(HttpRequest(uri = uri))
+            _ = logger debug "Redirect successful"
+          } yield response
+      }.getOrElse(
+        Future.failed(
+          new Exception("akka-redirect-response-handler-failure")
+        )
+      )
+    case _ =>
+      nextHandler.handleAsync(income, akkaMat)
+  }
 }
 object AkkaDefaultResponseHandler extends AkkaResponseHandler with LazyLogging {
-  def shouldHandle(httpResponse: ee.cone.c4gate.HttpProtocolBase.S_HttpResponse): Boolean = true
   def handleAsync(
     income: ee.cone.c4gate.HttpProtocolBase.S_HttpResponse,
     akkaMat: AkkaMat,
@@ -125,52 +125,11 @@ object AkkaDefaultResponseHandler extends AkkaResponseHandler with LazyLogging {
   }
 }
 object AkkaDefaultRequestHandler extends AkkaRequestHandler with LazyLogging {
-  def shouldHandle(income: HttpRequest): Boolean = true
   def handleAsync(
     income: HttpRequest, akkaMat: AkkaMat
   )(
     implicit ec: ExecutionContext
   ): Future[HttpRequest] = Future successful income
-}
-
-/*trait WithAkkaDefaultRequestHandler {
-  def defaultRequestHandler: AkkaRequestHandler
-}
-trait WithAkkaDefaultResponseHandler {
-  def defaultResponseHandler: AkkaResponseHandler
-}
-trait WithAkkaAdditionalRequestPrehandlers {
-  def additionalRequestHandlers: List[AkkaRequestHandler] = Nil
-}
-trait WithAkkaAdditionalResponsePrehandlers {
-  def additionalResponseHandlers: List[AkkaResponseHandler] = Nil
-}
-trait WithAkkaRequestResponsePrehandlers
-  extends WithAkkaDefaultRequestHandler
-    with WithAkkaDefaultResponseHandler
-    with WithAkkaAdditionalRequestPrehandlers
-    with WithAkkaAdditionalResponsePrehandlers {
-  def preHandlers: AkkaRequestResponsePreHandlers = AkkaRequestResponsePreHandlers(
-    defaultRequestHandler = defaultRequestHandler,
-    defaultResponseHandler = defaultResponseHandler,
-    additionalResponseHandlers = additionalResponseHandlers,
-    additionalRequestHandlers = additionalRequestHandlers,
-  )
-
-}*/
-trait AkkaRequestResponseHandlerProvider {
-  def get:AkkaRequestResponsePreHandlers
-}
-@c4("AkkaGatewayApp") class WithAkkaDefaultPreHandlers
-  extends AkkaRequestResponseHandlerProvider {
-
-  def get: AkkaRequestResponsePreHandlers = AkkaRequestResponsePreHandlers(
-    defaultRequestHandler = AkkaDefaultRequestHandler,
-    defaultResponseHandler = AkkaDefaultResponseHandler,
-    additionalResponseHandlers = additionalResponseHandlers,
-    additionalRequestHandlers = Nil,
-  )
-  def additionalResponseHandlers: List[AkkaResponseHandler] = AkkaRedirectResponseHandler :: Nil
 }
 class AkkaStatefulReceiver[Message](ref: ActorRef) extends StatefulReceiver[Message] {
   def send(message: Message): Unit = ref ! message
