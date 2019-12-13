@@ -5,13 +5,14 @@
 
 //C4GENERATOR_MAIN ee.cone.c4generator.Main generator.ee.cone.c4generator
 
-//C4GROUP generator generator/src/main
-//C4GROUP base_lib base_lib/src/main
-//C4GROUP base_server base_server/src/main
-//C4GROUP base_examples base_examples/src/main
-//C4GROUP extra_lib extra_lib/src/main
-//C4GROUP extra_examples extra_examples/src/main
-
+//C4SRC generator generator/src/main/scala
+//C4SRC base_lib base_lib/src/main/scala
+//C4SRC base_lib base_lib/src/main/java
+//C4SRC base_server base_server/src/main/scala
+//C4SRC base_examples base_examples/src/main/scala
+//C4SRC extra_lib extra_lib/src/main/scala
+//C4SRC extra_lib extra_lib/src/main/java
+//C4SRC extra_examples extra_examples/src/main/scala
 
 //C4EXT generator.ee.cone.c4generator org.scalameta:scalameta_2.13:4.2.3
 //C4EXT base_lib.ee.cone.c4actor com.typesafe.scala-logging:scala-logging_2.13:3.9.2

@@ -82,7 +82,7 @@ my $calc_bloop_conf = sub{
     my %external_to_jars =
         map{ ($$_{coord}=>[map{$$_{file}} $_,@resolved_by_name{@{$$_{dependencies}||die}}]) }
         values %resolved_by_name;
-    my %mod_group_path_by_name = map{($$_{from}=>$$_{to})} &$dep_conf("C4GROUP");
+    my ($mod_group_path_by_name) = &$group(map{[$$_{from},$$_{to}]} &$dep_conf("C4SRC"));
     my $conf_by_name = &$lazy_dict(sub{
         my($k,$get)=@_;
         my @local_dependencies = &$int_dep_by_from($k);
@@ -93,10 +93,7 @@ my $calc_bloop_conf = sub{
         );
         my ($mod_gr,@pkg_parts) = $k=~/(\w+)/g;
         my $pkg_path = join "/", @pkg_parts;
-        my $mod_group_path = $mod_group_path_by_name{$mod_gr} || die "missing mod group: $mod_gr";
-        my @sources = grep{-e}
-            "$dir/$mod_group_path/scala/$pkg_path",
-            "$dir/$mod_group_path/java/$pkg_path";
+        my @sources = grep{-e} map{"$dir/$_/$pkg_path"} &$mod_group_path_by_name($mod_gr);
         #todo resources back to scala
         my $setup_scala_compiler = 1;
         my $project = {
@@ -156,7 +153,7 @@ my $tmp = "$src_dir/.bloop/c4";
 my $dep_content = &$cat(sort <$src_dir/*.c4dep>);
 
 my $dep_conf = &$parse_dependencies($dep_content);
-my @src_dirs = &$distinct(map{$$_{to}=~m"^(.+/src)/main$"?"$1":()} &$dep_conf("C4GROUP"));
+my @src_dirs = &$distinct(map{$$_{to}} &$dep_conf("C4SRC"));
 my $gen_mod = &$single(&$dep_conf("C4GENERATOR_MAIN"))->{to}||die;
 #
 &$if_changed("$tmp/bloop-conf-in-sum",&$get_sum($dep_content), sub{
