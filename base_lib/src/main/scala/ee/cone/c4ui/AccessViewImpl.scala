@@ -4,9 +4,9 @@ import ee.cone.c4actor._
 import ee.cone.c4di.c4
 import ee.cone.c4vdom.{ChildPair, OfDiv}
 
-case object AccessViewsKey extends SharedComponentKey[Map[String,AccessView[_]]]
+case object AccessViewsKey extends SharedComponentKey[Map[String,HazyAccessView]]
 
-@c4("AccessViewApp") class InnerAccessViewRegistry(accessViews: List[AccessView[_]]) extends ToInject {
+@c4("AccessViewApp") class InnerAccessViewRegistry(accessViews: List[HazyAccessView]) extends ToInject {
   def toInject: List[Injectable] = AccessViewsKey.set(CheckedMap(accessViews.map(v => v.valueClass.getName -> v)))
 }
 

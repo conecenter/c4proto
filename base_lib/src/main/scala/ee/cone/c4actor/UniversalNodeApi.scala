@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import com.squareup.wire.{ProtoAdapter, ProtoWriter}
+import ee.cone.c4proto._
 
 trait UniversalNode {
   def props: List[UniversalProp]

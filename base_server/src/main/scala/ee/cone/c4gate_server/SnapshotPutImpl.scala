@@ -54,7 +54,7 @@ case class SnapshotPutTx(srcId: SrcId, requests: List[S_HttpRequest])(
   }
 }
 
-@c4assemble("SnapshotPutApp") class SnapshotPutAssembleBase(putter: SnapshotPutter, signatureChecker: Signer[List[String]], signedPostUtil: SignedReqUtil) {
+@c4assemble("SnapshotPutApp") class SnapshotPutAssembleBase(putter: SnapshotPutter, signatureChecker: SimpleSigner, signedPostUtil: SignedReqUtil) {
   type PuttingId = SrcId
 
   def needConsumer(

@@ -1,6 +1,5 @@
 package ee.cone.c4ui
 
-import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.QProtocol.N_TxRef
 import ee.cone.c4actor._
@@ -13,7 +12,7 @@ import ee.cone.c4gate.HttpProtocol.S_HttpPublication
 import ee.cone.c4ui.TestFilterProtocol.B_Content
 import ee.cone.c4di.{c4, provide}
 import ee.cone.c4gate.{SessionAttr, SessionAttrAccessFactory}
-import ee.cone.c4proto.{HasId, Id}
+import ee.cone.c4proto._
 import ee.cone.c4vdom.{ChildPair, OfDiv, Tags}
 import ee.cone.c4vdom.Types.ViewRes
 

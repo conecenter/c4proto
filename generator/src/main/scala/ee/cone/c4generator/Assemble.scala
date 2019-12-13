@@ -203,9 +203,9 @@ object AssembleGenerator extends Generator {
 
 
 
-    val (subAssembleWith,subAssembleDef) = (rules.collect{ case SubAssembleName(n) => n }.distinct) match {
-      case Seq() => ("","")
-      case s => (" with ee.cone.c4assemble.CallerAssemble",s.mkString(s"override def subAssembles = List(",",",") ::: super.subAssembles\n"))
+    val (subAssembleImp,subAssembleWith,subAssembleDef) = (rules.collect{ case SubAssembleName(n) => n }.distinct) match {
+      case Seq() => (Nil,"","")
+      case s => (GeneratedCode("import ee.cone.c4assemble.CallerAssemble")::Nil, " with CallerAssemble", s.mkString(s"override def subAssembles = List(",",",") ::: super.subAssembles\n"))
     }
 
     val paramNames = cl.params.map(params=>params.map{
@@ -218,7 +218,7 @@ object AssembleGenerator extends Generator {
     val res = q"""class ${Type.Name(className)} [..${cl.typeParams}] (...$paramNamesWithTypes)"""
 
     //cont.substring(0,className.pos.end) + "_Base" + cont.substring(className.pos.end) +
-    GeneratedCode(
+    subAssembleImp ::: GeneratedCode(
       s"$c4ann ${res.syntax} extends ${cl.name}$paramNames with Assemble$subAssembleWith " +
       s"{\n$statRules$joinImpl$dataDependencies$subAssembleDef}"
     ) :: Nil // :: components
