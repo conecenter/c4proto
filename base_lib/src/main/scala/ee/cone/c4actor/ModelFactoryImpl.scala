@@ -5,13 +5,13 @@ import ee.cone.c4di.c4
 import ee.cone.c4proto._
 
 @c4("RichDataCompApp") class ModelFactoryImpl(
-  defaultModelInitializers: List[HazyDefaultModelInitializer],
+  defaultModelInitializers: List[GeneralDefaultModelInitializer],
   qAdapterRegistry: QAdapterRegistry,
   universalProtoAdapter: ProtoAdapter[UniversalNode],
   srcIdAdapter: ProtoAdapter[SrcId],
   universalNodeFactory: UniversalNodeFactory
 )(
-  val reg: Map[String,HazyDefaultModelInitializer] =
+  val reg: Map[String,GeneralDefaultModelInitializer] =
     CheckedMap(defaultModelInitializers.map(f=>f.valueClass.getName->f))
 ) extends ModelFactory {
   import universalNodeFactory._

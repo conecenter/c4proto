@@ -5,10 +5,10 @@ import ee.cone.c4proto._
 
 import scala.collection.immutable.Map
 
-abstract class HazyDefaultArgument {
+abstract class GeneralDefaultArgument {
   def value: Any
 }
-abstract class DefaultArgument[Value](val value: Value) extends HazyDefaultArgument
+abstract class DefaultArgument[Value](val value: Value) extends GeneralDefaultArgument
 abstract class ArgAdapterFactory(val key: TypeKey, val wrap: (()=>ProtoAdapter[Any])=>ArgAdapter[_])
 abstract class LazyArgAdapterFactory(val key: TypeKey, val wrap: (()=>ProtoAdapter[Any])=>ArgAdapter[_])
 

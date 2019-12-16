@@ -10,8 +10,8 @@ trait ModelFactory {
   protected def process[P<:Product](className: String, basedOn: Option[P], srcId: SrcId): P
 }
 
-abstract class HazyDefaultModelInitializer(val valueClass: Class[_], specInit: Nothing=>Any) {
+abstract class GeneralDefaultModelInitializer(val valueClass: Class[_], specInit: Nothing=>Any) {
   def init[T](value: T): T = specInit.asInstanceOf[T=>T](value)
 }
-abstract class DefaultModelInitializer[P](valueClass: Class[P], init: P=>P) extends HazyDefaultModelInitializer(valueClass,init)
+abstract class DefaultModelInitializer[P](valueClass: Class[P], init: P=>P) extends GeneralDefaultModelInitializer(valueClass,init)
 
