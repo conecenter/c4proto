@@ -1245,10 +1245,10 @@ push @tasks, ["ci_build_head_tcp","",sub{ # <host>:<port> <req> <dir|commit> [pa
 push @tasks, ["ci_build_inner","",sub{ #to call from Dockerfile
     my($from_dir,$gen_dir)=@_;
     my $base = $ENV{C4CI_BASE_TAG} || die;
-    do{
-        local $ENV{C4BUILD_COMPILE_CMD} = "sh .bloop/c4/tag.$base.compile";
-        sy("bloop server & (perl $from_dir/sync.pl $from_dir $gen_dir '' 'perl build.pl')");
-    };
+    &$start("bloop server");
+    sy("perl $dir/sync.pl start $from_dir $gen_dir 0");
+    sy("cd $gen_dir && perl build.pl");
+    sy("cd $gen_dir && sh .bloop/c4/tag.$base.compile");
     my $ctx_dir = "/c4/res";
     -e $ctx_dir and sy("rm -r $ctx_dir");
     sy("mkdir $ctx_dir");

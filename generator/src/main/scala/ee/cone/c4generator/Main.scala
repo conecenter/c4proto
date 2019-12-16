@@ -12,9 +12,9 @@ object Main {
   def defaultGenerators: List[Generator] = List(ImportGenerator,AssembleGenerator,ProtocolGenerator,FieldAccessGenerator,AppGenerator) //,UnBaseGenerator
   def main(args: Array[String]): Unit = new RootGenerator(defaultGenerators).run()
   def toPrefix = "c4gen."
-  def env(key: String): String = Option(System.getenv(key)).getOrElse(s"missing env $key")
-  def version: String = s"-w${env("C4GENERATOR_VER")}"
-  def rootPath = Paths.get(env("C4GENERATOR_PATH"))
+  def env(key: String): Option[String] = Option(System.getenv(key))
+  def version: String = s"-w${env("C4GENERATOR_VER").getOrElse(throw new Exception(s"missing env C4GENERATOR_VER"))}"
+  def rootPath = Paths.get(env("C4GENERATOR_PATH").getOrElse(throw new Exception(s"missing env C4GENERATOR_PATH")))
 }
 import Main.{toPrefix,rootPath,version}
 
@@ -233,30 +233,19 @@ object Util {
     inner
   }
 
-  private val getPkgRootPath: Path => Option[Path] = Util.matchThisOrParent { path =>
-    val parent = path.getParent
-    parent.getFileName.toString == "main" &&
-      parent.getParent.getFileName.toString == "src"
-  }
+  def pkgInfo(pkgRootPath: Path, path: Path): Option[PkgInfo] =
+    if(path.startsWith(pkgRootPath)){
+      val pkgPath = pkgRootPath.relativize(path)
+      val pkgName = pkgPath.iterator.asScala.mkString(".")
+      Option(PkgInfo(pkgPath,pkgName))
+    } else None
 
-  def pkgInfo(path: Path): PkgInfo = {
-    val pkgRootPath = getPkgRootPath(path).get
-    //val basePath = scalaPath.getParent
-    val pkgPath = pkgRootPath.relativize(path)
-    val pkgName = pkgPath.iterator.asScala.mkString(".")
-    val mainPath = pkgRootPath.getParent
-    val modName = s"${mainPath.getFileName}.$pkgName"
-    PkgInfo(mainPath,pkgPath,pkgName,modName)
-  }
+
 
   def toBinFileList(in: Iterable[(Path,List[String])]): List[(Path,Array[Byte])] =
     in.map{ case (path,lines) => path->lines.mkString("\n").getBytes(UTF_8) }.toList.sortBy(_._1)
 }
-case class PkgInfo(mainPath: Path, pkgPath: Path, pkgName: String, modName: String){
-  def resolve(tp: String): Path = mainPath.resolve(tp).resolve(pkgPath)
-  def link(tp: String): String = s"mod/${modName}/src/main/$tp ${resolve(tp)}"
-}
-
+case class PkgInfo(pkgPath: Path, pkgName: String)
 class ParsedClass(
   val mods: List[Mod], val nameNode: Type.Name, val name: String,
   val typeParams: List[Type.Param], val params: List[List[Term.Param]],
@@ -301,23 +290,31 @@ object Lint {
 case class PublicPathRoot(pkgInfo: PkgInfo, genPath: Path, publicPath: Path)
 class PublicPathsGenerator extends WillGenerator {
   def get(ctx: WillGeneratorContext): List[(Path, Array[Byte])] = {
+    val mainScalaPathOpt = Main.env("C4GENERATOR_MAIN_SCALA_PATH").map(Paths.get(_))
+    val mainPublicPathOpt = Main.env("C4GENERATOR_MAIN_PUBLIC_PATH").map(Paths.get(_))
     val roots: List[PublicPathRoot] = for {
+      mainScalaPath <- mainScalaPathOpt.toList
+      mainPublicPath <- mainPublicPathOpt.toList
       path <- ctx.fromFiles.filter(_.getFileName.toString == "ht.scala")
+      pkgInfo <- Util.pkgInfo(mainScalaPath,path.getParent)
     } yield {
-      val pkgInfo = Util.pkgInfo(path.getParent)
       val genPath = path.resolveSibling("c4gen.htdocs.scala")
-      val publicPath = pkgInfo.resolve("htdocs")
+      val publicPath = mainPublicPath.resolve(pkgInfo.pkgPath)
       PublicPathRoot(pkgInfo,genPath,publicPath)
     }
     val isModRoot = roots.map(_.publicPath).toSet
     val toModRoot = Util.matchThisOrParent(isModRoot)
     val pathByRoot = ctx.fromFiles.groupBy(toModRoot)
     val RefOk = """([\w\-\./]+)""".r
-    val links = roots.groupMap(_.pkgInfo.mainPath.resolve("c4gen.ht.links"))(_.pkgInfo.link("htdocs"))
+    val links = mainPublicPathOpt.map{ mainPublicPath =>
+      mainPublicPath.resolve("c4gen.ht.links") -> roots.map{ r =>
+        s"${r.pkgInfo.pkgName} ${r.publicPath}"
+      }
+    }
     val code = roots.map { (root:PublicPathRoot) =>
       val defs = pathByRoot.getOrElse(Option(root.publicPath),Nil)
         .map(root.publicPath.relativize(_).toString).map{
-          case RefOk(r) => s"""    def `/$r` = "/mod/${root.pkgInfo.modName}/$r" """
+          case RefOk(r) => s"""    def `/$r` = "/mod/${root.pkgInfo.pkgName}/$r" """
         }
       val lines = if(defs.isEmpty) Nil else
         "/** THIS FILE IS GENERATED; CHANGES WILL BE LOST **/" ::
@@ -331,32 +328,15 @@ class PublicPathsGenerator extends WillGenerator {
 
 class ModRootsGenerator extends WillGenerator {
   def get(ctx: WillGeneratorContext): List[(Path, Array[Byte])] = {
-    def dSorted(path: Path, l: Iterable[String]): List[String] =
-      l.toList.distinct.sorted
-
-    val javaLinks: Map[Path, List[String]] = ctx.fromFiles
-      .filter(_.getFileName.toString.endsWith(".java"))
-      .map(_.getParent).map(Util.pkgInfo)
-      .groupMap(_.mainPath.resolve("c4gen.java.links")){ pkgInfo =>
-        val dirWithScala = pkgInfo.resolve("scala")
-        assert(ctx.dirToModDir(dirWithScala).path==dirWithScala)
-        pkgInfo.link("java")
-      }.transform(dSorted)
-
-    val modDirChecks: Map[Path, List[String]] = ctx.dirToModDir.values
-      .filter(_.removed.nonEmpty)
-      .groupMap(pp=>Util.pkgInfo(pp.path).mainPath.resolve("c4gen.mod_dirs_check"))(_.removed.mkString("/"))
-      .transform(dSorted)
-
-    val scalaLinks: Map[Path, List[String]] = ctx.dirToModDir.values
-      .map(pp=>Util.pkgInfo(pp.path))
-      .groupMap(_.mainPath.resolve("c4gen.scala.links")){ pkgInfo =>
-        if(pkgInfo.pkgName.contains("._"))
-          throw new Exception(s"unclear name: ${pkgInfo.pkgName}; create dummy *.scala file or remove '_' prefix")
-        pkgInfo.link("scala")
-      }.transform(dSorted)
-
-    List(modDirChecks,javaLinks,scalaLinks).flatMap(Util.toBinFileList)
+    for {
+      mainScalaPath <- Main.env("C4GENERATOR_MAIN_SCALA_PATH").map(Paths.get(_)).toList
+      pp <- ctx.dirToModDir.values
+      pkgInfo <- Util.pkgInfo(mainScalaPath,pp.path)
+    } {
+      assert(!pkgInfo.pkgName.contains("._"),s"unclear name: ${pkgInfo.pkgName}; create dummy *.scala file or remove '_' prefix")
+      assert(pp.removed.isEmpty || pp.removed.head.startsWith("_"), s"bad sub: $pp")
+    }
+    Nil
   }
 }
 

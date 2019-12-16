@@ -1,4 +1,6 @@
 
+//C4INC all.c4dep
+
 //C4TAG def base_server.ee.cone.c4gate_akka.AkkaGatewayApp
 //C4TAG all extra_examples.aggregate.XXX
 //C4TAG test-consumer base_examples.ee.cone.c4gate.TestConsumerApp

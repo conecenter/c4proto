@@ -11,9 +11,12 @@ my $put_text = sub{
     my($fn,$content)=@_;
     open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
 };
-my $cat = sub{
-    my $args = join " ", grep{-e} @_;
-    $args ? syf("cat $args") : ""
+my $get_text = sub{
+    my($path)=@_;
+    open FF,"<:encoding(UTF-8)",$path or die "get_text: $path";
+    my $res = join"",<FF>;
+    close FF or die;
+    $res;
 };
 my $find_files = sub{
     my $from = join(" ", @_)||die;
@@ -36,7 +39,7 @@ my $lazy_dict = sub{
 };
 my $if_changed = sub{
     my($path,$will,$then)=@_;
-    return if &$cat($path) eq $will;
+    return if (-e $path) && &$get_text($path) eq $will;
     print "rebuild started for $path\n";
     my $from = Time::HiRes::time;
     &$then();
@@ -62,13 +65,16 @@ my $parse_dependencies = sub{
     $dep_conf;
 };
 my $calc_bloop_conf = sub{
-    my($dir,$tmp,$dep_conf,$coursier_out) = @_;
+    my($dir,$tmp,$dep_conf,$coursier_out,$src_list) = @_;
+    my %dir_exists = map{m"(.+)/[^/]+$"?("$1"=>1):die} $src_list=~/([^\n]+)/g;
     my @mod_names = &$distinct(
         (map{($$_{from},$$_{to})} &$dep_conf("C4DEP")),
         (map{$$_{from}} &$dep_conf("C4EXT")),
+        (map{$$_{from}} &$dep_conf("C4LIB")),
     );
     my ($ext_dep_by_from) = &$group(map{[$$_{from},$$_{to}]} &$dep_conf("C4EXT"));
     my ($int_dep_by_from) = &$group(map{[$$_{from},$$_{to}]} &$dep_conf("C4DEP"));
+    my ($lib_dep_by_from) = &$group(map{[$$_{from},$$_{to}]} &$dep_conf("C4LIB"));
     my @resolved = @{$$coursier_out{dependencies}||die};
     my %resolved_by_name = map{($$_{coord}=>$_)} @resolved;
     my %scala_jars = map{m"/scala-(\w+)-[^/]*\.jar$"?("$1"=>$_):()} map{$$_{file}} @resolved;
@@ -89,12 +95,13 @@ my $calc_bloop_conf = sub{
         my @classpath = &$distinct(
             ($scala_jars{library}||die),
             (map{@$_}@external_to_jars{&$ext_dep_by_from($k)}),
+            (map{"$dir/$_"} &$lib_dep_by_from($k)),
             (map{&$bloop_conf_to_classpath($_)} map{&$get($_)} @local_dependencies),
         );
         my ($mod_gr,@pkg_parts) = $k=~/(\w+)/g;
         my $pkg_path = join "/", @pkg_parts;
-        my @sources = grep{-e} map{"$dir/$_/$pkg_path"} &$mod_group_path_by_name($mod_gr);
-        #todo resources back to scala
+        my @sources = grep{$dir_exists{$_}}
+            map{"$dir/$_/$pkg_path"} &$mod_group_path_by_name($mod_gr);
         my $setup_scala_compiler = 1;
         my $project = {
             "name" => $k,
@@ -147,32 +154,105 @@ my $calc_sbt_conf = sub{
         (map{qq^  (baseDirectory.value / "$_") ::^} sort @$src_dirs),
         "  Nil";
 };
-#
+### AutoMixer
+my $read = sub{map{+{fn=>$_,content=>&$get_text($_)}}@_};
+my $get_gen_tasks = sub{
+    my ($was_arg,$will_arg)=@_;
+    my ($will_by_fn,$will_list) = &$group(map{[$$_{fn},$$_{content}]}@$will_arg);
+    my ($was_by_fn,$was_list) = &$group(map{[$$_{fn},$$_{content}]}@$was_arg);
+    map{
+        my @was = &$was_by_fn($_);
+        my @will = &$will_by_fn($_);
+        @was==1 && @will==1 && $was[0] eq $will[0] ? () : [$_,@will]
+    } &$distinct(@$was_list,@$will_list);
+};
+my $apply_gen_tasks = sub{
+    for(@_){
+        if(@$_==1){
+            print "deleting $$_[0]\n";
+            unlink $$_[0] or die $$_[0];
+        } elsif(@$_==2) {
+            print "putting $$_[0]\n";
+            &$put_text(@$_);
+        }
+    }
+};
+my $apply_will = sub{
+    my($by,$fns,$gr,$will)=@_;
+    my @was = &$read(grep{&$by() eq $gr} @$fns);
+    die @$_ for map{&$by() eq $gr ? ():[$gr,$_]} map{$$_{fn}} @$will;
+    &$apply_gen_tasks(&$get_gen_tasks(\@was,$will));
+};
+my $to_parent = sub{ map{ m{^(.+)/[^/]+$} ? ("$1"):() } @_ };
+my $gen_app_traits = sub{
+    my($src_dir,$fns,$relations)=@_;
+    #read
+    my @index_scala = &$read(grep{m^/c4gen\.scala^}@$fns);
+    #calc
+    my ($dep) = &$group(map{[$$_{from},$$_{to}]}@$relations);
+    my ($def_app_by_mod_dir) = &$group(map{
+        my @apps = $$_{content}=~/\bpackage\s+(\S+).*\ntrait\s+(\w+DefApp)\s/s ?"$1.$2":();
+        map{ my $d = $_; map{ [$d,$_] } @apps } &$to_parent($$_{fn});
+    } @index_scala);
+    my $mod_data = &$lazy_dict(sub{
+        my($k,$get)=@_;
+        #print "mod: $_\n";
+        my @deps = map{&$get($_)} &$dep($k);
+        my ($main,@parts) = $k=~/(\w+)/g;
+        my $infix = join "/", @parts;
+        my $dir = "$src_dir/src/main/scala/$infix";
+        my $def_app = join " with ", &$def_app_by_mod_dir($dir);
+        my $has_deep_components = $def_app || @deps;
+        return () if !$has_deep_components;
+        $main eq 'main' || die;
+        my $pkg = join ".", @parts;
+        my $id = join "", map{ucfirst($_)} map{/([^_]+)/g} @parts;
+        my $fn = "$dir/c4gen-base.scala";
+        my $comp_content = $def_app ? "(new $def_app {}).components":"Nil";
+        my $content = join "\n",
+            "package $pkg",
+            "object ${id}AutoMixer extends ee.cone.c4di.AutoMixer(",
+            "  $comp_content,",
+            (map{"  $$_{stm} ::"} @deps),
+            "  Nil",
+            ")";
+        (+{stm=>"$pkg.${id}AutoMixer",fn=>$fn,content=>$content});
+    });
+    map{&$mod_data($_)} &$distinct(map{($$_{from},$$_{to})}@$relations);
+};
+
+###
 my $src_dir = syf("pwd")=~/^(\S+)\s*$/ ? $1 : die;
 my $tmp = "$src_dir/.bloop/c4";
-my $dep_content = &$cat(sort <$src_dir/*.c4dep>);
+my $load_dep; $load_dep = sub{
+    my $res = &$get_text("$src_dir/$_[0]");
+    ($res, map{&$load_dep($_)} "\n$res"=~m"\n//C4INC\s+(.+)"g);
+};
+my $dep_content = join"\n", &$distinct(&$load_dep("main.c4dep"));
 
 my $dep_conf = &$parse_dependencies($dep_content);
 my @src_dirs = &$distinct(map{$$_{to}} &$dep_conf("C4SRC"));
+my @pub_dirs = &$distinct(map{$$_{to}} &$dep_conf("C4PUB"));
 my $gen_mod = &$single(&$dep_conf("C4GENERATOR_MAIN"))->{to}||die;
+my $src_list = join"\n", grep{!m"/c4gen-[^/]+$"} &$find_files(map{"$src_dir/$_"}@src_dirs,@pub_dirs);
 #
-&$if_changed("$tmp/bloop-conf-in-sum",&$get_sum($dep_content), sub{
+&$if_changed("$tmp/bloop-conf-in-sum",&$get_sum("$dep_content\n$src_list"), sub{
     my $externals = [&$distinct(map{$$_{to}} &$dep_conf("C4EXT"))];
     my $dependencies_args = join " ",sort @$externals;
     my $coursier_out_path = &$need_path("$tmp/coursier-out.json");
     &$if_changed("$tmp/coursier-in-sum",&$get_sum($dependencies_args), sub{
         sy("coursier fetch -j $coursier_out_path $dependencies_args");
     });
-    my $coursier_out = &$json()->decode(&$cat($coursier_out_path));
-    my ($bloop_will,$src_dirs_by_name) = &$calc_bloop_conf($src_dir,$tmp,$dep_conf,$coursier_out);
+    my $coursier_out = &$json()->decode(&$get_text($coursier_out_path));
+    my ($bloop_will,$src_dirs_by_name) = &$calc_bloop_conf($src_dir,$tmp,$dep_conf,$coursier_out,$src_list);
     &$put_text(&$need_path($$_{fn}),$$_{content}) for @$bloop_will;
     &$put_text(&$need_path("$tmp/generator-src-dirs"), join " ", &$src_dirs_by_name($gen_mod));
     &$put_text("$src_dir/c4gen-generator.sbt", &$calc_sbt_conf(\@src_dirs,$externals));
 });
 #
-&$put_text(&$need_path("$tmp/gen/src"),join"\n", grep{!m"/c4gen-[^/]+$"} &$find_files(map{"$src_dir/$_"}@src_dirs));
+&$put_text(&$need_path("$tmp/gen/src"),$src_list);
 #
-my $sum = &$get_sum(&$cat(grep{/\.scala$/} &$find_files(&$cat("$tmp/generator-src-dirs")=~/(\S+)/g)));
+my $sum = &$get_sum(join"\n",map{&$get_text($_)} sort grep{/\.scala$/} &$find_files(&$get_text("$tmp/generator-src-dirs")=~/(\S+)/g));
 &$if_changed("$tmp/generator-src-sum",$sum,sub{
     sy("cd $src_dir && bloop compile $gen_mod");
 });
@@ -180,4 +260,9 @@ print "generation starting\n";
 my $main = &$single(&$dep_conf("C4GENERATOR_MAIN"))->{from}||die;
 sy(". $tmp/mod.$gen_mod.classpath.sh && C4GENERATOR_VER=$sum C4GENERATOR_PATH=$tmp/gen java $main");
 print "generation finished\n";
-
+print "generating code with perl\n";
+my $by = sub{ m^/c4gen-base\b^ ? "ft-c4gen-base" : "ft-other" };
+my @src_fns = &$find_files(map{"$src_dir/$_"}@src_dirs);
+my @app_traits_will = &$gen_app_traits($src_dir,\@src_fns,[&$dep_conf("C4DEP")]); #after scalameta
+&$apply_will($by,\@src_fns,"ft-c4gen-base",[@app_traits_will]);
+print "generation finished\n";
