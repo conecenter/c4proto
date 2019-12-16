@@ -174,7 +174,7 @@ $c4ann class ${cl.name}ProtoAdapter(
     if(traitIllegal.nonEmpty) throw new Exception(s"can not extend from non-local traits $traitIllegal")
     //
     val classLinks =
-      for(cl <- classes; pf <- List("","_E0","_E1"))
+      for(cl <- classes; pf <- List("","_E0","_E1","_E2"))
         yield s"link${cl.name}ProtoAdapter$pf"
     val traitLinks =
       for(nm <- traitDefSeq; pf <- List("","_DgetProtoAdapter","_DgetHasId")) //
