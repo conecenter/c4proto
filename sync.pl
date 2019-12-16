@@ -36,15 +36,19 @@ my $sync = sub{
     print Time::HiRes::time()-$tm," for rsync\n";
 };
 
-my $filter = sub{grep{m{\bc4gen\b}}@_};
+my $filter = sub{
+    my($need_generated,$l)=@_;
+    grep{(m{\bc4gen\b}?1:0)==$need_generated} @$l;
+};
 my $prune = [qw(target .git .idea .bloop)];
 
-my $port = $ENV{C4BUILD_PORT}-0;
 my $clean = $ENV{C4BUILD_CLEAN}-0;
-my $cmd = $ENV{C4BUILD_CMD};
 my $compile = $ENV{C4BUILD_COMPILE_CMD};
 my $dir = $ARGV[0] || die;
 my $remote_dir = $ARGV[1] || die;
+my $port = $ARGV[2] - 0;
+my $cmd = $ARGV[3];
+
 $port || $dir ne $remote_dir || die "from and to are the same $dir";
 
 my $ssh = $port ? "ssh -p$port" : "";
@@ -69,18 +73,16 @@ if($clean){
 -e $_ or mkdir $_ or die "$! -- $_" for "$dir/target";
 my @local_fns = &$find("","$dir/",$prune);
 &$sync($list_fn,$ssh,
-    $dir,[@local_fns],
-    $remote,[&$find($remote_pre,"$remote_dir/",$prune)]
+    $dir,[&$filter(0,\@local_fns)],
+    $remote,[&$filter(0,[&$find($remote_pre,"$remote_dir/",$prune)])]
 );
 sy("$remote_pre_q 'cd $remote_dir && sh' < $list_fn.rm");
 if($cmd){
     sy("$remote_pre_q '$init_env cd $remote_dir && $cmd'");
     &$sync($list_fn,$ssh,
-        $remote,[&$filter(&$find($remote_pre,"$remote_dir/",$prune))],
-        $dir,[&$filter(@local_fns)]
+        $remote,[&$filter(1,[&$find($remote_pre,"$remote_dir/",$prune)])],
+        $dir,[&$filter(1,\@local_fns)]
     );
     sy("cd $dir && sh < $list_fn.rm");
-}
-if($compile){
-    sy("$remote_pre_q '$init_env cd $remote_dir && $compile'");
+    sy("$remote_pre_q '$init_env cd $remote_dir && $compile'") if $compile;
 }

@@ -6,11 +6,9 @@ sub sy{ &so and die $? }
 
 my $build_some_server = sub{
     my($target)=@_;
-    print "C4BUILD_PORT: $ENV{C4BUILD_PORT}\n";
-    local $ENV{C4BUILD_CMD} = "perl build.pl";
     local $ENV{C4BUILD_COMPILE_CMD} = $target ? "sh .bloop/c4/tag.$target.compile" : "";
     my $dir = `pwd`=~/^(\S+)\s*$/ ? $1 : die;
-    sy("perl $dir/sync.pl $dir /c4/c4proto");
+    sy("perl $dir/sync.pl $dir /c4/c4proto '$ENV{C4BUILD_PORT}' 'perl build.pl' ");
 };
 
 my @tasks;
