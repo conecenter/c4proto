@@ -76,7 +76,7 @@ my $calc_bloop_conf = sub{
     my ($int_dep_by_from) = &$group(map{[$$_{from},$$_{to}]} &$dep_conf("C4DEP"));
     my ($lib_dep_by_from) = &$group(map{[$$_{from},$$_{to}]} &$dep_conf("C4LIB"));
     my @resolved = @{$$coursier_out{dependencies}||die};
-    my %resolved_by_name = map{($$_{coord}=>$_)} @resolved;
+    my %resolved_by_name = map{($$_{coord}=>$_)} grep{$_||die} @resolved;
     my %scala_jars = map{m"/scala-(\w+)-[^/]*\.jar$"?("$1"=>$_):()} map{$$_{file}} @resolved;
     my $scala = {
         "organization" => "org.scala-lang",
@@ -85,16 +85,19 @@ my $calc_bloop_conf = sub{
         "options" => [],
         "jars" => [grep{$_||die}@scala_jars{qw[library compiler reflect]}],
     };
-    my %external_to_jars =
-        map{ ($$_{coord}=>[map{$$_{file}} $_,@resolved_by_name{@{$$_{dependencies}||die}}]) }
-        values %resolved_by_name;
+    my %external_to_jars = map{ my $d = $_;
+        my @dep = grep{$_}
+            map{ $resolved_by_name{$_} || do{ print "dep ignored: $_\n"; undef } }
+            @{$$d{dependencies}||die};
+        ($$d{coord}=>[grep{$_} map{$$_{file}} $d, @dep]);
+    } values %resolved_by_name;
     my ($mod_group_path_by_name) = &$group(map{[$$_{from},$$_{to}]} &$dep_conf("C4SRC"));
     my $conf_by_name = &$lazy_dict(sub{
         my($k,$get)=@_;
         my @local_dependencies = &$int_dep_by_from($k);
         my @classpath = &$distinct(
             ($scala_jars{library}||die),
-            (map{@$_}@external_to_jars{&$ext_dep_by_from($k)}),
+            (map{@{$external_to_jars{$_}||die $_}}&$ext_dep_by_from($k)),
             (map{"$dir/$_"} &$lib_dep_by_from($k)),
             (map{&$bloop_conf_to_classpath($_)} map{&$get($_)} @local_dependencies),
         );
@@ -238,7 +241,8 @@ my $src_list = join"\n", grep{!m"/c4gen-[^/]+$"} &$find_files(map{"$src_dir/$_"}
 #
 &$if_changed("$tmp/bloop-conf-in-sum",&$get_sum("$dep_content\n$src_list"), sub{
     my $externals = [&$distinct(map{$$_{to}} &$dep_conf("C4EXT"))];
-    my $dependencies_args = join " ",sort @$externals;
+    my @repo_args = sort map{"-r $_"} &$distinct(map{$$_{to}} &$dep_conf("C4REPO"));
+    my $dependencies_args = join " ", @repo_args, sort @$externals;
     my $coursier_out_path = &$need_path("$tmp/coursier-out.json");
     &$if_changed("$tmp/coursier-in-sum",&$get_sum($dependencies_args), sub{
         sy("coursier fetch -j $coursier_out_path $dependencies_args");
@@ -257,8 +261,12 @@ my $sum = &$get_sum(join"\n",map{&$get_text($_)} sort grep{/\.scala$/} &$find_fi
     sy("cd $src_dir && bloop compile $gen_mod");
 });
 print "generation starting\n";
+my @main_scala = map{$$_{from} eq "main"?"C4GENERATOR_MAIN_SCALA_PATH=$src_dir/$$_{to}":()} &$dep_conf("C4SRC");
+my @main_public = map{$$_{from} eq "main"?"C4GENERATOR_MAIN_PUBLIC_PATH=$src_dir/$$_{to}":()} &$dep_conf("C4PUB");
+@main_scala<=1 && @main_public<=1 or die;
+my $main_paths = join " ",@main_scala,@main_public;
 my $main = &$single(&$dep_conf("C4GENERATOR_MAIN"))->{from}||die;
-sy(". $tmp/mod.$gen_mod.classpath.sh && C4GENERATOR_VER=$sum C4GENERATOR_PATH=$tmp/gen java $main");
+sy(". $tmp/mod.$gen_mod.classpath.sh && C4GENERATOR_VER=$sum C4GENERATOR_PATH=$tmp/gen $main_paths java $main");
 print "generation finished\n";
 print "generating code with perl\n";
 my $by = sub{ m^/c4gen-base\b^ ? "ft-c4gen-base" : "ft-other" };

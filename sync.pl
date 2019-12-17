@@ -25,7 +25,7 @@ my $to_rel = sub{
 
 my $find = sub{
     my($pre,$from,$prune)=@_;
-    my $cmd = $pre ? "$pre 'find $from'" : "find $from";
+    my $cmd = "${pre}find $from";
     my $prune_str = join'', map{" -o -name '$_' -prune"} @$prune;
     my %prune_h = map{($_=>1)} @$prune;
     map{ &$to_rel($from,$_)=~m{(.+/|)([^/]+)\n} && !$prune_h{$2} ? "$1$2" : () }
@@ -52,11 +52,8 @@ my $filter = sub{
 my $get_list_fn = sub{"$_[0]/target/c4sync"};
 my $get_remote = sub{
     my($port_str)=@_;
-    my $port = $port_str=~/^(\d+)$/ ? $1 : die;
-    my $ssh = $port ? "ssh -p$port" : "";
-    my $remote_pre_d = $port ? "c4\@127.0.0.1:" : "";
-    my $remote_pre_q = $ssh ? "$ssh c4\@127.0.0.1 " : "sh -c";
-    ($ssh,$remote_pre_d,$remote_pre_q)
+    my $port = $port_str=~/^(\d+)$/ ? $1-0 : die;
+    $port ? ("ssh -p$port","c4\@127.0.0.1:","ssh -p$port c4\@127.0.0.1 "):("","","")
 };
 my $load_started = sub{
     my($dir)=@_;
@@ -74,7 +71,8 @@ push @tasks, ["start","",sub{
     $dir && $remote_dir || die;
     $port || $dir ne $remote_dir || die "from and to are the same $dir";
     my $clean = $ENV{C4BUILD_CLEAN}-0;
-    my($ssh,$remote_pre_d,$remote_pre_q) = &$get_remote($port);
+    my($ssh,$remote_pre_d,$remote_pre) = &$get_remote($port);
+    my $remote_pre_q = $remote_pre || "sh -c ";
     if($clean){
         for(grep{m"\bc4gen\b|/target/|/tmp/|/node_modules/|/.bloop/"} map{"/$_"} &$find("","$dir/",[])){
             my $path = "$dir$_";
@@ -89,7 +87,7 @@ push @tasks, ["start","",sub{
     my $list_fn = &$get_list_fn($dir);
     &$sync($list_fn,$ssh,
         $dir,[&$filter(0,\@local_fns)],
-        "$remote_pre_d$remote_dir",[&$filter(0,[&$find($remote_pre_q,"$remote_dir/",$prune)])]
+        "$remote_pre_d$remote_dir",[&$filter(0,[&$find($remote_pre,"$remote_dir/",$prune)])]
     );
     sy("$remote_pre_q 'cd $remote_dir && sh' < $list_fn.rm");
     &$put_text("$list_fn.local", join "", map{"$_\n"} @local_fns);
@@ -98,10 +96,10 @@ push @tasks, ["start","",sub{
 push @tasks, ["back","",sub{
     my($dir)=@_;
     my($remote_dir,$port) = &$load_started($dir);
-    my($ssh,$remote_pre_d,$remote_pre_q) = &$get_remote($port);
+    my($ssh,$remote_pre_d,$remote_pre) = &$get_remote($port);
     my $list_fn = &$get_list_fn($dir);
     &$sync($list_fn,$ssh,
-        "$remote_pre_d$remote_dir",[&$filter(1,[&$find($remote_pre_q,"$remote_dir/",$prune)])],
+        "$remote_pre_d$remote_dir",[&$filter(1,[&$find($remote_pre,"$remote_dir/",$prune)])],
         $dir,[&$filter(1,[&$get_text("$list_fn.local")=~/(.+)/g])]
     );
     sy("cd $dir && sh < $list_fn.rm");
@@ -109,9 +107,9 @@ push @tasks, ["back","",sub{
 push @tasks, ["run","",sub{
     my($dir,$cmd)=@_;
     my($remote_dir,$port) = &$load_started($dir);
-    my($ssh,$remote_pre_d,$remote_pre_q) = &$get_remote($port);
-    my $init_env = $ssh ? ". /c4p_alias.sh &&" : "";
-    sy("$remote_pre_q '$init_env cd $remote_dir && $cmd'");
+    my($ssh,$remote_pre_d,$remote_pre) = &$get_remote($port);
+    $remote_pre || die;
+    sy("$remote_pre '. /c4p_alias.sh && cd $remote_dir && $cmd'");
 }];
 
 my($cmd,@args)=@ARGV;
