@@ -1246,7 +1246,7 @@ push @tasks, ["ci_build_inner","",sub{ #to call from Dockerfile
     my($from_dir,$gen_dir)=@_;
     my $base = $ENV{C4CI_BASE_TAG} || die;
     &$start("bloop server");
-    sy("perl $dir/sync.pl start $from_dir $gen_dir 0");
+    sy("perl $from_dir/sync.pl start $from_dir $gen_dir 0");
     sy("cd $gen_dir && perl build.pl");
     sy("cd $gen_dir && sh .bloop/c4/tag.$base.compile");
     my $ctx_dir = "/c4/res";

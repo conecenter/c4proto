@@ -118,14 +118,20 @@ my $calc_bloop_conf = sub{
         };
         (+{ "version" => "1.0.0", "project" => $project });
     });
+    my @main_paths = do{
+        my @main_scala = map{$$_{from} eq "main"?"C4GENERATOR_MAIN_SCALA_PATH=$dir/$$_{to}":()} &$dep_conf("C4SRC");
+        my @main_public = map{$$_{from} eq "main"?"C4GENERATOR_MAIN_PUBLIC_PATH=$dir/$$_{to}":()} &$dep_conf("C4PUB");
+        @main_scala<=1 && @main_public<=1 or die;
+        @main_scala,@main_public;
+    };
     my @bloop_will = map{
         my $conf = &$single(&$conf_by_name($_));
         my $classpath = join ":", &$bloop_conf_to_classpath($conf);
-        my $classpath_sh = "export CLASSPATH=$classpath";
+        my $sh = join "", map{"export $_\n"} @main_paths, "CLASSPATH=$classpath";
         (
             +{ fn=>"$dir/.bloop/$_.json", content=>&$json()->encode($conf) },
             +{ fn=>"$tmp/mod.$_.classpath", content=>$classpath },
-            +{ fn=>"$tmp/mod.$_.classpath.sh", content=>$classpath_sh },
+            +{ fn=>"$tmp/mod.$_.classpath.sh", content=>$sh },
         )
     } @mod_names;
     my @tag2mod = map{
@@ -252,21 +258,16 @@ my $src_list = join"\n", grep{!m"/c4gen-[^/]+$"} &$find_files(map{"$src_dir/$_"}
     &$put_text(&$need_path($$_{fn}),$$_{content}) for @$bloop_will;
     &$put_text(&$need_path("$tmp/generator-src-dirs"), join " ", &$src_dirs_by_name($gen_mod));
     &$put_text("$src_dir/c4gen-generator.sbt", &$calc_sbt_conf(\@src_dirs,$externals));
+    &$put_text(&$need_path("$tmp/gen/src"),$src_list);
 });
-#
-&$put_text(&$need_path("$tmp/gen/src"),$src_list);
 #
 my $sum = &$get_sum(join"\n",map{&$get_text($_)} sort grep{/\.scala$/} &$find_files(&$get_text("$tmp/generator-src-dirs")=~/(\S+)/g));
 &$if_changed("$tmp/generator-src-sum",$sum,sub{
     sy("cd $src_dir && bloop compile $gen_mod");
 });
 print "generation starting\n";
-my @main_scala = map{$$_{from} eq "main"?"C4GENERATOR_MAIN_SCALA_PATH=$src_dir/$$_{to}":()} &$dep_conf("C4SRC");
-my @main_public = map{$$_{from} eq "main"?"C4GENERATOR_MAIN_PUBLIC_PATH=$src_dir/$$_{to}":()} &$dep_conf("C4PUB");
-@main_scala<=1 && @main_public<=1 or die;
-my $main_paths = join " ",@main_scala,@main_public;
 my $main = &$single(&$dep_conf("C4GENERATOR_MAIN"))->{from}||die;
-sy(". $tmp/mod.$gen_mod.classpath.sh && C4GENERATOR_VER=$sum C4GENERATOR_PATH=$tmp/gen $main_paths java $main");
+sy(". $tmp/mod.$gen_mod.classpath.sh && C4GENERATOR_VER=$sum C4GENERATOR_PATH=$tmp/gen java $main");
 print "generation finished\n";
 print "generating code with perl\n";
 my $by = sub{ m^/c4gen-base\b^ ? "ft-c4gen-base" : "ft-other" };
@@ -274,3 +275,4 @@ my @src_fns = &$find_files(map{"$src_dir/$_"}@src_dirs);
 my @app_traits_will = &$gen_app_traits($src_dir,\@src_fns,[&$dep_conf("C4DEP")]); #after scalameta
 &$apply_will($by,\@src_fns,"ft-c4gen-base",[@app_traits_will]);
 print "generation finished\n";
+&$put_text(&$need_path("$src_dir/target/gen-ver"),time);
