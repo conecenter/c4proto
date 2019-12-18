@@ -308,13 +308,13 @@ class PublicPathsGenerator extends WillGenerator {
     val RefOk = """([\w\-\./]+)""".r
     val links = mainPublicPathOpt.map{ mainPublicPath =>
       mainPublicPath.resolve("c4gen.ht.links") -> roots.map{ r =>
-        s"${r.pkgInfo.pkgName} ${r.publicPath}"
+        s"main.${r.pkgInfo.pkgName} ${r.publicPath}"
       }
     }
     val code = roots.map { (root:PublicPathRoot) =>
       val defs = pathByRoot.getOrElse(Option(root.publicPath),Nil)
         .map(root.publicPath.relativize(_).toString).map{
-          case RefOk(r) => s"""    def `/$r` = "/mod/${root.pkgInfo.pkgName}/$r" """
+          case RefOk(r) => s"""    def `/$r` = "/mod/main.${root.pkgInfo.pkgName}/$r" """
         }
       val lines = if(defs.isEmpty) Nil else
         "/** THIS FILE IS GENERATED; CHANGES WILL BE LOST **/" ::

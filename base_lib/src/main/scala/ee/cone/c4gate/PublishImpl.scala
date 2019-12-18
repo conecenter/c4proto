@@ -57,7 +57,7 @@ trait PublicDirProvider {
 
 @c4("PublishingCompApp") class ModPublicDirProvider(config: ListConfig) extends PublicDirProvider {
   def get: List[(String,String)] = {
-    val Mod = """.+/mod\.(main\.[^/]+)\.classes""".r
+    val Mod = """.+/mod\.([^/]+)\.classes""".r
     val hasMod = (for {
       classpath <- config.get("CLASSPATH")
       Mod(m) <- classpath.split(":")
@@ -66,12 +66,8 @@ trait PublicDirProvider {
     val Line = """(\S+)\s+(\S+)""".r
     for {
       mainPublicPath <- config.get("C4GENERATOR_MAIN_PUBLIC_PATH")
-      //_ = println(s"mainPublicPath: $mainPublicPath")
       fName <- Option(Paths.get(mainPublicPath).resolve("c4gen.ht.links")).toList if Files.exists(fName)
-      //_ = println(s"fName: $fName")
-      Line(pkg,dir) <- Files.readAllLines(fName).asScala.toList
-      mod <- List(s"main.$pkg") if hasMod(mod)
-      //_ = println(s"dir: $dir")
+      Line(mod,dir) <- Files.readAllLines(fName).asScala.toList if hasMod(mod)
     } yield (s"/mod/$mod/",dir)
   }
 }
