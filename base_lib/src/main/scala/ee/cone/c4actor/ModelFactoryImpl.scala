@@ -1,18 +1,17 @@
 package ee.cone.c4actor
 
-import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4di.c4
-import ee.cone.c4proto.MetaProp
+import ee.cone.c4proto._
 
 @c4("RichDataCompApp") class ModelFactoryImpl(
-  defaultModelInitializers: List[DefaultModelInitializer[_]],
+  defaultModelInitializers: List[GeneralDefaultModelInitializer],
   qAdapterRegistry: QAdapterRegistry,
   universalProtoAdapter: ProtoAdapter[UniversalNode],
   srcIdAdapter: ProtoAdapter[SrcId],
   universalNodeFactory: UniversalNodeFactory
 )(
-  val reg: Map[String,DefaultModelInitializer[_]] =
+  val reg: Map[String,GeneralDefaultModelInitializer] =
     CheckedMap(defaultModelInitializers.map(f=>f.valueClass.getName->f))
 ) extends ModelFactory {
   import universalNodeFactory._
@@ -22,7 +21,7 @@ import ee.cone.c4proto.MetaProp
     val patchArray: Array[Byte] = universalProtoAdapter.encode(node)
     val baseArray: Option[Array[Byte]] = basedOn.map(m => adapter.encode(m) ++ patchArray)
     val model = adapter.decode( baseArray.getOrElse(patchArray) ).asInstanceOf[P]
-    reg.get(className).map(_.asInstanceOf[DefaultModelInitializer[P]].init(model)).getOrElse(model)
+    reg.get(className).fold(model)(_.init(model))
   }
 
   private def makeUniversalNode(headProp: MetaProp, srcId: SrcId): UniversalNode = {

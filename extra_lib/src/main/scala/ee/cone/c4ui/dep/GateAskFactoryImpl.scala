@@ -1,6 +1,5 @@
 package ee.cone.c4ui.dep
 
-import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep.ContextTypes.{ContextId, RoleId, UserId}
@@ -11,7 +10,7 @@ import ee.cone.c4gate.SessionDataProtocol.{N_RawDataNode, U_RawSessionData}
 import ee.cone.c4gate.deep_session.DeepSessionDataProtocol.{U_RawRoleData, U_RawUserData}
 import ee.cone.c4gate.deep_session.{DeepRawSessionData, TxDeepRawDataLens, UserLevelAttr}
 import ee.cone.c4gate.{KeyGenerator, SessionAttr}
-import ee.cone.c4proto.{HasId, ToByteString}
+import ee.cone.c4proto._
 import okio.ByteString
 
 case class SessionAttrAskFactoryImpl(

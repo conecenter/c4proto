@@ -1,9 +1,8 @@
 
 package ee.cone.c4actor
 
-import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.QProtocol.{N_TxRef, N_Update, S_Offset, S_Updates}
-import ee.cone.c4proto.{HasId, Protocol, ToByteString}
+import ee.cone.c4proto._
 
 import scala.collection.immutable.{Queue, Seq}
 import java.nio.charset.StandardCharsets.UTF_8

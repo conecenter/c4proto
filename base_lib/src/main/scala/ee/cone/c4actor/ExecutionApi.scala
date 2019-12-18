@@ -44,6 +44,7 @@ trait ListConfig {
 
 case class ActorName(value: String)
 
+trait SimpleSigner extends Signer[List[String]]
 trait Signer[T] {
   def sign(data: T, until: Long): String
   def retrieve(check: Boolean): Option[String]=>Option[T]

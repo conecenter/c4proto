@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import com.squareup.wire.{FieldEncoding, ProtoAdapter, ProtoReader, ProtoWriter}
+import ee.cone.c4proto._
 import ee.cone.c4di.c4
 
 @c4("RichDataCompApp") class UniversalNodeFactoryImpl extends UniversalNodeFactory {
