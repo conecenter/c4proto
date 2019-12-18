@@ -1,6 +1,5 @@
 package ee.cone.c4actor
 
-import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.AnyOrigProtocol.N_AnyOrig
 import ee.cone.c4proto._
 

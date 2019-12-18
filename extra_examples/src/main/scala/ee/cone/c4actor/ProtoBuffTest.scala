@@ -9,7 +9,6 @@ import ee.cone.c4proto._
 
 import scala.util.Random
 import AnyAdapter._
-import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.ProtoBuffTestProtocol.{D_TestOrig, D_TestOrigForDecode}
 import ee.cone.c4di.c4
 import scala.collection.immutable

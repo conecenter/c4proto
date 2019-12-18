@@ -4,6 +4,10 @@ package ee.cone.c4di
 import scala.annotation.StaticAnnotation
 import scala.collection.immutable.Seq
 
+object Types {
+  type ComponentFactory[T] = Seq[TypeKey]=>Seq[T]
+}
+
 case class TypeKey(clName: String, alias: String, args: List[TypeKey])
 
 class c4(apps: String*) extends StaticAnnotation

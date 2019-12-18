@@ -3,7 +3,6 @@ package ee.cone.c4proto
 
 import java.nio.charset.StandardCharsets.UTF_8
 
-import com.squareup.wire.{ProtoAdapter, ProtoReader, ProtoWriter}
 import ee.cone.c4di.TypeKey
 import okio.ByteString
 
@@ -44,4 +43,8 @@ abstract class ArgAdapter[Value] {
   def defaultValue: Value
   def decodeReduce(reader: ProtoReader, prev: Value): Value
   def decodeFix(prev: Value): Value
+}
+
+object FieldEncoding {
+  val LENGTH_DELIMITED = com.squareup.wire.FieldEncoding.LENGTH_DELIMITED
 }

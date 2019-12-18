@@ -84,7 +84,7 @@ object ProtocolGenerator extends Generator {
         })
         val tp = tpeopt.asInstanceOf[Option[Type]].get
         val id = fieldProps.id.get
-        val metaProp = s"""ee.cone.c4proto.MetaProp($id,"$propName",${deOpt(fieldProps.shortName)},"$tp", ${ComponentsGenerator.getTypeKey(tp)})"""
+        val metaProp = s"""ee.cone.c4proto.MetaProp($id,"$propName",${deOpt(fieldProps.shortName)},"$tp", ${ComponentsGenerator.getTypeKey(tp,None)})"""
         ProtoProp(id, propName, s"$tp", metaProp)
       case t: Tree =>
         Utils.parseError(t, parseContext)
@@ -100,10 +100,7 @@ object ProtocolGenerator extends Generator {
       GeneratedCode(s"""
 $c4ann class ${cl.name}ProtoAdapter(
   ${props.map(p => s"\n    adapter_${p.name}: ArgAdapter[${p.argType}]").mkString(",")}
-) extends ProtoAdapter[$resultType](
-  com.squareup.wire.FieldEncoding.LENGTH_DELIMITED,
-  classOf[$resultType]
-) with HasId {
+) extends ProtoAdapter[$resultType](FieldEncoding.LENGTH_DELIMITED,classOf[$resultType]) with HasId {
   def id = ${protoMods.id.getOrElse("throw new Exception")}
   def hasId = ${protoMods.id.nonEmpty}
   def className = classOf[$resultType].getName
@@ -113,12 +110,12 @@ $c4ann class ${cl.name}ProtoAdapter(
       ${props.map(p=>s"\n        + adapter_${p.name}.encodedSizeWithTag(${p.id}, prep_${p.name})").mkString}
     )
   }
-  def encode(writer: com.squareup.wire.ProtoWriter, value: $resultType) = {
+  def encode(writer: ProtoWriter, value: $resultType) = {
     val $struct = value
     ${props.map(p=>s"\n      adapter_${p.name}.encodeWithTag(writer,${p.id}, prep_${p.name})").mkString}
   }
   @annotation.tailrec private def decodeMore(
-    reader: com.squareup.wire.ProtoReader${props.map(p=>s", prep_${p.name}: ${p.argType}").mkString}
+    reader: ProtoReader${props.map(p=>s", prep_${p.name}: ${p.argType}").mkString}
   ): ${resultType} = reader.nextTag() match {
     case -1 =>
       ${factoryName}(${props.map(p=>s"adapter_${p.name}.decodeFix(prep_${p.name})").mkString(", ")})
@@ -133,7 +130,7 @@ $c4ann class ${cl.name}ProtoAdapter(
       reader.peekFieldEncoding.rawProtoAdapter.decode(reader)
       decodeMore(reader${props.map(p => s", prep_${p.name}").mkString})
   }
-  def decode(reader: com.squareup.wire.ProtoReader): ${resultType} = {
+  def decode(reader: ProtoReader): ${resultType} = {
     val token = reader.beginMessage();
     val res = decodeMore(reader${props.map(p=>s", adapter_${p.name}.defaultValue").mkString})
     reader.endMessage(token)
@@ -177,7 +174,7 @@ $c4ann class ${cl.name}ProtoAdapter(
     if(traitIllegal.nonEmpty) throw new Exception(s"can not extend from non-local traits $traitIllegal")
     //
     val classLinks =
-      for(cl <- classes; pf <- List("","_E0","_E1"))
+      for(cl <- classes; pf <- List("","_E0","_E1","_E2"))
         yield s"link${cl.name}ProtoAdapter$pf"
     val traitLinks =
       for(nm <- traitDefSeq; pf <- List("","_DgetProtoAdapter","_DgetHasId")) //
@@ -193,7 +190,6 @@ $c4ann class ${cl.name}ProtoAdapter(
     )
 
     // todo: compat .components
-    GeneratedImport("\nimport com.squareup.wire.ProtoAdapter") ::
     GeneratedImport("\nimport ee.cone.c4proto._") ::
     GeneratedImport("\nimport ee.cone.c4di._") ::
     obj ::

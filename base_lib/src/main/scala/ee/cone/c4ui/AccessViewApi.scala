@@ -7,6 +7,7 @@ trait AccessViewRegistry {
   def view[P](access: Access[P]): Context=>List[ChildPair[OfDiv]]
 }
 
-abstract class AccessView[P](val valueClass: Class[P]) {
+abstract class GeneralAccessView(val valueClass: Class[_])
+abstract class AccessView[P](valueClass: Class[P]) extends GeneralAccessView(valueClass) {
   def view(access: Access[P]): Context=>List[ChildPair[OfDiv]]
 }

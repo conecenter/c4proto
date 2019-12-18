@@ -111,7 +111,10 @@ trait RichDataAppBase extends RichDataCompApp
   @deprecated def assembleSeqOptimizer: AssembleSeqOptimizer = new NoAssembleSeqOptimizer
 }
 
-class CompatHolder[T](val value: T)
+abstract class GeneralCompatHolder {
+  def value: Any
+}
+class CompatHolder[T](val value: T) extends GeneralCompatHolder
 
 @c4("RichDataApp") class ModelConditionFactoryHolder(value: ModelConditionFactory[Unit])
   extends CompatHolder[ModelConditionFactory[Unit]](value)

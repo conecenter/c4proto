@@ -1,9 +1,8 @@
 package ee.cone.c4actor
 
-import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.ToPrimaryKey
-import ee.cone.c4proto.HasId
+import ee.cone.c4proto._
 
 import scala.annotation.tailrec
 import scala.collection.generic.CanBuildFrom
