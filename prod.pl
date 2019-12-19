@@ -1244,7 +1244,7 @@ push @tasks, ["ci_build_head_tcp","",sub{ # <host>:<port> <req> <dir|commit> [pa
     &$nc($addr,sub{ $req });
 }];
 my $ci_inner_opt = sub{
-    map{$ENV{$_}||die $_} qw[C4CI_BASE_TAG C4CI_BUILD_DIR C4CI_PROTO_DIR];
+    map{$ENV{$_}||die $_} qw[C4CI_BASE_TAG_ENV C4CI_BUILD_DIR C4CI_PROTO_DIR];
 };
 push @tasks, ["ci_inner_build","",sub{
     my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
