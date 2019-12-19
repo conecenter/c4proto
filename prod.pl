@@ -19,6 +19,7 @@ my $put_text = sub{
 my $start = sub{
     print join " ",@_,"\n";
     open my $fh, "|-", @_ or die $!;
+    print "opened\n";
     sub{ close $fh or die $! };
 };
 
