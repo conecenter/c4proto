@@ -1286,12 +1286,15 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     &$put_text("$ctx_dir/serve.sh","export C4APP_CLASS=$main\nexec java ee.cone.c4actor.ServerMain");
     #
     my %has_mod = map{m"/mod\.([^/]+)\.classes$"?($1=>1):()} @classpath;
-    my $main_public_path = syf("cat $gen_dir/.bloop/c4/main_public_path")=~/(\S+)/ ? $1 : die;
-    my @pub = map{ !/^(\S+)\s+\S+\s+(\S+)$/ ? die : $has_mod{$1} ? [$_,"$2"] : () }
-      syf("cat $main_public_path/c4gen.ht.links")=~/(.+)/g;
-    &$put_text(&$need_path("$ctx_dir/htdocs/.sync"),join"",map{"$$_[1]\n"}@pub);
-    &$put_text("$ctx_dir/htdocs/c4gen.ht.links",join"",map{"$$_[0]\n"}@pub);
-    sy("rsync -av --files-from=$ctx_dir/htdocs/.sync $main_public_path/ $ctx_dir/htdocs");
+    my $main_public_path_path = "$gen_dir/.bloop/c4/main_public_path";
+    if(-e $main_public_path_path){
+        my $main_public_path = syf("cat $main_public_path_path")=~/(\S+)/ ? $1 : die;
+        my @pub = map{ !/^(\S+)\s+\S+\s+(\S+)$/ ? die : $has_mod{$1} ? [$_,"$2"] : () }
+          syf("cat $main_public_path/c4gen.ht.links")=~/(.+)/g;
+        &$put_text(&$need_path("$ctx_dir/htdocs/.sync"),join"",map{"$$_[1]\n"}@pub);
+        &$put_text("$ctx_dir/htdocs/c4gen.ht.links",join"",map{"$$_[0]\n"}@pub);
+        sy("rsync -av --files-from=$ctx_dir/htdocs/.sync $main_public_path/ $ctx_dir/htdocs");
+    }
 }];
 push @tasks, ["up-ci","",sub{
     my ($comp,$args) = @_;
