@@ -1248,9 +1248,11 @@ my $ci_inner_opt = sub{
 };
 push @tasks, ["ci_inner_build","",sub{
     my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
-    &$start("bloop server");
-    sy("cd $gen_dir && perl $proto_dir/build.pl");
-    sy("cd $gen_dir && sh .bloop/c4/tag.$base.compile");
+    #&$start("bloop server");
+    #sy("cd $gen_dir && perl $proto_dir/build.pl");
+    #sy("cd $gen_dir && sh .bloop/c4/tag.$base.compile");
+    sy("bloop server & (cd $gen_dir && perl $proto_dir/build.pl && sh .bloop/c4/tag.$base.compile)");
+
 }];
 push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
