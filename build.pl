@@ -118,16 +118,17 @@ my $calc_bloop_conf = sub{
         };
         (+{ "version" => "1.0.0", "project" => $project });
     });
-    my @main_paths = do{
-        my @main_scala = map{$$_{from} eq "main"?"C4GENERATOR_MAIN_SCALA_PATH=$dir/$$_{to}":()} &$dep_conf("C4SRC");
-        my @main_public = map{$$_{from} eq "main"?"C4GENERATOR_MAIN_PUBLIC_PATH=$dir/$$_{to}":()} &$dep_conf("C4PUB");
-        @main_scala<=1 && @main_public<=1 or die;
-        @main_scala,@main_public;
-    };
+    my @main_scala = map{$$_{from} eq "main"?"$dir/$$_{to}":()} &$dep_conf("C4SRC");
+    my @main_public = map{$$_{from} eq "main"?"$dir/$$_{to}":()} &$dep_conf("C4PUB");
+    @main_scala<=1 && @main_public<=1 or die;
+    my @main_paths_will = map{+{ fn=>"$tmp/main_public_path", content=>$_ }} @main_public;
     my @bloop_will = map{
         my $conf = &$single(&$conf_by_name($_));
         my $classpath = join ":", &$bloop_conf_to_classpath($conf);
-        my $sh = join "", map{"export $_\n"} @main_paths, "CLASSPATH=$classpath";
+        my $sh = join "", map{"export $_\n"}
+            (map{"C4GENERATOR_MAIN_SCALA_PATH=$_"} @main_scala),
+            (map{"C4GENERATOR_MAIN_PUBLIC_PATH=$_"} @main_public),
+            "CLASSPATH=$classpath";
         (
             +{ fn=>"$dir/.bloop/$_.json", content=>&$json()->encode($conf) },
             +{ fn=>"$tmp/mod.$_.classpath", content=>$classpath },
@@ -137,7 +138,7 @@ my $calc_bloop_conf = sub{
     my @tag2mod = map{
         my($mod,$cl) = $$_{to}=~/^(\w+\.)(.*)(\.\w+)$/ ? ("$1$2","$2$3") : die;
         (
-            +{ fn=>"$tmp/tag.$$_{from}.compile", content=>"bloop compile $mod" },
+            +{ fn=>"$tmp/tag.$$_{from}.compile", content=>"exec bloop compile $mod" },
             +{ fn=>"$tmp/tag.$$_{from}.mod", content=>$mod },
             +{ fn=>"$tmp/tag.$$_{from}.main", content=>$cl },
         )
@@ -149,7 +150,7 @@ my $calc_bloop_conf = sub{
         my @res = &$distinct(@own, map{@$_} map{&$get($_)} @local_dependencies);
         @res
     });
-    ([@tag2mod,@bloop_will],$src_dirs_by_name);
+    ([@tag2mod,@bloop_will,@main_paths_will],$src_dirs_by_name);
 };
 my $calc_sbt_conf = sub{
     my($src_dirs,$externals)=@_;

@@ -160,6 +160,10 @@ my $exec_server = sub{
 push @tasks, ["gate_publish", sub{
     my $build_dir = &$client(0);
     $build_dir eq readlink $_ or symlink $build_dir, $_ or die $! for "htdocs";
+    &$put_text("htdocs/c4gen.ht.links",join"",
+        map{ my $u = m"^htdocs/(.+)$"?$1:die; "base_lib.ee.cone.c4gate /$u $u\n" }
+        sort <htdocs/*>
+    );
     &$put_text("htdocs/publish_time",time);
 }];
 push @tasks, ["gate_server_run", sub{

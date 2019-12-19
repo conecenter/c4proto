@@ -22,16 +22,6 @@ import scala.jdk.CollectionConverters.IteratorHasAsScala
 
 import scala.jdk.CollectionConverters.IterableHasAsScala
 
-object DirInfo {
-  def sortedList(dir: Path): List[Path] =
-    FinallyClose(Files.newDirectoryStream(dir))(_.asScala.toList).sorted
-  def deepFiles(path: Path): List[Path] = {
-    if(!Files.exists(path)) Nil
-    else if(Files.isDirectory(path)) sortedList(path).flatMap(deepFiles)
-    else List(path) //Files.isRegularFile(path)
-  }
-}
-
 sealed trait LastPublishState extends Product
 case object LastPublishStateKey extends TransientLens[LastPublishState](NotCheckedLastPublishState)
 case object NotCheckedLastPublishState extends LastPublishState
@@ -51,29 +41,24 @@ case class PublishingTx(srcId: SrcId)(publishing: Publishing) extends TxTransfor
 }
 
 trait PublicDirProvider {
-  def get: List[(String,String)]
+  def get: List[(String,Path)]
 }
-
 
 @c4("PublishingCompApp") class ModPublicDirProvider(config: ListConfig) extends PublicDirProvider {
-  def get: List[(String,String)] = {
-    val Mod = """.+/mod\.([^/]+)\.classes""".r
+  def get: List[(String,Path)] = {
+    val Mod = """.+/mod\.([^/]+)\.(classes|jar)""".r
     val hasMod = (for {
       classpath <- config.get("CLASSPATH")
-      Mod(m) <- classpath.split(":")
+      Mod(m,_) <- classpath.split(":")
     } yield m).toSet
     // println(s"hasMod: $hasMod")
-    val Line = """(\S+)\s+(\S+)""".r
+    val Line = """(\S+)\s+(\S+)\s+(\S+)""".r
     for {
-      mainPublicPath <- config.get("C4GENERATOR_MAIN_PUBLIC_PATH")
+      mainPublicPath <- "htdocs" :: config.get("C4GENERATOR_MAIN_PUBLIC_PATH")
       fName <- Option(Paths.get(mainPublicPath).resolve("c4gen.ht.links")).toList if Files.exists(fName)
-      Line(mod,dir) <- Files.readAllLines(fName).asScala.toList if hasMod(mod)
-    } yield (s"/mod/$mod/",dir)
+      Line(mod,url,pf) <- Files.readAllLines(fName).asScala.toList if hasMod(mod)
+    } yield (url,Paths.get(s"$mainPublicPath/$pf"))
   }
-}
-
-@c4("PublishingCompApp") class DefPublicDirProvider(config: ListConfig) extends PublicDirProvider {
-  def get: List[(String,String)] = List(("/","htdocs"))
 }
 
 @c4("PublishingCompApp") class Publishing(
@@ -103,10 +88,8 @@ trait PublicDirProvider {
       } yield event
       val fileEvents = for {
         publicDirProvider <- publicDirProviders
-        (prefix,publicDir) <- publicDirProvider.get
-        fromPath = Paths.get(publicDir)
-        file <- DirInfo.deepFiles(fromPath)
-        event <- publish(s"$prefix${fromPath.relativize(file)}",Files.readAllBytes(file))(local)
+        (url,file) <- publicDirProvider.get
+        event <- publish(url,Files.readAllBytes(file))(local)
       } yield event
       logger.debug("publish finishing")
       TxAdd(strEvents ++ fileEvents).andThen(LastPublishStateKey.set(publishState))(local)

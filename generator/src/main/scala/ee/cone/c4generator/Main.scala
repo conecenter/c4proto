@@ -287,7 +287,7 @@ object Lint {
     }
 }
 
-case class PublicPathRoot(pkgInfo: PkgInfo, genPath: Path, publicPath: Path)
+case class PublicPathRoot(mainPublicPath: Path, pkgName: String, genPath: Path, publicPath: Path)
 class PublicPathsGenerator extends WillGenerator {
   def get(ctx: WillGeneratorContext): List[(Path, Array[Byte])] = {
     val mainScalaPathOpt = Main.env("C4GENERATOR_MAIN_SCALA_PATH").map(Paths.get(_))
@@ -300,29 +300,29 @@ class PublicPathsGenerator extends WillGenerator {
     } yield {
       val genPath = path.resolveSibling("c4gen.htdocs.scala")
       val publicPath = mainPublicPath.resolve(pkgInfo.pkgPath)
-      PublicPathRoot(pkgInfo,genPath,publicPath)
+      PublicPathRoot(mainPublicPath,pkgInfo.pkgName,genPath,publicPath)
     }
     val isModRoot = roots.map(_.publicPath).toSet
     val toModRoot = Util.matchThisOrParent(isModRoot)
     val pathByRoot = ctx.fromFiles.groupBy(toModRoot)
     val RefOk = """([\w\-\./]+)""".r
-    val links = mainPublicPathOpt.map{ mainPublicPath =>
-      mainPublicPath.resolve("c4gen.ht.links") -> roots.map{ r =>
-        s"main.${r.pkgInfo.pkgName} ${r.publicPath}"
-      }
-    }
-    val code = roots.map { (root:PublicPathRoot) =>
+    Util.toBinFileList(roots.flatMap { (root:PublicPathRoot) =>
       val defs = pathByRoot.getOrElse(Option(root.publicPath),Nil)
-        .map(root.publicPath.relativize(_).toString).map{
-          case RefOk(r) => s"""    def `/$r` = "/mod/main.${root.pkgInfo.pkgName}/$r" """
+        .map{ path =>
+            val RefOk(r) = root.publicPath.relativize(path).toString
+            val rel = root.mainPublicPath.relativize(path)
+            val ref = s"/mod/main/$rel"
+            (
+              s"""    def `/$r` = "$ref" """,
+              s"main.${root.pkgName} $ref $rel"
+            )
         }
       val lines = if(defs.isEmpty) Nil else
         "/** THIS FILE IS GENERATED; CHANGES WILL BE LOST **/" ::
-        s"package ${root.pkgInfo.pkgName}" ::
-        "object PublicPath {" :: defs ::: "}" :: Nil
-      root.genPath -> lines
-    }
-    Util.toBinFileList(links) ::: Util.toBinFileList(code)
+        s"package ${root.pkgName}" ::
+        "object PublicPath {" :: defs.map(_._1) ::: "}" :: Nil
+      List(root.genPath -> lines, root.mainPublicPath.resolve("c4gen.ht.links") -> defs.map(_._2))
+    }.groupMap(_._1)(_._2).transform((k,v)=>v.flatten))
   }
 }
 

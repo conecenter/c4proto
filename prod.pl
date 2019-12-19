@@ -1242,13 +1242,18 @@ push @tasks, ["ci_build_head_tcp","",sub{ # <host>:<port> <req> <dir|commit> [pa
     my $req = "build $req_pre.$pf\n";
     &$nc($addr,sub{ $req });
 }];
-push @tasks, ["ci_build_inner","",sub{ #to call from Dockerfile
-    my($from_dir,$gen_dir)=@_;
-    my $base = $ENV{C4CI_BASE_TAG} || die;
+my $ci_inner_opt = sub{
+    map{$ENV{$_}||die $_} qw[C4CI_BASE_TAG C4CI_BUILD_DIR C4CI_PROTO_DIR];
+};
+push @tasks, ["ci_inner_build","",sub{
+    my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
     &$start("bloop server");
-    sy("perl $from_dir/sync.pl start $from_dir $gen_dir 0");
-    sy("cd $gen_dir && perl build.pl");
+    sy("cd $gen_dir && perl $proto_dir/build.pl");
     sy("cd $gen_dir && sh .bloop/c4/tag.$base.compile");
+}];
+push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
+    my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
+    #
     my $ctx_dir = "/c4/res";
     -e $ctx_dir and sy("rm -r $ctx_dir");
     sy("mkdir $ctx_dir");
@@ -1264,16 +1269,26 @@ push @tasks, ["ci_build_inner","",sub{ #to call from Dockerfile
         "COPY --chown=c4:c4 . /c4",
         'ENTRYPOINT ["perl","run.pl"]',
     );
-    sy("cp $gen_dir/$_ $ctx_dir/$_") for "install.pl", "run.pl", "haproxy.pl";
+    sy("cp $proto_dir/$_ $ctx_dir/$_") for "install.pl", "run.pl", "haproxy.pl";
+    #
     mkdir "$ctx_dir/app";
     my $mod  = syf("cat $gen_dir/.bloop/c4/tag.$base.mod" )=~/(\S+)/ ? $1 : die;
     my $main = syf("cat $gen_dir/.bloop/c4/tag.$base.main")=~/(\S+)/ ? $1 : die;
+    my @classpath = syf("cat $gen_dir/.bloop/c4/mod.$mod.classpath")=~/([^\s:]+)/g;
     my @started = map{&$start($_)} map{
         m{([^/]+\.jar)$} ? "cp $_ $ctx_dir/app/$1" :
         m{([^/]+)\.classes$} ? "cd $_ && zip -q -r $ctx_dir/app/$1.jar ." : die
-    } syf("cat $gen_dir/.bloop/c4/mod.$mod.classpath")=~/([^\s:]+)/g;
+    } @classpath;
     &$_() for @started;
     &$put_text("$ctx_dir/serve.sh","export C4APP_CLASS=$main\nexec java ee.cone.c4actor.ServerMain");
+    #
+    my %has_mod = map{m"/mod\.([^/]+)\.classes$"?($1=>1):()} @classpath;
+    my $main_public_path = syf("cat $gen_dir/.bloop/c4/main_public_path")=~/(\S+)/ ? $1 : die;
+    my @pub = map{ !/^(\S+)\s+\S+\s+(\S+)$/ ? die : $has_mod{$1} ? [$_,"$2"] : () }
+      syf("cat $main_public_path/c4gen.ht.links")=~/(.+)/g;
+    &$put_text(&$need_path("$ctx_dir/htdocs/.sync"),join"",map{"$$_[1]\n"}@pub);
+    &$put_text("$ctx_dir/htdocs/c4gen.ht.links",join"",map{"$$_[0]\n"}@pub);
+    sy("rsync -av --files-from=$ctx_dir/htdocs/.sync $main_public_path/ $ctx_dir/htdocs");
 }];
 push @tasks, ["up-ci","",sub{
     my ($comp,$args) = @_;
