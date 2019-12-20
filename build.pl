@@ -57,13 +57,6 @@ my $bloop_conf_to_classpath = sub{
     my $project = $$conf{project}||die;
     (@{$$project{classpath}||die},($$project{classesDir}||die))
 };
-my $parse_dependencies = sub{
-    my ($dep_content) = @_;
-    my @lines = $dep_content=~/(.+)/g;
-    my @dependencies = map{ m"^//(C4\w+)\s+(\S+)\s+(\S+)\s*$" ? +{tp=>$1,from=>$2,to=>$3}:() } @lines;
-    my ($dep_conf) = &$group(map{[$$_{tp},$_]} @dependencies);
-    $dep_conf;
-};
 my $calc_bloop_conf = sub{
     my($dir,$tmp,$dep_conf,$coursier_out,$src_list) = @_;
     my %dir_exists = map{m"(.+)/[^/]+$"?("$1"=>1):die} $src_list=~/([^\n]+)/g;
@@ -235,12 +228,16 @@ my $gen_app_traits = sub{
 my $src_dir = syf("pwd")=~/^(\S+)\s*$/ ? $1 : die;
 my $tmp = "$src_dir/.bloop/c4";
 my $load_dep; $load_dep = sub{
-    my $res = &$get_text("$src_dir/$_[0]");
-    ($res, map{&$load_dep($_)} "\n$res"=~m"\n//C4INC\s+(.+)"g);
+    my $content = &$get_text("$src_dir/$_[0]");
+    my $items = &$json()->decode($content);
+    (
+        +{type=>"C4RAW",content=>$content},
+        map{$$_{type} eq "C4INC" ? &$load_dep($$_{path}||die) : $_ } @$items
+    )
 };
-my $dep_content = join"\n", &$distinct(&$load_dep("main.c4dep"));
-
-my $dep_conf = &$parse_dependencies($dep_content);
+my @dep_list = &$load_dep("c4dep.main.json");
+my ($dep_conf) = &$group(map{[$$_{type},$_]} @dep_list);
+my $dep_content = join "\n", map{$$_{content}} &$dep_conf("C4RAW");
 my @src_dirs = &$distinct(map{$$_{to}} &$dep_conf("C4SRC"));
 my @pub_dirs = &$distinct(map{$$_{to}} &$dep_conf("C4PUB"));
 my $gen_mod = &$single(&$dep_conf("C4GENERATOR_MAIN"))->{to}||die;

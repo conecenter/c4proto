@@ -1,0 +1,58 @@
+
+[
+{ "type": "C4INC", "path": "c4dep.all.json" },
+
+{ "type": "C4TAG", "from": "def", "to": "base_server.ee.cone.c4gate_akka.AkkaGatewayApp" },
+{ "type": "C4TAG", "from": "all", "to": "extra_examples.aggregate.XXX" },
+{ "type": "C4TAG", "from": "test-consumer", "to": "base_examples.ee.cone.c4gate.TestConsumerApp" },
+
+{ "type": "C4GENERATOR_MAIN", "from": "ee.cone.c4generator.Main", "to": "generator.ee.cone.c4generator" },
+
+{ "type": "C4SRC", "from": "generator", "to": "generator/src/main/scala" },
+{ "type": "C4SRC", "from": "base_lib", "to": "base_lib/src/main/scala" },
+{ "type": "C4SRC", "from": "base_lib", "to": "base_lib/src/main/java" },
+{ "type": "C4SRC", "from": "base_server", "to": "base_server/src/main/scala" },
+{ "type": "C4SRC", "from": "base_examples", "to": "base_examples/src/main/scala" },
+{ "type": "C4SRC", "from": "extra_lib", "to": "extra_lib/src/main/scala" },
+{ "type": "C4SRC", "from": "extra_lib", "to": "extra_lib/src/main/java" },
+{ "type": "C4SRC", "from": "extra_examples", "to": "extra_examples/src/main/scala" },
+
+{ "type": "C4EXT", "from": "base_server.ee.cone.c4gate_akka", "to": "com.typesafe.akka:akka-stream_2.13:2.5.25" },
+{ "type": "C4EXT", "from": "base_server.ee.cone.c4gate_akka", "to": "com.typesafe.akka:akka-http-core_2.13:10.1.10" },
+
+{ "type": "C4EXT", "from": "extra_examples.ee.cone.c4actor", "to": "org.scalameta:scalameta_2.13:4.2.3" },
+
+{ "#": "com.lihaoyi % ammonite-sshd % 1.6.9 cross CrossVersion.full" },
+
+{ "type": "C4DEP", "from": "base_server.ee.cone.c4gate_server", "to": "base_lib.ee.cone.c4gate" },
+{ "type": "C4DEP", "from": "base_server.ee.cone.c4gate_server", "to": "base_lib.ee.cone.c4actor_kafka_impl" },
+{ "type": "C4DEP", "from": "base_server.ee.cone.c4gate_server", "to": "base_lib.ee.cone.c4actor_logback_impl" },
+{ "type": "C4DEP", "from": "base_server.ee.cone.c4gate_akka", "to": "base_server.ee.cone.c4gate_server" },
+{ "type": "C4DEP", "from": "base_server.ee.cone.c4gate_akka", "to": "base_lib.ee.cone.c4actor_repl_impl" },
+
+{ "type": "C4DEP", "from": "base_examples.ee.cone.c4actor", "to": "base_lib.ee.cone.c4actor_logback_impl" },
+{ "type": "C4DEP", "from": "base_examples.ee.cone.c4gate", "to": "base_lib.ee.cone.c4gate" },
+{ "type": "C4DEP", "from": "base_examples.ee.cone.c4gate", "to": "base_lib.ee.cone.c4actor_kafka_impl" },
+{ "type": "C4DEP", "from": "base_examples.ee.cone.c4gate", "to": "base_lib.ee.cone.c4actor_logback_impl" },
+{ "type": "C4DEP", "from": "base_examples.ee.cone.c4gate_server", "to": "base_server.ee.cone.c4gate_server" },
+{ "type": "C4DEP", "from": "base_examples.ee.cone.c4vdom", "to": "base_lib.ee.cone.c4vdom_mix" },
+{ "type": "C4DEP", "from": "base_examples.ee.cone.c4ui", "to": "base_lib.ee.cone.c4ui" },
+{ "type": "C4DEP", "from": "base_examples.ee.cone.c4ui", "to": "base_lib.ee.cone.c4actor_kafka_impl" },
+{ "type": "C4DEP", "from": "base_examples.ee.cone.c4ui", "to": "base_lib.ee.cone.c4actor_logback_impl" },
+{ "type": "C4DEP", "from": "base_examples.ee.cone.c4ui", "to": "base_lib.ee.cone.c4actor_repl_impl" },
+{ "type": "C4DEP", "from": "base_examples.ee.cone.c4ui", "to": "base_examples.ee.cone.c4vdom" },
+
+{ "type": "C4DEP", "from": "extra_examples.ee.cone.c4actor", "to": "extra_lib.ee.cone.c4actor" },
+{ "type": "C4DEP", "from": "extra_examples.ee.cone.c4actor", "to": "base_lib.ee.cone.c4actor_kafka_impl" },
+{ "type": "C4DEP", "from": "extra_examples.ee.cone.c4actor", "to": "base_lib.ee.cone.c4actor_logback_impl" },
+{ "type": "C4DEP", "from": "extra_examples.ee.cone.c4gate", "to": "extra_lib.ee.cone.c4gate" },
+
+{ "type": "C4DEP", "from": "extra_examples.aggregate", "to": "base_server.ee.cone.c4gate_akka" },
+{ "type": "C4DEP", "from": "extra_examples.aggregate", "to": "base_examples.ee.cone.c4actor" },
+{ "type": "C4DEP", "from": "extra_examples.aggregate", "to": "base_examples.ee.cone.c4gate" },
+{ "type": "C4DEP", "from": "extra_examples.aggregate", "to": "base_examples.ee.cone.c4gate_server" },
+{ "type": "C4DEP", "from": "extra_examples.aggregate", "to": "base_examples.ee.cone.c4ui" },
+{ "type": "C4DEP", "from": "extra_examples.aggregate", "to": "extra_lib.ee.cone.c4ui" },
+{ "type": "C4DEP", "from": "extra_examples.aggregate", "to": "extra_examples.ee.cone.c4actor" },
+{ "type": "C4DEP", "from": "extra_examples.aggregate", "to": "extra_examples.ee.cone.c4gate" }
+]
