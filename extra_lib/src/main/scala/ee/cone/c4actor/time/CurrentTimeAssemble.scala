@@ -2,13 +2,15 @@ package ee.cone.c4actor.time
 
 import java.security.SecureRandom
 
-import ee.cone.c4actor.{ByPK, CheckedMap, Context, LEvent, TxAdd, TxTransform, WithPK}
 import ee.cone.c4actor.QProtocol.S_Firstborn
-import ee.cone.c4actor.Types.{ClName, SrcId}
-import ee.cone.c4actor.dep.request.CurrentTimeConfig
+import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor._
+import ee.cone.c4actor.dep.request.CurrentTimeApp
 import ee.cone.c4actor.dep.request.CurrentTimeProtocol.S_CurrentTimeNodeSetting
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{AbstractAll, c4assemble}
+
+trait GeneralCurrentTimeAppBase extends CurrentTimeApp
 
 trait GeneralCurrentTimeConfig {
   def srcId: SrcId

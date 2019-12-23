@@ -4,7 +4,7 @@ import scala.annotation.StaticAnnotation
 
 package object time {
 
-  class с4time(id: Long, appTrait: String*) extends StaticAnnotation
+  class c4time(id: Long, appTrait: String*) extends StaticAnnotation
 
   class time(time: CurrentTime) extends StaticAnnotation
 
