@@ -5,7 +5,7 @@ import scala.meta._
 object TimeGenerator extends Generator {
   def get(parseContext: ParseContext): List[Generated] =
     parseContext.stats.collect {
-      case q"@с4time(..$exprs) case object $name extends CurrentTime($refresh)" =>
+      case q"@c4time(..$exprs) case object $name extends CurrentTime($refresh)" =>
         val id :: rest = exprs.asInstanceOf[List[Stat]].map(_.syntax)
         val protocol = getProtocol(name.value, id, rest)
         getProtocolImports ::: (GeneratedCode(protocol) ::
