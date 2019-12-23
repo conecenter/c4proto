@@ -9,7 +9,7 @@ import scala.jdk.CollectionConverters.IterableHasAsScala
 import scala.jdk.CollectionConverters.IteratorHasAsScala
 
 object Main {
-  def defaultGenerators: List[Generator] = List(ImportGenerator,AssembleGenerator,ProtocolGenerator,FieldAccessGenerator,AppGenerator) //,UnBaseGenerator
+  def defaultGenerators: List[Generator] = List(ImportGenerator,TimeGenerator,AssembleGenerator,ProtocolGenerator,FieldAccessGenerator,AppGenerator) //,UnBaseGenerator
   def main(args: Array[String]): Unit = new RootGenerator(defaultGenerators).run()
   def toPrefix = "c4gen."
   def env(key: String): String = Option(System.getenv(key)).getOrElse(s"missing env $key")
