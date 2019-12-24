@@ -51,6 +51,12 @@ push @tasks, [haproxy=>sub{
     &$exec("perl", "haproxy.pl");
 }];
 my $serve = sub{
+    $ENV{JAVA_TOOL_OPTIONS} = join " ", $ENV{JAVA_TOOL_OPTIONS},
+        "-XX:+UseG1GC","-XX:MaxGCPauseMillis=200","-XX:+ExitOnOutOfMemoryError",
+        "-XX:GCTimeRatio=1","-XX:MinHeapFreeRatio=15","-XX:MaxHeapFreeRatio=50";
+    # https://www.javacodegeeks.com/2017/11/minimize-java-memory-usage-right-garbage-collector.html
+    # with G1 unused RAM is released back to OS
+    
     $ENV{CLASSPATH} = join ":", sort <app/*.jar>;
     &$exec("sh", "serve.sh");
 };
@@ -58,9 +64,6 @@ push @tasks, [gate=>sub{
     $ENV{C4HTTP_PORT} = $http_port;
     $ENV{C4SSE_PORT} = $sse_port;
     $ENV{C4BOOTSTRAP_SERVERS} = "127.0.0.1:$bootstrap_port";
-    $ENV{JAVA_TOOL_OPTIONS} = join " ", $ENV{JAVA_TOOL_OPTIONS},
-        "-XX:+UseG1GC","-XX:MaxGCPauseMillis=200","-XX:+ExitOnOutOfMemoryError",
-        "-XX:GCTimeRatio=1","-XX:MinHeapFreeRatio=15","-XX:MaxHeapFreeRatio=50";
     &$serve();
 }];
 push @tasks, [main=>sub{
