@@ -15,22 +15,12 @@ import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPublication}
 import ee.cone.c4di.c4
 import ee.cone.c4proto.ToByteString
 import okio.ByteString
-
-import scala.collection.immutable.Seq
+import scala.jdk.CollectionConverters.IterableHasAsScala
+import scala.jdk.CollectionConverters.IteratorHasAsScala
 
 //todo un-publish
 
 import scala.jdk.CollectionConverters.IterableHasAsScala
-
-object DirInfo {
-  def sortedList(dir: Path): List[Path] =
-    FinallyClose(Files.newDirectoryStream(dir))(_.asScala.toList).sorted
-  def deepFiles(path: Path): List[Path] = {
-    if(!Files.exists(path)) Nil
-    else if(Files.isDirectory(path)) sortedList(path).flatMap(deepFiles)
-    else List(path) //Files.isRegularFile(path)
-  }
-}
 
 sealed trait LastPublishState extends Product
 case object LastPublishStateKey extends TransientLens[LastPublishState](NotCheckedLastPublishState)
@@ -50,10 +40,32 @@ case class PublishingTx(srcId: SrcId)(publishing: Publishing) extends TxTransfor
   def transform(local: Context): Context = publishing.transform(local)
 }
 
+trait PublicDirProvider {
+  def get: List[(String,Path)]
+}
+
+@c4("PublishingCompApp") class ModPublicDirProvider(config: ListConfig) extends PublicDirProvider {
+  def get: List[(String,Path)] = {
+    val Mod = """.+/mod\.([^/]+)\.(classes|jar)""".r
+    val hasMod = (for {
+      classpath <- config.get("CLASSPATH")
+      Mod(m,_) <- classpath.split(":")
+    } yield m).toSet
+    // println(s"hasMod: $hasMod")
+    val Line = """(\S+)\s+(\S+)\s+(\S+)""".r
+    for {
+      mainPublicPath <- "htdocs" :: config.get("C4GENERATOR_MAIN_PUBLIC_PATH")
+      fName <- Option(Paths.get(mainPublicPath).resolve("c4gen.ht.links")).toList if Files.exists(fName)
+      Line(mod,url,pf) <- Files.readAllLines(fName).asScala.toList if hasMod(mod)
+    } yield (url,Paths.get(s"$mainPublicPath/$pf"))
+  }
+}
+
 @c4("PublishingCompApp") class Publishing(
   idGenUtil: IdGenUtil,
   publishFromStringsProviders: List[PublishFromStringsProvider],
   mimeTypesProviders: List[PublishMimeTypesProvider],
+  publicDirProviders: List[PublicDirProvider],
   publishFullCompressor: PublishFullCompressor,
 )(
   mimeTypes: String=>Option[String] = mimeTypesProviders.flatMap(_.get).toMap.get,
@@ -69,14 +81,22 @@ case class PublishingTx(srcId: SrcId)(publishing: Publishing) extends TxTransfor
       SleepUntilKey.set(Instant.ofEpochMilli(System.currentTimeMillis+1000))(local)
     else {
       logger.debug("publish started")
-      val events =
-        publishFromStringsProviders.flatMap(_.get).flatMap{ case(path,body) => publish(path,body.getBytes(UTF_8))(local)} ++
-          DirInfo.deepFiles(fromPath).flatMap(file=>publish(s"/${fromPath.relativize(file)}",Files.readAllBytes(file))(local))
+      val strEvents = for {
+        publishFromStringsProvider <- publishFromStringsProviders
+        (path,body) <- publishFromStringsProvider.get
+        event <- publish(path,body.getBytes(UTF_8))(local)
+      } yield event
+      val fileEvents = for {
+        publicDirProvider <- publicDirProviders
+        (url,file) <- publicDirProvider.get
+        event <- publish(url,Files.readAllBytes(file))(local)
+      } yield event
       logger.debug("publish finishing")
-      TxAdd(events).andThen(LastPublishStateKey.set(publishState))(local)
+      TxAdd(strEvents ++ fileEvents).andThen(LastPublishStateKey.set(publishState))(local)
     }
   }
   def publish(path: String, body: Array[Byte]): Context=>Seq[LEvent[Product]] = local => {
+    //println(s"path: $path")
     val pointPos = path.lastIndexOf(".")
     val ext = if(pointPos<0) "" else path.substring(pointPos+1)
     val byteString = compressor.compress(ToByteString(body))

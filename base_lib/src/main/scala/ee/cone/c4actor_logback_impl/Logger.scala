@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory
 
 import scala.annotation.tailrec
 
-@c4("BasicLoggingApp") class LoggerTest extends Executable with LazyLogging {
+@c4("BasicLoggingApp") class LoggerTest extends Executable with Early with LazyLogging {
   def run(): Unit = if(Option(System.getenv("C4LOGBACK_TEST")).nonEmpty) iteration(0L)
   @tailrec private def iteration(v: Long): Unit = {
     Thread.sleep(1000)
@@ -30,7 +30,7 @@ import scala.annotation.tailrec
   config.get("C4LOGBACK_XML").map(Paths.get(_)) ::: Paths.get("/tmp/logback.xml") :: Nil,
   catchNonFatal,
   5000
-) with Executable
+) with Executable with Early
 
 class LoggerConfigurator(paths: List[Path], catchNonFatal: CatchNonFatal, scanPeriod: Long) extends Executable {
   def run(): Unit = iteration("")

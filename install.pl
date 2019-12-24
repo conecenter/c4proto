@@ -24,16 +24,6 @@ if($cmd eq 'apt'){
     /^([a-z]+).*/ and rename $_,"/tools/$1" or die $_ for <*>;
 } elsif($cmd eq 'useradd'){
     sy('useradd --home-dir /c4 --create-home --user-group --uid 1979 --shell /bin/bash c4');
-} elsif($cmd eq 'sbt'){
-    sy(join " && ",
-        "mkdir -p /tmp/sbt_dl/project",
-        "cd /tmp/sbt_dl",
-        qq[echo 'scalaVersion := \"$args[0]\"' > build.sbt],
-        qq[echo 'sbt.version=$args[1]' > project/build.properties],
-        "echo 'case object Temp' > Temp.scala",
-        "sbt compile",
-        "rm -r /tmp/sbt_dl"
-    );
 } else {
     die;
 }
