@@ -1,24 +1,21 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.EqProtocol.{D_ChangingNode, D_IntEq, D_StrStartsWith, D_TestObject, D_TestObject2}
+import ee.cone.c4actor.EqProtocol._
 import ee.cone.c4actor.HashSearch.{Request, Response}
 import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.TestProtocol.D_TestNode
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.dep.request.CurrentTimeAssembleMix
+import ee.cone.c4actor.dep.request.CurrentTimeApp
 import ee.cone.c4actor.hashsearch.base.HashSearchAssembleApp
 import ee.cone.c4actor.hashsearch.condition.ConditionCheckWithCl
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
-import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexAssemble, IndexByNodeStats, ProductWithId}
 import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{S_IndexByNode, S_IndexNode, S_IndexNodeSettings}
+import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexAssemble, ProductWithId}
 import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryMix, RangerWithCl}
-import ee.cone.c4actor.tests.TestProtocolM
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.{Id, Protocol, protocol}
-
-import scala.collection.immutable
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.HashSearchExtraTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
 class HashSearchExtraTestStart(
@@ -269,7 +266,7 @@ class HashSearchExtraTestApp extends TestVMRichDataApp
   with DynamicIndexAssemble
   with LensRegistryMix
   with HashSearchRangerRegistryMix
-  with CurrentTimeAssembleMix
+  with CurrentTimeApp
   with WithMurMur3HashGenApp
   with ProdLensesApp {
   // println(TestProtocolM.adapters.map(a => a.categories))
