@@ -76,7 +76,6 @@ case class GeneralCurrentTimeTransform(
     refreshRate: Option[Long],
     offset: Long
   ): Context => Seq[LEvent[Product]] = {
-    PrintGreen(s"Preparing ${config.currentTime.srcId}")
     val cl = config.cl
     val default = config.default
     val srcId = config.currentTime.srcId
