@@ -134,8 +134,8 @@ class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends
             val fullName = s"${fullNamePrefix}_inKey"
             val statements = defVal.asInstanceOf[Option[Term]] match {
               case None =>
-                val by = byOpt.getOrElse(new ByAnn(inKeyType, None))
-                joinKey(fullName, was, by.keyType, inValType) :: Nil
+                val by = byOpt.getOrElse(new ByAnn(inKeyType,None))
+                joinKey(fullName, was, by.keyType , inValType) :: Nil
               case Some(q"$expr.call") =>
                 assert(!was)
                 assert(byOpt.isEmpty)
