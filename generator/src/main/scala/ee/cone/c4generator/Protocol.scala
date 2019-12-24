@@ -167,10 +167,13 @@ $c4ann class ${cl.name}ProtoAdapter(
 
     //  case q"..$mods case class ${Type.Name(messageName)} ( ..$params ) extends ..$ext" =>
 
+    def filterAllowedTraits(traits: Set[String]): List[String] =
+      traits.toList.filterNot(_ == "T_Time")
+
     val traitDefSeq = protoGenerated.collect{ case m: GeneratedTraitDef => m.name }
     val traitDefs = traitDefSeq.toSet
     val traitUses = protoGenerated.collect{ case m: GeneratedTraitUsage => m.name }.toSet
-    val traitIllegal = traitUses -- traitDefs
+    val traitIllegal = filterAllowedTraits(traitUses -- traitDefs)
     if(traitIllegal.nonEmpty) throw new Exception(s"can not extend from non-local traits $traitIllegal")
     //
     val classLinks =

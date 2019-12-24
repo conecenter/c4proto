@@ -106,12 +106,14 @@ object AssembleGenerator extends Generator {
             object DistinctAnn
             object WasAnn
             class ByAnn(val keyType: KeyNSType, val keyEq: Option[String])
+            class TimeAnn(val timeName: String)
             val ann = mods.map{
               case mod"@distinct" => DistinctAnn
               case mod"@was" => WasAnn
               case mod"@by[${ExtractKeyNSType(tp)}]" => new ByAnn(tp,None)
               case mod"@byEq[${ExtractKeyNSType(tp)}]($v)" => new ByAnn(tp,Option(s"$v"))
-              case s => throw new Exception(s"${s.structure}")
+              case mod"@time(${Term.Name(timeName)})" if timeName != "CurrentTime" => new TimeAnn(timeName)
+              case s => Utils.parseError(s, parseContext)
             }
             val distinct = ann.contains(DistinctAnn)
             val was = ann.contains(WasAnn)
@@ -123,13 +125,21 @@ object AssembleGenerator extends Generator {
               by <- byOpt
               keyEq <- by.keyEq
             } yield keyEq
+            val timeOpt = ann.collectFirst{case time: TimeAnn => time.timeName}
+            val timeSrcId = timeOpt.map(time => s"$time.srcId")
             //
             val fullNamePrefix = s"${defName}_$paramName"
             val fullName = s"${fullNamePrefix}_inKey"
             val statements = defVal match {
               case None =>
-                val by = byOpt.getOrElse(new ByAnn(inKeyType,None))
-                joinKey(fullName, was, by.keyType , inValType) :: Nil
+                timeOpt match {
+                  case Some(timeName) =>
+                    val by = new ByAnn(ExtractKeyNSType.unapply(t"SrcId").get, Some(s"$timeName.srcId"))
+                    joinKey(fullName, was, by.keyType, ExtractKeyValType.unapply(Type.Name(s"T_$timeName")).get) :: Nil
+                  case None =>
+                    val by = byOpt.getOrElse(new ByAnn(inKeyType, None))
+                    joinKey(fullName, was, by.keyType, inValType) :: Nil
+                }
               case Some(q"$expr.call") =>
                 assert(!was)
                 assert(byOpt.isEmpty)
@@ -138,7 +148,7 @@ object AssembleGenerator extends Generator {
                 mkLazyVal(subAssembleName,s"$expr") ::
                 joinKeyB(fullName, s"$subAssembleName.resultKey") :: Nil
             }
-            (JConnDef(paramName, fullName, s"$inValOuterType", many, distinct, keyEq),statements)
+            (JConnDef(paramName, fullName, s"$inValOuterType", many, distinct, keyEq.orElse(timeSrcId)),statements)
         }
         val joinDefParams = paramInfo.map(_._1)
         val fullName = s"${defName}_outKey"
