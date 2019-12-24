@@ -48,9 +48,12 @@ object UnBaseGenerator extends Generator {
   } yield no
 }*/
 
+trait JoinParamTransformer {
+  def transform(parseContext: ParseContext): Term.Param => Option[Term.Param]
+}
 
+class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends Generator {
 
-object AssembleGenerator extends Generator {
   def get(parseContext: ParseContext): List[Generated] = for {
     cl <- Util.matchClass(parseContext.stats)
     c4ann <- Util.singleSeq(cl.mods.collect{
@@ -63,6 +66,7 @@ object AssembleGenerator extends Generator {
     }
   } yield res
   def getAssemble(parseContext: ParseContext, cl: ParsedClass, className: String, c4ann: String): List[Generated] = {
+    val transformers = joinParamTransforms.map(_.transform(parseContext))
     val classArgs = cl.params.toList.flatten.collect{
       case param"..$mods ${Term.Name(argName)}: Class[${Type.Name(typeName)}]" =>
         typeName -> argName
@@ -98,6 +102,8 @@ object AssembleGenerator extends Generator {
       case q"def ${Term.Name(defName)}(...${Seq(params)}): Values[(${ExtractKeyNSType(outKeyType)},${ExtractKeyValType(outValType)})] = $expr" =>
         val param"$keyName: ${ExtractKeyNSType(inKeyType)}" = params.head
         val paramInfo: List[(JConnDef,List[JRule])] = params.tail.toList.map{
+          param => transformers.foldLeft(param)((current, transform) => transform(current).getOrElse(current))
+        }.map{
           case param"..$mods ${Term.Name(paramName)}: $inValOuterTypeOpt = $defVal" =>
             val Some(inValOuterType) = inValOuterTypeOpt
             val t"$manyT[${ExtractKeyValType(inValType)}]" = inValOuterType
@@ -106,13 +112,11 @@ object AssembleGenerator extends Generator {
             object DistinctAnn
             object WasAnn
             class ByAnn(val keyType: KeyNSType, val keyEq: Option[String])
-            class TimeAnn(val timeName: String)
             val ann = mods.map{
               case mod"@distinct" => DistinctAnn
               case mod"@was" => WasAnn
               case mod"@by[${ExtractKeyNSType(tp)}]" => new ByAnn(tp,None)
               case mod"@byEq[${ExtractKeyNSType(tp)}]($v)" => new ByAnn(tp,Option(s"$v"))
-              case mod"@time(${Term.Name(timeName)})" if timeName != "CurrentTime" => new TimeAnn(timeName)
               case s => Utils.parseError(s, parseContext)
             }
             val distinct = ann.contains(DistinctAnn)
@@ -125,21 +129,13 @@ object AssembleGenerator extends Generator {
               by <- byOpt
               keyEq <- by.keyEq
             } yield keyEq
-            val timeOpt = ann.collectFirst{case time: TimeAnn => time.timeName}
-            val timeSrcId = timeOpt.map(time => s"$time.srcId")
             //
             val fullNamePrefix = s"${defName}_$paramName"
             val fullName = s"${fullNamePrefix}_inKey"
-            val statements = defVal match {
+            val statements = defVal.asInstanceOf[Option[Term]] match {
               case None =>
-                timeOpt match {
-                  case Some(timeName) =>
-                    val by = new ByAnn(ExtractKeyNSType.unapply(t"SrcId").get, Some(s"$timeName.srcId"))
-                    joinKey(fullName, was, by.keyType, ExtractKeyValType.unapply(Type.Name(s"T_$timeName")).get) :: Nil
-                  case None =>
-                    val by = byOpt.getOrElse(new ByAnn(inKeyType, None))
-                    joinKey(fullName, was, by.keyType, inValType) :: Nil
-                }
+                val by = byOpt.getOrElse(new ByAnn(inKeyType, None))
+                joinKey(fullName, was, by.keyType, inValType) :: Nil
               case Some(q"$expr.call") =>
                 assert(!was)
                 assert(byOpt.isEmpty)
@@ -148,7 +144,7 @@ object AssembleGenerator extends Generator {
                 mkLazyVal(subAssembleName,s"$expr") ::
                 joinKeyB(fullName, s"$subAssembleName.resultKey") :: Nil
             }
-            (JConnDef(paramName, fullName, s"$inValOuterType", many, distinct, keyEq.orElse(timeSrcId)),statements)
+            (JConnDef(paramName, fullName, s"$inValOuterType", many, distinct, keyEq),statements)
         }
         val joinDefParams = paramInfo.map(_._1)
         val fullName = s"${defName}_outKey"
