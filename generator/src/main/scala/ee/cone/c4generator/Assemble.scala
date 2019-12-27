@@ -48,9 +48,12 @@ object UnBaseGenerator extends Generator {
   } yield no
 }*/
 
+trait JoinParamTransformer {
+  def transform(parseContext: ParseContext): Term.Param => Option[Term.Param]
+}
 
+class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends Generator {
 
-object AssembleGenerator extends Generator {
   def get(parseContext: ParseContext): List[Generated] = for {
     cl <- Util.matchClass(parseContext.stats)
     c4ann <- Util.singleSeq(cl.mods.collect{
@@ -63,6 +66,7 @@ object AssembleGenerator extends Generator {
     }
   } yield res
   def getAssemble(parseContext: ParseContext, cl: ParsedClass, className: String, c4ann: String): List[Generated] = {
+    val transformers = joinParamTransforms.map(_.transform(parseContext))
     val classArgs = cl.params.toList.flatten.collect{
       case param"..$mods ${Term.Name(argName)}: Class[${Type.Name(typeName)}]" =>
         typeName -> argName
@@ -98,6 +102,8 @@ object AssembleGenerator extends Generator {
       case q"def ${Term.Name(defName)}(...${Seq(params)}): Values[(${ExtractKeyNSType(outKeyType)},${ExtractKeyValType(outValType)})] = $expr" =>
         val param"$keyName: ${ExtractKeyNSType(inKeyType)}" = params.head
         val paramInfo: List[(JConnDef,List[JRule])] = params.tail.toList.map{
+          param => transformers.foldLeft(param)((current, transform) => transform(current).getOrElse(current))
+        }.map{
           case param"..$mods ${Term.Name(paramName)}: $inValOuterTypeOpt = $defVal" =>
             val Some(inValOuterType) = inValOuterTypeOpt
             val t"$manyT[${ExtractKeyValType(inValType)}]" = inValOuterType
@@ -111,7 +117,7 @@ object AssembleGenerator extends Generator {
               case mod"@was" => WasAnn
               case mod"@by[${ExtractKeyNSType(tp)}]" => new ByAnn(tp,None)
               case mod"@byEq[${ExtractKeyNSType(tp)}]($v)" => new ByAnn(tp,Option(s"$v"))
-              case s => throw new Exception(s"${s.structure}")
+              case s => Utils.parseError(s, parseContext)
             }
             val distinct = ann.contains(DistinctAnn)
             val was = ann.contains(WasAnn)
@@ -126,7 +132,7 @@ object AssembleGenerator extends Generator {
             //
             val fullNamePrefix = s"${defName}_$paramName"
             val fullName = s"${fullNamePrefix}_inKey"
-            val statements = defVal match {
+            val statements = defVal.asInstanceOf[Option[Term]] match {
               case None =>
                 val by = byOpt.getOrElse(new ByAnn(inKeyType,None))
                 joinKey(fullName, was, by.keyType , inValType) :: Nil
@@ -203,9 +209,9 @@ object AssembleGenerator extends Generator {
 
 
 
-    val (subAssembleWith,subAssembleDef) = (rules.collect{ case SubAssembleName(n) => n }.distinct) match {
-      case Seq() => ("","")
-      case s => (" with ee.cone.c4assemble.CallerAssemble",s.mkString(s"override def subAssembles = List(",",",") ::: super.subAssembles\n"))
+    val (subAssembleImp,subAssembleWith,subAssembleDef) = (rules.collect{ case SubAssembleName(n) => n }.distinct) match {
+      case Seq() => (Nil,"","")
+      case s => (GeneratedCode("import ee.cone.c4assemble.CallerAssemble")::Nil, " with CallerAssemble", s.mkString(s"override def subAssembles = List(",",",") ::: super.subAssembles\n"))
     }
 
     val paramNames = cl.params.map(params=>params.map{
@@ -218,7 +224,7 @@ object AssembleGenerator extends Generator {
     val res = q"""class ${Type.Name(className)} [..${cl.typeParams}] (...$paramNamesWithTypes)"""
 
     //cont.substring(0,className.pos.end) + "_Base" + cont.substring(className.pos.end) +
-    GeneratedCode(
+    subAssembleImp ::: GeneratedCode(
       s"$c4ann ${res.syntax} extends ${cl.name}$paramNames with Assemble$subAssembleWith " +
       s"{\n$statRules$joinImpl$dataDependencies$subAssembleDef}"
     ) :: Nil // :: components

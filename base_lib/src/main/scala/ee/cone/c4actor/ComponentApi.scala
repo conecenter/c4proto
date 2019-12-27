@@ -23,10 +23,6 @@ trait ComponentRegistry {
   def resolve[T](cl: Class[T], args: Seq[TypeKey]): DeferredSeq[T]
 }
 
-abstract class ComponentFactory[T] {
-  def forTypes(args: Seq[TypeKey]): Seq[T]
-}
-
 trait DeferredSeq[+T] {
   def value: Seq[T]
 }

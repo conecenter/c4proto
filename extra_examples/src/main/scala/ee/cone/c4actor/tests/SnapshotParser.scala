@@ -2,7 +2,6 @@ package ee.cone.c4actor.tests
 
 import java.nio.file.{Files, Paths}
 
-import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor._
 import ee.cone.c4proto.ToByteString
 import ee.cone.c4actor_kafka_impl.LZ4DeCompressorApp

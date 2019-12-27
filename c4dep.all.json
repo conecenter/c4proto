@@ -1,0 +1,30 @@
+[
+{ "type": "C4EXT", "from": "generator.ee.cone.c4generator", "to": "org.scalameta:scalameta_2.13:4.2.3" },
+{ "type": "C4EXT", "from": "base_lib.ee.cone.c4actor", "to": "com.typesafe.scala-logging:scala-logging_2.13:3.9.2" },
+{ "type": "C4EXT", "from": "base_lib.ee.cone.c4actor_kafka_impl", "to": "org.apache.kafka:kafka-clients:2.3.0" },
+{ "type": "C4EXT", "from": "base_lib.ee.cone.c4actor_logback_impl", "to": "ch.qos.logback:logback-classic:1.2.3" },
+{ "type": "C4EXT", "from": "base_lib.ee.cone.c4actor_repl_impl", "to": "com.lihaoyi:ammonite-sshd_2.13.0:1.8.2" },
+{ "type": "C4EXT", "from": "base_lib.ee.cone.c4proto", "to": "com.squareup.wire:wire-runtime:2.2.0" },
+
+{ "type": "C4DEP", "from": "base_lib.ee.cone.c4proto", "to": "base_lib.ee.cone.c4di" },
+{ "type": "C4DEP", "from": "base_lib.ee.cone.c4assemble", "to": "base_lib.ee.cone.c4di" },
+{ "type": "C4DEP", "from": "base_lib.ee.cone.c4actor", "to": "base_lib.ee.cone.c4proto" },
+{ "type": "C4DEP", "from": "base_lib.ee.cone.c4actor", "to": "base_lib.ee.cone.c4assemble" },
+{ "type": "C4DEP", "from": "base_lib.ee.cone.c4actor_branch", "to": "base_lib.ee.cone.c4actor" },
+{ "type": "C4DEP", "from": "base_lib.ee.cone.c4actor_kafka_impl", "to": "base_lib.ee.cone.c4actor" },
+{ "type": "C4DEP", "from": "base_lib.ee.cone.c4actor_logback_impl", "to": "base_lib.ee.cone.c4actor" },
+{ "type": "C4DEP", "from": "base_lib.ee.cone.c4actor_repl_impl", "to": "base_lib.ee.cone.c4actor" },
+{ "type": "C4DEP", "from": "base_lib.ee.cone.c4gate", "to": "base_lib.ee.cone.c4actor" },
+{ "type": "C4DEP", "from": "base_lib.ee.cone.c4gate_minio", "to": "base_lib.ee.cone.c4actor" },
+{ "type": "C4DEP", "from": "base_lib.ee.cone.c4vdom_impl", "to": "base_lib.ee.cone.c4vdom" },
+{ "type": "C4DEP", "from": "base_lib.ee.cone.c4vdom_mix", "to": "base_lib.ee.cone.c4vdom_impl" },
+{ "type": "C4DEP", "from": "base_lib.ee.cone.c4ui", "to": "base_lib.ee.cone.c4actor_branch" },
+{ "type": "C4DEP", "from": "base_lib.ee.cone.c4ui", "to": "base_lib.ee.cone.c4vdom_mix" },
+{ "type": "C4DEP", "from": "base_lib.ee.cone.c4ui", "to": "base_lib.ee.cone.c4gate" },
+
+{ "type": "C4DEP", "from": "extra_lib.ee.cone.c4actor", "to": "base_lib.ee.cone.c4actor" },
+{ "type": "C4DEP", "from": "extra_lib.ee.cone.c4gate", "to": "base_lib.ee.cone.c4gate" },
+{ "type": "C4DEP", "from": "extra_lib.ee.cone.c4gate", "to": "extra_lib.ee.cone.c4actor" },
+{ "type": "C4DEP", "from": "extra_lib.ee.cone.c4ui", "to": "base_lib.ee.cone.c4ui" },
+{ "type": "C4DEP", "from": "extra_lib.ee.cone.c4ui", "to": "extra_lib.ee.cone.c4gate" }
+]

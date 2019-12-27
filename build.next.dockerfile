@@ -1,5 +1,8 @@
 ARG C4CI_BASE_TAG
 FROM builder:$C4CI_BASE_TAG
-COPY --chown=c4:c4 . /c4/c4proto
-RUN cd /c4/c4proto && ./app.pl build_some_server
-RUN perl /c4/c4proto/prod.pl ci_cp_proto def /c4/c4proto
+RUN rm -r /c4repo/c4proto
+#
+COPY --chown=c4:c4 . /c4repo/c4proto
+RUN perl /c4repo/c4proto/sync.pl start /c4repo/c4proto /c4/c4proto 0
+RUN perl /c4/c4proto/prod.pl ci_inner_build
+RUN perl /c4/c4proto/prod.pl ci_inner_cp

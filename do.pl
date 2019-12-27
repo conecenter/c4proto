@@ -29,6 +29,8 @@ sub sy{
 }
 sub syf{ my $res = scalar `$_[0]`; print "$_[0]\n$res"; $res }
 
+my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
+
 my $put_text = sub{
     my($fn,$content)=@_;
     open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
@@ -41,23 +43,6 @@ my $main = sub{
     ($cmd||'') eq $$_[0] and $$_[1]->(@args) for @tasks;
 };
 
-push @tasks, ["setup_sbt", sub{
-    &$need_tmp();
-    my $sbta = "sbt-0.13.13.tgz";
-    if(!-e $sbta){
-        sy("cd tmp && curl -LO https://dl.bintray.com/sbt/native-packages/sbt/0.13.13/$sbta");
-        sy("cd tmp && tar -xzf $sbta");
-        sy("tmp/sbt-launcher-packaging-0.13.13/bin/sbt update")
-    }
-
-    #my $nodea = "node-v6.10.0-linux-x64.tar.xz";
-    #if(!-e $nodea){
-    #    sy("wget https://nodejs.org/dist/v6.10.0/$nodea");
-    #    sy("tar -xJf $nodea");
-    #}
-    #print qq{export PATH=tmp/sbt-launcher-packaging-0.13.13/bin:tmp/node-v6.10.0-linux-x64/bin:\$PATH\n};
-    print qq{add to .bashrc or so:\nexport PATH=tmp/sbt-launcher-packaging-0.13.13/bin:\$PATH\n};
-}];
 push @tasks, ["setup_kafka", sub{
     &$need_tmp();
     if (!-e $kafka) {
@@ -149,7 +134,10 @@ my $client = sub{
     $build_dir
 };
 
-my $get_env = sub{
+my $exec_server = sub{
+    my($arg)=@_;
+    my ($nm,$mod,$cl) = $arg=~/^(\w+)\.(.+)\.(\w+)$/ ? ($1,"$1.$2","$2.$3") : die;
+    sy("bloop compile $mod");
     my $data_dir = $ENV{C4DATA_DIR} || die "no C4DATA_DIR";
     my %env = (
         C4BOOTSTRAP_SERVERS => $ssl_bootstrap_server,
@@ -162,51 +150,46 @@ my $get_env = sub{
         C4HTTP_PORT => $http_port,
         C4SSE_PORT => $sse_port,
         C4LOGBACK_XML => "$data_dir/logback.xml",
+        C4STATE_TOPIC_PREFIX => $nm,
+        C4APP_CLASS => $cl,
     );
-    join " ", map{"$_=$env{$_}"} sort keys %env;
+    my $env = join " ", map{"$_=$env{$_}"} sort keys %env;
+    &$exec(". .bloop/c4/mod.$mod.classpath.sh && $env java ee.cone.c4actor.ServerMain");
 };
 
-
-sub staged{
-    "C4STATE_TOPIC_PREFIX=$_[1] $gen_dir/$_[0]/target/universal/stage/bin/$_[0] $_[1]"
-}
 push @tasks, ["gate_publish", sub{
-    my $env = &$get_env();
     my $build_dir = &$client(0);
     $build_dir eq readlink $_ or symlink $build_dir, $_ or die $! for "htdocs";
+    &$put_text("htdocs/c4gen.ht.links",join"",
+        map{ my $u = m"^htdocs/(.+)$"?$1:die; "base_lib.ee.cone.c4gate /$u $u\n" }
+        sort <htdocs/*>
+    );
     &$put_text("htdocs/publish_time",time);
-    #sy("$env ".staged("c4gate-akka","ee.cone.c4gate.PublishApp"))
 }];
 push @tasks, ["gate_server_run", sub{
-    my $env = &$get_env();
     &$inbox_configure();
-    #sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("c4gate-sun","ee.cone.c4gate.SunGatewayApp"));
-    #sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("c4gate-finagle","ee.cone.c4gate.FinagleGatewayApp"));
-    sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("base_server","ee.cone.c4gate_akka.AkkaGatewayApp"));
-    #sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("base_server","ee.cone.c4gate_akka_s3.AkkaMinioGatewayApp"));
+    local $ENV{C4STATE_REFRESH_SECONDS} = 100;
+    &$exec_server("base_server.ee.cone.c4gate_akka.AkkaGatewayApp");
 }];
 push @tasks, ["gate_server_run_s3", sub{
-    my $env = &$get_env();
     &$inbox_configure();
-    sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("base_server","ee.cone.c4gate_akka_s3.AkkaMinioGatewayApp"));
+    local $ENV{C4STATE_REFRESH_SECONDS} = 100;
+    &$exec_server("base_server.ee.cone.c4gate_akka_s3.AkkaMinioGatewayApp");
 }];
-push @tasks, ["get_env", sub{ print "RES: ", &$get_env(), "\n" }];
+push @tasks, ["run", sub{
+    &$exec_server($_[0])
+}];
 push @tasks, ["test", sub{
     my @arg = @_;
-    my @tests = map{
+    print map{
         my $src_dir = $_;
         my $src_mod = $src_dir=~m{([^/]+)/src$} ? $1 : die;
-        my @src_files = `find $src_dir`=~/(\S+\/c4gen\.scala)\b/g;
-        map{[$src_mod,$_]} map{/(\S+)/g} map{`cat $_`=~/C4APPS:([^\n]+)/?"$1":die} @src_files;
+        my $src_files = join(" ", grep{m"/c4gen\.scala$"} `find $src_dir`=~/(\S+)/g) || die;
+        map{"\t$0 run $src_mod.$_\n"} map{/(\S+)/g} `cat $src_files`=~/C4APPS:([^\n]+)/g;
     } grep{-e $_} map{"$_/src"} grep{/example/} <$gen_dir/*>;
-    if(@arg==0){
-        print map{"\t$0 test $$_[1]\n"} @tests;
-    } elsif(@arg==1) {
-        my $env = &$get_env();
-        my $test = (grep{$arg[0] eq $$_[1]} @tests)[0] || die;
-        sy("$env ".staged(@$test));
-    } else { die }
 }];
+
+
 
 push @tasks, ["test_client",sub{
     my @arg = @_;

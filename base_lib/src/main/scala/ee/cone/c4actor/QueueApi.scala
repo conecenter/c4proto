@@ -3,7 +3,6 @@ package ee.cone.c4actor
 
 import java.time.Instant
 
-import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.MetaAttrProtocol.D_TxTransformNameMeta
 import ee.cone.c4actor.QProtocol.N_Update
 import ee.cone.c4actor.Types._

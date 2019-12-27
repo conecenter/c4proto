@@ -44,19 +44,19 @@ object ComponentsGenerator extends Generator {
     } yield for {
       param"..$mods ${Name(name)}: ${Some(tpe)} = $expropt" <- params.toList
       r <- if(expropt.nonEmpty) None
-      else Option((Option((tpe,name)),q"${Term.Name(name)}.asInstanceOf[$tpe]"))
+      else Option((Option((tpe,name)),s"$name=$name.asInstanceOf[$tpe]"))
     } yield r
     val args = for { args <- list } yield for { (_,a) <- args } yield a
     val caseSeq = for {(o,_) <- list.flatten; (_,a) <- o} yield a
-    val depSeq = for { (o,_) <- list.flatten; (a,_) <- o } yield getTypeKey(a)
+    val depSeq = for { (o,_) <- list.flatten; (a,_) <- o } yield getTypeKey(a,None)
     val objName = Term.Name(s"${tp}Component")
-    val concrete = q"Seq(new ${Type.Name(tp)}(...$args))".syntax
+    val concrete = s"Seq(new $tp${args.map(a=>s"(${a.mkString(",")})").mkString})"
     assert(cl.typeParams.isEmpty)
     //
     val inSet = depSeq.toSet
-    val mainOut = getTypeKey(cl.nameNode)
-    def outToContent(name: String, t: Type, body: String=>String): GeneratedComponent = {
-      val out = getTypeKey(t)
+    val mainOut = getTypeKey(cl.nameNode,None)
+    def outToContent(name: String, t: Type, body: String=>String, wildCard: Option[String]): GeneratedComponent = {
+      val out = getTypeKey(t,wildCard)
       val isFinal = inSet(out)
       val fixIn = if(isFinal) Option(s"""Option($out).map(o=>o.copy(alias=s"NonFinal#"+o.alias))""") else None
       toContent(t.toString,name,out,fixIn,List(mainOut),List("arg"),body(s"arg.asInstanceOf[$tp]"))
@@ -66,9 +66,12 @@ object ComponentsGenerator extends Generator {
         val clArgs = a.flatten.collect{ case q"classOf[$a]" => a }
         if(clArgs.nonEmpty) Type.Apply(t,clArgs) else t
       case init"$t(...$_)" => t
+    }.flatMap{
+      case t@Type.Apply(Type.Name(n),_) => List(t,Type.Name(s"General$n"))
+      case t: Type.Name => List(t)
     }
     val extOuts: List[GeneratedComponent] = abstractTypes.zipWithIndex.map{ case (t,i) =>
-      outToContent(s"${tp}_E$i",t,a=>s"Seq($a)")
+      outToContent(s"${tp}_E$i",t,a=>s"Seq($a)",None)
     }
     val defOuts: List[GeneratedComponent] = cl.stats.flatMap{
       case q"..$cMods def ${Term.Name(defName)}(...$params): $tpeopt = $expr" =>
@@ -77,7 +80,11 @@ object ComponentsGenerator extends Generator {
         } else {
           assert(params.isEmpty)
           val Some(t"Seq[$t]") = tpeopt
-          List(outToContent(s"${tp}_D$defName",t,a=>s"$a.$defName"))
+          val wildCard = t match {
+            case t"ComponentFactory[$_]" => Option("")
+            case _ => None
+          }
+          List(outToContent(s"${tp}_D$defName",t,a=>s"$a.$defName",wildCard))
         }
       case _ =>
         //println(s"not def: $")
@@ -119,11 +126,14 @@ object ComponentsGenerator extends Generator {
         components.collect{ case c: GeneratedComponent => c.content }.mkString
     ) :: connects ::: List(GeneratedCode("\n}"))
   }
-  def getTypeKey(t: Type): String = t match {
+  def getTypeKey(t: Type, wildCard: Option[String]): String = t match {
     case t"$tpe[..$tpesnel]" =>
       val tArgs = tpesnel.map(_ => "_").mkString(", ")
-      val args = tpesnel.flatMap{ case t"_" => Nil case t => List(getTypeKey(t)) }
-      s"""TypeKey(classOf[$tpe[$tArgs]].getName, "$tpe", $args)"""
+      val args = tpesnel.map{
+        case t"_" => wildCard.getOrElse(throw new Exception(s"$t wildcard type disabled"))
+        case c => s"${getTypeKey(c,wildCard)} :: "
+      }.mkString
+      s"""TypeKey(classOf[$tpe[$tArgs]].getName, "$tpe", ${args}Nil)"""
     case t"$tpe" =>
       s"""TypeKey(classOf[$tpe].getName, "$tpe", Nil)"""
   }

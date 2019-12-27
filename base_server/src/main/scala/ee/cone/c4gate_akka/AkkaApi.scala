@@ -7,6 +7,12 @@ import scala.concurrent.{ExecutionContext, Future}
 trait AkkaMat {
   def get: Future[ActorMaterializer]
 }
+
+abstract class AkkaConf {
+  def content: String
+}
+
+/*
 trait C4AkkaHandler[-Income, +Outcome]{
   def handleAsync(
     income: Income,
@@ -23,3 +29,4 @@ trait AkkaResponseHandlerProvider{
 trait AkkaRequestHandlerProvider{
   def get: AkkaRequestHandler
 }
+*/

@@ -48,7 +48,7 @@ case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends 
   }
 }
 
-@protocol object CurrentTimeProtocolBase {
+@protocol("CurrentTimeApp") object CurrentTimeProtocolBase {
 
   @Id(0x0127) case class S_CurrentTimeNodeSetting(
     @Id(0x0128) timeNodeId: String,
@@ -69,9 +69,7 @@ trait CurrentTimeConfigApp {
   def currentTimeConfig: List[CurrentTimeConfig] = Nil
 }
 
-trait CurrentTimeAssembleMix extends CurrentTimeConfigApp with AssemblesApp with ProtocolsApp {
-
-  override def protocols: List[Protocol] = CurrentTimeProtocol :: super.protocols
+trait CurrentTimeAppBase extends CurrentTimeConfigApp with AssemblesApp {
 
   override def assembles: List[Assemble] = {
     val grouped = currentTimeConfig.distinct.groupBy(_.srcId).filter(kv => kv._2.size > 1)
