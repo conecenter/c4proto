@@ -565,15 +565,15 @@ my $make_kc_yml = sub{
     ) : ();
     my @db4_volumes = $all{C4DATA_DIR} ? {name=>"db4"} : ();
     #
-    $rolling and @volume_claim_templates and die "C4DATA_DIR can not be C4ROLLING";
+    #$rolling and @volume_claim_templates and die "C4DATA_DIR can not be C4ROLLING";
     my $stateful_set_yml = &$to_yml_str({
         apiVersion => "apps/v1",
-        kind => $rolling ? "Deployment" : "StatefulSet",
+        kind => "StatefulSet",
         metadata => { name => $name },
         spec => {
             %$spec,
             selector => { matchLabels => { app => $name } },
-            $rolling ? () : (serviceName => $name),
+            serviceName => $name,
             template => {
                 metadata => {
                     labels => {
