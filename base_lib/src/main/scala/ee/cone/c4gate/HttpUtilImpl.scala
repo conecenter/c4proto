@@ -72,15 +72,15 @@ import scala.jdk.CollectionConverters.ListHasAsScala
       timeOut.foreach(conn.setConnectTimeout)
       conn.setRequestMethod(method.toString)
       setHeaders(conn, ("content-length", s"${body.size}") :: headers)
-        logger debug "connection configured"
-        FinallyClose(conn.getOutputStream) { bodyStream =>
-          bodyStream.write(body.toByteArray)
-          bodyStream.flush()
-        }
-        logger debug "starting connection"
-        conn.connect()
-        logger debug s"http resp status ${conn.getResponseCode}"
-        conn.getResponseCode
+      logger debug "connection configured"
+      FinallyClose(conn.getOutputStream) { bodyStream =>
+        bodyStream.write(body.toByteArray)
+        bodyStream.flush()
+      }
+      logger debug "starting connection"
+      conn.connect()
+      logger debug s"http resp status ${conn.getResponseCode}"
+      conn.getResponseCode
     }
     logger debug s"http $method done"
     responseCode
