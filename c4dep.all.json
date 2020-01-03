@@ -5,6 +5,7 @@
 { "type": "C4EXT", "from": "base_lib.ee.cone.c4actor_logback_impl", "to": "ch.qos.logback:logback-classic:1.2.3" },
 { "type": "C4EXT", "from": "base_lib.ee.cone.c4actor_repl_impl", "to": "com.lihaoyi:ammonite-sshd_2.13.0:1.8.2" },
 { "type": "C4EXT", "from": "base_lib.ee.cone.c4proto", "to": "com.squareup.wire:wire-runtime:2.2.0" },
+{ "type": "C4EXT", "from": "base_lib.ee.cone.c4actor_s3_minio", "to": "io.minio:minio:6.0.11" },
 
 { "type": "C4DEP", "from": "base_lib.ee.cone.c4proto", "to": "base_lib.ee.cone.c4di" },
 { "type": "C4DEP", "from": "base_lib.ee.cone.c4assemble", "to": "base_lib.ee.cone.c4di" },
@@ -14,6 +15,8 @@
 { "type": "C4DEP", "from": "base_lib.ee.cone.c4actor_kafka_impl", "to": "base_lib.ee.cone.c4actor" },
 { "type": "C4DEP", "from": "base_lib.ee.cone.c4actor_logback_impl", "to": "base_lib.ee.cone.c4actor" },
 { "type": "C4DEP", "from": "base_lib.ee.cone.c4actor_repl_impl", "to": "base_lib.ee.cone.c4actor" },
+{ "type": "C4DEP", "from": "base_lib.ee.cone.c4actor_s3", "to": "base_lib.ee.cone.c4actor" },
+{ "type": "C4DEP", "from": "base_lib.ee.cone.c4actor_s3_minio", "to": "base_lib.ee.cone.c4actor_s3" },
 { "type": "C4DEP", "from": "base_lib.ee.cone.c4gate", "to": "base_lib.ee.cone.c4actor" },
 { "type": "C4DEP", "from": "base_lib.ee.cone.c4gate_minio", "to": "base_lib.ee.cone.c4actor" },
 { "type": "C4DEP", "from": "base_lib.ee.cone.c4vdom_impl", "to": "base_lib.ee.cone.c4vdom" },

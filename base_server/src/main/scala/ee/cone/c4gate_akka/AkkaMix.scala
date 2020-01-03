@@ -8,4 +8,6 @@ import ee.cone.c4gate_server.AbstractHttpGatewayApp
 trait AkkaMatAppBase
 trait AkkaServerAppBase
 trait AkkaStatefulReceiverFactoryAppBase
-@c4app class AkkaGatewayAppBase extends AbstractHttpGatewayApp with AkkaStatefulReceiverFactoryApp with AkkaMatApp with SSHDebugApp
+trait AkkaGatewayAppBase extends AbstractHttpGatewayApp with AkkaStatefulReceiverFactoryApp with AkkaMatApp
+
+@c4app class SimpleAkkaGatewayAppBase extends AkkaGatewayApp with SSHDebugApp

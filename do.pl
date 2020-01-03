@@ -169,7 +169,7 @@ push @tasks, ["gate_publish", sub{
 push @tasks, ["gate_server_run", sub{
     &$inbox_configure();
     local $ENV{C4STATE_REFRESH_SECONDS} = 100;
-    &$exec_server("base_server.ee.cone.c4gate_akka.AkkaGatewayApp");
+    &$exec_server("base_server.ee.cone.c4gate_akka.SimpleAkkaGatewayApp");
 }];
 push @tasks, ["gate_server_run_s3", sub{
     &$inbox_configure();
