@@ -67,20 +67,18 @@ import scala.jdk.CollectionConverters.ListHasAsScala
     timeOut: Option[Int] = None,
   ): Int = {
     logger debug s"http $method $url"
-    val responseCode = withConnection(url) {
-      conn =>
+    val responseCode = withConnection(url) { conn =>
       conn.setDoOutput(true)
-        timeOut.foreach(conn.setConnectTimeout)
-        conn.setRequestMethod(method.toString)
+      timeOut.foreach(conn.setConnectTimeout)
+      conn.setRequestMethod(method.toString)
       setHeaders(conn, ("content-length", s"${body.size}") :: headers)
         logger debug "connection configured"
-        FinallyClose(conn.getOutputStream) {
-          bodyStream =>
-        bodyStream.write(body.toByteArray)
-        bodyStream.flush()
-      }
+        FinallyClose(conn.getOutputStream) { bodyStream =>
+          bodyStream.write(body.toByteArray)
+          bodyStream.flush()
+        }
         logger debug "starting connection"
-      conn.connect()
+        conn.connect()
         logger debug s"http resp status ${conn.getResponseCode}"
         conn.getResponseCode
     }
