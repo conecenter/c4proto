@@ -7,6 +7,7 @@ import java.util.Locale
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.FinallyClose
 import ee.cone.c4di.c4
+import ee.cone.c4gate.HttpUtil.HttpMethod
 import okio.ByteString
 
 import scala.jdk.CollectionConverters.MapHasAsScala
@@ -58,23 +59,57 @@ import scala.jdk.CollectionConverters.ListHasAsScala
     logger.debug(s"http post done")
   }*/
 
-  def post(url: String, headers: List[(String, String)]): Unit =
-    post(url,headers,ByteString.EMPTY,None,200)
-  def post(url: String, headers: List[(String, String)], body: ByteString, timeOut: Option[Int], expectCode: Int): Unit = {
-    logger.debug(s"http post $url")
-    withConnection(url) { conn =>
+  def genReq(
+    method: HttpMethod = HttpMethod.GET,
+    url: String = "/",
+    headers: List[(String, String)] = Nil,
+    body: ByteString = ByteString.EMPTY,
+    timeOut: Option[Int] = None,
+  ): Int = {
+    logger debug s"http $method $url"
+    val responseCode = withConnection(url) { conn =>
       conn.setDoOutput(true)
-      timeOut.foreach(t=>conn.setConnectTimeout(t))
-      conn.setRequestMethod("POST")
+      timeOut.foreach(conn.setConnectTimeout)
+      conn.setRequestMethod(method.toString)
       setHeaders(conn, ("content-length", s"${body.size}") :: headers)
+      logger debug "connection configured"
       FinallyClose(conn.getOutputStream) { bodyStream =>
         bodyStream.write(body.toByteArray)
         bodyStream.flush()
       }
+      logger debug "starting connection"
       conn.connect()
-      logger.debug(s"http resp status ${conn.getResponseCode}")
-      assert(conn.getResponseCode == expectCode)
+      logger debug s"http resp status ${conn.getResponseCode}"
+      conn.getResponseCode
     }
-    logger.debug(s"http post done")
+    logger debug s"http $method done"
+    responseCode
   }
+  def post(url: String, headers: List[(String, String)]): Unit =
+    post(url,headers,ByteString.EMPTY,None,200)
+  def post(url: String, headers: List[(String, String)], body: ByteString, timeOut: Option[Int], expectCode: Int): Unit = {
+    genReq(HttpMethod.POST, url, headers, body, timeOut).ensuring(_ == expectCode)
+    ()
+  }
+  def put(
+    url: String,
+    headers: List[(String, String)],
+    body: ByteString,
+    timeOut: Option[Int],
+  ): Int = genReq(
+    method = HttpMethod.PUT,
+    url = url,
+    headers = headers,
+    body = body,
+    timeOut = timeOut,
+  )
+  def put(
+    url: String, headers: List[(String, String)],
+    body: ByteString
+  ): Int = put(
+    url = url,
+    headers = headers,
+    body = body,
+    timeOut = None,
+  )
 }

@@ -2,7 +2,8 @@
 [
 { "type": "C4INC", "path": "c4dep.all.json" },
 
-{ "type": "C4TAG", "from": "def", "to": "base_server.ee.cone.c4gate_akka.AkkaGatewayApp" },
+{ "type": "C4TAG", "from": "def", "to": "base_server.ee.cone.c4gate_akka.SimpleAkkaGatewayApp" },
+{ "type": "C4TAG", "from": "s3def", "to": "base_server.ee.cone.c4gate_akka_s3.AkkaMinioGatewayApp" },
 { "type": "C4TAG", "from": "all", "to": "extra_examples.aggregate.XXX" },
 { "type": "C4TAG", "from": "test-consumer", "to": "base_examples.ee.cone.c4gate.TestConsumerApp" },
 
@@ -29,6 +30,8 @@
 { "type": "C4DEP", "from": "base_server.ee.cone.c4gate_server", "to": "base_lib.ee.cone.c4actor_logback_impl" },
 { "type": "C4DEP", "from": "base_server.ee.cone.c4gate_akka", "to": "base_server.ee.cone.c4gate_server" },
 { "type": "C4DEP", "from": "base_server.ee.cone.c4gate_akka", "to": "base_lib.ee.cone.c4actor_repl_impl" },
+{ "type": "C4DEP", "from": "base_server.ee.cone.c4gate_akka_s3", "to": "base_server.ee.cone.c4gate_server" },
+{ "type": "C4DEP", "from": "base_server.ee.cone.c4gate_akka_s3", "to": "base_lib.ee.cone.c4actor_s3_minio" },
 
 { "type": "C4DEP", "from": "base_examples.ee.cone.c4actor", "to": "base_lib.ee.cone.c4actor_logback_impl" },
 { "type": "C4DEP", "from": "base_examples.ee.cone.c4gate", "to": "base_lib.ee.cone.c4gate" },
