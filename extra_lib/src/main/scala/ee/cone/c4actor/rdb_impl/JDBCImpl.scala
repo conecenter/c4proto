@@ -15,7 +15,7 @@ import scala.annotation.tailrec
   dbFactory: ExternalDBFactory,
   db: CompletableFuture[RConnectionPool] = new CompletableFuture() //dataSource: javax.sql.DataSource
 ) extends ToInject with Executable with ExternalDBClient {
-  def toInject: List[Injectable] = WithJDBCKey.set(getConnectionPool.doWith)
+  def toInject: List[Injectable] = WithJDBCKey.set(f=>getConnectionPool.doWith(f))
   def run(): Unit = concurrent.blocking{ db.complete(dbFactory.create(
     createConnection => new RConnectionPool {
       def doWith[T](f: RConnection=>T): T = {
