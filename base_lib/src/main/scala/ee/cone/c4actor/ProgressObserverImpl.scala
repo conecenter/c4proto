@@ -14,10 +14,14 @@ import ee.cone.c4di.c4
 
 import scala.concurrent.Future
 
-@c4("ServerCompApp") class ProgressObserverFactoryImpl(inner: TxObserver, config: ListConfig) extends ProgressObserverFactory {
+@c4("ServerCompApp") class ProgressObserverFactoryImpl(
+  inner: TxObserver, config: ListConfig,
+  execution: Execution, getToStart: DeferredSeq[Executable]
+) extends ProgressObserverFactory {
   def create(endOffset: NextOffset): Observer[RichContext] = {
-    val readyObserver = Single.option(config.get("C4ROLLING")).fold(inner.value)(path=>
-      new ReadyObserverImpl(inner.value, Paths.get(path), 0L)
+    val lateExObserver: Observer[RichContext]  = new LateExecutionObserver(execution,getToStart.value,inner.value)
+    val readyObserver = Single.option(config.get("C4ROLLING")).fold(lateExObserver)(path=>
+      new ReadyObserverImpl(lateExObserver, Paths.get(path), 0L)
     )
     new ProgressObserverImpl(readyObserver,endOffset)
   }
@@ -84,18 +88,12 @@ case class BuildVerTx(srcId: SrcId, path: Path, value: String)(execution: Execut
 @c4("ServerCompApp") class ServerExecutionFilter(inner: ExecutionFilter)
   extends ExecutionFilter(e=>inner.check(e) && e.isInstanceOf[Early])
 
-@c4assemble("ServerCompApp") class LateExecutionAssembleBase(execution: Execution, getToStart: DeferredSeq[Executable]){
-  def join(
-    srcId: SrcId,
-    firstborn: Each[S_Firstborn]
-  ): Values[(SrcId,TxTransform)] =
-    List(WithPK(LateExecutionTx("LateExecutionTx")(execution,getToStart.value.filterNot(_.isInstanceOf[Early]))))
-}
-
-case class LateExecutionTx(srcId: SrcId)(execution: Execution, toStart: Seq[Executable]) extends TxTransform with LazyLogging {
-  def transform(local: Context): Context = {
+class LateExecutionObserver(
+  execution: Execution, toStart: Seq[Executable], inner: Observer[RichContext]
+) extends Observer[RichContext] with LazyLogging {
+  def activate(world: RichContext): Observer[RichContext] = {
     logger.info(s"tracking ${toStart.size} late services")
-    toStart.foreach(f => execution.fatal(Future(f.run())(_)))
-    SleepUntilKey.set(Instant.MAX)(local)
+    toStart.filterNot(_.isInstanceOf[Early]).foreach(f => execution.fatal(Future(f.run())(_)))
+    inner.activate(world)
   }
 }
