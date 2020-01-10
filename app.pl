@@ -18,13 +18,12 @@ push @tasks, ["","",sub{
         (map{!$$_[1] ? () : "  $0 $$_[0] $$_[1]"} @tasks);
 }];
 push @tasks, ["build_all"," ",sub{
-    local $ENV{C4BUILD_CLEAN} = 1;
+    local $ENV{C4BUILD_CLEAN} = (exists $ENV{C4BUILD_CLEAN}) ? $ENV{C4BUILD_CLEAN} : 1;
     my $dir = &$sync();
     sy("perl $dir/sync.pl run $dir 'sh .bloop/c4/tag.all.compile'");
 }];
 push @tasks, ["build_some_server"," ",sub{
-    my $dir = &$sync();
-    sy("perl $dir/sync.pl run $dir 'sh .bloop/c4/tag.all.compile'");
+    &$sync();
 }];
 
 my($cmd,@args)=@ARGV;
