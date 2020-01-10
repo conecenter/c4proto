@@ -1,9 +1,8 @@
 package ee.cone.c4actor.hashsearch.index.dynamic
 
-import ee.cone.c4actor.{CollectiveTransformProtocol, ProtocolsApp}
 import ee.cone.c4proto._
 
-@protocol object IndexNodeProtocolBase  {
+@protocol("DynamicIndexAssemble") object IndexNodeProtocolBase  {
   @Id(0x205) case class S_IndexNodesVersion(
     @Id(0x207) srcId: String,
     @Id(0x206) version: String
@@ -49,8 +48,4 @@ import ee.cone.c4proto._
     @Id(0x0197) srcId: String,
     @Id(0x0198) measurement: Option[Long]
   )
-}
-
-trait WithIndexNodeProtocol extends ProtocolsApp {
-  override def protocols: List[Protocol] = CollectiveTransformProtocol :: IndexNodeProtocol :: super.protocols
 }

@@ -8,11 +8,9 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by, was}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-trait ByClassNameRequestHandlerApp extends AssemblesApp with ProtocolsApp with SerializationUtilsApp with DepResponseFactoryApp{
+trait ByClassNameRequestHandlerAppBase extends AssemblesApp with SerializationUtilsApp with DepResponseFactoryApp {
   def byClassNameClasses: List[Class[_ <: Product]] = Nil
   def idGenUtil: IdGenUtil
-
-  override def protocols: List[Protocol] = ByClassNameRequestProtocol :: super.protocols
 
   override def assembles: List[Assemble] = byClassNameClasses.map(className => new ByClassNameGenericAssemble(className, idGenUtil.srcIdFromSrcIds(className.getName), depResponseFactory)) ::: super.assembles
 }
@@ -20,14 +18,14 @@ trait ByClassNameRequestHandlerApp extends AssemblesApp with ProtocolsApp with S
 case class InnerByClassNameRequest(request: DepInnerRequest, className: String, from: Int, to: Int)
 
 @assemble class ByClassNameGenericAssembleBase[A <: Product](handledClass: Class[A], classSrcId: SrcId, depResponseFactory: DepResponseFactory)
-   extends AssembleName("ByClassNameGenericAssemble", handledClass) with ByClassNameRequestUtils {
+  extends AssembleName("ByClassNameGenericAssemble", handledClass) with ByClassNameRequestUtils {
   type ByCNSrcId = SrcId
   type ByCNRqSrcId = SrcId
 
   def BCNItemsOnSrcId(
     key: SrcId,
     item: Each[A]
-  ): Values[(ByCNSrcId, A)] = List((classSrcId+"ByCN")->item)
+  ): Values[(ByCNSrcId, A)] = List((classSrcId + "ByCN") -> item)
 
 
   def BCNRequestToClassSrcId(
@@ -53,7 +51,7 @@ case class InnerByClassNameRequest(request: DepInnerRequest, className: String, 
 
 }
 
-@protocol object ByClassNameRequestProtocolBase   {
+@protocol("ByClassNameRequestHandlerApp") object ByClassNameRequestProtocolBase {
 
   @Id(0x0f26) case class N_ByClassNameRequest(
     @Id(0x0f27) className: String,

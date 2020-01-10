@@ -1,14 +1,13 @@
 package ee.cone.c4actor
 
-import ee.cone.c4actor.TestProtocol.{D_TestNode, D_ValueNode}
+import ee.cone.c4actor.TestProtocol.D_ValueNode
 import ee.cone.c4actor.TestRequests.{D_ChildDepRequest, D_FooDepRequest}
 import ee.cone.c4actor.dep.DepTypes.{DepCtx, DepRequest}
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.ByClassNameAllAsk
-import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.N_ContextIdRequest
 import ee.cone.c4actor.dep_impl.ByPKRequestProtocol.N_ByPKRequest
 import ee.cone.c4actor.dep_impl.{RequestDep, ResolvedDep}
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, protocol}
 
 // sbt ~'c4actor-extra-examples/run-main ee.cone.c4actor.DepDraft'
 case class DepDraft(factory: CommonRequestUtilityFactory, valueNode: AskByPK[D_ValueNode], depAskFactory: DepAskFactory, kek: ByClassNameAllAsk, depFactory: DepFactory) {
@@ -104,7 +103,9 @@ case class DepDraft(factory: CommonRequestUtilityFactory, valueNode: AskByPK[D_V
   }
 }
 
-@protocol object TestRequestsBase   {
+trait TestRequestProtocolAppBase
+
+@protocol("TestRequestProtocolApp") object TestRequestsBase {
 
   @Id(0x3031) case class D_FooDepRequest(@Id(0x3036) v: String)
 

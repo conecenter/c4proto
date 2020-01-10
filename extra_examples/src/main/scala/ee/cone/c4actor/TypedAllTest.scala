@@ -48,7 +48,7 @@ trait TypedAllType {
   type TestBy[T] = SrcId
 }
 
-@assemble class TestAllEachBase   {
+@assemble class TestAllEachBase {
   type FixedAll = AbstractAll
 
   def test1(
@@ -75,7 +75,7 @@ trait TypedAllType {
   }
 }
 
-@assemble class TypedAllTestAssembleBase[Model <: Product](modelCl: Class[Model]) extends   TypedAllType {
+@assemble class TypedAllTestAssembleBase[Model <: Product](modelCl: Class[Model]) extends TypedAllType {
 
   def ModelToTypedAll(
     srcId: SrcId,
@@ -141,8 +141,9 @@ case class TestTx(srcId: SrcId) extends TxTransform {
   def transform(local: Context): Context = TxAdd(LEvent.update(D_Model2(srcId)))(local)
 }
 
+trait TypedAllTestProtocolAppBase
 
-@protocol object TypedAllTestProtocolBase   {
+@protocol("TypedAllTestProtocolApp") object TypedAllTestProtocolBase {
 
   @Id(0xaabc) case class D_Model1(
     @Id(0xaabd) srcId: String
@@ -160,13 +161,10 @@ case class TestTx(srcId: SrcId) extends TxTransform {
 }
 
 class TypedAllTestApp extends TestVMRichDataApp
-  //with ServerApp
-  //with EnvConfigApp
   with VMExecutionApp
-  //with ParallelObserversApp
-  //with RemoteRawSnapshotApp
   with ExecutableApp
-  with ToStartApp {
+  with ToStartApp
+  with TypedAllTestProtocolApp {
 
 
   //override def rawQSender: RawQSender = NoRawQSender
@@ -174,9 +172,6 @@ class TypedAllTestApp extends TestVMRichDataApp
   override def parallelAssembleOn: Boolean = true
 
   override def toStart: List[Executable] = new TypedAllTestStart(execution, toUpdate, contextFactory, /*txObserver,*/ qAdapterRegistry) :: super.toStart
-
-
-  override def protocols: List[Protocol] = TypedAllTestProtocol :: super.protocols
 
   override def assembles: List[Assemble] = {
     new TypedAllTestAssemble(classOf[D_Model1]) :: new TypedAllTestAssemble(classOf[D_Model2]) :: new TestAllEach ::

@@ -6,11 +6,13 @@ import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, Single, assemble}
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, protocol}
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.ConflictOrigTestApp sbt ~'c4actor-extra-examples/runMain -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005 ee.cone.c4actor.ServerMain'
 
-@protocol object ProtoConflictBase   {
+trait ProtoConflictAppBase
+
+@protocol("ProtoConflictApp") object ProtoConflictBase {
 
   @Id(0x103) case class D_ConflictOrig(
     @Id(0x104) srcId: String,
@@ -21,7 +23,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 case class ConflictRich(conflict: D_ConflictOrig)
 
-@assemble class AssembleConflictBase(produce: D_ConflictOrig)   {
+@assemble class AssembleConflictBase(produce: D_ConflictOrig) {
 
   def Produce(
     modelId: SrcId,
@@ -68,10 +70,9 @@ class ConflictingOrigTest(
 class D_ConflictOrigTestApp extends TestVMRichDataApp
   with ExecutableApp
   with VMExecutionApp
-  with ToStartApp {
+  with ToStartApp
+  with ProtoConflictApp {
   override def toStart: List[Executable] = new ConflictingOrigTest(execution, toUpdate, contextFactory) :: super.toStart
-
-  override def protocols: List[Protocol] = ProtoConflict :: super.protocols
 
   override def assembles: List[Assemble] = new AssembleConflict(D_ConflictOrig("main", 0)) :: super.assembles
 

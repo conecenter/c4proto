@@ -7,22 +7,17 @@ import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep._
-import ee.cone.c4actor.dep.request.CurrentTimeProtocol.S_CurrentTimeNode
-import ee.cone.c4actor.dep.request.CurrentTimeProtocol.S_CurrentTimeNodeSetting
-import ee.cone.c4actor.dep.request.CurrentTimeRequestProtocol.N_CurrentTimeRequest
-import ee.cone.c4actor.dep.request.CurrentTimeRequestProtocol.D_CurrentTimeMetaAttr
+import ee.cone.c4actor.dep.request.CurrentTimeProtocol.{S_CurrentTimeNode, S_CurrentTimeNodeSetting}
+import ee.cone.c4actor.dep.request.CurrentTimeRequestProtocol.{D_CurrentTimeMetaAttr, N_CurrentTimeRequest}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4proto._
 
-trait CurrentTimeHandlerApp extends AssemblesApp with ProtocolsApp with CurrentTimeConfigApp with DepResponseFactoryApp {
-
+trait CurrentTimeHandlerAppBase extends AssemblesApp with CurrentTimeConfigApp with DepResponseFactoryApp with ProtoApp {
 
   override def currentTimeConfig: List[CurrentTimeConfig] = CurrentTimeConfig(CurrentTimeRequestAssembleTimeId.id, 10L) :: super.currentTimeConfig
 
   override def assembles: List[Assemble] = new CurrentTimeRequestAssemble(depResponseFactory) :: super.assembles
-
-  override def protocols: List[Protocol] = QProtocol :: CurrentTimeRequestProtocol :: super.protocols
 }
 
 case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends TxTransform {
@@ -132,7 +127,7 @@ object CurrentTimeRequestAssembleTimeId {
   }
 }
 
-@protocol object CurrentTimeRequestProtocolBase {
+@protocol("CurrentTimeHandlerApp") object CurrentTimeRequestProtocolBase {
 
     @Id(0x0f83) case class N_CurrentTimeRequest(
     @Id(0x0f86) everyPeriod: Long

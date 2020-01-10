@@ -22,7 +22,9 @@ case class NonHashedRich[T](srcId: SrcId, preHashed: T)
 
 case class NonHashedRichFixed(srcId: SrcId, preHashed: List[(NonHashedRich[D_TestOrigEasy], NonHashedRich[D_TestOrigHard])])
 
-@protocol object MD5HashingProtocolBase   {
+trait MD5HashingProtocolAppBase
+
+@protocol("MD5HashingProtocolApp") object MD5HashingProtocolBase {
 
   @Id(0x239) case class D_TestOrigHard(
     @Id(0x240) srcId: String,
@@ -39,7 +41,7 @@ case class NonHashedRichFixed(srcId: SrcId, preHashed: List[(NonHashedRich[D_Tes
 
 }
 
-@assemble class MD5HashingAssembleBase(preHashing: PreHashing)   {
+@assemble class MD5HashingAssembleBase(preHashing: PreHashing) {
   type HashedId = SrcId
 
   def nonHashMD5Easy(
@@ -136,10 +138,9 @@ class MD5HashingTest(
 class MD5HashingTestApp extends TestVMRichDataApp
   with ExecutableApp
   with VMExecutionApp
-  with ToStartApp {
+  with ToStartApp
+  with MD5HashingProtocolApp {
   override def toStart: List[Executable] = new MD5HashingTest(execution, toUpdate, contextFactory) :: super.toStart
-
-  override def protocols: List[Protocol] = MD5HashingProtocol :: super.protocols
 
   override def assembles: List[Assemble] = new MD5HashingAssemble(PreHashingMurMur3()) :: super.assembles
 

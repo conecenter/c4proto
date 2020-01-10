@@ -5,14 +5,15 @@ import ee.cone.c4actor.PerformanceProtocol.{D_NodeInstruction, D_PerformanceNode
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4di.c4app
+import ee.cone.c4proto.{Id, protocol}
 
 import scala.collection.immutable
 import scala.util.Random
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.ChangingIndexPerformanceTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
 
-@protocol object PerformanceProtocolBase   {
+@protocol("ChangingIndexPerformanceTestApp") object PerformanceProtocolBase   {
 
   @Id(0x0100) case class D_PerformanceNode(
     @Id(0x0101) srcId: String,
@@ -168,13 +169,11 @@ class ChangingIndexPerformanceTest(
   }
 }
 
-class ChangingIndexPerformanceTestApp extends TestVMRichDataApp
+@c4app class ChangingIndexPerformanceTestAppBase extends TestVMRichDataApp
   with ExecutableApp
   with VMExecutionApp
   with ToStartApp {
   override def toStart: List[Executable] = new ChangingIndexPerformanceTest(execution, toUpdate, contextFactory) :: super.toStart
-
-  override def protocols: List[Protocol] = PerformanceProtocol :: super.protocols
 
   override def assembles: List[Assemble] = new LUL(classOf[D_PerformanceNode], classOf[D_NodeInstruction], classOf[Int]) :: new LUL(classOf[String], classOf[D_NodeInstruction], classOf[Int]) :: new ChangingIndexAssemble(D_NodeInstruction("test", 0, 25000)) :: super.assembles
 

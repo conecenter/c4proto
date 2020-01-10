@@ -26,9 +26,8 @@ object DynIndexRefresh {
   def apply(): String = "DynamicIndexAssembleRefresh"
 }
 
-trait DynamicIndexAssemble
+trait DynamicIndexAssembleBase
   extends AssemblesApp
-    with WithIndexNodeProtocol
     with DynamicIndexModelsApp
     with SerializationUtilsApp
     with CurrentTimeConfigApp

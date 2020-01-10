@@ -22,7 +22,10 @@ push @tasks, ["build_all"," ",sub{
     my $dir = &$sync();
     sy("perl $dir/sync.pl run $dir 'sh .bloop/c4/tag.all.compile'");
 }];
-push @tasks, ["build_some_server"," ",sub{ &$sync(); }];
+push @tasks, ["build_some_server"," ",sub{
+    my $dir = &$sync();
+    sy("perl $dir/sync.pl run $dir 'sh .bloop/c4/tag.all.compile'");
+}];
 
 my($cmd,@args)=@ARGV;
 ($cmd||"") eq $$_[0] and $$_[2]->(@args) for @tasks;

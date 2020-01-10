@@ -10,16 +10,19 @@ import ee.cone.c4actor.dep.reponse.filter.{DepCommonResponseForwardMix, DepForwa
 import ee.cone.c4actor.dep.request._
 import ee.cone.c4actor.dep_impl.{AskByPKsApp, ByPKRequestHandlerApp, DepAssembleApp, DepResponseFiltersApp}
 import ee.cone.c4assemble.Assemble
-import ee.cone.c4proto.{GenLens, Id, Protocol, protocol}
+import ee.cone.c4proto.{GenLens, Id, protocol}
 
 import scala.collection.immutable
 
-@protocol object TestProtocolBase {
+trait TestProtocolAppBase
+
+@protocol("TestProtocolApp") object TestProtocolBase {
 
   @GenLens
   @Id(0x0001) case class D_TestNode(
     @Id(0x0003) srcId: String,
-    @Id(0x0005) parentId: String)
+    @Id(0x0005) parentId: String
+  )
 
   @Id(0x0010) case class D_ValueNode(@Id(0x0013) srcId: String, @Id(0x0015) value: Int)
 
@@ -127,7 +130,10 @@ class DepTestApp extends TestVMRichDataApp
   with DepCommonResponseForwardMix
   with DepResponseFilterFactoryMix
   with DepForwardUserAttributesMix
-  with DepAssembleApp with AskByPKsApp with ByClassNameRequestMix with ByClassNameAllRequestHandlerApp with ByClassNameRequestApp with ContextIdInjectApp {
+  with DepAssembleApp with AskByPKsApp with ByClassNameRequestMix with ByClassNameAllRequestHandlerApp with ByClassNameRequestApp with ContextIdInjectApp
+  with ContextIdRequestProtocolApp
+  with TestProtocolApp
+  with TestRequestProtocolApp {
 
   def depRequestHandlers: immutable.Seq[DepHandler] = depHandlers
 
@@ -143,8 +149,6 @@ class DepTestApp extends TestVMRichDataApp
     println(super.depHandlers.mkString("\n"))
     depDraft.handlerLUL :: depDraft.FooRequestHandler :: depDraft.handlerKEK :: super.depHandlers
   }
-
-  override def protocols: List[Protocol] = ContextIdRequestProtocol :: TestProtocol :: TestRequests :: super.protocols
 
   override def childRequests: List[Class[_ <: Product]] = classOf[D_ChildDepRequest] :: super.childRequests
 

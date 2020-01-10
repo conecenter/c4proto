@@ -15,7 +15,7 @@ import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexAssemble, ProductWi
 import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryMix, RangerWithCl}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, protocol}
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.HashSearchExtraTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
 class HashSearchExtraTestStart(
@@ -73,7 +73,7 @@ class HashSearchExtraTestStart(
 
 case class CustomResponse(srcId: SrcId, list: List[D_TestObject])
 
-@assemble class CreateRequestBase(condition: List[Condition[D_TestObject]], changingCondition: String => Condition[D_TestObject])   {
+@assemble class CreateRequestBase(condition: List[Condition[D_TestObject]], changingCondition: String => Condition[D_TestObject]) {
   def createRequest(
     testId: SrcId,
     test: Each[D_TestNode]
@@ -121,8 +121,9 @@ case class CustomResponse(srcId: SrcId, list: List[D_TestObject])
   }*/
 }
 
+trait EqProtocolAppBase
 
-@protocol object EqProtocolBase   {
+@protocol("EqProtocolApp") object EqProtocolBase {
 
   @Id(0xaabc) case class D_ChangingNode(
     @Id(0xaabd) srcId: String,
@@ -268,7 +269,10 @@ class HashSearchExtraTestApp extends TestVMRichDataApp
   with HashSearchRangerRegistryMix
   with CurrentTimeApp
   with WithMurMur3HashGenApp
-  with ProdLensesApp {
+  with ProdLensesApp
+  with EqProtocolApp
+  with TestProtocolApp
+  with AnyOrigProtocolApp {
   // println(TestProtocolM.adapters.map(a => a.categories))
 
   override def lensList: List[ProdLens[_, _]] = lensInt :: lensStr :: super.lensList
@@ -282,8 +286,6 @@ class HashSearchExtraTestApp extends TestVMRichDataApp
   override def dynamicIndexAssembleDebugMode: Boolean = false
 
   override def toStart: List[Executable] = new HashSearchExtraTestStart(execution, toUpdate, contextFactory, /*txObserver,*/ qAdapterRegistry) :: super.toStart
-
-  override def protocols: List[Protocol] = AnyOrigProtocol :: EqProtocol :: TestProtocol :: super.protocols
 
   override def assembles: List[Assemble] = {
     println((new CreateRequest(conditions, changingCondition) :: /*joiners*/

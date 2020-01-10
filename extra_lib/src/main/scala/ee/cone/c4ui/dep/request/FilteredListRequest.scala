@@ -18,10 +18,9 @@ trait FilterListRequestApp {
   def filterDepList: List[FLRequestDef] = Nil
 }
 
-trait FilterListRequestHandlerApp
+trait FilterListRequestHandlerAppBase
   extends DepHandlersApp
     with AssemblesApp
-    with ProtocolsApp
     with FilterListRequestApp
     with DepAskFactoryApp
     with CommonIdInjectApps
@@ -45,8 +44,6 @@ trait FilterListRequestHandlerApp
   override def assembles: List[Assemble] = new FilteredListResponseReceiver(preHashing, hashGen) :: filterDepList.map(
     df => new FilterListRequestCreator(qAdapterRegistry, df.listName, df.filterPK, df.matches, depRequestFactory)
   ) ::: super.assembles
-
-  override def protocols: List[Protocol] = DepFilteredListRequestProtocol :: super.protocols
 
   def qAdapterRegistry: QAdapterRegistry
 }
@@ -122,7 +119,7 @@ case class BranchWithUserId(branchId: String, contextId: String, userId: String,
     } else Nil
 }
 
-@protocol object DepFilteredListRequestProtocolBase   {
+@protocol("FilterListRequestHandlerApp") object DepFilteredListRequestProtocolBase   {
 
   @Id(0x0a01) case class N_FilteredListRequest(
     @Id(0x0a0a) branchId: String,
