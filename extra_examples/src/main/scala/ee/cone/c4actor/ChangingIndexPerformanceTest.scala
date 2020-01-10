@@ -132,7 +132,7 @@ class ChangingIndexPerformanceTest(
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     import LEvent.update
-    val worldSize = 100000
+    val worldSize = 100001
     val world: immutable.Seq[D_PerformanceNode] =
       for {
         i <- 1 to worldSize
