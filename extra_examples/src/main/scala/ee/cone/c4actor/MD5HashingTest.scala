@@ -7,7 +7,7 @@ import ee.cone.c4actor.MD5HashingProtocol.{D_TestOrigEasy, D_TestOrigHard}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, protocol}
 
 import scala.collection.immutable
 import scala.util.Random

@@ -8,7 +8,7 @@ import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep_impl._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by}
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, protocol}
 import ee.cone.c4ui.dep.request.DepFilteredListRequestProtocol.N_FilteredListRequest
 import ee.cone.c4ui.FromAlienTask
 
