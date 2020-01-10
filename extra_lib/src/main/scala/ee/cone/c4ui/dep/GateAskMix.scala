@@ -1,12 +1,11 @@
 package ee.cone.c4ui.dep
 
-import ee.cone.c4actor.dep.request.ContextIdRequestProtocol
-import ee.cone.c4actor.dep._
-import ee.cone.c4actor.dep_impl.AskByPKsApp
 import ee.cone.c4actor._
+import ee.cone.c4actor.dep._
+import ee.cone.c4actor.dep.request.ContextIdRequestProtocolApp
+import ee.cone.c4actor.dep_impl.AskByPKsApp
 import ee.cone.c4gate.SessionDataProtocol.U_RawSessionData
 import ee.cone.c4gate.deep_session.DeepSessionDataProtocol.{U_RawRoleData, U_RawUserData}
-import ee.cone.c4proto.Protocol
 
 trait SessionAttrAskUtility {
   def sessionAttrAskFactory: SessionAttrAskFactoryApi
@@ -16,10 +15,13 @@ trait CurrentTimeAskUtility {
   def currentTimeAskFactory: CurrentTimeAskFactoryApi
 }
 
-trait SessionAttrAskMix extends SessionAttrAskUtility with CommonRequestUtilityApi with AskByPKsApp with AskByPKFactoryApp with ProtocolsApp with DepFactoryApp{
-
-
-  override def protocols: List[Protocol] = ContextIdRequestProtocol :: super.protocols
+trait SessionAttrAskMix
+  extends SessionAttrAskUtility
+    with CommonRequestUtilityApi
+    with AskByPKsApp
+    with AskByPKFactoryApp
+    with DepFactoryApp
+    with ContextIdRequestProtocolApp {
 
   def qAdapterRegistry: QAdapterRegistry
 

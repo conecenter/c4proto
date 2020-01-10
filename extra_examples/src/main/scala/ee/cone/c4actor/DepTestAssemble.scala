@@ -8,23 +8,20 @@ import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.N_ContextIdRequest
 import ee.cone.c4actor.dep_impl.DepHandlersApp
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, protocol}
 
 trait DepTestAssemble
   extends AssemblesApp
     with DepHandlersApp
-    with ProtocolsApp
     with DepRequestFactoryApp
     with DepAskFactoryApp
-    with CommonIdInjectApps {
+    with CommonIdInjectApps
+    with DepTestProtocolApp {
   def testDep: Dep[Any]
 
   def testContextId: String = "LUL"
 
   def qAdapterRegistry: QAdapterRegistry
-
-
-  override def protocols: List[Protocol] = DepTestProtocol :: super.protocols
 
   private lazy val testRequestAsk = depAskFactory.forClasses(classOf[D_DepTestRequest], classOf[Any])
 
@@ -33,7 +30,9 @@ trait DepTestAssemble
   override def assembles: List[Assemble] = new DepTestAssembles(qAdapterRegistry, depRequestFactory) :: super.assembles
 }
 
-@protocol object DepTestProtocolBase   {
+trait DepTestProtocolAppBase
+
+@protocol("DepTestProtocolApp") object DepTestProtocolBase {
 
   @Id(0x0455) case class D_DepTestRequest()
 
@@ -46,12 +45,12 @@ trait DepTestAssemble
 case class DepTestHandler(dep: Dep[_], contextId: String) extends DepHandler {
   def requestClassName: String = classOf[D_DepTestRequest].getName
 
-  def handle: DepRequest => DepCtx => Resolvable[_] = _ => ctx => dep.resolve(ctx + (N_ContextIdRequest() ->  contextId))
+  def handle: DepRequest => DepCtx => Resolvable[_] = _ => ctx => dep.resolve(ctx + (N_ContextIdRequest() -> contextId))
 }
 
 case class DepTestResponse(srcId: String, response: Option[_])
 
-@assemble class DepTestAssemblesBase(val qAdapterRegistry: QAdapterRegistry, f: DepRequestFactory)   {
+@assemble class DepTestAssemblesBase(val qAdapterRegistry: QAdapterRegistry, f: DepRequestFactory) {
   def GiveBirth(
     firstBornId: SrcId,
     spark: Each[D_Spark]
@@ -62,7 +61,7 @@ case class DepTestResponse(srcId: String, response: Option[_])
     responseId: SrcId,
     resp: Each[DepResponse]
   ): Values[(SrcId, DepTestResponse)] =
-    if(resp.innerRequest.request.isInstanceOf[D_DepTestRequest])
+    if (resp.innerRequest.request.isInstanceOf[D_DepTestRequest])
       List(WithPK(DepTestResponse(resp.innerRequest.srcId, resp.value)))
     else Nil
 }

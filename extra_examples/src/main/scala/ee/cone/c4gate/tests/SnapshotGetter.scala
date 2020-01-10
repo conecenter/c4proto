@@ -57,7 +57,6 @@ class SnapshotGetterTest(execution: Execution) extends Executable {
 class SnapshotGetterApp
   extends ToStartApp
     with VMExecutionApp
-    with ProtocolsApp
     with ExecutableApp
     with RichDataApp
     with EnvConfigApp {

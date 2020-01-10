@@ -3,8 +3,8 @@ package ee.cone.c4actor.tests
 import java.nio.file.{Files, Paths}
 
 import ee.cone.c4actor._
-import ee.cone.c4proto.ToByteString
 import ee.cone.c4actor_kafka_impl.LZ4DeCompressorApp
+import ee.cone.c4proto.ToByteString
 import okio.ByteString
 
 //C4STATE_TOPIC_PREFIX=ee.cone.c4actor.tests.SnapshotParserApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
@@ -26,7 +26,6 @@ class SnapshotParser(execution: Execution, toUpdate: ToUpdate, snapshotLoader: S
 class SnapshotParserApp
   extends ToStartApp
     with VMExecutionApp
-    with ProtocolsApp
     with ExecutableApp
     with RichDataApp
     with EnvConfigApp

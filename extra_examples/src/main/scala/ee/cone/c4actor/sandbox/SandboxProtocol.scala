@@ -1,22 +1,16 @@
 package ee.cone.c4actor.sandbox
 
-import ee.cone.c4actor.ProtocolsApp
 import ee.cone.c4actor.sandbox.OtherProtocol.{D_Other, D_Other2}
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, protocol}
 
 /*
   This file can be edited for learning purposes, feel free to experiment here
  */
 
-trait SandboxProtocolsApp
-  extends ProtocolsApp {
-  override def protocols: List[Protocol] = SandboxProtocol :: OtherProtocol :: super.protocols
-}
+trait SandboxProtocolsAppBase
 
 
-@protocol object SandboxProtocolBase   {
-
-  import OtherProtocol._
+@protocol("SandboxProtocolsApp") object SandboxProtocolBase   {
 
   @Id(0x0230) case class D_Sandbox(
     @Id(0x0231) srcId: String,
@@ -27,7 +21,7 @@ trait SandboxProtocolsApp
 
 }
 
-@protocol object OtherProtocolBase   {
+@protocol("SandboxProtocolsApp") object OtherProtocolBase   {
 
   @Id(0x0235) case class D_Other(
     @Id(0x0236) srcId: String

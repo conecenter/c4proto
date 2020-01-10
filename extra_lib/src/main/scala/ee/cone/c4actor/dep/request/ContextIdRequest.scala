@@ -1,8 +1,10 @@
 package ee.cone.c4actor.dep.request
 
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, protocol}
 
-@protocol object ContextIdRequestProtocolBase  {
+trait ContextIdRequestProtocolAppBase
+
+@protocol("ContextIdRequestProtocolApp") object ContextIdRequestProtocolBase  {
   @Id(0x0f31) case class N_ContextIdRequest()
 
   @Id(0x0f3a) case class N_UserIdRequest()

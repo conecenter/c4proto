@@ -4,18 +4,18 @@ import java.lang.management.ManagementFactory
 import java.util
 import java.util.concurrent.{Callable, Executors}
 
+import ee.cone.c4actor.AnyAdapter._
 import ee.cone.c4actor.AnyOrigProtocol.N_AnyOrig
-import ee.cone.c4proto._
-
-import scala.util.Random
-import AnyAdapter._
 import ee.cone.c4actor.ProtoBuffTestProtocol.{D_TestOrig, D_TestOrigForDecode}
 import ee.cone.c4di.c4
+import ee.cone.c4proto._
+
 import scala.collection.immutable
+import scala.util.Random
 
-@protocol object ProtoBuffTestProtocolBase   {
+trait ProtoBuffTestProtocolAppBase
 
-  import AnyOrigProtocol._
+@protocol("ProtoBuffTestProtocolApp") object ProtoBuffTestProtocolBase {
 
   @Id(0x1) case class D_TestOrig(
     @Id(0x2) srcId: String,
@@ -30,9 +30,15 @@ import scala.collection.immutable
 
 }
 
-class ProtoBuffTestAppBase extends VMExecutionApp with ProtocolsApp with QAdapterRegistryApp with BaseApp with ComponentProviderApp {
+class ProtoBuffTestAppBase
+  extends VMExecutionApp
+    with QAdapterRegistryApp
+    with BaseApp
+    with ComponentProviderApp
+    with ProtoApp
+    with ProtoBuffTestProtocolApp
+    with AnyOrigProtocolApp {
   lazy val qAdapterRegistry: QAdapterRegistry = resolveSingle(classOf[QAdapterRegistry])
-  override def protocols: List[Protocol] = ProtoBuffTestProtocol :: AnyOrigProtocol :: QProtocol :: super.protocols
 }
 
 

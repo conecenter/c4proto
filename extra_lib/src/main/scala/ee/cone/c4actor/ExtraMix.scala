@@ -27,15 +27,6 @@ abstract class AppChecker {
 
 import ComponentProvider._
 
-
-trait ProtocolsApp extends ComponentsApp {
-  override def components: List[Component] =
-    protocols.distinct.flatMap(_.components) :::
-      super.components
-
-  def protocols: List[Protocol] = Nil
-}
-
 trait ToStartApp extends ComponentsApp {
   private lazy val executableComponent = provide(classOf[Executable], ()=>toStart)
   override def components: List[Component] = executableComponent :: super.components
@@ -90,7 +81,6 @@ trait RichDataAppBase extends RichDataCompApp
   with DefaultUpdateProcessorApp
   with ExpressionsDumpersApp
   with ComponentProviderApp
-  with ProtocolsApp
   with AssemblesApp
 {
   lazy val byPriority: ByPriority = resolveSingle(classOf[ByPriority])

@@ -2,15 +2,17 @@ package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.AllTestProtocol.{D_AllTestOrig, D_AllTestOrig2}
-import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4di.c4app
+import ee.cone.c4proto.{Id, protocol}
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.AllTestTestApp ./app.pl sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
 
-@protocol object AllTestProtocolBase   {
+trait AllTestProtocolAppBase
+
+@protocol("AllTestTestApp") object AllTestProtocolBase {
 
   @Id(0x103) case class D_AllTestOrig(
     @Id(0x104) srcId: String,
@@ -26,7 +28,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 case class AllTestRich(srcId: SrcId, twos: List[D_AllTestOrig2])
 
-@assemble class AllTestAssembleBase()   {
+@c4assemble("AllTestTestApp") class AllTestAssembleBase {
   type TestAll = AbstractAll
   type TestSrcId = SrcId
 
@@ -80,15 +82,11 @@ class AllTestTest(
   }
 }
 
-class AllTestTestApp extends TestVMRichDataApp
+@c4app class AllTestTestAppBase extends TestVMRichDataApp
   with ExecutableApp
   with VMExecutionApp
   with ToStartApp {
   override def toStart: List[Executable] = new AllTestTest(execution, toUpdate, contextFactory) :: super.toStart
-
-  override def protocols: List[Protocol] = AllTestProtocol :: super.protocols
-
-  override def assembles: List[Assemble] = new AllTestAssemble() :: super.assembles
 
   lazy val assembleProfiler = ConsoleAssembleProfiler //ValueAssembleProfiler
 }

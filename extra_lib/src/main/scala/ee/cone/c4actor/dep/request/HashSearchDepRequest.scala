@@ -12,10 +12,8 @@ import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4proto._
 import okio.ByteString
 
-trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with DepResponseFactoryApp with ComponentProviderApp {
+trait HashSearchRequestAppBase extends AssemblesApp with DepResponseFactoryApp with ComponentProviderApp {
   override def assembles: List[Assemble] = leafRegistry.getModelsList.map(model => new HSDepRequestAssemble(hsDepRequestHandler, model, depResponseFactory)) ::: super.assembles
-
-  override def protocols: List[Protocol] = HashSearchDepRequestProtocol :: super.protocols
 
   def qAdapterRegistry: QAdapterRegistry
 
@@ -140,7 +138,7 @@ case class HashSearchDepRequestHandler(leafs: LeafRegistry, condFactory: ModelCo
 
 case class HashSearchRequestInner[Model](condition: Condition[Model])
 
-@protocol object HashSearchDepRequestProtocolBase {
+@protocol("HashSearchRequestApp") object HashSearchDepRequestProtocolBase {
 
   trait ProtoDepCondition
 

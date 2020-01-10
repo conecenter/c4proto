@@ -10,9 +10,7 @@ trait DeepSessionAttrApp
     with DeepSessionAttrFactoryImplApp
     with DeepSessionDataAssembleApp
 
-trait SessionDataProtocolApp extends ProtocolsApp {
-  override def protocols: List[Protocol] = DeepSessionDataProtocol :: super.protocols
-}
+trait SessionDataProtocolAppBase
 
 
 trait DeepSessionDataAssembleApp extends AssemblesApp {
