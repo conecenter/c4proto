@@ -16,7 +16,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
 import ee.cone.c4gate.HttpProtocol.S_HttpPublication
-import ee.cone.c4gate.HttpProtocolBase.{S_HttpRequest, S_HttpResponse}
+import ee.cone.c4gate.HttpProtocolBase.{N_Header, S_HttpRequest}
 import ee.cone.c4di.{c4, provide}
 import okio.ByteString
 
@@ -30,39 +30,51 @@ trait PongRegistry {
   def toInject: List[Injectable] = LastPongKey.set(pongs.get)
 }
 
-class PongHandler(sseConfig: SSEConfig, pongRegistry: PongRegistry, httpResponseFactory: RHttpResponseFactory, next: RHttpHandler) extends RHttpHandler with LazyLogging {
+class PongHandler(
+  sseConfig: SSEConfig, pongRegistry: PongRegistry,
+  httpResponseFactory: RHttpResponseFactory, next: RHttpHandler
+) extends RHttpHandler with LazyLogging {
   def handle(request: S_HttpRequest, local: Context): RHttpResponse =
     if(request.method == "POST" && request.path == sseConfig.pongURL) {
-      val end = NanoTimer()
-      val headers = request.headers.groupBy(_.key).map{ case(k,v) => k->Single(v).value }
-      val now = Instant.now
-      val sessionKey = headers("x-r-session")
-      val userName = ByPK(classOf[U_AuthenticatedSession]).of(local).get(sessionKey).map(_.userName)
-      val session = U_FromAlienState(
-        sessionKey,
-        headers("x-r-location"),
-        headers("x-r-connection"),
-        userName
-      )
-      val refreshPeriodLong = sseConfig.stateRefreshPeriodSeconds*1L
-      val status = U_FromAlienStatus(
-        sessionKey,
-        now.getEpochSecond /
-          refreshPeriodLong *
-          refreshPeriodLong +
-          refreshPeriodLong +
-          sseConfig.tolerateOfflineSeconds,
-        isOnline = true
-      )
-
-      pongRegistry.pongs(session.sessionKey) = now.plusSeconds(5)
-      val wasSession = ByPK(classOf[U_FromAlienState]).of(local).get(session.sessionKey)
-      val wasStatus = ByPK(classOf[U_FromAlienStatus]).of(local).get(status.sessionKey)
-      logger.debug(s"pong time: ${end.ms}")
-      httpResponseFactory.directResponse(request,a=>a).copy(events=
-        (if(wasSession != Option(session)) LEvent.update(session) else List.empty[LEvent[Product]]).toList :::
-          (if(wasStatus != Option(status)) LEvent.update(status) else List.empty[LEvent[Product]]).toList
-      )
+      logger.debug(s"pong-enter")
+      val headers = request.headers.groupMap(_.key)(_.value).transform((k,v) => Single(v))
+      headers.get("x-r-session").filter(_.nonEmpty).fold{ //start
+        logger.debug(s"pong-y-start")
+        httpResponseFactory.setSession(request,Option(""))
+      }{ sessionKey =>
+        logger.debug(s"pong-n-start")
+        ByPK(classOf[U_AuthenticatedSession]).of(local).get(sessionKey).fold{
+          logger.debug(s"pong-reset")
+          httpResponseFactory.setSession(request,None)
+        }{ aSession =>
+          logger.debug(s"pong-normal")
+          val session = U_FromAlienState(
+            sessionKey,
+            headers("x-r-location"),
+            headers("x-r-connection"),
+            Option(aSession).map(_.userName).filter(_.nonEmpty)
+          )
+          val now = Instant.now
+          val refreshPeriodLong = sseConfig.stateRefreshPeriodSeconds*1L
+          val status = U_FromAlienStatus(
+            session.sessionKey,
+            now.getEpochSecond /
+              refreshPeriodLong *
+              refreshPeriodLong +
+              refreshPeriodLong +
+              sseConfig.tolerateOfflineSeconds,
+            isOnline = true
+          )
+          pongRegistry.pongs(session.sessionKey) = now.plusSeconds(5)
+          val wasSession = ByPK(classOf[U_FromAlienState]).of(local).get(session.sessionKey)
+          val wasStatus = ByPK(classOf[U_FromAlienStatus]).of(local).get(status.sessionKey)
+          val events: Seq[LEvent[Product]] =
+            (if(wasSession != Option(session)) LEvent.update(session) else Nil) ++
+              (if(wasStatus != Option(status)) LEvent.update(status) else Nil)
+          logger.debug(s"pong-events ${events.size}")
+          httpResponseFactory.directResponse(request,r=>r).copy(events=events.toList)
+        }
+      }
     } else next.handle(request,local)
 }
 
@@ -97,28 +109,28 @@ class SSEHandler(config: SSEConfig) extends TcpHandler with LazyLogging {
 case object SSEPingTimeKey extends TransientLens[Instant](Instant.MIN)
 
 case class SessionTxTransform( //?todo session/pongs purge
-    sessionKey: SrcId,
-    fromAlien: U_FromAlienState,
-    status: U_FromAlienStatus,
+    session: U_AuthenticatedSession,
+    fromAlien: Option[U_FromAlienState],
+    status: Option[U_FromAlienStatus],
     writes: Values[U_ToAlienWrite],
     availability: Option[Availability]
 ) extends TxTransform {
   def transform(local: Context): Context = {
     val now = Instant.now
-    val connectionAliveUntil = LastPongKey.of(local)(sessionKey).getOrElse(Instant.MIN)
-    val sender = GetSenderKey.of(local)(fromAlien.connectionKey)
+    val connectionAliveUntil = LastPongKey.of(local)(session.sessionKey).getOrElse(Instant.MIN)
+    val connectionKey = fromAlien.map(_.connectionKey)
+    val sender = connectionKey.flatMap(GetSenderKey.of(local))
     if(connectionAliveUntil.isBefore(now)) { //reconnect<precision<purge
       sender.foreach(_.close())
-      val sessionAliveUntil = Instant.ofEpochSecond(status.expirationSecond)
-      if(sessionAliveUntil.isBefore(now)) TxAdd(LEvent.delete(fromAlien))(local)
-      else if(status.isOnline) TxAdd(LEvent.update(status.copy(isOnline = false)))(local)
-      else local
+      val sessionAliveUntil = Instant.ofEpochSecond(status.fold(session.untilSecond)(_.expirationSecond))
+      if(sessionAliveUntil.isBefore(now)) TxAdd(LEvent.delete(session))(local)
+      else TxAdd(status.filter(_.isOnline).map(_.copy(isOnline = false)).toList.flatMap(LEvent.update(_)))(local)
     }
     else sender.map( sender =>
       ((local:Context) =>
         if(SECONDS.between(SSEPingTimeKey.of(local), now) < 1) local
         else {
-          SSEMessage.message(sender, "ping", fromAlien.connectionKey)
+          SSEMessage.message(sender, "ping", connectionKey.get)
           val availabilityAge = availability.map(a => a.until - now.toEpochMilli).mkString
           SSEMessage.message(sender, "availability", availabilityAge)
           SSEPingTimeKey.set(now)(local)
@@ -146,12 +158,14 @@ case class SessionTxTransform( //?todo session/pongs purge
 
   def joinTxTransform(
     key: SrcId,
-    session: Each[U_FromAlienState],
-    status: Each[U_FromAlienStatus],
+    session: Each[U_AuthenticatedSession],
+    sessionStates: Values[U_FromAlienState],
+    statuses: Values[U_FromAlienStatus],
     @by[SessionKey] writes: Values[U_ToAlienWrite],
     @byEq[AbstractAll](All) availabilities: Values[Availability]
   ): Values[(SrcId,TxTransform)] = List(WithPK(SessionTxTransform(
-    session.sessionKey, session, status, writes.sortBy(_.priority), Single.option(availabilities)
+    session, Single.option(sessionStates), Single.option(statuses),
+    writes.sortBy(_.priority), Single.option(availabilities)
   )))
 
   def lifeOfSessionToWrite(
@@ -168,14 +182,12 @@ case class SessionTxTransform( //?todo session/pongs purge
   ): Values[(Alive,U_FromAlienStatus)] =
     if(fromAliens.nonEmpty) List(WithPK(status)) else Nil
 
-  def checkAuthenticatedSession(
+  def lifeOfSessionState(
     key: SrcId,
-    fromAliens: Values[U_FromAlienState],
-    authenticatedSession: Each[U_AuthenticatedSession]
-  ): Values[(SrcId,TxTransform)] =
-    if(fromAliens.isEmpty)
-      List(WithPK(CheckAuthenticatedSessionTxTransform(authenticatedSession)))
-    else Nil
+    sessions: Values[U_AuthenticatedSession],
+    state: Each[U_FromAlienState]
+  ): Values[(Alive,U_FromAlienState)] =
+    if(sessions.nonEmpty) List(WithPK(state)) else Nil
 
   def allAvailability(
     key: SrcId,
@@ -186,15 +198,6 @@ case class SessionTxTransform( //?todo session/pongs purge
 }
 
 case class Availability(path: String, until: Long)
-
-case class CheckAuthenticatedSessionTxTransform(
-  authenticatedSession: U_AuthenticatedSession
-) extends TxTransform {
-  def transform(local: Context) =
-    if(Instant.ofEpochSecond(authenticatedSession.untilSecond).isBefore(Instant.now))
-      TxAdd(LEvent.delete(authenticatedSession))(local)
-    else local
-}
 
 @c4("NoProxySSEConfigApp") case class NoProxySSEConfig()(config: Config) extends SSEConfig {
   def stateRefreshPeriodSeconds: Int = config.get("C4STATE_REFRESH_SECONDS").toInt

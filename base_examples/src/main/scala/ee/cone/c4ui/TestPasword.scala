@@ -4,11 +4,19 @@ import java.time.Instant
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
+import ee.cone.c4actor_branch.BranchError
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.c4assemble
+import ee.cone.c4di.c4
+import ee.cone.c4gate.AlienProtocol.U_FromAlienState
+import ee.cone.c4gate.AuthProtocol.{C_PasswordHashOfUser, S_PasswordChangeRequest}
+import ee.cone.c4gate.AuthProtocolBase.U_AuthenticatedSession
+import ee.cone.c4gate.CurrentSessionKey
 import ee.cone.c4ui._
+import ee.cone.c4vdom.Tags
+import ee.cone.c4vdom.Types.ViewRes
 
-
+/*
 @c4assemble("TestPasswordApp") class TestPasswordAssembleBase   {
   def joinView(
     key: SrcId,
@@ -16,12 +24,11 @@ import ee.cone.c4ui._
   ): Values[(SrcId,View)] =
     for(
       view <- List(fromAlien.locationHash).collect{
-        case "password" => ??? //TestPasswordRootView(fromAlien.branchKey,fromAlien.fromAlienState)
         case "anti-dos" => ??? //TestAntiDosRootView(fromAlien.branchKey)
         case "failures" => ??? //TestFailuresRootView(fromAlien.branchKey,fromAlien.fromAlienState)
       }
     ) yield WithPK(view)
-}
+}*/
 
 case object TestFailUntilKey extends TransientLens[(Instant,Instant)]((Instant.MIN,Instant.MIN))
 /*
@@ -68,12 +75,17 @@ case class TestAntiDosRootView(branchKey: SrcId) extends View {
     )
   }
 }
+*/
 
-case class TestPasswordRootView(branchKey: SrcId, fromAlienState: FromAlienState) extends View {
-  def view: Context => ViewRes = local => UntilPolicyKey.of(local){ ()=>
-    val tags = TestTagsKey.of(local)
-    val mTags = TagsKey.of(local)
+@c4("TestPasswordApp") case class TestPasswordRootView(locationHash: String = "pass")(
+  tags: TestTags[Context],
+  mTags: Tags,
+  untilPolicy: UntilPolicy
+) extends ByLocationHashView {
+  def view: Context => ViewRes = untilPolicy.wrap{ local =>
     val freshDB = ByPK(classOf[C_PasswordHashOfUser]).of(local).isEmpty
+    val sessionKey = CurrentSessionKey.of(local)
+    val fromAlienState = ByPK(classOf[U_FromAlienState]).of(local)(sessionKey)
     val userName = fromAlienState.userName
     println(userName,freshDB)
     if(userName.isEmpty && !freshDB){
@@ -89,12 +101,15 @@ case class TestPasswordRootView(branchKey: SrcId, fromAlienState: FromAlienState
           val reqId = tags.messageStrBody(message)
           val requests = ByPK(classOf[S_PasswordChangeRequest]).of(local)
           val updates = requests.get(reqId).toList
-            .flatMap(req=>update(C_PasswordHashOfUser("test",req.hash)))
+            .flatMap(req=>LEvent.update(C_PasswordHashOfUser("test",req.hash)))
           TxAdd(updates)(local)
         })
-      ) ++ userName.map(n=>mTags.text("hint",s"signed in as $n"))
+      ) ++ userName.map(n=>mTags.text("hint",s"signed in as $n")) ++
+      List(mTags.divButton("kill-sessions"){ (local:Context) =>
+        val sessions = ByPK(classOf[U_AuthenticatedSession]).of(local).values.toList.sortBy(_.sessionKey)
+        TxAdd(sessions.flatMap(LEvent.delete))(local)
+      }(List(mTags.text("text","kill sessions"))))
     }
   }
-
 }
-*/
+

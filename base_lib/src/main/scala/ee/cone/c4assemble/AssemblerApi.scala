@@ -1,23 +1,21 @@
 
 package ee.cone.c4assemble
 
-import java.security.Identity
-
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 import ee.cone.c4assemble.Types._
 
 import scala.collection.immutable.Seq
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 
 object Single {
-  def apply[C](l: Seq[C], onTooManyErr: Seq[C]=>Exception = tooManyErr[C]): C = if(l.isEmpty) {
-    throw new Exception("empty")
-  } else if(l.tail.isEmpty) l.head else {
-    throw onTooManyErr(l)
-  }
+  def apply[C](l: Seq[C]): C =
+    if(l.nonEmpty && l.tail.isEmpty) l.head else throw defException(l)
+  def apply[C](l: Seq[C], exception: Seq[C]=>Exception): C =
+    if(l.nonEmpty && l.tail.isEmpty) l.head else throw exception(l)
   def option[C](l: Seq[C]): Option[C] = if(l.isEmpty) None else Option(apply(l))
-  def tooManyErr[C]: Seq[C]=>Exception =
-    l => new Exception(s"non-single: \n${l.head}, \n${l.tail.head} ...")
+  private def defException[C]: Seq[C]=>Exception = l => new Exception(
+    if(l.isEmpty) "empty" else s"non-single: \n${l.head}, \n${l.tail.head} ..."
+  )
 }
 
 object ToPrimaryKey {

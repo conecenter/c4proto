@@ -44,6 +44,7 @@ trait FHttpHandler {
 
 trait RHttpResponseFactory {
   def directResponse(request: S_HttpRequest, patch: S_HttpResponse=>S_HttpResponse): RHttpResponse
+  def setSession(request: S_HttpRequest, userName: Option[String]): RHttpResponse
 }
 
 class TxRes[R](val value: R, val next: WorldProvider)

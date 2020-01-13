@@ -9,9 +9,10 @@ export function ctxToPath(ctx){
 
 export function VDomSender(feedback){ // todo: may be we need a queue to be sure server will receive messages in right order
     const send = (ctx, target) => {
+        const rCtx = rootCtx(ctx)
         const headers = {
             ...target.headers,
-            "x-r-branch": rootCtx(ctx).branchKey,
+            "x-r-branch": rCtx.branchKey,
             "x-r-vdom-path": ctxToPath(ctx)
         }
         const skipByPath = that => that.options.headers["x-r-vdom-path"] === headers["x-r-vdom-path"]
@@ -20,7 +21,7 @@ export function VDomSender(feedback){ // todo: may be we need a queue to be sure
             options: { headers, body: target.value },
             skip: target.skipByPath && skipByPath,
             retry: target.skipByPath //vdom-changes are more or less idempotent and can be retried
-        })
+        },rCtx.modify)
     }
     return ({send})
 }

@@ -74,6 +74,7 @@ trait TestTxLogAppBase
   with NoAssembleProfilerCompApp
   with ManagementApp with PublishingCompApp
   with RemoteRawSnapshotApp
+  with PublicViewAssembleApp
   with BasicLoggingApp
   with AuthProtocolApp
   with ReactHtmlApp
