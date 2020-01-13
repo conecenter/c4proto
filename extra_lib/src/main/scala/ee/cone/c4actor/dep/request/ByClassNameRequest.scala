@@ -6,7 +6,7 @@ import ee.cone.c4actor.dep.{DepResponse, _}
 import ee.cone.c4actor.dep.request.ByClassNameRequestProtocol.N_ByClassNameRequest
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by, was}
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, protocol}
 
 trait ByClassNameRequestHandlerAppBase extends AssemblesApp with SerializationUtilsApp with DepResponseFactoryApp {
   def byClassNameClasses: List[Class[_ <: Product]] = Nil
