@@ -12,5 +12,12 @@ package object time {
 
   abstract class CurrentTime(val refreshRateSeconds: Long) extends Product {
     lazy val srcId: SrcId = this.getClass.getName
+
+    private lazy val packageName = this.getClass.getPackage.getName
+    private lazy val simpleName = this.getClass.getSimpleName.init
+    private lazy val protocolClassName = s"$packageName.Proto${simpleName}Base$$T_$simpleName"
+    def of(local: Context): Option[T_Time] =
+      ByPrimaryKeyGetter[T_Time](protocolClassName).of(local).get(srcId)
   }
+
 }
