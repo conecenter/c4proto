@@ -1,6 +1,7 @@
 
 package ee.cone.c4gate
 
+import ee.cone.c4gate.HttpProtocol.N_Header
 import ee.cone.c4proto._
 
 @protocol("HttpProtocolApp") object HttpProtocolBase   {
@@ -111,6 +112,7 @@ import ee.cone.c4proto._
   @Id(0x0059) case class U_AuthenticatedSession(
     @Id(0x005A) sessionKey: String,
     @Id(0x0058) userName: String,
-    @Id(0x005B) untilSecond: Long
+    @Id(0x005B) untilSecond: Long,
+    @Id(0x0022) headers: List[N_Header],
   )
 }

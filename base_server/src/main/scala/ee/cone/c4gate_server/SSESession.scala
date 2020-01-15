@@ -40,12 +40,12 @@ class PongHandler(
       val headers = request.headers.groupMap(_.key)(_.value).transform((k,v) => Single(v))
       headers.get("x-r-session").filter(_.nonEmpty).fold{ //start
         logger.debug(s"pong-y-start")
-        httpResponseFactory.setSession(request,Option(""))
+        httpResponseFactory.setSession(request,Option(""),None)
       }{ sessionKey =>
         logger.debug(s"pong-n-start")
         ByPK(classOf[U_AuthenticatedSession]).of(local).get(sessionKey).fold{
           logger.debug(s"pong-reset")
-          httpResponseFactory.setSession(request,None)
+          httpResponseFactory.setSession(request,None,None)
         }{ aSession =>
           logger.debug(s"pong-normal")
           val session = U_FromAlienState(

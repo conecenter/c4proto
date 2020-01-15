@@ -2,6 +2,7 @@
 package ee.cone.c4gate_server
 
 import ee.cone.c4actor._
+import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
 import ee.cone.c4gate.HttpProtocol.N_Header
 import ee.cone.c4gate.HttpProtocolBase.{S_HttpRequest, S_HttpResponse}
 import okio.ByteString
@@ -44,7 +45,7 @@ trait FHttpHandler {
 
 trait RHttpResponseFactory {
   def directResponse(request: S_HttpRequest, patch: S_HttpResponse=>S_HttpResponse): RHttpResponse
-  def setSession(request: S_HttpRequest, userName: Option[String]): RHttpResponse
+  def setSession(request: S_HttpRequest, userName: Option[String], was: Option[U_AuthenticatedSession]): RHttpResponse
 }
 
 class TxRes[R](val value: R, val next: WorldProvider)

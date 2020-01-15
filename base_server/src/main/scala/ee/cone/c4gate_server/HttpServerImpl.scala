@@ -30,10 +30,11 @@ import scala.concurrent.{ExecutionContext, Future}
     val resp = S_HttpResponse(request.srcId,200,Nil,ByteString.EMPTY,System.currentTimeMillis)
     RHttpResponse(Option(patch(resp)),Nil)
   }
-  def setSession(request: S_HttpRequest, userName: Option[String]): RHttpResponse = {
-    val sessionOpt = userName.map(n=>U_AuthenticatedSession(UUID.randomUUID.toString, n , Instant.now.plusSeconds(20).getEpochSecond))
-    directResponse(request,r=>r.copy(headers = N_Header("x-r-set-session",sessionOpt.fold("")(_.sessionKey)) :: r.headers))
-      .copy(events=sessionOpt.toList.flatMap(LEvent.update))
+  def setSession(request: S_HttpRequest, userName: Option[String], wasSession: Option[U_AuthenticatedSession]): RHttpResponse = {
+    val sessionOpt = userName.map(n=>U_AuthenticatedSession(UUID.randomUUID.toString, n , Instant.now.plusSeconds(20).getEpochSecond, request.headers))
+    val events = sessionOpt.toList.flatMap(LEvent.update) ++ wasSession.toList.flatMap(LEvent.delete)
+    val header = N_Header("x-r-set-session",sessionOpt.fold("")(_.sessionKey))
+    directResponse(request,r=>r.copy(headers = header :: r.headers)).copy(events=events)
   }
 }
 
@@ -111,7 +112,11 @@ class AuthHttpHandler(httpResponseFactory: RHttpResponseFactory, next: RHttpHand
         val endTime = System.currentTimeMillis() + 1000
         val hashOK = hash.exists(pass=>AuthOperations.verify(password,pass))
         Thread.sleep(Math.max(0,endTime-System.currentTimeMillis()))
-        if(hashOK) httpResponseFactory.setSession(request,Option(userName))
+        if(hashOK) {
+          val wasSessionKey = ReqGroup.session(request).filter(_.nonEmpty).get
+          val wasSession = ByPK(classOf[U_AuthenticatedSession]).of(local)(wasSessionKey)
+          httpResponseFactory.setSession(request,Option(userName),Option(wasSession))
+        }
         else RHttpResponse(None, LEvent.update(request.copy(body = okio.ByteString.EMPTY)).toList)
       case _ => throw new Exception("unsupported auth action")
     }
