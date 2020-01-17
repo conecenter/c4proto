@@ -3,7 +3,6 @@ package ee.cone.c4gate.deep_session
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Assemble
 import ee.cone.c4gate.SessionAttrAccessFactory
-import ee.cone.c4proto.Protocol
 
 trait DeepSessionAttrApp
   extends SessionDataProtocolApp

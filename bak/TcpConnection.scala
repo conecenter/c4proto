@@ -7,7 +7,6 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4gate.TcpProtocol._
-import ee.cone.c4proto.Protocol
 
 
 trait TcpServerApp extends ToStartApp with AssemblesApp with ToInjectApp with TcpProtocolApp {
