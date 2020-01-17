@@ -3,6 +3,7 @@ use strict;
 use Digest::MD5 qw(md5_hex);
 
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
+sub syl{ for(@_){ print "$_\n"; my @r = `$_`; $? && die $?; return @r } }
 my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
 my $env = sub{ $ENV{$_[0]} || die "no $_[0]" };
 my $put_text = sub{
@@ -18,6 +19,12 @@ my $handle_build = sub{
     my $allow = &$env("C4CI_ALLOW");
     if($arg=~/^allowed\s*$/){
         print "allowed: $allow\n";
+        return;
+    }
+    if($arg=~/^cleanup\s*$/){
+        my $host = &$env("C4CI_HOST");
+        my $to_kill = join " ",map{/^c4\s+(\d+).+\bdocker\s+build\b/?"$1":()} syl("ssh c4\@$host ps -ef");
+        $to_kill and sy("ssh c4\@$host kill $to_kill");
         return;
     }
     my($full_img,$reg,$shrep,$tag,$base,$proj,$mode,$checkout) =
