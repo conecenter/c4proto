@@ -1,69 +1,58 @@
 
-let loadKeyState, connectionState;
 let nextMessageIndex = 0
 const senders = {}
 
-export default function Feedback(localStorage,sessionStorage,location,fetch,setTimeout){
-
-    function never(){ throw ["not ready"] }
-    function pong(){
+export default function Feedback(sessionStorage,location,fetch,setTimeout){
+    const pong = (allowNoSession,modify) => state => {
+        if(!state.connectionKey) return state;
         send({
-            url: getConnectionState(never).pongURL,
+            url: state.pongURL,
             options: {
                 headers: {
-                    "x-r-connection": getConnectionKey(never),
+                    "x-r-connection": state.connectionKey,
                     "x-r-location": location+""
                 }
             },
-            skip: that=>true
-        })
-        //console.log("pong")
+            skip: that=>true,
+            allowNoSession
+        },modify)
+        return state
     }
-    function sessionKey(orDo){ return sessionStorage.getItem("sessionKey") || orDo() }
-    function getLoadKey(orDo){ return loadKeyState || orDo() }
-    function loadKeyForSession(){ return "loadKeyForSession-" + sessionKey(never) }
-    function getConnectionState(orDo){ return connectionState || orDo() }
-    function getConnectionKey(orDo){ return getConnectionState(orDo).key || orDo() }
-    function connect(data) {
-        //console.log("conn: "+data)
-        const [key,pongURL] = data.split(" ")
-        connectionState = { key, pongURL }
-        sessionKey(() => sessionStorage.setItem("sessionKey", getConnectionKey(never)))
-        getLoadKey(() => { loadKeyState = getConnectionKey(never) })
-        localStorage.setItem(loadKeyForSession(), getLoadKey(never))
-        pong()
+    const connect = (data,modify) => {
+        const [connectionKey,pongURL] = data.split(" ")
+        modify("CONNECT", state => pong(true,modify)({...state,connectionKey,pongURL}))
     }
-    function ping(data) {
-        //console.log("ping: "+data)
-        if(localStorage.getItem(loadKeyForSession()) !== getLoadKey(never)) { // tab was refreshed/duplicated
-            sessionStorage.clear()
-            location.reload()
-        } else if(getConnectionKey(never) === data) pong() // was not reconnected
-    }
-    function send(message){
+    const ping = (data,modify) => modify("PING",
+        state => state.connectionKey === data ? pong(false,modify)(state) : state// was not reconnected
+    )
+    function never(){ throw ["not ready"] }
+    const send = (message,modify) => {
         const headers = {
             ...message.options.headers,
-            "x-r-session": sessionKey(never),
+            "x-r-session": sessionStorage.getItem("sessionKey") || (message.allowNoSession?"":never()),
             "x-r-index": nextMessageIndex++,
             "x-r-alien-date": Date.now()
         }
         const options = {method:"post", ...message.options, headers}
         const qKey = headers["x-r-branch"] || message.url
         const sender = senders[qKey] || (senders[qKey] = Sender(fetch,setTimeout))
-        sender.send({...message, options})
+        const onComplete = resp => {
+            if(resp.headers.has("x-r-set-session")){
+                const sessionKey = resp.headers.get("x-r-set-session")
+                sessionStorage.clear()
+                sessionStorage.setItem("sessionKey",sessionKey)
+                modify("SESSION_SET",pong(true,modify))
+            }
+            return resp.ok
+        }
+        sender.send({...message, options, onComplete})
         return headers
     }
     function relocateHash(data) {
         location.href = "#"+data
     }
-    function signedIn(data) {
-        sessionStorage.setItem("sessionKey",data)
-		localStorage.setItem(loadKeyForSession(), getLoadKey(never))
-        location.reload()
-    }
-
-    const receivers = {connect,ping,relocateHash,signedIn}
-    return ({receivers,send,pong})
+    const receivers = {connect,ping,relocateHash}
+    return ({receivers,send})
 }
 
 function Sender(fetch,setTimeout){
@@ -79,7 +68,7 @@ function Sender(fetch,setTimeout){
     function activate(){
         busy = queue[0]
         if(busy) fetch(busy.url,busy.options)
-            .then(resp=>resp.status===200,err=>false)
+            .then(busy.onComplete,err=>false)
             .then(ok=>{
                 if(ok || !busy.retry){
                     queue = queue.filter(item=>item!==busy)

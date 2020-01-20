@@ -54,7 +54,7 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
           new PongHandler(sseConfig, pongRegistry, httpResponseFactory,
             new NotFoundProtectionHttpHandler(httpResponseFactory,
               new SelfDosProtectionHttpHandler(httpResponseFactory, sseConfig,
-                new AuthHttpHandler(
+                new AuthHttpHandler(httpResponseFactory,
                   new DefSyncHttpHandler()
                 )
               )

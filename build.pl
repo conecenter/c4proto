@@ -274,3 +274,5 @@ my @app_traits_will = &$gen_app_traits($src_dir,\@src_fns,[&$dep_conf("C4DEP")])
 &$apply_will($by,\@src_fns,"ft-c4gen-base",[@app_traits_will]);
 print "generation finished\n";
 &$put_text(&$need_path("$src_dir/target/gen-ver"),time);
+
+sy("cd $_ && npm install") for grep{$_ && !-e "$_/node_modules"} map{$$_{to}} &$dep_conf("C4CLIENT");

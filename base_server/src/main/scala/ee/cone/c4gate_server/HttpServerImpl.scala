@@ -30,6 +30,12 @@ import scala.concurrent.{ExecutionContext, Future}
     val resp = S_HttpResponse(request.srcId,200,Nil,ByteString.EMPTY,System.currentTimeMillis)
     RHttpResponse(Option(patch(resp)),Nil)
   }
+  def setSession(request: S_HttpRequest, userName: Option[String], wasSession: Option[U_AuthenticatedSession]): RHttpResponse = {
+    val sessionOpt = userName.map(n=>U_AuthenticatedSession(UUID.randomUUID.toString, n , Instant.now.plusSeconds(20).getEpochSecond, request.headers))
+    val events = sessionOpt.toList.flatMap(LEvent.update) ++ wasSession.toList.flatMap(LEvent.delete)
+    val header = N_Header("x-r-set-session",sessionOpt.fold("")(_.sessionKey))
+    directResponse(request,r=>r.copy(headers = header :: r.headers)).copy(events=events)
+  }
 }
 
 class GetPublicationHttpHandler(httpResponseFactory: RHttpResponseFactory, next: RHttpHandler) extends RHttpHandler with LazyLogging {
@@ -74,7 +80,7 @@ object AuthOperations {
     correctHash == pbkdf2(password, correctHash)
 }
 
-class AuthHttpHandler(next: RHttpHandler) extends RHttpHandler with LazyLogging {
+class AuthHttpHandler(httpResponseFactory: RHttpResponseFactory, next: RHttpHandler) extends RHttpHandler with LazyLogging {
   def handle(request: S_HttpRequest, local: Context): RHttpResponse = {
     if(request.method != "POST") next.handle(request,local)
     else ReqGroup.header(request,"x-r-auth") match {
@@ -83,12 +89,14 @@ class AuthHttpHandler(next: RHttpHandler) extends RHttpHandler with LazyLogging 
         val authPost: okio.ByteString => Int => S_HttpRequest = body => status =>
           request.copy(headers = N_Header("x-r-auth-status", status.toString) :: request.headers, body = body)
         def getPassRegex: Option[String] = ByPK(classOf[C_PasswordRequirements]).of(local).get("gate-password-requirements").map(_.regex)
-        val Array(password, again, username) = request.body.utf8().split("\n")
+        val password :: again :: usernameAdd = request.body.utf8().split("\n").toList
         // 0 - OK, 1 - passwords did not match, 2 - password did not match requirements
         val requests: List[Product] = if (password != again)
           authPost(okio.ByteString.EMPTY)(1) :: Nil
         else if (getPassRegex.forall(regex => regex.isEmpty || password.matches(regex))) {
-          val prevHashOpt = ByPK(classOf[C_PasswordHashOfUser]).of(local).get(username).map(_.hash.get)
+          val prevHashOpt = Single.option(usernameAdd)
+            .flatMap(ByPK(classOf[C_PasswordHashOfUser]).of(local).get)
+            .map(_.hash.get)
           val hash: Option[N_SecureHash] = Option(AuthOperations.createHash(password, prevHashOpt))
           S_PasswordChangeRequest(request.srcId, hash) ::
             authPost(okio.ByteString.encodeUtf8(request.srcId))(0) :: Nil
@@ -104,21 +112,17 @@ class AuthHttpHandler(next: RHttpHandler) extends RHttpHandler with LazyLogging 
         val endTime = System.currentTimeMillis() + 1000
         val hashOK = hash.exists(pass=>AuthOperations.verify(password,pass))
         Thread.sleep(Math.max(0,endTime-System.currentTimeMillis()))
-        val currentSessionKey = ReqGroup.session(request).get
-        val newId = UUID.randomUUID.toString
-        val post: okio.ByteString => S_HttpRequest = b => request.copy(body = b)
-        val requests: List[Product] = if(hashOK) List(
-          post(ToByteString(newId)),
-          U_AuthenticatedSession(newId, userName, Instant.now.plusSeconds(20).getEpochSecond),
-          U_ToAlienWrite(newId,currentSessionKey,"signedIn",newId,0)
-        ) else List(
-          post(okio.ByteString.EMPTY)
-        )
-        RHttpResponse(None, requests.flatMap(LEvent.update))
+        if(hashOK) {
+          val wasSessionKey = ReqGroup.session(request).filter(_.nonEmpty).get
+          val wasSession = ByPK(classOf[U_AuthenticatedSession]).of(local)(wasSessionKey)
+          httpResponseFactory.setSession(request,Option(userName),Option(wasSession))
+        }
+        else RHttpResponse(None, LEvent.update(request.copy(body = okio.ByteString.EMPTY)).toList)
       case _ => throw new Exception("unsupported auth action")
     }
   }
 }
+// no "signedIn"
 
 class DefSyncHttpHandler() extends RHttpHandler with LazyLogging {
   def handle(request: S_HttpRequest, local: Context): RHttpResponse =

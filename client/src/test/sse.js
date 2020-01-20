@@ -16,8 +16,8 @@ function TestShow(){
     const receivers = ({show})
     return ({receivers,checkActivate})
 }
-const feedback = Feedback(localStorage,sessionStorage,document.location,fetch,setTimeout)
-window.onhashchange = () => feedback.pong()
+const feedback = Feedback(sessionStorage,document.location,fetch,setTimeout)
+//window.onhashchange = () => feedback.pong()
 const testShow = TestShow()
 const receiversList = [feedback.receivers, testShow.receivers]
 const createEventSource = () => new EventSource(location.protocol+"//"+location.host+"/sse")

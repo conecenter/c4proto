@@ -9,6 +9,8 @@
 
 { "type": "C4GENERATOR_MAIN", "from": "ee.cone.c4generator.Main", "to": "generator.ee.cone.c4generator" },
 
+{ "type": "C4CLIENT", "from": "c4p", "to": "client" },
+
 { "type": "C4SRC", "from": "generator", "to": "generator/src/main/scala" },
 { "type": "C4SRC", "from": "base_lib", "to": "base_lib/src/main/scala" },
 { "type": "C4SRC", "from": "base_lib", "to": "base_lib/src/main/java" },

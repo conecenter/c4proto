@@ -1,8 +1,11 @@
 
 import "babel-polyfill"
-import React from 'react'
+import React         from 'react'
+import ReactDOM      from 'react-dom'
+import update        from 'immutability-helper'
 import SSEConnection from "../main/sse-connection"
 import Feedback      from "../main/feedback"
+import SessionReload from "../main/session-reload"
 import activate      from "../main/activator"
 import withState     from "../main/active-state"
 import {VDomCore,VDomAttributes} from "../main/vdom-core"
@@ -20,8 +23,9 @@ function fail(data){ alert(data) }
 
 const send = fetch
 
-const feedback = Feedback(localStorage,sessionStorage,document.location,send,setTimeout)
-window.onhashchange = () => feedback.pong()
+const feedback = Feedback(sessionStorage,document.location,send,setTimeout)
+const sessionReload = SessionReload(localStorage,sessionStorage,location,Math.random)
+//window.onhashchange = () => feedback.pong()
 const sender = VDomSender(feedback)
 const exampleRequestState = ExampleRequestState(sender)
 
@@ -33,17 +37,22 @@ const util = Canvas.CanvasUtil()
 const exchangeMix = options => canvas => Canvas.ExchangeCanvasSetup(canvas)
 const canvasMods = [CanvasBaseMix(log,util),exchangeMix/*,CanvasExtraMix(log)*/]
 
-const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods), sender, log)
+const canvas = CanvasManager(React,Canvas.CanvasFactory(util, canvasMods), sender, log)
 
-const vDomAttributes = VDomAttributes(exampleRequestState)
+const vDomAttributes = VDomAttributes(React,exampleRequestState)
 const exampleComponents = ExampleComponents(vDomAttributes.transforms.tp)
 const exampleAuth = ExampleAuth(pairOfInputAttributes,vDomAttributes.transforms.tp)
 const transforms = mergeAll([vDomAttributes.transforms, exampleComponents.transforms, exampleAuth.transforms, canvas.transforms])
 
-const vDom = VDomCore(log,transforms,getRootElement)
+const vDom = VDomCore(React,ReactDOM,update,log,transforms,getRootElement)
 
 const receiversList = [vDom.receivers,feedback.receivers,{fail},exampleRequestState.receivers]
 const createEventSource = () => new EventSource(location.protocol+"//"+location.host+"/sse")
 
 const connection = SSEConnection(createEventSource, receiversList, 5000)
-activate(requestAnimationFrame, withState(log,[connection.checkActivate,vDom.checkActivate,canvas.checkActivate]))
+activate(requestAnimationFrame, withState(log,[
+    connection.checkActivate,
+    sessionReload.checkActivate,
+    vDom.checkActivate,
+    canvas.checkActivate
+]))

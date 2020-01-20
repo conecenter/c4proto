@@ -1,10 +1,6 @@
 
 import {merger,splitFirst,spreadAll}    from "../main/util"
 import {ifInputsChanged} from "../main/vdom-util"
-import React           from 'react'
-import ReactDOM        from 'react-dom'
-import update          from 'immutability-helper'
-
 import {dictKeys,branchByKey,rootCtx,ctxToPath,chain,deleted} from "../main/vdom-util"
 
 const localByKey = dictKeys(f=>({local:f}))
@@ -26,17 +22,7 @@ const sendDeferred = (sender,ctx) => {
     })))
 }
 
-class Traverse extends React.PureComponent{
-    render(){
-        const props = this.props
-        const at = props.at
-        const content =
-            at.content && at.content[0] === "rawMerge" ? props :
-            props.chl ? props.chl.map(key => React.createElement(Traverse, props[key])) :
-            at.content || null
-        return React.createElement(at.tp, at, content)
-    }
-}
+
 
 //todo branch LIFE
 
@@ -64,7 +50,7 @@ function setupIncomingDiff(by,content,parent) {
 
 const oValues = o => Object.keys(o||{}).sort().map(k=>o[k])
 
-export function VDomCore(log,activeTransforms,getRootElement){
+export function VDomCore(react,reactDOM,update,log,activeTransforms,getRootElement){
         
     const joinSeeds = ifInputsChanged(log)("seedsFrom", {branchByKey:1}, changed => state => {
       const seedByKey = spreadAll(...oValues(state.branchByKey).map(brSt=>
@@ -118,10 +104,19 @@ export function VDomCore(log,activeTransforms,getRootElement){
         return {...changed(state), merged}
     })
 
+    const Traverse = react.memo(props => {
+        const at = props.at
+        const content =
+            at.content && at.content[0] === "rawMerge" ? props :
+            props.chl ? props.chl.map(key => react.createElement(Traverse, props[key])) :
+            at.content || null
+        return react.createElement(at.tp, at, content)
+    })
+
     const rendering = ifInputsChanged(log)("renderedFrom", {merged:1,rootNativeElement:1}, changed => state => {
         if(state.merged && state.rootNativeElement){
-            const rootVirtualElement = React.createElement(Traverse,state.merged)
-            ReactDOM.render(rootVirtualElement, state.rootNativeElement)
+            const rootVirtualElement = react.createElement(Traverse,state.merged)
+            reactDOM.render(rootVirtualElement, state.rootNativeElement)
         }
         return changed(state)
     })
@@ -130,7 +125,7 @@ export function VDomCore(log,activeTransforms,getRootElement){
         if(state.isActive) return changed(state)
         if(Date.now()-state.incomingTime < 100) return state 
         if(state.rootNativeElement) {
-            ReactDOM.unmountComponentAtNode(state.rootNativeElement)
+            reactDOM.unmountComponentAtNode(state.rootNativeElement)
             //parentNode.removeChild(was)
         }
         return null
@@ -186,7 +181,7 @@ const checkUpdate = changes => state => (
         state : {...state,...changes}
 )
 
-export function VDomAttributes(sender){
+export function VDomAttributes(react, sender){
     const sendThen = ctx => event => sender.send(ctx,{value:""})
     const onClick = ({/*send,*/sendThen}) //react gives some warning on stopPropagation
     const onChange = {
@@ -206,7 +201,7 @@ export function VDomAttributes(sender){
         )))
     }
     const noPass = {value:1}
-    const ReControlledInput = React.forwardRef((prop, ref) => React.createElement("input",{
+    const ReControlledInput = react.forwardRef((prop, ref) => react.createElement("input",{
         ...deleted(noPass)(prop),
         ref: el=>{
             if(el) el.value = prop.value //todo m. b. gather, do not update dom in ref
