@@ -32,6 +32,7 @@
 { "type": "C4DEP", "from": "base_server.ee.cone.c4gate_server", "to": "base_lib.ee.cone.c4actor_logback_impl" },
 { "type": "C4DEP", "from": "base_server.ee.cone.c4gate_akka", "to": "base_server.ee.cone.c4gate_server" },
 { "type": "C4DEP", "from": "base_server.ee.cone.c4gate_akka", "to": "base_lib.ee.cone.c4actor_repl_impl" },
+{ "type": "C4DEP", "from": "base_server.ee.cone.c4gate_akka_s3", "to": "base_server.ee.cone.c4gate_akka" },
 { "type": "C4DEP", "from": "base_server.ee.cone.c4gate_akka_s3", "to": "base_server.ee.cone.c4gate_server" },
 { "type": "C4DEP", "from": "base_server.ee.cone.c4gate_akka_s3", "to": "base_lib.ee.cone.c4actor_s3_minio" },
 
