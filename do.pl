@@ -10,7 +10,6 @@ my $sse_port = $port_prefix+68;
 my $zoo_port = $port_prefix+81;
 my $plain_kafka_port = $port_prefix+92;
 my $ssl_kafka_port = $port_prefix+93;
-my $build_dir = "./client/build/test";
 my $inbox_prefix = '';
 my $kafka_version = "2.2.0";
 my $kafka = "kafka_2.12-$kafka_version";
@@ -125,15 +124,6 @@ push @tasks, ["inbox_copy", sub{
 }];
 =cut
 
-my $client = sub{
-    my($inst)=@_;
-    unlink or die $! for <$build_dir/*>;
-    my $run = "./node_modules/webpack/bin/webpack.js";
-    sy("cd client && npm install") if $inst || !-e $run;
-    sy("cd client && $run");# -d
-    $build_dir
-};
-
 my $exec_server = sub{
     my($arg)=@_;
     my ($nm,$mod,$cl) = $arg=~/^(\w+)\.(.+)\.(\w+)$/ ? ($1,"$1.$2","$2.$3") : die;
@@ -156,15 +146,8 @@ my $exec_server = sub{
     my $env = join " ", map{"$_=$env{$_}"} sort keys %env;
     &$exec(". .bloop/c4/mod.$mod.classpath.sh && $env java ee.cone.c4actor.ServerMain");
 };
-
 push @tasks, ["gate_publish", sub{
-    my $build_dir = &$client(0);
-    $build_dir eq readlink $_ or symlink $build_dir, $_ or die $! for "htdocs";
-    &$put_text("htdocs/c4gen.ht.links",join"",
-        map{ my $u = m"^htdocs/(.+)$"?$1:die; "base_lib.ee.cone.c4gate /$u $u\n" }
-        sort <htdocs/*>
-    );
-    &$put_text("htdocs/publish_time",time);
+    sy("perl prod.pl build_client .");
 }];
 push @tasks, ["gate_server_run", sub{
     &$inbox_configure();

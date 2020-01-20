@@ -1254,6 +1254,26 @@ push @tasks, ["ci_inner_build","",sub{
     sy("bloop server & (cd $gen_dir && perl $proto_dir/build.pl && sh .bloop/c4/tag.$base.compile)");
 
 }];
+my $build_client = sub{
+    my($gen_dir)=@_;
+    my $dir = "$gen_dir/client";
+    my $build_dir = "$dir/build/test";
+    unlink or die $! for <$build_dir/*>;
+    sy("cd $dir && node_modules/webpack/bin/webpack.js");# -d
+    &$put_text("$build_dir/c4gen.ht.links",join"",
+        map{ my $u = m"^/(.+)$"?$1:die; "base_lib.ee.cone.c4gate /$u $u\n" }
+        map{ substr $_, length $build_dir }
+        sort <$build_dir/*>
+    );
+    my $to_dir = "$gen_dir/htdocs";
+    $build_dir eq readlink $to_dir or symlink $build_dir, $to_dir or die $!;
+};
+#prod.pl build_client .
+push @tasks, ["build_client","<dir>",sub{
+    my($dir)=@_;
+    &$build_client($dir||die);
+    &$put_text("$dir/htdocs/publish_time",time);
+}];
 push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
     #
@@ -1287,14 +1307,21 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     #
     my %has_mod = map{m"/mod\.([^/]+)\.classes$"?($1=>1):()} @classpath;
     my $main_public_path_path = "$gen_dir/.bloop/c4/main_public_path";
-    if(-e $main_public_path_path){
-        my $main_public_path = syf("cat $main_public_path_path")=~/(\S+)/ ? $1 : die;
+    my @main_public_path = (!-e $main_public_path_path) ? () :
+        syf("cat $main_public_path_path")=~/(\S+)/ ? ($1) : die;
+    my @public_part = map{ my $dir = $_;
         my @pub = map{ !/^(\S+)\s+\S+\s+(\S+)$/ ? die : $has_mod{$1} ? [$_,"$2"] : () }
-          syf("cat $main_public_path/c4gen.ht.links")=~/(.+)/g;
-        &$put_text(&$need_path("$ctx_dir/htdocs/.sync"),join"",map{"$$_[1]\n"}@pub);
-        &$put_text("$ctx_dir/htdocs/c4gen.ht.links",join"",map{"$$_[0]\n"}@pub);
-        sy("rsync -av --files-from=$ctx_dir/htdocs/.sync $main_public_path/ $ctx_dir/htdocs");
+            syf("cat $dir/c4gen.ht.links")=~/(.+)/g;
+        my $sync = [map{"$$_[1]\n"} @pub];
+        my $links = [map{"$$_[0]\n"}@pub];
+        +{ dir=>$dir, sync=>$sync, links=>$links }
+    } grep{-e $_} "$gen_dir/htdocs", @main_public_path;
+    for my $part(@public_part){
+        my $from_dir = $$part{dir} || die;
+        my $files = &$put_temp("sync", join "", @{$$part{sync}||die});
+        sy("rsync -av --files-from=$files $from_dir/ $ctx_dir/htdocs");
     }
+    &$put_text("$ctx_dir/htdocs/c4gen.ht.links",join"",map{@{$$_{links}||die}}@public_part);
 }];
 push @tasks, ["up-ci","",sub{
     my ($comp,$args) = @_;

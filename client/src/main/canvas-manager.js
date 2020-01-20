@@ -1,5 +1,4 @@
 
-import React           from 'react'
 import {spreadAll}     from "../main/util"
 import {dictKeys,branchByKey,rootCtx,ctxToPath,chain,someKeys,ifInputsChanged} from "../main/vdom-util"
 
@@ -64,7 +63,7 @@ const gatherDataFromPathTree = root => chainFromTree(
     node => addCommands(node.at.commandsFinally||[])
 )(root)({ colorIndex: 0 })
 
-export default function CanvasManager(canvasFactory,sender, log){
+export default function CanvasManager(react, canvasFactory, sender, log){
     //todo: prop.options are considered only once; do we need to rebuild canvas if they change?
     // todo branches cleanup?
     const canvasByKey = dictKeys(f=>({canvasByKey:f}))
@@ -84,7 +83,7 @@ export default function CanvasManager(canvasFactory,sender, log){
     }
 
     const Canvas = prop => {
-        return React.createElement("div",{ style: canvasStyle(prop), ref: canvasRef(prop) },[])
+        return react.createElement("div",{ style: canvasStyle(prop), ref: canvasRef(prop) },[])
     }
 
     const checkIsRootBranch = (allSt,branchKey) => allSt && allSt.activeBranchesStr && allSt.activeBranchesStr.startsWith(branchKey)

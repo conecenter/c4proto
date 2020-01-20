@@ -2,10 +2,9 @@
 // use `npm outdated`
 
 const path = require('path')
-const HtmlWebpackPlugin = require('html-webpack-plugin')
 
-function config(kind,name) {
-    return {
+function config(HtmlWebpackPlugin,kind) {
+    return name=>({
         entry: "./src/"+kind+"/"+name+".js",
         output: {
             path: "build/"+kind,
@@ -50,7 +49,7 @@ function config(kind,name) {
                 c4p: path.resolve(__dirname, "src")
             }
         }
-    }
+    })
 }
 
 module.exports.config = config
