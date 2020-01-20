@@ -1321,7 +1321,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
         my $files = &$put_temp("sync", join "", @{$$part{sync}||die});
         sy("rsync -av --files-from=$files $from_dir/ $ctx_dir/htdocs");
     }
-    &$put_text("$ctx_dir/htdocs/c4gen.ht.links",join"",map{@{$$_{links}||die}}@public_part);
+    @public_part and &$put_text("$ctx_dir/htdocs/c4gen.ht.links",join"",map{@{$$_{links}||die}}@public_part);
 }];
 push @tasks, ["up-ci","",sub{
     my ($comp,$args) = @_;
