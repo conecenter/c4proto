@@ -6,7 +6,7 @@ RUN perl install.pl curl https://github.com/AdoptOpenJDK/openjdk11-binaries/rele
 RUN perl install.pl curl https://git.io/coursier-cli && chmod +x /tools/coursier
 RUN perl install.pl curl https://nodejs.org/dist/v8.9.1/node-v8.9.1-linux-x64.tar.xz
 USER c4
-ENV PATH=${PATH}:/tools/jdk/bin:/tools:/c4/.bloop
+ENV PATH=${PATH}:/tools/jdk/bin:/tools:/tools/node/bin:/c4/.bloop
 RUN curl -L https://github.com/scalacenter/bloop/releases/download/v1.3.4/install.py | python
 ARG C4CI_BASE_TAG
 ENV C4CI_BASE_TAG_ENV=$C4CI_BASE_TAG
