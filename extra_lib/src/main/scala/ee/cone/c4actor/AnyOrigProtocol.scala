@@ -41,7 +41,7 @@ object AnyAdapter {
 }
 
 trait AnyOrigProtocolAppBase
-@protocol("AnyOrigProtocolApp") object AnyOrigProtocolBase   {
+@protocol("AnyOrigProtocolApp") object AnyOrigProtocol   {
 
   case class N_AnyOrig(
     @Id(0x00ab) adapterId: Long,

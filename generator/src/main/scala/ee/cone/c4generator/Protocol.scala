@@ -38,13 +38,11 @@ object ProtocolGenerator extends Generator {
 
   def get(parseContext: ParseContext): List[Generated] = parseContext.stats.flatMap{
     case q"@protocol(...$exprss) object ${objectNameNode@Term.Name(objectName)} extends ..$ext { ..$stats }" =>
-      Util.unBase(objectName,objectNameNode.pos.end) { objectName =>
-        val c4ann = if(exprss.isEmpty) "@c4" else mod"@c4(...$exprss)".syntax
-        /* val app = if(exprss.isEmpty)
-          ComponentsGenerator.pkgNameToAppId(parseContext.pkg,"HasId")
-        else ComponentsGenerator.annArgToStr(exprss).get */
-        getProtocol(parseContext,objectName,stats.toList,c4ann)
-      }
+      val c4ann = if (exprss.isEmpty) "@c4" else mod"@c4(...$exprss)".syntax
+      /* val app = if(exprss.isEmpty)
+        ComponentsGenerator.pkgNameToAppId(parseContext.pkg,"HasId")
+      else ComponentsGenerator.annArgToStr(exprss).get */
+      getProtocol(parseContext, objectName, stats.toList, c4ann)
     case _ => Nil
   }
   def getAdapter(parseContext: ParseContext, objectName: String, cl: ParsedClass, c4ann: String): List[Generated] = {
@@ -175,27 +173,10 @@ $c4ann class ${cl.name}ProtoAdapter(
     val traitUses = protoGenerated.collect{ case m: GeneratedTraitUsage => m.name }.toSet
     val traitIllegal = filterAllowedTraits(traitUses -- traitDefs)
     if(traitIllegal.nonEmpty) throw new Exception(s"can not extend from non-local traits $traitIllegal")
-    //
-    val classLinks =
-      for(cl <- classes; pf <- List("","_E0","_E1","_E2"))
-        yield s"link${cl.name}ProtoAdapter$pf"
-    val traitLinks =
-      for(nm <- traitDefSeq; pf <- List("","_DgetProtoAdapter","_DgetHasId")) //
-        yield s"link${nm}ProtoAdapterProvider$pf"
-    val componentsId = ComponentsGenerator.fileNameToComponentsId(parseContext.path)
-    val obj = GeneratedCode(
-      s"""\nobject $objectName extends ee.cone.c4di.AbstractComponents {""" +
-        protoGenerated.collect{ case c: GeneratedInnerCode => c.content }.mkString +
-      s"""\n  def components = """ +
-      (classLinks:::traitLinks).map(l=>s"\n    $componentsId.$l ::").mkString +
-      s"""\n    Nil""" +
-      s"""\n}"""
-    )
 
     // todo: compat .components
     GeneratedImport("\nimport ee.cone.c4proto._") ::
     GeneratedImport("\nimport ee.cone.c4di._") ::
-    obj ::
     protoGenerated.collect{ case c: GeneratedImport => c } :::
     protoGenerated.collect{ case c: GeneratedCode => c }
   }

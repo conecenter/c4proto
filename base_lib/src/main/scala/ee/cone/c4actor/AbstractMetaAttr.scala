@@ -10,7 +10,7 @@ case class Meta(meta: AbstractMetaAttr*) extends StaticAnnotation
 
 case class MetaAttr(orig: Product) extends AbstractMetaAttr
 
-@protocol("ServerCompApp") object MetaAttrProtocolBase   {
+@protocol("ServerCompApp") object MetaAttrProtocol   {
   @Id(0x00ad) case class D_TxTransformNameMeta(
     @Id(0x00ae) clName: String
   )

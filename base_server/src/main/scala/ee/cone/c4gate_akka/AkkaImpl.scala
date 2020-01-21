@@ -13,7 +13,7 @@ import com.typesafe.config.ConfigFactory
 import ee.cone.c4actor.{Config, Early, Executable, Execution, Observer}
 import ee.cone.c4assemble.Single
 import ee.cone.c4di.c4
-import ee.cone.c4gate.HttpProtocolBase.N_Header
+import ee.cone.c4gate.HttpProtocol.N_Header
 import ee.cone.c4gate_server._
 import ee.cone.c4proto.ToByteString
 

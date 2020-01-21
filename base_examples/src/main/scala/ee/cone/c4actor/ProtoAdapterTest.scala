@@ -65,7 +65,7 @@ class ProtoAdapterTest(
   }
 }
 
-@protocol("ProtoAdapterTestApp") object MyProtocolBase {
+@protocol("ProtoAdapterTestApp") object MyProtocol {
   @Id(0x0003) case class D_Person(
     @Id(0x0007) name: String,
     @Id(0x0004) age: Option[BigDecimal],

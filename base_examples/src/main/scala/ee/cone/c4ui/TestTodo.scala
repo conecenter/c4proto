@@ -55,7 +55,7 @@ import ee.cone.c4vdom.Types.ViewRes
     new FromAlienTaskAssemble("/react-app.html") :: Nil
 }
 
-@protocol("TestTodoApp") object TestTodoProtocolBase   {
+@protocol("TestTodoApp") object TestTodoProtocol   {
   @Id(0x0001) case class B_TodoTask(
     @Id(0x0002) srcId: String,
     @Id(0x0003) createdAt: Long,

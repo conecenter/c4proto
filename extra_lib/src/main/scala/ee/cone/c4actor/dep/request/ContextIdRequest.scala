@@ -4,7 +4,7 @@ import ee.cone.c4proto.{Id, protocol}
 
 trait ContextIdRequestProtocolAppBase
 
-@protocol("ContextIdRequestProtocolApp") object ContextIdRequestProtocolBase  {
+@protocol("ContextIdRequestProtocolApp") object ContextIdRequestProtocol  {
   @Id(0x0f31) case class N_ContextIdRequest()
 
   @Id(0x0f3a) case class N_UserIdRequest()

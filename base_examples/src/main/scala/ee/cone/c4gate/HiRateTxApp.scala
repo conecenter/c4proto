@@ -6,7 +6,7 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, c4assemble}
-import ee.cone.c4gate.HttpProtocolBase.S_HttpPublication
+import ee.cone.c4gate.HttpProtocol.S_HttpPublication
 import ee.cone.c4proto.ToByteString
 
 @c4assemble("HiRateTxApp") class HiRateAssembleBase {

@@ -32,7 +32,7 @@ object DefaultRangers {
   implicit lazy val strEq: Ranger[StrEq,String] = StrEqRanger
 }
 
-@protocol("HashSearchTestApp") object HashSearchTestProtocolBase   {
+@protocol("HashSearchTestApp") object HashSearchTestProtocol   {
   @Id(0x0001) case class D_SomeModel(
     @Id(0x0003) srcId: String,
     @Id(0x0004) fieldA: String,

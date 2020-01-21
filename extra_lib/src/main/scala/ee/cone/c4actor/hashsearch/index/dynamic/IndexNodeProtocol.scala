@@ -2,7 +2,7 @@ package ee.cone.c4actor.hashsearch.index.dynamic
 
 import ee.cone.c4proto._
 
-@protocol("DynamicIndexAssemble") object IndexNodeProtocolBase  {
+@protocol("DynamicIndexAssemble") object IndexNodeProtocol  {
   @Id(0x205) case class S_IndexNodesVersion(
     @Id(0x207) srcId: String,
     @Id(0x206) version: String

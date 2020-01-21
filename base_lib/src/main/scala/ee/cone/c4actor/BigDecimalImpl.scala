@@ -17,7 +17,7 @@ trait BigDecimalProtocolAdd {
   val BigDecimalFactory = ee.cone.c4actor.BigDecimalFactory
 }
 
-@protocol("BigDecimalApp") object BigDecimalProtocolBase extends BigDecimalProtocolAdd {
+@protocol("BigDecimalApp") object BigDecimalProtocol extends BigDecimalProtocolAdd {
   @replaceBy[BigDecimal](BigDecimalFactory)
   case class SysBigDecimal(@Id(0x0001) scale: Int, @Id(0x0002) bytes: okio.ByteString)
 }

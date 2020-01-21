@@ -4,7 +4,7 @@ package ee.cone.c4gate_server
 import ee.cone.c4actor._
 import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
 import ee.cone.c4gate.HttpProtocol.N_Header
-import ee.cone.c4gate.HttpProtocolBase.{S_HttpRequest, S_HttpResponse}
+import ee.cone.c4gate.HttpProtocol.{S_HttpRequest, S_HttpResponse}
 import okio.ByteString
 
 import scala.concurrent.{ExecutionContext, Future}

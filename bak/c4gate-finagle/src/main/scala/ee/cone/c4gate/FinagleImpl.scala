@@ -6,7 +6,7 @@ import com.twitter.finagle.http
 import com.twitter.io.Buf
 import com.twitter.util.{Future, Promise, Return, Throw, Try => TTry}
 import ee.cone.c4actor.{Executable, Execution}
-import ee.cone.c4gate.HttpProtocolBase.{N_Header, S_HttpResponse}
+import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpResponse}
 import ee.cone.c4proto.ToByteString
 
 import scala.concurrent.ExecutionContext

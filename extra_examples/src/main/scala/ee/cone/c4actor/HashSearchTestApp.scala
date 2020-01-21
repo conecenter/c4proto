@@ -123,7 +123,7 @@ case class CustomResponse(srcId: SrcId, list: List[D_TestObject])
 
 trait EqProtocolAppBase
 
-@protocol("EqProtocolApp") object EqProtocolBase {
+@protocol("EqProtocolApp") object EqProtocol {
 
   @Id(0xaabc) case class D_ChangingNode(
     @Id(0xaabd) srcId: String,

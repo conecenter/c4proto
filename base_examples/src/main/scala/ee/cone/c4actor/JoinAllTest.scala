@@ -7,7 +7,7 @@ import ee.cone.c4assemble._
 import ee.cone.c4di.c4
 import ee.cone.c4proto.{Id, protocol}
 
-@protocol("JoinAllTestApp") object JoinAllTestProtocolBase   {
+@protocol("JoinAllTestApp") object JoinAllTestProtocol   {
   @Id(0x0002) case class D_RegistryItem(@Id(0x0001) srcId: String)
   @Id(0x0001) case class D_AItem(@Id(0x0001) srcId: String)
 }

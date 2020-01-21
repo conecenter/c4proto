@@ -16,7 +16,7 @@ import ee.cone.c4assemble.{Assemble, CallerAssemble, Single, assemble, by, c4ass
 import ee.cone.c4actor._
 import ee.cone.c4gate.AlienProtocol.{E_HttpConsumer, U_ToAlienWrite}
 import ee.cone.c4gate.AuthProtocol._
-import ee.cone.c4gate.HttpProtocolBase.{S_HttpRequest, S_HttpResponse}
+import ee.cone.c4gate.HttpProtocol.{S_HttpRequest, S_HttpResponse}
 import ee.cone.c4proto._
 import okio.ByteString
 import ee.cone.c4di._

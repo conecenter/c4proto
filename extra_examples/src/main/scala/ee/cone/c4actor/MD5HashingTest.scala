@@ -24,7 +24,7 @@ case class NonHashedRichFixed(srcId: SrcId, preHashed: List[(NonHashedRich[D_Tes
 
 trait MD5HashingProtocolAppBase
 
-@protocol("MD5HashingProtocolApp") object MD5HashingProtocolBase {
+@protocol("MD5HashingProtocolApp") object MD5HashingProtocol {
 
   @Id(0x239) case class D_TestOrigHard(
     @Id(0x240) srcId: String,

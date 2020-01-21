@@ -37,7 +37,7 @@ import ee.cone.c4actor.rdb._
 
 ////
 
-@protocol("ToExternalDBSyncApp") object ToExternalDBProtocolBase   {
+@protocol("ToExternalDBSyncApp") object ToExternalDBProtocol   {
   @Id(0x0063) case class B_HasState(
     @Id(0x0061) srcId: String,
     @Id(0x0064) valueTypeId: Long,
@@ -169,7 +169,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(rDBType
 
 ////
 
-@protocol("FromExternalDBSyncApp") object FromExternalDBProtocolBase   {
+@protocol("FromExternalDBSyncApp") object FromExternalDBProtocol   {
   @Id(0x0060) case class B_DBOffset(
     @Id(0x0061) srcId: String,
     @Id(0x0062) value: Long

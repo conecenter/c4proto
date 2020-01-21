@@ -14,7 +14,7 @@ import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPublication}
 import ee.cone.c4proto.{Id, protocol}
 import okio.ByteString
 
-@protocol("ActorAccessApp") object ActorAccessProtocolBase {
+@protocol("ActorAccessApp") object ActorAccessProtocol {
 
   @Id(0x006A) case class C_ActorAccessKey(
     @Id(0x006B) srcId: String,
@@ -86,7 +86,7 @@ object Monitoring {
   }
 }
 
-@protocol("AvailabilityApp") object AvailabilitySettingProtocolBase {
+@protocol("AvailabilityApp") object AvailabilitySettingProtocol {
 
   @Id(0x00f0) case class C_AvailabilitySetting(
     @Id(0x0001) srcId: String,

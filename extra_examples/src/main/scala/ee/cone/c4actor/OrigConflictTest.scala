@@ -12,7 +12,7 @@ import ee.cone.c4proto.{Id, protocol}
 
 trait ProtoConflictAppBase
 
-@protocol("ProtoConflictApp") object ProtoConflictBase {
+@protocol("ProtoConflictApp") object ProtoConflict {
 
   @Id(0x103) case class D_ConflictOrig(
     @Id(0x104) srcId: String,

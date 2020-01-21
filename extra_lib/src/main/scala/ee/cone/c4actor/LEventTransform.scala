@@ -23,7 +23,7 @@ object InsertOrigMeta {
 }
 
 trait CollectiveTransformProtocolAppBase
-@protocol("CollectiveTransformProtocolApp") object CollectiveTransformProtocolBase   {
+@protocol("CollectiveTransformProtocolApp") object CollectiveTransformProtocol   {
 
   @Id(0x0ab0) case class D_CollectiveTransformMeta(
     @Id(0x0ab1) transforms: List[String]

@@ -16,7 +16,7 @@ import scala.collection.immutable
 
 trait TestProtocolAppBase
 
-@protocol("TestProtocolApp") object TestProtocolBase {
+@protocol("TestProtocolApp") object TestProtocol {
 
   @GenLens
   @Id(0x0001) case class D_TestNode(

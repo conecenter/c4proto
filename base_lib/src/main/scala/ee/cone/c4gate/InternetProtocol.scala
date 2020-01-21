@@ -4,7 +4,7 @@ package ee.cone.c4gate
 import ee.cone.c4gate.HttpProtocol.N_Header
 import ee.cone.c4proto._
 
-@protocol("HttpProtocolApp") object HttpProtocolBase   {
+@protocol("HttpProtocolApp") object HttpProtocol   {
   @Id(0x002C) case class S_HttpPublication(
     @Id(0x0021) path: String,
     @Id(0x0022) headers: List[N_Header],
@@ -39,7 +39,7 @@ import ee.cone.c4proto._
   )
 }
 
-@protocol("TcpProtocolApp") object TcpProtocolBase   {
+@protocol("TcpProtocolApp") object TcpProtocol   {
   @Id(0x0026) case class S_TcpWrite(
     @Id(0x002A) srcId: String,
     @Id(0x0027) connectionKey: String,
@@ -51,7 +51,7 @@ import ee.cone.c4proto._
   //0x002F
 }
 
-@protocol("AlienProtocolApp") object AlienProtocolBase   {
+@protocol("AlienProtocolApp") object AlienProtocol   {
   @Id(0x0030) case class U_ToAlienWrite(
     @Id(0x0031) srcId: String,
     @Id(0x0032) sessionKey: String,
@@ -81,7 +81,7 @@ import ee.cone.c4proto._
   )
 }
 
-@protocol("AuthProtocolApp") object AuthProtocolBase   {
+@protocol("AuthProtocolApp") object AuthProtocol   {
 
   case class N_SecureHash(
     @Id(0x0050) iterations: Int,
