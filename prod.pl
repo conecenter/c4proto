@@ -1115,6 +1115,7 @@ my $up_desktop = sub{
         {
             image => $img, name => "bloop",
             C4DATA_DIR => "/c4db",
+            JAVA_TOOL_OPTIONS => "-Xmx4g",
             @req_big,
         },
     ])
