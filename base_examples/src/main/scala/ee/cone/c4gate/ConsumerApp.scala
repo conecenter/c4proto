@@ -10,7 +10,7 @@ import ee.cone.c4actor.LEvent._
 import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4gate.HttpProtocolBase.{N_Header, S_HttpResponse}
+import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpResponse}
 
 /*
 tmp/kafka_2.11-0.10.1.0/bin/kafka-simple-consumer-shell.sh --broker-list localhost:9092 --topic inbox

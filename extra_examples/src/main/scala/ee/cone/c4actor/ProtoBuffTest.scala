@@ -15,7 +15,7 @@ import scala.util.Random
 
 trait ProtoBuffTestProtocolAppBase
 
-@protocol("ProtoBuffTestProtocolApp") object ProtoBuffTestProtocolBase {
+@protocol("ProtoBuffTestProtocolApp") object ProtoBuffTestProtocol {
 
   @Id(0x1) case class D_TestOrig(
     @Id(0x2) srcId: String,

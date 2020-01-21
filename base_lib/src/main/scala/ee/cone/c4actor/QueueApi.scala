@@ -21,7 +21,7 @@ trait UpdateFlag {
   def flagValue: Long
 }
 
-@protocol("ProtoApp") object QProtocolBase   {
+@protocol("ProtoApp") object QProtocol   {
 
   /*@Id(0x0010) case class TopicKey(
       @Id(0x0011) srcId: String,

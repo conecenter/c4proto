@@ -10,7 +10,7 @@ import ee.cone.c4assemble.c4assemble
 import ee.cone.c4di.c4
 import ee.cone.c4gate.AlienProtocol.U_FromAlienState
 import ee.cone.c4gate.AuthProtocol.{C_PasswordHashOfUser, S_PasswordChangeRequest}
-import ee.cone.c4gate.AuthProtocolBase.U_AuthenticatedSession
+import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
 import ee.cone.c4gate.CurrentSessionKey
 import ee.cone.c4ui._
 import ee.cone.c4vdom.Tags

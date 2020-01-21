@@ -44,7 +44,7 @@ case class BranchRel(srcId: SrcId, seed: S_BranchResult, parentSrcId: SrcId, par
 
 
 
-@protocol("BranchApp") object BranchProtocolBase   {
+@protocol("BranchApp") object BranchProtocol   {
   @Id(0x0040) case class S_BranchResult(
     @Id(0x0041) hash: String,
     @Id(0x0042) valueTypeId: Long,

@@ -4,7 +4,7 @@ import ee.cone.c4actor.{IdMetaAttr, Meta, NameMetaAttr, TestProtocol}
 import ee.cone.c4assemble.{assemble, ignore}
 import ee.cone.c4proto._
 
-@protocol /*(Cat1)*/ object TestProtocolMBase {
+@protocol /*(Cat1)*/ object TestProtocolM {
 
   @ShortName("KEK")
   @GenLens

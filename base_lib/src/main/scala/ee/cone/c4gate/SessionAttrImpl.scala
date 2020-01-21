@@ -13,7 +13,7 @@ import ee.cone.c4proto._
 import okio.ByteString
 import ee.cone.c4di.{c4, provide}
 
-@protocol("SessionDataProtocolApp") object SessionDataProtocolBase   {
+@protocol("SessionDataProtocolApp") object SessionDataProtocol   {
   @Id(0x0066) case class U_RawSessionData(
     @Id(0x0061) srcId: String,
     @Id(0x0067) sessionKey: String,

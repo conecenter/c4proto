@@ -43,7 +43,7 @@ case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends 
   }
 }
 
-@protocol("CurrentTimeApp") object CurrentTimeProtocolBase {
+@protocol("CurrentTimeApp") object CurrentTimeProtocol {
 
   @Id(0x0127) case class S_CurrentTimeNodeSetting(
     @Id(0x0128) timeNodeId: String,
@@ -127,7 +127,7 @@ object CurrentTimeRequestAssembleTimeId {
   }
 }
 
-@protocol("CurrentTimeHandlerApp") object CurrentTimeRequestProtocolBase {
+@protocol("CurrentTimeHandlerApp") object CurrentTimeRequestProtocol {
 
     @Id(0x0f83) case class N_CurrentTimeRequest(
     @Id(0x0f86) everyPeriod: Long

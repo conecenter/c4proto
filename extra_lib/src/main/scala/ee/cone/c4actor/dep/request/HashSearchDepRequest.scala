@@ -6,7 +6,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.{N_DepConditionAny, N_DepConditionIntersect, N_DepConditionLeaf, N_DepConditionUnion, N_HashSearchDepRequest}
-import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocolBase.ProtoDepCondition
+import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.ProtoDepCondition
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4proto._
@@ -138,7 +138,7 @@ case class HashSearchDepRequestHandler(leafs: LeafRegistry, condFactory: ModelCo
 
 case class HashSearchRequestInner[Model](condition: Condition[Model])
 
-@protocol("HashSearchRequestApp") object HashSearchDepRequestProtocolBase {
+@protocol("HashSearchRequestApp") object HashSearchDepRequestProtocol {
 
   trait ProtoDepCondition
 

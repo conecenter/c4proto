@@ -32,7 +32,7 @@ trait DepTestAssemble
 
 trait DepTestProtocolAppBase
 
-@protocol("DepTestProtocolApp") object DepTestProtocolBase {
+@protocol("DepTestProtocolApp") object DepTestProtocol {
 
   @Id(0x0455) case class D_DepTestRequest()
 

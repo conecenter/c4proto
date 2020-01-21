@@ -10,7 +10,7 @@ import ee.cone.c4proto.{Id, protocol}
 trait SandboxProtocolsAppBase
 
 
-@protocol("SandboxProtocolsApp") object SandboxProtocolBase   {
+@protocol("SandboxProtocolsApp") object SandboxProtocol   {
 
   @Id(0x0230) case class D_Sandbox(
     @Id(0x0231) srcId: String,
@@ -21,7 +21,7 @@ trait SandboxProtocolsAppBase
 
 }
 
-@protocol("SandboxProtocolsApp") object OtherProtocolBase   {
+@protocol("SandboxProtocolsApp") object OtherProtocol   {
 
   @Id(0x0235) case class D_Other(
     @Id(0x0236) srcId: String

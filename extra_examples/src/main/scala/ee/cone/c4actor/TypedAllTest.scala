@@ -143,7 +143,7 @@ case class TestTx(srcId: SrcId) extends TxTransform {
 
 trait TypedAllTestProtocolAppBase
 
-@protocol("TypedAllTestProtocolApp") object TypedAllTestProtocolBase {
+@protocol("TypedAllTestProtocolApp") object TypedAllTestProtocol {
 
   @Id(0xaabc) case class D_Model1(
     @Id(0xaabd) srcId: String

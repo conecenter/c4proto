@@ -12,7 +12,7 @@ import ee.cone.c4proto.{Id, protocol}
 
 trait AllTestProtocolAppBase
 
-@protocol("AllTestTestApp") object AllTestProtocolBase {
+@protocol("AllTestTestApp") object AllTestProtocol {
 
   @Id(0x103) case class D_AllTestOrig(
     @Id(0x104) srcId: String,

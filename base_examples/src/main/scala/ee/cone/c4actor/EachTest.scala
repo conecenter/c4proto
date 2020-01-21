@@ -10,7 +10,7 @@ import ee.cone.c4proto.{Id, protocol}
 
 //  new EachTestNotEffectiveAssemble :: // 25s vs 1s for 3K 1-item-tx-s
 
-@protocol("EachTestApp") object EachTestProtocolBase   {
+@protocol("EachTestApp") object EachTestProtocol   {
   @Id(0x0001) case class D_Item(@Id(0x0001) srcId: String, @Id(0x0002) parent: String)
 }
 

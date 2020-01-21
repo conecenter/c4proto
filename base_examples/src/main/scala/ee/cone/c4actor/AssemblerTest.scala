@@ -10,7 +10,7 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, _}
 import ee.cone.c4di.c4
 
-@protocol("AssemblerTestApp") object PCProtocolBase {
+@protocol("AssemblerTestApp") object PCProtocol {
   @Id(0x0003) case class D_RawChildNode(@Id(0x0003) srcId: String, @Id(0x0005) parentSrcId: String, @Id(0x0004) caption: String)
   @Id(0x0001) case class D_RawParentNode(@Id(0x0003) srcId: String, @Id(0x0004) caption: String)
 }

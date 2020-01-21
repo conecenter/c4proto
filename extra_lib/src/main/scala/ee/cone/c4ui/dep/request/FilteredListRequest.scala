@@ -119,7 +119,7 @@ case class BranchWithUserId(branchId: String, contextId: String, userId: String,
     } else Nil
 }
 
-@protocol("FilterListRequestHandlerApp") object DepFilteredListRequestProtocolBase   {
+@protocol("FilterListRequestHandlerApp") object DepFilteredListRequestProtocol   {
 
   @Id(0x0a01) case class N_FilteredListRequest(
     @Id(0x0a0a) branchId: String,

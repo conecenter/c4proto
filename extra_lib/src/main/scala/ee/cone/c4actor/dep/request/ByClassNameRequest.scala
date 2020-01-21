@@ -51,7 +51,7 @@ case class InnerByClassNameRequest(request: DepInnerRequest, className: String, 
 
 }
 
-@protocol("ByClassNameRequestHandlerApp") object ByClassNameRequestProtocolBase {
+@protocol("ByClassNameRequestHandlerApp") object ByClassNameRequestProtocol {
 
   @Id(0x0f26) case class N_ByClassNameRequest(
     @Id(0x0f27) className: String,

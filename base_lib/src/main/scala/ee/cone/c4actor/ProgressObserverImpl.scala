@@ -6,7 +6,7 @@ import java.time.Instant
 import java.util.UUID
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocolBase.S_Firstborn
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Single, c4assemble}

@@ -1,6 +1,6 @@
 package ee.cone.c4actor.tests
 
-import ee.cone.c4actor.QProtocolBase.S_Firstborn
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.TxTransform
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.time._

@@ -54,7 +54,7 @@ trait ByClassNameAllRequestHandlerAppBase extends AssemblesApp with ByClassNameR
     }
 }
 
-@protocol("ByClassNameAllRequestHandlerApp") object ByClassNameAllRequestProtocolBase {
+@protocol("ByClassNameAllRequestHandlerApp") object ByClassNameAllRequestProtocol {
 
   @Id(0x0230) case class N_ByClassNameAllRequest(
     @Id(0x0231) className: String

@@ -16,7 +16,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
 import ee.cone.c4gate.HttpProtocol.S_HttpPublication
-import ee.cone.c4gate.HttpProtocolBase.{N_Header, S_HttpRequest}
+import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpRequest}
 import ee.cone.c4di.{c4, provide}
 import okio.ByteString
 
