@@ -79,6 +79,11 @@ import ee.cone.c4proto._
     @Id(0x0038) expirationSecond: Long,
     @Id(0x005C) isOnline: Boolean
   )
+
+  @Id(0x0037) case class U_FromAlienConnected(
+    @Id(0x0032) sessionKey: String,
+    @Id(0x0039) connectionKey: String
+  )
 }
 
 @protocol("AuthProtocolApp") object AuthProtocol   {

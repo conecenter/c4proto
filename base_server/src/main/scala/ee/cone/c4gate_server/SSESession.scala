@@ -65,12 +65,15 @@ class PongHandler(
               sseConfig.tolerateOfflineSeconds,
             isOnline = true
           )
+          val connected = U_FromAlienConnected(sessionKey,headers("x-r-connection"))
           pongRegistry.pongs(session.sessionKey) = now.plusSeconds(5)
           val wasSession = ByPK(classOf[U_FromAlienState]).of(local).get(session.sessionKey)
           val wasStatus = ByPK(classOf[U_FromAlienStatus]).of(local).get(status.sessionKey)
+          val wasConnected = ByPK(classOf[U_FromAlienConnected]).of(local).get(connected.sessionKey)
           val events: Seq[LEvent[Product]] =
             (if(wasSession != Option(session)) LEvent.update(session) else Nil) ++
-              (if(wasStatus != Option(status)) LEvent.update(status) else Nil)
+              (if(wasStatus != Option(status)) LEvent.update(status) else Nil) ++
+              (if(wasConnected != Option(connected)) LEvent.update(connected) else Nil)
           logger.debug(s"pong-events ${events.size}")
           httpResponseFactory.directResponse(request,r=>r).copy(events=events.toList)
         }
@@ -109,21 +112,24 @@ class SSEHandler(config: SSEConfig) extends TcpHandler with LazyLogging {
 case object SSEPingTimeKey extends TransientLens[Instant](Instant.MIN)
 
 case class SessionTxTransform( //?todo session/pongs purge
-    session: U_AuthenticatedSession,
-    fromAlien: Option[U_FromAlienState],
+    sessionKey: SrcId,
+    session: Option[U_AuthenticatedSession],
+    connected: Option[U_FromAlienConnected],
     status: Option[U_FromAlienStatus],
     writes: Values[U_ToAlienWrite],
     availability: Option[Availability]
 ) extends TxTransform {
   def transform(local: Context): Context = {
     val now = Instant.now
-    val connectionAliveUntil = LastPongKey.of(local)(session.sessionKey).getOrElse(Instant.MIN)
-    val connectionKey = fromAlien.map(_.connectionKey)
+    val connectionAliveUntil = LastPongKey.of(local)(sessionKey).getOrElse(Instant.MIN)
+    val connectionKey = connected.map(_.connectionKey)
     val sender = connectionKey.flatMap(GetSenderKey.of(local))
     if(connectionAliveUntil.isBefore(now)) { //reconnect<precision<purge
       sender.foreach(_.close())
-      val sessionAliveUntil = Instant.ofEpochSecond(status.fold(session.untilSecond)(_.expirationSecond))
-      if(sessionAliveUntil.isBefore(now)) TxAdd(LEvent.delete(session))(local)
+      val sessionAliveUntil =
+          status.map(_.expirationSecond).orElse(session.map(_.untilSecond)).fold(Instant.MIN)(Instant.ofEpochSecond)
+      if(sessionAliveUntil.isBefore(now))
+        TxAdd(session.toList.flatMap(LEvent.delete) ++ connected.toList.flatMap(LEvent.delete))(local)
       else TxAdd(status.filter(_.isOnline).map(_.copy(isOnline = false)).toList.flatMap(LEvent.update(_)))(local)
     }
     else sender.map( sender =>
@@ -158,13 +164,13 @@ case class SessionTxTransform( //?todo session/pongs purge
 
   def joinTxTransform(
     key: SrcId,
-    session: Each[U_AuthenticatedSession],
-    sessionStates: Values[U_FromAlienState],
+    sessions: Values[U_AuthenticatedSession],
+    connected: Values[U_FromAlienConnected],
     statuses: Values[U_FromAlienStatus],
     @by[SessionKey] writes: Values[U_ToAlienWrite],
     @byEq[AbstractAll](All) availabilities: Values[Availability]
-  ): Values[(SrcId,TxTransform)] = List(WithPK(SessionTxTransform(
-    session, Single.option(sessionStates), Single.option(statuses),
+  ): Values[(SrcId,TxTransform)] = List(WithPK(SessionTxTransform(key,
+    Single.option(sessions), Single.option(connected), Single.option(statuses),
     writes.sortBy(_.priority), Single.option(availabilities)
   )))
 
