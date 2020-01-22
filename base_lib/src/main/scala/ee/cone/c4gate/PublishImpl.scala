@@ -15,18 +15,13 @@ import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPublication}
 import ee.cone.c4di.c4
 import ee.cone.c4proto.ToByteString
 import okio.ByteString
+
 import scala.jdk.CollectionConverters.IterableHasAsScala
 import scala.jdk.CollectionConverters.IteratorHasAsScala
 
 //todo un-publish
 
 import scala.jdk.CollectionConverters.IterableHasAsScala
-
-sealed trait LastPublishState extends Product
-case object LastPublishStateKey extends TransientLens[LastPublishState](NotCheckedLastPublishState)
-case object NotCheckedLastPublishState extends LastPublishState
-case object NoFileLastPublishState extends LastPublishState
-case class FileLastPublishState(content: ByteString) extends LastPublishState
 
 @c4assemble("PublishingCompApp") class PublishingAssembleBase(publishing: Publishing){
   def join(
@@ -73,11 +68,10 @@ trait PublicDirProvider {
 ) extends LazyLogging {
   def transform(local: Context): Context = { //Seq[Observer[RichContext]]
     val fromPath = Paths.get("htdocs")
-    val publishState =
-      Option(fromPath.resolve("publish_time")).filter(Files.exists(_))
-      .map(path=>FileLastPublishState(ToByteString(Files.readAllBytes(path))))
-      .getOrElse(NoFileLastPublishState)
-    if(LastPublishStateKey.of(local) == publishState)
+    val timeToPublish =
+      List(fromPath.resolve("publish_time")).filter(Files.exists(_))
+      .flatMap(path=>publish("/publish_time",Files.readAllBytes(path))(local))
+    if(timeToPublish.isEmpty)
       SleepUntilKey.set(Instant.ofEpochMilli(System.currentTimeMillis+1000))(local)
     else {
       logger.debug("publish started")
@@ -92,7 +86,7 @@ trait PublicDirProvider {
         event <- publish(url,Files.readAllBytes(file))(local)
       } yield event
       logger.debug("publish finishing")
-      TxAdd(strEvents ++ fileEvents).andThen(LastPublishStateKey.set(publishState))(local)
+      TxAdd(strEvents ++ fileEvents ++ timeToPublish)(local)
     }
   }
   def publish(path: String, body: Array[Byte]): Context=>Seq[LEvent[Product]] = local => {

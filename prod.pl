@@ -1261,6 +1261,7 @@ my $build_client = sub{
     my $build_dir = "$dir/build/test";
     unlink or die $! for <$build_dir/*>;
     sy("cd $dir && node_modules/webpack/bin/webpack.js");# -d
+    &$put_text("$build_dir/publish_time",time);
     &$put_text("$build_dir/c4gen.ht.links",join"",
         map{ my $u = m"^/(.+)$"?$1:die; "base_lib.ee.cone.c4gate /$u $u\n" }
         map{ substr $_, length $build_dir }
@@ -1273,7 +1274,6 @@ my $build_client = sub{
 push @tasks, ["build_client","<dir>",sub{
     my($dir)=@_;
     &$build_client($dir||die);
-    &$put_text("$dir/htdocs/publish_time",time);
 }];
 push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
