@@ -1252,8 +1252,11 @@ push @tasks, ["ci_inner_build","",sub{
     #&$start("bloop server");
     #sy("cd $gen_dir && perl $proto_dir/build.pl");
     #sy("cd $gen_dir && sh .bloop/c4/tag.$base.compile");
-    sy("bloop server & (cd $gen_dir && perl $proto_dir/build.pl && sh .bloop/c4/tag.$base.compile)");
-
+    my $stm = syf("cat $gen_dir/.bloop/c4/tag.$base.compile")=~/(.+)/ ? $1 : die;
+    &$put_text("$gen_dir/compile",
+        "#!/bin/bash\n(bloop server &) && cd $gen_dir && perl $proto_dir/build.pl && $stm"
+    );
+    sy("chmod +x $gen_dir/compile");
 }];
 my $build_client = sub{
     my($gen_dir)=@_;
