@@ -1253,7 +1253,7 @@ push @tasks, ["ci_inner_build","",sub{
     #sy("cd $gen_dir && perl $proto_dir/build.pl");
     #sy("cd $gen_dir && sh .bloop/c4/tag.$base.compile");
     &$put_text("$gen_dir/compile",
-        "#!/bin/bash\n(bloop server &) && cd $gen_dir && perl $proto_dir/build.pl && . .bloop/c4/tag.$base.compile"
+        "#!/bin/bash\n(bloop server &) && cd $gen_dir && perl $proto_dir/build.pl && . .bloop/c4/tag.$base.compile > log"
     );
     sy("chmod +x $gen_dir/compile");
 }];
