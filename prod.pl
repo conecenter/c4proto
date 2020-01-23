@@ -3,7 +3,7 @@
 use strict;
 use Digest::MD5 qw(md5_hex);
 
-my $sys_image_ver = "v64";
+my $sys_image_ver = "v65";
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -1333,7 +1333,7 @@ push @tasks, ["up-ci","",sub{
         sy("cp $gen_dir/install.pl $gen_dir/ci.pl $from_path/");
         &$put("Dockerfile", join "\n",
             &$base_image_steps(),
-            "RUN perl install.pl apt curl openssh-client socat libdigest-perl-md5-perl",
+            "RUN perl install.pl apt curl openssh-client socat libdigest-perl-md5-perl uuid-runtime",
             "RUN perl install.pl curl $dl_frp_url",
             "COPY ci.pl /",
             "USER c4",
