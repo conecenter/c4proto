@@ -84,7 +84,6 @@ import ee.cone.c4proto._
     @Id(0x0032) sessionKey: String,
     @Id(0x0039) connectionKey: String
   )
-  bug
 }
 
 @protocol("AuthProtocolApp") object AuthProtocol   {
