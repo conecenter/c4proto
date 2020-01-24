@@ -1254,15 +1254,17 @@ push @tasks, ["ci_inner_build","",sub{
     my $pid = &$find();
     sy("cd $gen_dir && perl $proto_dir/build.pl");
     my $close = &$start("cd $gen_dir && sh .bloop/c4/tag.$base.compile");
-    print "tracking compiler\n";
+    print "tracking compiler 0\n";
     my $n = 0;
     while(syf("ps -ef")=~/\bbloop\s+compile\b/){
         my $thread_print = syf("jcmd $pid Thread.print");
         $n = $thread_print=~/\bBloopHighLevelCompiler\b/ ? 0 : $n+1;
-        sy("kill $pid"), print($thread_print), die if $n > 5; 
+        sy("kill $pid"), print($thread_print), die if $n > 5;
         sleep 1;
     }
+    print "tracking compiler 1\n";
     &$close();
+    print "tracking compiler 2\n";
 }];
 my $build_client = sub{
     my($gen_dir)=@_;
