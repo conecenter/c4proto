@@ -1258,7 +1258,7 @@ push @tasks, ["ci_inner_build","",sub{
     my $n = 0;
     while(syf("ps -ef")=~/\bbloop\s+compile\b/){
         $n = `jcmd $pid Thread.print`=~/\bBloopHighLevelCompiler\b/ ? 0 : $n+1;
-        sy("kill $pid"), last if $n > 5;
+        sy("kill $pid"), die if $n > 5;
         sleep 1;
     }
 }];
