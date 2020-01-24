@@ -1253,7 +1253,7 @@ push @tasks, ["ci_inner_build","",sub{
     my $find = sub{ syf("jcmd")=~/^(\d+)\s+\S+\bblp-server\b/ and return "$1" while sleep 1; die };
     my $pid = &$find();
     sy("cd $gen_dir && perl $proto_dir/build.pl");
-    sy("cd $gen_dir && sh .bloop/c4/tag.$base.compile &");
+    my $close = &$start("cd $gen_dir && sh .bloop/c4/tag.$base.compile");
     print "tracking compiler\n";
     my $n = 0;
     while(syf("ps -ef")=~/\bbloop\s+compile\b/){
@@ -1261,6 +1261,7 @@ push @tasks, ["ci_inner_build","",sub{
         sy("kill $pid"), die if $n > 5;
         sleep 1;
     }
+    &$close();
 }];
 my $build_client = sub{
     my($gen_dir)=@_;
