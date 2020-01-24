@@ -25,7 +25,7 @@ my $handle_build = sub{
         return;
     }
     if($arg=~/^cleanup\s*$/){
-        my @to_kill = map{/^c4\s+(\d+).+\bdocker\s+build\b/?"$1":()} syl(@ssh,"ps","-ef");
+        my @to_kill = map{/^c4\s+(\d+).+\bdocker\s+build\b/?"$1":()} syl(join" ",@ssh,"ps","-ef");
         @to_kill and sy(@ssh,"kill",@to_kill);
         sy(@ssh,"test -e $ctx_dirs && rm -r $ctx_dirs; true");
         return;
