@@ -64,8 +64,8 @@ my $calc_bloop_conf = sub{
     my %dir_exists = map{m"(.+)/[^/]+$"?("$1"=>1):die} $src_list=~/([^\n]+)/g;
     my @mod_names = &$distinct(
         (map{@$_} &$dep_conf("C4DEP")),
-        &$from(&$dep_conf("C4EXT"),
-        &$from(&$dep_conf("C4LIB"),
+        &$from(&$dep_conf("C4EXT")),
+        &$from(&$dep_conf("C4LIB")),
     );
     my ($ext_dep_by_from) = &$group(&$dep_conf("C4EXT"));
     my ($int_dep_by_from) = &$group(&$dep_conf("C4DEP"));
