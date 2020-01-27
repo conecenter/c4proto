@@ -51,6 +51,8 @@ my $get_sum = do{
     sub{ md5_hex("${ver}v\n$_[0]") };
 };
 my $json = sub{ JSON::XS->new->ascii(1)->canonical(1)->pretty(1) };
+my $from = sub{ map{ @$_==2 && $$_[0] || die } @_ };
+my $to = sub{ map{ @$_==2 && $$_[1] || die } @_ };
 #
 my $bloop_conf_to_classpath = sub{
     my($conf)=@_;
@@ -61,13 +63,13 @@ my $calc_bloop_conf = sub{
     my($dir,$tmp,$dep_conf,$coursier_out,$src_list) = @_;
     my %dir_exists = map{m"(.+)/[^/]+$"?("$1"=>1):die} $src_list=~/([^\n]+)/g;
     my @mod_names = &$distinct(
-        (map{($$_{from},$$_{to})} &$dep_conf("C4DEP")),
-        (map{$$_{from}} &$dep_conf("C4EXT")),
-        (map{$$_{from}} &$dep_conf("C4LIB")),
+        (map{@$_} &$dep_conf("C4DEP")),
+        &$from(&$dep_conf("C4EXT"),
+        &$from(&$dep_conf("C4LIB"),
     );
-    my ($ext_dep_by_from) = &$group(map{[$$_{from},$$_{to}]} &$dep_conf("C4EXT"));
-    my ($int_dep_by_from) = &$group(map{[$$_{from},$$_{to}]} &$dep_conf("C4DEP"));
-    my ($lib_dep_by_from) = &$group(map{[$$_{from},$$_{to}]} &$dep_conf("C4LIB"));
+    my ($ext_dep_by_from) = &$group(&$dep_conf("C4EXT"));
+    my ($int_dep_by_from) = &$group(&$dep_conf("C4DEP"));
+    my ($lib_dep_by_from) = &$group(&$dep_conf("C4LIB"));
     my @resolved = @{$$coursier_out{dependencies}||die};
     my %resolved_by_name = map{($$_{coord}=>$_)} grep{$_||die} @resolved;
     my %scala_jars = map{m"/scala-(\w+)-[^/]*\.jar$"?("$1"=>$_):()} map{$$_{file}} @resolved;
@@ -84,7 +86,7 @@ my $calc_bloop_conf = sub{
             @{$$d{dependencies}||die};
         ($$d{coord}=>[grep{$_} map{$$_{file}} $d, @dep]);
     } values %resolved_by_name;
-    my ($mod_group_path_by_name) = &$group(map{[$$_{from},$$_{to}]} &$dep_conf("C4SRC"));
+    my ($mod_group_path_by_name) = &$group(&$dep_conf("C4SRC"));
     my $conf_by_name = &$lazy_dict(sub{
         my($k,$get)=@_;
         my @local_dependencies = &$int_dep_by_from($k);
@@ -111,8 +113,8 @@ my $calc_bloop_conf = sub{
         };
         (+{ "version" => "1.0.0", "project" => $project });
     });
-    my @main_scala = map{$$_{from} eq "main"?"$dir/$$_{to}":()} &$dep_conf("C4SRC");
-    my @main_public = map{$$_{from} eq "main"?"$dir/$$_{to}":()} &$dep_conf("C4PUB");
+    my @main_scala = map{ my($from,$to)=@$_; $from eq "main"?"$dir/$to":()} &$dep_conf("C4SRC");
+    my @main_public = map{ my($from,$to)=@$_; $from eq "main"?"$dir/$to":()} &$dep_conf("C4PUB");
     @main_scala<=1 && @main_public<=1 or die;
     my @main_paths_will = map{+{ fn=>"$tmp/main_public_path", content=>$_ }} @main_public;
     my @bloop_will = map{
@@ -129,11 +131,12 @@ my $calc_bloop_conf = sub{
         )
     } @mod_names;
     my @tag2mod = map{
-        my($mod,$cl) = $$_{to}=~/^(\w+\.)(.*)(\.\w+)$/ ? ("$1$2","$2$3") : die;
+        my($from,$to)=@$_;
+        my($mod,$cl) = $to=~/^(\w+\.)(.*)(\.\w+)$/ ? ("$1$2","$2$3") : die;
         (
-            +{ fn=>"$tmp/tag.$$_{from}.compile", content=>"exec bloop compile $mod" },
-            +{ fn=>"$tmp/tag.$$_{from}.mod", content=>$mod },
-            +{ fn=>"$tmp/tag.$$_{from}.main", content=>$cl },
+            +{ fn=>"$tmp/tag.$from.compile", content=>"exec bloop compile $mod" },
+            +{ fn=>"$tmp/tag.$from.mod", content=>$mod },
+            +{ fn=>"$tmp/tag.$from.main", content=>$cl },
         )
     } &$dep_conf("C4TAG");
     my $src_dirs_by_name = &$lazy_dict(sub{
@@ -192,7 +195,7 @@ my $gen_app_traits = sub{
     #read
     my @index_scala = &$read(grep{m^/c4gen\.scala^}@$fns);
     #calc
-    my ($dep) = &$group(map{[$$_{from},$$_{to}]}@$relations);
+    my ($dep) = &$group(@$relations);
     my ($def_app_by_mod_dir) = &$group(map{
         my @apps = $$_{content}=~/\bpackage\s+(\S+).*\ntrait\s+(\w+DefApp)\s/s ?"$1.$2":();
         map{ my $d = $_; map{ [$d,$_] } @apps } &$to_parent($$_{fn});
@@ -221,7 +224,7 @@ my $gen_app_traits = sub{
             ")";
         (+{stm=>"$pkg.${id}AutoMixer",fn=>$fn,content=>$content});
     });
-    map{&$mod_data($_)} &$distinct(map{($$_{from},$$_{to})}@$relations);
+    map{&$mod_data($_)} &$distinct(map{@$_}@$relations);
 };
 
 ###
@@ -231,21 +234,27 @@ my $load_dep; $load_dep = sub{
     my $content = &$get_text("$src_dir/$_[0]");
     my $items = &$json()->decode($content);
     (
-        +{type=>"C4RAW",content=>$content},
-        map{$$_{type} eq "C4INC" ? &$load_dep($$_{path}||die) : $_ } @$items
+        ["C4RAW","",$content],
+        map{
+            my($tp,$from,$to)=@$_; $tp eq "C4INC" ? &$load_dep($to) : $_
+        } map{
+            @$_==3 || die @$_;
+            my($tp,$from,$to)=@$_; ref($to) ? map{[$tp,$from,$_]}@$to : $_
+        } grep{ref} @$items
     )
 };
+
 my @dep_list = &$load_dep("c4dep.main.json");
-my ($dep_conf) = &$group(map{[$$_{type},$_]} @dep_list);
-my $dep_content = join "\n", map{$$_{content}} &$dep_conf("C4RAW");
-my @src_dirs = &$distinct(map{$$_{to}} &$dep_conf("C4SRC"));
-my @pub_dirs = &$distinct(map{$$_{to}} &$dep_conf("C4PUB"));
-my $gen_mod = &$single(&$dep_conf("C4GENERATOR_MAIN"))->{to}||die;
+my ($dep_conf) = &$group(map{ my($tp,$from,$to)=@$_; [$tp,[$from,$to]] } @dep_list);
+my $dep_content = join "\n", map{@$_} &$dep_conf("C4RAW");
+my @src_dirs = &$distinct(&$to(&$dep_conf("C4SRC")));
+my @pub_dirs = &$distinct(&$to(&$dep_conf("C4PUB")));
+my $gen_mod = &$single(&$to(&$dep_conf("C4GENERATOR_MAIN")));
 my $src_list = join"\n", grep{!m"/c4gen-[^/]+$"} &$find_files(map{"$src_dir/$_"}@src_dirs,@pub_dirs);
 #
 &$if_changed("$tmp/bloop-conf-in-sum",&$get_sum("$dep_content\n$src_list"), sub{
-    my $externals = [&$distinct(map{$$_{to}} &$dep_conf("C4EXT"))];
-    my @repo_args = sort map{"-r $_"} &$distinct(map{$$_{to}} &$dep_conf("C4REPO"));
+    my $externals = [&$distinct(&$to(&$dep_conf("C4EXT")))];
+    my @repo_args = sort map{"-r $_"} &$distinct(&$to(&$dep_conf("C4REPO")));
     my $dependencies_args = join " ", @repo_args, sort @$externals;
     my $coursier_out_path = &$need_path("$tmp/coursier-out.json");
     &$if_changed("$tmp/coursier-in-sum",&$get_sum($dependencies_args), sub{
@@ -264,7 +273,7 @@ my $sum = &$get_sum(join"\n",map{&$get_text($_)} sort grep{/\.scala$/} &$find_fi
     sy("cd $src_dir && bloop compile $gen_mod");
 });
 print "generation starting\n";
-my $main = &$single(&$dep_conf("C4GENERATOR_MAIN"))->{from}||die;
+my $main = &$single(&$from(&$dep_conf("C4GENERATOR_MAIN")));
 sy(". $tmp/mod.$gen_mod.classpath.sh && C4GENERATOR_VER=$sum C4GENERATOR_PATH=$tmp/gen java $main");
 print "generation finished\n";
 print "generating code with perl\n";
@@ -275,4 +284,4 @@ my @app_traits_will = &$gen_app_traits($src_dir,\@src_fns,[&$dep_conf("C4DEP")])
 print "generation finished\n";
 &$put_text(&$need_path("$src_dir/target/gen-ver"),time);
 
-sy("cd $_ && npm install") for grep{$_ && !-e "$_/node_modules"} map{$$_{to}} &$dep_conf("C4CLIENT");
+sy("cd $_ && npm install") for grep{$_ && !-e "$_/node_modules"} &$to(&$dep_conf("C4CLIENT"));
