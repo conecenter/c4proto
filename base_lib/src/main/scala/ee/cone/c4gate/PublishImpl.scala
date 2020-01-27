@@ -28,11 +28,17 @@ import scala.jdk.CollectionConverters.IterableHasAsScala
     srcId: SrcId,
     firstborn: Each[S_Firstborn]
   ): Values[(SrcId,TxTransform)] =
-    List(WithPK(PublishingTx("PublishingTx")(publishing)))
+    List(
+      WithPK(PublishingFromFilesTx()(publishing)),
+      WithPK(PublishingFromStringsTx()(publishing)),
+    )
 }
 
-case class PublishingTx(srcId: SrcId)(publishing: Publishing) extends TxTransform {
-  def transform(local: Context): Context = publishing.transform(local)
+case class PublishingFromFilesTx(srcId: SrcId="PublishingFromFilesTx")(publishing: Publishing) extends TxTransform {
+  def transform(local: Context): Context = publishing.checkPublishFromFiles(local)
+}
+case class PublishingFromStringsTx(srcId: SrcId="PublishingFromStringsTx")(publishing: Publishing) extends TxTransform {
+  def transform(local: Context): Context = publishing.checkPublishFromStrings(local)
 }
 
 trait PublicDirProvider {
@@ -66,7 +72,17 @@ trait PublicDirProvider {
   mimeTypes: String=>Option[String] = mimeTypesProviders.flatMap(_.get).toMap.get,
   compressor: Compressor = publishFullCompressor.value
 ) extends LazyLogging {
-  def transform(local: Context): Context = { //Seq[Observer[RichContext]]
+  def checkPublishFromStrings(local: Context): Context = {
+    logger.debug("str publish started")
+    val strEvents = for {
+      publishFromStringsProvider <- publishFromStringsProviders
+      (path,body) <- publishFromStringsProvider.get
+      event <- publish(path,body.getBytes(UTF_8))(local)
+    } yield event
+    logger.debug("publish finishing")
+    TxAdd(strEvents).andThen(SleepUntilKey.set(Instant.MAX))(local)
+  }
+  def checkPublishFromFiles(local: Context): Context = { //Seq[Observer[RichContext]]
     val fromPath = Paths.get("htdocs")
     val timeToPublish =
       List(fromPath.resolve("publish_time")).filter(Files.exists(_))
@@ -75,18 +91,13 @@ trait PublicDirProvider {
       SleepUntilKey.set(Instant.ofEpochMilli(System.currentTimeMillis+1000))(local)
     else {
       logger.debug("publish started")
-      val strEvents = for {
-        publishFromStringsProvider <- publishFromStringsProviders
-        (path,body) <- publishFromStringsProvider.get
-        event <- publish(path,body.getBytes(UTF_8))(local)
-      } yield event
       val fileEvents = for {
         publicDirProvider <- publicDirProviders
         (url,file) <- publicDirProvider.get
         event <- publish(url,Files.readAllBytes(file))(local)
       } yield event
       logger.debug("publish finishing")
-      TxAdd(strEvents ++ fileEvents ++ timeToPublish)(local)
+      TxAdd(fileEvents ++ timeToPublish)(local)
     }
   }
   def publish(path: String, body: Array[Byte]): Context=>Seq[LEvent[Product]] = local => {
