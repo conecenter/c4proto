@@ -12,6 +12,14 @@ object FieldAccessGenerator extends Generator {
         //  println(s"=-=$code")
         //Util.comment(code)(cont) +
         val nCode = code.transform{
+          case q"$o.of[$from, $to](...$args)" =>
+            val fromTypeKey = ComponentsGenerator.getTypeKey(from, None).parse[Term].get
+            val toTypeKey = ComponentsGenerator.getTypeKey(to, None).parse[Term].get
+            val keyAttr = q"ee.cone.c4actor.TypeKeyAttr($fromTypeKey, $toTypeKey)"
+            val List(head :: tail) = args
+            val q"_.$field" = head
+            val nArgs = List(head :: q"value=>model=>model.copy($field=value)" :: Lit.String(s"$field") :: keyAttr :: tail)
+            q"$o.ofSet[$from, $to](...$nArgs)"
           case q"$o.of(...$args)" =>
             val List(head :: tail) = args
             val q"_.$field" = head
