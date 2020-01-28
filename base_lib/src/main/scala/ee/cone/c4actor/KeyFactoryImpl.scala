@@ -1,7 +1,8 @@
 package ee.cone.c4actor
 
 import ee.cone.c4actor.Types.{ClName, SrcId}
-import ee.cone.c4assemble.{AssembledKey, Getter, IndexUtil}
+import ee.cone.c4assemble.Types.{Index, Values}
+import ee.cone.c4assemble.{AssembledKey, Getter, IndexUtil, Single, Types}
 import ee.cone.c4di.Types.ComponentFactory
 import ee.cone.c4di.{c4, provide}
 
@@ -17,22 +18,33 @@ import ee.cone.c4di.{c4, provide}
 }
 
 
-trait ByFK[K,V] extends Getter[SharedContext with AssembledContext,Map[K,V]]
+
 
 @c4("RichDataCompApp") class JoinKeyComponentFactoryProvider(
   //componentRegistry: ComponentRegistry
-  composes: IndexUtil
+  indexUtil: IndexUtil,
+  optionClName: String = classOf[Option[_]].getName,
+  valuesClName: String = classOf[Values[_]].getName,
 ) {
   @provide def get: Seq[ComponentFactory[ByFK[_,_]]] = List(args=>{
     val Seq(kTypeKey,vTypeKey) = args
-    assert(kTypeKey.args.isEmpty && vTypeKey.args.isEmpty)
+    val toRes: Values[_]=>Any = vTypeKey.clName match {
+      case `valuesClName` => a=>a
+      case `optionClName` => a=>Single.option(a)
+    }
+    val vInnerTypeKey = Single(vTypeKey.args)
+    assert(kTypeKey.args.isEmpty && vInnerTypeKey.args.isEmpty)
     // ?todo: assert OR alias and clName for joinKey should be extended by args
-    val key = composes.joinKey(was = false, kTypeKey.alias, kTypeKey.clName, vTypeKey.clName)
-    List(new ByFK[_,Product] {
-      def of: SharedContext with AssembledContext => Map[_,Product] = context => {
-        val index = key.of(context.assembled).value.get.get
-        UniqueIndexMap(index)(composes) // ?? Each[_]
+    val joinKey = indexUtil.joinKey(was = false, kTypeKey.alias, kTypeKey.clName, vInnerTypeKey.clName)
+    List(new ByFK[Nothing,Any] {
+      def ofA(context: AssembledContext): Nothing=>Any = {
+        val index: Index = joinKey.of(context.assembled).value.get.get
+        key => toRes(indexUtil.getValues(index,key,""))
       }
     })
   })
 }
+
+
+// bars: ByFK[SrcId,Each[Bar]]
+// bars.of(local).get(k)

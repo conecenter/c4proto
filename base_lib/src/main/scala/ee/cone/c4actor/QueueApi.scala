@@ -309,3 +309,7 @@ class OrigKeyFactoryFinalHolder(val value: KeyFactory)
 trait UpdateProcessor {
   def process(updates: Seq[N_Update], prevQueueSize: Int): Seq[N_Update]
 }
+
+trait ByFK[-K,+V] {
+  def ofA(context: AssembledContext): K=>V
+}
