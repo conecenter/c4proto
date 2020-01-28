@@ -1,25 +1,22 @@
 const path = require('path');
-
-const config = (HtmlWebpackPlugin,kind) =>{
-	return name=>({
+const config = (HtmlWebpackPlugin,kind) =>{	
+	return name=>env=>({
 	  entry: "./src/"+kind+"/"+name+".js",
-	  output: {
-		//path: __dirname + '/dist',
-		//publicPath: '/',
-		path: "build/"+kind,
-		filename: name + ".js",
-		//filename: 'bundle.js',
+	  output: {		
+		path: __dirname+"/build/"+kind,
+		filename: name + ".js",		
 	  },  
 	  module: {
 		rules: [
-		  {
+		  !env||!env.fast?{
+			enforce: "pre",  
 			test: /[\\\/]src[\\\/](main|extra)[\\\/].*\.jsx?$/,		   
 			exclude: /node_modules/,
 			loader: 'eslint-loader',
 			options:{
-				 emitError: true,
+				
 			}
-		  },
+		  }:{},
 		  {		
 			test: /[\\\/]src[\\\/](main|extra)[\\\/].*\.jsx?$/,
 			exclude: /node_modules/,
