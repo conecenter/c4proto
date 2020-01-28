@@ -136,6 +136,7 @@ object Types {
   type TransientMap = Map[TransientLens[_],Object]
   type SharedComponentMap = Map[SharedComponentKey[_],Object]
   type NextOffset = String
+  type TypeKey = ee.cone.c4di.TypeKey
 }
 
 trait SharedContext {
