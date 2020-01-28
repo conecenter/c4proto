@@ -14,6 +14,7 @@ import ee.cone.c4gate.HttpProtocol.{S_HttpRequest, S_HttpResponse}
 import ee.cone.c4proto.ToByteString
 import ee.cone.c4di.c4
 import ee.cone.c4gate._
+import ee.cone.c4gate_server.RHttpTypes.RHttpHandlerCreate
 import okio.ByteString
 
 import scala.annotation.tailrec
@@ -21,14 +22,14 @@ import scala.annotation.tailrec
 import scala.concurrent.{ExecutionContext, Future}
 import scala.jdk.CollectionConverters.IterableHasAsScala
 
-class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, httpResponseFactory: RHttpResponseFactory, next: RHttpHandler) extends RHttpHandler with LazyLogging {
-  def handle(request: S_HttpRequest, local: Context): RHttpResponse =
+@c4("SnapshotMakingApp") class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, httpResponseFactory: RHttpResponseFactory) extends LazyLogging {
+  def wire: RHttpHandlerCreate = next => (request,local) =>
     if(request.method == "GET" && request.path.startsWith("/snapshot")){
       val path = request.path
       logger.debug(s"Started loading snapshot ${path.tail}")
       snapshotLoader.load(RawSnapshot(path.tail)) // path will be checked inside loader
-        .fold(next.handle(request,local))(ev=>httpResponseFactory.directResponse(request,_.copy(body=ev.data)))
-    } else next.handle(request,local)
+        .fold(next(request,local))(ev=>httpResponseFactory.directResponse(request,_.copy(body=ev.data)))
+    } else next(request,local)
 }
 
 @c4assemble("SnapshotMakingApp") class SnapshotMakingAssembleBase(actorName: ActorName, snapshotMaking: SnapshotMaker, maxTime: SnapshotMakerMaxTime, signatureChecker: SnapshotTaskSigner, signedReqUtil: SignedReqUtil)   {

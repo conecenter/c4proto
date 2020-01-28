@@ -6,7 +6,8 @@ import ee.cone.c4actor.Types._
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 import ee.cone.c4assemble.Types._
-import ee.cone.c4di.c4
+import ee.cone.c4di.Types.ComponentFactory
+import ee.cone.c4di.{c4, provide}
 
 import scala.collection.immutable.{Map, Seq}
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -170,4 +171,25 @@ case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K
   def removed(key: K): Map[K, V] = iterator.toMap - key
   override def keysIterator: Iterator[K] = indexUtil.keySet(index).iterator.asInstanceOf[Iterator[K]] // to work with non-Single
   override def keySet: Set[K] = indexUtil.keySet(index).asInstanceOf[Set[K]] // to get keys from index
+}
+
+@c4("RichDataCompApp") class JoinKeyComponentFactoryProvider(
+  keyFactory: KeyFactory, indexUtil: IndexUtil
+) {
+  @provide def get: Seq[ComponentFactory[GetByPK[_]]] = List(args=>{
+    val Seq(vTypeKey) = args
+    assert(vTypeKey.args.isEmpty)
+    // ?todo: assert OR alias and clName for joinKey should be extended by args
+    val joinKey = keyFactory.rawKey(vTypeKey.clName)
+    List(new GetByPKImpl(joinKey,indexUtil))
+  })
+}
+
+class GetByPKImpl[+V<:Product](
+  joinKey: AssembledKey, indexUtil: IndexUtil
+) extends GetByPK[V] {
+  def ofA(context: AssembledContext): Map[SrcId,V] = {
+    val index: Index = joinKey.of(context.assembled).value.get.get
+    UniqueIndexMap(index)(indexUtil)
+  }
 }

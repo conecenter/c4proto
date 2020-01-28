@@ -49,7 +49,8 @@ trait TestCanvasViewApp extends ByLocationHashViewsApp {
   cTags: TestCanvasTags,
   sessionAttrAccessFactory: SessionAttrAccessFactory,
   untilPolicy: UntilPolicy,
-  pathFactory: PathFactory
+  pathFactory: PathFactory,
+  getBranchTask: GetByPK[BranchTask],
 ) extends ByLocationHashView {
   import pathFactory.path
   import TestCanvasStateAccess.sizes
@@ -58,7 +59,7 @@ trait TestCanvasViewApp extends ByLocationHashViewsApp {
       cTags.canvas("testCanvas",List(styles.height(512),styles.widthAll), access)(
         viewRel(0)(local)::viewRel(50)(local)::Nil
       )
-    val branchTask = ByPK(classOf[BranchTask]).of(local)(CurrentBranchKey.of(local))
+    val branchTask = getBranchTask.ofA(local)(CurrentBranchKey.of(local))
     val relocate = tags.divButton("relocate")(branchTask.relocate("todo"))(
       List(tags.text("caption", "relocate"))
     )

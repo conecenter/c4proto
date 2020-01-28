@@ -19,23 +19,27 @@ import ee.cone.c4di.{c4, provide}
     new FromAlienTaskAssemble("/sse.html") :: Nil
 }
 
-@c4assemble("TestSSEApp") class TestSSEAssembleBase extends LazyLogging {
+@c4assemble("TestSSEApp") class TestSSEAssembleBase(
+  getU_FromAlienStatus: GetByPK[U_FromAlienStatus],
+) extends LazyLogging {
   def joinView(
     key: SrcId,
     task: Each[BranchTask]
   ): Values[(SrcId,BranchHandler)] = {
     logger.info(s"joinView ${task}")
-    List(WithPK(TestSSEHandler(task.branchKey, task)))
+    List(WithPK(TestSSEHandler(task.branchKey, task)(getU_FromAlienStatus)))
   }
 }
 
-case class TestSSEHandler(branchKey: SrcId, task: BranchTask) extends BranchHandler with LazyLogging {
+case class TestSSEHandler(branchKey: SrcId, task: BranchTask)(
+  getU_FromAlienStatus: GetByPK[U_FromAlienStatus],
+) extends BranchHandler with LazyLogging {
   def exchange: BranchMessage => Context => Context = message => local => {
     val now = Instant.now
     val (keepTo,freshTo) = task.sending(local)
     val send = chain(List(keepTo,freshTo).flatten.map(_("show",s"${now.getEpochSecond}")))
     logger.info(s"TestSSEHandler $keepTo $freshTo")
-    ByPK(classOf[U_FromAlienStatus]).of(local).values.foreach{ status =>
+    getU_FromAlienStatus.ofA(local).values.foreach{ status =>
       logger.info(s"${status.isOnline} ... ${status.expirationSecond - now.getEpochSecond}")
     }
     SleepUntilKey.set(now.plusSeconds(1)).andThen(send)(local)
