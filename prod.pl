@@ -3,7 +3,7 @@
 use strict;
 use Digest::MD5 qw(md5_hex);
 
-my $sys_image_ver = "v64";
+my $sys_image_ver = "v65";
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -1249,11 +1249,22 @@ my $ci_inner_opt = sub{
 };
 push @tasks, ["ci_inner_build","",sub{
     my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
-    #&$start("bloop server");
-    #sy("cd $gen_dir && perl $proto_dir/build.pl");
-    #sy("cd $gen_dir && sh .bloop/c4/tag.$base.compile");
-    sy("bloop server & (cd $gen_dir && perl $proto_dir/build.pl && sh .bloop/c4/tag.$base.compile)");
-
+    sy("bloop server &");
+    my $find = sub{ syf("jcmd")=~/^(\d+)\s+\S+\bblp-server\b/ and return "$1" while sleep 1; die };
+    my $pid = &$find();
+    sy("cd $gen_dir && perl $proto_dir/build.pl");
+    my $close = &$start("cd $gen_dir && sh .bloop/c4/tag.$base.compile");
+    print "tracking compiler 0\n";
+    my $n = 0;
+    while(syf("ps -ef")=~/\bbloop\s+compile\b/){
+        my $thread_print = syf("jcmd $pid Thread.print");
+        $n = $thread_print=~/\bBloopHighLevelCompiler\b/ ? 0 : $n+1;
+        sy("kill $pid"), print($thread_print), die if $n > 5;
+        sleep 1;
+    }
+    print "tracking compiler 1\n";
+    &$close();
+    print "tracking compiler 2\n";
 }];
 my $build_client = sub{
     my($gen_dir)=@_;
@@ -1333,7 +1344,7 @@ push @tasks, ["up-ci","",sub{
         sy("cp $gen_dir/install.pl $gen_dir/ci.pl $from_path/");
         &$put("Dockerfile", join "\n",
             &$base_image_steps(),
-            "RUN perl install.pl apt curl openssh-client socat libdigest-perl-md5-perl",
+            "RUN perl install.pl apt curl openssh-client socat libdigest-perl-md5-perl uuid-runtime",
             "RUN perl install.pl curl $dl_frp_url",
             "COPY ci.pl /",
             "USER c4",
