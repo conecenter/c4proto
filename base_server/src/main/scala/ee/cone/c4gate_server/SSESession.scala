@@ -151,7 +151,7 @@ case class SessionTxTransform( //?todo session/pongs purge
 
 @c4("SSEServerApp") class SSEAssembles(mortal: MortalFactory) {
   @provide def subAssembles: Seq[Assemble] =
-    mortal(classOf[U_FromAlienStatus]) :: mortal(classOf[U_ToAlienWrite]) :: Nil
+    mortal(classOf[U_FromAlienState]) :: mortal(classOf[U_FromAlienStatus]) :: mortal(classOf[U_ToAlienWrite]) :: Nil
 }
 
 @c4assemble("SSEServerApp") class SSEAssembleBase   {
