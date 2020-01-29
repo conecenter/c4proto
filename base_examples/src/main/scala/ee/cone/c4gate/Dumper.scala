@@ -9,14 +9,16 @@ import ee.cone.c4di.c4
   snapshotMaker: SnapshotMaker,
   snapshotLoader: SnapshotLoader,
   richRawWorldReducer: RichRawWorldReducer,
-  execution: Execution
+  execution: Execution,
+  getS_HttpRequest: GetByPK[S_HttpRequest],
+  getU_FromAlienState: GetByPK[U_FromAlienState],
 ) extends Executable {
   def run(): Unit = {
     val list = snapshotMaker.make(NextSnapshotTask(None))
     val event = snapshotLoader.load(list.head).get
     val context = richRawWorldReducer.reduce(None,List(event))
-    ByPK(classOf[S_HttpRequest]).of(context).values.toList.sortBy(_.srcId).foreach(println)
-    ByPK(classOf[U_FromAlienState]).of(context).values.toList.sortBy(_.sessionKey).foreach(println)
+    getS_HttpRequest.ofA(context).values.toList.sortBy(_.srcId).foreach(println)
+    getU_FromAlienState.ofA(context).values.toList.sortBy(_.sessionKey).foreach(println)
     execution.complete()
   }
 }

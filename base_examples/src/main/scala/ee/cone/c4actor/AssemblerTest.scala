@@ -52,7 +52,10 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: Valu
 @c4("SimpleAssemblerTestApp") class AssemblerTest(
   toUpdate: ToUpdate,
   contextFactory: ContextFactory,
-  execution: Execution
+  execution: Execution,
+  getD_RawParentNode: GetByPK[D_RawParentNode],
+  getD_RawChildNode: GetByPK[D_RawChildNode],
+  getParentNodeWithChildren: GetByPK[ParentNodeWithChildren],
 ) extends Executable with LazyLogging {
   def run(): Unit = {
 
@@ -74,21 +77,21 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: Valu
     assert(diff==shouldDiff)*/
     logger.debug(s"$nGlobal")
     Map(
-      ByPK(classOf[PCProtocol.D_RawParentNode]) -> Map(
+      getD_RawParentNode -> Map(
         "1" -> D_RawParentNode("1","P-1")
       ),
-      ByPK(classOf[PCProtocol.D_RawChildNode]) -> Map(
+      getD_RawChildNode -> Map(
         "2" -> D_RawChildNode("2","1","C-2"),
         "3" -> D_RawChildNode("3","1","C-3")
       ),
-      ByPK(classOf[ParentNodeWithChildren]) -> Map(
+      getParentNodeWithChildren -> Map(
         "1" -> ParentNodeWithChildren("1",
           "P-1",
           List(D_RawChildNode("2","1","C-2"), D_RawChildNode("3","1","C-3"))
         )
       )
     ).foreach{
-      case (k,v) => assert(k.of(nGlobal).toMap==v)
+      case (k,v) => assert(k.ofA(nGlobal).toMap==v)
     }
     execution.complete()
   }

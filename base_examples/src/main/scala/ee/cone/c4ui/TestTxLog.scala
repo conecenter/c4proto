@@ -47,13 +47,14 @@ import scala.annotation.tailrec
   snapshotMerger: SnapshotMerger,
   signer: SnapshotTaskSigner,
   sessionAttrAccess: SessionAttrAccessFactory,
-  tags: TestTags[Context]
+  tags: TestTags[Context],
+  getUpdatesListSummary: GetByPK[UpdatesListSummary],
 ) extends ByLocationHashView {
   def view: Context => ViewRes = untilPolicy.wrap { local =>
     import mTags._
 
     val logs: List[ChildPair[OfDiv]] = for{
-      updatesListSummary <- ByPK(classOf[UpdatesListSummary]).of(local).get(actorName.value).toList
+      updatesListSummary <- getUpdatesListSummary.ofA(local).get(actorName.value).toList
       updatesSummary <- updatesListSummary.items
       add = updatesSummary.add
     } yield div(s"tx${add.srcId}",List())(

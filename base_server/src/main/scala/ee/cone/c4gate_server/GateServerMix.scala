@@ -41,21 +41,24 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
   with WorldProviderApp
 
 @c4("AbstractHttpGatewayApp") class DefFHttpHandlerProvider(
-  pongRegistry: PongRegistry,
-  loader: SnapshotLoader,
-  sseConfig: SSEConfig,
-  worldProvider: WorldProvider,
-  httpResponseFactory: RHttpResponseFactory
+  fHttpHandlerFactory: FHttpHandlerFactory,
+  httpGetSnapshotHandler: HttpGetSnapshotHandler,
+  getPublicationHttpHandler: GetPublicationHttpHandler,
+  pongHandler: PongHandler,
+  notFoundProtectionHttpHandler: NotFoundProtectionHttpHandler,
+  selfDosProtectionHttpHandler: SelfDosProtectionHttpHandler,
+  authHttpHandler: AuthHttpHandler,
+  defSyncHttpHandler: DefSyncHttpHandler
 ){
   @provide def get: Seq[FHttpHandler] = List(
-    new FHttpHandlerImpl(worldProvider, httpResponseFactory,
-      new HttpGetSnapshotHandler(loader, httpResponseFactory,
-        new GetPublicationHttpHandler(httpResponseFactory,
-          new PongHandler(sseConfig, pongRegistry, httpResponseFactory,
-            new NotFoundProtectionHttpHandler(httpResponseFactory,
-              new SelfDosProtectionHttpHandler(httpResponseFactory, sseConfig,
-                new AuthHttpHandler(httpResponseFactory,
-                  new DefSyncHttpHandler()
+    fHttpHandlerFactory.create(
+      httpGetSnapshotHandler.wire(
+        getPublicationHttpHandler.wire(
+          pongHandler.wire(
+            notFoundProtectionHttpHandler.wire(
+              selfDosProtectionHttpHandler.wire(
+                authHttpHandler.wire(
+                  defSyncHttpHandler.wire
                 )
               )
             )

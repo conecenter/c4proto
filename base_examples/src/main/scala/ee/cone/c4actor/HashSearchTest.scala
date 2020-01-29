@@ -101,7 +101,9 @@ object HashSearchTestMain {
 @c4("HashSearchTestApp") class HashSearchTestMain(
   modelConditionFactory: ModelConditionFactory[Unit],
   contextFactory: ContextFactory,
-  execution: Execution
+  execution: Execution,
+  getD_SomeModel: GetByPK[D_SomeModel],
+  getSomeResponse: GetByPK[SomeResponse],
 ) extends Executable with LazyLogging {
 
   def measure[T](hint: String)(f: ()=>T): T = {
@@ -114,11 +116,11 @@ object HashSearchTestMain {
   def ask(modelConditionFactory: ModelConditionFactory[Unit]): D_SomeModel=>Context=>Unit = pattern => local => {
     val request = D_SomeRequest("123",Option(pattern))
 
-    logger.info(s"$request ${ByPK(classOf[D_SomeModel]).of(local).size}")
+    logger.info(s"$request ${getD_SomeModel.ofA(local).size}")
     val res0 = measure("dumb  find models") { () =>
       val pattern = request.pattern.get
       for{
-        model <- ByPK(classOf[D_SomeModel]).of(local).values if
+        model <- getD_SomeModel.ofA(local).values if
           (pattern.fieldA.isEmpty || model.fieldA == pattern.fieldA) &&
           (pattern.fieldB.isEmpty || model.fieldB == pattern.fieldB) &&
           (pattern.fieldC.isEmpty || model.fieldC == pattern.fieldC)
@@ -128,12 +130,12 @@ object HashSearchTestMain {
     val res1 = measure("cond  find models") { () =>
       val lenses = List(fieldA,fieldB,fieldC)
       val condition = HashSearchTestMain.condition(modelConditionFactory,request)
-      ByPK(classOf[D_SomeModel]).of(local).values.filter(condition.check)
+      getD_SomeModel.ofA(local).values.filter(condition.check)
     }
 
     val res2 = measure("index find models") { () =>
       val local2 = TxAdd(LEvent.update(request))(local)
-      Single(ByPK(classOf[SomeResponse]).of(local2).values.toList).lines
+      Single(getSomeResponse.ofA(local2).values.toList).lines
     }
 
     val res = List(res0,res1,res2).map(_.toList.sortBy(_.srcId))

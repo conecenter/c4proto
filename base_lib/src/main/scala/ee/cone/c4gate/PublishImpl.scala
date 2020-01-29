@@ -68,6 +68,7 @@ trait PublicDirProvider {
   mimeTypesProviders: List[PublishMimeTypesProvider],
   publicDirProviders: List[PublicDirProvider],
   publishFullCompressor: PublishFullCompressor,
+  getS_HttpPublication: GetByPK[S_HttpPublication],
 )(
   mimeTypes: String=>Option[String] = mimeTypesProviders.flatMap(_.get).toMap.get,
   compressor: Compressor = publishFullCompressor.value
@@ -114,7 +115,7 @@ trait PublicDirProvider {
       N_Header("content-encoding", compressor.name) ::
       mimeType.map(N_Header("content-type",_)).toList
     val publication = S_HttpPublication(path,headers,byteString,None)
-    val existingPublications = ByPK(classOf[S_HttpPublication]).of(local)
+    val existingPublications = getS_HttpPublication.ofA(local)
     //println(s"${existingPublications.getOrElse(path,Nil).size}")
     if(existingPublications.get(path).contains(publication)) {
       logger.debug(s"$path (${byteString.size}) exists")

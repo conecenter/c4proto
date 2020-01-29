@@ -11,7 +11,8 @@ import scala.annotation.tailrec
   snapshotMaker: SnapshotMaker,
   loader: SnapshotLoader,
   progressObserverFactory: ProgressObserverFactory,
-  consuming: Consuming
+  consuming: Consuming,
+  getS_FailedUpdates: GetByPK[S_FailedUpdates],
 ) extends Executable with Early with LazyLogging {
   def run(): Unit = concurrent.blocking { //ck mg
     logger.info(s"Starting RootConsumer...")
@@ -30,7 +31,7 @@ import scala.annotation.tailrec
           logger.debug(s"Reducing $snapshot")
           Option(reducer.reduce(None,List(event)))
         }
-        if ByPK(classOf[S_FailedUpdates]).of(world).isEmpty
+        if getS_FailedUpdates.ofA(world).isEmpty
       } yield {
         logger.info(s"Snapshot reduced without failures [${snapshot.relativePath}]")
         world

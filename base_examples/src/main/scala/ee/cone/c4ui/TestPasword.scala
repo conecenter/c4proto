@@ -40,7 +40,7 @@ case class TestFailuresRootView(branchKey: SrcId, fromAlienState: FromAlienState
     val (from,to) = TestFailUntilKey.of(local)
     if(from.isBefore(now) && now.isBefore(to)) throw new Exception
 
-    val failures = ByPK(classOf[SessionFailures]).of(local)
+    val failures =  /*getSessionFailures: GetByPK[SessionFailures],*/getSessionFailures.ofA(local)
       .get(fromAlienState.sessionKey).toList.flatMap(_.failures)
       .map(err=>text(err.srcId,s"[${err.text}]"))
     failures ::: List(
@@ -80,12 +80,16 @@ case class TestAntiDosRootView(branchKey: SrcId) extends View {
 @c4("TestPasswordApp") case class TestPasswordRootView(locationHash: String = "pass")(
   tags: TestTags[Context],
   mTags: Tags,
-  untilPolicy: UntilPolicy
+  untilPolicy: UntilPolicy,
+  getC_PasswordHashOfUser: GetByPK[C_PasswordHashOfUser],
+  getU_FromAlienState: GetByPK[U_FromAlienState],
+  getS_PasswordChangeRequest: GetByPK[S_PasswordChangeRequest],
+  getU_AuthenticatedSession: GetByPK[U_AuthenticatedSession],
 ) extends ByLocationHashView {
   def view: Context => ViewRes = untilPolicy.wrap{ local =>
-    val freshDB = ByPK(classOf[C_PasswordHashOfUser]).of(local).isEmpty
+    val freshDB = getC_PasswordHashOfUser.ofA(local).isEmpty
     val sessionKey = CurrentSessionKey.of(local)
-    val fromAlienState = ByPK(classOf[U_FromAlienState]).of(local)(sessionKey)
+    val fromAlienState = getU_FromAlienState.ofA(local)(sessionKey)
     val userName = fromAlienState.userName
     println(userName,freshDB)
     if(userName.isEmpty && !freshDB){
@@ -99,14 +103,14 @@ case class TestAntiDosRootView(branchKey: SrcId) extends View {
       List(
         tags.changePassword(message => local => {
           val reqId = tags.messageStrBody(message)
-          val requests = ByPK(classOf[S_PasswordChangeRequest]).of(local)
+          val requests = getS_PasswordChangeRequest.ofA(local)
           val updates = requests.get(reqId).toList
             .flatMap(req=>LEvent.update(C_PasswordHashOfUser("test",req.hash)))
           TxAdd(updates)(local)
         })
       ) ++ userName.map(n=>mTags.text("hint",s"signed in as $n")) ++
       List(mTags.divButton("kill-sessions"){ (local:Context) =>
-        val sessions = ByPK(classOf[U_AuthenticatedSession]).of(local).values.toList.sortBy(_.sessionKey)
+        val sessions = getU_AuthenticatedSession.ofA(local).values.toList.sortBy(_.sessionKey)
         TxAdd(sessions.flatMap(LEvent.delete))(local)
       }(List(mTags.text("text","kill sessions"))))
     }

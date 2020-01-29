@@ -33,8 +33,9 @@ trait SSEConfig {
 
 // inner (TxTr-like) handler api
 case class RHttpResponse(instantResponse: Option[S_HttpResponse], events: List[LEvent[Product]])
-trait RHttpHandler {
-  def handle(request: S_HttpRequest, local: Context): RHttpResponse
+object RHttpTypes {
+  type RHttpHandler = (S_HttpRequest,Context)=>RHttpResponse
+  type RHttpHandlerCreate = RHttpHandler=>RHttpHandler
 }
 
 // outer handler api

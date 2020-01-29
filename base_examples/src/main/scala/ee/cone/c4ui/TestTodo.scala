@@ -110,7 +110,8 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
   filterPredicates: FilterPredicateBuilder,
   commonFilterConditionChecks: CommonFilterConditionChecks,
   accessViewRegistry: AccessViewRegistry,
-  untilPolicy: UntilPolicy
+  untilPolicy: UntilPolicy,
+  getB_TodoTask: GetByPK[B_TodoTask],
 ) extends ByLocationHashView {
   def view: Context => ViewRes = untilPolicy.wrap{ local =>
     import mTags._
@@ -131,7 +132,7 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
       )(List(text("text","+")))
     )
 
-    val todoTasks = ByPK(classOf[B_TodoTask]).of(local).values
+    val todoTasks = getB_TodoTask.ofA(local).values
       .filter(filterPredicate.condition.check).toList.sortBy(-_.createdAt)
     val taskLines = for {
       prod <- todoTasks
