@@ -1281,11 +1281,13 @@ my $build_client = sub{
     my $to_dir = "$gen_dir/htdocs";
     $build_dir eq readlink $to_dir or symlink $build_dir, $to_dir or die $!;
 };
-#prod.pl build_client .
-push @tasks, ["build_client","<dir>",sub{
+push @tasks, ["build_client","<dir> [mode]",sub{
     my($dir,$mode)=@_;
-	my $mode = $mode eq "fast"?"--env.fast=true --mode development":$mode eq "dev"?"--mode development":"--mode production";
-    &$build_client($dir||die, $mode);
+    my $mode =
+        $mode eq "fast" ? "--env.fast=true --mode development" :
+        $mode eq "dev" ? "--mode development" :
+        "--mode production";
+    &$build_client(($dir||die), $mode);
 }];
 push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();

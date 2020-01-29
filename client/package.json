@@ -24,30 +24,30 @@
     "webpack-cli": "^3.3.10"
   },
   "eslintConfig":{
-	 "parser": "babel-eslint",
-	 "parserOptions": {
-		"ecmaVersion": 6,
-		"sourceType": "module",
-		"ecmaFeatures": {
-            "jsx": true
-        }
-	 },
-	 "extends": [
-		"eslint:recommended",
-		"plugin:react/recommended"
-	  ],
-	  "env": {
-		"browser": true,
-		"es6": true
-	  },
-	  "settings": {
-		"react": {
-		  "version": "detect"
-		}
-	  },
-	  "rules":{
-		"no-unused-vars":["warn",{"args":"none"}],
-		"no-mixed-spaces-and-tabs":["warn", "smart-tabs"]
-	  } 
+    "parser": "babel-eslint",
+    "parserOptions": {
+      "ecmaVersion": 6,
+      "sourceType": "module",
+      "ecmaFeatures": {
+        "jsx": true
+      }
+    },
+    "extends": [
+      "eslint:recommended",
+      "plugin:react/recommended"
+    ],
+    "env": {
+      "browser": true,
+      "es6": true
+    },
+    "settings": {
+      "react": {
+        "version": "detect"
+      }
+    },
+    "rules":{
+      "no-unused-vars":["warn",{"args":"none"}],
+      "no-mixed-spaces-and-tabs":["warn", "smart-tabs"]
+    }
   }
 }
