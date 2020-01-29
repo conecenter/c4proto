@@ -17,9 +17,12 @@ trait TxTransforms {
 
 @c4("ServerCompApp") class DefLongTxWarnPeriod extends LongTxWarnPeriod(Option(System.getenv("C4TX_WARN_PERIOD_MS")).fold(500L)(_.toLong))
 
-@c4("ServerCompApp") class TxTransformsImpl(qMessages: QMessages, warnPeriod: LongTxWarnPeriod, catchNonFatal: CatchNonFatal) extends TxTransforms with LazyLogging {
+@c4("ServerCompApp") class TxTransformsImpl(
+  qMessages: QMessages, warnPeriod: LongTxWarnPeriod, catchNonFatal: CatchNonFatal,
+  getTxTransform: GetByPK[TxTransform],
+) extends TxTransforms with LazyLogging {
   def get(global: RichContext): Map[SrcId,TransientMap=>TransientMap] =
-    ByPK(classOf[TxTransform]).of(global).keys.map(k=>k->handle(global,k)).toMap
+    getTxTransform.ofA(global).keys.map(k=>k->handle(global,k)).toMap
   private def handle(global: RichContext, key: SrcId): TransientMap=>TransientMap = {
     val enqueueTimer = NanoTimer()
     prev =>
@@ -30,7 +33,7 @@ trait TxTransforms {
       global.offset < InnerReadAfterWriteOffsetKey.of(prev) ||
       Instant.now.isBefore(InnerSleepUntilKey.of(prev))
     ) prev else catchNonFatal {
-        ByPK(classOf[TxTransform]).of(global).get(key) match {
+        getTxTransform.ofA(global).get(key) match {
           case None => prev
           case Some(tr) =>
             val workTimer = NanoTimer()

@@ -41,7 +41,8 @@ case class ConnNodePath(path: List[D_Node])
   */
 }
 @c4("ConnTestApp") class ConnStart(
-  execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
+  execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory,
+  getConnNodePath: GetByPK[ConnNodePath]
 ) extends Executable with LazyLogging {
   def run() = {
     import LEvent.update
@@ -53,7 +54,7 @@ case class ConnNodePath(path: List[D_Node])
 
     //logger.info(s"${nGlobal.assembled}")
     assert(
-      ByPK(classOf[ConnNodePath]).of(nGlobal)("125") ==
+      getConnNodePath.ofA(nGlobal)("125") ==
       ConnNodePath(List(
         D_Node("125","12"), D_Node("12","1"), D_Node("1","")
       ))
@@ -69,7 +70,7 @@ case class ConnNodePath(path: List[D_Node])
         "2" -> D_RawChildNode("2","1","C-2"),
         "3" -> D_RawChildNode("3","1","C-3")
       ),
-      ByPK(classOf[ParentNodeWithChildren]) -> Map(
+       /*getParentNodeWithChildren: GetByPK[ParentNodeWithChildren],*/getParentNodeWithChildren -> Map(
         "1" -> ParentNodeWithChildren("1",
           "P-1",
           List(D_RawChildNode("2","1","C-2"), D_RawChildNode("3","1","C-3"))

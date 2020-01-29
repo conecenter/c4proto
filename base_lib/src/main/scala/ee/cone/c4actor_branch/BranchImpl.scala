@@ -19,7 +19,9 @@ import scala.collection.immutable.Seq
 
 case object SessionKeysKey extends TransientLens[Set[BranchRel]](Set.empty)
 
-case class BranchTaskImpl(branchKey: String, seeds: List[BranchRel], product: Product) extends BranchTask with LazyLogging {
+case class BranchTaskImpl(branchKey: String, seeds: List[BranchRel], product: Product)(
+  getBranchTask: GetByPK[BranchTask]
+) extends BranchTask with LazyLogging {
   def sending: Context => (Send,Send) = local => {
     val newSessionKeys = sessionKeys(local)
     val(keepTo,freshTo) = newSessionKeys.partition(SessionKeysKey.of(local))
@@ -36,7 +38,7 @@ case class BranchTaskImpl(branchKey: String, seeds: List[BranchRel], product: Pr
   def sessionKeys: Context => Set[BranchRel] = local => seeds.flatMap(rel=>
     if(rel.parentIsSession) rel :: Nil
     else {
-      val index = ByPK(classOf[BranchTask]).of(local)
+      val index = getBranchTask.ofA(local)
       index.get(rel.parentSrcId).toList.flatMap(_.sessionKeys(local))
     }
   ).toSet
@@ -69,11 +71,13 @@ case class BranchTxTransform(
   sessionKeys: List[SrcId],
   requests: List[BranchMessage],
   handler: BranchHandler
+)(
+  getS_BranchResult: GetByPK[S_BranchResult],
 ) extends TxTransform with LazyLogging {
   private def saveResult: Context => Context = local => {
     //if(seed.isEmpty && newChildren.nonEmpty) println(s"newChildren: ${handler}")
     //println(s"S_BranchResult $wasBranchResults == $newBranchResult == ${wasBranchResults == newBranchResult}")
-    val wasBranchResults = ByPK(classOf[S_BranchResult]).of(local).get(branchKey).toList
+    val wasBranchResults = getS_BranchResult.ofA(local).get(branchKey).toList
     //
     val wasChildren = wasBranchResults.flatMap(_.children)
     val newChildren = handler.seeds(local)
@@ -96,7 +100,7 @@ case class BranchTxTransform(
       if(wasReport.isEmpty) local else ReportAliveBranchesKey.set("")(local)
     }
     else {
-      val index = ByPK(classOf[S_BranchResult]).of(local)
+      val index = getS_BranchResult.ofA(local)
       def gather(branchKey: SrcId): List[String] = {
         val children = index.get(branchKey).toList.flatMap(_.children).map(_.hash)
         (branchKey :: children).mkString(",") :: children.flatMap(gather)
@@ -172,7 +176,11 @@ case class BranchTxTransform(
     seed.hash -> BranchRel(s"${seed.hash}/$parentSrcId",seed,parentSrcId,parentIsSession)
 }
 
-@c4assemble("BranchApp") class BranchAssembleBase(registry: QAdapterRegistry, operations: BranchOperations) extends LazyLogging {
+@c4assemble("BranchApp") class BranchAssembleBase(
+  registry: QAdapterRegistry, operations: BranchOperations,
+  getBranchTask: GetByPK[BranchTask],
+  getS_BranchResult: GetByPK[S_BranchResult],
+) extends LazyLogging {
   def mapBranchSeedsByChild(
     key: SrcId,
     branchResult: Each[S_BranchResult]
@@ -187,7 +195,7 @@ case class BranchTxTransform(
   ): Values[(SrcId,BranchTask)] = {
     val seed = seeds.headOption.map(_.seed).getOrElse(Single(wasBranchResults))
     registry.byId.get(seed.valueTypeId).map(_.decode(seed.value.toByteArray))
-      .map(product => key -> BranchTaskImpl(key, seeds.toList, product)).toList
+      .map(product => key -> BranchTaskImpl(key, seeds.toList, product)(getBranchTask)).toList
     // may result in some garbage branches in the world?
 
     //println(s"join_task $key ${wasBranchResults.size} ${seeds.size}")
@@ -207,7 +215,7 @@ case class BranchTxTransform(
           case s => s.toLong
         },ToPrimaryKey(req))).toList,
         handler
-    ))
+    )(getS_BranchResult))
 
   type SessionKey = SrcId
 

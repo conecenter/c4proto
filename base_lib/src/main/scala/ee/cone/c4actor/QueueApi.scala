@@ -161,11 +161,9 @@ class Context(
   val transient: TransientMap
 ) extends SharedContext with AssembledContext
 
-object ByPK {
-  def apply[V<:Product](cl: Class[V]): ByPrimaryKeyGetter[V] =
-    ByPrimaryKeyGetter(cl.getName)
+trait GetByPK[+V<:Product] {
+  def ofA(context: AssembledContext): Map[SrcId,V]
 }
-//todo? def t[T[U],U](clO: Class[T[U]], cl1: Class[U]): Option[T[U]] = None
 
 case class ByPrimaryKeyGetter[V<:Product](className: String)
   extends Getter[SharedContext with AssembledContext,Map[SrcId,V]]
