@@ -1267,11 +1267,11 @@ push @tasks, ["ci_inner_build","",sub{
     print "tracking compiler 2\n";
 }];
 my $build_client = sub{
-    my($gen_dir)=@_;
+    my($gen_dir, $mode)=@_;
     my $dir = "$gen_dir/client";
     my $build_dir = "$dir/build/test";
     unlink or die $! for <$build_dir/*>;
-    sy("cd $dir && node_modules/webpack/bin/webpack.js");# -d
+    sy("cd $dir && node_modules/webpack/bin/webpack.js $mode");# -d
     &$put_text("$build_dir/publish_time",time);
     &$put_text("$build_dir/c4gen.ht.links",join"",
         map{ my $u = m"^/(.+)$"?$1:die; "base_lib.ee.cone.c4gate /$u $u\n" }
@@ -1281,10 +1281,13 @@ my $build_client = sub{
     my $to_dir = "$gen_dir/htdocs";
     $build_dir eq readlink $to_dir or symlink $build_dir, $to_dir or die $!;
 };
-#prod.pl build_client .
-push @tasks, ["build_client","<dir>",sub{
-    my($dir)=@_;
-    &$build_client($dir||die);
+push @tasks, ["build_client","<dir> [mode]",sub{
+    my($dir,$mode)=@_;
+    my $mode =
+        $mode eq "fast" ? "--env.fast=true --mode development" :
+        $mode eq "dev" ? "--mode development" :
+        "--mode production";
+    &$build_client(($dir||die), $mode);
 }];
 push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();

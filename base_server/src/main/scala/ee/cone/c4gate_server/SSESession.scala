@@ -18,6 +18,7 @@ import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
 import ee.cone.c4gate.HttpProtocol.S_HttpPublication
 import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpRequest}
 import ee.cone.c4di.{c4, provide}
+import ee.cone.c4gate_server.RHttpTypes.RHttpHandlerCreate
 import okio.ByteString
 
 case object LastPongKey extends SharedComponentKey[String=>Option[Instant]]
@@ -30,11 +31,15 @@ trait PongRegistry {
   def toInject: List[Injectable] = LastPongKey.set(pongs.get)
 }
 
-class PongHandler(
+@c4("SSEServerApp") class PongHandler(
   sseConfig: SSEConfig, pongRegistry: PongRegistry,
-  httpResponseFactory: RHttpResponseFactory, next: RHttpHandler
-) extends RHttpHandler with LazyLogging {
-  def handle(request: S_HttpRequest, local: Context): RHttpResponse =
+  httpResponseFactory: RHttpResponseFactory,
+  getU_AuthenticatedSession: GetByPK[U_AuthenticatedSession],
+  getU_FromAlienState: GetByPK[U_FromAlienState],
+  getU_FromAlienStatus: GetByPK[U_FromAlienStatus],
+  getU_FromAlienConnected: GetByPK[U_FromAlienConnected],
+) extends LazyLogging {
+  def wire: RHttpHandlerCreate = next => (request,local) =>
     if(request.method == "POST" && request.path == sseConfig.pongURL) {
       logger.debug(s"pong-enter")
       val headers = request.headers.groupMap(_.key)(_.value).transform((k,v) => Single(v))
@@ -43,7 +48,7 @@ class PongHandler(
         httpResponseFactory.setSession(request,Option(""),None)
       }{ sessionKey =>
         logger.debug(s"pong-n-start")
-        ByPK(classOf[U_AuthenticatedSession]).of(local).get(sessionKey).fold{
+        getU_AuthenticatedSession.ofA(local).get(sessionKey).fold{
           logger.debug(s"pong-reset")
           httpResponseFactory.setSession(request,None,None)
         }{ aSession =>
@@ -67,9 +72,9 @@ class PongHandler(
           )
           val connected = U_FromAlienConnected(sessionKey,headers("x-r-connection"))
           pongRegistry.pongs(session.sessionKey) = now.plusSeconds(5)
-          val wasSession = ByPK(classOf[U_FromAlienState]).of(local).get(session.sessionKey)
-          val wasStatus = ByPK(classOf[U_FromAlienStatus]).of(local).get(status.sessionKey)
-          val wasConnected = ByPK(classOf[U_FromAlienConnected]).of(local).get(connected.sessionKey)
+          val wasSession = getU_FromAlienState.ofA(local).get(session.sessionKey)
+          val wasStatus = getU_FromAlienStatus.ofA(local).get(status.sessionKey)
+          val wasConnected = getU_FromAlienConnected.ofA(local).get(connected.sessionKey)
           val events: Seq[LEvent[Product]] =
             (if(wasSession != Option(session)) LEvent.update(session) else Nil) ++
               (if(wasStatus != Option(status)) LEvent.update(status) else Nil) ++
@@ -78,7 +83,7 @@ class PongHandler(
           httpResponseFactory.directResponse(request,r=>r).copy(events=events.toList)
         }
       }
-    } else next.handle(request,local)
+    } else next(request,local)
 }
 
 object SSEMessage {
@@ -151,7 +156,7 @@ case class SessionTxTransform( //?todo session/pongs purge
 
 @c4("SSEServerApp") class SSEAssembles(mortal: MortalFactory) {
   @provide def subAssembles: Seq[Assemble] =
-    mortal(classOf[U_FromAlienStatus]) :: mortal(classOf[U_ToAlienWrite]) :: Nil
+    mortal(classOf[U_FromAlienState]) :: mortal(classOf[U_FromAlienStatus]) :: mortal(classOf[U_ToAlienWrite]) :: Nil
 }
 
 @c4assemble("SSEServerApp") class SSEAssembleBase   {

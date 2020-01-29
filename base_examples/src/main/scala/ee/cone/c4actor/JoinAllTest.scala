@@ -32,7 +32,8 @@ case class JoinAllTestItem(srcId: String)
 
 @c4("JoinAllTestApp") class JoinAllTestExecutable(
   contextFactory: ContextFactory,
-  execution: Execution
+  execution: Execution,
+  getJoinAllTestItem: GetByPK[JoinAllTestItem],
 ) extends Executable {
   def run(): Unit = {
     val voidContext = contextFactory.updated(Nil)
@@ -56,7 +57,7 @@ case class JoinAllTestItem(srcId: String)
         TxAdd(LEvent.update(D_RegistryItem("c")))(l)
       },
       l => {
-        assert(ByPK(classOf[JoinAllTestItem]).of(l).keys.size == 9)
+        assert(getJoinAllTestItem.ofA(l).keys.size == 9)
         l
       }
     ))(voidContext)

@@ -67,11 +67,12 @@ trait TestCoLeaderViewApp extends ByLocationHashViewsApp {
   tags: Tags,
   styles: TagStyles,
   branchOperations: BranchOperations,
-  untilPolicy: UntilPolicy
+  untilPolicy: UntilPolicy,
+  getU_FromAlienState: GetByPK[U_FromAlienState],
 ) extends ByLocationHashView with LazyLogging {
   import tags._
   def view: Context => ViewRes = untilPolicy.wrap{ local =>
-    val fromAlienStates = ByPK(classOf[U_FromAlienState]).of(local)
+    val fromAlienStates = getU_FromAlienState.ofA(local)
     val fromAliens = for(
       fromAlien <- fromAlienStates.values;
       url <- Option(new URL(fromAlien.location));

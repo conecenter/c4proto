@@ -27,9 +27,12 @@ object Merge {
     }
 }
 
-@c4("RichDataCompApp") class GetOffsetImpl(actorName: ActorName) extends GetOffset {
+@c4("RichDataCompApp") class GetOffsetImpl(
+  actorName: ActorName,
+  getS_Offset: GetByPK[S_Offset],
+) extends GetOffset {
   def of: SharedContext with AssembledContext => NextOffset =
-    ctx => ByPK(classOf[S_Offset]).of(ctx).get(actorName.value).fold(empty)(_.txId)
+    ctx => getS_Offset.ofA(ctx).get(actorName.value).fold(empty)(_.txId)
   def empty: NextOffset = "0" * OffsetHexSize()
 }
 

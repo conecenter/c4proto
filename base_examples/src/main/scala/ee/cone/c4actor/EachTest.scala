@@ -50,7 +50,8 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
 }
 
 @c4("EachTestApp") class EachTestExecutable(
-  execution: Execution, contextFactory: ContextFactory, indexUtil: IndexUtil
+  execution: Execution, contextFactory: ContextFactory, indexUtil: IndexUtil,
+  items: GetByPK[D_Item], eachTestItems: GetByPK[EachTestItem]
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     val voidContext = contextFactory.updated(Nil)
@@ -59,7 +60,7 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
       TxAdd(LEvent.update(D_Item("1","2"))),
       TxAdd(LEvent.update(D_Item("1","3"))),
       l => {
-        assert(ByPK.apply(classOf[D_Item]).of(l)("1").parent=="3","last stored item wins")
+        assert(items.ofA(l)("1").parent=="3","last stored item wins")
         l
       }
     ))(voidContext)
@@ -87,7 +88,7 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
         (1 to 3000).map(n=>TxAdd(LEvent.update(D_Item(s"$n","V"))))
       )(l)),
       { (l:Context) =>
-        val r = ByPK(classOf[EachTestItem]).of(l)
+        val r = eachTestItems.ofA(l)
         assert(r.keys.size==3000)
         assert(r.values.forall(_.valueItem.parent.isEmpty))
         l

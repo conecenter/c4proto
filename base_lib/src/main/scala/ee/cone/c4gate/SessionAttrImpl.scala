@@ -51,7 +51,8 @@ import ee.cone.c4di.{c4, provide}
   registry: QAdapterRegistry,
   modelFactory: ModelFactory,
   modelAccessFactory: ModelAccessFactory,
-  val idGenUtil: IdGenUtil
+  val idGenUtil: IdGenUtil,
+  getU_RawSessionData: GetByPK[U_RawSessionData],
 ) extends SessionAttrAccessFactory with KeyGenerator{
   def to[P<:Product](attr: SessionAttr[P]): Context=>Option[Access[P]] = {
     val adapter = registry.byName(classOf[U_RawSessionData].getName)
@@ -64,7 +65,6 @@ import ee.cone.c4di.{c4, provide}
         rawData.copy(dataNode = Option(newDataNode))
       }
     )
-    val byPK = ByPK(classOf[U_RawSessionData])
     local => {
       val sessionKey = CurrentSessionKey.of(local)
       val request: U_RawSessionData = U_RawSessionData(
@@ -80,7 +80,7 @@ import ee.cone.c4di.{c4, provide}
         )
       )
       val pk = genPK(request, adapter)//val deepPK = genPK(request.copy(sessionKey=""))
-      val value: U_RawSessionData = byPK.of(local).getOrElse(pk,{
+      val value: U_RawSessionData = getU_RawSessionData.ofA(local).getOrElse(pk,{
         val model = modelFactory.create[P](attr.className)(pk)
         lens.set(model)(request.copy(srcId=pk))
       })
