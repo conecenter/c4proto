@@ -48,6 +48,12 @@
     "rules":{
       "no-unused-vars":["warn",{"args":"none"}],
       "no-mixed-spaces-and-tabs":["warn", "smart-tabs"]
-    }
+    },
+    "overrides":[{
+      "files": ["*/test/*.js"],
+      "rules": {
+        "no-undef": "off"
+      }
+    }]
   }
 }

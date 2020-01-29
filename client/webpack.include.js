@@ -10,13 +10,13 @@ const config = (HtmlWebpackPlugin,kind,outDir) =>{
         rules: [
           !env || !env.fast ? {
             enforce: "pre",  
-            test: /[\\\/]src[\\\/](main|extra)[\\\/].*\.jsx?$/,           
+            test: /[\\\/]src[\\\/](main|extra|test)[\\\/].*\.jsx?$/,           
             exclude: /node_modules/,
             loader: 'eslint-loader',
             options: {}
           } : {},
           {
-            test: /[\\\/]src[\\\/](main|extra)[\\\/].*\.jsx?$/,
+            test: /[\\\/]src[\\\/](main|extra|test)[\\\/].*\.jsx?$/,
             exclude: /node_modules/,
             loader: 'babel-loader',
             options:{
