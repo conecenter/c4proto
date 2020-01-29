@@ -27,7 +27,10 @@ object FieldAccessGenerator extends Generator {
             q"$o.ofSet(...$nArgs)"
         }
 
-        List(GeneratedCode("\n" + Defn.Object(Nil,Term.Name(objectName),nCode.asInstanceOf[Template]).syntax))
+        List(
+          GeneratedImport("import ee.cone.c4di.TypeKey"),
+          GeneratedCode("\n" + Defn.Object(Nil,Term.Name(objectName),nCode.asInstanceOf[Template]).syntax)
+        )
       }
     case _ => Nil
   }
