@@ -104,7 +104,7 @@ export function VDomCore(react,reactDOM,update,log,activeTransforms,getRootEleme
         return {...changed(state), merged}
     })
 
-    const Traverse = react.memo(props => {
+    const Traverse = react.memo(function Traverse(props){
         const at = props.at
         const content =
             at.content && at.content[0] === "rawMerge" ? props :

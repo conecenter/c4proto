@@ -1,4 +1,8 @@
-const path = require('path');
+
+// use `npm outdated`
+
+const path = require('path')
+
 const config = (HtmlWebpackPlugin,kind,outDir) =>{
     return name=>env=>({
       entry: "./src/"+kind+"/"+name+".js",
