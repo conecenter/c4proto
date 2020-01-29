@@ -1,9 +1,9 @@
 const path = require('path');
-const config = (HtmlWebpackPlugin,kind) =>{	
+const config = (HtmlWebpackPlugin,kind,outdir = __dirname) =>{	
 	return name=>env=>({
 	  entry: "./src/"+kind+"/"+name+".js",
 	  output: {		
-		path: __dirname+"/build/"+kind,
+		path: outdir+"/build/"+kind,
 		filename: name + ".js",		
 	  },  
 	  module: {
