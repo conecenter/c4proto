@@ -93,8 +93,6 @@ object ProtocolGenerator extends Generator {
       case t => throw new Exception(t.structure)
     }
     traitUsages ::: List(resultType,factoryName).distinct.map(n=>GeneratedImport(s"""\nimport $objectName.$n""")) ::: List(
-      GeneratedInnerCode(s"""\n  type ${resultType} = ${objectName}Base.${resultType}"""),
-      GeneratedInnerCode(s"""\n  val ${factoryName} = ${objectName}Base.${factoryName}"""),
       GeneratedCode(s"""
 $c4ann class ${cl.name}ProtoAdapter(
   ${props.map(p => s"\n    adapter_${p.name}: ArgAdapter[${p.argType}]").mkString(",")}
@@ -149,10 +147,13 @@ $c4ann class ${cl.name}ProtoAdapter(
       //println(t.structure)
     val classes = Util.matchClass(stats)
     val protoGenerated: List[Generated] = stats.collect{
-      case q"..$mods trait ${Type.Name(tp)}" =>
+      case q"..$mods trait ${Type.Name(tp)} { ..$stats }" =>
+        stats.foreach{
+          case q"def $_: $_" => ()
+          case t: Tree => Utils.parseError(t, parseContext)
+        }
         List(
           GeneratedTraitDef(tp),
-          GeneratedInnerCode(s"""\n  type $tp = ${objectName}Base.$tp"""),
           GeneratedImport(s"""\nimport $objectName.$tp"""),
           GeneratedCode(
             s"\n$c4ann class ${tp}ProtoAdapterProvider(inner: ProtoAdapter[Product]) {" +

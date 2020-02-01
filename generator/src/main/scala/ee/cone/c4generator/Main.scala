@@ -270,7 +270,6 @@ case class GeneratedCode(content: String) extends Generated
 //case class Patch(pos: Int, content: String) extends Generated
 case class GeneratedTraitDef(name: String) extends Generated
 case class GeneratedTraitUsage(name: String) extends Generated
-case class GeneratedInnerCode(content: String) extends Generated
 case class GeneratedAppLink(pkg: String, app: String, expr: String) extends Generated
 
 object Lint {
