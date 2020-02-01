@@ -3,36 +3,34 @@ package ee.cone.c4vdom_impl
 import ee.cone.c4vdom.{ChildPair, ChildPairFactory, MutableJsonBuilder, VDomValue}
 import ee.cone.c4vdom.Types.{VDomKey, ViewRes}
 
-case class ChildOrderPair(value: VDomValue) extends VPair { //priv
-  def jsonKey = "chl"
-  def sameKey(other: VPair) = other match {
-    case v: ChildOrderPair => true
+case class ChildOrderPair[C](jsonKey: String, value: VDomValue) extends ChildPair[C] with VPair { //priv
+  def key: VDomKey = throw new Exception
+  def sameKey(other: VPair): Boolean = other match {
+    case o: ChildOrderPair[_] => jsonKey == o.jsonKey
     case _ => false
   }
   def withValue(value: VDomValue) = copy(value=value)
 }
-case class ChildOrderValue(value: List[VDomKey], parent: VDomKey) extends VDomValue { //priv
+case class ChildOrderValue(value: List[VDomKey], hint: String) extends VDomValue { //priv
   def appendJson(builder: MutableJsonBuilder) = {
     if(value.size != value.distinct.size)
-      throw new Exception(s"duplicate keys: $value under $parent")
+      throw new Exception(s"duplicate keys: $value under $hint")
 
     builder.startArray()
     value.foreach(key => builder.append(LongJsonKey(key)))
     builder.end()
   }
 }
-
+case class ChildGroup(key: String, elements: ViewRes)
 class ChildPairFactoryImpl(createMapValue: List[VPair]=>MapVDomValue) extends ChildPairFactory {
-  def apply[C](
-    key: VDomKey,
-    theElement: VDomValue,
-    elements: ViewRes
-  ): ChildPair[C] = ChildPairImpl[C](key, createMapValue(
-    TheElementPair(theElement) :: (
-      if(elements.isEmpty) Nil
-      else (ChildOrderPair(ChildOrderValue(elements.map(_.key), key)) :: elements).asInstanceOf[List[VPair]]
-    )
-  ))
+  def apply[C](key: VDomKey, theElement: VDomValue, elements: ViewRes): ChildPair[C] = {
+    val children = group("chl",key,elements).asInstanceOf[List[VPair]]
+    ChildPairImpl[C](key, createMapValue(TheElementPair(theElement) :: children))
+  }
+  def group(groupKey: String, hint: String, elements: ViewRes): ViewRes = (
+    if(elements.isEmpty || elements.head.isInstanceOf[ChildOrderPair[_]]) elements
+    else ChildOrderPair(groupKey, ChildOrderValue(elements.map(_.key), hint)) :: elements
+  )
 }
 
 object LongJsonKey { def apply(key: VDomKey) = s":$key" }

@@ -2,6 +2,7 @@ package ee.cone.c4ui
 
 import ee.cone.c4actor._
 import ee.cone.c4di.{c4, provide}
+import ee.cone.c4vdom.Types.VDomKey
 import ee.cone.c4vdom._
 
 abstract class ElementValue extends VDomValue {
@@ -41,6 +42,13 @@ case class ChangePassword[State]()(
   def elementType: String = "ChangePassword"
   def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {
     input.appendInputAttributes(builder, "", deferSend = true)
+  }
+}
+
+case class ContainerLeftRight() extends ElementValue {
+  def elementType: String = "ContainerLeftRight"
+  def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {
+    builder.append("content").startArray().append("rawMerge").end()
   }
 }
 
@@ -84,6 +92,13 @@ class TestTags[State](
     ), Nil)
   def changePassword(change: VDomMessage => State => State): ChildPair[OfDiv] =
     child[OfDiv]("changePassword", ChangePassword[State]()(inputAttributes, change), Nil)
+
+  def containerLeftRight(key: VDomKey, left: List[ChildPair[OfDiv]], right: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
+    child[OfDiv](key, ContainerLeftRight(),
+      child.group("leftChildList","?",left) :::
+      child.group("rightChildList","?",right)
+    )
+
 }
 
 object UserLabel {

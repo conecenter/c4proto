@@ -144,7 +144,7 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
       ))
     ))
 
-    List(filterList,btnList,taskLines).flatten
+    tags.containerLeftRight("clr",filterList,btnList) :: taskLines
   }
 }
 

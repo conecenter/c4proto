@@ -35,7 +35,9 @@ trait ChildPair[-C] {
 
 trait ChildPairFactory {
   def apply[C](key: VDomKey, theElement: VDomValue, elements: ViewRes): ChildPair[C]
+  def group(groupKey: String, hint: String, elements: ViewRes): ViewRes
 }
+// do not mix grouped and ungrouped elements: cf(cf.group(...) ::: badUngroupedElements)
 
 ////
 

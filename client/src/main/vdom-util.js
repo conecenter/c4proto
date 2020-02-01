@@ -70,3 +70,7 @@ export const ifInputsChanged = log => (cacheKey,inpKeysObj,f) => {
         return res
     }
 }
+
+export const traverse = (props,cKey,createElement) => (
+    props[cKey] && props[cKey].map(key => createElement(props[key]))
+)
