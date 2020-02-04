@@ -3,7 +3,7 @@
 
 const path = require('path')
 
-const config = (HtmlWebpackPlugin,kind,outDir,loaderRules=[]) =>{
+const config = (HtmlWebpackPlugin,kind,outDir,loaderRules) =>{
     return name=>env=>({
       entry: "./src/"+kind+"/"+name+".js",
       output: {        
