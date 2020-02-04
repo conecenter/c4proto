@@ -20,6 +20,9 @@ case class SessionAttr[+By](
   className: String, id: Long, pk: SrcId, metaList: List[AbstractMetaAttr]
 ){
   def withPK(nPK: SrcId): SessionAttr[By] = copy(pk=nPK, metaList= WithPKMetaAttr(nPK) :: metaList)
+  def addMeta(
+    meta: AbstractMetaAttr*,
+  ): SessionAttr[By] = copy(metaList = meta.toList ::: metaList)
 }
 
 trait SessionAttrAccessFactory {
