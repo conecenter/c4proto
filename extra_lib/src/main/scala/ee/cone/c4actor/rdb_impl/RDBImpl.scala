@@ -4,7 +4,6 @@ import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 
 import FromExternalDBProtocol.B_DBOffset
 import ToExternalDBProtocol.B_HasState
@@ -21,9 +20,6 @@ import ee.cone.c4di.{c4, provide}
 import ee.cone.c4proto._
 import okio.ByteString
 import ee.cone.c4actor.rdb._
-
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, ExecutionContext, Future}
 
 @c4("FromExternalDBSyncApp") class FromExternalDBOptionsProvider(
   rdbOptionFactory: RDBOptionFactory
@@ -180,9 +176,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(rDBType
   )
 }
 
-@c4assemble("FromExternalDBSyncApp") class FromExternalDBSyncAssembleBase(indentedParser: IndentedParser, execution: Execution)(
-  implicit val executionContext: ExecutionContext = ExecutionContext.fromExecutorService(execution.newExecutorService("DBSync", Some(1)))
-) {
+@c4assemble("FromExternalDBSyncApp") class FromExternalDBSyncAssembleBase(indentedParser: IndentedParser) {
   def joinTxTransform(
     key: SrcId,
     first: Each[S_Firstborn]
@@ -190,13 +184,12 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(rDBType
     List("externalDBSync").map(k=>k->FromExternalDBSyncTransform(k)(indentedParser))
 }
 
-case class FromExternalDBSyncTransform(srcId:SrcId)(indentedParser: IndentedParser)(implicit val ec: ExecutionContext) extends TxTransform with LazyLogging {
+case class FromExternalDBSyncTransform(srcId:SrcId)(indentedParser: IndentedParser) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = WithJDBCKey.of(local){ conn =>
     val offset =
       ByPK(classOf[B_DBOffset]).of(local).getOrElse(srcId, B_DBOffset(srcId, 0L))
     logger.debug(s"offset $offset")//, By.srcId(classOf[Invoice]).of(world).size)
-    val textEncoded =
-      Await.result(Future {conn.outText("poll").in(srcId).in(offset.value).call()}, Duration(15, TimeUnit.MINUTES))
+    val textEncoded = conn.outText("poll").in(srcId).in(offset.value).call()
     //val updateOffset = List(B_DBOffset(srcId, nextOffsetValue)).filter(offset!=_)
     //  .map(n=>LEvent.add(LEvent.update(n)))
     if(textEncoded.isEmpty) local else {
