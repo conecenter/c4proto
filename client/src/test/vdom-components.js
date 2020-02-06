@@ -1,14 +1,26 @@
 
 import React from 'react'
+import {traverse} from "../main/vdom-util"
 
 export function ExampleComponents(components){
-    const {ReControlledInput} = components
+    const {ReControlledInput,Traverse} = components
+    //
     const ExampleInput = prop => {
         const style = prop.changing ? {...prop.style, backgroundColor: "yellow"} : prop.style
         return React.createElement(ReControlledInput, {...prop, style}, null)
     }
+    //
+    const leftTraverse = props => traverse(props.children,"leftChildList",prop=>React.createElement(Traverse, prop))
+    const rightTraverse = props => traverse(props.children,"rightChildList",prop=>React.createElement(Traverse, prop))
+    const ContainerLeftRight = prop => {
+        return React.createElement("table",{},React.createElement("tbody",{},React.createElement("tr",{},[
+            React.createElement("td",{key:"left"},leftTraverse(prop)),
+            React.createElement("td",{key:"right"},rightTraverse(prop))
+        ])))
+    }
+    //
     const transforms= {
-        tp: ({ExampleInput})
+        tp: ({ExampleInput,ContainerLeftRight})
     };
     return ({transforms});
 

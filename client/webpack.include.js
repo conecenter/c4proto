@@ -1,5 +1,9 @@
-const path = require('path');
-const config = (HtmlWebpackPlugin,kind,outDir) =>{
+
+// use `npm outdated`
+
+const path = require('path')
+
+const config = (HtmlWebpackPlugin,kind,outDir,loaderRules) =>{
     return name=>env=>({
       entry: "./src/"+kind+"/"+name+".js",
       output: {        
@@ -10,13 +14,13 @@ const config = (HtmlWebpackPlugin,kind,outDir) =>{
         rules: [
           !env || !env.fast ? {
             enforce: "pre",  
-            test: /[\\\/]src[\\\/](main|extra|test)[\\\/].*\.jsx?$/,           
+            test: /[\\\/]src[\\\/].*(main|extra|test)[\\\/].*\.jsx?$/,           
             exclude: /node_modules/,
             loader: 'eslint-loader',
             options: {}
           } : {},
           {
-            test: /[\\\/]src[\\\/](main|extra|test)[\\\/].*\.jsx?$/,
+            test: /[\\\/]src[\\\/].*(main|extra|test)[\\\/].*\.jsx?$/,
             exclude: /node_modules/,
             loader: 'babel-loader',
             options:{
@@ -26,6 +30,7 @@ const config = (HtmlWebpackPlugin,kind,outDir) =>{
               cacheDirectory: true,
             }
           },
+          ...loaderRules
         ]
       },
       devtool: 'source-map',

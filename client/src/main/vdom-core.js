@@ -1,6 +1,6 @@
 
 import {merger,splitFirst,spreadAll}    from "../main/util"
-import {ifInputsChanged} from "../main/vdom-util"
+import {ifInputsChanged,traverse} from "../main/vdom-util"
 import {dictKeys,branchByKey,rootCtx,ctxToPath,chain,deleted} from "../main/vdom-util"
 
 const localByKey = dictKeys(f=>({local:f}))
@@ -104,15 +104,7 @@ export function VDomCore(react,reactDOM,update,log,activeTransforms,getRootEleme
         return {...changed(state), merged}
     })
 
-    const Traverse = react.memo(props => {
-        const at = props.at
-        const content =
-            at.content && at.content[0] === "rawMerge" ? props :
-            props.chl ? props.chl.map(key => react.createElement(Traverse, props[key])) :
-            at.content || null
-        return react.createElement(at.tp, at, content)
-    })
-
+    const Traverse = activeTransforms.tp.Traverse
     const rendering = ifInputsChanged(log)("renderedFrom", {merged:1,rootNativeElement:1}, changed => state => {
         if(state.merged && state.rootNativeElement){
             const rootVirtualElement = react.createElement(Traverse,state.merged)
@@ -182,6 +174,15 @@ const checkUpdate = changes => state => (
 )
 
 export function VDomAttributes(react, sender){
+    const traverseDef = props => traverse(props,"chl",prop=>react.createElement(Traverse, prop))
+    const Traverse = react.memo(function Traverse(props){
+        const at = props.at
+        const content =
+            at.content && at.content[0] === "rawMerge" ? props :
+            traverseDef(props) ||  at.content || null
+        return react.createElement(at.tp, at, content)
+    })
+
     const sendThen = ctx => event => sender.send(ctx,{value:""})
     const onClick = ({/*send,*/sendThen}) //react gives some warning on stopPropagation
     const onChange = {
@@ -211,7 +212,7 @@ export function VDomAttributes(react, sender){
     const ref = ({seed})
     const ctx = { ctx: ctx => ctx }
     const path = { "I": ctxToPath }
-    const tp = ({ReControlledInput})
+    const tp = ({Traverse,ReControlledInput})
     const transforms = {onClick,onChange,onBlur,ref,ctx,tp,path}
     return ({transforms})
 }

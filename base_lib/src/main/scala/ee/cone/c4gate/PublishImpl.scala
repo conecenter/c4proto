@@ -62,6 +62,9 @@ trait PublicDirProvider {
   }
 }
 
+// we need it, because there's no good place to found there's new *.svg in src/
+case object InitialPublishDone extends TransientLens[Boolean](false)
+
 @c4("PublishingCompApp") class Publishing(
   idGenUtil: IdGenUtil,
   publishFromStringsProviders: List[PublishFromStringsProvider],
@@ -80,27 +83,31 @@ trait PublicDirProvider {
       (path,body) <- publishFromStringsProvider.get
       event <- publish(path,body.getBytes(UTF_8))(local)
     } yield event
-    logger.debug("publish finishing")
+    logger.debug("str publish finishing")
     TxAdd(strEvents).andThen(SleepUntilKey.set(Instant.MAX))(local)
   }
-  def checkPublishFromFiles(local: Context): Context = { //Seq[Observer[RichContext]]
-    val fromPath = Paths.get("htdocs")
-    val timeToPublish =
-      List(fromPath.resolve("publish_time")).filter(Files.exists(_))
-      .flatMap(path=>publish("/publish_time",Files.readAllBytes(path))(local))
-    if(timeToPublish.isEmpty)
-      SleepUntilKey.set(Instant.ofEpochMilli(System.currentTimeMillis+1000))(local)
+  def checkPublishFromFiles(local: Context): Context = //Seq[Observer[RichContext]]
+    if(!InitialPublishDone.of(local))
+      TxAdd(publishFromFiles(local)).andThen(InitialPublishDone.set(true))(local)
     else {
-      logger.debug("publish started")
-      val fileEvents = for {
-        publicDirProvider <- publicDirProviders
-        (url,file) <- publicDirProvider.get
-        event <- publish(url,Files.readAllBytes(file))(local)
-      } yield event
-      logger.debug("publish finishing")
-      TxAdd(fileEvents ++ timeToPublish)(local)
+      val timeToPublish =
+        List(Paths.get("htdocs/publish_time")).filter(Files.exists(_))
+          .flatMap(path=>publish("/publish_time",Files.readAllBytes(path))(local))
+      if(timeToPublish.isEmpty)
+        SleepUntilKey.set(Instant.ofEpochMilli(System.currentTimeMillis+1000))(local)
+      else TxAdd(publishFromFiles(local) ++ timeToPublish)(local)
     }
+  def publishFromFiles: Context=>Seq[LEvent[Product]] = local => {
+    logger.debug("publish started")
+    val fileEvents = for {
+      publicDirProvider <- publicDirProviders
+      (url,file) <- publicDirProvider.get
+      event <- publish(url,Files.readAllBytes(file))(local)
+    } yield event
+    logger.debug("publish finishing")
+    fileEvents
   }
+
   def publish(path: String, body: Array[Byte]): Context=>Seq[LEvent[Product]] = local => {
     //println(s"path: $path")
     val pointPos = path.lastIndexOf(".")
