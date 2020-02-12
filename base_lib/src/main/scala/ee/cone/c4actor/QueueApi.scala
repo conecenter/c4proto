@@ -307,3 +307,7 @@ class OrigKeyFactoryFinalHolder(val value: KeyFactory)
 trait UpdateProcessor {
   def process(updates: Seq[N_Update], prevQueueSize: Int): Seq[N_Update]
 }
+
+trait UpdateIfChanged {
+  def updateSimple[T<:Product](getByPK: GetByPK[T]): Context=>Seq[T]=>Seq[LEvent[Product]]
+}

@@ -4,9 +4,10 @@ import ee.cone.c4actor._
 import ee.cone.c4gate.HttpProtocol._
 import ee.cone.c4gate_server.Time._
 import ee.cone.c4di.c4
+import ee.cone.c4gate.{ByPathHttpPublication, Publisher}
 import okio.ByteString
 
-@c4("SignedReqUtilImplApp") class SignedReqUtilImpl(val catchNonFatal: CatchNonFatal) extends SignedReqUtil {
+@c4("SignedReqUtilImplApp") class SignedReqUtilImpl(val catchNonFatal: CatchNonFatal, publisher: Publisher) extends SignedReqUtil {
   def header(headers: List[N_Header], key: String): Option[String] =
     headers.find(_.key == key).map(_.value)
   def signed(headers: List[N_Header]): Option[String] = header(headers,"x-r-signed")
@@ -15,7 +16,7 @@ import okio.ByteString
     val updates = for {
       (post, headers) <- res
       key <- header(post.headers,"x-r-response-key").toList
-      update <- LEvent.update(S_HttpPublication(s"/response/$key", headers, ByteString.EMPTY, Option(now + hour)))
+      update <- publisher.publish(ByPathHttpPublication(s"/response/$key", headers, ByteString.EMPTY), hour)
     } yield update
     val deletes = for {
       (post, headers) <- res

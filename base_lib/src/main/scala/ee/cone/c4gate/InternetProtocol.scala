@@ -1,15 +1,25 @@
 
 package ee.cone.c4gate
 
+import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4gate.HttpProtocol.N_Header
 import ee.cone.c4proto._
 
 @protocol("HttpProtocolApp") object HttpProtocol   {
-  @Id(0x002C) case class S_HttpPublication(
+  @Id(0x002C) case class S_HttpPublicationV1(
+    @Id(0x0021) path: String
+  )
+  @Id(0x0092) case class S_HttpPublicationV2(
+    @Id(0x002A) srcId: String,
     @Id(0x0021) path: String,
     @Id(0x0022) headers: List[N_Header],
     @Id(0x0023) body: okio.ByteString,
-    @Id(0x002E) until: Option[Long]
+    @Id(0x002D) time: Long,
+  )
+  @Id(0x0093) case class S_Manifest(
+    @Id(0x002A) srcId: String,
+    @Id(0x002C) paths: List[String],
+    @Id(0x002E) until: Long
   )
   @Id(0x0020) case class S_HttpRequest(
     @Id(0x002A) srcId: String,

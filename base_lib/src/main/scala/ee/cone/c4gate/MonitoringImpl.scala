@@ -8,9 +8,10 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
+import ee.cone.c4di.c4
 import ee.cone.c4gate.ActorAccessProtocol.C_ActorAccessKey
 import ee.cone.c4gate.AvailabilitySettingProtocol.C_AvailabilitySetting
-import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPublication}
+import ee.cone.c4gate.HttpProtocol._
 import ee.cone.c4proto.{Id, protocol}
 import okio.ByteString
 
@@ -63,26 +64,27 @@ case class PrometheusTx(path: String)(compressor: Compressor, metricsFactories: 
   }
 }*/
 
-object Monitoring {
+@c4("AvailabilityApp") class Monitoring(publisher: Publisher) {
   def publish(
     time: Long, updatePeriod: Long, timeout: Long,
     path: String, headers: List[N_Header], body: okio.ByteString
   ): Context => Context = {
     val nextTime = time + updatePeriod
-    val invalidateTime = nextTime + timeout
-    val publication = S_HttpPublication(path, headers, body, Option(invalidateTime))
+    val publication = publisher.publish(ByPathHttpPublication(path, headers, body), updatePeriod+timeout)
     TxAdd(LEvent.update(publication)).andThen(SleepUntilKey.set(Instant.ofEpochMilli(nextTime)))
   }
 }
 
-@c4assemble("AvailabilityApp") class AvailabilityAssembleBase(updateDef: Long = 3000, timeoutDef: Long = 3000) {
+@c4assemble("AvailabilityApp") class AvailabilityAssembleBase(updateDef: Long = 3000, timeoutDef: Long = 3000)(
+  monitoring: Monitoring
+) {
   def join(
     key: SrcId,
     first: Each[S_Firstborn],
     settings: Values[C_AvailabilitySetting]
   ): Values[(SrcId, TxTransform)] = {
     val (updatePeriod, timeout) = Single.option(settings.map(s => s.updatePeriod -> s.timeout)).getOrElse((updateDef, timeoutDef))
-    List(WithPK(AvailabilityTx(s"AvailabilityTx-${first.srcId}", updatePeriod, timeout)))
+    List(WithPK(AvailabilityTx(s"AvailabilityTx-${first.srcId}", updatePeriod, timeout)(monitoring)))
   }
 }
 
@@ -96,9 +98,11 @@ object Monitoring {
 
 }
 
-case class AvailabilityTx(srcId: SrcId, updatePeriod: Long, timeout: Long) extends TxTransform {
+case class AvailabilityTx(srcId: SrcId, updatePeriod: Long, timeout: Long)(
+  monitoring: Monitoring
+) extends TxTransform {
   def transform(local: Context): Context =
-    Monitoring.publish(
+    monitoring.publish(
       System.currentTimeMillis, updatePeriod, timeout,
       "/availability", Nil, ByteString.EMPTY
     )(local)
