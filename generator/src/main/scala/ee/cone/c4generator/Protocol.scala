@@ -47,8 +47,8 @@ class ProtocolGenerator(statTransformers: List[ProtocolStatsTransformer]) extend
         ComponentsGenerator.pkgNameToAppId(parseContext.pkg,"HasId")
       else ComponentsGenerator.annArgToStr(exprss).get */
       val transformers = statTransformers.map(_.transform(parseContext))
-      val prepareStats = transformers.foldLeft(stats.toList){(list, transformer) => transformer(list)}
-      getProtocol(parseContext, objectName, prepareStats, c4ann)
+      val preparedStats = transformers.foldLeft(stats.toList){(list, transformer) => transformer(list)}
+      getProtocol(parseContext, objectName, preparedStats, c4ann)
     case _ => Nil
   }
   def getAdapter(parseContext: ParseContext, objectName: String, cl: ParsedClass, c4ann: String): List[Generated] = {
