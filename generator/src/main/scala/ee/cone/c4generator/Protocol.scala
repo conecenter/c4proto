@@ -19,7 +19,11 @@ case class ProtoMods(
 )
 case class FieldMods(id: Option[Int]=None, shortName: Option[String] = None)
 
-object ProtocolGenerator extends Generator {
+trait ProtocolStatsTransformer {
+  def transform(parseContext: ParseContext): List[Stat] => List[Stat]
+}
+
+class ProtocolGenerator(statTransformers: List[ProtocolStatsTransformer]) extends Generator {
   def parseArgs: Seq[Seq[Term]] => List[String] =
     _.flatMap(_.collect{case q"${Name(name:String)}" => name}).toList
 
@@ -42,7 +46,9 @@ object ProtocolGenerator extends Generator {
       /* val app = if(exprss.isEmpty)
         ComponentsGenerator.pkgNameToAppId(parseContext.pkg,"HasId")
       else ComponentsGenerator.annArgToStr(exprss).get */
-      getProtocol(parseContext, objectName, stats.toList, c4ann)
+      val transformers = statTransformers.map(_.transform(parseContext))
+      val prepareStats = transformers.foldLeft(stats.toList){(list, transformer) => transformer(list)}
+      getProtocol(parseContext, objectName, prepareStats, c4ann)
     case _ => Nil
   }
   def getAdapter(parseContext: ParseContext, objectName: String, cl: ParsedClass, c4ann: String): List[Generated] = {
