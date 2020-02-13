@@ -64,7 +64,7 @@ case class TestHttpHandler(srcId: SrcId, req: S_HttpRequest)(catchNonFatal: Catc
     val now = System.currentTimeMillis
     val resp =
       S_HttpResponse(req.srcId,200,List(N_Header("content-type","text/html; charset=UTF-8")),ToByteString(s"sync $next ${now-req.time}\n"),now)
-    val pub = publisher.publish(ByPathHttpPublication(req.path, Nil, ToByteString(s"async $next\n")), 4000)
+    val pub = publisher.publish(ByPathHttpPublication(req.path, Nil, ToByteString(s"async $next\n")), _+4000)
     logger.info(s"$resp --- $pub")
     TxAdd(delete(req) ++ update(resp) ++ pub)(local)
   }("test"){ e =>

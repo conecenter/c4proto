@@ -19,9 +19,9 @@ import ee.cone.c4gate.HttpProtocol._
   getS_Manifest: GetByPK[S_Manifest]
 ) extends Publisher with LazyLogging {
   def genId(): SrcId = idGenUtil.srcIdFromStrings(UUID.randomUUID.toString)
-  def publish(publication: ByPathHttpPublication, lifetime: Long): Seq[LEvent[Product]] = {
+  def publish(publication: ByPathHttpPublication, until: Long=>Long): Seq[LEvent[Product]] = {
     val now = System.currentTimeMillis
-    LEvent.update(S_Manifest(genId(),List(publication.path),now+lifetime)) ++
+    LEvent.update(S_Manifest(genId(),List(publication.path),until(now))) ++
     publishInner(publication,now)
   }
   def publishInner(publication: ByPathHttpPublication, now: Long): Seq[LEvent[Product]] = {

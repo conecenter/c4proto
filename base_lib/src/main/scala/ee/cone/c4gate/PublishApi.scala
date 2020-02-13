@@ -20,7 +20,7 @@ case class ByPathHttpPublication(path: String, headers: List[N_Header], body: By
 case class ByPathHttpPublicationUntil(path: String, until: Long)
 
 trait Publisher {
-  def publish(publication: ByPathHttpPublication, lifetime: Long): Seq[LEvent[Product]]
+  def publish(publication: ByPathHttpPublication, until: Long=>Long): Seq[LEvent[Product]]
   def publish(man: String, publications: List[ByPathHttpPublication]): Context=>Seq[LEvent[Product]]
 }
 

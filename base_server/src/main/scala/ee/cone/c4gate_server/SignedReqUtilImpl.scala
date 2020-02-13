@@ -16,7 +16,7 @@ import okio.ByteString
     val updates = for {
       (post, headers) <- res
       key <- header(post.headers,"x-r-response-key").toList
-      update <- publisher.publish(ByPathHttpPublication(s"/response/$key", headers, ByteString.EMPTY), hour)
+      update <- publisher.publish(ByPathHttpPublication(s"/response/$key", headers, ByteString.EMPTY), _+hour)
     } yield update
     val deletes = for {
       (post, headers) <- res

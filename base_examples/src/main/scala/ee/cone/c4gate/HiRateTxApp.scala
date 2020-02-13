@@ -20,7 +20,7 @@ case class HiRateTx(srcId: SrcId)(publisher: Publisher) extends TxTransform with
     val timeStr = System.currentTimeMillis.toString
     logger.info(s"start handling $timeStr")
     val bytes = ToByteString(timeStr)
-    TxAdd(publisher.publish(ByPathHttpPublication("/time",Nil,bytes),1000*60))(local)
+    TxAdd(publisher.publish(ByPathHttpPublication("/time",Nil,bytes),_+1000*60))(local)
   }
 }
 
