@@ -9,7 +9,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.{Config, Context, ListConfig, SleepUntilKey, TxTransform, WithPK}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Single, byEq, c4assemble}
-import ee.cone.c4di.{c4, provide}
+import ee.cone.c4di.{c4, c4multi, provide}
 import ee.cone.c4proto.ToByteString
 
 import scala.util.Try
@@ -41,7 +41,7 @@ object PrometheusPostSettingsObj {
 
 import PrometheusPostSettingsObj._
 
-@c4assemble("PrometheusPostApp") class PrometheusPostAssembleBase(metricsFactories: List[MetricsFactory], defaultSettings: List[PrometheusPostSettings], util: HttpUtil) {
+@c4assemble("PrometheusPostApp") class PrometheusPostAssembleBase(defaultSettings: List[PrometheusPostSettings], factory: PrometheusPostTxFactory) {
   def joinStub(
     key: SrcId,
     first: Each[S_Firstborn]
@@ -54,11 +54,11 @@ import PrometheusPostSettingsObj._
     @byEq[PrometheusPushId](fixedSrcId) settings: Values[PrometheusPostSettings]
   ): Values[(SrcId, TxTransform)] =
     Single.option(settings).orElse(Single.option(defaultSettings)).toList.map { settings =>
-      WithPK(PrometheusPostTx(fixedSrcId, settings)(metricsFactories, util))
+      WithPK(factory.create(fixedSrcId, settings))
     }
 }
 
-case class PrometheusPostTx(srcId: SrcId, settings: PrometheusPostSettings)(metricsFactories: List[MetricsFactory], util: HttpUtil) extends TxTransform with LazyLogging {
+@c4multi("PrometheusPostApp") case class PrometheusPostTx(srcId: SrcId, settings: PrometheusPostSettings)(metricsFactories: List[MetricsFactory], util: HttpUtil) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = {
     val time = System.currentTimeMillis
     val metrics = metricsFactories.flatMap(_.measure(local))

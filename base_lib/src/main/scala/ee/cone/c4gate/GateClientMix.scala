@@ -28,8 +28,9 @@ trait TcpProtocolAppBase
 
 trait HttpUtilAppBase
 
-trait MergingSnapshotAppBase extends SnapshotLoaderFactoryImplApp with HttpUtilApp
-trait RemoteRawSnapshotAppBase extends TaskSignerApp with ConfigSimpleSignerApp with HttpUtilApp//?SnapshotUtilImplApp
+trait MergingSnapshotAppBase extends SnapshotLoaderFactoryImplApp with RemoteRawSnapshotLoaderImplApp
+trait RemoteRawSnapshotAppBase extends TaskSignerApp with ConfigSimpleSignerApp with RemoteRawSnapshotLoaderImplApp//?SnapshotUtilImplApp
+trait RemoteRawSnapshotLoaderImplAppBase extends HttpUtilApp
 
 trait DefaultMetricsAppBase
 trait PrometheusPostAppBase extends DefaultMetricsApp with HttpUtilApp

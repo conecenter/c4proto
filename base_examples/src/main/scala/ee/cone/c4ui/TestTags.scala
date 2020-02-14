@@ -1,7 +1,7 @@
 package ee.cone.c4ui
 
 import ee.cone.c4actor._
-import ee.cone.c4di.{c4, provide}
+import ee.cone.c4di.{c4, c4multi, provide}
 import ee.cone.c4vdom.Types.VDomKey
 import ee.cone.c4vdom._
 
@@ -52,16 +52,11 @@ case class ContainerLeftRight() extends ElementValue {
   }
 }
 
-@c4("TestTagsApp") class TestTagsProvider(
-  childPairFactory: ChildPairFactory,
-  tagJsonUtils: TagJsonUtils,
-  tags: Tags
-) {
-  @provide def testTags: Seq[TestTags[Context]] =
-    List(new TestTags[Context](childPairFactory, tagJsonUtils, tags))
+@c4("TestTagsApp") class TestTagsProvider(factory: TestTagsFactory) {
+  @provide def testTags: Seq[TestTags[Context]] = List(factory.create[Context]())
 }
 
-class TestTags[State](
+@c4multi("TestTagsApp") class TestTags[State]()(
   child: ChildPairFactory, inputAttributes: TagJsonUtils, tags: Tags
 ) {
   def messageStrBody(o: VDomMessage): String =

@@ -9,17 +9,18 @@ import ee.cone.c4assemble.{Assemble, assemble, c4assemble}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ammonite.sshd._
 import ammonite.util.Bind
+import ee.cone.c4di.c4multi
 import org.apache.sshd.server.auth.pubkey.AcceptAllPublickeyAuthenticator
 
-@c4assemble("SSHDebugApp") class SSHDebugAssembleBase(reducer: RichRawWorldReducer, qMessages: QMessages)   {
+@c4assemble("SSHDebugApp") class SSHDebugAssembleBase(factory: SSHDebugTxFactory)   {
   def join(
     key: SrcId,
     firstborn: Each[S_Firstborn]
   ): Values[(SrcId,TxTransform)] =
-    List(WithPK(SSHDebugTx()(reducer,qMessages)))
+    List(WithPK(factory.create()))
 }
 
-case class SSHDebugTx(srcId: SrcId="SSHDebug")(
+@c4multi("SSHDebugApp") case class SSHDebugTx(srcId: SrcId="SSHDebug")(
   reducer: RichRawWorldReducer,
   qMessages: QMessages
 ) extends TxTransform {
