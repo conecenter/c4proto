@@ -23,7 +23,7 @@ object MultiGenerator extends Generator {
     GeneratedCode(Seq(
       s"\n$ann class ${cl.name}Factory${par(false,true)} {",
       s"\n  def create$typeParams${par(true,true)} = ",
-      s"\n    new ${cl.name}${par(true,false)}${par(false,false)}",
+      s"\n    new ${cl.name}$typeParams${par(true,false)}${par(false,false)}",
       s"\n}"
     ).mkString)
   }

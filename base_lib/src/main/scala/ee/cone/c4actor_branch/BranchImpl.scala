@@ -10,7 +10,7 @@ import ee.cone.c4assemble._
 import ee.cone.c4actor_branch.BranchProtocol._
 import ee.cone.c4actor_branch.BranchTypes.BranchKey
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4di.c4
+import ee.cone.c4di.{c4, c4multi}
 import ee.cone.c4proto.ToByteString
 import okio.ByteString
 
@@ -19,7 +19,7 @@ import scala.collection.immutable.Seq
 
 case object SessionKeysKey extends TransientLens[Set[BranchRel]](Set.empty)
 
-case class BranchTaskImpl(branchKey: String, seeds: List[BranchRel], product: Product)(
+@c4multi("BranchApp") case class BranchTaskImpl(branchKey: String, seeds: List[BranchRel], product: Product)(
   getBranchTask: GetByPK[BranchTask]
 ) extends BranchTask with LazyLogging {
   def sending: Context => (Send,Send) = local => {
@@ -65,7 +65,7 @@ case object EmptyBranchMessage extends BranchMessage {
   def deletes: Seq[LEvent[Product]] = Nil
 }
 
-case class BranchTxTransform(
+@c4multi("BranchApp") case class BranchTxTransform(
   branchKey: String,
   seed: Option[S_BranchResult],
   sessionKeys: List[SrcId],
@@ -178,8 +178,8 @@ case class BranchTxTransform(
 
 @c4assemble("BranchApp") class BranchAssembleBase(
   registry: QAdapterRegistry, operations: BranchOperations,
-  getBranchTask: GetByPK[BranchTask],
-  getS_BranchResult: GetByPK[S_BranchResult],
+  branchTaskImplFactory: BranchTaskImplFactory,
+  branchTxTransformFactory: BranchTxTransformFactory
 ) extends LazyLogging {
   def mapBranchSeedsByChild(
     key: SrcId,
@@ -195,7 +195,7 @@ case class BranchTxTransform(
   ): Values[(SrcId,BranchTask)] = {
     val seed = seeds.headOption.map(_.seed).getOrElse(Single(wasBranchResults))
     registry.byId.get(seed.valueTypeId).map(_.decode(seed.value.toByteArray))
-      .map(product => key -> BranchTaskImpl(key, seeds.toList, product)(getBranchTask)).toList
+      .map(product => key -> branchTaskImplFactory.create(key, seeds.toList, product)).toList
     // may result in some garbage branches in the world?
 
     //println(s"join_task $key ${wasBranchResults.size} ${seeds.size}")
@@ -207,7 +207,7 @@ case class BranchTxTransform(
     @by[BranchKey] requests: Values[BranchMessage],
     handler: Each[BranchHandler]
   ): Values[(SrcId,TxTransform)] =
-    List(key -> BranchTxTransform(key,
+    List(key -> branchTxTransformFactory.create(key,
         seeds.headOption.map(_.seed),
         seeds.filter(_.parentIsSession).map(_.parentSrcId).toList,
         requests.sortBy(req=>(req.header("x-r-index") match{
@@ -215,7 +215,7 @@ case class BranchTxTransform(
           case s => s.toLong
         },ToPrimaryKey(req))).toList,
         handler
-    )(getS_BranchResult))
+    ))
 
   type SessionKey = SrcId
 

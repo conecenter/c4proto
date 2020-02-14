@@ -5,12 +5,12 @@ import java.util.UUID
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.{Config, NanoTimer, RawSnapshot, RawSnapshotLoader, RawSnapshotLoaderFactory, RemoteSnapshotUtil, SnapshotMaker, SnapshotTask, SnapshotTaskSigner}
-import ee.cone.c4di.{c4, provide}
+import ee.cone.c4di.{c4, c4multi, provide}
 import okio.ByteString
 
 import scala.annotation.tailrec
 
-class RemoteRawSnapshotLoader(baseURL: String, util: HttpUtil) extends RawSnapshotLoader with LazyLogging {
+@c4multi("RemoteRawSnapshotLoaderImplApp") class RemoteRawSnapshotLoaderImpl(baseURL: String)(util: HttpUtil) extends RawSnapshotLoader with LazyLogging {
   def load(snapshot: RawSnapshot): ByteString = {
     val tm = NanoTimer()
     val resp = util.get(s"$baseURL/${snapshot.relativePath}", Nil)
@@ -20,9 +20,9 @@ class RemoteRawSnapshotLoader(baseURL: String, util: HttpUtil) extends RawSnapsh
   }
 }
 
-@c4("MergingSnapshotApp") class RemoteRawSnapshotLoaderFactory(util: HttpUtil) extends RawSnapshotLoaderFactory {
-  def create(baseURL: String): RawSnapshotLoader =
-    new RemoteRawSnapshotLoader(baseURL,util)
+
+@c4("MergingSnapshotApp") class RemoteRawSnapshotLoaderFactory(inner: RemoteRawSnapshotLoaderImplFactory) extends RawSnapshotLoaderFactory {
+  def create(baseURL: String): RawSnapshotLoader = inner.create(baseURL)
 }
 
 @c4("RemoteRawSnapshotApp") class RemoteSnapshotUtilImpl(util: HttpUtil) extends RemoteSnapshotUtil {
@@ -55,8 +55,8 @@ class RemoteSnapshotAppURL(val value: String)
 
 @c4("RemoteRawSnapshotApp") class DefRemoteSnapshotAppURL(config: Config) extends RemoteSnapshotAppURL(config.get("C4HTTP_SERVER"))
 
-@c4("RemoteRawSnapshotApp") class EnvRemoteRawSnapshotLoader(url: RemoteSnapshotAppURL, util: HttpUtil) {
-  @provide def get: Seq[RawSnapshotLoader] = List(new RemoteRawSnapshotLoader(url.value,util))
+@c4("RemoteRawSnapshotApp") class EnvRemoteRawSnapshotLoader(url: RemoteSnapshotAppURL, factory: RemoteRawSnapshotLoaderImplFactory) {
+  @provide def get: Seq[RawSnapshotLoader] = List(factory.create(url.value))
 }
 
 @c4("RemoteRawSnapshotApp") class RemoteSnapshotMaker(
