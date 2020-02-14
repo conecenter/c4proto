@@ -12,6 +12,7 @@ case class TypeKey(clName: String, alias: String, args: List[TypeKey])
 
 class c4(apps: String*) extends StaticAnnotation
 class provide extends StaticAnnotation
+class c4multi(apps: String*) extends StaticAnnotation
 
 trait AbstractComponents {
   def components: Seq[Component]

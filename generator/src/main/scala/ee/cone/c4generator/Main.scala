@@ -15,6 +15,7 @@ object Main {
       TimeGenerator,
       new AssembleGenerator(TimeJoinParamTransformer :: Nil),
       ProtocolGenerator,
+      MultiGenerator,
       FieldAccessGenerator,
       AppGenerator
     ) //,UnBaseGenerator
