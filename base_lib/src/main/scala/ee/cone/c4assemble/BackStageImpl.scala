@@ -1,7 +1,7 @@
 package ee.cone.c4assemble
 
 import ee.cone.c4assemble.Types._
-import ee.cone.c4di.c4
+import ee.cone.c4di.{c4, c4multi}
 
 import scala.concurrent.ExecutionContext
 
@@ -10,9 +10,10 @@ object PrepareBackStage extends WorldPartExpression {
     transition.copy(prev=Option(transition), diff=emptyReadModel)
 }
 
-class ConnectBackStage[MapKey, Value](
+@c4multi("AssembleApp") class ConnectBackStage[MapKey, Value](
   val outputWorldKey: AssembledKey,
-  val nextKey:        AssembledKey,
+  val nextKey:        AssembledKey
+)(
   updater: IndexUpdater,
   composes: IndexUtil
 ) extends WorldPartExpression {
@@ -29,7 +30,7 @@ class ConnectBackStage[MapKey, Value](
   }
 }
 
-@c4("AssembleApp") class BackStageFactoryImpl(updater: IndexUpdater, composes: IndexUtil) extends BackStageFactory {
+@c4("AssembleApp") class BackStageFactoryImpl(factory: ConnectBackStageFactory) extends BackStageFactory {
   def create(l: List[DataDependencyFrom[_]]): List[WorldPartExpression] = {
     val wasKeys = (for {
       e <- l
@@ -37,6 +38,6 @@ class ConnectBackStage[MapKey, Value](
         case k:JoinKey if k.was => k
       }) // multiple @was are not supported due to possible different join loop rates
     } yield key).distinct
-    PrepareBackStage :: wasKeys.map(k=>new ConnectBackStage(k,k.withWas(was=false), updater, composes))
+    PrepareBackStage :: wasKeys.map(k=>factory.create(k,k.withWas(was=false)))
   }
 }

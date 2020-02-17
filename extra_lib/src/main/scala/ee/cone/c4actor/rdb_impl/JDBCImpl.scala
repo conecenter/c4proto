@@ -2,7 +2,7 @@ package ee.cone.c4actor.rdb_impl
 
 import java.lang.Math.toIntExact
 import java.sql.{CallableStatement, Connection, ResultSet}
-import java.util.concurrent.CompletableFuture
+import java.util.concurrent.{CompletableFuture, ExecutorService, Executors}
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor._
@@ -16,16 +16,22 @@ import scala.annotation.tailrec
   db: CompletableFuture[RConnectionPool] = new CompletableFuture() //dataSource: javax.sql.DataSource
 ) extends ToInject with Executable with ExternalDBClient {
   def toInject: List[Injectable] = WithJDBCKey.set(f=>getConnectionPool.doWith(f))
-  def run(): Unit = concurrent.blocking{ db.complete(dbFactory.create(
-    createConnection => new RConnectionPool {
-      def doWith[T](f: RConnection=>T): T = {
-        FinallyClose(createConnection()) { sqlConn =>
-          val conn = new RConnectionImpl(sqlConn)
-          f(conn)
+  def run(): Unit = concurrent.blocking {
+    db.complete(dbFactory.create(
+      createConnection => new RConnectionPool {
+        def doWith[T](f: RConnection => T): T = {
+          FinallyClose(createConnection()) { sqlConn =>
+            FinallyClose[ExecutorService, T](_.shutdown())(Executors.newFixedThreadPool(1)) { pool =>
+              sqlConn.setNetworkTimeout(pool, 1000*60*15)
+              val conn = new RConnectionImpl(sqlConn)
+              f(conn)
+            }
+          }
         }
       }
-    }
-  ))}
+    )
+    )
+  }
   def getConnectionPool: RConnectionPool = concurrent.blocking(db.get)
 }
 
