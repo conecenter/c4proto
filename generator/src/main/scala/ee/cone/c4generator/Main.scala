@@ -191,6 +191,7 @@ object ImportGenerator extends Generator {
       val nextImporters = importers.map{
         case initialImporter@importer"$eref.{..$importeesnel}" =>
           importer"$eref._" match {
+            case j@importer"ee.cone.c4di._" => j
             case j@importer"ee.cone.c4assemble._" => j
             case j@importer"ee.cone.c4proto._" => j
             case _ => initialImporter
