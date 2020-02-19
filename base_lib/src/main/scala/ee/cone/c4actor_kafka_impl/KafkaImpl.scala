@@ -98,7 +98,7 @@ case class KafkaConfig(
   )
   def topicNameToString(topicName: TopicName): String = topicName match {
     case InboxTopicName() => s"$inboxTopicPrefix.inbox"
-    case LogTopicName() => s"$inboxTopicPrefix.inbox.log"
+    //case LogTopicName() => s"$inboxTopicPrefix.inbox.log"
   }
 }
 

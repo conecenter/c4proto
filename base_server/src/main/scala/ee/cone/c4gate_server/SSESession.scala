@@ -15,7 +15,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
-import ee.cone.c4gate.HttpProtocol.S_HttpPublication
+import ee.cone.c4gate.{ByPathHttpPublication, ByPathHttpPublicationUntil}
 import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpRequest}
 import ee.cone.c4di.{c4, provide}
 import ee.cone.c4gate_server.RHttpTypes.RHttpHandlerCreate
@@ -34,6 +34,7 @@ trait PongRegistry {
 @c4("SSEServerApp") class PongHandler(
   sseConfig: SSEConfig, pongRegistry: PongRegistry,
   httpResponseFactory: RHttpResponseFactory,
+  updateIfChanged: UpdateIfChanged,
   getU_AuthenticatedSession: GetByPK[U_AuthenticatedSession],
   getU_FromAlienState: GetByPK[U_FromAlienState],
   getU_FromAlienStatus: GetByPK[U_FromAlienStatus],
@@ -72,13 +73,10 @@ trait PongRegistry {
           )
           val connected = U_FromAlienConnected(sessionKey,headers("x-r-connection"))
           pongRegistry.pongs(session.sessionKey) = now.plusSeconds(5)
-          val wasSession = getU_FromAlienState.ofA(local).get(session.sessionKey)
-          val wasStatus = getU_FromAlienStatus.ofA(local).get(status.sessionKey)
-          val wasConnected = getU_FromAlienConnected.ofA(local).get(connected.sessionKey)
           val events: Seq[LEvent[Product]] =
-            (if(wasSession != Option(session)) LEvent.update(session) else Nil) ++
-              (if(wasStatus != Option(status)) LEvent.update(status) else Nil) ++
-              (if(wasConnected != Option(connected)) LEvent.update(connected) else Nil)
+            updateIfChanged.updateSimple(getU_FromAlienState)(local)(Seq(session)) ++
+            updateIfChanged.updateSimple(getU_FromAlienStatus)(local)(Seq(status)) ++
+            updateIfChanged.updateSimple(getU_FromAlienConnected)(local)(Seq(connected))
           logger.debug(s"pong-events ${events.size}")
           httpResponseFactory.directResponse(request,r=>r).copy(events=events.toList)
         }
@@ -202,10 +200,10 @@ case class SessionTxTransform( //?todo session/pongs purge
 
   def allAvailability(
     key: SrcId,
-    doc: Each[S_HttpPublication]
-  ): Values[(AbstractAll,Availability)] = for {
-    until <- doc.until.toList if doc.path == "/availability"
-  } yield All -> Availability(doc.path,until)
+    doc: Each[ByPathHttpPublicationUntil]
+  ): Values[(AbstractAll,Availability)] =
+    if(doc.path == "/availability")
+      List(All -> Availability(doc.path,doc.until)) else Nil
 }
 
 case class Availability(path: String, until: Long)

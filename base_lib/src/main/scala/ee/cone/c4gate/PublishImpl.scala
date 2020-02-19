@@ -1,8 +1,6 @@
 package ee.cone.c4gate
 
-import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file._
-import java.nio.file.attribute.BasicFileAttributes
 import java.time.Instant
 
 import com.typesafe.scalalogging.LazyLogging
@@ -10,8 +8,8 @@ import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Single, c4assemble}
-import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPublication}
+import ee.cone.c4assemble._
+import ee.cone.c4gate.HttpProtocol.{N_Header, S_Manifest}
 import ee.cone.c4di.c4
 import ee.cone.c4proto.ToByteString
 import okio.ByteString
@@ -71,19 +69,16 @@ case object InitialPublishDone extends TransientLens[Boolean](false)
   mimeTypesProviders: List[PublishMimeTypesProvider],
   publicDirProviders: List[PublicDirProvider],
   publishFullCompressor: PublishFullCompressor,
-  getS_HttpPublication: GetByPK[S_HttpPublication],
+  publisher: Publisher,
 )(
   mimeTypes: String=>Option[String] = mimeTypesProviders.flatMap(_.get).toMap.get,
   compressor: Compressor = publishFullCompressor.value
 ) extends LazyLogging {
   def checkPublishFromStrings(local: Context): Context = {
-    logger.debug("str publish started")
-    val strEvents = for {
+    val strEvents = publisher.publish("FromStrings", for {
       publishFromStringsProvider <- publishFromStringsProviders
       (path,body) <- publishFromStringsProvider.get
-      event <- publish(path,body.getBytes(UTF_8))(local)
-    } yield event
-    logger.debug("str publish finishing")
+    } yield prepare(path,ToByteString(body)))(local)
     TxAdd(strEvents).andThen(SleepUntilKey.set(Instant.MAX))(local)
   }
   def checkPublishFromFiles(local: Context): Context = //Seq[Observer[RichContext]]
@@ -92,44 +87,28 @@ case object InitialPublishDone extends TransientLens[Boolean](false)
     else {
       val timeToPublish =
         List(Paths.get("htdocs/publish_time")).filter(Files.exists(_))
-          .flatMap(path=>publish("/publish_time",Files.readAllBytes(path))(local))
+          .flatMap(path=>publisher.publish("FromFilesTime",List(prepare("/publish_time",ToByteString(Files.readAllBytes(path)))))(local))
       if(timeToPublish.isEmpty)
         SleepUntilKey.set(Instant.ofEpochMilli(System.currentTimeMillis+1000))(local)
       else TxAdd(publishFromFiles(local) ++ timeToPublish)(local)
     }
-  def publishFromFiles: Context=>Seq[LEvent[Product]] = local => {
-    logger.debug("publish started")
-    val fileEvents = for {
+  def publishFromFiles: Context=>Seq[LEvent[Product]] =
+    publisher.publish("FromFiles", for {
       publicDirProvider <- publicDirProviders
       (url,file) <- publicDirProvider.get
-      event <- publish(url,Files.readAllBytes(file))(local)
-    } yield event
-    logger.debug("publish finishing")
-    fileEvents
-  }
-
-  def publish(path: String, body: Array[Byte]): Context=>Seq[LEvent[Product]] = local => {
-    //println(s"path: $path")
+    } yield prepare(url,ToByteString(Files.readAllBytes(file))))
+  def prepare(path: String, body: ByteString): ByPathHttpPublication = {
     val pointPos = path.lastIndexOf(".")
     val ext = if(pointPos<0) "" else path.substring(pointPos+1)
-    val byteString = compressor.compress(ToByteString(body))
+    val byteString = compressor.compress(body)
     val mimeType = mimeTypes(ext)
     val eTag = "v1-" +
       idGenUtil.srcIdFromSerialized(0,byteString) +
       idGenUtil.srcIdFromSerialized(0,ToByteString(s"${mimeType.getOrElse("")}:"))
     val headers =
       N_Header("etag", s""""$eTag"""") ::
-      N_Header("content-encoding", compressor.name) ::
-      mimeType.map(N_Header("content-type",_)).toList
-    val publication = S_HttpPublication(path,headers,byteString,None)
-    val existingPublications = getS_HttpPublication.ofA(local)
-    //println(s"${existingPublications.getOrElse(path,Nil).size}")
-    if(existingPublications.get(path).contains(publication)) {
-      logger.debug(s"$path (${byteString.size}) exists")
-      Nil
-    } else {
-      logger.debug(s"$path (${byteString.size}) published")
-      LEvent.update(publication)
-    }
+        N_Header("content-encoding", compressor.name) ::
+        mimeType.map(N_Header("content-type",_)).toList
+    ByPathHttpPublication(path,headers,byteString)
   }
 }

@@ -31,7 +31,7 @@ import okio.ByteString
 
 class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
 
-@c4("ServerCompApp") class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender], flagsCheck: UpdateFlagsCheck) extends QMessages {
+@c4("ServerCompApp") class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender], flagsCheck: UpdateFlagsCheck) extends QMessages with LazyLogging {
   assert(flagsCheck.flagsOk, s"Some of the flags are incorrect: ${flagsCheck.updateFlags}")
   //import qAdapterRegistry._
   // .map(o=> nTx.setLocal(OffsetWorldKey, o+1))
@@ -41,9 +41,10 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq
     //println(s"sending: ${updates.size} ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
     val (bytes, headers) = toUpdate.toBytes(updates)
     val rec = new QRecordImpl(InboxTopicName(), bytes, headers)
-    val debugStr = WriteModelDebugKey.of(local).map(_.toString).mkString("\n---\n")
-    val debugRec = new QRecordImpl(LogTopicName(),debugStr.getBytes(UTF_8), Nil)
-    val List(offset,_)= Single(getRawQSender.value).send(List(rec,debugRec))
+    def debugStr = WriteModelDebugKey.of(local).map(v=>s"\norig sent: $v").mkString
+    logger.debug(debugStr)
+    //val debugRec = new QRecordImpl(LogTopicName(),debugStr.getBytes(UTF_8), Nil)
+    val offset = Single(Single(getRawQSender.value).send(List(rec)))
     Function.chain(Seq(
       WriteModelKey.set(Queue.empty),
       WriteModelDebugKey.set(Queue.empty),

@@ -27,7 +27,7 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
   with EnvConfigCompApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
-  with HttpProtocolApp with AuthProtocolApp
+  with PublisherApp with AuthProtocolApp
   with SSEServerApp
   with NoAssembleProfilerCompApp
   with MortalFactoryCompApp
