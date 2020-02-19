@@ -70,8 +70,8 @@ case class PrometheusTx(path: String)(compressor: Compressor, metricsFactories: 
     path: String, headers: List[N_Header], body: okio.ByteString
   ): Context => Context = {
     val nextTime = time + updatePeriod
-    val publication = publisher.publish(ByPathHttpPublication(path, headers, body), _+updatePeriod+timeout)
-    TxAdd(LEvent.update(publication)).andThen(SleepUntilKey.set(Instant.ofEpochMilli(nextTime)))
+    val pubEvents = publisher.publish(ByPathHttpPublication(path, headers, body), _+updatePeriod+timeout)
+    TxAdd(pubEvents).andThen(SleepUntilKey.set(Instant.ofEpochMilli(nextTime)))
   }
 }
 
