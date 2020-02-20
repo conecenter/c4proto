@@ -37,7 +37,7 @@ object ComponentsGenerator extends Generator {
       case Seq(r) => Option(r)
     }
   }
-  def getComponent(cl: ParsedClass): List[GeneratedComponent] = {
+  def getComponent(cl: ParsedClass, parseContext: ParseContext): List[GeneratedComponent] = {
     val tp = cl.name
     val list = for{
       params <- cl.params.toList
@@ -79,7 +79,10 @@ object ComponentsGenerator extends Generator {
           Nil
         } else {
           assert(params.isEmpty)
-          val Some(t"Seq[$t]") = tpeopt
+          val t = tpeopt match {
+            case Some(t"Seq[$tpe]") => tpe
+            case Some(t) => Utils.parseError(t, parseContext, "@component")
+          }
           val wildCard = t match {
             case t"ComponentFactory[$_]" => Option("")
             case _ => None
@@ -102,7 +105,7 @@ object ComponentsGenerator extends Generator {
         case mod"@c4(...$exprss) " => (exprss, cl)
       })
       app = if(exprss.isEmpty) s"DefApp" else annArgToStr(exprss).get
-      c <- getComponent(cl)
+      c <- getComponent(cl, parseContext)
       res <- new GeneratedComponentAppLink(app,c.link) :: c :: Nil
     } yield res
     if(components.isEmpty) Nil else wrapComponents(parseContext,components)

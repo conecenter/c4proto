@@ -8,38 +8,24 @@ import ee.cone.c4gate.SessionDataProtocol.U_RawSessionData
 import ee.cone.c4gate.deep_session.DeepSessionDataProtocol.{U_RawRoleData, U_RawUserData}
 
 trait SessionAttrAskUtility {
-  def sessionAttrAskFactory: SessionAttrAskFactoryApi
+  def sessionAttrAskFactory: SessionAttrAskFactory
 }
 
 trait CurrentTimeAskUtility {
-  def currentTimeAskFactory: CurrentTimeAskFactoryApi
+  def currentTimeAskFactory: CurrentTimeAskFactory
 }
+
+trait SessionAttrAskCompAppBase
 
 trait SessionAttrAskMix
-  extends SessionAttrAskUtility
-    with CommonRequestUtilityApi
-    with AskByPKsApp
-    with AskByPKFactoryApp
-    with DepFactoryApp
-    with ContextIdRequestProtocolApp {
-
-  def qAdapterRegistry: QAdapterRegistry
-
-  def modelFactory: ModelFactory
-
-  def modelAccessFactory: ModelAccessFactory
-
-  def idGenUtil: IdGenUtil
-
-  private lazy val rawDataAsk: AskByPK[U_RawSessionData] = askByPKFactory.forClass(classOf[U_RawSessionData])
-  private lazy val userDataAsk: AskByPK[U_RawUserData] = askByPKFactory.forClass(classOf[U_RawUserData])
-  private lazy val roleDataAsk: AskByPK[U_RawRoleData] = askByPKFactory.forClass(classOf[U_RawRoleData])
-
-  override def askByPKs: List[AbstractAskByPK] = rawDataAsk :: userDataAsk :: roleDataAsk :: super.askByPKs
-
-  def sessionAttrAskFactory: SessionAttrAskFactoryApi = SessionAttrAskFactoryImpl(qAdapterRegistry, modelFactory, modelAccessFactory, commonRequestUtilityFactory, rawDataAsk, userDataAsk, roleDataAsk, idGenUtil, depFactory)
+  extends SessionAttrAskCompApp
+    with ContextIdRequestProtocolApp
+    with ComponentProviderApp {
+  lazy val sessionAttrAskFactory: SessionAttrAskFactory = resolveSingle(classOf[SessionAttrAskFactory])
 }
 
-trait CurrentTimeAskMix extends CurrentTimeAskUtility {
-  def currentTimeAskFactory: CurrentTimeAskFactoryApi = CurrentTimeAskFactoryImpl
+trait CurrentTimeAskCompAppBase
+
+trait CurrentTimeAskMix extends CurrentTimeAskUtility with CurrentTimeAskCompApp with ComponentProviderApp {
+  lazy val currentTimeAskFactory: CurrentTimeAskFactory = resolveSingle(classOf[CurrentTimeAskFactory])
 }

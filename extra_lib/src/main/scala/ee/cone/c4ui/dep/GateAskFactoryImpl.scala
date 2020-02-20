@@ -4,8 +4,9 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep.ContextTypes.{ContextId, RoleId, UserId}
 import ee.cone.c4actor.dep.request.CurrentTimeRequestProtocol.N_CurrentTimeRequest
-import ee.cone.c4actor.dep.{AskByPK, CommonRequestUtilityFactory, Dep, DepFactory}
+import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep_impl.RequestDep
+import ee.cone.c4di.{c4, provide}
 import ee.cone.c4gate.SessionDataProtocol.{N_RawDataNode, U_RawSessionData}
 import ee.cone.c4gate.deep_session.DeepSessionDataProtocol.{U_RawRoleData, U_RawUserData}
 import ee.cone.c4gate.deep_session.{DeepRawSessionData, TxDeepRawDataLens, UserLevelAttr}
@@ -13,17 +14,20 @@ import ee.cone.c4gate.{KeyGenerator, SessionAttr}
 import ee.cone.c4proto._
 import okio.ByteString
 
-case class SessionAttrAskFactoryImpl(
+@c4("SessionAttrAskCompApp") case class SessionAttrAskFactoryImpl(
   qAdapterRegistry: QAdapterRegistry,
   modelFactory: ModelFactory,
   modelAccessFactory: ModelAccessFactory,
   commonRequestFactory: CommonRequestUtilityFactory,
-  rawDataAsk: AskByPK[U_RawSessionData],
-  rawUserDataAsk: AskByPK[U_RawUserData],
-  rawRoleDataAsk: AskByPK[U_RawRoleData],
+  askByPKFactory: AskByPKFactory,
   idGenUtil: IdGenUtil,
   depFactory: DepFactory
-) extends SessionAttrAskFactoryApi with KeyGenerator {
+) extends SessionAttrAskFactory with KeyGenerator {
+  private lazy val rawDataAsk: AskByPK[U_RawSessionData] = askByPKFactory.forClass(classOf[U_RawSessionData])
+  private lazy val rawUserDataAsk: AskByPK[U_RawUserData] = askByPKFactory.forClass(classOf[U_RawUserData])
+  private lazy val rawRoleDataAsk: AskByPK[U_RawRoleData] = askByPKFactory.forClass(classOf[U_RawRoleData])
+
+  @provide def askByPKs: Seq[AbstractAskByPK] = rawDataAsk :: rawUserDataAsk :: rawRoleDataAsk :: Nil
 
   def askSessionAttrWithPK[P <: Product](attr: SessionAttr[P]): String => Dep[Option[Access[P]]] = pk => askSessionAttr(attr.withPK(pk))
 
@@ -219,6 +223,6 @@ case class SessionAttrAskFactoryImpl(
   }
 }
 
-case object CurrentTimeAskFactoryImpl extends CurrentTimeAskFactoryApi {
+@c4("CurrentTimeAskCompApp") case class CurrentTimeAskFactoryImpl() extends CurrentTimeAskFactory {
   def askCurrentTime(eachNSeconds: Long): Dep[Long] = new RequestDep[Long](N_CurrentTimeRequest(eachNSeconds))
 }

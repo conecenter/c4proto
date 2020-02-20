@@ -95,8 +95,11 @@ trait DepResponseFactory extends Product {
 /******************************************************************************/
 // api for accessing world by pk
 
-trait AbstractAskByPK
+trait AbstractAskByPK extends Product {
+  def forClassName: String
+}
 trait AskByPK[A<:Product] extends AbstractAskByPK {
+  def forClass: Class[A]
   def list(id: SrcId): Dep[List[A]]
   def option(id: SrcId): Dep[Option[A]]
 }

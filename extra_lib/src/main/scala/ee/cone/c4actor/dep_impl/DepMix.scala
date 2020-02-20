@@ -9,13 +9,13 @@ import ee.cone.c4actor.ComponentProvider.provide
 
 trait DepHandlersApp extends ComponentsApp {
   def depHandlers: List[DepHandler] = Nil
-  private lazy val depHandlersComponent = provide(classOf[DepHandler],()=>depHandlers)
+  private lazy val depHandlersComponent = provide(classOf[DepHandler], () => depHandlers)
   override def components: List[Component] = depHandlersComponent :: super.components
 }
 
 trait DepResponseFiltersApp extends ComponentsApp {
   def depFilters: List[DepResponseForwardFilter] = Nil
-  private lazy val depFiltersComponent = provide(classOf[DepResponseForwardFilter],()=>depFilters)
+  private lazy val depFiltersComponent = provide(classOf[DepResponseForwardFilter], () => depFilters)
   override def components: List[Component] = depFiltersComponent :: super.components
 }
 
@@ -32,11 +32,8 @@ trait AskByPKsApp {
   def askByPKs: List[AbstractAskByPK] = Nil
 }
 
-trait ByPKRequestHandlerApp extends ByPKRequestHandlerCompApp with AssemblesApp {
-  def askByPKs: List[AbstractAskByPK]
-  def depResponseFactory: DepResponseFactory
-  def depAskFactory: DepAskFactory
-
-  lazy val askByPKFactory: AskByPKFactory = AskByPKFactoryImpl(depAskFactory,depResponseFactory)
-  override def assembles: List[Assemble] = ByPKAssembles(askByPKs) ::: super.assembles
+trait ByPKRequestHandlerApp extends ByPKRequestHandlerCompApp with AssemblesApp with AskByPKsApp with ComponentsApp with ComponentProviderApp {
+  lazy val askByPKFactory: AskByPKFactory = resolveSingle(classOf[AskByPKFactory])
+  private lazy val askByPKsComponent = provide(classOf[AbstractAskByPK], () => askByPKs)
+  override def components: List[Component] = askByPKsComponent :: super.components
 }
