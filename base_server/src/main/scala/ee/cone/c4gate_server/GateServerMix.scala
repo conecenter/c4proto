@@ -27,7 +27,7 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
   with EnvConfigCompApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
-  with HttpProtocolApp with AuthProtocolApp
+  with PublisherApp with AuthProtocolApp
   with SSEServerApp
   with NoAssembleProfilerCompApp
   with MortalFactoryCompApp
@@ -71,11 +71,8 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
 
 //()//todo secure?
 
-@c4("SnapshotMakingApp") class DefSnapshotSavers(inner: RawSnapshotSaver)
-  extends SnapshotSavers(
-    new SnapshotSaverImpl("snapshots",inner),
-    new SnapshotSaverImpl("snapshot_txs",inner)
-  )
+@c4("SnapshotMakingApp") class DefSnapshotSavers(factory: SnapshotSaverImplFactory)
+  extends SnapshotSavers(factory.create("snapshots"), factory.create("snapshot_txs"))
 
 trait SnapshotMakingAppBase extends TaskSignerApp
   with FileRawSnapshotLoaderApp with ConfigDataDirApp with SignedReqUtilImplApp

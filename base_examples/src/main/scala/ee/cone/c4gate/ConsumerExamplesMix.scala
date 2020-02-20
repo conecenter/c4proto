@@ -22,7 +22,7 @@ trait TestServerApp extends EnvConfigCompApp with VMExecutionApp with NoAssemble
   with ServerCompApp with BasicLoggingApp
   with KafkaProducerApp with KafkaConsumerApp
   with RemoteRawSnapshotApp
-  with HttpProtocolApp
+  with PublisherApp
 
 @c4app class TestConsumerAppBase extends TestServerApp
   with ManagementApp

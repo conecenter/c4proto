@@ -7,7 +7,7 @@ import Types._
 import ee.cone.c4assemble.IndexTypes.{DMultiSet, InnerIndex, InnerKey, Products}
 import ee.cone.c4assemble.Merge.Compose
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
-import ee.cone.c4di.c4
+import ee.cone.c4di.{c4, c4multi}
 
 import scala.collection.immutable
 import scala.collection.immutable.{Map, Seq, TreeMap}
@@ -192,14 +192,13 @@ class PreIndex(val inner: Seq[Index], val size: Long) extends Index {
 ////////////////////////////////////////////////////////////////////////////////
 
 @c4("AssembleApp") class IndexFactoryImpl(
-  val util: IndexUtil,
-  updater: IndexUpdater
+  val util: IndexUtil, factory: JoinMapIndexFactory
 ) extends IndexFactory {
   def createJoinMapIndex(join: Join):
     WorldPartExpression
       with DataDependencyFrom[Index]
       with DataDependencyTo[Index]
-  = new JoinMapIndex(join, updater, util)
+  = factory.create(join)
 }
 
 /*
@@ -207,8 +206,7 @@ trait ParallelAssembleStrategy {
 
 }*/
 
-class JoinMapIndex(
-  join: Join,
+@c4multi("AssembleApp") class JoinMapIndex(join: Join)(
   updater: IndexUpdater,
   composes: IndexUtil
 ) extends WorldPartExpression

@@ -1,19 +1,20 @@
 package ee.cone.c4assemble
 
 import ee.cone.c4assemble.Types._
-import ee.cone.c4di.c4
+import ee.cone.c4di.{c4, c4multi}
 
 import scala.annotation.tailrec
 import scala.collection.immutable.{Map, Seq}
 import scala.concurrent.{ExecutionContext, Future}
 
-class LoopExpression[MapKey, Value](
+@c4multi("AssembleApp") class LoopExpression[MapKey, Value](
   outputWorldKey: AssembledKey,
   wasOutputWorldKey: AssembledKey,
   main: WorldPartExpression, // with DataDependencyTo[Index[MapKey, Value]],
   continue: List[WorldPartExpression],
-  updater: IndexUpdater
-)(composes: IndexUtil,
+)(
+  updater: IndexUpdater,
+  composes: IndexUtil,
   //val outputWorldKey: AssembledKey[Index[MapKey, Value]] = main.outputWorldKey,
   continueF: WorldTransition=>WorldTransition = Function.chain(continue.map(h=>h.transform(_)))
 ) extends WorldPartExpression {
@@ -51,9 +52,8 @@ class LoopExpression[MapKey, Value](
 }
 
 @c4("AssembleApp") class ShortAssembleSeqOptimizer(
-  composes: IndexUtil,
   backStageFactory: BackStageFactory,
-  updater: IndexUpdater
+  loopExpressionFactory: LoopExpressionFactory
 ) extends AssembleSeqOptimizer {
   private def getSingleKeys[K]: Seq[K] => Set[K] = _.groupBy(i=>i).collect{ case (k,Seq(_)) => k }.toSet
   def optimize: List[Expr]=>List[WorldPartExpression] = expressionsByPriority => {
@@ -65,9 +65,9 @@ class LoopExpression[MapKey, Value](
         if(
           singleOutputKeys(key) && singleInputKeys(wKey) &&
             e.inputWorldKeys.contains(wKey)
-        ) new LoopExpression[Any,Any](
-          key, wKey, e, backStageFactory.create(List(e)), updater
-        )(composes)
+        ) loopExpressionFactory.create[Any,Any](
+          key, wKey, e, backStageFactory.create(List(e))
+        )
         else e
     }}
   }

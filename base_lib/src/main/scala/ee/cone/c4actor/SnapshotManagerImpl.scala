@@ -3,7 +3,7 @@ package ee.cone.c4actor
 import java.util.UUID
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4di.{c4, provide}
+import ee.cone.c4di.{c4, c4multi, provide}
 import ee.cone.c4actor.Types._
 
 object SnapshotUtilImpl extends SnapshotUtil {
@@ -38,7 +38,7 @@ object SnapshotUtilImpl extends SnapshotUtil {
 import SnapshotUtilImpl._
 
 //case class Snapshot(offset: NextOffset, uuid: String, raw: RawSnapshot)
-class SnapshotSaverImpl(subDirStr: String, inner: RawSnapshotSaver) extends SnapshotSaver {
+@c4multi("SnapshotUtilImplApp") class SnapshotSaverImpl(subDirStr: String)(inner: RawSnapshotSaver) extends SnapshotSaver {
   def save(offset: NextOffset, data: Array[Byte], headers: List[RawHeader]): RawSnapshot = {
     val snapshot = RawSnapshot(s"$subDirStr/$offset-${hashFromData(data)}${headers.map(h => s"-${h.key}-${h.value}").mkString}")
     assert(hashFromName(snapshot).nonEmpty, s"Not a valid name ${snapshot.relativePath}")

@@ -41,14 +41,18 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @c4("AbstractHttpGatewayApp") class GetPublicationHttpHandler(
   httpResponseFactory: RHttpResponseFactory,
-  getS_HttpPublication: GetByPK[S_HttpPublication],
+  getByPathHttpPublication: GetByPK[ByPathHttpPublication],
+  getByPathHttpPublicationUntil: GetByPK[ByPathHttpPublicationUntil],
 ) extends LazyLogging {
   def wire: RHttpHandlerCreate = next => (request,local) =>
     if(request.method == "GET") {
       val path = request.path
       val now = System.currentTimeMillis
-      val publicationsByPath = getS_HttpPublication.ofA(local)
-      publicationsByPath.get(path).filter(_.until.forall(now<_)) match {
+      val publication = for {
+        until <- getByPathHttpPublicationUntil.ofA(local).get(path) if now < until.until
+        p <- getByPathHttpPublication.ofA(local).get(path)
+      } yield p
+      publication match {
         case Some(publication) =>
           val cTag = request.headers.find(_.key=="if-none-match").map(_.value)
           val sTag = publication.headers.find(_.key=="etag").map(_.value)

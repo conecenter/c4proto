@@ -12,7 +12,7 @@ trait ManagementAppBase extends ActorAccessApp /*with PrometheusApp*/ with SyncT
 trait AvailabilityAppBase
 
 trait DefPublishFullCompressorAppBase
-trait PublishingCompAppBase extends HttpProtocolApp with DefPublishFullCompressorApp
+trait PublishingCompAppBase extends PublisherApp with DefPublishFullCompressorApp
 @c4("DefPublishFullCompressorApp") class DefPublishFullCompressor extends PublishFullCompressor(GzipFullCompressor())
 
 trait SessionAttrCompAppBase extends SessionDataProtocolApp
@@ -28,11 +28,14 @@ trait TcpProtocolAppBase
 
 trait HttpUtilAppBase
 
-trait MergingSnapshotAppBase extends SnapshotLoaderFactoryImplApp with HttpUtilApp
-trait RemoteRawSnapshotAppBase extends TaskSignerApp with ConfigSimpleSignerApp with HttpUtilApp//?SnapshotUtilImplApp
+trait MergingSnapshotAppBase extends SnapshotLoaderFactoryImplApp with RemoteRawSnapshotLoaderImplApp
+trait RemoteRawSnapshotAppBase extends TaskSignerApp with ConfigSimpleSignerApp with RemoteRawSnapshotLoaderImplApp//?SnapshotUtilImplApp
+trait RemoteRawSnapshotLoaderImplAppBase extends HttpUtilApp
 
 trait DefaultMetricsAppBase
 trait PrometheusPostAppBase extends DefaultMetricsApp with HttpUtilApp
+
+trait PublisherAppBase extends HttpProtocolApp
 
 /*
 *

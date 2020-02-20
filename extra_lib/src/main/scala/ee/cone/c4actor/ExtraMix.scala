@@ -97,7 +97,7 @@ trait RichDataAppBase extends RichDataCompApp
   lazy val modelConditionFactory: ModelConditionFactory[Unit] = resolveSingle(classOf[ModelConditionFactoryHolder]).value
 
   @deprecated def parallelAssembleOn: Boolean = false
-  @deprecated def assembleSeqOptimizer: AssembleSeqOptimizer = new NoAssembleSeqOptimizer
+  // @deprecated def assembleSeqOptimizer: AssembleSeqOptimizer = new NoAssembleSeqOptimizer
 }
 
 abstract class GeneralCompatHolder {

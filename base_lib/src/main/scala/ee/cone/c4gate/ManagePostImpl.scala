@@ -7,18 +7,19 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types._
 import ee.cone.c4assemble._
+import ee.cone.c4di.c4multi
 import ee.cone.c4gate.HttpProtocol.S_HttpRequest
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 
-@c4assemble("ManagementApp") class ManagementPostAssembleBase(actorName: ActorName, indexUtil: IndexUtil, readModelUtil: ReadModelUtil, catchNonFatal: CatchNonFatal)   {
+@c4assemble("ManagementApp") class ManagementPostAssembleBase(actorName: ActorName, factory: ManageHttpPostTxFactory) {
   def joinHttpPostHandler(
     key: SrcId,
     post: Each[S_HttpRequest]
   ): Values[(SrcId, TxTransform)] =
     if(post.path == s"/manage/${actorName.value}")
-      List(WithPK(ManageHttpPostTx(post.srcId, post)(indexUtil,readModelUtil,catchNonFatal))) else Nil
+      List(WithPK(factory.create(post.srcId, post))) else Nil
 
   def joinConsumers(
     key: SrcId,
@@ -27,7 +28,7 @@ import scala.concurrent.{Await, Future}
     List(WithPK(LocalHttpConsumer(s"/manage/${actorName.value}")))
 }
 
-case class ManageHttpPostTx(srcId: SrcId, request: S_HttpRequest)(indexUtil: IndexUtil, readModelUtil: ReadModelUtil, catchNonFatal: CatchNonFatal) extends TxTransform with LazyLogging {
+@c4multi("ManagementApp") case class ManageHttpPostTx(srcId: SrcId, request: S_HttpRequest)(indexUtil: IndexUtil, readModelUtil: ReadModelUtil, catchNonFatal: CatchNonFatal) extends TxTransform with LazyLogging {
   private def indent(l: String) = s"  $l"
   private def valueLines(index: Index)(k: Any): List[String] =
     indexUtil.getValues(index,k,"").flatMap(v=>s"$v".split("\n")).map(indent).toList

@@ -8,7 +8,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, CallerAssemble, assemble, by, c4assemble}
 import ee.cone.c4gate.AlienProtocol.U_ToAlienWrite
-import ee.cone.c4gate.HttpProtocol.S_HttpPublication
+import ee.cone.c4gate.HttpProtocol.S_HttpPublicationV2
 import ee.cone.c4ui.TestFilterProtocol.B_Content
 import ee.cone.c4di.{c4, provide}
 import ee.cone.c4gate.{SessionAttr, SessionAttrAccessFactory}
@@ -142,7 +142,7 @@ case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount
         else headToKeep(will, in.tail)
       }
 
-    val skipIds = Seq(classOf[U_ToAlienWrite],classOf[S_HttpPublication],classOf[D_TxAddMeta],classOf[N_TxRef])
+    val skipIds = Seq(classOf[U_ToAlienWrite],classOf[S_HttpPublicationV2],classOf[D_TxAddMeta],classOf[N_TxRef])
       .map(cl=>qAdapterRegistry.byName(cl.getName).id).toSet
 
     List(WithPK(headToKeep(
