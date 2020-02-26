@@ -19,8 +19,7 @@ object TimeJoinParamTransformer extends JoinParamTransformer {
   }
 }
 
-object TimeGenerator extends Generator {
-  val protocolGenerator = new ProtocolGenerator(Nil)
+class TimeGenerator(protocolGenerator: ProtocolGenerator) extends Generator {
 
   def get(parseContext: ParseContext): List[Generated] =
     parseContext.stats.collect {

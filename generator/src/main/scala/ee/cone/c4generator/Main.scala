@@ -9,17 +9,19 @@ import scala.jdk.CollectionConverters.IterableHasAsScala
 import scala.jdk.CollectionConverters.IteratorHasAsScala
 
 object Main {
-  def defaultGenerators: List[Generator] =
+  def defaultGenerators(protocolStatsTransformers: List[ProtocolStatsTransformer]): List[Generator] = {
+    val protocolGenerator = new ProtocolGenerator(protocolStatsTransformers)
     List(
       ImportGenerator,
-      TimeGenerator,
+      new TimeGenerator(protocolGenerator),
       new AssembleGenerator(TimeJoinParamTransformer :: Nil),
-      new ProtocolGenerator(Nil),
+      protocolGenerator,
       MultiGenerator,
       FieldAccessGenerator,
       AppGenerator
     ) //,UnBaseGenerator
-  def main(args: Array[String]): Unit = new RootGenerator(defaultGenerators).run()
+  }
+  def main(args: Array[String]): Unit = new RootGenerator(defaultGenerators(Nil)).run()
   def toPrefix = "c4gen."
   def env(key: String): Option[String] = Option(System.getenv(key))
   def version: String = s"-w${env("C4GENERATOR_VER").getOrElse(throw new Exception(s"missing env C4GENERATOR_VER"))}"
