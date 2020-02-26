@@ -235,24 +235,11 @@ object ReqGroup {
     request.headers.find(_.key == key).map(_.value)
 }
 
-@c4("AbstractHttpGatewayApp") class FHttpHandlerFactory(
+@c4multi("AbstractHttpGatewayApp") class FHttpHandlerImpl(handler: RHttpHandler)(
   worldProvider: WorldProvider,
   httpResponseFactory: RHttpResponseFactory,
   getS_HttpRequest: GetByPK[S_HttpRequest],
   getS_HttpResponse: GetByPK[S_HttpResponse],
-){
-  def create(handler: RHttpHandler): FHttpHandler = new FHttpHandlerImpl(
-    worldProvider, httpResponseFactory, getS_HttpRequest, getS_HttpResponse,
-    handler
-  )
-}
-
-class FHttpHandlerImpl(
-  worldProvider: WorldProvider,
-  httpResponseFactory: RHttpResponseFactory,
-  getS_HttpRequest: GetByPK[S_HttpRequest],
-  getS_HttpResponse: GetByPK[S_HttpResponse],
-  handler: RHttpHandler,
 ) extends FHttpHandler with LazyLogging {
   def handle(request: FHttpRequest)(implicit executionContext: ExecutionContext): Future[S_HttpResponse] = {
     val now = System.currentTimeMillis

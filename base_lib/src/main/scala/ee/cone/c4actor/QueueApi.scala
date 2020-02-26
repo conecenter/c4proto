@@ -165,14 +165,10 @@ trait GetByPK[+V<:Product] {
   def ofA(context: AssembledContext): Map[SrcId,V]
 }
 
-case class ByPrimaryKeyGetter[V<:Product](className: String)
-  extends Getter[SharedContext with AssembledContext,Map[SrcId,V]]
-{
-  def of: SharedContext with AssembledContext => Map[SrcId, V] = context =>
-    GetOrigIndexKey.of(context)(context,className).asInstanceOf[Map[SrcId,V]]
+trait DynamicByPK { // low level api, think before use
+  def get(joinKey: AssembledKey, context: AssembledContext): Map[SrcId,Product]
 }
 
-case object GetOrigIndexKey extends SharedComponentKey[(AssembledContext,String)=>Map[SrcId,Product]]
 case object GetAssembleOptions extends SharedComponentKey[ReadModel=>AssembleOptions]
 
 trait Lens[C,I] extends Getter[C,I] {

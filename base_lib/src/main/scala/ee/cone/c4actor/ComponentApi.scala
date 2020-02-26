@@ -21,6 +21,7 @@ object ComponentRegistry {
 trait ComponentRegistry {
   def resolveKey(key: TypeKey): DeferredSeq[Any]
   def resolve[T](cl: Class[T], args: Seq[TypeKey]): DeferredSeq[T]
+  def components: Seq[Component]
 }
 
 trait DeferredSeq[+T] {

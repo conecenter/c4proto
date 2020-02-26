@@ -4,7 +4,6 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol._
 import ee.cone.c4actor.Types._
 import ee.cone.c4assemble._
-import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 import ee.cone.c4assemble.Types._
 import ee.cone.c4di.Types.ComponentFactory
 import ee.cone.c4di.{c4, provide}
@@ -15,12 +14,12 @@ import scala.util.control.NonFatal
 import scala.concurrent.duration.Duration
 
 @c4("RichDataCompApp") class ProtocolDataDependencies(qAdapterRegistry: QAdapterRegistry, origKeyFactory: OrigKeyFactoryFinalHolder) extends DataDependencyProvider {
-  def apply(): List[DataDependencyTo[_]] =
+  def getRules: List[WorldPartRule] =
     qAdapterRegistry.byId.values.map(_.className).toList.sorted
       .map(nm => new OriginalWorldPart(origKeyFactory.value.rawKey(nm)))
 }
 
-case object TreeAssemblerKey extends SharedComponentKey[Replace]
+case object TreeAssemblerKey extends SharedComponentKey[(Replace,Set[AssembledKey])]
 
 @c4("RichDataCompApp") class DefLongAssembleWarnPeriod extends LongAssembleWarnPeriod(Option(System.getenv("C4ASSEMBLE_WARN_PERIOD_MS")).fold(1000L)(_.toLong))
 
@@ -32,7 +31,6 @@ case object TreeAssemblerKey extends SharedComponentKey[Replace]
   treeAssembler: TreeAssembler,
   getDependencies: DeferredSeq[DataDependencyProvider],
   composes: IndexUtil,
-  byPKKeyFactory: KeyFactory,
   origKeyFactory: OrigKeyFactoryFinalHolder,
   assembleProfiler: AssembleProfiler,
   readModelUtil: ReadModelUtil,
@@ -41,18 +39,21 @@ case object TreeAssemblerKey extends SharedComponentKey[Replace]
   processors: List[UpdatesPreprocessor],
   defaultAssembleOptions: AssembleOptions,
   warnPeriod: LongAssembleWarnPeriod,
-  catchNonFatal: CatchNonFatal
+  catchNonFatal: CatchNonFatal,
+  isTargetWorldPartRules: List[IsTargetWorldPartRule]
 )(
   assembleOptionsOuterKey: AssembledKey = origKeyFactory.value.rawKey(classOf[AssembleOptions].getName),
   assembleOptionsInnerKey: String = ToPrimaryKey(defaultAssembleOptions)
 ) extends ToInject with LazyLogging {
-
-  private def toTree(assembled: ReadModel, updates: Seq[N_Update], executionContext: OuterExecutionContext): ReadModel =
-    readModelUtil.create((for {
+  type ReplaceActive = (Replace,Set[AssembledKey])
+  private def toTreeReplace(replaceActive: ReplaceActive, assembled: ReadModel, updates: Seq[N_Update], profiling: JoiningProfiling, executionContext: OuterExecutionContext): Future[WorldTransition] = {
+    val (replace,isActive) = replaceActive
+    val timer = NanoTimer()
+    val mDiff = for {
       tpPair <- updates.groupBy(_.valueTypeId)
       (valueTypeId, tpUpdates) = tpPair : (Long,Seq[N_Update])
       valueAdapter <- qAdapterRegistry.byId.get(valueTypeId)
-      wKey = origKeyFactory.value.rawKey(valueAdapter.className)
+      wKey <- Option(origKeyFactory.value.rawKey(valueAdapter.className)) if isActive(wKey)
     } yield {
       implicit val ec: ExecutionContext = executionContext.value
       wKey -> (for {
@@ -65,7 +66,11 @@ case object TreeAssemblerKey extends SharedComponentKey[Replace]
         add = if(rawValue.size > 0) composes.result(srcId,valueAdapter.decode(rawValue),+1) :: Nil else Nil
         res <- remove :: add
       } yield res))
-    }).toMap)
+    }
+    val diff = readModelUtil.create(mDiff.toMap)
+    logger.trace(s"toTree ${timer.ms} ms")
+    replace.replace(assembled,diff,profiling,executionContext)
+  }
 
   def waitFor[T](res: Future[T], options: AssembleOptions, stage: String): T = concurrent.blocking{
     val end = NanoTimer()
@@ -77,11 +82,12 @@ case object TreeAssemblerKey extends SharedComponentKey[Replace]
 
   // read model part:
   private def reduce(
-    replace: Replace,
-    wasAssembled: ReadModel, diff: ReadModel,
+    replace: ReplaceActive,
+    wasAssembled: ReadModel, updates: Seq[N_Update],
     options: AssembleOptions, executionContext: OuterExecutionContext
   ): ReadModel = {
-    val res = replace(wasAssembled,diff,assembleProfiler.createJoiningProfiling(None),executionContext).map(_.result)(executionContext.value)
+    val profiling = assembleProfiler.createJoiningProfiling(None)
+    val res = toTreeReplace(replace, wasAssembled, updates, profiling, executionContext).map(_.result)(executionContext.value)
     waitFor(res, options, "read")
   }
 
@@ -89,21 +95,17 @@ case object TreeAssemblerKey extends SharedComponentKey[Replace]
     ev <- events.lastOption.toList
     lEvent <- LEvent.update(S_Offset(actorName.value,ev.srcId))
   } yield toUpdate.toUpdate(lEvent)
-  private def readModelAdd(replace: Replace, executionContext: OuterExecutionContext): Seq[RawEvent]=>ReadModel=>ReadModel = events => assembled => catchNonFatal {
+  private def readModelAdd(replace: ReplaceActive, executionContext: OuterExecutionContext): Seq[RawEvent]=>ReadModel=>ReadModel = events => assembled => catchNonFatal {
     val options = getAssembleOptions(assembled)
     val updates = offset(events) ::: toUpdate.toUpdates(events.toList)
-    val timer = NanoTimer()
-    val realDiff = toTree(assembled, updates, executionContext)
-    logger.trace(s"toTree ${timer.ms} ms")
-    reduce(replace, assembled, realDiff, options, executionContext)
+    reduce(replace, assembled, updates, options, executionContext)
   }("reduce"){ e => // ??? exception to record
       if(events.size == 1){
         val options = getAssembleOptions(assembled)
         val updates = offset(events) ++
           events.map(ev=>S_FailedUpdates(ev.srcId, e.getMessage))
             .flatMap(LEvent.update).map(toUpdate.toUpdate)
-        val failDiff = toTree(assembled, updates, executionContext)
-        reduce(replace, assembled, failDiff, options, executionContext)
+        reduce(replace, assembled, updates, options, executionContext)
       } else {
         val(a,b) = events.splitAt(events.size / 2)
         Function.chain(Seq(readModelAdd(replace, executionContext)(a), readModelAdd(replace, executionContext)(b)))(assembled)
@@ -117,11 +119,10 @@ case object TreeAssemblerKey extends SharedComponentKey[Replace]
       val options = getAssembleOptions(local.assembled)
       val processedOut = composes.mayBePar(processors, options).flatMap(_.process(out)).toSeq ++ out
       val externalOut = updateProcessor.fold(processedOut)(_.process(processedOut, WriteModelKey.of(local).size))
-      val diff = toTree(local.assembled, externalOut, local.executionContext)
-      val profiling = assembleProfiler.createJoiningProfiling(Option(local))
       val replace = TreeAssemblerKey.of(local)
+      val profiling = assembleProfiler.createJoiningProfiling(Option(local))
       val res = for {
-        transition <- replace(local.assembled,diff,profiling,local.executionContext)
+        transition <- toTreeReplace(replace, local.assembled, externalOut, profiling, local.executionContext)
         updates <- assembleProfiler.addMeta(transition, externalOut)
       } yield {
         val nLocal = new Context(local.injected, transition.result, local.executionContext, local.transient)
@@ -139,17 +140,26 @@ case object TreeAssemblerKey extends SharedComponentKey[Replace]
     }.getOrElse(defaultAssembleOptions)
   }
 
-  private def getOrigIndex(context: AssembledContext, className: String): Map[SrcId,Product] = {
-    val index = byPKKeyFactory.rawKey(className).of(context.assembled).value.get.get
-    // val options = getAssembleOptions(context.assembled)
-    UniqueIndexMap(index)(composes)
-  }
-
   def toInject: List[Injectable] = {
-    logger.debug("getDependencies started")
-    val deps = getDependencies.value.flatMap(_()).toList
-    logger.debug("getDependencies finished")
-    TreeAssemblerKey.set(treeAssembler.replace(deps)) :::
+    TreeAssemblerKey.set{
+      logger.debug("getDependencies started")
+      val rules = getDependencies.value.flatMap(_.getRules).toList
+      logger.debug("getDependencies finished")
+      val isTargetWorldPartRule = Single.option(isTargetWorldPartRules).getOrElse(AnyIsTargetWorldPartRule)
+      val replace = treeAssembler.create(rules,isTargetWorldPartRule.check)
+      logger.debug(s"active rules: ${replace.active.size}")
+      logger.debug{
+        val isActive = replace.active.toSet
+        rules.map{ rule =>
+          s"\n${if(isActive(rule))"[+]" else "[-]"} ${rule match {
+            case r: DataDependencyFrom[_] => s"${r.assembleName} ${r.name}"
+            case r: DataDependencyTo[_] => s"out ${r.outputWorldKey}"
+          }}"
+        }.toString
+      }
+      val origKeys = replace.active.collect{ case o: OriginalWorldPart[_] => o.outputWorldKey }.toSet
+      (replace,origKeys)
+    } :::
       WriteModelDebugAddKey.set(out =>
         if(out.isEmpty) identity[Context]
         else WriteModelDebugKey.modify(_.enqueueAll(out))
@@ -159,9 +169,16 @@ case object TreeAssemblerKey extends SharedComponentKey[Replace]
       ReadModelAddKey.set(events=>context=>
         readModelAdd(TreeAssemblerKey.of(context), context.executionContext)(events)(context.assembled)
       ) :::
-      GetOrigIndexKey.set(getOrigIndex) :::
       GetAssembleOptions.set(getAssembleOptions)
   }
+}
+
+abstract class IsTargetWorldPartRule {
+  def check(rule: WorldPartRule): Boolean
+}
+
+object AnyIsTargetWorldPartRule extends IsTargetWorldPartRule {
+  def check(rule: WorldPartRule): Boolean = true
 }
 
 case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K,V] {
@@ -173,23 +190,56 @@ case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K
   override def keySet: Set[K] = indexUtil.keySet(index).asInstanceOf[Set[K]] // to get keys from index
 }
 
-@c4("RichDataCompApp") class JoinKeyComponentFactoryProvider(
-  keyFactory: KeyFactory, indexUtil: IndexUtil
-) {
-  @provide def get: Seq[ComponentFactory[GetByPK[_]]] = List(args=>{
-    val Seq(vTypeKey) = args
-    assert(vTypeKey.args.isEmpty)
-    // ?todo: assert OR alias and clName for joinKey should be extended by args
-    val joinKey = keyFactory.rawKey(vTypeKey.clName)
-    List(new GetByPKImpl(joinKey,indexUtil))
-  })
-}
-
-class GetByPKImpl[+V<:Product](
-  joinKey: AssembledKey, indexUtil: IndexUtil
-) extends GetByPK[V] {
-  def ofA(context: AssembledContext): Map[SrcId,V] = {
+@c4("RichDataCompApp") class DynamicByPKImpl(indexUtil: IndexUtil) extends DynamicByPK {
+  def get(joinKey: AssembledKey, context: AssembledContext): Map[SrcId,Product] = {
     val index: Index = joinKey.of(context.assembled).value.get.get
     UniqueIndexMap(index)(indexUtil)
   }
+}
+
+class GetByPKImpl[+V<:Product](joinKey: AssembledKey)(
+  dynamic: DynamicByPK
+) extends GetByPK[V] {
+  def ofA(context: AssembledContext): Map[SrcId,V] =
+    dynamic.get(joinKey,context).asInstanceOf[Map[SrcId,V]]
+}
+
+@c4("RichDataCompApp") class GetByPKUtil(keyFactory: KeyFactory) {
+  def toAssembleKey(args: Seq[TypeKey]): AssembledKey = {
+    val Seq(vTypeKey) = args
+    assert(vTypeKey.args.isEmpty)
+    // ?todo: assert OR alias and clName for joinKey should be extended by args
+    keyFactory.rawKey(vTypeKey.clName)
+  }
+}
+@c4("RichDataCompApp") class GetByPKComponentFactoryProvider(
+  util: GetByPKUtil, dynamic: DynamicByPK, needAssembledKeyRegistry: NeedAssembledKeyRegistry
+) {
+  @provide def get: Seq[ComponentFactory[GetByPK[_]]] = List(args=>{
+    val joinKey = util.toAssembleKey(args)
+      assert(needAssembledKeyRegistry.values(joinKey),s"no need byPK self check: $joinKey")
+    List(new GetByPKImpl(joinKey)(dynamic))
+  })
+}
+
+@c4("RichDataCompApp") class NeedAssembledKeyRegistry(
+  util: GetByPKUtil, componentRegistry: ComponentRegistry,
+  classNames: Set[String] = Set(classOf[GetByPK[_]].getName) // can be extended later
+)(
+  val getRules: List[NeedWorldPartRule] = for{
+    component <- componentRegistry.components.toList
+    inKey <- component.in if classNames(inKey.clName)
+  } yield new NeedWorldPartRule(List(util.toAssembleKey(inKey.args)), component.out.clName)
+)(
+  val values: Set[AssembledKey] = getRules.flatMap(_.inputWorldKeys).toSet
+) extends DataDependencyProvider
+
+class NeedWorldPartRule(
+  val inputWorldKeys: List[AssembledKey], val name: String
+) extends WorldPartRule with DataDependencyFrom[Index] {
+  def assembleName: String = "Tx"
+}
+
+@c4("SkipWorldPartsApp") class IsTargetWorldPartRuleImpl extends IsTargetWorldPartRule {
+  def check(rule: WorldPartRule): Boolean = rule.isInstanceOf[NeedWorldPartRule]
 }

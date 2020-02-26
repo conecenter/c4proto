@@ -19,9 +19,10 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
 ) extends ComponentRegistry {
   def toTypeKey[T](cl: Class[T], args: Seq[TypeKey]): TypeKey =
     TypeKey(cl.getName,cl.getSimpleName,args.toList)
+  lazy val components: Seq[Component] = fixNonFinal(app.components.distinct)
   lazy val reg: Map[TypeKey,DeferredSeq[Object]] =
-    fixNonFinal(app.components.distinct).map(toCached)
-    .groupBy(_.out).transform((k,v)=>new SimpleDeferredSeq(()=>v.flatMap(_.deferredSeq.value)))
+    components.map(toCached).groupBy(_.out)
+      .transform((k,v)=>new SimpleDeferredSeq(()=>v.flatMap(_.deferredSeq.value)))
   // def toNonFinal(k: TypeKey): TypeKey = k.copy(alias = s"NonFinal#${k.alias}")
   def fixNonFinal(components: Seq[Component]): Seq[Component] = {
     debug.foreach(_=>components.foreach(c=>println(s"component (out: ${c.out}) (in: ${c.in})")))

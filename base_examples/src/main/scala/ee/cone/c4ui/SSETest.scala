@@ -11,7 +11,7 @@ import ee.cone.c4actor_branch._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, CallerAssemble, c4assemble}
 import ee.cone.c4gate.AlienProtocol.U_FromAlienStatus
-import ee.cone.c4di.{c4, provide}
+import ee.cone.c4di.{c4, c4multi, provide}
 
 //println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/sse.html")
 @c4("TestSSEApp")  class SSEFromAlienTaskAssembleBase {
@@ -20,18 +20,18 @@ import ee.cone.c4di.{c4, provide}
 }
 
 @c4assemble("TestSSEApp") class TestSSEAssembleBase(
-  getU_FromAlienStatus: GetByPK[U_FromAlienStatus],
+  factory: TestSSEHandlerFactory
 ) extends LazyLogging {
   def joinView(
     key: SrcId,
     task: Each[BranchTask]
   ): Values[(SrcId,BranchHandler)] = {
     logger.info(s"joinView ${task}")
-    List(WithPK(TestSSEHandler(task.branchKey, task)(getU_FromAlienStatus)))
+    List(WithPK(factory.create(task.branchKey, task)))
   }
 }
 
-case class TestSSEHandler(branchKey: SrcId, task: BranchTask)(
+@c4multi("TestSSEApp") case class TestSSEHandler(branchKey: SrcId, task: BranchTask)(
   getU_FromAlienStatus: GetByPK[U_FromAlienStatus],
 ) extends BranchHandler with LazyLogging {
   def exchange: BranchMessage => Context => Context = message => local => {

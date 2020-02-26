@@ -19,6 +19,7 @@ trait RichDataCompAppBase extends BaseApp with ProtoApp with AssembleApp
 trait SerialObserversAppBase
 trait ServerCompAppBase extends RichDataCompApp with ExecutableApp with SnapshotLoaderImplApp
 trait SimpleAssembleProfilerCompAppBase
+trait SkipWorldPartsAppBase
 trait SnapshotLoaderFactoryImplAppBase
 trait SnapshotLoaderImplAppBase
 trait SnapshotUtilImplAppBase
