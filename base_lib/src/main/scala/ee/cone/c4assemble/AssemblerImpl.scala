@@ -459,8 +459,8 @@ object UMLExpressionsDumper extends ExpressionsDumper[String] {
   }
 }
 
-@c4("AssembleApp") class AssembleDataDependencies(indexFactory: IndexFactory, assembles: List[Assemble]) extends DataDependencyProvider {
-  def getRules: List[WorldPartRule] = {
+@c4("AssembleApp") class AssembleDataDependencyFactoryImpl(indexFactory: IndexFactory) extends AssembleDataDependencyFactory {
+  def create(assembles: List[Assemble]): List[WorldPartRule] = {
     def gather(assembles: List[Assemble]): List[Assemble] =
       if(assembles.isEmpty) Nil
       else gather(assembles.collect{ case a: CallerAssemble => a.subAssembles }.flatten) ::: assembles
@@ -474,6 +474,12 @@ object UMLExpressionsDumper extends ExpressionsDumper[String] {
     }
     res.flatMap(_.dataDependencies(indexFactory))
   }
+}
+
+@c4("AssembleApp") class AssembleDataDependencies(
+  factory: AssembleDataDependencyFactory, assembles: List[Assemble]
+) extends DataDependencyProvider {
+  def getRules: List[WorldPartRule] = factory.create(assembles)
 }
 
 object Merge {
