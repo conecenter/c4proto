@@ -14,7 +14,7 @@ object Main {
       ImportGenerator,
       TimeGenerator,
       new AssembleGenerator(TimeJoinParamTransformer :: Nil),
-      ProtocolGenerator,
+      new ProtocolGenerator(Nil),
       MultiGenerator,
       FieldAccessGenerator,
       AppGenerator

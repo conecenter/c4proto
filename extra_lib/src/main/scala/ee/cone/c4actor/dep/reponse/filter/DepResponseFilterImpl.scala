@@ -1,13 +1,22 @@
 package ee.cone.c4actor.dep.reponse.filter
 
+import ee.cone.c4actor.ComponentProviderApp
 import ee.cone.c4actor.dep.{DepResponse, DepResponseFilterFactory, DepResponseForwardFilter}
 import ee.cone.c4actor.dep.DepTypes.DepRequest
 import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.{N_ContextIdRequest, N_MockRoleRequest, N_RoleIdRequest, N_UserIdRequest}
 import ee.cone.c4actor.dep_impl.DepResponseFiltersApp
+import ee.cone.c4di.c4
 
-case class DepResponseForwardFilterImpl(parentCl: Option[Class[_ <: DepRequest]], childCl: Class[_ <: DepRequest])(val filter: DepResponse => Option[DepResponse]) extends DepResponseForwardFilter
+case class DepResponseForwardFilterImpl(
+  parentCl: Option[Class[_ <: DepRequest]],
+  childCl: Class[_ <: DepRequest]
+)(
+  val filter: DepResponse => Option[DepResponse]
+) extends DepResponseForwardFilter
 
-case class DepResponseFilterFactoryImpl() extends DepResponseFilterFactory {
+trait DepResponseFiltersMixAppBase
+
+@c4("DepResponseFiltersMixApp") class DepResponseFilterFactoryImpl extends DepResponseFilterFactory {
   def withParent(parentCl: Class[_ <: DepRequest], childCl: Class[_ <: DepRequest]): (DepResponse => Option[DepResponse]) => DepResponseForwardFilter =
     DepResponseForwardFilterImpl(Some(parentCl), childCl)
 
@@ -19,8 +28,8 @@ trait DepResponseFilterFactoryApp {
   def depResponseFilterFactory: DepResponseFilterFactory
 }
 
-trait DepResponseFilterFactoryMix extends DepResponseFilterFactoryApp {
-  def depResponseFilterFactory: DepResponseFilterFactory = DepResponseFilterFactoryImpl()
+trait DepResponseFilterFactoryMix extends DepResponseFilterFactoryApp with ComponentProviderApp with DepResponseFiltersMixApp {
+  lazy val depResponseFilterFactory: DepResponseFilterFactory = resolveSingle(classOf[DepResponseFilterFactory])
 }
 
 trait DepCommonResponseForward {
@@ -29,7 +38,7 @@ trait DepCommonResponseForward {
   def massForwardSessionIds(requests: List[Class[_ <: DepRequest]]): List[DepResponseForwardFilter]
 }
 
-case class DepCommonResponseForwardImpl(factory: DepResponseFilterFactory) extends DepCommonResponseForward {
+@c4("DepResponseFiltersMixApp") case class DepCommonResponseForwardImpl(factory: DepResponseFilterFactory) extends DepCommonResponseForward {
   def forwardSessionIds(request: Class[_ <: DepRequest]): DepResponseForwardFilter = {
     factory.withChild(request)(resp => resp.innerRequest.request match {
       case _: N_ContextIdRequest | _: N_RoleIdRequest | _: N_UserIdRequest | _: N_MockRoleRequest => Some(resp)
@@ -45,8 +54,8 @@ trait DepCommonResponseForwardApp {
   def depCommonResponseForward: DepCommonResponseForward
 }
 
-trait DepCommonResponseForwardMix extends DepCommonResponseForwardApp with DepResponseFilterFactoryApp {
-  def depCommonResponseForward: DepCommonResponseForward = DepCommonResponseForwardImpl(depResponseFilterFactory)
+trait DepCommonResponseForwardMix extends DepCommonResponseForwardApp with DepResponseFiltersMixApp with ComponentProviderApp {
+  lazy val depCommonResponseForward: DepCommonResponseForward = resolveSingle(classOf[DepCommonResponseForward])
 }
 
 trait DepForwardUserAttributesApp {
