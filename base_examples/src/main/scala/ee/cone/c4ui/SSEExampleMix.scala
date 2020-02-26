@@ -99,3 +99,4 @@ trait TestTxLogAppBase
   with BasicLoggingApp
   with ReactHtmlApp
   with PublisherApp
+  with SkipWorldPartsApp

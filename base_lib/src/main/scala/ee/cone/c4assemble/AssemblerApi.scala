@@ -1,7 +1,6 @@
 
 package ee.cone.c4assemble
 
-import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 import ee.cone.c4assemble.Types._
 
 import scala.collection.immutable.Seq
@@ -27,14 +26,20 @@ object ToPrimaryKey {
     } else ""
 }
 
-class OriginalWorldPart[A<:Object](val outputWorldKey: AssembledKey) extends DataDependencyTo[A]
+trait WorldPartRule
 
-object TreeAssemblerTypes {
-  type Replace = (ReadModel, ReadModel, JoiningProfiling, OuterExecutionContext) => Future[WorldTransition]
+class OriginalWorldPart[A<:Object](val outputWorldKey: AssembledKey) extends WorldPartRule with DataDependencyTo[A]
+
+trait Replace {
+  def active: List[WorldPartRule]
+  def replace(
+    prevWorld: ReadModel, diff: ReadModel, profiler: JoiningProfiling,
+    executionContext: OuterExecutionContext
+  ): Future[WorldTransition]
 }
 
 trait TreeAssembler {
-  def replace: List[DataDependencyTo[_]] => Replace
+  def create(rules: List[WorldPartRule], isTarget: WorldPartRule=>Boolean): Replace
 }
 
 trait ByPriority {
@@ -57,4 +62,8 @@ trait AssembleSeqOptimizer {
 
 trait BackStageFactory {
   def create(l: List[DataDependencyFrom[_]]): List[WorldPartExpression]
+}
+
+trait AssembleDataDependencyFactory {
+  def create(assembles: List[Assemble]): List[WorldPartRule]
 }

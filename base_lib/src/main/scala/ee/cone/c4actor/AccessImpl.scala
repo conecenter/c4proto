@@ -1,12 +1,13 @@
 package ee.cone.c4actor
 
+import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.ToPrimaryKey
 import ee.cone.c4di._
 
-@c4("ModelAccessFactoryCompApp") class ModelAccessFactoryImpl extends ModelAccessFactory {
-  def to[P <: Product](product: P): Option[Access[P]] = {
+@c4("ModelAccessFactoryCompApp") class RModelAccessFactoryImpl extends RModelAccessFactory {
+  def to[P <: Product](key: GetByPK[P], product: P): Option[Access[P]] = {
     val name = product.getClass.getName
-    val lens = TxProtoLens[P](product)
+    val lens = TxProtoLens[P](product)(key.ofA)
     Option(AccessImpl(product,Option(lens),NameMetaAttr(name) :: Nil))
   }
 }
@@ -20,10 +21,6 @@ case class AccessImpl[P](
     val rMeta = metaList ::: inner.metaList
     AccessImpl[V](rValue,rLens,rMeta)
   }
-
-  def zoom: Access[P] = AccessImpl[P](initialValue,
-    MakeTxProtoLens(initialValue),
-    metaList)
 }
 
 case class ComposedLens[C,T,I](
@@ -33,19 +30,11 @@ case class ComposedLens[C,T,I](
   def of: C => I = container => inner.of(outer.of(container))
 }
 
-case object MakeTxProtoLens {
-  def apply[P](initialValue: P): Option[Lens[Context, P] with Product] =
-    initialValue match {
-      case a:Product => Option(TxProtoLens(a)).asInstanceOf[Option[Lens[Context, P] with Product]]
-      case _ => None
-    }
-}
-
-case class TxProtoLens[V<:Product](initialValue: V) extends AbstractLens[Context,V] {
+case class TxProtoLens[V<:Product](initialValue: V)(mapOf: AssembledContext=>Map[SrcId,V]) extends AbstractLens[Context,V] {
   private def className = initialValue.getClass.getName
   private def srcId = ToPrimaryKey(initialValue)
-  private def key = ByPrimaryKeyGetter(className)
-  def of: Context => V = local => key.of(local).getOrElse(srcId,initialValue)
+  // private def key = ByPrimaryKeyGetter(className)
+  def of: Context => V = local => mapOf(local).getOrElse(srcId,initialValue)
   def set: V => Context => Context = value => local => {
     if(initialValue != of(local)) throw new Exception(s"'$initialValue' != '${of(local)}'")
     val eventsC = List(UpdateLEvent(srcId, className, value))

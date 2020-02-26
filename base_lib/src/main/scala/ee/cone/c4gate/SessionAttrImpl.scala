@@ -50,7 +50,7 @@ import ee.cone.c4di.{c4, provide}
 @c4("SessionAttrCompApp") class SessionAttrAccessFactoryImpl(
   registry: QAdapterRegistry,
   modelFactory: ModelFactory,
-  modelAccessFactory: ModelAccessFactory,
+  modelAccessFactory: RModelAccessFactory,
   val idGenUtil: IdGenUtil,
   getU_RawSessionData: GetByPK[U_RawSessionData],
 ) extends SessionAttrAccessFactory with KeyGenerator{
@@ -84,7 +84,7 @@ import ee.cone.c4di.{c4, provide}
         val model = modelFactory.create[P](attr.className)(pk)
         lens.set(model)(request.copy(srcId=pk))
       })
-      modelAccessFactory.to(value).map(_.to(lens))
+      modelAccessFactory.to(getU_RawSessionData,value).map(_.to(lens))
     }
   }
 }

@@ -1,8 +1,11 @@
 package ee.cone.c4actor
 
-import ee.cone.c4assemble.{Assemble, AssembleSeqOptimizer, BackStageFactory, ByPriority, ExpressionsDumper, IndexUpdater, IndexUtil, NoAssembleSeqOptimizer, ReadModelUtil, UMLExpressionsDumper}
+import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4assemble._
+import ee.cone.c4actor._
 import ee.cone.c4di._
-import scala.collection.immutable.Seq
+
+import scala.collection.immutable.{Map, Seq}
 
 object ComponentProvider {
   private def toTypeKey[T](cl: Class[T]): TypeKey =
@@ -161,7 +164,24 @@ trait SimpleAssembleProfilerApp extends SimpleAssembleProfilerCompApp with Compo
   def assembleProfiler: AssembleProfiler = resolveSingle(classOf[AssembleProfiler])
 }
 
-trait ModelAccessFactoryApp extends ModelAccessFactoryCompApp with ComponentProviderApp {
+////
+
+trait ModelAccessFactoryAppBase extends ModelAccessFactoryCompApp with ComponentProviderApp {
   lazy val modelAccessFactory: ModelAccessFactory = resolveSingle(classOf[ModelAccessFactory])
 }
 
+@c4("RichDataApp") class GetOrigIndexKeySetup(
+  byPKKeyFactory: KeyFactory, dynamic: DynamicByPK
+) extends ToInject {
+  def getOrigIndex(context: AssembledContext, className: String): Map[SrcId,Product] =
+    dynamic.get(byPKKeyFactory.rawKey(className), context)
+  def toInject: List[Injectable] = GetOrigIndexKey.set(getOrigIndex)
+}
+
+@c4("ModelAccessFactoryApp") class ModelAccessFactoryImpl extends ModelAccessFactory {
+  def to[P <: Product](product: P): Option[Access[P]] = {
+    val name = product.getClass.getName
+    val lens = TxProtoLens[P](product)(ByPrimaryKeyGetter[P](name).of.asInstanceOf[AssembledContext => Map[SrcId,P]])
+    Option(AccessImpl(product,Option(lens),NameMetaAttr(name) :: Nil))
+  }
+}

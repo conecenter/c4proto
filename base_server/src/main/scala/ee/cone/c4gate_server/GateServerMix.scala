@@ -39,9 +39,10 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
   with NoProxySSEConfigApp
   with SafeToRunApp
   with WorldProviderApp
+  with SkipWorldPartsApp
 
 @c4("AbstractHttpGatewayApp") class DefFHttpHandlerProvider(
-  fHttpHandlerFactory: FHttpHandlerFactory,
+  fHttpHandlerFactory: FHttpHandlerImplFactory,
   httpGetSnapshotHandler: HttpGetSnapshotHandler,
   getPublicationHttpHandler: GetPublicationHttpHandler,
   pongHandler: PongHandler,

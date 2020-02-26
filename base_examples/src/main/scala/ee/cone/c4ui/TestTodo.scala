@@ -106,7 +106,7 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
   tags: TestTags[Context],
   mTags: Tags,
   styles: TagStyles,
-  contextAccess: ModelAccessFactory,
+  contextAccess: RModelAccessFactory,
   filterPredicates: FilterPredicateBuilder,
   commonFilterConditionChecks: CommonFilterConditionChecks,
   accessViewRegistry: AccessViewRegistry,
@@ -136,7 +136,7 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
       .filter(filterPredicate.condition.check).toList.sortBy(-_.createdAt)
     val taskLines = for {
       prod <- todoTasks
-      task <- contextAccess to prod
+      task <- contextAccess.to(getB_TodoTask,prod)
     } yield div(prod.srcId,Nil)(List(
       tags.input(task to comments),
       div("remove",List(styles.width(100),styles.displayInlineBlock))(List(

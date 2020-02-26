@@ -78,7 +78,7 @@ object OrEmptyIndex {
 abstract class AssembledKey extends Product {
   def of(model: ReadModel): Future[Index] = OrEmptyIndex(model.getFuture(this))
 }
-trait WorldPartExpression /*[From,To] extends DataDependencyFrom[From] with DataDependencyTo[To]*/ {
+trait WorldPartExpression extends WorldPartRule {
   def transform(transition: WorldTransition): WorldTransition
 }
 //object WorldTransition { type Diff = Map[AssembledKey[_],IndexDiff[Object,_]] } //Map[AssembledKey[_],Index[Object,_]] //Map[AssembledKey[_],Map[Object,Boolean]]
@@ -118,7 +118,7 @@ trait DataDependencyTo[To] {
 }
 
 trait DataDependencyProvider {
-  def apply(): List[DataDependencyTo[_]]
+  def getRules: List[WorldPartRule]
 }
 
 abstract class Join(
@@ -135,7 +135,7 @@ abstract class Join(
 }
 
 trait Assemble {
-  def dataDependencies: IndexFactory => List[DataDependencyTo[_]]
+  def dataDependencies: IndexFactory => List[WorldPartRule with DataDependencyTo[_]]
 }
 
 trait JoinKey extends AssembledKey {

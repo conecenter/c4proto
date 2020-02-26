@@ -6,7 +6,6 @@ package ee.cone.c4assemble
 import Types._
 import ee.cone.c4assemble.IndexTypes.{DMultiSet, InnerIndex, InnerKey, Products}
 import ee.cone.c4assemble.Merge.Compose
-import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 import ee.cone.c4di.{c4, c4multi}
 
 import scala.collection.immutable
@@ -360,83 +359,86 @@ class DebugJoinMapIndex(
 */
 
 @c4("AssembleApp") class TreeAssemblerImpl(
-  composes: IndexUtil, readModelUtil: ReadModelUtil,
   byPriority: ByPriority, expressionsDumpers: List[ExpressionsDumper[Unit]],
-  optimizer: AssembleSeqOptimizer, backStageFactory: BackStageFactory
+  optimizer: AssembleSeqOptimizer, backStageFactory: BackStageFactory,
+  replaceImplFactory: ReplaceImplFactory
 ) extends TreeAssembler {
-
-  def replace: List[DataDependencyTo[_]] => Replace = rules => {
-    val expressions/*: Seq[WorldPartExpression]*/ =
-      rules.collect{ case e: WorldPartExpression with DataDependencyTo[_] with DataDependencyFrom[_] => e }
-      //handlerLists.list(WorldPartExpressionKey)
-    type ExprFrom = WorldPartExpression with DataDependencyFrom[_]
-    type ExprByOutput = Map[AssembledKey, Seq[ExprFrom]]
-    val originals: ExprByOutput = rules.collect{
-      case e: OriginalWorldPart[_] => e.outputWorldKey -> Nil
-    }.toMap
-    //umlClients.foreach(_(s"# rules: ${rules.size}, originals: ${originals.size}, expressions: ${expressions.size}"))
-    val byOutput: ExprByOutput = expressions.groupBy(_.outputWorldKey)
-    val permitWas: ExprByOutput = byOutput.keys.collect{
-      case k: JoinKey if !k.was => k.withWas(was=true) -> Nil
-    }.toMap
-    Option(originals.keySet intersect byOutput.keySet)
-      .foreach(keys=>assert(keys.isEmpty,s"can not output to originals: $keys"))
-    val uses = originals ++ permitWas ++ byOutput
-    val getJoins: ExprFrom => List[ExprFrom] = join =>
-      (for (inKey <- join.inputWorldKeys.toList)
-        yield
-          if (uses.contains(inKey))
-            uses(inKey)
-          else throw new Exception(s"$inKey not found \n" +
-            s"for assemble ${join.assembleName}, join ${join.name}")).flatten
-    val expressionsByPriority: List[ExprFrom] =
-      byPriority.byPriority[ExprFrom,ExprFrom](
+  def create(rules: List[WorldPartRule], isTarget: WorldPartRule=>Boolean): Replace = {
+    type RuleByOutput = Map[AssembledKey, Seq[WorldPartRule]]
+    val uses: RuleByOutput =
+        rules.collect{ case e: DataDependencyTo[_] => e }.groupBy(_.outputWorldKey)
+    for {
+      (key,rules) <- uses
+      _:OriginalWorldPart[_] <- rules
+    } assert(rules.size <= 1, s"can not output to original: $key")
+    //
+    val rulesByPriority: List[WorldPartRule] = {
+      val getJoins: WorldPartRule => List[WorldPartRule] = rule => for {
+        join <- List(rule).collect{ case j: DataDependencyFrom[_] => j }
+        inKey <- join.inputWorldKeys
+        k <- uses.getOrElse(inKey,inKey match {
+          case k: JoinKey if k.was => Nil
+          case k => throw new Exception(
+            s"$k not found \n" +
+              s"for assemble ${join.assembleName}, join ${join.name}"
+          )
+        })
+      } yield k
+      byPriority.byPriority[WorldPartRule,WorldPartRule](
         item=>(getJoins(item), _ => item)
-      )(expressions).reverse
-
-    expressionsDumpers.foreach(_.dump(expressionsByPriority.map{
-      case e: DataDependencyTo[_] with DataDependencyFrom[_] => e
-    }))
-
-    val expressionsByPriorityWithLoops =
-      optimizer.optimize(expressionsByPriority.collect{ case e: ExprFrom with DataDependencyTo[_] => e})
+      )(rules.filter(isTarget)).reverse
+    }
+    val expressionsByPriority = rulesByPriority.collect{
+      case e: WorldPartExpression with DataDependencyTo[_] with DataDependencyFrom[_] => e
+    }
+    expressionsDumpers.foreach(_.dump(expressionsByPriority))
+    val expressionsByPriorityWithLoops = optimizer.optimize(expressionsByPriority)
     val backStage =
-      backStageFactory.create(expressionsByPriorityWithLoops.collect{ case e: ExprFrom => e })
+      backStageFactory.create(expressionsByPriorityWithLoops.collect{ case e: WorldPartExpression with DataDependencyFrom[_] => e })
     val transforms = expressionsByPriorityWithLoops ::: backStage ::: Nil
-    val transformAllOnce = Function.chain(transforms.map(h=>h.transform(_)))
+    val transformAllOnce: WorldTransition=>WorldTransition = Function.chain(transforms.map(h=>h.transform(_)))
+    replaceImplFactory.create(rulesByPriority, transformAllOnce)
+  }
+}
 
-    val testSZ = transforms.size
-    //for(t <- transforms) println("T",t)
-    def transformUntilStable(left: Int, transition: WorldTransition): Future[WorldTransition] = {
-      implicit val executionContext: ExecutionContext = transition.executionContext.value
-      for {
-        stable <- readModelUtil.isEmpty(executionContext)(transition.diff) //seq
-        res <- {
-          if(stable) Future.successful(transition)
-          else if(left > 0) transformUntilStable(left-1, {
-            //val start = System.nanoTime
-            val r = transformAllOnce(transition)
-            //println(s"transformAllOnce ${r.taskLog.size} (${r.taskLog.takeRight(4)})/${transforms.size} rules \n${(System.nanoTime-start)/1000000} ms")
-            r
-          })
-          else Future.failed(new Exception(s"unstable assemble ${transition.diff}"))
-        }
-      } yield res
-    }
-
-
-    (prevWorld,diff,profiler,executionContext) => {
-      implicit val ec = executionContext.value
-      val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,profiler,Future.successful(Nil),executionContext,Nil)
-      val currentWorld = readModelUtil.op(Merge[AssembledKey,Future[Index]](_=>false/*composes.isEmpty*/,(a,b)=>for {
-        seq <- Future.sequence(Seq(a,b))
-      } yield composes.mergeIndex(seq) ))(prevWorld,diff)
-      val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,profiler,Future.successful(Nil),executionContext,Nil)
-      for {
-        finalTransition <- transformUntilStable(1000, nextTransition)
-        ready <- readModelUtil.ready(ec)(finalTransition.result) //seq
-      } yield finalTransition
-    }
+@c4multi("AssembleApp") class ReplaceImpl(
+  val active: List[WorldPartRule],
+  transformAllOnce: WorldTransition=>WorldTransition
+)(
+  composes: IndexUtil, readModelUtil: ReadModelUtil,
+) extends Replace {
+  def transformUntilStable(left: Int, transition: WorldTransition): Future[WorldTransition] = {
+    implicit val executionContext: ExecutionContext = transition.executionContext.value
+    for {
+      stable <- readModelUtil.isEmpty(executionContext)(transition.diff) //seq
+      res <- {
+        if(stable) Future.successful(transition)
+        else if(left > 0) transformUntilStable(left-1, {
+          //val start = System.nanoTime
+          val r = transformAllOnce(transition)
+          //println(s"transformAllOnce ${r.taskLog.size} (${r.taskLog.takeRight(4)})/${transforms.size} rules \n${(System.nanoTime-start)/1000000} ms")
+          r
+        })
+        else Future.failed(new Exception(s"unstable assemble ${transition.diff}"))
+      }
+    } yield res
+  }
+  def replace(
+    prevWorld: ReadModel,
+    diff: ReadModel,
+    profiler: JoiningProfiling,
+    executionContext: OuterExecutionContext
+  ): Future[WorldTransition] = {
+    implicit val ec = executionContext.value
+    val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,profiler,Future.successful(Nil),executionContext,Nil)
+    val currentWorld = readModelUtil.op(Merge[AssembledKey,Future[Index]](_=>false/*composes.isEmpty*/,(a,b)=>for {
+      seq <- Future.sequence(Seq(a,b))
+    } yield composes.mergeIndex(seq) ))(prevWorld,diff)
+    val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,profiler,Future.successful(Nil),executionContext,Nil)
+    for {
+      finalTransition <- transformUntilStable(1000, nextTransition)
+      ready <- readModelUtil.ready(ec)(finalTransition.result) //seq
+    } yield finalTransition
   }
 }
 
@@ -457,8 +459,8 @@ object UMLExpressionsDumper extends ExpressionsDumper[String] {
   }
 }
 
-@c4("AssembleApp") class AssembleDataDependencies(indexFactory: IndexFactory, assembles: List[Assemble]) extends DataDependencyProvider {
-  def apply(): List[DataDependencyTo[_]] = {
+@c4("AssembleApp") class AssembleDataDependencyFactoryImpl(indexFactory: IndexFactory) extends AssembleDataDependencyFactory {
+  def create(assembles: List[Assemble]): List[WorldPartRule] = {
     def gather(assembles: List[Assemble]): List[Assemble] =
       if(assembles.isEmpty) Nil
       else gather(assembles.collect{ case a: CallerAssemble => a.subAssembles }.flatten) ::: assembles
@@ -472,6 +474,12 @@ object UMLExpressionsDumper extends ExpressionsDumper[String] {
     }
     res.flatMap(_.dataDependencies(indexFactory))
   }
+}
+
+@c4("AssembleApp") class AssembleDataDependencies(
+  factory: AssembleDataDependencyFactory, assembles: List[Assemble]
+) extends DataDependencyProvider {
+  def getRules: List[WorldPartRule] = factory.create(assembles)
 }
 
 object Merge {
