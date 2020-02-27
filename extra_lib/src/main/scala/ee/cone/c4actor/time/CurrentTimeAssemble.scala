@@ -10,6 +10,7 @@ import ee.cone.c4actor.dep.request.CurrentTimeApp
 import ee.cone.c4actor.dep.request.CurrentTimeProtocol.S_CurrentTimeNodeSetting
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{AbstractAll, All, byEq, c4assemble}
+import ee.cone.c4di.c4
 
 trait T_Time extends Product {
   def srcId: SrcId
@@ -18,14 +19,22 @@ trait T_Time extends Product {
 
 trait GeneralCurrentTimeAppBase extends CurrentTimeApp
 
-trait GeneralCurrTimeConfig {
+trait WithCurrentTime {
   def currentTime: CurrentTime
 }
+
+trait GeneralCurrTimeConfig extends WithCurrentTime
 
 trait CurrTimeConfig[Model <: T_Time] extends GeneralCurrTimeConfig {
   def cl: Class[Model]
   def set: Long => Model => Model
   def default: Model
+}
+
+@c4("GeneralCurrentTimeApp") class TimeGettersImpl(timeGetters: List[TimeGetter]) extends TimeGetters {
+  lazy val gettersMap: Map[SrcId, TimeGetter] = timeGetters.map(getter => getter.currentTime.srcId -> getter).toMap
+  def apply(currentTime: CurrentTime): TimeGetter =
+    gettersMap(currentTime.srcId)
 }
 
 @c4assemble("GeneralCurrentTimeApp") class CurrentTimeGeneralAssembleBase(configs: List[GeneralCurrTimeConfig])(
