@@ -46,7 +46,7 @@ object MultiGenerator extends Generator {
       s"\n$ann class ${cl.name}Factory${par(false,true,true)} {",
       s"\n  def create$typeParams${par(true,true,true)} = ",
       s"\n    new ${cl.name}$typeParamNames${par(true,false,true)}${par(false,false,true)}",
-      s"\n  def complete$typeParams(obj: ${par(false,true,false)} => ${cl.name}$typeParams): ${cl.name}$typeParamNames = ",
+      s"\n  def complete$typeParams(obj: ${par(false,true,false)} => ${cl.name}$typeParamNames): ${cl.name}$typeParamNames = ",
       s"\n    obj${par(false,false,true)} ",
       s"\n}"
     ).mkString)
