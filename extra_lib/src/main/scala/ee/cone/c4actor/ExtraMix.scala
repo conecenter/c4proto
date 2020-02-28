@@ -166,22 +166,22 @@ trait SimpleAssembleProfilerApp extends SimpleAssembleProfilerCompApp with Compo
 
 ////
 
-trait ModelAccessFactoryAppBase extends ModelAccessFactoryCompApp with ComponentProviderApp {
-  lazy val modelAccessFactory: ModelAccessFactory = resolveSingle(classOf[ModelAccessFactory])
-}
+//trait ModelAccessFactoryAppBase extends ModelAccessFactoryCompApp with ComponentProviderApp {
+//  lazy val modelAccessFactory: ModelAccessFactory = resolveSingle(classOf[ModelAccessFactory])
+//}
 
-@c4("RichDataApp") class GetOrigIndexKeySetup(
-  byPKKeyFactory: KeyFactory, dynamic: DynamicByPK
-) extends ToInject {
-  def getOrigIndex(context: AssembledContext, className: String): Map[SrcId,Product] =
-    dynamic.get(byPKKeyFactory.rawKey(className), context)
-  def toInject: List[Injectable] = GetOrigIndexKey.set(getOrigIndex)
-}
+//@c4("RichDataApp") class GetOrigIndexKeySetup(
+//  byPKKeyFactory: KeyFactory, dynamic: DynamicByPK
+//) extends ToInject {
+//  def getOrigIndex(context: AssembledContext, className: String): Map[SrcId,Product] =
+//    dynamic.get(byPKKeyFactory.rawKey(className), context)
+//  def toInject: List[Injectable] = GetOrigIndexKey.set(getOrigIndex)
+//}
 
-@c4("ModelAccessFactoryApp") class ModelAccessFactoryImpl extends ModelAccessFactory {
-  def to[P <: Product](product: P): Option[Access[P]] = {
-    val name = product.getClass.getName
-    val lens = TxProtoLens[P](product)(ByPrimaryKeyGetter[P](name).of.asInstanceOf[AssembledContext => Map[SrcId,P]])
-    Option(AccessImpl(product,Option(lens),NameMetaAttr(name) :: Nil))
-  }
-}
+//@c4("ModelAccessFactoryApp") class ModelAccessFactoryImpl extends ModelAccessFactory {
+//  def to[P <: Product](product: P): Option[Access[P]] = {
+//    val name = product.getClass.getName
+//    val lens = TxProtoLens[P](product)(ByPrimaryKeyGetter[P](name).of.asInstanceOf[AssembledContext => Map[SrcId,P]])
+//    Option(AccessImpl(product,Option(lens),NameMetaAttr(name) :: Nil))
+//  }
+//}

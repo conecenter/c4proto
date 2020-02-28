@@ -3,9 +3,10 @@ package ee.cone.c4actor.hashsearch.base
 import ee.cone.c4actor.HashSearch.{Request, Response}
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.hashsearch.index.dynamic.DynamicIndexModelsApp
+import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexModelsApp, DynamicIndexModelsProvider}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
+import ee.cone.c4di.{c4, provide}
 
 case class RootCondition[Model <: Product](srcId: SrcId, innerUnion: InnerUnionList[Model], requestId: SrcId)
 
@@ -58,21 +59,22 @@ trait HashSearchAssembleSharedKeys {
   type SharedResponseId = SrcId
 }
 
-trait HashSearchModelsApp extends DynamicIndexModelsApp {
-  def hashSearchModels: List[Class[_ <: Product]] = dynIndexModels.distinct.map(_.modelCl)
-}
+trait HashSearchModelsApp extends DynamicIndexModelsApp
 
-trait HashSearchAssembleApp extends AssemblesApp with HashSearchModelsApp with SerializationUtilsApp with PreHashingApp {
-  def qAdapterRegistry: QAdapterRegistry
-  def indexUtil: IndexUtil
-  def idGenUtil: IdGenUtil
-  def hashGen: HashGen
+trait HashSearchAssembleAppBase extends HashSearchModelsApp
 
-  def debugModeHashSearchAssemble: Boolean = false
+class HashSearchAssembleDebug(val value: Boolean)
 
-  override def assembles: List[Assemble] = hashSearchModels.distinct.map(cl=>
-    new HashSearchAssemble(cl, qAdapterRegistry, serializer, preHashing, hashGen, debugModeHashSearchAssemble, indexUtil)
-  ) ::: super.assembles
+@c4("HashSearchAssembleApp") class DefHashSearchAssembleDebug extends HashSearchAssembleDebug(false)
+
+@c4("HashSearchAssembleApp") class HashSearchAssembles(
+  providers: List[DynamicIndexModelsProvider],
+  factory: HashSearchAssembleFactory
+) {
+  def hashSearchModels: List[Class[_ <: Product]] =
+    providers.flatMap(_.values).distinct.map(_.modelCl)
+  @provide def assembles: Seq[Assemble] =
+    hashSearchModels.distinct.map(factory.create(_))
 }
 
 object HashSearchAssembleUtils {
@@ -161,14 +163,17 @@ object HashSearchAssembleUtils {
 
 import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
 
-@assemble class HashSearchAssembleBase[Model <: Product](
-  modelCl: Class[Model],
+@c4multiAssemble("HashSearchAssembleApp") class HashSearchAssembleBase[Model <: Product](
+  modelCl: Class[Model]
+)(
   val qAdapterRegistry: QAdapterRegistry,
   condSer: SerializationUtils,
   preHashing: PreHashing,
   hashGen: HashGen,
-  debugMode: Boolean, // = false
+  debugModeContainer: HashSearchAssembleDebug, // = false
   indexUtil: IndexUtil
+)(
+  debugMode: Boolean = debugModeContainer.value
 ) extends AssembleName("HashSearchAssemble", modelCl) with HashSearchAssembleSharedKeys {
   type InnerUnionId = SrcId
   type InnerIntersectId = SrcId

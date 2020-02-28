@@ -12,18 +12,36 @@ object MultiGenerator extends Generator {
     }
     res.mkString
   }
-  def get(parseContext: ParseContext): List[GeneratedCode] = for {
-    cl <- Util.matchClass(parseContext.stats)
+  def get(parseContext: ParseContext): List[GeneratedCode] =
+    getForStats(parseContext.stats)
+  def getForStats(stats: List[Stat]): List[GeneratedCode] = for {
+    cl <- Util.matchClass(stats)
     ann <- Util.singleSeq(cl.mods.collect{
       case mod"@c4multi(...$e)" => mod"@c4(...$e)".syntax
     })
   } yield {
     val par = args(cl.params) _
-    val typeParams = cl.typeParams match { case Seq() => "" case p => p.mkString("[",", ","]") }
+    val typeParams = cl.typeParams match {
+      case Seq() => ""
+      case p => p.map{
+        // case Type.Name(nm) => nm
+        case tparam"..$_ $t" => t
+        case tparam"..$_ $t <: $b" => tparam"..${Nil} $t <: $b"
+        case a => throw new Exception(a.structure)
+      }.mkString("[",", ","]")
+    }
+    val typeParamNames = cl.typeParams match {
+      case Seq() => ""
+      case p => p.map{
+        // case Type.Name(nm) => nm
+        case tparam"..$_ ${Type.Name(nm)} <: $_" => nm
+        case a => throw new Exception(a.structure)
+      }.mkString("[",", ","]")
+    }
     GeneratedCode(Seq(
       s"\n$ann class ${cl.name}Factory${par(false,true)} {",
       s"\n  def create$typeParams${par(true,true)} = ",
-      s"\n    new ${cl.name}$typeParams${par(true,false)}${par(false,false)}",
+      s"\n    new ${cl.name}$typeParamNames${par(true,false)}${par(false,false)}",
       s"\n}"
     ).mkString)
   }

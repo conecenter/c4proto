@@ -152,7 +152,7 @@ object StaticHashSearchImpl {
       }
     }
 
-    def assemble: List[Assemble] = new HashSearchStaticLeafAssemble[Model](modelClass, this, serializer) :: next.assemble
+    def assemble: List[Assemble] = new HashSearchStaticLeafAssemble[Model](modelClass, this)(serializer) :: next.assemble
   }
 
   private def letters3(i: Int) = Integer.toString(i & 0x3FFF | 0x4000, 32)
@@ -165,7 +165,7 @@ trait HashSearchStaticLeafFactoryApi {
   def staticLeafFactory: StaticFactory
 }
 
-trait HashSearchStaticLeafFactoryMix extends HashSearchStaticLeafFactoryApi with SerializationUtilsApp {
+trait HashSearchStaticLeafFactoryMixBase extends HashSearchStaticLeafFactoryApi with SerializationUtilsApp {
   def modelConditionFactory: ModelConditionFactory[Unit]
   def idGenUtil: IdGenUtil
   def indexUtil: IndexUtil
@@ -177,7 +177,8 @@ import StaticHashSearchImpl._
 
 @assemble class HashSearchStaticLeafAssembleBase[Model <: Product](
   modelCl: Class[Model],
-  indexer: Indexer[Model],
+  indexer: Indexer[Model]
+)(
   serializer: SerializationUtils
 ) extends AssembleName("HashSearchStaticLeafAssemble", modelCl) with HashSearchAssembleSharedKeys {
   type StaticHeapId = SrcId

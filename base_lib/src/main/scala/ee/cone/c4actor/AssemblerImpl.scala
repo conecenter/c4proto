@@ -6,7 +6,7 @@ import ee.cone.c4actor.Types._
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types._
 import ee.cone.c4di.Types.ComponentFactory
-import ee.cone.c4di.{c4, provide}
+import ee.cone.c4di.{c4, c4multi, provide}
 
 import scala.collection.immutable.{Map, Seq}
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -197,7 +197,7 @@ case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K
   }
 }
 
-class GetByPKImpl[+V<:Product](joinKey: AssembledKey)(
+@c4multi("RichDataCompApp") class GetByPKImpl[+V<:Product](joinKey: AssembledKey)(
   dynamic: DynamicByPK
 ) extends GetByPK[V] {
   def ofA(context: AssembledContext): Map[SrcId,V] =
@@ -213,12 +213,13 @@ class GetByPKImpl[+V<:Product](joinKey: AssembledKey)(
   }
 }
 @c4("RichDataCompApp") class GetByPKComponentFactoryProvider(
-  util: GetByPKUtil, dynamic: DynamicByPK, needAssembledKeyRegistry: NeedAssembledKeyRegistry
+  util: GetByPKUtil, needAssembledKeyRegistry: NeedAssembledKeyRegistry,
+  getByPKImplFactory: GetByPKImplFactory
 ) {
   @provide def get: Seq[ComponentFactory[GetByPK[_]]] = List(args=>{
     val joinKey = util.toAssembleKey(args)
       assert(needAssembledKeyRegistry.values(joinKey),s"no need byPK self check: $joinKey")
-    List(new GetByPKImpl(joinKey)(dynamic))
+    List(getByPKImplFactory.create(joinKey))
   })
 }
 

@@ -5,7 +5,7 @@ import ee.cone.c4actor.PerformanceProtocol.{D_NodeInstruction, D_PerformanceNode
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4di.c4app
+import ee.cone.c4di.{c4, c4app}
 import ee.cone.c4proto.{Id, protocol}
 
 import scala.collection.immutable
@@ -127,8 +127,10 @@ case class ResultNodeFromList(srcId: SrcId, modelsSize: Int, result: String)
     List(WithPK(ResultNodeFromList(instr.srcId, list.list.size, list.list.groupBy(_.head).keys.toString)))
 }
 
-class ChangingIndexPerformanceTest(
-  execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
+@c4("ChangingIndexPerformanceTestApp") class ChangingIndexPerformanceTest(
+  execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory,
+  getResultNode: GetByPK[ResultNode],
+  getResultNodeFromList: GetByPK[ResultNodeFromList],
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     import LEvent.update
@@ -149,22 +151,22 @@ class ChangingIndexPerformanceTest(
     val firstGlobal = TxAdd(LEvent.update(D_NodeInstruction("test", 0, worldSize / 2)))(nGlobal)
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println("TxAdd index")
-    println(ByPK(classOf[ResultNode]).of(firstGlobal))
-    println(ByPK(classOf[ResultNodeFromList]).of(firstGlobal))
+    println(getResultNode.ofA(firstGlobal))
+    println(getResultNodeFromList.ofA(firstGlobal))
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println("Change index")
     val secondGlobal = TxAdd(LEvent.update(D_NodeInstruction("test", worldSize / 2, worldSize)))(firstGlobal)
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println("TxAdd index")
-    println(ByPK(classOf[ResultNode]).of(secondGlobal))
-    println(ByPK(classOf[ResultNodeFromList]).of(secondGlobal))
+    println(getResultNode.ofA(secondGlobal))
+    println(getResultNodeFromList.ofA(secondGlobal))
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println("Change index")
     val thirdGlobal = TxAdd(LEvent.update(D_NodeInstruction("test", 0, 0)))(secondGlobal)
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println("TxAdd index")
-    println(ByPK(classOf[ResultNode]).of(thirdGlobal))
-    println(ByPK(classOf[ResultNodeFromList]).of(thirdGlobal))
+    println(getResultNode.ofA(thirdGlobal))
+    println(getResultNodeFromList.ofA(thirdGlobal))
     execution.complete()
   }
 }
@@ -172,8 +174,7 @@ class ChangingIndexPerformanceTest(
 @c4app class ChangingIndexPerformanceTestAppBase extends TestVMRichDataApp
   with ExecutableApp
   with VMExecutionApp
-  with ToStartApp {
-  override def toStart: List[Executable] = new ChangingIndexPerformanceTest(execution, toUpdate, contextFactory) :: super.toStart
+{
 
   override def assembles: List[Assemble] = new LUL(classOf[D_PerformanceNode], classOf[D_NodeInstruction], classOf[Int]) :: new LUL(classOf[String], classOf[D_NodeInstruction], classOf[Int]) :: new ChangingIndexAssemble(D_NodeInstruction("test", 0, 25000)) :: super.assembles
 

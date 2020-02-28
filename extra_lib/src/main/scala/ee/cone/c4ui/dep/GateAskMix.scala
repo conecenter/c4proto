@@ -6,6 +6,7 @@ import ee.cone.c4actor.dep.request.ContextIdRequestProtocolApp
 import ee.cone.c4actor.dep_impl.AskByPKsApp
 import ee.cone.c4gate.SessionDataProtocol.U_RawSessionData
 import ee.cone.c4gate.deep_session.DeepSessionDataProtocol.{U_RawRoleData, U_RawUserData}
+import ee.cone.c4gate.deep_session.TxDeepRawDataLensApp
 
 trait SessionAttrAskUtility {
   def sessionAttrAskFactory: SessionAttrAskFactory
@@ -15,7 +16,7 @@ trait CurrentTimeAskUtility {
   def currentTimeAskFactory: CurrentTimeAskFactory
 }
 
-trait SessionAttrAskCompAppBase
+trait SessionAttrAskCompAppBase extends TxDeepRawDataLensApp
 
 trait SessionAttrAskMix
   extends SessionAttrAskCompApp

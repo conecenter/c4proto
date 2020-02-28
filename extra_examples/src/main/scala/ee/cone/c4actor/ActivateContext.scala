@@ -1,10 +1,13 @@
 package ee.cone.c4actor
 
 import ee.cone.c4actor.MetaAttrProtocol.D_TxTransformNameMeta
+import ee.cone.c4di.c4
 
-object ActivateContext {
+@c4("ActivateContextApp") class ActivateContext(
+  getTxTransform: GetByPK[TxTransform]
+) {
   def apply(local: Context): Context = {
-    val txTransforms = ByPK(classOf[TxTransform]).of(local).values
+    val txTransforms = getTxTransform.ofA(local).values
     txTransforms.foldLeft(local)((oldLocal, transform) =>
       transform.transform(TxTransformOrigMeta(transform.getClass.getName)(oldLocal)))
   }

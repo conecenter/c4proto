@@ -9,7 +9,7 @@ import ee.cone.c4actor.dep_impl.RequestDep
 import ee.cone.c4di.{c4, provide}
 import ee.cone.c4gate.SessionDataProtocol.{N_RawDataNode, U_RawSessionData}
 import ee.cone.c4gate.deep_session.DeepSessionDataProtocol.{U_RawRoleData, U_RawUserData}
-import ee.cone.c4gate.deep_session.{DeepRawSessionData, TxDeepRawDataLens, UserLevelAttr}
+import ee.cone.c4gate.deep_session.{DeepRawSessionData, TxDeepRawDataLens, TxDeepRawDataLensFactory, UserLevelAttr}
 import ee.cone.c4gate.{KeyGenerator, SessionAttr}
 import ee.cone.c4proto._
 import okio.ByteString
@@ -17,11 +17,14 @@ import okio.ByteString
 @c4("SessionAttrAskCompApp") case class SessionAttrAskFactoryImpl(
   qAdapterRegistry: QAdapterRegistry,
   modelFactory: ModelFactory,
-  modelAccessFactory: ModelAccessFactory,
+  modelAccessFactory: RModelAccessFactory,
   commonRequestFactory: CommonRequestUtilityFactory,
   askByPKFactory: AskByPKFactory,
   idGenUtil: IdGenUtil,
-  depFactory: DepFactory
+  depFactory: DepFactory,
+  txDeepRawDataLensFactory: TxDeepRawDataLensFactory,
+  getU_RawSessionData: GetByPK[U_RawSessionData],
+  getU_RawRoleData: GetByPK[U_RawRoleData],
 ) extends SessionAttrAskFactory with KeyGenerator {
   private lazy val rawDataAsk: AskByPK[U_RawSessionData] = askByPKFactory.forClass(classOf[U_RawSessionData])
   private lazy val rawUserDataAsk: AskByPK[U_RawUserData] = askByPKFactory.forClass(classOf[U_RawUserData])
@@ -94,7 +97,7 @@ import okio.ByteString
         lens.set(model)(request.copy(srcId = pk))
       }
       )
-      modelAccessFactory.to(value).map(_.to(lens))
+      modelAccessFactory.to(getU_RawSessionData,value).map(_.to(lens))
     }
   }
 
@@ -130,12 +133,12 @@ import okio.ByteString
     } yield {
       val pk = genPK(rawRoleData, rawRoleAdapter)
 
-      val value = rawModel.getOrElse({
+      val value: U_RawRoleData = rawModel.getOrElse({
         val model: P = default(pk)
         lens.set(model)(rawRoleData.copy(srcId = pk))
       }
       )
-      modelAccessFactory.to(value).map(_.to(lens))
+      modelAccessFactory.to(getU_RawRoleData,value).map(_.to(lens))
     }
   }
 
@@ -217,7 +220,7 @@ import okio.ByteString
         value => deepData => deepData.set(qAdapterRegistry)(value)(deepData)
       )
 
-      val access: AccessImpl[DeepRawSessionData[P]] = AccessImpl(data, Option(TxDeepRawDataLens(data)), NameMetaAttr("DeepRawSessionData") :: Nil)
+      val access: AccessImpl[DeepRawSessionData[P]] = AccessImpl(data, Option(txDeepRawDataLensFactory.create(data)), NameMetaAttr("DeepRawSessionData") :: Nil)
       Option(access.to(lens))
     }
   }
