@@ -20,10 +20,10 @@
   ["C4SRC", "extra_lib", "extra_lib/src/main/java" ],
   ["C4SRC", "extra_examples", "extra_examples/src/main/scala" ],
 
-  ["C4EXT", "base_server.ee.cone.c4gate_akka", "com.typesafe.akka:akka-stream_2.13:2.5.25" ],
-  ["C4EXT", "base_server.ee.cone.c4gate_akka", "com.typesafe.akka:akka-http-core_2.13:10.1.10" ],
+  ["C4EXT", "base_server.ee.cone.c4gate_akka", "com.typesafe.akka:akka-stream_2.13:2.6.3" ],
+  ["C4EXT", "base_server.ee.cone.c4gate_akka", "com.typesafe.akka:akka-http-core_2.13:10.1.11" ],
 
-  ["C4EXT", "extra_examples.ee.cone.c4actor", "org.scalameta:scalameta_2.13:4.2.3" ],
+  ["C4EXT", "extra_examples.ee.cone.c4actor", "org.scalameta:scalameta_2.13:4.3.0" ],
 
   "# com.lihaoyi % ammonite-sshd % 1.6.9 cross CrossVersion.full",
 

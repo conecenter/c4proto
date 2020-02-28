@@ -1,9 +1,9 @@
 [
-  ["C4EXT", "generator.ee.cone.c4generator", "org.scalameta:scalameta_2.13:4.2.3" ],
+  ["C4EXT", "generator.ee.cone.c4generator", "org.scalameta:scalameta_2.13:4.3.0" ],
   ["C4EXT", "base_lib.ee.cone.c4actor", "com.typesafe.scala-logging:scala-logging_2.13:3.9.2" ],
   ["C4EXT", "base_lib.ee.cone.c4actor_kafka_impl", "org.apache.kafka:kafka-clients:2.3.0" ],
   ["C4EXT", "base_lib.ee.cone.c4actor_logback_impl", "ch.qos.logback:logback-classic:1.2.3" ],
-  ["C4EXT", "base_lib.ee.cone.c4actor_repl_impl", "com.lihaoyi:ammonite-sshd_2.13.0:1.8.2" ],
+  ["C4EXT", "base_lib.ee.cone.c4actor_repl_impl", "com.lihaoyi:ammonite-sshd_2.13.1:2.0.4" ],
   ["C4EXT", "base_lib.ee.cone.c4proto", "com.squareup.wire:wire-runtime:2.2.0" ],
   ["C4EXT", "base_lib.ee.cone.c4actor_s3_minio", "io.minio:minio:6.0.11" ],
 
