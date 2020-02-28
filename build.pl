@@ -76,7 +76,7 @@ my $calc_bloop_conf = sub{
     my $scala = {
         "organization" => "org.scala-lang",
         "name" => "scala-compiler",
-        "version" => "2.13.0",
+        "version" => "2.13.1",
         "options" => [],
         "jars" => [grep{$_||die}@scala_jars{qw[library compiler reflect]}],
     };
@@ -151,7 +151,7 @@ my $calc_bloop_conf = sub{
 my $calc_sbt_conf = sub{
     my($src_dirs,$externals)=@_;
     join "\n",
-        'scalaVersion in ThisBuild := "2.13.0"','',
+        'scalaVersion in ThisBuild := "2.13.1"','',
         "libraryDependencies ++= ",
         (map{"  ($_) ::"} map{join " % ",map{qq^"$_"^}/([^:]+)/g} @$externals),
         "  Nil",
