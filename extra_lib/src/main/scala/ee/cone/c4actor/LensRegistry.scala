@@ -7,12 +7,12 @@ import ee.cone.c4di.{Component, ComponentsApp, c4, provide}
 trait ProdLensesApp extends ComponentsApp {
   import ComponentProvider.provide
   private lazy val lensListComponent =
-    provide(classOf[ProdLensProvider], ()=>Seq(ProdLensProvider(lensList)))
+    provide(classOf[ProdLensListProvider], ()=>Seq(ProdLensListProvider(lensList)))
   override def components: List[Component] = lensListComponent :: super.components
   def lensList: List[ProdLens[_, _]] = Nil
 }
 
-case class ProdLensProvider(values: List[ProdLens[_, _]])
+case class ProdLensListProvider(values: List[ProdLens[_, _]])
 
 trait LensRegistryApp {
   def lensRegistry: LensRegistry
@@ -23,7 +23,7 @@ trait LensRegistryMixBase extends ComponentProviderApp with ProdLensesApp with D
 }
 
 @c4("LensRegistryMix") class LensRegistryProvider(
-  lensListProviders: List[ProdLensProvider],
+  lensListProviders: List[ProdLensListProvider],
   dynIndexModelProviders: List[DynamicIndexModelsProvider],
 ) {
   private def lensList = lensListProviders.flatMap(_.values)

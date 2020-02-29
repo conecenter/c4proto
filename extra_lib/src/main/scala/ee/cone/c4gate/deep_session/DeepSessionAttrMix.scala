@@ -10,7 +10,10 @@ trait DeepSessionAttrApp
     with DeepSessionDataAssembleApp
 
 trait SessionDataProtocolAppBase
-trait DeepSessionAttrFactoryImplAppBase extends TxDeepRawDataLensApp
+trait DeepSessionAttrFactoryImplAppBase extends ComponentProviderApp with TxDeepRawDataLensApp {
+  lazy val deepSessionAttrAccessFactory: DeepSessionAttrAccessFactory =
+    resolveSingle(classOf[DeepSessionAttrAccessFactory])
+}
 trait TxDeepRawDataLensAppBase
 
 trait DeepSessionDataAssembleApp extends AssemblesApp {

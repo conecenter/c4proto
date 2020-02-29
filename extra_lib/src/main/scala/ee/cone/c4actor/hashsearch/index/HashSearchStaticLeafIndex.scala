@@ -11,6 +11,7 @@ import ee.cone.c4actor.hashsearch.base._
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.{Each, Values}
+import ee.cone.c4di.{c4, provide}
 
 object StaticHashSearchImpl {
 
@@ -161,16 +162,16 @@ object StaticHashSearchImpl {
     l => Single.option(l.distinct).toList
 }
 
-trait HashSearchStaticLeafFactoryApi {
-  def staticLeafFactory: StaticFactory
-}
+trait HashSearchStaticLeafFactoryMixBase extends SerializationUtilsApp
 
-trait HashSearchStaticLeafFactoryMixBase extends HashSearchStaticLeafFactoryApi with SerializationUtilsApp {
-  def modelConditionFactory: ModelConditionFactory[Unit]
-  def idGenUtil: IdGenUtil
-  def indexUtil: IndexUtil
-
-  def staticLeafFactory: StaticFactory = new StaticFactoryImpl(modelConditionFactory, serializer, idGenUtil, indexUtil)
+@c4("HashSearchStaticLeafFactoryMix") class StaticFactoryImplProvider(
+  modelConditionFactory: ModelConditionFactory[Unit],
+  serializer: SerializationUtils,
+  idGenUtil: IdGenUtil,
+  indexUtil: IndexUtil
+){
+  @provide def get: Seq[StaticFactory] =
+    Seq(new StaticFactoryImpl(modelConditionFactory, serializer, idGenUtil, indexUtil))
 }
 
 import StaticHashSearchImpl._
