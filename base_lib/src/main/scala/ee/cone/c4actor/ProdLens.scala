@@ -3,7 +3,7 @@ package ee.cone.c4actor
 import ee.cone.c4di.TypeKey
 
 object ProdLens {
-  def of[C, I](of: C => I, meta: AbstractMetaAttr*): ProdLens[C, I] =
+  def of[C, I](of: C => I, meta: AbstractMetaAttr*): ProdLensStrict[C, I] =
     throw new Exception("not expanded")
 
   def ofSetStrict[C, I](of: C => I, set: I => C => C, name: String, clFrom: Class[C], clTo: Class[I], tkFrom: TypeKey, tkTo: TypeKey, meta: AbstractMetaAttr*): ProdLensStrict[C, I] =
