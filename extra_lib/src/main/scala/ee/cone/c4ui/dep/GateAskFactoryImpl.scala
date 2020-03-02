@@ -57,7 +57,7 @@ import okio.ByteString
 
   def sessionAsk[P <: Product](attr: SessionAttr[P], default: SrcId => P): Dep[Option[Access[P]]] = {
 
-    val lens = ProdLens[U_RawSessionData, P](attr.metaList)(
+    val lens = ProdLensNonstrict[U_RawSessionData, P](attr.metaList)(
       rawData => qAdapterRegistry.byId(rawData.dataNode.get.valueTypeId).decode(rawData.dataNode.get.value).asInstanceOf[P],
       value => rawData => {
         val valueAdapter = qAdapterRegistry.byName(attr.className)
@@ -108,7 +108,7 @@ import okio.ByteString
       )
     )
 
-    val lens = ProdLens[U_RawRoleData, P](attr.metaList)(
+    val lens = ProdLensNonstrict[U_RawRoleData, P](attr.metaList)(
       rawRoleData => qAdapterRegistry.byId(rawRoleData.dataNode.get.valueTypeId).decode(rawRoleData.dataNode.get.value).asInstanceOf[P],
       value => rawRoleData => {
         val valueAdapter = qAdapterRegistry.byName(attr.className)
@@ -187,7 +187,7 @@ import okio.ByteString
       val rawUserDataPK = genPK(rawUserData(userId), rawUserAdapter)
       val rawRoleDataPK = genPK(rawRoleData(roleId), rawRoleAdapter)
 
-      val lensRaw = ProdLens[U_RawSessionData, P](attr.metaList)(
+      val lensRaw = ProdLensNonstrict[U_RawSessionData, P](attr.metaList)(
         rawSessionData => qAdapterRegistry.byId(rawSessionData.dataNode.get.valueTypeId).decode(rawSessionData.dataNode.get.value).asInstanceOf[P],
         value => rawRoleData => {
           val valueAdapter = qAdapterRegistry.byName(attr.className)
@@ -197,7 +197,7 @@ import okio.ByteString
         }
       )
 
-      val lensRawUser = ProdLens[U_RawUserData, P](attr.metaList)(
+      val lensRawUser = ProdLensNonstrict[U_RawUserData, P](attr.metaList)(
         rawRoleData => qAdapterRegistry.byId(rawRoleData.dataNode.get.valueTypeId).decode(rawRoleData.dataNode.get.value).asInstanceOf[P],
         value => rawRoleData => {
           val valueAdapter = qAdapterRegistry.byName(attr.className)
@@ -212,7 +212,7 @@ import okio.ByteString
 
       val data = DeepRawSessionData[P](rawSession, rawUser, rawRole, (defaultRawData, defaultRawUserData), (rawDataPK, rawUserDataPK, rawRoleDataPK))
 
-      val lens = ProdLens[DeepRawSessionData[P], P](attr.metaList)(
+      val lens = ProdLensNonstrict[DeepRawSessionData[P], P](attr.metaList)(
         _.of(qAdapterRegistry),
         value => deepData => deepData.set(qAdapterRegistry)(value)(deepData)
       )

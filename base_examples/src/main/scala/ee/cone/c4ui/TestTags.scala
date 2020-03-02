@@ -76,7 +76,7 @@ case class ContainerLeftRight() extends ElementValue {
   }
 
   def dateInput(access: Access[Option[Long]]): ChildPair[OfDiv] =
-    input(access to ProdLens[Option[Long],String](Nil)(
+    input(access to ProdLensNonstrict[Option[Long],String](Nil)(
       _.map(_.toString).getOrElse(""),
       s=>_=> for(s<-Option(s) if s.nonEmpty) yield s.toLong
     ), deferSend = false)
