@@ -7,7 +7,7 @@ import ee.cone.c4actor.dep.DepTypes.GroupId
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep_impl._
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4assemble.{Assemble, assemble, by, c4assemble, c4multiAssemble}
 import ee.cone.c4proto.{Id, protocol}
 import ee.cone.c4ui.dep.request.DepFilteredListRequestProtocol.N_FilteredListRequest
 import ee.cone.c4ui.FromAlienTask
@@ -24,11 +24,8 @@ trait FilterListRequestHandlerAppBase
     with FilterListRequestApp
     with DepAskFactoryApp
     with CommonIdInjectApps
-    with DepRequestFactoryApp
-    with PreHashingApp {
-
-  def hashGen: HashGen
-
+    with ComponentProviderApp
+{
   private lazy val depMap: Map[(String, String), Dep[List[_]]] = filterDepList.map(elem => (elem.listName, elem.filterPK) -> elem.requestDep).toMap
 
   private def fltAsk: DepAsk[N_FilteredListRequest, List[_]] = depAskFactory.forClasses(classOf[N_FilteredListRequest], classOf[List[_]])
@@ -41,12 +38,15 @@ trait FilterListRequestHandlerAppBase
     injectMockRole[N_FilteredListRequest](fltAsk, rq => rq.mockRoleId.flatMap(id => rq.mockRoleEditable.map(ed => id -> ed))) ::
     injectRole[N_FilteredListRequest](fltAsk, _.roleId) :: super.depHandlers
 
-  override def assembles: List[Assemble] = new FilteredListResponseReceiver(preHashing, hashGen) :: filterDepList.map(
-    df => new FilterListRequestCreator(qAdapterRegistry, df.listName, df.filterPK, df.matches, depRequestFactory)
-  ) ::: super.assembles
+  private lazy val filterListRequestCreatorFactory: FilterListRequestCreatorFactory =
+    resolveSingle(classOf[FilterListRequestCreatorFactory])
 
-  def qAdapterRegistry: QAdapterRegistry
+  override def assembles: List[Assemble] = filterDepList.map(
+    df => filterListRequestCreatorFactory.create(df.listName, df.filterPK, df.matches)
+  ) ::: super.assembles
 }
+
+
 
 case class FilteredListResponse(srcId: String, listName: String, filterPK: String, responseHashed: PreHashed[Option[_]]) extends LazyHashCodeProduct {
   def response: Option[_] = responseHashed.value
@@ -73,7 +73,7 @@ import ee.cone.c4ui.dep.request.FilterListRequestCreatorUtils._
 // TODO need to throw this into world
 case class BranchWithUserId(branchId: String, contextId: String, userId: String, roleId: String, mockRole: MockRoleOpt)
 
-@assemble class FilteredListResponseReceiverBase(
+@c4assemble("FilterListRequestHandlerApp") class FilteredListResponseReceiverBase(
   preHashing: PreHashing,
   hashGen: HashGen
 )   {
@@ -93,14 +93,13 @@ case class BranchWithUserId(branchId: String, contextId: String, userId: String,
     }
 }
 
-@assemble class FilterListRequestCreatorBase(
-  val qAdapterRegistry: QAdapterRegistry,
+@c4multiAssemble("FilterListRequestHandlerApp") class FilterListRequestCreatorBase(
   listName: String,
   filterPK: String,
-  matches: List[String],
+  matches: List[String]
+)(
   u: DepRequestFactory
-)   {
-
+){
   def SparkFilterListRequest(
     key: SrcId,
     alienTask: Each[FromAlienTask],

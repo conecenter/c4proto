@@ -1,21 +1,18 @@
 package ee.cone.c4actor
 
 import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4di.c4
 import ee.cone.c4proto.ToByteString
 
 trait SerializationUtilsApp {
   def serializer: SerializationUtils
 }
 
-trait SerializationUtilsMix extends SerializationUtilsApp {
-  def qAdapterRegistry: QAdapterRegistry
-  def idGenUtil: IdGenUtil
-  def hashGen: HashGen
-
-  def serializer: SerializationUtils = SerializationUtils(idGenUtil, qAdapterRegistry, hashGen)
+trait SerializationUtilsMixBase extends SerializationUtilsApp with ComponentProviderApp {
+  def serializer: SerializationUtils = resolveSingle(classOf[SerializationUtils])
 }
 
-case class SerializationUtils(u: IdGenUtil, qAdapterRegistry: QAdapterRegistry, hashGen: HashGen) { // TODO remove IdGenUtil usage
+@c4("SerializationUtilsMix") case class SerializationUtils(u: IdGenUtil, qAdapterRegistry: QAdapterRegistry, hashGen: HashGen) { // TODO remove IdGenUtil usage
   def srcIdFromMetaAttrList(metaAttrs: List[AbstractMetaAttr]): SrcId = //1
     u.srcIdFromSrcIds(metaAttrs.map(srcIdFromMetaAttr):_*)
   def srcIdFromMetaAttr(metaAttr: AbstractMetaAttr): SrcId =

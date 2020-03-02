@@ -5,7 +5,7 @@ import ee.cone.c4actor.AllTestProtocol.{D_AllTestOrig, D_AllTestOrig2}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4di.c4app
+import ee.cone.c4di.{c4, c4app}
 import ee.cone.c4proto.{Id, protocol}
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.AllTestTestApp ./app.pl sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
@@ -56,8 +56,9 @@ case class AllTestRich(srcId: SrcId, twos: List[D_AllTestOrig2])
 
 }
 
-class AllTestTest(
-  execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
+@c4("AllTestTestApp") class AllTestTest(
+  execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory,
+  getAllTestRich: GetByPK[AllTestRich]
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     import LEvent.update
@@ -67,15 +68,15 @@ class AllTestTest(
     logger.info("============From 0 to 1===================")
     val worldUpdate: collection.immutable.Seq[LEvent[Product]] = List(D_AllTestOrig("main", 1), D_AllTestOrig2("test", 2)).flatMap(update)
     val zero = TxAdd(worldUpdate)(emptyLocal)
-    println(ByPK(classOf[AllTestRich]).of(zero).values.toList)
+    println(getAllTestRich.ofA(zero).values.toList)
 
     logger.info("============Intermission===================")
     val two = TxAdd(LEvent.update(D_AllTestOrig("main", 2)))(zero)
-    println(ByPK(classOf[AllTestRich]).of(two).values.toList)
+    println(getAllTestRich.ofA(two).values.toList)
 
     logger.info("============From 0 to 1===================")
     val three = TxAdd(LEvent.update(D_AllTestOrig2("kek", 3)))(two)
-    println(ByPK(classOf[AllTestRich]).of(three).values.toList)
+    println(getAllTestRich.ofA(three).values.toList)
 
     //logger.info(s"${nGlobal.assembled}")
     execution.complete()
@@ -85,8 +86,7 @@ class AllTestTest(
 @c4app class AllTestTestAppBase extends TestVMRichDataApp
   with ExecutableApp
   with VMExecutionApp
-  with ToStartApp {
-  override def toStart: List[Executable] = new AllTestTest(execution, toUpdate, contextFactory) :: super.toStart
-
+  with ToStartApp
+{
   lazy val assembleProfiler = ConsoleAssembleProfiler //ValueAssembleProfiler
 }

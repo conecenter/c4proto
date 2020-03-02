@@ -15,16 +15,21 @@ import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexAssemble, ProductWi
 import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryMix, RangerWithCl}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
+import ee.cone.c4di.{c4, c4app}
 import ee.cone.c4proto.{Id, protocol}
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.HashSearchExtraTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
-class HashSearchExtraTestStart(
+@c4("HashSearchExtraTestApp") class HashSearchExtraTestStart(
   execution: Execution,
   toUpdate: ToUpdate,
   contextFactory: ContextFactory,
   //rawWorldFactory: RichRawWorldFactory, /* progressObserverFactory: ProgressObserverFactory,*/
   //observer: Option[Observer],
-  qAdapterRegistry: QAdapterRegistry
+  qAdapterRegistry: QAdapterRegistry,
+  activateContext: ActivateContext,
+  getCustomResponse: GetByPK[CustomResponse],
+  getS_IndexNode: GetByPK[S_IndexNode],
+  getS_IndexByNode: GetByPK[S_IndexByNode],
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     import LEvent.update
@@ -35,36 +40,36 @@ class HashSearchExtraTestStart(
     val recs = /*update(D_TestNode("1", "")) ++ */ update(S_Firstborn("test", "0" * OffsetHexSize())) ++ update(D_ChangingNode("test", "6")) ++ update(D_ChangingNode("test-safe", "45")) ++ world.flatMap(update)
     val updates: List[QProtocol.N_Update] = recs.map(rec => toUpdate.toUpdate(rec)).toList
     val nGlobal = contextFactory.updated(updates)
-    val nGlobalActive = ActivateContext(nGlobal)
-    val nGlobalAA = ActivateContext(nGlobalActive)
+    val nGlobalActive = activateContext(nGlobal)
+    val nGlobalAA = activateContext(nGlobalActive)
 
     //logger.info(s"${nGlobal.assembled}")
     println("0<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-    //println(ByPK(classOf[D_TestObject]).of(nGlobal).values.toList)
+    //println( /*getD_TestObject: GetByPK[D_TestObject],*/getD_TestObject.ofA(nGlobal).values.toList)
     println("Should", List(17, 273))
-    println("Answer", ByPK(classOf[CustomResponse]).of(nGlobalAA).values.toList.map(_.list.size))
-    println(ByPK(classOf[S_IndexNode]).of(nGlobalAA).values)
-    println(ByPK(classOf[S_IndexByNode]).of(nGlobalAA).values.map(meh => meh.leafId -> meh.byStr))
+    println("Answer", getCustomResponse.ofA(nGlobalAA).values.toList.map(_.list.size))
+    println(getS_IndexNode.ofA(nGlobalAA).values)
+    println(getS_IndexByNode.ofA(nGlobalAA).values.map(meh => meh.leafId -> meh.byStr))
     //Thread.sleep(3000)
     println("1>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     val newNGlobal: Context = TxAdd(LEvent.update(D_TestObject("124", 239, "adb")) ++ LEvent.update(D_ChangingNode("test", "1")))(nGlobalAA)
-    val newNGlobalA = ActivateContext(newNGlobal)
-    val newNGlobalAA = ActivateContext(newNGlobalA)
+    val newNGlobalA = activateContext(newNGlobal)
+    val newNGlobalAA = activateContext(newNGlobalA)
     println("1<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-    //println(ByPK(classOf[D_TestObject]).of(newNGlobal).values.toList)
+    //println( /*getD_TestObject: GetByPK[D_TestObject],*/getD_TestObject.ofA(newNGlobal).values.toList)
     println("Should", List(17, 4369))
-    println("Answer", ByPK(classOf[CustomResponse]).of(newNGlobalAA).values.toList.map(_.list.size))
-    println(ByPK(classOf[S_IndexByNode]).of(newNGlobalAA).values.map(meh => meh.leafId -> meh.byStr))
+    println("Answer",  /*getCustomResponse: GetByPK[CustomResponse],*/getCustomResponse.ofA(newNGlobalAA).values.toList.map(_.list.size))
+    println( /*getS_IndexByNode: GetByPK[S_IndexByNode],*/getS_IndexByNode.ofA(newNGlobalAA).values.map(meh => meh.leafId -> meh.byStr))
     println("2>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     val newNGlobal2 = TxAdd(LEvent.update(D_TestObject("124", 239, "adb")) ++ LEvent.update(D_ChangingNode("test", "")))(newNGlobalAA)
     Thread.sleep(10000)
-    val newNGlobal2A = ActivateContext(newNGlobal2)
-    val newNGlobal2AA = ActivateContext(newNGlobal2A)
+    val newNGlobal2A = activateContext(newNGlobal2)
+    val newNGlobal2AA = activateContext(newNGlobal2A)
     println("2<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-    //println(ByPK(classOf[D_TestObject]).of(newNGlobal).values.toList)
+    //println( /*getD_TestObject: GetByPK[D_TestObject],*/getD_TestObject.ofA(newNGlobal).values.toList)
     println("Should", List(17, 10000))
-    println("Answer", ByPK(classOf[CustomResponse]).of(newNGlobal2AA).values.toList.map(_.list.size))
-    println(ByPK(classOf[S_IndexByNode]).of(newNGlobal2AA).values.map(meh => meh.leafId -> meh.byStr))
+    println("Answer",  /*getCustomResponse: GetByPK[CustomResponse],*/getCustomResponse.ofA(newNGlobal2AA).values.toList.map(_.list.size))
+    println( /*getS_IndexByNode: GetByPK[S_IndexByNode],*/getS_IndexByNode.ofA(newNGlobal2AA).values.map(meh => meh.leafId -> meh.byStr))
     println("2<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     execution.complete()
 
@@ -252,15 +257,14 @@ trait TestCondition extends SerializationUtilsApp {
   def lensStr: ProdLens[D_TestObject, String] = ProdLens.ofSet[D_TestObject, String](_.valueStr, value => _.copy(valueStr = value), "testLensStr", ClassAttr(classOf[D_TestObject], classOf[String]))
 }
 
-class HashSearchExtraTestApp extends TestVMRichDataApp
+@c4app trait HashSearchExtraTestAppBase extends TestVMRichDataApp
   //with ServerApp
   //with EnvConfigApp
   with VMExecutionApp
   //with ParallelObserversApp
   //with RemoteRawSnapshotApp
   with ExecutableApp
-  with ToStartApp
-  with ModelAccessFactoryApp
+  with ModelAccessFactoryCompApp
   with TestCondition
   with HashSearchAssembleApp
   with SerializationUtilsMix
@@ -272,7 +276,9 @@ class HashSearchExtraTestApp extends TestVMRichDataApp
   with ProdLensesApp
   with EqProtocolApp
   with TestProtocolApp
-  with AnyOrigProtocolApp {
+  with AnyOrigProtocolApp
+  with ActivateContextApp
+{
   // println(TestProtocolM.adapters.map(a => a.categories))
 
   override def lensList: List[ProdLens[_, _]] = lensInt :: lensStr :: super.lensList
@@ -281,11 +287,7 @@ class HashSearchExtraTestApp extends TestVMRichDataApp
 
   //override def rawQSender: RawQSender = NoRawQSender
 
-  override def parallelAssembleOn: Boolean = false
-
   override def dynamicIndexAssembleDebugMode: Boolean = false
-
-  override def toStart: List[Executable] = new HashSearchExtraTestStart(execution, toUpdate, contextFactory, /*txObserver,*/ qAdapterRegistry) :: super.toStart
 
   override def assembles: List[Assemble] = {
     println((new CreateRequest(conditions, changingCondition) :: /*joiners*/

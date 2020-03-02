@@ -6,7 +6,7 @@ import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep_impl.ByPKRequestProtocol.N_ByPKRequest
 import ee.cone.c4actor.dep_impl.ByPKTypes.ByPkItemSrcId
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, Single, assemble, by, c4assemble}
+import ee.cone.c4assemble.{Assemble, Single, assemble, by, c4assemble, c4multiAssemble}
 import ee.cone.c4di.{c4, provide}
 import ee.cone.c4proto.{Id, protocol}
 
@@ -36,8 +36,9 @@ object ByPKTypes {
     }
 }
 
-@assemble class ByPKGenericAssembleBase[A <: Product](handledClass: Class[A], util: DepResponseFactory)
-  extends AssembleName("ByPKGenericAssemble", handledClass) {
+@c4multiAssemble("ByPKRequestHandlerCompApp") class ByPKGenericAssembleBase[A <: Product](handledClass: Class[A])(
+  util: DepResponseFactory
+) extends AssembleName("ByPKGenericAssemble", handledClass) {
   def BPKRequestToResponse(
     key: SrcId,
     @by[ByPkItemSrcId] rq: Each[InnerByPKRequest],
@@ -53,17 +54,23 @@ object ByPKTypes {
     askByPKs.distinctBy(_.forClassName).collect { case bc: AskByPKImpl[_] => bc.assemble }
 }
 
-@c4("ByPKRequestHandlerCompApp") case class AskByPKFactoryImpl(depAskFactory: DepAskFactory, util: DepResponseFactory) extends AskByPKFactory {
-  def forClass[A <: Product](cl: Class[A]): AskByPK[A] =
-    AskByPKImpl(cl.getName, util)(cl, depAskFactory.forClasses(classOf[N_ByPKRequest], classOf[List[A]]))
+@c4("ByPKRequestHandlerCompApp") case class AskByPKFactoryImpl(
+  depAskFactory: DepAskFactory,
+  byPKGenericAssembleFactory: ByPKGenericAssembleFactory
+) extends AskByPKFactory {
+  def forClass[A <: Product](cl: Class[A]): AskByPK[A] = {
+    val depAsk = depAskFactory.forClasses(classOf[N_ByPKRequest], classOf[List[A]])
+    AskByPKImpl(cl.getName)(cl, depAsk, byPKGenericAssembleFactory)
+  }
 }
 
-case class AskByPKImpl[A <: Product](forClassName: String, util: DepResponseFactory)(
-  val forClass: Class[A], depAsk: DepAsk[N_ByPKRequest, List[A]]
+case class AskByPKImpl[A <: Product](forClassName: String)(
+  val forClass: Class[A], depAsk: DepAsk[N_ByPKRequest, List[A]],
+  byPKGenericAssembleFactory: ByPKGenericAssembleFactory
 ) extends AskByPK[A] {
   def list(id: SrcId): Dep[List[A]] = depAsk.ask(N_ByPKRequest(forClassName, id))
   def option(id: SrcId): Dep[Option[A]] = list(id).map(Single.option)
-  def assemble: Assemble = new ByPKGenericAssemble(forClass, util)
+  def assemble: Assemble = byPKGenericAssembleFactory.create(forClass)
 }
 
 /*

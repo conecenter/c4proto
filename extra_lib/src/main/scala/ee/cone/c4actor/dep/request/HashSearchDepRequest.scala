@@ -7,27 +7,28 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.{N_DepConditionAny, N_DepConditionIntersect, N_DepConditionLeaf, N_DepConditionUnion, N_HashSearchDepRequest}
 import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.ProtoDepCondition
+import ee.cone.c4actor.dep.request.LeafInfoHolderTypes.ProductLeafInfoHolder
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble}
+import ee.cone.c4assemble.{Assemble, assemble, c4multiAssemble}
+import ee.cone.c4di.{c4, provide}
 import ee.cone.c4proto._
 import okio.ByteString
 
-trait HashSearchRequestAppBase extends AssemblesApp with DepResponseFactoryApp with ComponentProviderApp {
-  override def assembles: List[Assemble] = leafRegistry.getModelsList.map(model => new HSDepRequestAssemble(hsDepRequestHandler, model, depResponseFactory)) ::: super.assembles
-
-  def qAdapterRegistry: QAdapterRegistry
-
-  def leafRegistry: LeafRegistry
-
-  def modelConditionFactory: ModelConditionFactory[Unit]
-
-  def hsDepRequestHandler: HashSearchDepRequestHandler = HashSearchDepRequestHandler(leafRegistry, modelConditionFactory, resolveSingle(classOf[ModelFactory]), qAdapterRegistry)
+@c4("HashSearchRequestApp") class HashSearchRequestAssembles(
+  leafRegistry: LeafRegistry,
+  hsDepRequestAssembleFactory: HSDepRequestAssembleFactory,
+) {
+  @provide def assembles: Seq[Assemble] =
+    leafRegistry.getModelsList.map(model => hsDepRequestAssembleFactory.create(model))
 }
+
+trait HashSearchRequestAppBase
 
 case class HashSearchDepRqWrap(srcId: String, request: N_HashSearchDepRequest, modelCl: String)
 
-@assemble class HSDepRequestAssembleBase[Model <: Product](hsDepRequestHandler: HashSearchDepRequestHandler, model: Class[Model], util: DepResponseFactory)
-  extends AssembleName("HSDepRequestAssemble", model) {
+@c4multiAssemble("HashSearchRequestApp") class HSDepRequestAssembleBase[Model <: Product](model: Class[Model])(
+  hsDepRequestHandler: HashSearchDepRequestHandler, util: DepResponseFactory
+) extends AssembleName("HSDepRequestAssemble", model) {
 
   def HSDepRequestWithSrcToItemSrcId(
     key: SrcId,
@@ -50,22 +51,16 @@ case class HashSearchDepRqWrap(srcId: String, request: N_HashSearchDepRequest, m
     }
 }
 
-trait LeafRegistryApp {
-  def leafs: List[LeafInfoHolder[_ <: Product, _ <: Product, _]] = Nil
-}
-
-trait LeafRegistryMix extends LeafRegistryApp {
-  lazy val leafRegistryImpl = LeafRegistryImpl(leafs, leafs.map(_.modelCl))
-
-  def leafRegistry: LeafRegistry = leafRegistryImpl
-}
-
 trait LeafRegistry {
   def getLeaf(modelCl: String, byCl: String, lensName: String): LeafInfoHolder[_ <: Product, _ <: Product, _]
 
   def getModelCl(modelClName: String): Class[_ <: Product]
 
   def getModelsList: List[Class[_ <: Product]]
+}
+
+object LeafInfoHolderTypes {
+  type ProductLeafInfoHolder = LeafInfoHolder[_ <: Product, _ <: Product, _]
 }
 
 case class LeafInfoHolder[Model <: Product, By <: Product, Field](
@@ -78,25 +73,27 @@ case class LeafInfoHolder[Model <: Product, By <: Product, Field](
   fieldCl: Class[Field]
 )
 
+trait LeafRegistryMixBase
 
-case class LeafRegistryImpl(
-  leafList: List[LeafInfoHolder[_ <: Product, _ <: Product, _]],
-  models: List[Class[_ <: Product]]
+@c4("LeafRegistryMix") case class LeafRegistryImpl(
+  leafList: List[ProductLeafInfoHolder]
+)(
+  models: List[Class[_ <: Product]] = leafList.map(_.modelCl)
 ) extends LeafRegistry {
 
-  private lazy val leafMap: Map[(String, String, String), LeafInfoHolder[_ <: Product, _ <: Product, _]] =
+  private lazy val leafMap: Map[(String, String, String), ProductLeafInfoHolder] =
     leafList.map(leaf => (leaf.modelCl.getName, leaf.byCl.getName, leaf.lens.metaList.collect { case NameMetaAttr(v) => v }.head) -> leaf).toMap
 
   private lazy val modelMap: Map[String, Class[_ <: Product]] = models.map(cl => cl.getName -> cl).distinct.toMap[String, Class[_ <: Product]]
 
-  def getLeaf(modelCl: String, byCl: String, lensName: String): LeafInfoHolder[_ <: Product, _ <: Product, _] = leafMap((modelCl, byCl, lensName))
+  def getLeaf(modelCl: String, byCl: String, lensName: String): ProductLeafInfoHolder = leafMap((modelCl, byCl, lensName))
 
   def getModelCl(modelClName: String): Class[_ <: Product] = modelMap(modelClName)
 
   def getModelsList: List[Class[_ <: Product]] = models.distinct
 }
 
-case class HashSearchDepRequestHandler(leafs: LeafRegistry, condFactory: ModelConditionFactory[Unit], modelFactory: ModelFactory, qAdapterRegistry: QAdapterRegistry) {
+@c4("HashSearchRequestApp") case class HashSearchDepRequestHandler(leafs: LeafRegistry, condFactory: ModelConditionFactory[Unit], modelFactory: ModelFactory, qAdapterRegistry: QAdapterRegistry) {
 
   def handle: N_HashSearchDepRequest => Condition[_] = request =>
     parseCondition(

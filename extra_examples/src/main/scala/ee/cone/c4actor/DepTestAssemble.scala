@@ -7,27 +7,22 @@ import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.N_ContextIdRequest
 import ee.cone.c4actor.dep_impl.DepHandlersApp
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble}
+import ee.cone.c4assemble.{Assemble, assemble, c4assemble}
 import ee.cone.c4proto.{Id, protocol}
 
 trait DepTestAssemble
-  extends AssemblesApp
-    with DepHandlersApp
-    with DepRequestFactoryApp
+  extends DepHandlersApp
     with DepAskFactoryApp
     with CommonIdInjectApps
-    with DepTestProtocolApp {
+    with DepTestProtocolApp
+{
   def testDep: Dep[Any]
 
   def testContextId: String = "LUL"
 
-  def qAdapterRegistry: QAdapterRegistry
-
   private lazy val testRequestAsk = depAskFactory.forClasses(classOf[D_DepTestRequest], classOf[Any])
 
   override def depHandlers: List[DepHandler] = testRequestAsk.by(_ => testDep) :: injectRole[D_DepTestRequest](testRequestAsk, _ => testContextId) :: super.depHandlers
-
-  override def assembles: List[Assemble] = new DepTestAssembles(qAdapterRegistry, depRequestFactory) :: super.assembles
 }
 
 trait DepTestProtocolAppBase
@@ -50,7 +45,7 @@ case class DepTestHandler(dep: Dep[_], contextId: String) extends DepHandler {
 
 case class DepTestResponse(srcId: String, response: Option[_])
 
-@assemble class DepTestAssemblesBase(val qAdapterRegistry: QAdapterRegistry, f: DepRequestFactory) {
+@c4assemble("DepTestApp") class DepTestAssemblesBase(val qAdapterRegistry: QAdapterRegistry, f: DepRequestFactory) {
   def GiveBirth(
     firstBornId: SrcId,
     spark: Each[D_Spark]

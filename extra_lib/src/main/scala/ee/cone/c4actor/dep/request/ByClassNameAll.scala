@@ -6,6 +6,7 @@ import ee.cone.c4actor.dep.request.ByClassNameAllRequestProtocol.N_ByClassNameAl
 import ee.cone.c4actor.{AssembleName, AssemblesApp, WithPK}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
+import ee.cone.c4di.{Component, ComponentsApp, c4, provide}
 import ee.cone.c4proto.{Id, protocol}
 
 case class ByClassNameAllAskImpl(depFactory: DepFactory) extends ByClassNameAllAsk {
@@ -20,21 +21,32 @@ trait ByClassNameRequestMix extends DepFactoryApp with ByClassNameRequestApp {
   override def byClassNameAllAsk: ByClassNameAllAsk = ByClassNameAllAskImpl(depFactory)
 }
 
-trait ByClassNameRequestApp {
-  def byClNameAllClasses: List[Class[_ <: Product]] = Nil
+class ByClNameAllClass(val value: Class[_ <: Product])
 
+trait ByClassNameRequestApp extends ComponentsApp {
+  import ee.cone.c4actor.ComponentProvider.provide
+  private lazy val byClNameAllClassesComponent = provide(classOf[ByClNameAllClass], ()=>byClNameAllClasses.map(new ByClNameAllClass(_)))
+  override def components: List[Component] = byClNameAllClassesComponent :: super.components
+  def byClNameAllClasses: List[Class[_ <: Product]] = Nil
+  //
   def byClassNameAllAsk: ByClassNameAllAsk
 }
 
-trait ByClassNameAllRequestHandlerAppBase extends AssemblesApp with ByClassNameRequestApp with DepResponseFactoryApp {
-  override def assembles: List[Assemble] =
-    byClNameAllClasses
+trait ByClassNameAllRequestHandlerAppBase extends ByClassNameRequestApp
+
+@c4("ByClassNameAllRequestHandlerApp") class ByClassNameAllRequestHandlerAssembles(
+  byClNameAllClasses: List[ByClNameAllClass],
+  byClassNameAllRequestGenericHandlerFactory: ByClassNameAllRequestGenericHandlerFactory
+) {
+  @provide def assembles: Seq[Assemble] =
+    byClNameAllClasses.map(_.value)
       .map(cl => cl.getName -> cl).groupBy(_._1).values.map(_.head._2).toList
-      .map(cl => new ByClassNameAllRequestGenericHandler(cl, depResponseFactory)) ::: super.assembles
+      .map(cl => byClassNameAllRequestGenericHandlerFactory.create(cl))
 }
 
-@assemble class ByClassNameAllRequestGenericHandlerBase[Model <: Product](modelCl: Class[Model], util: DepResponseFactory)
-  extends AssembleName("ByClassNameAllRequestGenericHandler", modelCl) {
+@c4multiAssemble("ByClassNameAllRequestHandlerApp") class ByClassNameAllRequestGenericHandlerBase[Model <: Product](modelCl: Class[Model])(
+  util: DepResponseFactory
+) extends AssembleName("ByClassNameAllRequestGenericHandler", modelCl) {
   type ByClassNameRequestAll = AbstractAll
 
   def GatherAllModels(

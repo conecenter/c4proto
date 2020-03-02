@@ -5,19 +5,29 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.dep.{DepResponse, _}
 import ee.cone.c4actor.dep.request.ByClassNameRequestProtocol.N_ByClassNameRequest
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble, by, was}
+import ee.cone.c4assemble._
+import ee.cone.c4di.{c4, provide}
 import ee.cone.c4proto.{Id, protocol}
 
-trait ByClassNameRequestHandlerAppBase extends AssemblesApp with SerializationUtilsApp with DepResponseFactoryApp {
-  def byClassNameClasses: List[Class[_ <: Product]] = Nil
-  def idGenUtil: IdGenUtil
+trait ByClassNameRequestHandlerAppBase
 
-  override def assembles: List[Assemble] = byClassNameClasses.map(className => new ByClassNameGenericAssemble(className, idGenUtil.srcIdFromSrcIds(className.getName), depResponseFactory)) ::: super.assembles
+class ByClassNameClass(val value: Class[_ <: Product])
+
+@c4("ByClassNameRequestHandlerApp") class ByClassNameRequestHandlerAssembles(
+  idGenUtil: IdGenUtil,
+  byClassNameClasses: List[ByClassNameClass],
+  byClassNameGenericAssembleFactory: ByClassNameGenericAssembleFactory
+) {
+  @provide def assembles: Seq[Assemble] = byClassNameClasses.map(_.value).map(className =>
+    byClassNameGenericAssembleFactory.create(className, idGenUtil.srcIdFromSrcIds(className.getName))
+  )
 }
 
 case class InnerByClassNameRequest(request: DepInnerRequest, className: String, from: Int, to: Int)
 
-@assemble class ByClassNameGenericAssembleBase[A <: Product](handledClass: Class[A], classSrcId: SrcId, depResponseFactory: DepResponseFactory)
+@c4multiAssemble("ByClassNameRequestHandlerApp") class ByClassNameGenericAssembleBase[A <: Product](handledClass: Class[A], classSrcId: SrcId)(
+  depResponseFactory: DepResponseFactory
+)
   extends AssembleName("ByClassNameGenericAssemble", handledClass) with ByClassNameRequestUtils {
   type ByCNSrcId = SrcId
   type ByCNRqSrcId = SrcId

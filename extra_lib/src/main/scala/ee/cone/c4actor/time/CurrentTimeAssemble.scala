@@ -29,6 +29,7 @@ trait CurrTimeConfig[Model <: T_Time] extends GeneralCurrTimeConfig {
   def cl: Class[Model]
   def set: Long => Model => Model
   def default: Model
+  def timeGetter: GetByPK[Model]
 }
 
 @c4("GeneralCurrentTimeApp") class TimeGettersImpl(timeGetters: List[TimeGetter]) extends TimeGetters {
@@ -85,14 +86,13 @@ case class GeneralCurrentTimeTransform(
     refreshRate: Option[Long],
     offset: Long
   ): Context => Seq[LEvent[Product]] = {
-    val cl = config.cl
     val default = config.default
     val srcId = config.currentTime.srcId
     val set = config.set
     val refreshRateMillis = config.currentTime.refreshRateSeconds * 1000L
     local => {
       val now = System.currentTimeMillis()
-      ByPK(cl).of(local).get(srcId) match {
+      config.timeGetter.ofA(local).get(srcId) match {
         case Some(time) if time.millis + offset + refreshRateMillis < now =>
           logger.debug(s"Updating ${config.currentTime.srcId} with ${offset}")
           LEvent.update(set(now)(time))

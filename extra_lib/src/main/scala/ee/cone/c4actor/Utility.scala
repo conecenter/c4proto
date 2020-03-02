@@ -2,6 +2,7 @@ package ee.cone.c4actor
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.ToPrimaryKey
+import ee.cone.c4di.c4
 import ee.cone.c4proto._
 
 import scala.annotation.tailrec
@@ -17,11 +18,11 @@ object MinOpt {
   def apply[A](iterable: Iterable[A])(implicit cmp: Ordering[A]): Option[A] = if (iterable.isEmpty) None else Some(iterable.min)
 }
 
-trait WithMurMur3HashGenApp {
-  def hashGen: HashGen = new MurMur3HashGen
+trait WithMurMur3HashGenAppBase extends ComponentProviderApp {
+  def hashGen: HashGen = resolveSingle(classOf[HashGen])
 }
 
-class MurMur3HashGen extends HashGen {
+@c4("WithMurMur3HashGenApp") class MurMur3HashGen extends HashGen {
   private val parser: PreHashingMurMur3 = PreHashingMurMur3()
 
   def generate[Model](m: Model): String = {

@@ -10,6 +10,7 @@ import ee.cone.c4actor.dep.reponse.filter.{DepCommonResponseForwardMix, DepForwa
 import ee.cone.c4actor.dep.request._
 import ee.cone.c4actor.dep_impl.{AskByPKsApp, ByPKRequestHandlerApp, DepAssembleApp, DepResponseFiltersApp}
 import ee.cone.c4assemble.Assemble
+import ee.cone.c4di.{c4, c4app}
 import ee.cone.c4proto.{GenLens, Id, protocol}
 
 import scala.collection.immutable
@@ -59,9 +60,10 @@ case class TestTransform(srcId: SrcId, access: Any) extends TxTransform {
   override def transform(local: Context): Context = access.asInstanceOf[Access[D_ValueNode]].updatingLens.get.set(access.asInstanceOf[Access[D_ValueNode]].initialValue.copy(value = 666))(local)
 }
 
-
-class DepTestStart(
-  execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
+@c4("DepTestApp") class DepTestStart(
+  execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory,
+  getDepTestResponse: GetByPK[DepTestResponse],
+  getDepUnresolvedRequest: GetByPK[DepUnresolvedRequest],
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     import LEvent.update
@@ -76,24 +78,24 @@ class DepTestStart(
     //logger.info(s"${nGlobal.assembled}")
     logger.debug("asddfasdasdasdas")
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    println(ByPK(classOf[DepTestResponse]).of(nGlobal).values.toList)
-    /*println(ByPK(classOf[UpResolvable]).of(nGlobal).values.map(test => test.resolvable.value -> test.request.srcId))
-    val access: Access[PffNode] = ByPK(classOf[UpResolvable]).of(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value.get.asInstanceOf[Option[Access[PffNode]]].get
-    println(s"Final result1: ${ByPK(classOf[UpResolvable]).of(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value}")*/
+    println(getDepTestResponse.ofA(nGlobal).values.toList)
+    /*println( /*getUpResolvable: GetByPK[UpResolvable],*/getUpResolvable.ofA(nGlobal).values.map(test => test.resolvable.value -> test.request.srcId))
+    val access: Access[PffNode] =  /*getUpResolvable: GetByPK[UpResolvable],*/getUpResolvable.ofA(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value.get.asInstanceOf[Option[Access[PffNode]]].get
+    println(s"Final result1: ${ /*getUpResolvable: GetByPK[UpResolvable],*/getUpResolvable.ofA(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value}")*/
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     val newLocal = TxAdd(LEvent.update(D_ValueNode("124", 555)))(nGlobal)
-    println(ByPK(classOf[DepTestResponse]).of(newLocal).values.toList)
+    println(getDepTestResponse.ofA(newLocal).values.toList)
 
     val newLocal2 = TxAdd(LEvent.update(D_ValueNode("123", 100)))(newLocal)
-    println(ByPK(classOf[DepTestResponse]).of(newLocal2).values.toList)
+    println(getDepTestResponse.ofA(newLocal2).values.toList)
     /*println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     val newContext = access.updatingLens.get.set(access.initialValue.copy(value = 666))(nGlobal)
-    println(s"Final result3: ${ByPK(classOf[UpResolvable]).of(newContext)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value}")
+    println(s"Final result3: ${ /*getUpResolvable: GetByPK[UpResolvable],*/getUpResolvable.ofA(newContext)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value}")
 
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    println(s"Unresolved: \n${ByPK(classOf[UnresolvedDep]).of(nGlobal).toList.mkString("\n")}")
+    println(s"Unresolved: \n${ /*getUnresolvedDep: GetByPK[UnresolvedDep],*/getUnresolvedDep.ofA(nGlobal).toList.mkString("\n")}")
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")*/
-    println(ByPK(classOf[DepUnresolvedRequest]).of(newLocal2).values.toList)
+    println(getDepUnresolvedRequest.ofA(newLocal2).values.toList)
     execution.complete()
 
     /*
@@ -105,7 +107,7 @@ class DepTestStart(
         "2" -> D_RawChildNode("2","1","C-2"),
         "3" -> D_RawChildNode("3","1","C-3")
       ),
-      ByPK(classOf[ParentNodeWithChildren]) -> Map(
+       /*getParentNodeWithChildren: GetByPK[ParentNodeWithChildren],*/getParentNodeWithChildren -> Map(
         "1" -> ParentNodeWithChildren("1",
           "P-1",
           List(D_RawChildNode("2","1","C-2"), D_RawChildNode("3","1","C-3"))
@@ -117,12 +119,11 @@ class DepTestStart(
   }
 }
 
-class DepTestApp extends TestVMRichDataApp
+@c4app trait DepTestAppBase extends TestVMRichDataApp
   with ExecutableApp
   with VMExecutionApp
   with SimpleAssembleProfilerApp
-  with ToStartApp
-  with ModelAccessFactoryApp
+  with ModelAccessFactoryCompApp
   with DepTestAssemble
   with CommonRequestUtilityMix
   with ByPKRequestHandlerApp
@@ -152,7 +153,7 @@ class DepTestApp extends TestVMRichDataApp
 
   override def childRequests: List[Class[_ <: Product]] = classOf[D_ChildDepRequest] :: super.childRequests
 
-  override def toStart: List[Executable] = new DepTestStart(execution, toUpdate, contextFactory) :: super.toStart
+
 
   def testDep: Dep[Any] = depDraft.serialView.asInstanceOf[Dep[Any]]
 
