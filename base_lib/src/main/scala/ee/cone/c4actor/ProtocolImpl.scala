@@ -6,7 +6,7 @@ import ee.cone.c4actor.ArgTypes._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Single
 import ee.cone.c4di.Types.ComponentFactory
-import ee.cone.c4di.{TypeKey, c4, provide}
+import ee.cone.c4di.{CreateTypeKey, TypeKey, c4, provide}
 import ee.cone.c4proto._
 import okio.ByteString
 
@@ -57,8 +57,8 @@ class NoWrapArgAdapter[Value](val defaultValue: Value, inner: ProtoAdapter[Value
   def decodeFix(prev: Value): Value = prev
 }
 
-@c4("ProtoApp") class LazyListArgAdapterFactory extends LazyArgAdapterFactory(TypeKey(classOf[LazyList[_]].getName,"LazyList",Nil), new ListArgAdapter(_))
-@c4("ProtoApp") class ListArgAdapterFactory extends ArgAdapterFactory(TypeKey(classOf[List[_]].getName,"List",Nil), new ListArgAdapter(_))
+@c4("ProtoApp") class LazyListArgAdapterFactory extends LazyArgAdapterFactory(CreateTypeKey(classOf[LazyList[_]],"LazyList",Nil), new ListArgAdapter(_))
+@c4("ProtoApp") class ListArgAdapterFactory extends ArgAdapterFactory(CreateTypeKey(classOf[List[_]],"List",Nil), new ListArgAdapter(_))
 class ListArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter[List[Value]] {
   def encodedSizeWithTag(tag: Int, value: List[Value]): Int =
     value.foldLeft(0)((res,item)=>res+inner().encodedSizeWithTag(tag,item))
@@ -70,8 +70,8 @@ class ListArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter[L
   def decodeFix(prev: List[Value]): List[Value] = prev.reverse
 }
 
-@c4("ProtoApp") class LazyOptionArgAdapterFactory extends LazyArgAdapterFactory(TypeKey(classOf[LazyOption[_]].getName,"LazyOption",Nil), new OptionArgAdapter(_))
-@c4("ProtoApp") class OptionArgAdapterFactory extends ArgAdapterFactory(TypeKey(classOf[Option[_]].getName,"Option",Nil), new OptionArgAdapter(_))
+@c4("ProtoApp") class LazyOptionArgAdapterFactory extends LazyArgAdapterFactory(CreateTypeKey(classOf[LazyOption[_]],"LazyOption",Nil), new OptionArgAdapter(_))
+@c4("ProtoApp") class OptionArgAdapterFactory extends ArgAdapterFactory(CreateTypeKey(classOf[Option[_]],"Option",Nil), new OptionArgAdapter(_))
 class OptionArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter[Option[Value]] {
   def encodedSizeWithTag(tag: Int, value: Option[Value]): Int =
     value.foldLeft(0)((res,item)=>res+inner().encodedSizeWithTag(tag,item))

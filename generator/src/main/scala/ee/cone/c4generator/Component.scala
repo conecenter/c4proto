@@ -136,8 +136,8 @@ object ComponentsGenerator extends Generator {
         case t"_" => wildCard.getOrElse(throw new Exception(s"$t wildcard type disabled"))
         case c => s"${getTypeKey(c,wildCard)} :: "
       }.mkString
-      s"""TypeKey(classOf[$tpe[$tArgs]].getName, "$tpe", ${args}Nil)"""
+      s"""CreateTypeKey(classOf[$tpe[$tArgs]], "$tpe", ${args}Nil)"""
     case t"$tpe" =>
-      s"""TypeKey(classOf[$tpe].getName, "$tpe", Nil)"""
+      s"""CreateTypeKey(classOf[$tpe], "$tpe", Nil)"""
   }
 }

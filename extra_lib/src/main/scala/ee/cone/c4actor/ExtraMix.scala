@@ -9,7 +9,7 @@ import scala.collection.immutable.{Map, Seq}
 
 object ComponentProvider {
   private def toTypeKey[T](cl: Class[T]): TypeKey =
-    TypeKey(cl.getName,cl.getSimpleName,Nil)
+    CreateTypeKey(cl,cl.getSimpleName,Nil)
   def provide[T<:Object](cl: Class[T], get: ()=>Seq[T]): Component =
     new Component(toTypeKey(cl),None,Nil,_=>get())
   def resolveSingle[T](cl: Class[T])(componentRegistry: ComponentRegistry): T =

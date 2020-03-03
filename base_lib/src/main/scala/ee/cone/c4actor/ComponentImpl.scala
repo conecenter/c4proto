@@ -18,7 +18,7 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
   debug: Option[_] = Option(System.getenv("C4DEBUG_COMPONENTS"))
 ) extends ComponentRegistry {
   def toTypeKey[T](cl: Class[T], args: Seq[TypeKey]): TypeKey =
-    TypeKey(cl.getName,cl.getSimpleName,args.toList)
+    CreateTypeKey(cl,cl.getSimpleName,args.toList)
   lazy val components: Seq[Component] = fixNonFinal(app.components.distinct)
   lazy val reg: Map[TypeKey,DeferredSeq[Object]] =
     components.map(toCached).groupBy(_.out)
@@ -44,7 +44,7 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
   }
   def resolveKey(key: TypeKey): DeferredSeq[Any] = new SimpleDeferredSeq[Any](()=>{
     val directRes: DeferredSeq[Any] = reg.getOrElse(key,EmptyDeferredSeq)
-    val factoryKey = TypeKey(classOf[ComponentFactory[_]].getName,"ComponentFactory",List(key.copy(args=Nil)))
+    val factoryKey = CreateTypeKey(classOf[ComponentFactory[_]],"ComponentFactory",List(key.copy(args=Nil)))
     val factories = reg.getOrElse(factoryKey,EmptyDeferredSeq).asInstanceOf[DeferredSeq[ComponentFactory[_]]]
     debug.foreach{_=>
       //println(s"factoryKey $factoryKey -- ${factories.value.size}")
