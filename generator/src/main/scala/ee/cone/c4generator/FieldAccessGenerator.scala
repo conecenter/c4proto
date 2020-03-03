@@ -43,7 +43,7 @@ object FieldAccessGenerator extends Generator {
           val List(field :: head :: tail) = args
           val fromTypeKey = ComponentsGenerator.getTypeKey(from, None).parse[Term].get
           val toTypeKey = ComponentsGenerator.getTypeKey(to, None).parse[Term].get
-          val nArgs = List(head :: q"_ => _ => ???" ::
+          val nArgs = List(head :: q"_ => _ => Never()" ::
             q"$field" ::
             q"classOf[$from]" :: q"classOf[$to]" ::
             q"$fromTypeKey" :: q"$toTypeKey" ::
@@ -59,7 +59,7 @@ object FieldAccessGenerator extends Generator {
       }
 
       List(
-        GeneratedImport("import ee.cone.c4di.TypeKey"),
+        GeneratedImport("import ee.cone.c4di.{TypeKey, CreateTypeKey}"),
         genObj(objectName, nCode)
       )
     }

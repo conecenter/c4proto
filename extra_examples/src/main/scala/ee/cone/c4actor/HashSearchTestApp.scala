@@ -12,6 +12,7 @@ import ee.cone.c4actor.hashsearch.condition.ConditionCheckWithCl
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{S_IndexByNode, S_IndexNode, S_IndexNodeSettings}
 import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexAssemble, ProductWithId}
+import ee.cone.c4actor.hashsearch.rangers.IndexType.{Default, IndexType}
 import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryMix, RangerWithCl}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
