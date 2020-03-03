@@ -29,7 +29,7 @@ class ModelConditionFactoryImpl[Model] extends ModelConditionFactory[Model] {
   def any: Condition[Model] =
     AnyCondition()
 
-  def leaf[By <: Product, Field](lens: ProdLens[Model, Field], by: By, byOptions: List[AbstractMetaAttr])(
+  def leaf[By <: Product, Field](lens: ProdLensStrict[Model, Field], by: By, byOptions: List[AbstractMetaAttr])(
     implicit check: ConditionCheck[By, Field]
   ): Condition[Model] = {
     val preparedBy = check.prepare(byOptions)(by)
@@ -39,7 +39,7 @@ class ModelConditionFactoryImpl[Model] extends ModelConditionFactory[Model] {
       ProdConditionImpl(filterMetaList(lens), preparedBy)(check.check(preparedBy), lens.of)
   }
 
-  def filterMetaList[Field]: ProdLens[Model, Field] => List[AbstractMetaAttr] =
+  def filterMetaList[Field]: ProdLensStrict[Model, Field] => List[AbstractMetaAttr] =
     _.metaList.collect { case l: NameMetaAttr => l }
 }
 

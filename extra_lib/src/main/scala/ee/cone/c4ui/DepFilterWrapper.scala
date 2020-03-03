@@ -55,7 +55,7 @@ case class DepFilterWrapperImpl[Model <: Product](
 ) extends DepFilterWrapperApi[Model] {
   def add[By <: Product, Field](
     byDep: String => Dep[Option[Access[By]]],
-    lens: ProdLens[Model, Field],
+    lens: ProdLensStrict[Model, Field],
     byOptions: List[AbstractMetaAttr] = Nil
   )(
     implicit checker: ConditionCheckWithCl[By, Field]
@@ -184,7 +184,7 @@ case class DepFilterWrapperPartImpl[Model <: Product](
 trait DepFilterWrapperApi[Model <: Product] {
   def add[By <: Product, Field](
     byDep: String => Dep[Option[Access[By]]],
-    lens: ProdLens[Model, Field],
+    lens: ProdLensStrict[Model, Field],
     byOptions: List[AbstractMetaAttr] = Nil
   )(
     implicit checker: ConditionCheckWithCl[By, Field]
@@ -227,7 +227,7 @@ trait DepFilterWrapperPartAdd[Model <: Product] {
 
   def add[By <: Product, Field](
     byDep: String => Dep[Option[Access[By]]],
-    lens: ProdLens[Model, Field],
+    lens: ProdLensStrict[Model, Field],
     byOptions: List[AbstractMetaAttr] = Nil
   )(
     implicit checker: ConditionCheckWithCl[By, Field]

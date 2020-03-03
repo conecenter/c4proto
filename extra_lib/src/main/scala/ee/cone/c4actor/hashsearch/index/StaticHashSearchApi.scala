@@ -1,7 +1,7 @@
 package ee.cone.c4actor.hashsearch.index
 
 import ee.cone.c4actor.HashSearch.Request
-import ee.cone.c4actor.{Condition, ProdLens, Ranger}
+import ee.cone.c4actor.{Condition, ProdLens, ProdLensStrict, Ranger}
 import ee.cone.c4assemble.Assemble
 
 object StaticHashSearchApi {
@@ -13,7 +13,7 @@ object StaticHashSearchApi {
   }
 
   trait StaticIndexBuilder[Model <: Product] {
-    def add[By <: Product, Field](lens: ProdLens[Model, Field], by: By)(
+    def add[By <: Product, Field](lens: ProdLensStrict[Model, Field], by: By)(
       implicit ranger: Ranger[By, Field]
     ): StaticIndexBuilder[Model]
 

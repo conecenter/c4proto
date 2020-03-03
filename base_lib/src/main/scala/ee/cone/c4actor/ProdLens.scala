@@ -6,6 +6,9 @@ object ProdLens {
   def of[C, I](of: C => I, meta: AbstractMetaAttr*): ProdLensStrict[C, I] =
     throw new Exception("not expanded")
 
+  def ofFunc[C, I](fldName: String, of: C => I, meta: AbstractMetaAttr*): ProdLensStrict[C, I] =
+    throw new Exception("not expanded")
+
   def ofSetStrict[C, I](of: C => I, set: I => C => C, name: String, clFrom: Class[C], clTo: Class[I], tkFrom: TypeKey, tkTo: TypeKey, meta: AbstractMetaAttr*): ProdLensStrict[C, I] =
     ProdLensStrict[C, I](NameMetaAttr(name) :: meta.toList, clFrom, clTo, tkFrom, tkTo)(of, set)
 
@@ -43,14 +46,16 @@ case class ProdLensStrict[C, I](
   lazy val metaList: List[AbstractMetaAttr] = ee.cone.c4actor.TypeKeyAttr(tkFrom, tkTo) ::
     ee.cone.c4actor.ClassesAttr(clFrom.getName, clTo.getName) :: extraMetaList
 
-  def to[V](inner: ProdLens[I, V]): ProdLens[C, V] = inner match {
-    case strictInner: ProdLensStrict[I, V] => ProdLensStrict[C, V](
+  def toStrict[V](strictInner: ProdLensStrict[I, V]): ProdLensStrict[C, V] =
+    ProdLensStrict[C, V](
       extraMetaList ::: strictInner.extraMetaList,
       clFrom, strictInner.clTo, tkFrom, strictInner.tkTo
     )(
-      container => inner.of(of(container)),
-      item => modify(inner.set(item))
+      container => strictInner.of(of(container)),
+      item => modify(strictInner.set(item))
     )
+  def to[V](inner: ProdLens[I, V]): ProdLens[C, V] = inner match {
+    case strictInner: ProdLensStrict[I, V] => toStrict(strictInner)
     case _ =>
       ProdLensNonstrict[C, V](metaList ::: inner.metaList)(
         container => inner.of(of(container)),

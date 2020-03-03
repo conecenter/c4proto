@@ -39,6 +39,18 @@ object FieldAccessGenerator extends Generator {
             q"$fromTypeKey" :: q"$toTypeKey" ::
             tail)
           q"$o.ofSetStrict[$from, $to](...$nArgs)"
+        case q"$o.ofFunc[$from, $to](...$args)" =>
+          val List(field :: head :: tail) = args
+          val fromTypeKey = ComponentsGenerator.getTypeKey(from, None).parse[Term].get
+          val toTypeKey = ComponentsGenerator.getTypeKey(to, None).parse[Term].get
+          val nArgs = List(head :: q"_ => _ => ???" ::
+            q"$field" ::
+            q"classOf[$from]" :: q"classOf[$to]" ::
+            q"$fromTypeKey" :: q"$toTypeKey" ::
+            tail)
+          q"$o.ofSetStrict[$from, $to](...$nArgs)"
+        case q"$o.ofFunc(...$args)" =>
+          throw new Exception(s"$o.ofFunc($args) should have implicit types like $o.ofFunc[FROM, TO](...)")
         case q"$o.of(...$args)" =>
           val List(head :: tail) = args
           val q"_.$field" = head

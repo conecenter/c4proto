@@ -19,7 +19,7 @@ object HashSearch {
   }
 
   trait IndexBuilder[Model <: Product] {
-    def add[By <: Product, Field](lens: ProdLens[Model, Field], by: By)(
+    def add[By <: Product, Field](lens: ProdLensStrict[Model, Field], by: By)(
       implicit ranger: Ranger[By, Field]
     ): IndexBuilder[Model]
 

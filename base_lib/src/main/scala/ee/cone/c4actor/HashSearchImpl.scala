@@ -84,7 +84,7 @@ object HashSearchImpl {
     def preHashing: PreHashing
     def modelClass: Class[Model]
     def modelConditionFactory: ModelConditionFactory[Model]
-    def add[NBy<:Product,NField](lens: ProdLens[Model,NField], by: NBy)(
+    def add[NBy<:Product,NField](lens: ProdLensStrict[Model,NField], by: NBy)(
       implicit ranger: Ranger[NBy,NField]
     ): IndexBuilder[Model] = {
       val(valueToRanges,byToRanges) = ranger.ranges(by)
