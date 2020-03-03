@@ -51,7 +51,7 @@ object ComponentsGenerator extends Generator {
     val depSeq = for { (o,_) <- list.flatten; (a,_) <- o } yield getTypeKey(a,None)
     val objName = Term.Name(s"${tp}Component")
     val concrete = s"Seq(new $tp${args.map(a=>s"(${a.mkString(",")})").mkString})"
-    assert(cl.typeParams.isEmpty)
+    assert(cl.typeParams.isEmpty,s"type params not supported for ${cl.name}")
     //
     val inSet = depSeq.toSet
     val mainOut = getTypeKey(cl.nameNode,None)
@@ -136,8 +136,8 @@ object ComponentsGenerator extends Generator {
         case t"_" => wildCard.getOrElse(throw new Exception(s"$t wildcard type disabled"))
         case c => s"${getTypeKey(c,wildCard)} :: "
       }.mkString
-      s"""TypeKey(classOf[$tpe[$tArgs]].getName, "$tpe", ${args}Nil)"""
+      s"""CreateTypeKey(classOf[$tpe[$tArgs]], "$tpe", ${args}Nil)"""
     case t"$tpe" =>
-      s"""TypeKey(classOf[$tpe].getName, "$tpe", Nil)"""
+      s"""CreateTypeKey(classOf[$tpe], "$tpe", Nil)"""
   }
 }

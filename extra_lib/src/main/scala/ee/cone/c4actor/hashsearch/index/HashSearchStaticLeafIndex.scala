@@ -11,6 +11,7 @@ import ee.cone.c4actor.hashsearch.base._
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.{Each, Values}
+import ee.cone.c4di.{c4, provide}
 
 object StaticHashSearchImpl {
 
@@ -152,7 +153,7 @@ object StaticHashSearchImpl {
       }
     }
 
-    def assemble: List[Assemble] = new HashSearchStaticLeafAssemble[Model](modelClass, this, serializer) :: next.assemble
+    def assemble: List[Assemble] = new HashSearchStaticLeafAssemble[Model](modelClass, this)(serializer) :: next.assemble
   }
 
   private def letters3(i: Int) = Integer.toString(i & 0x3FFF | 0x4000, 32)
@@ -161,23 +162,24 @@ object StaticHashSearchImpl {
     l => Single.option(l.distinct).toList
 }
 
-trait HashSearchStaticLeafFactoryApi {
-  def staticLeafFactory: StaticFactory
-}
+trait HashSearchStaticLeafFactoryMixBase extends SerializationUtilsApp
 
-trait HashSearchStaticLeafFactoryMix extends HashSearchStaticLeafFactoryApi with SerializationUtilsApp {
-  def modelConditionFactory: ModelConditionFactory[Unit]
-  def idGenUtil: IdGenUtil
-  def indexUtil: IndexUtil
-
-  def staticLeafFactory: StaticFactory = new StaticFactoryImpl(modelConditionFactory, serializer, idGenUtil, indexUtil)
+@c4("HashSearchStaticLeafFactoryMix") class StaticFactoryImplProvider(
+  modelConditionFactory: ModelConditionFactory[Unit],
+  serializer: SerializationUtils,
+  idGenUtil: IdGenUtil,
+  indexUtil: IndexUtil
+){
+  @provide def get: Seq[StaticFactory] =
+    Seq(new StaticFactoryImpl(modelConditionFactory, serializer, idGenUtil, indexUtil))
 }
 
 import StaticHashSearchImpl._
 
 @assemble class HashSearchStaticLeafAssembleBase[Model <: Product](
   modelCl: Class[Model],
-  indexer: Indexer[Model],
+  indexer: Indexer[Model]
+)(
   serializer: SerializationUtils
 ) extends AssembleName("HashSearchStaticLeafAssemble", modelCl) with HashSearchAssembleSharedKeys {
   type StaticHeapId = SrcId

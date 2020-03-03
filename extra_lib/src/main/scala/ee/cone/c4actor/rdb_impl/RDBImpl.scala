@@ -16,7 +16,7 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.rdb_impl.ToExternalDBAssembleTypes.PseudoOrig
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4di.{c4, provide}
+import ee.cone.c4di.{c4, c4multi, provide}
 import ee.cone.c4proto._
 import okio.ByteString
 import ee.cone.c4actor.rdb._
@@ -29,10 +29,12 @@ import ee.cone.c4actor.rdb._
   )
 }
 
-@c4("RDBSyncApp") class RDBOptionFactoryImpl(toUpdate: ToUpdate) extends RDBOptionFactory {
+@c4("RDBSyncApp") class RDBOptionFactoryImpl(
+  toExternalDBOrigAssembleFactory: ToExternalDBOrigAssembleFactory
+) extends RDBOptionFactory {
   def fromDB[P <: Product](cl: Class[P]): ExternalDBOption = new FromDBOption(cl.getName)
   def toDB[P <: Product](cl: Class[P], code: List[String]): ExternalDBOption =
-    new ToDBOption(cl.getName, code, new ToExternalDBOrigAssemble(toUpdate,cl))
+    new ToDBOption(cl.getName, code, toExternalDBOrigAssembleFactory.create(cl))
 }
 
 ////
@@ -74,9 +76,10 @@ trait  ToExternalDBItemAssembleUtil {
     }
 }
 
-@assemble class ToExternalDBOrigAssembleBase[D_Item<:Product](
-  val toUpdate: ToUpdate,
+@c4multiAssemble("RDBSyncApp") class ToExternalDBOrigAssembleBase[D_Item<:Product](
   classItem: Class[D_Item]
+)(
+  val toUpdate: ToUpdate
 )  extends   ToExternalDBItemAssembleUtil {
   def hasStateByNeedSrcIdJoiner(
     key: SrcId,
@@ -176,18 +179,23 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(rDBType
   )
 }
 
-@c4assemble("FromExternalDBSyncApp") class FromExternalDBSyncAssembleBase(indentedParser: IndentedParser) {
+@c4assemble("FromExternalDBSyncApp") class FromExternalDBSyncAssembleBase(
+  factory: FromExternalDBSyncTransformFactory
+) {
   def joinTxTransform(
     key: SrcId,
     first: Each[S_Firstborn]
   ): Values[(SrcId,TxTransform)] =
-    List("externalDBSync").map(k=>k->FromExternalDBSyncTransform(k)(indentedParser))
+    List(WithPK(factory.create("externalDBSync")))
 }
 
-case class FromExternalDBSyncTransform(srcId:SrcId)(indentedParser: IndentedParser) extends TxTransform with LazyLogging {
+@c4multi("FromExternalDBSyncApp") case class FromExternalDBSyncTransform(srcId:SrcId)(
+  indentedParser: IndentedParser,
+  getB_DBOffset: GetByPK[B_DBOffset],
+) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = WithJDBCKey.of(local){ conn =>
     val offset =
-      ByPK(classOf[B_DBOffset]).of(local).getOrElse(srcId, B_DBOffset(srcId, 0L))
+      getB_DBOffset.ofA(local).getOrElse(srcId, B_DBOffset(srcId, 0L))
     logger.debug(s"offset $offset")//, By.srcId(classOf[Invoice]).of(world).size)
     val textEncoded = conn.outText("poll").in(srcId).in(offset.value).call()
     //val updateOffset = List(B_DBOffset(srcId, nextOffsetValue)).filter(offset!=_)

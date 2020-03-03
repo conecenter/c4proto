@@ -2,27 +2,27 @@ package ee.cone.c4gate.deep_session
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
+import ee.cone.c4di.{c4, c4multi}
 import ee.cone.c4gate.{CurrentSessionKey, KeyGenerator, SessionAttr, SessionAttrAccessFactory}
 import ee.cone.c4gate.SessionDataProtocol.{N_RawDataNode, U_RawSessionData}
 import ee.cone.c4gate.deep_session.DeepSessionDataProtocol.{U_RawRoleData, U_RawUserData}
 import ee.cone.c4proto.ToByteString
 import okio.ByteString
 
-class DeepSessionAttrAccessFactoryImpl(
+@c4("DeepSessionAttrFactoryImplApp") class DeepSessionAttrAccessFactoryImpl(
   registry: QAdapterRegistry,
   modelFactory: ModelFactory,
-  modelAccessFactory: ModelAccessFactory,
+  modelAccessFactory: RModelAccessFactory,
   val idGenUtil: IdGenUtil,
-  sessionAttrAccessFactory: SessionAttrAccessFactory
+  sessionAttrAccessFactory: SessionAttrAccessFactory,
+  txDeepRawDataLensFactory: TxDeepRawDataLensFactory,
+  roleByPK: GetByPK[U_RawRoleData],
+  dataByPK: GetByPK[U_RawSessionData],
+  userByPK: GetByPK[U_RawUserData],
 ) extends DeepSessionAttrAccessFactory with KeyGenerator {
   lazy val rawDataAdapter = registry.byName(classOf[U_RawSessionData].getName)
   lazy val rawUserAdapter = registry.byName(classOf[U_RawUserData].getName)
   lazy val rawRoleAdapter = registry.byName(classOf[U_RawRoleData].getName)
-
-  lazy val dataByPK = ByPK(classOf[U_RawSessionData])
-  lazy val userByPK = ByPK(classOf[U_RawUserData])
-  lazy val roleByPK = ByPK(classOf[U_RawRoleData])
-
 
   def to[P <: Product](attr: SessionAttr[P]): Context => Option[Access[P]] =
     if (attr.metaList.collectFirst { case UserLevelAttr => "" }.isEmpty) {
@@ -46,7 +46,7 @@ class DeepSessionAttrAccessFactoryImpl(
       dataNode = Option(dataNode)
     )
     val rawDataPK = genPK(stubRawData, rawDataAdapter)
-    val rawDataOpt: Option[U_RawSessionData] = dataByPK.of(local).get(rawDataPK)
+    val rawDataOpt: Option[U_RawSessionData] = dataByPK.ofA(local).get(rawDataPK)
     // User
     val userKey = CurrentUserIdKey.of(local)
     val stubRawUserData: U_RawUserData = U_RawUserData(
@@ -55,7 +55,7 @@ class DeepSessionAttrAccessFactoryImpl(
       dataNode = Option(dataNode)
     )
     val rawUserDataPK = genPK(stubRawUserData, rawUserAdapter)
-    val rawUserDataOpt: Option[U_RawUserData] = userByPK.of(local).get(rawUserDataPK)
+    val rawUserDataOpt: Option[U_RawUserData] = userByPK.ofA(local).get(rawUserDataPK)
     // Role
     val roleKey = CurrentRoleIdKey.of(local)
     val stubRawRoleData: U_RawRoleData = U_RawRoleData(
@@ -64,7 +64,7 @@ class DeepSessionAttrAccessFactoryImpl(
       dataNode = Option(dataNode)
     )
     val rawRoleDataPK = genPK(stubRawRoleData, rawRoleAdapter)
-    val rawRoleDataOpt: Option[U_RawRoleData] = roleByPK.of(local).get(rawRoleDataPK)
+    val rawRoleDataOpt: Option[U_RawRoleData] = roleByPK.ofA(local).get(rawRoleDataPK)
     // Rest
     val lensRaw = ProdLensNonstrict[U_RawSessionData, P](attr.metaList)(
       rawSessionData => registry.byId(rawSessionData.dataNode.get.valueTypeId).decode(rawSessionData.dataNode.get.value).asInstanceOf[P],
@@ -97,7 +97,7 @@ class DeepSessionAttrAccessFactoryImpl(
       value => deepData => deepData.set(registry)(value)(deepData)
     )
 
-    val access: AccessImpl[DeepRawSessionData[P]] = AccessImpl(data, Option(TxDeepRawDataLens(data)), NameMetaAttr("DeepRawSessionData") :: Nil)
+    val access: AccessImpl[DeepRawSessionData[P]] = AccessImpl(data, Option(txDeepRawDataLensFactory.create(data)), NameMetaAttr("DeepRawSessionData") :: Nil)
     Option(access.to(lens))
   }
 
@@ -127,12 +127,12 @@ class DeepSessionAttrAccessFactoryImpl(
         dataNode = Option(dataNode)
       )
       val pk = genPK(stubRawRoleData, rawRoleAdapter)
-      val value = roleByPK.of(local).getOrElse(pk, {
+      val value = roleByPK.ofA(local).getOrElse(pk, {
         val model = modelFactory.create[P](attr.className)(pk)
         lens.set(model)(stubRawRoleData.copy(srcId = pk))
       }
       )
-      modelAccessFactory.to(value).map(_.to(lens))
+      modelAccessFactory.to(roleByPK,value).map(_.to(lens))
     }
   }
 }
@@ -181,16 +181,17 @@ case class DeepRawSessionData[P <: Product](
   }
 }
 
-case class TxDeepRawDataLens[P <: Product](initialValue: DeepRawSessionData[P]) extends AbstractLens[Context, DeepRawSessionData[P]] {
-  lazy val dataByPK = ByPK(classOf[U_RawSessionData])
-  lazy val userByPK = ByPK(classOf[U_RawUserData])
-  lazy val roleByPK = ByPK(classOf[U_RawRoleData])
+@c4multi("TxDeepRawDataLensApp") case class TxDeepRawDataLens[P <: Product](initialValue: DeepRawSessionData[P])(
+  dataByPK: GetByPK[U_RawSessionData],
+  userByPK: GetByPK[U_RawUserData],
+  roleByPK: GetByPK[U_RawRoleData],
+) extends AbstractLens[Context, DeepRawSessionData[P]] {
 
   def of: Context => DeepRawSessionData[P] = local => {
     val (rawId, userId, roleId) = initialValue.srcIds
-    val rawOpt = dataByPK.of(local).get(rawId)
-    val userOpt = userByPK.of(local).get(userId)
-    val roleOpt = roleByPK.of(local).get(roleId)
+    val rawOpt = dataByPK.ofA(local).get(rawId)
+    val userOpt = userByPK.ofA(local).get(userId)
+    val roleOpt = roleByPK.ofA(local).get(roleId)
     initialValue.copy(sessionData = rawOpt, userData = userOpt, roleData = roleOpt)
   }
 

@@ -10,17 +10,20 @@ import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.CurrentTimeProtocol.{S_CurrentTimeNode, S_CurrentTimeNodeSetting}
 import ee.cone.c4actor.dep.request.CurrentTimeRequestProtocol.{D_CurrentTimeMetaAttr, N_CurrentTimeRequest}
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4assemble.{Assemble, assemble, by, c4assemble, c4multiAssemble}
+import ee.cone.c4di.{Component, ComponentsApp, c4, c4multi, provide}
 import ee.cone.c4proto._
 
-trait CurrentTimeHandlerAppBase extends AssemblesApp with CurrentTimeConfigApp with DepResponseFactoryApp with ProtoApp {
+trait CurrentTimeHandlerAppBase extends CurrentTimeConfigApp with ProtoApp {
 
   override def currentTimeConfig: List[CurrentTimeConfig] = CurrentTimeConfig(CurrentTimeRequestAssembleTimeId.id, 10L) :: super.currentTimeConfig
-
-  override def assembles: List[Assemble] = new CurrentTimeRequestAssemble(depResponseFactory) :: super.assembles
 }
 
-case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends TxTransform {
+@c4multi("CurrentTimeApp") case class CurrentTimeTransform(
+  srcId: SrcId, refreshRateSeconds: Long
+)(
+  getS_CurrentTimeNode: GetByPK[S_CurrentTimeNode],
+) extends TxTransform {
   private val refreshMilli = refreshRateSeconds * 1000L
   private val random: SecureRandom = new SecureRandom()
 
@@ -30,7 +33,7 @@ case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends 
     val newLocal = InsertOrigMeta(D_CurrentTimeMetaAttr(srcId, refreshRateSeconds) :: Nil)(l)
     val now = Instant.now
     val nowMilli = now.toEpochMilli
-    val prev = ByPK(classOf[S_CurrentTimeNode]).of(newLocal).get(srcId)
+    val prev = getS_CurrentTimeNode.ofA(newLocal).get(srcId)
     prev match {
       case Some(currentTimeNode) if currentTimeNode.currentTimeMilli + getOffset < nowMilli =>
         val nowSeconds = now.getEpochSecond
@@ -60,16 +63,23 @@ case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends 
 
 case class CurrentTimeConfig(srcId: SrcId, periodSeconds: Long)
 
-trait CurrentTimeConfigApp {
+trait CurrentTimeConfigApp extends ComponentsApp {
+  import ComponentProvider.provide
+  private lazy val currentTimeConfigComponent = provide(classOf[CurrentTimeConfig], ()=>currentTimeConfig)
+  override def components: List[Component] = currentTimeConfigComponent :: super.components
   def currentTimeConfig: List[CurrentTimeConfig] = Nil
 }
 
-trait CurrentTimeAppBase extends CurrentTimeConfigApp with AssemblesApp {
+trait CurrentTimeAppBase extends CurrentTimeConfigApp
 
-  override def assembles: List[Assemble] = {
+@c4("CurrentTimeApp") class CurrentTimeAssembles(
+  currentTimeConfig: List[CurrentTimeConfig],
+  currentTimeAssembleFactory: CurrentTimeAssembleFactory
+) {
+  @provide def assembles: Seq[Assemble] = {
     val grouped = currentTimeConfig.distinct.groupBy(_.srcId).filter(kv => kv._2.size > 1)
     assert(grouped.isEmpty, s"Duplicate keys ${grouped.keySet}")
-    new CurrentTimeAssemble(currentTimeConfig.distinct) :: super.assembles
+    Seq(currentTimeAssembleFactory.create(currentTimeConfig.distinct))
   }
 }
 
@@ -77,8 +87,11 @@ object CurrentTimeRequestAssembleTimeId {
   val id: String = "CurrentTimeRequestAssemble"
 }
 
-
-@assemble class CurrentTimeAssembleBase(configList: List[CurrentTimeConfig]) {
+@c4multiAssemble("CurrentTimeApp") class CurrentTimeAssembleBase(
+  configList: List[CurrentTimeConfig]
+)(
+  currentTimeTransformFactory: CurrentTimeTransformFactory
+) {
   type CurrentTimeId = SrcId
 
   def CreateTimeConfig(
@@ -92,10 +105,10 @@ object CurrentTimeRequestAssembleTimeId {
     @by[CurrentTimeId] config: Each[CurrentTimeConfig],
     settings: Values[S_CurrentTimeNodeSetting]
   ): Values[(SrcId, TxTransform)] =
-    List(WithPK(CurrentTimeTransform(config.srcId, settings.headOption.map(_.refreshSeconds).getOrElse(config.periodSeconds))))
+    List(WithPK(currentTimeTransformFactory.create(config.srcId, settings.headOption.map(_.refreshSeconds).getOrElse(config.periodSeconds))))
 }
 
-@assemble class CurrentTimeRequestAssembleBase(util: DepResponseFactory) {
+@c4assemble("CurrentTimeHandlerApp") class CurrentTimeRequestAssembleBase(util: DepResponseFactory) {
   type CTRATimeId = SrcId
 
   def FilterTimeForCurrentTimeRequestAssemble(

@@ -57,15 +57,16 @@ class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends
   def get(parseContext: ParseContext): List[Generated] = for {
     cl <- Util.matchClass(parseContext.stats)
     c4ann <- Util.singleSeq(cl.mods.collect{
-      case mod"@assemble" => ""
-      case mod"@c4assemble(...$e)" => mod"@c4(...$e)".syntax
+      case mod"@assemble" => None
+      case mod"@c4assemble(...$e)" => Option(mod"@c4(...$e)")
+      case mod"@c4multiAssemble(...$e)" => Option(mod"@c4multi(...$e)")
     })
     res <- Util.unBase(cl.name,cl.nameNode.pos.end) { className =>
-      (if(c4ann.isEmpty) Nil else List(GeneratedImport("\nimport ee.cone.c4di.c4"))) :::
+      (if(c4ann.isEmpty) Nil else List(GeneratedImport("\nimport ee.cone.c4di._"))) :::
       getAssemble(parseContext, cl, className, c4ann)
     }
   } yield res
-  def getAssemble(parseContext: ParseContext, cl: ParsedClass, className: String, c4ann: String): List[Generated] = {
+  def getAssemble(parseContext: ParseContext, cl: ParsedClass, className: String, c4ann: Option[Mod.Annot]): List[Generated] = {
     val transformers = joinParamTransforms.map(_.transform(parseContext))
     val classArgs = cl.params.toList.flatten.collect{
       case param"..$mods ${Term.Name(argName)}: Class[${Type.Name(typeName)}]" =>
@@ -221,11 +222,16 @@ class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends
       case param"..$mods $name: $tpeopt = $expropt" => if(expropt.isEmpty) Option(param"..${mods.collect{ case mod"valparam" => None case o => Option(o) }.flatten} $name: $tpeopt") else None
     }.flatten)
 
-    val res = q"""class ${Type.Name(className)} [..${cl.typeParams}] (...$paramNamesWithTypes)"""
+    val res = c4ann.fold(
+      q"""class ${Type.Name(className)} [..${cl.typeParams}] (...$paramNamesWithTypes)"""
+    )(ann=>
+      q"""$ann class ${Type.Name(className)} [..${cl.typeParams}] (...$paramNamesWithTypes)"""
+    )
 
+    val factoryStats = MultiGenerator.getForStats(List(res))
     //cont.substring(0,className.pos.end) + "_Base" + cont.substring(className.pos.end) +
-    subAssembleImp ::: GeneratedCode(
-      s"$c4ann ${res.syntax} extends ${cl.name}$paramNames with Assemble$subAssembleWith " +
+    factoryStats ::: subAssembleImp ::: GeneratedCode(
+      s"${res.syntax} extends ${cl.name}$paramNames with Assemble$subAssembleWith " +
       s"{\n$statRules$joinImpl$dataDependencies$subAssembleDef}"
     ) :: Nil // :: components
   }

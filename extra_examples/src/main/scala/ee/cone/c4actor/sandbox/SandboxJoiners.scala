@@ -5,19 +5,13 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.sandbox.OtherProtocol.D_Other
 import ee.cone.c4actor.sandbox.SandboxProtocol.D_Sandbox
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, CallerAssemble, assemble, by, ignore}
+import ee.cone.c4assemble.{Assemble, CallerAssemble, assemble, by, c4assemble, ignore}
 
 /*
   This file can be edited for learning purposes, feel free to experiment here
  */
 
-trait SandboxJoinersApp
-  extends AssemblesApp
-    with IdGenUtilApp {
-
-  override def assembles: List[Assemble] =
-    new SandboxJoiners(idGenUtil) :: super.assembles
-}
+trait SandboxJoinersAppBase
 
 case class RichSandbox(srcId: String, value: Int)
 
@@ -33,7 +27,7 @@ case class RichSandboxPair(
   sandboxOrig: D_Sandbox
 )
 
-@assemble class SandboxJoinersBase(idGenUtil: IdGenUtil) extends CallerAssemble  {
+@c4assemble("SandboxJoinersApp") class SandboxJoinersBase(idGenUtil: IdGenUtil) extends CallerAssemble  {
   //@ignore val test: Int = 1
   //@ignore lazy val test2: Int = 2
   @ignore def test3: Int = 3

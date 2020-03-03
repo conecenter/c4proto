@@ -6,38 +6,40 @@ import ee.cone.c4actor.TypedAllTestProtocol.{D_Model1, D_Model2, D_ModelTest}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
+import ee.cone.c4di.{c4, c4app}
 import ee.cone.c4proto.{Id, protocol}
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.TypedAllTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
-class TypedAllTestStart(
+@c4("TypedAllTestApp") class TypedAllTestStart(
   execution: Execution,
   toUpdate: ToUpdate,
   contextFactory: ContextFactory,
   //rawWorldFactory: RichRawWorldFactory, /* progressObserverFactory: ProgressObserverFactory,*/
   //observer: Option[Observer],
-  qAdapterRegistry: QAdapterRegistry
+  qAdapterRegistry: QAdapterRegistry,
+  activateContext: ActivateContext
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     import LEvent.update
     val recs = update(S_Firstborn("test", "0" * OffsetHexSize())) ++ update(D_Model1("1")) ++ update(D_Model2("2"))
     val updates: List[QProtocol.N_Update] = recs.map(rec => toUpdate.toUpdate(rec)).toList
     val nGlobal = contextFactory.updated(updates)
-    val nGlobalActive = ActivateContext(nGlobal)
-    val nGlobalAA = ActivateContext(nGlobalActive)
-    val nGlobalAAA = ActivateContext(nGlobalAA)
-    val nGlobalAAAA = ActivateContext(nGlobalAAA)
+    val nGlobalActive = activateContext(nGlobal)
+    val nGlobalAA = activateContext(nGlobalActive)
+    val nGlobalAAA = activateContext(nGlobalAA)
+    val nGlobalAAAA = activateContext(nGlobalAAA)
 
     //logger.info(s"${nGlobal.assembled}")
     println("0<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-    //println(ByPK(classOf[D_TestObject]).of(nGlobal).values.toList)
+    //println( /*getD_TestObject: GetByPK[D_TestObject],*/getD_TestObject.ofA(nGlobal).values.toList)
     println("1>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     println("1<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-    //println(ByPK(classOf[D_TestObject]).of(newNGlobal).values.toList)
+    //println( /*getD_TestObject: GetByPK[D_TestObject],*/getD_TestObject.ofA(newNGlobal).values.toList)
     println("2>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     val test = TxAdd(update(D_ModelTest("1", 1)) ++ update(D_ModelTest("2", 2)))(nGlobalAAAA)
     println("2<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     val test2 = TxAdd(update(D_ModelTest("1", 3)) ++ update(D_ModelTest("3", 5)) ++ update(D_ModelTest("2", 2)))(test)
-    //println(ByPK(classOf[D_TestObject]).of(newNGlobal).values.toList)
+    //println( /*getD_TestObject: GetByPK[D_TestObject],*/getD_TestObject.ofA(newNGlobal).values.toList)
     execution.complete()
 
   }
@@ -48,7 +50,7 @@ trait TypedAllType {
   type TestBy[T] = SrcId
 }
 
-@assemble class TestAllEachBase {
+@c4assemble("TypedAllTestApp") class TestAllEachBase {
   type FixedAll = AbstractAll
 
   def test1(
@@ -160,21 +162,15 @@ trait TypedAllTestProtocolAppBase
 
 }
 
-class TypedAllTestApp extends TestVMRichDataApp
+@c4app trait TypedAllTestAppBase extends TestVMRichDataApp
   with VMExecutionApp
   with ExecutableApp
-  with ToStartApp
-  with TypedAllTestProtocolApp {
-
-
-  //override def rawQSender: RawQSender = NoRawQSender
-
-  override def parallelAssembleOn: Boolean = true
-
-  override def toStart: List[Executable] = new TypedAllTestStart(execution, toUpdate, contextFactory, /*txObserver,*/ qAdapterRegistry) :: super.toStart
+  with TypedAllTestProtocolApp
+  with ActivateContextApp
+{
 
   override def assembles: List[Assemble] = {
-    new TypedAllTestAssemble(classOf[D_Model1]) :: new TypedAllTestAssemble(classOf[D_Model2]) :: new TestAllEach ::
+    new TypedAllTestAssemble(classOf[D_Model1]) :: new TypedAllTestAssemble(classOf[D_Model2]) ::
       super.assembles
   }
 

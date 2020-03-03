@@ -1,12 +1,14 @@
 package ee.cone.c4ui
 
 import ee.cone.c4actor._
-import ee.cone.c4actor.dep.request.{LeafInfoHolder, LeafRegistryApp}
+import ee.cone.c4actor.dep.request.LeafInfoHolderTypes.ProductLeafInfoHolder
+import ee.cone.c4actor.dep.request._
 import ee.cone.c4actor.dep.{Dep, DepFactory, DepFactoryApp}
 import ee.cone.c4actor.dep_impl.RequestDep
 import ee.cone.c4actor.hashsearch.base.{HashSearchDepRequestFactory, HashSearchDepRequestFactoryApp}
 import ee.cone.c4actor.hashsearch.condition.ConditionCheckWithCl
 import ee.cone.c4actor.hashsearch.rangers.HashSearchRangerRegistryApp
+import ee.cone.c4di.{Component, ComponentsApp, c4, provide}
 import ee.cone.c4ui.dep.request.{FLRequestDef, FilterListRequestApp}
 
 import scala.collection.immutable.Seq
@@ -28,18 +30,31 @@ trait DepFilterWrapperMix extends DepFilterWrapperApp with HashSearchRangerRegis
   }
 }
 
-trait DepFilterWrapperCollectorApp {
+trait DepFilterWrapperCollectorApp extends ComponentsApp {
+  import ComponentProvider.provide
+  private lazy val filterWrappersComponent =
+    provide(classOf[DepFilterWrapperApiProvider], ()=>Seq(DepFilterWrapperApiProvider(filterWrappers)))
+  override def components: List[Component] = filterWrappersComponent :: super.components
   def filterWrappers: List[DepFilterWrapperApi[_ <: Product]] = Nil
 }
 
-trait DepFilterWrapperCollectorMix
+case class DepFilterWrapperApiProvider(values: List[DepFilterWrapperApi[_ <: Product]])
+
+@c4("DepFilterWrapperCollectorMix") class DepFilterWrapperCollectorLeafs(
+  providers: List[DepFilterWrapperApiProvider]
+) {
+  @provide def leafs: Seq[ProductLeafInfoHolder] = for {
+    provider <- providers
+    filterWrapper <- provider.values
+    leaf <- filterWrapper.getLeafs
+  } yield leaf
+}
+
+trait DepFilterWrapperCollectorMixBase
   extends DepFilterWrapperCollectorApp
-    with LeafRegistryApp
     with FilterListRequestApp
-    with HashSearchDepRequestFactoryApp {
-
-  override def leafs: List[LeafInfoHolder[_ <: Product, _ <: Product, _]] = filterWrappers.flatMap(_.getLeafs) ::: super.leafs
-
+    with HashSearchDepRequestFactoryApp
+{
   override def filterDepList: List[FLRequestDef] = filterWrappers.flatMap(_.filterRequests(hashSearchDepRequestFactory)) ::: super.filterDepList
 }
 
@@ -181,7 +196,7 @@ case class DepFilterWrapperPartImpl[Model <: Product](
     }
 }
 
-trait DepFilterWrapperApi[Model <: Product] {
+trait DepFilterWrapperApi[Model <: Product] extends Product {
   def add[By <: Product, Field](
     byDep: String => Dep[Option[Access[By]]],
     lens: ProdLensStrict[Model, Field],

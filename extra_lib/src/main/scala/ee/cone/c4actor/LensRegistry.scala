@@ -1,23 +1,39 @@
 package ee.cone.c4actor
 
-import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexModelsApp, HashSearchIdGeneration, ProductWithId}
+import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexModelsApp, DynamicIndexModelsProvider, HashSearchIdGeneration, ProductWithId}
+import ee.cone.c4di.{Component, ComponentsApp, c4, provide}
 
 
-trait ProdLensesApp {
+trait ProdLensesApp extends ComponentsApp {
+  import ComponentProvider.provide
+  private lazy val lensListComponent =
+    provide(classOf[ProdLensListProvider], ()=>Seq(ProdLensListProvider(lensList)))
+  override def components: List[Component] = lensListComponent :: super.components
   def lensList: List[ProdLens[_, _]] = Nil
 }
+
+case class ProdLensListProvider(values: List[ProdLens[_, _]])
 
 trait LensRegistryApp {
   def lensRegistry: LensRegistry
 }
 
-trait LensRegistryMix extends ProdLensesApp with DynamicIndexModelsApp{
-  def lensRegistry = {
-    lensIntegrityCheck
+trait LensRegistryMixBase extends ComponentProviderApp with ProdLensesApp with DynamicIndexModelsApp{
+  def lensRegistry: LensRegistry = resolveSingle(classOf[LensRegistry])
+}
+
+@c4("LensRegistryMix") class LensRegistryProvider(
+  lensListProviders: List[ProdLensListProvider],
+  dynIndexModelProviders: List[DynamicIndexModelsProvider],
+) {
+  private def lensList = lensListProviders.flatMap(_.values)
+  private def dynIndexModels = dynIndexModelProviders.flatMap(_.values)
+  @provide def get: Seq[LensRegistry] = Seq{
+    lensIntegrityCheck()
     LensRegistryImpl(lensList.distinct, dynIndexModels.distinct)
   }
 
-  private def lensIntegrityCheck = {
+  private def lensIntegrityCheck(): Unit = {
     val errors = lensList.distinct.groupBy(prodLens => prodLens.metaList.collect { case a: NameMetaAttr => a }
       .map(_.value) match {
       case Nil => FailWith.apply(s"Lens without name in LensRegistryImpl: $prodLens")

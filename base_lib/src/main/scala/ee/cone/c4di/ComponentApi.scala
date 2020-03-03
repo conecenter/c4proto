@@ -8,7 +8,21 @@ object Types {
   type ComponentFactory[T] = Seq[TypeKey]=>Seq[T]
 }
 
-case class TypeKey(clName: String, alias: String, args: List[TypeKey])
+object CreateTypeKey { // to use mostly from generated code
+  def apply(cl: Class[_], alias: String, args: List[TypeKey]): TypeKey =
+    Value(cl.getName, alias, args)(cl)
+  private case class Value(clName: String, alias: String, args: List[TypeKey])(val cl: Class[_]) extends TypeKey {
+    def copy(alias: String, args: List[TypeKey]): TypeKey =
+      Value(clName,alias,args)(cl)
+  }
+}
+trait TypeKey extends Product {
+  def cl: Class[_]
+  def clName: String
+  def args: List[TypeKey]
+  def alias: String
+  def copy(alias: String = alias, args: List[TypeKey] = args): TypeKey
+}
 
 class c4(apps: String*) extends StaticAnnotation
 class provide extends StaticAnnotation

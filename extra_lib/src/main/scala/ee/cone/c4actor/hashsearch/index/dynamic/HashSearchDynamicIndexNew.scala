@@ -4,27 +4,30 @@ import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.hashsearch.base._
-import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryApp, RangerWithCl}
+import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistry, HashSearchRangerRegistryApp, RangerWithCl}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
+import ee.cone.c4di.{c4, provide}
 import ee.cone.c4proto._
 
-trait HashSearchDynamicIndexApp
-  extends AssemblesApp
-    with DynamicIndexModelsApp
-    with QAdapterRegistryApp
-    with LensRegistryApp
-    with HashSearchRangerRegistryApp
-    with IdGenUtilApp
-    with DefaultModelRegistryApp {
-  def indexUtil: IndexUtil
+trait HashSearchDynamicIndexAppBase extends DynamicIndexModelsApp
 
-  override def assembles: List[Assemble] = {
-    val models: List[ProductWithId[_ <: Product]] = dynIndexModels.distinct
+@c4("HashSearchDynamicIndexApp") class HashSearchDynamicIndexAssembles(
+  hashSearchDynamicIndexCommonFactory: HashSearchDynamicIndexCommonFactory,
+  hashSearchDynamicIndexNewFactory: HashSearchDynamicIndexNewFactory,
+  dynIndexModelProviders: List[DynamicIndexModelsProvider],
+  hashSearchRangerRegistry: HashSearchRangerRegistry,
+  qAdapterRegistry: QAdapterRegistry,
+  lensRegistry: LensRegistry
+) {
+  @provide def assembles: Seq[Assemble] = {
+    val models: List[ProductWithId[_ <: Product]] = dynIndexModelProviders.flatMap(_.values).distinct
     val rangerWiseAssemble: List[HashSearchDynamicIndexNew[_ <: Product, Product, Any]] = models.flatMap(model => getAssembles(model))
     val availableModels = rangerWiseAssemble.map(_.modelId)
-    val modelOnlyAssembles: List[Assemble] = models.map { model => new HashSearchDynamicIndexCommon(model.modelCl, model.modelCl, model.modelId, idGenUtil, indexUtil) }.filter(id => availableModels.contains(id.modelId))
-    rangerWiseAssemble ::: modelOnlyAssembles ::: super.assembles
+    val modelOnlyAssembles: List[Assemble] = models.map { model =>
+      hashSearchDynamicIndexCommonFactory.create(model.modelCl, model.modelCl, model.modelId)
+    }.filter(id => availableModels.contains(id.modelId))
+    rangerWiseAssemble ::: modelOnlyAssembles
   }
 
   def createAssemble[Model <: Product, By <: Product, Field](a: Class[Model], b: Class[By], c: Class[Field])(
@@ -32,7 +35,7 @@ trait HashSearchDynamicIndexApp
     byId: Long,
     ranger: RangerWithCl[_ <: Product, _]
   ): HashSearchDynamicIndexNew[Model, By, Field] =
-    new HashSearchDynamicIndexNew[Model, By, Field](
+    hashSearchDynamicIndexNewFactory.create[Model, By, Field](
       a,
       b,
       c,
@@ -40,11 +43,7 @@ trait HashSearchDynamicIndexApp
       a,
       modelId,
       byId,
-      qAdapterRegistry,
-      lensRegistry,
-      idGenUtil,
       ranger.asInstanceOf[RangerWithCl[By, Field]],
-      modelFactory
     )
 
   def getAssembles(model: ProductWithId[_ <: Product]): List[HashSearchDynamicIndexNew[_ <: Product, Product, Any]] = {
@@ -198,7 +197,7 @@ case class DynamicNeed[Model <: Product](requestId: SrcId)
 
 case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
 
-@assemble class HashSearchDynamicIndexNewBase[Model <: Product, By <: Product, Field](
+@c4multiAssemble("HashSearchDynamicIndexApp") class HashSearchDynamicIndexNewBase[Model <: Product, By <: Product, Field](
   modelCl: Class[Model],
   byCl: Class[By],
   fieldCl: Class[Field],
@@ -206,10 +205,11 @@ case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
   val modelClass: Class[Model],
   val modelId: Int,
   val byAdapterId: Long,
+  val ranger: RangerWithCl[By, Field],
+)(
   val qAdapterRegistry: QAdapterRegistry,
   val lensRegistry: LensRegistry,
   val idGenUtil: IdGenUtil,
-  val ranger: RangerWithCl[By, Field],
   val modelFactory: ModelFactory
 ) extends AssembleName("HashSearchDynamicIndexNew", modelCl, byCl, fieldCl)
   with DynamicIndexSharedTypes
@@ -336,10 +336,11 @@ sealed trait DynIndexCommonUtils[Model <: Product] {
   }
 }
 
-@assemble class HashSearchDynamicIndexCommonBase[Model <: Product](
+@c4multiAssemble("HashSearchDynamicIndexApp") class HashSearchDynamicIndexCommonBase[Model <: Product](
   modelCl: Class[Model],
   val modelClass: Class[_],
-  val modelId: Int,
+  val modelId: Int
+)(
   val idGenUtil: IdGenUtil,
   indexUtil: IndexUtil
 ) extends AssembleName("HashSearchDynamicIndexCommon", modelCl) with DynIndexCommonUtils[Model] with HashSearchAssembleSharedKeys {
