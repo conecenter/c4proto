@@ -65,4 +65,6 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
     List(args=>Seq(componentRegistry.resolveKey(Single(args)).value.toList))
   @provide def getOption: Seq[ComponentFactory[Option[_]]] =
     List(args=>Seq(Single.option(componentRegistry.resolveKey(Single(args)).value)))
+  @provide def getTypeKey: Seq[ComponentFactory[StrictTypeKey[_]]] =
+    List(args=>Seq(StrictTypeKey(Single(args))))
 }

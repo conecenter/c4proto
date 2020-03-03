@@ -16,7 +16,7 @@ object Killing {
   type KillerId = SrcId
 }
 
-@c4multiAssemble class MortalAssembleBase[D_Node<:Product](classOfMortal: Class[D_Node])(
+@c4multiAssemble("MortalFactoryCompApp") class MortalAssembleBase[D_Node<:Product](classOfMortal: Class[D_Node])(
   anUUIDUtil: IdGenUtil
 )   {
   def createKilling(
