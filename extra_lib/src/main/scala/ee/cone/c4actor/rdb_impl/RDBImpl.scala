@@ -32,9 +32,9 @@ import ee.cone.c4actor.rdb._
 @c4("RDBSyncApp") class RDBOptionFactoryImpl(
   toExternalDBOrigAssembleFactory: ToExternalDBOrigAssembleFactory
 ) extends RDBOptionFactory {
-  def fromDB[P <: Product](cl: Class[P]): ExternalDBOption = new FromDBOption(cl.getName)
+  def fromDB[P <: Product](cl: Class[P]): ExternalDBOption = new FromDBOption(cl)
   def toDB[P <: Product](cl: Class[P], code: List[String]): ExternalDBOption =
-    new ToDBOption(cl.getName, code, toExternalDBOrigAssembleFactory.create(cl))
+    new ToDBOption(cl, code, toExternalDBOrigAssembleFactory.create(cl))
 }
 
 ////
