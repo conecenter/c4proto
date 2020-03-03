@@ -136,7 +136,7 @@ object HashSearchImpl {
   //  l => Single.option(l.distinct).toList
 }
 
-@c4multiAssemble class BHashSearchAssembleBase[RespLine<:Product](
+@c4multiAssemble("RichDataCompApp") class BHashSearchAssembleBase[RespLine<:Product](
   classOfRespLine: Class[RespLine],
   indexers: Indexer[RespLine]
 )(

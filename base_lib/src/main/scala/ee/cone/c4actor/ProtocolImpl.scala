@@ -57,8 +57,8 @@ class NoWrapArgAdapter[Value](val defaultValue: Value, inner: ProtoAdapter[Value
   def decodeFix(prev: Value): Value = prev
 }
 
-@c4("ProtoApp") class LazyListArgAdapterFactory extends LazyArgAdapterFactory(CreateTypeKey(classOf[LazyList[_]],"LazyList",Nil), new ListArgAdapter(_))
-@c4("ProtoApp") class ListArgAdapterFactory extends ArgAdapterFactory(CreateTypeKey(classOf[List[_]],"List",Nil), new ListArgAdapter(_))
+@c4("ProtoApp") class LazyListArgAdapterFactory(uKey: StrictTypeKey[LazyList[Unit]]) extends LazyArgAdapterFactory(uKey.value.copy(args=Nil), new ListArgAdapter(_))
+@c4("ProtoApp") class ListArgAdapterFactory(uKey: StrictTypeKey[List[Unit]]) extends ArgAdapterFactory(uKey.value.copy(args=Nil), new ListArgAdapter(_))
 class ListArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter[List[Value]] {
   def encodedSizeWithTag(tag: Int, value: List[Value]): Int =
     value.foldLeft(0)((res,item)=>res+inner().encodedSizeWithTag(tag,item))
@@ -70,8 +70,8 @@ class ListArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter[L
   def decodeFix(prev: List[Value]): List[Value] = prev.reverse
 }
 
-@c4("ProtoApp") class LazyOptionArgAdapterFactory extends LazyArgAdapterFactory(CreateTypeKey(classOf[LazyOption[_]],"LazyOption",Nil), new OptionArgAdapter(_))
-@c4("ProtoApp") class OptionArgAdapterFactory extends ArgAdapterFactory(CreateTypeKey(classOf[Option[_]],"Option",Nil), new OptionArgAdapter(_))
+@c4("ProtoApp") class LazyOptionArgAdapterFactory(uKey: StrictTypeKey[LazyOption[Unit]]) extends LazyArgAdapterFactory(uKey.value.copy(args=Nil), new OptionArgAdapter(_))
+@c4("ProtoApp") class OptionArgAdapterFactory(uKey: StrictTypeKey[Option[Unit]]) extends ArgAdapterFactory(uKey.value.copy(args=Nil), new OptionArgAdapter(_))
 class OptionArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter[Option[Value]] {
   def encodedSizeWithTag(tag: Int, value: Option[Value]): Int =
     value.foldLeft(0)((res,item)=>res+inner().encodedSizeWithTag(tag,item))

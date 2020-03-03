@@ -27,3 +27,5 @@ trait ComponentRegistry {
 trait DeferredSeq[+T] {
   def value: Seq[T]
 }
+
+case class StrictTypeKey[+T](value: TypeKey)
