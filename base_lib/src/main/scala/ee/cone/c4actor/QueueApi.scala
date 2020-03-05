@@ -161,8 +161,9 @@ class Context(
   val transient: TransientMap
 ) extends SharedContext with AssembledContext
 
-trait GetByPK[+V<:Product] {
+trait GetByPK[+V<:Product] extends Product {
   def ofA(context: AssembledContext): Map[SrcId,V]
+  def typeKey: TypeKey
 }
 
 trait DynamicByPK { // low level api, think before use

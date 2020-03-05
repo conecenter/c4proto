@@ -18,7 +18,7 @@ trait ByClassNameAllAsk {
 }
 
 trait ByClassNameRequestMix extends DepFactoryApp with ByClassNameRequestApp {
-  override def byClassNameAllAsk: ByClassNameAllAsk = ByClassNameAllAskImpl(depFactory)
+  def byClassNameAllAsk: ByClassNameAllAsk = ByClassNameAllAskImpl(depFactory)
 }
 
 class ByClNameAllClass(val value: Class[_ <: Product])

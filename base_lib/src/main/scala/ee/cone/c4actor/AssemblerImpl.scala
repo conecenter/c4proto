@@ -197,30 +197,28 @@ case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K
   }
 }
 
-@c4multi("RichDataCompApp") class GetByPKImpl[+V<:Product](joinKey: AssembledKey)(
-  dynamic: DynamicByPK
+@c4multi("RichDataCompApp") case class GetByPKImpl[+V<:Product](val typeKey: TypeKey)(
+  dynamic: DynamicByPK,
+  needAssembledKeyRegistry: NeedAssembledKeyRegistry,
+)(
+  joinKey: AssembledKey = needAssembledKeyRegistry.toAssembleKey(typeKey)
 ) extends GetByPK[V] {
   def ofA(context: AssembledContext): Map[SrcId,V] =
     dynamic.get(joinKey,context).asInstanceOf[Map[SrcId,V]]
 }
 
 @c4("RichDataCompApp") class GetByPKUtil(keyFactory: KeyFactory) {
-  def toAssembleKey(args: Seq[TypeKey]): AssembledKey = {
-    val Seq(vTypeKey) = args
+  def toAssembleKey(vTypeKey: TypeKey): AssembledKey = {
     assert(vTypeKey.args.isEmpty)
     // ?todo: assert OR alias and clName for joinKey should be extended by args
     keyFactory.rawKey(vTypeKey.clName)
   }
 }
 @c4("RichDataCompApp") class GetByPKComponentFactoryProvider(
-  util: GetByPKUtil, needAssembledKeyRegistry: NeedAssembledKeyRegistry,
   getByPKImplFactory: GetByPKImplFactory
 ) {
-  @provide def get: Seq[ComponentFactory[GetByPK[_]]] = List(args=>{
-    val joinKey = util.toAssembleKey(args)
-      assert(needAssembledKeyRegistry.values(joinKey),s"no need byPK self check: $joinKey")
-    List(getByPKImplFactory.create(joinKey))
-  })
+  @provide def get: Seq[ComponentFactory[GetByPK[_]]] =
+    List(args=>List(getByPKImplFactory.create(Single(args))))
 }
 
 @c4("RichDataCompApp") class NeedAssembledKeyRegistry(
@@ -230,10 +228,16 @@ case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K
   val getRules: List[NeedWorldPartRule] = for{
     component <- componentRegistry.components.toList
     inKey <- component.in if classNames(inKey.clName)
-  } yield new NeedWorldPartRule(List(util.toAssembleKey(inKey.args)), component.out.clName)
+  } yield new NeedWorldPartRule(List(util.toAssembleKey(Single(inKey.args))), component.out.clName)
 )(
-  val values: Set[AssembledKey] = getRules.flatMap(_.inputWorldKeys).toSet
-) extends DataDependencyProvider
+  values: Set[AssembledKey] = getRules.flatMap(_.inputWorldKeys).toSet
+) extends DataDependencyProvider {
+  def toAssembleKey(typeKey: TypeKey): AssembledKey = {
+    val joinKey = util.toAssembleKey(typeKey)
+    assert(values(joinKey),s"no need byPK self check: $joinKey")
+    joinKey
+  }
+}
 
 class NeedWorldPartRule(
   val inputWorldKeys: List[AssembledKey], val name: String
