@@ -197,12 +197,13 @@ case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K
   }
 }
 
-@c4multi("RichDataCompApp") case class GetByPKImpl[+V<:Product](val typeKey: TypeKey)(
+@c4multi("RichDataCompApp") case class GetByPKImpl[V<:Product](val typeKey: TypeKey)(
   dynamic: DynamicByPK,
   needAssembledKeyRegistry: NeedAssembledKeyRegistry,
 )(
-  joinKey: AssembledKey = needAssembledKeyRegistry.toAssembleKey(typeKey)
+  joinKey: AssembledKey = needAssembledKeyRegistry.toAssembleKey(typeKey),
 ) extends GetByPK[V] {
+  def cl: Class[V] = typeKey.cl.asInstanceOf[Class[V]]
   def ofA(context: AssembledContext): Map[SrcId,V] =
     dynamic.get(joinKey,context).asInstanceOf[Map[SrcId,V]]
 }
