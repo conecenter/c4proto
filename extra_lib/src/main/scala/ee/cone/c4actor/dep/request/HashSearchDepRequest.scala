@@ -64,7 +64,7 @@ object LeafInfoHolderTypes {
 }
 
 case class LeafInfoHolder[Model <: Product, By <: Product, Field](
-  lens: ProdLens[Model, Field],
+  lens: ProdGetter[Model, Field],
   byOptions: List[AbstractMetaAttr],
   check: ConditionCheck[By, Field],
 
@@ -120,7 +120,7 @@ trait LeafRegistryMixBase
   private def makeLeaf[Model <: Product, By <: Product, Field](modelCl: Class[Model], byClass: Class[By], fieldCl: Class[Field]):
 
   (LeafInfoHolder[_, _, _], ByteString) => ProdConditionImpl[By, Model, Field] = (leafInfo, by) => {
-    def filterMetaList: ProdLens[Model, Field] => List[AbstractMetaAttr] =
+    def filterMetaList: ProdGetter[Model, Field] => List[AbstractMetaAttr] =
       _.metaList.collect { case l: NameMetaAttr => l }
 
     val byAdapter = qAdapterRegistry.byName(byClass.getName)

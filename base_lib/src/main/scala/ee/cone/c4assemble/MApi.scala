@@ -67,7 +67,7 @@ trait ReadModel {
   def getFuture(key: AssembledKey): Option[Future[Index]]
 }
 
-trait Getter[C,+I] {
+trait Getter[-C,+I] {
   def of: C => I
 }
 

@@ -1,9 +1,7 @@
 package ee.cone.c4generator
 
-import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.meta._
 import scala.meta.internal.trees.InternalTree
-//import org.scalameta.logger
 
 object FieldAccessGenerator extends Generator {
   def get(parseContext: ParseContext): List[Generated] = parseContext.stats.flatMap{
@@ -28,7 +26,7 @@ object FieldAccessGenerator extends Generator {
       //  println(s"=-=$code")
       //Util.comment(code)(cont) +
       val nCode = code.transform {
-        case q"$o.of[$from, $to](...$args)" =>
+        case q"ProdLens.of[$from, $to](...$args)" =>
           val fromTypeKey = ComponentsGenerator.getTypeKey(from, None).parse[Term].get
           val toTypeKey = ComponentsGenerator.getTypeKey(to, None).parse[Term].get
           val List(head :: tail) = args
@@ -38,28 +36,29 @@ object FieldAccessGenerator extends Generator {
             q"classOf[$from]" :: q"classOf[$to]" ::
             q"$fromTypeKey" :: q"$toTypeKey" ::
             tail)
-          q"$o.ofSetStrict[$from, $to](...$nArgs)"
-        case q"$o.ofFunc[$from, $to](...$args)" =>
+          q"ProdLens.ofSetStrict[$from, $to](...$nArgs)"
+        case q"ProdLens.ofFunc[$from, $to](...$args)" =>
           val List(field :: head :: tail) = args
           val fromTypeKey = ComponentsGenerator.getTypeKey(from, None).parse[Term].get
           val toTypeKey = ComponentsGenerator.getTypeKey(to, None).parse[Term].get
-          val nArgs = List(head :: q"_ => _ => Never()" ::
+          val nArgs = List(head ::
             q"$field" ::
             q"classOf[$from]" :: q"classOf[$to]" ::
             q"$fromTypeKey" :: q"$toTypeKey" ::
             tail)
-          q"$o.ofSetStrict[$from, $to](...$nArgs)"
-        case q"$o.ofFunc(...$args)" =>
-          throw new Exception(s"$o.ofFunc($args) should have implicit types like $o.ofFunc[FROM, TO](...)")
-        case q"$o.of(...$args)" =>
+          q"ProdLens.ofFuncStrict[$from, $to](...$nArgs)"
+        case q"ProdLens.ofFunc(...$args)" =>
+          throw new Exception(s"ProdLens.ofFunc($args) should have implicit types like ProdLens.ofFunc[FROM, TO](...)")
+        case q"ProdLens.of(...$args)" =>
           val List(head :: tail) = args
           val q"_.$field" = head
           val nArgs = List(head :: q"value=>model=>model.copy($field=value)" :: Lit.String(s"$field") :: tail)
-          q"$o.ofSet(...$nArgs)"
+          q"ProdLens.ofSet(...$nArgs)"
       }
 
       List(
         GeneratedImport("import ee.cone.c4di.{TypeKey, CreateTypeKey}"),
+        GeneratedImport("import ee.cone.base.util.Never"),
         genObj(objectName, nCode)
       )
     }

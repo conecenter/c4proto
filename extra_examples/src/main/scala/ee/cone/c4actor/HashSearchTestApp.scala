@@ -282,7 +282,7 @@ trait TestCondition extends SerializationUtilsApp {
 {
   // println(TestProtocolM.adapters.map(a => a.categories))
 
-  override def lensList: List[ProdLens[_, _]] = lensInt :: lensStr :: super.lensList
+  override def getterList: List[GetterLens[_, _]] = lensInt :: lensStr :: super.getterList
 
   override def hashSearchRangers: List[RangerWithCl[_ <: Product, _]] = StrStartsWithRanger :: IntEqRanger() :: super.hashSearchRangers
 
