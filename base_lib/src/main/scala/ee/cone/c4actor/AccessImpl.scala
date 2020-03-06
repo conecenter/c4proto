@@ -33,7 +33,6 @@ case class ComposedLens[C,T,I](
 case class TxProtoLens[V<:Product](initialValue: V)(mapOf: AssembledContext=>Map[SrcId,V]) extends AbstractLens[Context,V] {
   private def className = initialValue.getClass.getName
   private def srcId = ToPrimaryKey(initialValue)
-  // private def key = ByPrimaryKeyGetter(className)
   def of: Context => V = local => mapOf(local).getOrElse(srcId,initialValue)
   def set: V => Context => Context = value => local => {
     if(initialValue != of(local)) throw new Exception(s"'$initialValue' != '${of(local)}'")
