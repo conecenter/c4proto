@@ -62,7 +62,7 @@ my $load_started = sub{
     @res;
 };
 
-my $prune = [qw(target .git .idea .bloop node_modules build null)];
+my $prune = [qw(target .git .idea .bloop node_modules build)];
 
 my @tasks;
 
