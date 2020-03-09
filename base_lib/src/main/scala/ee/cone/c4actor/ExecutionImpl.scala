@@ -76,7 +76,7 @@ class RUncaughtExceptionHandler(inner: UncaughtExceptionHandler) extends Uncaugh
 @c4("VMExecutionApp") class VMExecution(getToStart: DeferredSeq[Executable], executionFilter: ExecutionFilter)(
   threadPool: ExecutorService = VMExecution.newExecutorService("tx-",Option(Runtime.getRuntime.availableProcessors)) // None?
 )(
-  mainExecutionContext: ExecutionContext = ExecutionContext.fromExecutor(threadPool)
+  val mainExecutionContext: ExecutionContext = ExecutionContext.fromExecutor(threadPool)
 ) extends Execution with LazyLogging {
   def run(): Unit = {
     val toStart = getToStart.value.filter(executionFilter.check)

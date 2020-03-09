@@ -71,6 +71,11 @@ trait UpdateFlag {
     @Id(0x0019) actorName: String,
     @Id(0x001A) incarnationId: String
   )*/
+  case class N_CompressedUpdates(
+    @Id(0x001D) compressorName: String,
+    @Id(0x001E) values: List[ByteString]
+  )
+
 }
 
 //case class Task(srcId: SrcId, value: Product, offset: Long)
