@@ -19,7 +19,11 @@ import scala.concurrent.duration.Duration
       .map(nm => new OriginalWorldPart(origKeyFactory.value.rawKey(nm)))
 }
 
-case object TreeAssemblerKey extends SharedComponentKey[(Replace,Set[AssembledKey])]
+case object TreeAssemblerKey extends SharedComponentKey[TreeAssembling]
+class TreeAssembling(
+  val replace: Replace,
+  val isActiveOrigKey: Set[AssembledKey],
+)
 
 @c4("RichDataCompApp") class DefLongAssembleWarnPeriod extends LongAssembleWarnPeriod(Option(System.getenv("C4ASSEMBLE_WARN_PERIOD_MS")).fold(1000L)(_.toLong))
 
@@ -45,15 +49,13 @@ case object TreeAssemblerKey extends SharedComponentKey[(Replace,Set[AssembledKe
   assembleOptionsOuterKey: AssembledKey = origKeyFactory.value.rawKey(classOf[AssembleOptions].getName),
   assembleOptionsInnerKey: String = ToPrimaryKey(defaultAssembleOptions)
 ) extends ToInject with LazyLogging {
-  type ReplaceActive = (Replace,Set[AssembledKey])
-  private def toTreeReplace(replaceActive: ReplaceActive, assembled: ReadModel, updates: Seq[N_Update], profiling: JoiningProfiling, executionContext: OuterExecutionContext): Future[WorldTransition] = {
-    val (replace,isActive) = replaceActive
+  private def toTreeReplace(treeAssembling: TreeAssembling, assembled: ReadModel, updates: Seq[N_Update], profiling: JoiningProfiling, executionContext: OuterExecutionContext): Future[WorldTransition] = {
     val timer = NanoTimer()
     val mDiff = for {
       tpPair <- updates.groupBy(_.valueTypeId)
       (valueTypeId, tpUpdates) = tpPair : (Long,Seq[N_Update])
       valueAdapter <- qAdapterRegistry.byId.get(valueTypeId)
-      wKey <- Option(origKeyFactory.value.rawKey(valueAdapter.className)) if isActive(wKey)
+      wKey <- Option(origKeyFactory.value.rawKey(valueAdapter.className)) if treeAssembling.isActiveOrigKey(wKey)
     } yield {
       implicit val ec: ExecutionContext = executionContext.value
       wKey -> (for {
@@ -69,7 +71,7 @@ case object TreeAssemblerKey extends SharedComponentKey[(Replace,Set[AssembledKe
     }
     val diff = readModelUtil.create(mDiff.toMap)
     logger.trace(s"toTree ${timer.ms} ms")
-    replace.replace(assembled,diff,profiling,executionContext)
+    treeAssembling.replace.replace(assembled,diff,profiling,executionContext)
   }
 
   def waitFor[T](res: Future[T], options: AssembleOptions, stage: String): T = concurrent.blocking{
@@ -82,12 +84,12 @@ case object TreeAssemblerKey extends SharedComponentKey[(Replace,Set[AssembledKe
 
   // read model part:
   private def reduce(
-    replace: ReplaceActive,
+    treeAssembling: TreeAssembling,
     wasAssembled: ReadModel, updates: Seq[N_Update],
     options: AssembleOptions, executionContext: OuterExecutionContext
   ): ReadModel = {
     val profiling = assembleProfiler.createJoiningProfiling(None)
-    val res = toTreeReplace(replace, wasAssembled, updates, profiling, executionContext).map(_.result)(executionContext.value)
+    val res = toTreeReplace(treeAssembling, wasAssembled, updates, profiling, executionContext).map(_.result)(executionContext.value)
     waitFor(res, options, "read")
   }
 
@@ -95,7 +97,7 @@ case object TreeAssemblerKey extends SharedComponentKey[(Replace,Set[AssembledKe
     ev <- events.lastOption.toList
     lEvent <- LEvent.update(S_Offset(actorName.value,ev.srcId))
   } yield toUpdate.toUpdate(lEvent)
-  private def readModelAdd(replace: ReplaceActive, executionContext: OuterExecutionContext): Seq[RawEvent]=>ReadModel=>ReadModel = events => assembled => catchNonFatal {
+  private def readModelAdd(replace: TreeAssembling, executionContext: OuterExecutionContext): Seq[RawEvent]=>ReadModel=>ReadModel = events => assembled => catchNonFatal {
     val options = getAssembleOptions(assembled)
     val updates = offset(events) ::: toUpdate.toUpdates(events.toList)
     reduce(replace, assembled, updates, options, executionContext)
@@ -158,7 +160,16 @@ case object TreeAssemblerKey extends SharedComponentKey[(Replace,Set[AssembledKe
         }.toString
       }
       val origKeys = replace.active.collect{ case o: OriginalWorldPart[_] => o.outputWorldKey }.toSet
-      (replace,origKeys)
+      /*
+      val reg = CheckedMap(
+        replace.active.collect{
+          case t: DataDependencyTo[_] => t.outputWorldKey
+        }.collect{
+          case k: JoinKey if keyFactory.rawKey(k.valueClassName)==k =>
+            k.valueClassName -> k
+        }
+      )*/
+      new TreeAssembling(replace,origKeys)
     } :::
       WriteModelDebugAddKey.set(out =>
         if(out.isEmpty) identity[Context]
@@ -197,30 +208,29 @@ case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K
   }
 }
 
-@c4multi("RichDataCompApp") class GetByPKImpl[+V<:Product](joinKey: AssembledKey)(
-  dynamic: DynamicByPK
+@c4multi("RichDataCompApp") case class GetByPKImpl[V<:Product](typeKey: TypeKey)(
+  dynamic: DynamicByPK,
+  needAssembledKeyRegistry: NeedAssembledKeyRegistry,
+)(
+  joinKey: AssembledKey = needAssembledKeyRegistry.toAssembleKey(typeKey),
 ) extends GetByPK[V] {
+  def cl: Class[V] = typeKey.cl.asInstanceOf[Class[V]]
   def ofA(context: AssembledContext): Map[SrcId,V] =
     dynamic.get(joinKey,context).asInstanceOf[Map[SrcId,V]]
 }
 
 @c4("RichDataCompApp") class GetByPKUtil(keyFactory: KeyFactory) {
-  def toAssembleKey(args: Seq[TypeKey]): AssembledKey = {
-    val Seq(vTypeKey) = args
+  def toAssembleKey(vTypeKey: TypeKey): AssembledKey = {
     assert(vTypeKey.args.isEmpty)
     // ?todo: assert OR alias and clName for joinKey should be extended by args
     keyFactory.rawKey(vTypeKey.clName)
   }
 }
 @c4("RichDataCompApp") class GetByPKComponentFactoryProvider(
-  util: GetByPKUtil, needAssembledKeyRegistry: NeedAssembledKeyRegistry,
   getByPKImplFactory: GetByPKImplFactory
 ) {
-  @provide def get: Seq[ComponentFactory[GetByPK[_]]] = List(args=>{
-    val joinKey = util.toAssembleKey(args)
-      assert(needAssembledKeyRegistry.values(joinKey),s"no need byPK self check: $joinKey")
-    List(getByPKImplFactory.create(joinKey))
-  })
+  @provide def get: Seq[ComponentFactory[GetByPK[_]]] =
+    List(args=>List(getByPKImplFactory.create(Single(args))))
 }
 
 @c4("RichDataCompApp") class NeedAssembledKeyRegistry(
@@ -230,10 +240,16 @@ case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K
   val getRules: List[NeedWorldPartRule] = for{
     component <- componentRegistry.components.toList
     inKey <- component.in if classNames(inKey.clName)
-  } yield new NeedWorldPartRule(List(util.toAssembleKey(inKey.args)), component.out.clName)
+  } yield new NeedWorldPartRule(List(util.toAssembleKey(Single(inKey.args))), component.out.clName)
 )(
-  val values: Set[AssembledKey] = getRules.flatMap(_.inputWorldKeys).toSet
-) extends DataDependencyProvider
+  values: Set[AssembledKey] = getRules.flatMap(_.inputWorldKeys).toSet
+) extends DataDependencyProvider {
+  def toAssembleKey(typeKey: TypeKey): AssembledKey = {
+    val joinKey = util.toAssembleKey(typeKey)
+    assert(values(joinKey),s"no need byPK self check: $joinKey")
+    joinKey
+  }
+}
 
 class NeedWorldPartRule(
   val inputWorldKeys: List[AssembledKey], val name: String

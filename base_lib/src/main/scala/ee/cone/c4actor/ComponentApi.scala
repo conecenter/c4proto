@@ -28,5 +28,4 @@ trait DeferredSeq[+T] {
   def value: Seq[T]
 }
 
-case class StrictTypeKey[+T](value: TypeKey){ def cl: Class[_ <: T] = value.cl.asInstanceOf[Class[T]] }
-case class StrictTypeKey2[-T](value: TypeKey){ def cl: Class[_ >: T] = value.cl.asInstanceOf[Class[T]] }
+case class StrictTypeKey[T](value: TypeKey)
