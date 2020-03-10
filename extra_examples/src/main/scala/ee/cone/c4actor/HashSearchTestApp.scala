@@ -17,7 +17,7 @@ import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryMix, RangerWi
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4di.{c4, c4app}
-import ee.cone.c4proto.{Id, protocol}
+import ee.cone.c4proto.{GenLens, Id, protocol}
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.HashSearchExtraTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
 @c4("HashSearchExtraTestApp") class HashSearchExtraTestStart(
@@ -144,6 +144,7 @@ trait EqProtocolAppBase
     @Id(0xaaab) value: String
   )
 
+  @GenLens
   @Id(0xaaad) case class D_TestObject(
     @Id(0xaaae) srcId: String,
     @Id(0xaaba) valueInt: Int,
@@ -253,9 +254,9 @@ trait TestCondition extends SerializationUtilsApp {
      .add[D_StrStartsWith, String](lensStr, D_StrStartsWith(""))(StrStartsWithRanger)
      .assemble*/
 
-  def lensInt: ProdLens[D_TestObject, Int] = ProdLens.ofSet[D_TestObject, Int](_.valueInt, value => _.copy(valueInt = value), "testLensInt", ClassAttr(classOf[D_TestObject], classOf[Int]))
+  def lensInt: ProdLens[D_TestObject, Int] = D_TestObjectLenses.valueIntD_TestObject
 
-  def lensStr: ProdLens[D_TestObject, String] = ProdLens.ofSet[D_TestObject, String](_.valueStr, value => _.copy(valueStr = value), "testLensStr", ClassAttr(classOf[D_TestObject], classOf[String]))
+  def lensStr: ProdLens[D_TestObject, String] = D_TestObjectLenses.valueStr
 }
 
 @c4app trait HashSearchExtraTestAppBase extends TestVMRichDataApp

@@ -8,6 +8,7 @@ trait Access[C] extends Product{
   def initialValue: C
   def metaList: List[AbstractMetaAttr]
   def to[I](inner: ProdLens[C,I]): Access[I]
+  def +(metaAttrs: AbstractMetaAttr*): Access[C]
 }
 
 trait RModelAccessFactory {

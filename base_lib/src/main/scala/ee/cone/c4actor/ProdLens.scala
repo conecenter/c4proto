@@ -30,9 +30,11 @@ case class TypeKeyAttr(from: TypeKey, to: TypeKey) extends AbstractMetaAttr
 
 trait GetterWithMetaList[-C, +I] extends Getter[C, I] with Product {
   def metaList: List[AbstractMetaAttr]
+  def +(metaAttrs: AbstractMetaAttr*): GetterWithMetaList[C, I]
 }
 
 trait ProdGetter[-C, +I] extends GetterWithMetaList[C, I] {
+  def +(metaAttrs: AbstractMetaAttr*): ProdGetter[C, I]
   def extraMetaList: List[AbstractMetaAttr]
   def tkFrom: TypeKey
   def tkTo: TypeKey
@@ -42,9 +44,11 @@ trait ProdGetter[-C, +I] extends GetterWithMetaList[C, I] {
 
 abstract class ProdLens[C, I] extends AbstractLens[C, I] with GetterWithMetaList[C, I]{
   def to[V](inner: ProdLens[I, V]): ProdLens[C, V]
+  def +(metaAttrs: AbstractMetaAttr*): ProdLens[C, I]
 }
 
 case class ProdLensNonstrict[C, I](metaList: List[AbstractMetaAttr])(val of: C => I, val set: I => C => C) extends ProdLens[C, I] {
+  def +(metaAttrs: AbstractMetaAttr*): ProdLens[C, I] = copy(metaList ::: metaAttrs.toList)(of, set)
   def to[V](inner: ProdLens[I, V]): ProdLensNonstrict[C, V] =
     ProdLensNonstrict[C, V](metaList ::: inner.metaList)(
       container => inner.of(of(container)),
@@ -59,6 +63,14 @@ case class ProdGetterStrict[C, I](
 )(
   val of: C => I
 ) extends ProdGetter[C, I] {
+  def +(metaAttrs: AbstractMetaAttr*): ProdGetterStrict[C, I] =
+    ProdGetterStrict[C, I](
+      extraMetaList ::: metaAttrs.toList,
+      clFrom, clTo, tkFrom, tkTo
+    )(
+      of
+    )
+
   lazy val metaList: List[AbstractMetaAttr] = ee.cone.c4actor.TypeKeyAttr(tkFrom, tkTo) ::
     ee.cone.c4actor.ClassesAttr(clFrom.getName, clTo.getName) :: extraMetaList
 
@@ -69,9 +81,6 @@ case class ProdGetterStrict[C, I](
     )(
       container => inner.of(of(container))
     )
-
-  def escalate[C1 <: C]: ProdGetterStrict[C1, I] =
-     this.asInstanceOf[ProdGetterStrict[C1, I]]
 }
 
 case class ProdLensStrict[C, I](
@@ -80,6 +89,7 @@ case class ProdLensStrict[C, I](
 )(
   val of: C => I, val set: I => C => C
 ) extends ProdLens[C, I] with ProdGetter[C, I] {
+  def +(metaAttrs: AbstractMetaAttr*): ProdLensStrict[C, I] = copy(extraMetaList = extraMetaList ::: metaAttrs.toList)(of, set)
   lazy val metaList: List[AbstractMetaAttr] = ee.cone.c4actor.TypeKeyAttr(tkFrom, tkTo) ::
     ee.cone.c4actor.ClassesAttr(clFrom.getName, clTo.getName) :: extraMetaList
 
