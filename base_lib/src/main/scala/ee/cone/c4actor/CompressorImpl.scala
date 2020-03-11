@@ -1,19 +1,81 @@
 package ee.cone.c4actor
 
-import ee.cone.c4di.c4
+import com.typesafe.scalalogging.LazyLogging
+import ee.cone.c4actor.QProtocol.N_CompressedUpdates
+import ee.cone.c4di.{c4, c4multi, provide}
+import ee.cone.c4proto.{ProtoAdapter, ToByteString}
 import okio._
 
 import scala.annotation.tailrec
+import scala.concurrent.{ExecutionContext, Future}
 
 object NoStreamCompressorFactory extends StreamCompressorFactory {
   def create(): Option[Compressor] = None
 }
 
-@c4("ProtoApp") case class DeCompressorRegistryImpl(compressors: List[DeCompressor])(
-  val byNameMap: Map[String, DeCompressor] = compressors.map(c => c.name -> c).toMap
+@c4("ProtoApp") case class DeCompressorRegistryImpl(
+  compressors: List[DeCompressor],
+  innerMultiDeCompressorFactory: InnerMultiDeCompressorFactory
+)(
+  val byNameMap: Map[String, DeCompressor] = CheckedMap(compressors.map(c => c.name -> c))
+)(
+  val multiByNameMap: Map[String, MultiDeCompressor] = CheckedMap((
+    innerMultiDeCompressorFactory.create(byNameMap) ::
+    compressors.map(new WrapMultiDeCompressor(_))
+  ).map(c => c.name -> c))
 ) extends DeCompressorRegistry {
-  def byName: String => DeCompressor = byNameMap
+  def byName: String => MultiDeCompressor = multiByNameMap.apply
 }
+
+class WrapMultiDeCompressor(compressor: DeCompressor) extends MultiDeCompressor {
+  def name: String = compressor.name
+  def deCompress(data: ByteString)(implicit executionContext: ExecutionContext): List[Future[ByteString]] =
+    List(Future(compressor.deCompress(data)))
+}
+
+@c4multi("ProtoApp") class InnerMultiDeCompressor(
+  byName: Map[String, DeCompressor]
+)(
+  compressedUpdatesAdapter: ProtoAdapter[N_CompressedUpdates],
+) extends MultiDeCompressor {
+  def name = "inner"
+  def deCompress(data: ByteString)(implicit executionContext: ExecutionContext): List[Future[ByteString]] = {
+    val compressedUpdates = compressedUpdatesAdapter.decode(data)
+    val compressor = byName(compressedUpdates.compressorName)
+    compressedUpdates.values.map(v=>Future(compressor.deCompress(v)))
+  }
+}
+
+@c4("ProtoApp") class InnerMultiRawCompressorProvider(
+  compressor: Option[RawCompressor],
+  innerMultiRawCompressorFactory: InnerMultiRawCompressorFactory
+) {
+  @provide def get: Seq[MultiRawCompressor] =
+    compressor.map(innerMultiRawCompressorFactory.create).toSeq
+}
+
+@c4multi("ProtoApp") class InnerMultiRawCompressor(
+  compressor: RawCompressor
+)(
+  compressedUpdatesAdapter: ProtoAdapter[N_CompressedUpdates]
+) extends MultiRawCompressor with LazyLogging {
+  def name: String = "inner"
+  def compress(data: Future[Array[Byte]]*)(implicit executionContext: ExecutionContext): Future[Array[Byte]] =
+    for {
+      values <- Future.sequence(data.map(f=>f.map(d=>ToByteString(compressor.compress(d)))).toList)
+    } yield {
+      logger.debug(s"Encoding compressed ${values.size} parts...")
+      val res = compressedUpdatesAdapter.encode(N_CompressedUpdates(compressor.name,values))
+      logger.debug(s"Encoded compressed")
+      res
+    }
+}
+
+
+
+
+
+////
 
 @c4("ServerCompApp")
 case class GzipFullDeCompressor() extends DeCompressor {

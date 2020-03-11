@@ -278,11 +278,13 @@ trait SnapshotMTime {
   //remove Files.delete(path)
 }
 
-@c4("SnapshotMakingApp") class FileRawSnapshotSaver(baseDir: DataDir) extends RawSnapshotSaver {
+@c4("SnapshotMakingApp") class FileRawSnapshotSaver(baseDir: DataDir) extends RawSnapshotSaver with LazyLogging {
   def save(snapshot: RawSnapshot, data: Array[Byte]): Unit = {
     val path: Path = Paths.get(baseDir.value).resolve(snapshot.relativePath)
     Files.createDirectories(path.getParent)
+    logger.debug(s"Writing snapshot...")
     Files.write(path, data)
+    logger.debug(s"Writing snapshot done")
   }
 }
 

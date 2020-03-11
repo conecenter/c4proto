@@ -2,6 +2,8 @@ package ee.cone.c4actor
 
 import okio.ByteString
 
+import scala.concurrent.{ExecutionContext, Future}
+
 sealed trait NamedCompressing {
   def name: String
 }
@@ -19,9 +21,17 @@ trait RawCompressor extends NamedCompressing {
 }
 
 trait DeCompressorRegistry {
-  def byName: String => DeCompressor
+  def byName: String => MultiDeCompressor
 }
 
 trait StreamCompressorFactory {
   def create(): Option[Compressor]
+}
+
+trait MultiDeCompressor extends NamedCompressing {
+  def deCompress(data: ByteString)(implicit executionContext: ExecutionContext): List[Future[ByteString]]
+}
+
+trait MultiRawCompressor extends NamedCompressing {
+  def compress(data: Future[Array[Byte]]*)(implicit executionContext: ExecutionContext): Future[Array[Byte]]
 }
