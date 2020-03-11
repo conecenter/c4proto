@@ -18,14 +18,15 @@ object SanboxLensTutuorial {
 
     val newPerson = PersonToPhoneLens.set(Phone(1, (1, 2, 3)))(person)
 
+/*
     val prodPhoneLens: ProdLens[D_Person, Phone] =
-      ProdLens.ofSet[D_Person, Phone](
+      ProdLens.ofS et[D_Person, Phone](
         _.phone,
         phone => _.copy(phone = phone),
         "PersonToPhone"
       )
     val prodCodeLens: ProdLens[Phone, Int] =
-      ProdLens.ofSet[Phone, Int](
+      ProdLens.of Set[Phone, Int](
         _.code,
         code => _.copy(code = code),
         "PhoneToCode"
@@ -33,6 +34,7 @@ object SanboxLensTutuorial {
     val prodPersonCodeLens: ProdLens[D_Person, Int] =
       prodPhoneLens.to(prodCodeLens)
 
+*/
 
     println();
   }

@@ -4,20 +4,22 @@ import ee.cone.c4assemble.Getter
 import ee.cone.c4di.TypeKey
 
 object ProdLens {
+  //for use inside @fieldAccess
   def of[C, I](of: C => I, meta: AbstractMetaAttr*): ProdLensStrict[C, I] =
+    throw new Exception("not expanded")
+
+  def ofSet[C, I](fldName: String, of: C => I, set: I => C => C, meta: AbstractMetaAttr*): ProdLensStrict[C, I] =
     throw new Exception("not expanded")
 
   def ofFunc[C, I](fldName: String, of: C => I, meta: AbstractMetaAttr*): ProdGetterStrict[C, I] =
     throw new Exception("not expanded")
 
-  def ofFuncStrict[C, I](of: C => I, name: String, clFrom: Class[C], clTo: Class[I], tkFrom: TypeKey, tkTo: TypeKey, meta: AbstractMetaAttr*): ProdGetterStrict[C, I] =
-    ProdGetterStrict[C, I](NameMetaAttr(name) :: meta.toList, clFrom, clTo, tkFrom, tkTo)(of)
+  //for generated code only
+  def ofFuncStrict[C, I](of: C => I, fldName: String, clFrom: Class[C], clTo: Class[I], tkFrom: TypeKey, tkTo: TypeKey, meta: AbstractMetaAttr*): ProdGetterStrict[C, I] =
+    ProdGetterStrict[C, I](NameMetaAttr(fldName) :: meta.toList, clFrom, clTo, tkFrom, tkTo)(of)
 
-  def ofSetStrict[C, I](of: C => I, set: I => C => C, name: String, clFrom: Class[C], clTo: Class[I], tkFrom: TypeKey, tkTo: TypeKey, meta: AbstractMetaAttr*): ProdLensStrict[C, I] =
-    ProdLensStrict[C, I](NameMetaAttr(name) :: meta.toList, clFrom, clTo, tkFrom, tkTo)(of, set)
-
-  def ofSet[C, I](of: C => I, set: I => C => C, name: String, meta: AbstractMetaAttr*): ProdLensNonstrict[C, I] =
-    ProdLensNonstrict[C, I](NameMetaAttr(name) :: meta.toList)(of, set)
+  def ofSetStrict[C, I](of: C => I, set: I => C => C, fldName: String, clFrom: Class[C], clTo: Class[I], tkFrom: TypeKey, tkTo: TypeKey, meta: AbstractMetaAttr*): ProdLensStrict[C, I] =
+    ProdLensStrict[C, I](NameMetaAttr(fldName) :: meta.toList, clFrom, clTo, tkFrom, tkTo)(of, set)
 }
 
 case class NameMetaAttr(value: String) extends AbstractMetaAttr

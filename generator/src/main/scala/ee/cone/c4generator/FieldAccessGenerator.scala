@@ -27,33 +27,31 @@ object FieldAccessGenerator extends Generator {
       //Util.comment(code)(cont) +
       val nCode = code.transform {
         case q"ProdLens.of[$from, $to](...$args)" =>
-          val fromTypeKey = ComponentsGenerator.getTypeKey(from, None).parse[Term].get
-          val toTypeKey = ComponentsGenerator.getTypeKey(to, None).parse[Term].get
-          val List(head :: tail) = args
-          val q"_.$field" = head
-          val nArgs = List(head :: q"value=>model=>model.copy($field=value)" ::
-            Lit.String(s"$field") ::
-            q"classOf[$from]" :: q"classOf[$to]" ::
-            q"$fromTypeKey" :: q"$toTypeKey" ::
-            tail)
-          q"ProdLens.ofSetStrict[$from, $to](...$nArgs)"
+          genOfSetStrictShort(from, to, args)
+        case q"..$mods val $name: $t[$from, $to] = ProdLens.of(...$args)" =>
+          q"..$mods val $name: $t[$from, $to] = ${genOfSetStrictShort(from, to, args)}"
+        case q"..$mods def $name(...$dargs): $t[$from, $to] = ProdLens.of(...$args)" =>
+          q"..$mods def $name(...$dargs): $t[$from, $to] = ${genOfSetStrictShort(from, to, args)}"
+        case q"ProdLens.of(...$args)" =>
+          throw new Exception(s"ProdLens.of($args) should have implicit types like ProdLens.of[FROM, TO](...)")
+
         case q"ProdLens.ofFunc[$from, $to](...$args)" =>
-          val List(field :: head :: tail) = args
-          val fromTypeKey = ComponentsGenerator.getTypeKey(from, None).parse[Term].get
-          val toTypeKey = ComponentsGenerator.getTypeKey(to, None).parse[Term].get
-          val nArgs = List(head ::
-            q"$field" ::
-            q"classOf[$from]" :: q"classOf[$to]" ::
-            q"$fromTypeKey" :: q"$toTypeKey" ::
-            tail)
-          q"ProdLens.ofFuncStrict[$from, $to](...$nArgs)"
+          genOfFuncStrict(from, to, args)
+        case q"..$mods val $name: $t[$from, $to] = ProdLens.ofFunc(...$args)" =>
+          q"..$mods val $name: $t[$from, $to] = ${genOfFuncStrict(from, to, args)}"
+        case q"..$mods def $name(...$dargs): $t[$from, $to] = ProdLens.ofFunc(...$args)" =>
+          q"..$mods def $name(...$dargs): $t[$from, $to] = ${genOfFuncStrict(from, to, args)}"
         case q"ProdLens.ofFunc(...$args)" =>
           throw new Exception(s"ProdLens.ofFunc($args) should have implicit types like ProdLens.ofFunc[FROM, TO](...)")
-        case q"ProdLens.of(...$args)" =>
-          val List(head :: tail) = args
-          val q"_.$field" = head
-          val nArgs = List(head :: q"value=>model=>model.copy($field=value)" :: Lit.String(s"$field") :: tail)
-          q"ProdLens.ofSet(...$nArgs)"
+
+        case q"ProdLens.ofSet[$from, $to](...$args)" =>
+          genOfSetStrict(from, to, args)
+        case q"..$mods val $name: $t[$from, $to] = ProdLens.ofSet(...$args)" =>
+          q"..$mods val $name: $t[$from, $to] = ${genOfSetStrict(from, to, args)}"
+        case q"..$mods def $name(...$dargs): $t[$from, $to] = ProdLens.ofSet(...$args)" =>
+          q"..$mods def $name(...$dargs): $t[$from, $to] = ${genOfSetStrict(from, to, args)}"
+        case q"ProdLens.ofSet(...$args)" =>
+          throw new Exception(s"ProdLens.ofSet($args) should have implicit types like ProdLens.ofSet[FROM, TO](...)")
       }
 
       List(
@@ -62,6 +60,53 @@ object FieldAccessGenerator extends Generator {
         genObj(objectName, nCode)
       )
     }
+  }
+
+  private def genOfFuncStrict(
+    from: Type, to: Type,
+    args: List[List[scala.meta.Term]]
+  ): Term = {
+    val List(field :: get :: tail) = args
+    val fromTypeKey = ComponentsGenerator.getTypeKey(from, None).parse[Term].get
+    val toTypeKey = ComponentsGenerator.getTypeKey(to, None).parse[Term].get
+    val nArgs = List(get :: field ::
+      q"classOf[$from]" :: q"classOf[$to]" ::
+      q"$fromTypeKey" :: q"$toTypeKey" ::
+      tail
+    )
+    q"ProdLens.ofFuncStrict[$from, $to](...$nArgs)"
+  }
+
+  private def genOfSetStrictShort(
+    from: Type, to: Type,
+    args: List[List[scala.meta.Term]]
+  ): Term = {
+    val fromTypeKey = ComponentsGenerator.getTypeKey(from, None).parse[Term].get
+    val toTypeKey = ComponentsGenerator.getTypeKey(to, None).parse[Term].get
+    val List(head :: tail) = args
+    val q"_.$field" = head
+    val nArgs = List(head :: q"value=>model=>model.copy($field=value)" ::
+      Lit.String(s"$field") ::
+      q"classOf[$from]" :: q"classOf[$to]" ::
+      q"$fromTypeKey" :: q"$toTypeKey" ::
+      tail
+    )
+    q"ProdLens.ofSetStrict[$from, $to](...$nArgs)"
+  }
+
+  private def genOfSetStrict(
+    from: Type, to: Type,
+    args: List[List[scala.meta.Term]]
+  ): Term = {
+    val fromTypeKey = ComponentsGenerator.getTypeKey(from, None).parse[Term].get
+    val toTypeKey = ComponentsGenerator.getTypeKey(to, None).parse[Term].get
+    val List(field :: get :: set :: tail) = args
+    val nArgs = List(get :: set :: field ::
+      q"classOf[$from]" :: q"classOf[$to]" ::
+      q"$fromTypeKey" :: q"$toTypeKey" ::
+      tail
+    )
+    q"ProdLens.ofSetStrict[$from, $to](...$nArgs)"
   }
 }
 
