@@ -11,15 +11,19 @@ object ProdLens {
   def ofSet[C, I](fldName: String, of: C => I, set: I => C => C, meta: AbstractMetaAttr*): ProdLensStrict[C, I] =
     throw new Exception("not expanded")
 
-  def ofFunc[C, I](fldName: String, of: C => I, meta: AbstractMetaAttr*): ProdGetterStrict[C, I] =
+  //for generated code only
+  def ofSetStrict[C, I](of: C => I, set: I => C => C, fldName: String, clFrom: Class[C], clTo: Class[I], tkFrom: TypeKey, tkTo: TypeKey, meta: AbstractMetaAttr*): ProdLensStrict[C, I] =
+    ProdLensStrict[C, I](NameMetaAttr(fldName) :: meta.toList, clFrom, clTo, tkFrom, tkTo)(of, set)
+}
+
+object ProdGetter {
+  //for use inside @fieldAccess
+  def of[C, I](fldName: String, of: C => I, meta: AbstractMetaAttr*): ProdGetterStrict[C, I] =
     throw new Exception("not expanded")
 
   //for generated code only
-  def ofFuncStrict[C, I](of: C => I, fldName: String, clFrom: Class[C], clTo: Class[I], tkFrom: TypeKey, tkTo: TypeKey, meta: AbstractMetaAttr*): ProdGetterStrict[C, I] =
+  def ofStrict[C, I](of: C => I, fldName: String, clFrom: Class[C], clTo: Class[I], tkFrom: TypeKey, tkTo: TypeKey, meta: AbstractMetaAttr*): ProdGetterStrict[C, I] =
     ProdGetterStrict[C, I](NameMetaAttr(fldName) :: meta.toList, clFrom, clTo, tkFrom, tkTo)(of)
-
-  def ofSetStrict[C, I](of: C => I, set: I => C => C, fldName: String, clFrom: Class[C], clTo: Class[I], tkFrom: TypeKey, tkTo: TypeKey, meta: AbstractMetaAttr*): ProdLensStrict[C, I] =
-    ProdLensStrict[C, I](NameMetaAttr(fldName) :: meta.toList, clFrom, clTo, tkFrom, tkTo)(of, set)
 }
 
 case class NameMetaAttr(value: String) extends AbstractMetaAttr

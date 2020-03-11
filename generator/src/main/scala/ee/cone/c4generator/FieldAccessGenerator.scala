@@ -6,21 +6,21 @@ import scala.meta.internal.trees.InternalTree
 object FieldAccessGenerator extends Generator {
   def get(parseContext: ParseContext): List[Generated] = parseContext.stats.flatMap{
     case Defn.Object(Seq(mod"@fieldAccess"),baseObjectNameNode@Term.Name(baseObjectName),code) =>
-      genCode(baseObjectNameNode, baseObjectName, code, (objectName, nCode) =>
+      genCode(parseContext, baseObjectNameNode, baseObjectName, code, (objectName, nCode) =>
         GeneratedCode("\n" + Defn.Object(Nil, Term.Name(objectName), nCode.asInstanceOf[Template]).syntax)
       )
     case Defn.Trait(Seq(mod"@fieldAccess"),baseObjectNameNode@Type.Name(baseObjectName),x,y,code) =>
-      genCode(baseObjectNameNode, baseObjectName, code, (objectName, nCode) =>
+      genCode(parseContext, baseObjectNameNode, baseObjectName, code, (objectName, nCode) =>
         GeneratedCode("\n" + Defn.Trait(Nil, Type.Name(objectName), x, y, nCode.asInstanceOf[Template]).syntax)
       )
     case Defn.Class(Seq(mod"@fieldAccess"),baseObjectNameNode@Type.Name(baseObjectName),x,y,code) =>
-      genCode(baseObjectNameNode, baseObjectName, code, (objectName, nCode) =>
+      genCode(parseContext, baseObjectNameNode, baseObjectName, code, (objectName, nCode) =>
         GeneratedCode("\n" + Defn.Class(Nil, Type.Name(objectName), x, y, nCode.asInstanceOf[Template]).syntax)
       )
     case _ => Nil
   }
 
-  private def genCode(baseObjectNameNode: InternalTree, baseObjectName: String, code: Template, genObj: (String, Tree) => GeneratedCode): Seq[Generated] = {
+  private def genCode(parseContext: ParseContext, baseObjectNameNode: InternalTree, baseObjectName: String, code: Template, genObj: (String, Tree) => GeneratedCode): Seq[Generated] = {
     Util.unBase(baseObjectName, baseObjectNameNode.pos.end) { objectName =>
       //case q"@fieldAccess object $name $code" =>
       //  println(s"=-=$code")
@@ -32,17 +32,8 @@ object FieldAccessGenerator extends Generator {
           q"..$mods val $name: $t[$from, $to] = ${genOfSetStrictShort(from, to, args)}"
         case q"..$mods def $name(...$dargs): $t[$from, $to] = ProdLens.of(...$args)" =>
           q"..$mods def $name(...$dargs): $t[$from, $to] = ${genOfSetStrictShort(from, to, args)}"
-        case q"ProdLens.of(...$args)" =>
-          throw new Exception(s"ProdLens.of($args) should have implicit types like ProdLens.of[FROM, TO](...)")
-
-        case q"ProdLens.ofFunc[$from, $to](...$args)" =>
-          genOfFuncStrict(from, to, args)
-        case q"..$mods val $name: $t[$from, $to] = ProdLens.ofFunc(...$args)" =>
-          q"..$mods val $name: $t[$from, $to] = ${genOfFuncStrict(from, to, args)}"
-        case q"..$mods def $name(...$dargs): $t[$from, $to] = ProdLens.ofFunc(...$args)" =>
-          q"..$mods def $name(...$dargs): $t[$from, $to] = ${genOfFuncStrict(from, to, args)}"
-        case q"ProdLens.ofFunc(...$args)" =>
-          throw new Exception(s"ProdLens.ofFunc($args) should have implicit types like ProdLens.ofFunc[FROM, TO](...)")
+        case code@q"ProdLens.of(...$args)" =>
+          Utils.parseError(code, parseContext, s"@fieldAccess ProdLens.of($args) should have implicit types like ProdLens.of[FROM, TO](...)")
 
         case q"ProdLens.ofSet[$from, $to](...$args)" =>
           genOfSetStrict(from, to, args)
@@ -50,8 +41,18 @@ object FieldAccessGenerator extends Generator {
           q"..$mods val $name: $t[$from, $to] = ${genOfSetStrict(from, to, args)}"
         case q"..$mods def $name(...$dargs): $t[$from, $to] = ProdLens.ofSet(...$args)" =>
           q"..$mods def $name(...$dargs): $t[$from, $to] = ${genOfSetStrict(from, to, args)}"
-        case q"ProdLens.ofSet(...$args)" =>
-          throw new Exception(s"ProdLens.ofSet($args) should have implicit types like ProdLens.ofSet[FROM, TO](...)")
+        case code@q"ProdLens.ofSet(...$args)" =>
+          Utils.parseError(code, parseContext,s"@fieldAccess ProdLens.ofSet($args) should have implicit types like ProdLens.ofSet[FROM, TO](...)")
+
+        case q"ProdGetter.of[$from, $to](...$args)" =>
+          genOfGetStrict(from, to, args)
+        case q"..$mods val $name: $t[$from, $to] = ProdGetter.of(...$args)" =>
+          q"..$mods val $name: $t[$from, $to] = ${genOfGetStrict(from, to, args)}"
+        case q"..$mods def $name(...$dargs): $t[$from, $to] = ProdGetter.of(...$args)" =>
+          q"..$mods def $name(...$dargs): $t[$from, $to] = ${genOfGetStrict(from, to, args)}"
+        case code@q"ProdGetter.of(...$args)" =>
+          Utils.parseError(code, parseContext, s"@fieldAccess ProdGetter.of($args) should have implicit types like ProdGetter.of[FROM, TO](...)")
+
       }
 
       List(
@@ -62,7 +63,7 @@ object FieldAccessGenerator extends Generator {
     }
   }
 
-  private def genOfFuncStrict(
+  private def genOfGetStrict(
     from: Type, to: Type,
     args: List[List[scala.meta.Term]]
   ): Term = {
@@ -74,7 +75,7 @@ object FieldAccessGenerator extends Generator {
       q"$fromTypeKey" :: q"$toTypeKey" ::
       tail
     )
-    q"ProdLens.ofFuncStrict[$from, $to](...$nArgs)"
+    q"ProdGetter.ofStrict[$from, $to](...$nArgs)"
   }
 
   private def genOfSetStrictShort(
