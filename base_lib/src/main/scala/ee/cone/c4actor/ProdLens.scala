@@ -34,17 +34,17 @@ case class ClassesAttr(modelClName: String, fieldClName: String) extends Abstrac
 
 case class TypeKeyAttr(from: TypeKey, to: TypeKey) extends AbstractMetaAttr
 
-trait GetterWithMetaList[-C, +I] extends Getter[C, I] with Product {
+trait GetterWithMetaList[C, +I] extends Getter[C, I] with Product {
   def metaList: List[AbstractMetaAttr]
   def +(metaAttrs: AbstractMetaAttr*): GetterWithMetaList[C, I]
 }
 
-trait ProdGetter[-C, +I] extends GetterWithMetaList[C, I] {
+trait ProdGetter[C, +I] extends GetterWithMetaList[C, I] {
   def +(metaAttrs: AbstractMetaAttr*): ProdGetter[C, I]
   def extraMetaList: List[AbstractMetaAttr]
   def tkFrom: TypeKey
   def tkTo: TypeKey
-  def clFrom: Class[_ >: C]
+  def clFrom: Class[C]
   def clTo: Class[_ <: I]
 }
 
@@ -65,7 +65,7 @@ case class ProdLensNonstrict[C, I](metaList: List[AbstractMetaAttr])(val of: C =
 
 case class ProdGetterStrict[C, I](
   extraMetaList: List[AbstractMetaAttr],
-  clFrom: Class[_ >: C], clTo: Class[_ <: I], tkFrom: TypeKey, tkTo: TypeKey
+  clFrom: Class[C], clTo: Class[_ <: I], tkFrom: TypeKey, tkTo: TypeKey
 )(
   val of: C => I
 ) extends ProdGetter[C, I] {
