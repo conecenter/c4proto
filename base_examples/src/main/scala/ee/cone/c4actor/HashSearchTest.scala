@@ -46,9 +46,9 @@ object DefaultRangers {
 }
 
 @fieldAccess object SomeModelAccessBase {
-  lazy val fieldA: ProdLens[D_SomeModel,String] = ProdLens.of(_.fieldA)
-  lazy val fieldB: ProdLens[D_SomeModel,String] = ProdLens.of(_.fieldB)
-  lazy val fieldC: ProdLens[D_SomeModel,String] = ProdLens.of(_.fieldC)
+  lazy val fieldA: ProdLensStrict[D_SomeModel,String] = ProdLens.of(_.fieldA)
+  lazy val fieldB: ProdLensStrict[D_SomeModel,String] = ProdLens.of(_.fieldB)
+  lazy val fieldC: ProdLensStrict[D_SomeModel,String] = ProdLens.of(_.fieldC)
 }
 
 import HashSearch.{Request,Response}
