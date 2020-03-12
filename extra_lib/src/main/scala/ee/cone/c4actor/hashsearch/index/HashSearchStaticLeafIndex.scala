@@ -73,7 +73,7 @@ object StaticHashSearchImpl {
 
     def serializer: SerializationUtils
 
-    def add[NBy <: Product, NField](lens: ProdLens[Model, NField], by: NBy)(
+    def add[NBy <: Product, NField](lens: ProdLensStrict[Model, NField], by: NBy)(
       implicit ranger: Ranger[NBy, NField]
     ): StaticIndexBuilder[Model] = {
       val (valueToRanges, byToRanges) = ranger.ranges(by)

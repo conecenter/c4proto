@@ -9,6 +9,7 @@ import ee.cone.c4proto._
   )
 
   // A
+  @GenLens
   @Id(0x0169) case class S_IndexNode(
     @Id(0x016a) indexNodeId: String,
     @Id(0x016b) modelId: Int,
@@ -24,6 +25,7 @@ import ee.cone.c4proto._
   )
 
   // C
+  @GenLens
   @Id(0x0170) case class S_IndexByNode(
     @Id(0x0175) leafId: String,
     @Id(0x0177) indexNodeId: String,

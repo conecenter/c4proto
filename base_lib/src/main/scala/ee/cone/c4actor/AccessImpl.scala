@@ -15,6 +15,7 @@ import ee.cone.c4di._
 case class AccessImpl[P](
   initialValue: P, updatingLens: Option[Lens[Context, P] with Product], metaList: List[AbstractMetaAttr]
 ) extends Access[P] {
+  def +(metaAttrs: AbstractMetaAttr*): AccessImpl[P] = copy(metaList = metaList ::: metaAttrs.toList)
   def to[V](inner: ProdLens[P,V]): Access[V] = {
     val rValue = inner.of(initialValue)
     val rLens = updatingLens.map(l=>ComposedLens(l,inner))

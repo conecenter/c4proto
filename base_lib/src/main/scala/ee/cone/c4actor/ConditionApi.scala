@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-trait Condition[Model] extends Product {
+trait Condition[-Model] extends Product {
   def check(model: Model): Boolean
 }
 
@@ -10,10 +10,10 @@ trait ModelConditionFactory[Model] {
   def intersect: (Condition[Model],Condition[Model]) => Condition[Model]
   def union: (Condition[Model],Condition[Model]) => Condition[Model]
   def any: Condition[Model]
-  def leaf[By<:Product,Field](lens: ProdLens[Model,Field], by: By, byOptions: List[AbstractMetaAttr])(
+  def leaf[By<:Product,Field](lens: ProdGetter[Model,Field], by: By, byOptions: List[AbstractMetaAttr])(
     implicit check: ConditionCheck[By,Field]
   ): Condition[Model]
-  def filterMetaList[Field]: ProdLens[Model,Field] => List[AbstractMetaAttr]
+  def filterMetaList[Field]: ProdGetter[Model,Field] => List[AbstractMetaAttr]
 }
 trait ConditionCheck[By<:Product,Field] extends Product {
   def prepare: List[AbstractMetaAttr] => By => By
