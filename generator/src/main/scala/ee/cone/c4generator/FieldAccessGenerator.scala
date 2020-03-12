@@ -57,7 +57,6 @@ object FieldAccessGenerator extends Generator {
 
       List(
         GeneratedImport("import ee.cone.c4di.{TypeKey, CreateTypeKey}"),
-        GeneratedImport("import ee.cone.base.util.Never"),
         genObj(objectName, nCode)
       )
     }
