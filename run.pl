@@ -63,7 +63,7 @@ my $serve = sub{
 push @tasks, [gate=>sub{
     $ENV{C4HTTP_PORT} = $http_port;
     $ENV{C4SSE_PORT} = $sse_port;
-    $ENV{C4BOOTSTRAP_SERVERS} = "127.0.0.1:$bootstrap_port";
+    $ENV{C4BOOTSTRAP_SERVERS} =  $ENV{C4BOOTSTRAP_SERVERS} || "127.0.0.1:$bootstrap_port";
     &$serve();
 }];
 push @tasks, [main=>sub{
