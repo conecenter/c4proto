@@ -68,7 +68,12 @@ case class LensRegistryImpl(getterList: List[ProdGetter[_, _]], models: List[Pro
   def getByClasses[Model, Field](modeClName: String, fieldClName: String): List[ProdGetter[Model, Field]] = byClassesMap.getOrElse((modeClName, fieldClName), Nil).map(_.asInstanceOf[ProdGetter[Model, Field]])
 
   lazy val modelById: Map[String, Int] = models.map(m => m.modelCl.getName -> m.modelId).toMap
-  lazy val byCommonPrefix: Map[String, ProdGetter[_, _]] = getterList.map(lens => commonPrefix(modelById(getClasses(lens)._1), getNames(lens)) -> lens).toMap
+  lazy val byCommonPrefix: Map[String, ProdGetter[_, _]] = (
+    for {
+      lens <- getterList
+      model <- modelById.get(getClasses(lens)._1)
+    } yield commonPrefix(model, getNames(lens)) -> lens
+  ).toMap
 
   def getByCommonPrefix[Model, Field](commonPrefix: String): Option[ProdGetter[Model, Field]] =
     byCommonPrefix.get(commonPrefix).map(_.asInstanceOf[ProdGetter[Model, Field]])
