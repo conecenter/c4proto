@@ -65,9 +65,9 @@ import ee.cone.c4vdom.Types.ViewRes
 
 import TestTodoAccess._
 @fieldAccess object TestTodoAccessBase {
-  lazy val comments: ProdLens[B_TodoTask,String] =
+  lazy val comments: ProdLensStrict[B_TodoTask,String] =
     ProdLens.of(_.comments, UserLabel en "(comments)")
-  lazy val createdAt: ProdLens[B_TodoTask,Long] =
+  lazy val createdAt: ProdLensStrict[B_TodoTask,Long] =
     ProdLens.of(_.createdAt, UserLabel en "(created at)")
   lazy val createdAtFlt =
     SessionAttr(Id(0x0006), classOf[B_DateBefore], UserLabel en "(created before)")
