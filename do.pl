@@ -135,6 +135,7 @@ my $exec_server = sub{
         C4MAX_REQUEST_SIZE => 250000000,
         C4HTTP_SERVER => "http://$http_server",
         C4AUTH_KEY_FILE => "$data_dir/simple.auth",
+        C4STORE_PASS_PATH => "$data_dir/simple.auth",
         C4KEYSTORE_PATH => "$data_dir/cu.def.keystore.jks",
         C4TRUSTSTORE_PATH => "$data_dir/cu.def.truststore.jks",
         C4HTTP_PORT => $http_port,

@@ -254,9 +254,9 @@ trait TestCondition extends SerializationUtilsApp {
      .add[D_StrStartsWith, String](lensStr, D_StrStartsWith(""))(StrStartsWithRanger)
      .assemble*/
 
-  def lensInt: ProdLens[D_TestObject, Int] = D_TestObjectLenses.valueIntD_TestObject
+  //def lensInt: ProdLens[D_TestObject, Int] = D_TestObjectLenses.valueIntD_TestObject
 
-  def lensStr: ProdLens[D_TestObject, String] = D_TestObjectLenses.valueStr
+  //def lensStr: ProdLens[D_TestObject, String] = D_TestObjectLenses.valueStr
 }
 
 @c4app trait HashSearchExtraTestAppBase extends TestVMRichDataApp
@@ -283,7 +283,7 @@ trait TestCondition extends SerializationUtilsApp {
 {
   // println(TestProtocolM.adapters.map(a => a.categories))
 
-  override def getterList: List[ProdGetter[_, _]] = lensInt :: lensStr :: super.getterList
+  override def getterList: List[ProdGetter[_, _]] = ??? /*lensInt :: lensStr*/ :: super.getterList
 
   override def hashSearchRangers: List[RangerWithCl[_ <: Product, _]] = StrStartsWithRanger :: IntEqRanger() :: super.hashSearchRangers
 

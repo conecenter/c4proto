@@ -33,30 +33,39 @@ object FieldAccessGenerator extends Generator {
         val fieldShortName = Lit.String(nameStr)
         q"getClass.getName + '.' + $fieldShortName"
       }
+      def note(id: Int, hint: String): Unit = {
+        println(s"fieldAccess $id $hint")
+      }
       val nCode = code.transform {
         case q"ProdLens.of[$from, $to](...$args)" =>
+          note(3,"ProdLens.of[]")
           val List((get@q"_.$fieldT") :: tail) = args
           val nArgs = List(get :: q"value=>model=>model.copy($fieldT=value)" :: tail)
           val Term.Name(fieldStr) = fieldT
           val fieldName = Lit.String(fieldStr)
           genOfSetStrict(from, to, prepend(fieldName,nArgs))
         case q"..$mods val $name: $t[$from, $to] = ProdLens.of(...$args)" =>
+          note(2,"ProdLens.of")
           val fieldName = valToFieldName(s"$name")
           val List((get@q"_.$fieldT") :: tail) = args
           val nArgs = List(get :: q"value=>model=>model.copy($fieldT=value)" :: tail)
           q"..$mods val $name: $t[$from, $to] = ${genOfSetStrict(from, to, prepend(fieldName,nArgs))}"
         case q"..$mods val $name: $t[$from, $to] = ProdLens.ofSet(...$args)" =>
+          note(1,"ProdLens.ofSet")
           val fieldName = valToFieldName(s"$name")
           q"..$mods val $name: $t[$from, $to] = ${genOfSetStrict(from, to, prepend(fieldName,args))}"
 
         case q"..$mods def $name(...$dargs): $t[$from, $to] = UnsafeProdLens.ofSet(...$args)" =>
+          note(5,"UnsafeProdLens")
           q"..$mods def $name(...$dargs): $t[$from, $to] = ${genOfSetStrict(from, to, args)}"
 
         case q"..$mods val $name: $t[$from, $to] = ProdGetter.of(...$args)" =>
+          note(0,"ProdGetter")
           val fieldName = valToFieldName(s"$name")
           q"..$mods val $name: $t[$from, $to] = ${genOfGetStrict(from, to, prepend(fieldName,args))}"
 
         case q"..$mods def $name(...$dargs): $t[$from, $to] = UnsafeProdGetter.of(...$args)" =>
+          note(4,"UnsafeProdGetter")
           q"..$mods def $name(...$dargs): $t[$from, $to] = ${genOfGetStrict(from, to, args)}"
 
         case code@q"$_.ofSet(...$args)" =>

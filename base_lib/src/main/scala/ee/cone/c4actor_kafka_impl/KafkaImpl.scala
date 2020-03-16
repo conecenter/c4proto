@@ -25,13 +25,14 @@ import org.apache.kafka.common.serialization.{ByteArrayDeserializer, ByteArraySe
 import scala.collection.immutable.Map
 import scala.jdk.CollectionConverters.{IterableHasAsScala,MapHasAsJava,MapHasAsScala,SeqHasAsJava}
 
-@c4("KafkaConfigApp") class ConfigKafkaConfig(config: Config) extends KafkaConfig(
+@c4("KafkaConfigApp") class ConfigKafkaConfig(config: Config, listConfig: ListConfig) extends KafkaConfig(
   bootstrapServers = config.get("C4BOOTSTRAP_SERVERS"),
   inboxTopicPrefix = config.get("C4INBOX_TOPIC_PREFIX"),
   maxRequestSize = config.get("C4MAX_REQUEST_SIZE"),
   keyStorePath = config.get("C4KEYSTORE_PATH"),
   trustStorePath = config.get("C4TRUSTSTORE_PATH"),
-  keyPassPath = config.get("C4AUTH_KEY_FILE")
+  keyPassPath = config.get("C4STORE_PASS_PATH"),
+  extraPassPath = Single.option(listConfig.get("C4BROKER_EXTRA_PASS_PATH")),
 )()
 
 @c4("KafkaProducerApp") class KafkaRawQSender(conf: KafkaConfig, execution: Execution)(
@@ -78,24 +79,32 @@ object OffsetHex {
 
 case class KafkaConfig(
   bootstrapServers: String, inboxTopicPrefix: String, maxRequestSize: String,
-  keyStorePath: String, trustStorePath: String, keyPassPath: String
+  keyStorePath: String, trustStorePath: String, keyPassPath: String,
+  extraPassPath: Option[String],
 )(
   ok: Unit = assert(Seq(
     bootstrapServers, maxRequestSize,
     keyStorePath, trustStorePath, keyPassPath
   ).forall(_.nonEmpty)),
-  keyPass: String = new String(Files.readAllBytes(Paths.get(keyPassPath)),UTF_8)
+  keyPass: String = new String(Files.readAllBytes(Paths.get(keyPassPath)),UTF_8),
+  extraPass: Option[String] = for(path <- extraPassPath)
+    yield new String(Files.readAllBytes(Paths.get(path)),UTF_8),
 ){
   def ssl: Map[String,String] = Map(
     "bootstrap.servers"       -> bootstrapServers,
-    "security.protocol"       -> "SSL",
     "ssl.keystore.location"   -> keyStorePath,
     "ssl.keystore.password"   -> keyPass,
     "ssl.key.password"        -> keyPass,
     "ssl.truststore.location" -> trustStorePath,
     "ssl.truststore.password" -> keyPass,
     "ssl.endpoint.identification.algorithm" -> "",
-  )
+  ) ++ extraPass.fold(Map(
+    "security.protocol"       -> "SSL",
+  ))(p=>Map(
+    "security.protocol"       -> "SASL_SSL",
+    "sasl.mechanism"          -> "PLAIN",
+    "sasl.jaas.config"        -> s"""org.apache.kafka.common.security.plain.PlainLoginModule required username="user" password="$p";""",
+  ))
   def topicNameToString(topicName: TopicName): String = topicName match {
     case InboxTopicName() => s"$inboxTopicPrefix.inbox"
     //case LogTopicName() => s"$inboxTopicPrefix.inbox.log"
