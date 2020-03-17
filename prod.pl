@@ -204,7 +204,7 @@ push @tasks, ["ssh", "$composes_txt [command-with-args]", sub{
     sy(&$ssh_ctl($comp,@args));
 }];
 
-push @tasks, ["remote_service-gate",'',sub{"zookeeper"}];
+push @tasks, ["remote_service-gate",'',sub{"zookeeper"}]; #todo: fix if for lite gate
 push @tasks, ["remote_service-desktop",'',sub{"sshd"}];
 
 my $remote_acc  = sub{
@@ -391,6 +391,7 @@ use List::Util qw(reduce);
 
 my $map = sub{ my($opt,$f)=@_; map{&$f($_,$$opt{$_})} sort keys %$opt };
 my $merge_list = sub{ reduce{ &$merge($a,$b) } @_ };
+my $single = sub{ @_==1 ? $_[0] : die };
 
 my $to_yml_str = sub{
     my($generated) = @_;
@@ -499,19 +500,40 @@ my $make_kc_yml = sub{
         &$map($ip2aliases, sub{ my($k,$v)=@_; +{ip=>$k, hostnames=>$v} });
     };
     #
-    my @secrets = map{
+    my @int_secrets = map{
         my $opt = $_;
         my $nm = &$mandatory_of(name=>$opt);
         my @files = &$map($opt,sub{ my($k,$v)=@_;
             $k=~/^C4/ && $v=~m{^/c4conf/([\w\.]+)$} ? "$1" : ()
         });
-        @files ? { name => "$name-$nm", files => \@files } : ();
+        @files ? { container => $nm, secret => "$name-$nm", path=>"/c4conf", files => \@files } : ();
     } @$options;
-    my @secret_volumes = map{
-        my $n = &$mandatory_of(name=>$_);
-        +{ name => "$n-secret", secret => { secretName => $n } }
-    } @secrets;
-    my %secret_volumes_by_name = map{($$_{name}=>$_)} @secret_volumes;
+    my @ext_secrets = map{
+        my $opt = $_;
+        my $nm = &$mandatory_of(name=>$opt);
+        &$map($opt,sub{ my($k,$v)=@_;
+            $k=~/^C4/ && $v=~m{^(/c4conf-([\w\-]+))/} ? {container=>$nm,secret=>"$2",path=>"$1"} : ()
+        });
+    } @$options;
+    my @all_secrets = (@int_secrets,@ext_secrets);
+    my @secret_volumes = &$map(
+        +{map{(&$mandatory_of(secret=>$_)=>1)} @all_secrets},
+        sub{ my($secret,$v)=@_;
+            +{ name => "$secret-secret", secret => { secretName => $secret } }
+        }
+    );
+    my %secret_mounts = &$map(
+        &$merge_list({},map{
+            +{&$mandatory_of(container=>$_)=>{&$mandatory_of(path=>$_)=>{&$mandatory_of(secret=>$_)=>1}}}
+        } @all_secrets),
+        sub{ my($container,$v)=@_;
+            my @mounts = &$map($v,sub{ my($path,$v)=@_;
+                my $secret = &$single(keys %$v);
+                +{ name => "$secret-secret", mountPath => $path }
+            });
+            ($container=>\@mounts)
+        }
+    );
     #
     my @containers = map{
         my $opt = $_;
@@ -519,10 +541,9 @@ my $make_kc_yml = sub{
         my @env = &$map($opt,sub{ my($k,$v)=@_;
             $k=~/^([A-Z].+)/ ? {name=>$1,value=>"$v"} : ()
         });
-        my $secret_name = "$name-$nm-secret";
         my $data_dir = $$opt{C4DATA_DIR};
         my @volume_mounts = (
-            $secret_volumes_by_name{$secret_name} ? { name => $secret_name, mountPath => "/c4conf" } : (),
+            @{$secret_mounts{$nm}||[]},
             $data_dir ? { name => "db4", mountPath => $data_dir } : (),
         );
         +{
@@ -658,10 +679,10 @@ my $make_kc_yml = sub{
     my @secrets_yml = map{ &$to_yml_str({
         apiVersion => "v1",
         kind => "Secret",
-        metadata => { name => $$_{name} },
+        metadata => { name => &$mandatory_of(secret=>$_) },
         type => "Opaque",
         data => { map{($_=>syf("base64 -w0 < $tmp_path/$_"))} @{$$_{files}||die} },
-    })} @secrets;
+    })} @int_secrets;
     #
     join("", @secrets_yml, @service_yml, @ingress_yml, $stateful_set_yml);
 };
@@ -783,16 +804,14 @@ my $make_visitor_conf = sub{
 #C4INTERNAL_PORTS => "1080,1443",
 #my $conf = &$to_ini_file([&$frp_web($$conf{proxy_dom}||$run_comp)]);
 
-my $consumer_options = sub{(
+my $all_consumer_options = sub{(
     tty => "true",
     C4MAX_REQUEST_SIZE => "250000000",
-    C4INBOX_TOPIC_PREFIX => "",
-    C4AUTH_KEY_FILE => "/c4conf/simple.auth", #gate does no symlinks
-    C4KEYSTORE_PATH => "/c4conf/main.keystore.jks",
-    C4TRUSTSTORE_PATH => "/c4conf/main.truststore.jks",
     JAVA_TOOL_OPTIONS => "-XX:-UseContainerSupport ", # -XX:ActiveProcessorCount=36
     C4LOGBACK_XML => "/c4conf/logback.xml",
+    C4AUTH_KEY_FILE => "/c4conf/simple.auth", #gate does no symlinks
 )};
+
 # todo secure jmx
 #            JAVA_TOOL_OPTIONS => join(' ',qw(
 #                -Dcom.sun.management.jmxremote.port=9010
@@ -853,10 +872,16 @@ my $need_certs = sub{
 };
 
 my $need_deploy_cert = sub{
-    my($comp,$from_path)=@_;
-    my($dir,$save) = @{&$get_conf_dir()};
-    my $was_no_ca = &$need_certs("$dir/ca/$comp","main",$from_path,"/c4conf");
-    sy($save) if $was_no_ca;
+    my($comp,$from_path,$has_int_broker)=@_;
+    if($has_int_broker){
+        my($dir,$save) = @{&$get_conf_dir()};
+        my $was_no_ca = &$need_certs("$dir/ca/$comp","main",$from_path,"/c4conf");
+        sy($save) if $was_no_ca;
+    } else {
+        my %auth = &$get_auth($comp);
+        my $put = &$rel_put_text($from_path);
+        &$put($_,&$mandatory_of($_=>\%auth)) for "simple.auth";
+    }
 };
 
 my @var_img = (image=>"<var:image:''>");
@@ -874,9 +899,8 @@ my $gate_ports = sub{
     my($comp)=@_;
     my $conf = &$get_compose($comp);
     my $host = $$conf{host} || $comp;
-    my $external_broker_port = $$conf{broker_port} || 1093;
     my $external_http_port = $$conf{http_port} || $http_port;
-    ($host,$external_http_port,$external_broker_port);
+    ($host,$external_http_port);
 };
 
 my $get_ingress = sub{
@@ -911,19 +935,49 @@ my $need_logback = sub{
     &$put($_,$auth{$_}||"") for "logback.xml";
 };
 
+my $get_consumer_options = sub{
+    my($comp)=@_;
+    my $conf = &$get_compose($comp);
+    my $prefix = $$conf{C4INBOX_TOPIC_PREFIX};
+    my ($bootstrap_servers) = &$get_deployer_conf($comp,0,qw[bootstrap_servers]);
+    !$prefix && !$bootstrap_servers ? do{
+        my $host = $$conf{host} || $comp;
+        my $external_broker_port = $$conf{broker_port} || 1093;
+        (
+            1,
+            &$all_consumer_options(),
+            C4INBOX_TOPIC_PREFIX => "",
+            C4STORE_PASS_PATH => "/c4conf/simple.auth",
+            C4KEYSTORE_PATH => "/c4conf/main.keystore.jks",
+            C4TRUSTSTORE_PATH => "/c4conf/main.truststore.jks",
+            C4BOOTSTRAP_SERVERS => "$host:$external_broker_port",
+        )
+    } : do{
+        (
+            0,
+            &$all_consumer_options(),
+            C4INBOX_TOPIC_PREFIX => ($prefix||die "no C4INBOX_TOPIC_PREFIX"),
+            C4STORE_PASS_PATH => "/c4conf-kafka-auth/kafka.store.auth",
+            C4KEYSTORE_PATH => "/c4conf-kafka-certs/kafka.keystore.jks",
+            C4TRUSTSTORE_PATH => "/c4conf-kafka-certs/kafka.truststore.jks",
+            C4BOOTSTRAP_SERVERS => ($bootstrap_servers||die "no host bootstrap_servers"),
+        )
+    }
+};
+
 my $up_consumer = sub{
     my($run_comp)=@_;
     my $conf = &$get_compose($run_comp);
     my $gate_comp = $$conf{ca} || die "no ca";
-    my ($server,$external_http_port,$external_broker_port) = &$gate_ports($gate_comp);
+    my ($server,$external_http_port) = &$gate_ports($gate_comp);
+    my ($has_int_broker,%consumer_options) = &$get_consumer_options($gate_comp);
     my $from_path = &$get_tmp_dir();
-    &$need_deploy_cert($gate_comp,$from_path);
+    &$need_deploy_cert($gate_comp,$from_path,$has_int_broker);
     &$make_secrets($run_comp,$from_path);
     &$need_logback($run_comp,$from_path);
     ($run_comp, $from_path, [{
-        @var_img, name => "main", &$consumer_options(),
+        @var_img, name => "main", %consumer_options,
         C4HTTP_SERVER => "http://$server:$external_http_port",
-        C4BOOTSTRAP_SERVERS => "$server:$external_broker_port",
         @req_big,
         rolling => "/c4",
         %$conf,
@@ -931,12 +985,15 @@ my $up_consumer = sub{
 };
 my $up_gate = sub{
     my($run_comp)=@_;
-    my ($server,$external_http_port,$external_broker_port) = &$gate_ports($run_comp);
+    my ($http_server,$external_http_port) = &$gate_ports($run_comp);
+    my ($has_int_broker,%consumer_options) = &$get_consumer_options($run_comp);
     my $from_path = &$get_tmp_dir();
-    &$need_deploy_cert($run_comp,$from_path);
+    &$need_deploy_cert($run_comp,$from_path,$has_int_broker);
     &$need_logback($run_comp,$from_path);
-    ($run_comp, $from_path, [
-        {
+    my @int_broker_containers = !$has_int_broker ? () : do{
+        my ($broker_server,$external_broker_port) =
+            $consumer_options{C4BOOTSTRAP_SERVERS}=~/^(.+):(\d+)$/ ? ($1,$2) : die;
+        ({
             @var_img, name => "zookeeper", C4DATA_DIR => "/c4db", #UseContainerSupport?
             req_mem => "1Gi", req_cpu => "250m",
         },
@@ -947,13 +1004,17 @@ my $up_gate = sub{
             C4KEYSTORE_PATH => "/c4conf/main.keystore.jks",
             C4TRUSTSTORE_PATH => "/c4conf/main.truststore.jks",
             C4SSL_PROPS => "/c4conf/main.properties",
-            C4BOOTSTRAP_EXT_HOST => $server,
+            C4BOOTSTRAP_EXT_HOST => $broker_server,
             C4BOOTSTRAP_EXT_PORT => $external_broker_port, #UseContainerSupport?
             req_mem => "2Gi", req_cpu => "500m",
-        },
+        })
+    };
+    ($run_comp, $from_path, [
+        @int_broker_containers,
         {
             @var_img,
-            &$consumer_options(),
+            %consumer_options,
+            !$has_int_broker ? () : (C4BOOTSTRAP_SERVERS => ""), #overriden
             name => "gate",
             C4DATA_DIR => "/c4db",
             C4STATE_TOPIC_PREFIX => "gate",
@@ -964,6 +1025,7 @@ my $up_gate = sub{
             @var_img, name => "haproxy",
             C4HAPROXY_CONF=>"/c4/haproxy.cfg",
             C4JOINED_HTTP_PORT => $http_port,
+            C4DATA_DIR => "/c4db", #for get snapshot
             "port:$external_http_port:$http_port"=>"",
             &$get_ingress($run_comp,$external_http_port),
             @req_small,
