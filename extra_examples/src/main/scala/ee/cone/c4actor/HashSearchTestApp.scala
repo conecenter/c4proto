@@ -59,8 +59,8 @@ import ee.cone.c4proto.{GenLens, Id, protocol}
     println("1<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     //println( /*getD_TestObject: GetByPK[D_TestObject],*/getD_TestObject.ofA(newNGlobal).values.toList)
     println("Should", List(17, 4369))
-    println("Answer",  /*getCustomResponse: GetByPK[CustomResponse],*/getCustomResponse.ofA(newNGlobalAA).values.toList.map(_.list.size))
-    println( /*getS_IndexByNode: GetByPK[S_IndexByNode],*/getS_IndexByNode.ofA(newNGlobalAA).values.map(meh => meh.leafId -> meh.byStr))
+    println("Answer", /*getCustomResponse: GetByPK[CustomResponse],*/ getCustomResponse.ofA(newNGlobalAA).values.toList.map(_.list.size))
+    println(/*getS_IndexByNode: GetByPK[S_IndexByNode],*/ getS_IndexByNode.ofA(newNGlobalAA).values.map(meh => meh.leafId -> meh.byStr))
     println("2>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     val newNGlobal2 = TxAdd(LEvent.update(D_TestObject("124", 239, "adb")) ++ LEvent.update(D_ChangingNode("test", "")))(newNGlobalAA)
     Thread.sleep(10000)
@@ -69,8 +69,8 @@ import ee.cone.c4proto.{GenLens, Id, protocol}
     println("2<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     //println( /*getD_TestObject: GetByPK[D_TestObject],*/getD_TestObject.ofA(newNGlobal).values.toList)
     println("Should", List(17, 10000))
-    println("Answer",  /*getCustomResponse: GetByPK[CustomResponse],*/getCustomResponse.ofA(newNGlobal2AA).values.toList.map(_.list.size))
-    println( /*getS_IndexByNode: GetByPK[S_IndexByNode],*/getS_IndexByNode.ofA(newNGlobal2AA).values.map(meh => meh.leafId -> meh.byStr))
+    println("Answer", /*getCustomResponse: GetByPK[CustomResponse],*/ getCustomResponse.ofA(newNGlobal2AA).values.toList.map(_.list.size))
+    println(/*getS_IndexByNode: GetByPK[S_IndexByNode],*/ getS_IndexByNode.ofA(newNGlobal2AA).values.map(meh => meh.leafId -> meh.byStr))
     println("2<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     execution.complete()
 
@@ -209,6 +209,11 @@ case class IntEqRanger() extends RangerWithCl[D_IntEq, Int](classOf[D_IntEq], cl
 
 object DefaultInitializer extends DefaultModelInitializer[D_IntEq](classOf[D_IntEq], _.copy(value = 0))
 
+@fieldAccess object D_TestObjectLensesBase {
+  val valueStr: ProdGetter[D_TestObject, String] = ProdGetter.of(_.valueStr)
+  val valueInt: ProdGetter[D_TestObject, Int] = ProdGetter.of(_.valueInt)
+}
+
 trait TestCondition extends SerializationUtilsApp {
   def changingCondition: String => Condition[D_TestObject] = value => {
     IntersectCondition(
@@ -254,9 +259,9 @@ trait TestCondition extends SerializationUtilsApp {
      .add[D_StrStartsWith, String](lensStr, D_StrStartsWith(""))(StrStartsWithRanger)
      .assemble*/
 
-  def lensInt: ProdLens[D_TestObject, Int] = D_TestObjectLenses.valueIntD_TestObject
+  def lensInt: ProdGetter[D_TestObject, Int] = D_TestObjectLenses.valueInt
 
-  def lensStr: ProdLens[D_TestObject, String] = D_TestObjectLenses.valueStr
+  def lensStr: ProdGetter[D_TestObject, String] = D_TestObjectLenses.valueStr
 }
 
 @c4app trait HashSearchExtraTestAppBase extends TestVMRichDataApp
@@ -279,8 +284,7 @@ trait TestCondition extends SerializationUtilsApp {
   with EqProtocolApp
   with TestProtocolApp
   with AnyOrigProtocolApp
-  with ActivateContextApp
-{
+  with ActivateContextApp {
   // println(TestProtocolM.adapters.map(a => a.categories))
 
   override def getterList: List[ProdGetter[_, _]] = lensInt :: lensStr :: super.getterList
