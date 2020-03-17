@@ -31,7 +31,7 @@ import scala.jdk.CollectionConverters.{IterableHasAsScala,MapHasAsJava,MapHasAsS
   maxRequestSize = config.get("C4MAX_REQUEST_SIZE"),
   keyStorePath = config.get("C4KEYSTORE_PATH"),
   trustStorePath = config.get("C4TRUSTSTORE_PATH"),
-  keyPassPath = config.get("C4AUTH_KEY_FILE")
+  keyPassPath = config.get("C4STORE_PASS_PATH"),
 )()
 
 @c4("KafkaProducerApp") class KafkaRawQSender(conf: KafkaConfig, execution: Execution)(
