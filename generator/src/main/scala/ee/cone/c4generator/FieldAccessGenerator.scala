@@ -34,7 +34,7 @@ object FieldAccessGenerator extends Generator {
         q"getClass.getName + '.' + $fieldShortName"
       }
       def note(id: Int, hint: String): Unit = {
-        println(s"fieldAccess $id $hint")
+        //println(s"fieldAccess $id $hint")
       }
       val nCode = code.transform {
         case q"ProdLens.of[$from, $to](...$args)" =>

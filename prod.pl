@@ -512,7 +512,7 @@ my $make_kc_yml = sub{
         my $opt = $_;
         my $nm = &$mandatory_of(name=>$opt);
         &$map($opt,sub{ my($k,$v)=@_;
-            $k=~/^C4/ && $v=~m{^(/c4conf-([\w\.]+))/} ? {container=>$nm,secret=>"$2",path=>"$1"} : ()
+            $k=~/^C4/ && $v=~m{^(/c4conf-([\w\-]+))/} ? {container=>$nm,secret=>"$2",path=>"$1"} : ()
         });
     } @$options;
     my @all_secrets = (@int_secrets,@ext_secrets);
@@ -872,10 +872,16 @@ my $need_certs = sub{
 };
 
 my $need_deploy_cert = sub{
-    my($comp,$from_path)=@_;
-    my($dir,$save) = @{&$get_conf_dir()};
-    my $was_no_ca = &$need_certs("$dir/ca/$comp","main",$from_path,"/c4conf");
-    sy($save) if $was_no_ca;
+    my($comp,$from_path,$has_int_broker)=@_;
+    if($has_int_broker){
+        my($dir,$save) = @{&$get_conf_dir()};
+        my $was_no_ca = &$need_certs("$dir/ca/$comp","main",$from_path,"/c4conf");
+        sy($save) if $was_no_ca;
+    } else {
+        my %auth = &$get_auth($comp);
+        my $put = &$rel_put_text($from_path);
+        &$put($_,&$mandatory_of($_=>\%auth)) for "simple.auth";
+    }
 };
 
 my @var_img = (image=>"<var:image:''>");
@@ -932,7 +938,7 @@ my $need_logback = sub{
 my $get_consumer_options = sub{
     my($comp)=@_;
     my $conf = &$get_compose($comp);
-    my $prefix = $conf{C4INBOX_TOPIC_PREFIX};
+    my $prefix = $$conf{C4INBOX_TOPIC_PREFIX};
     my ($bootstrap_servers) = &$get_deployer_conf($comp,0,qw[bootstrap_servers]);
     !$prefix && !$bootstrap_servers ? do{
         my $host = $$conf{host} || $comp;
@@ -944,18 +950,18 @@ my $get_consumer_options = sub{
             C4STORE_PASS_PATH => "/c4conf/simple.auth",
             C4KEYSTORE_PATH => "/c4conf/main.keystore.jks",
             C4TRUSTSTORE_PATH => "/c4conf/main.truststore.jks",
-            C4BOOTSTRAP_SERVERS => "$broker_server:$external_broker_port",
+            C4BOOTSTRAP_SERVERS => "$host:$external_broker_port",
         )
     } : do{
         (
             0,
             &$all_consumer_options(),
-            C4INBOX_TOPIC_PREFIX => ($prefix||die),
+            C4INBOX_TOPIC_PREFIX => ($prefix||die "no C4INBOX_TOPIC_PREFIX"),
             C4STORE_PASS_PATH => "/c4conf-kafka-auth/kafka.store.auth",
             C4KEYSTORE_PATH => "/c4conf-kafka-certs/kafka.keystore.jks",
             C4TRUSTSTORE_PATH => "/c4conf-kafka-certs/kafka.truststore.jks",
             C4BROKER_EXTRA_PASS_PATH => "/c4conf-kafka-auth/kafka.extra.auth",
-            C4BOOTSTRAP_SERVERS => ($bootstrap_servers||die),
+            C4BOOTSTRAP_SERVERS => ($bootstrap_servers||die "no host bootstrap_servers"),
         )
     }
 };
@@ -967,7 +973,7 @@ my $up_consumer = sub{
     my ($server,$external_http_port) = &$gate_ports($gate_comp);
     my ($has_int_broker,%consumer_options) = &$get_consumer_options($gate_comp);
     my $from_path = &$get_tmp_dir();
-    &$need_deploy_cert($gate_comp,$from_path) if $has_int_broker;
+    &$need_deploy_cert($gate_comp,$from_path,$has_int_broker);
     &$make_secrets($run_comp,$from_path);
     &$need_logback($run_comp,$from_path);
     ($run_comp, $from_path, [{
@@ -982,17 +988,17 @@ my $up_gate = sub{
     my($run_comp)=@_;
     my ($http_server,$external_http_port) = &$gate_ports($run_comp);
     my ($has_int_broker,%consumer_options) = &$get_consumer_options($run_comp);
-    my ($broker_server,$external_broker_port) =
-        $consumer_options{C4BOOTSTRAP_SERVERS}=~/^(.+):(\d+)$/ ? ($1,$2) : die;
     my $from_path = &$get_tmp_dir();
-    &$need_deploy_cert($run_comp,$from_path) if $has_int_broker;
+    &$need_deploy_cert($run_comp,$from_path,$has_int_broker);
     &$need_logback($run_comp,$from_path);
-    ($run_comp, $from_path, [
-        !$has_int_broker ? () : {
+    my @int_broker_containers = !$has_int_broker ? () : do{
+        my ($broker_server,$external_broker_port) =
+            $consumer_options{C4BOOTSTRAP_SERVERS}=~/^(.+):(\d+)$/ ? ($1,$2) : die;
+        ({
             @var_img, name => "zookeeper", C4DATA_DIR => "/c4db", #UseContainerSupport?
             req_mem => "1Gi", req_cpu => "250m",
         },
-        !$has_int_broker ? () : {
+        {
             @var_img,
             name => "broker", "port:$external_broker_port:$external_broker_port"=>"",
             C4DATA_DIR => "/c4db",
@@ -1002,7 +1008,10 @@ my $up_gate = sub{
             C4BOOTSTRAP_EXT_HOST => $broker_server,
             C4BOOTSTRAP_EXT_PORT => $external_broker_port, #UseContainerSupport?
             req_mem => "2Gi", req_cpu => "500m",
-        },
+        })
+    };
+    ($run_comp, $from_path, [
+        @int_broker_containers,
         {
             @var_img,
             %consumer_options,
