@@ -1012,10 +1012,7 @@ my $up_gate = sub{
             C4BOOTSTRAP_EXT_HOST => $broker_server,
             C4BOOTSTRAP_EXT_PORT => $external_broker_port, #UseContainerSupport?
             req_mem => "2Gi", req_cpu => "500m",
-        })
-    };
-    ($run_comp, $from_path, [
-        @int_broker_containers,
+        },
         {
             @var_img,
             %consumer_options,
@@ -1026,7 +1023,6 @@ my $up_gate = sub{
             @var_img, name => "haproxy",
             C4HAPROXY_CONF=>"/c4/haproxy.cfg",
             C4JOINED_HTTP_PORT => $http_port,
-            C4DATA_DIR => "/c4db", #for get snapshot
             "port:$external_http_port:$http_port"=>"",
             &$get_ingress($run_comp,$external_http_port),
             @req_small,
