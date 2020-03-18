@@ -1243,6 +1243,13 @@ push @tasks, ["restart","$composes_txt",sub{
     sy(&$remote($comp,"cd $dir/$comp && C4FORCE_RECREATE=1 ./up"));
 }];
 
+push @tasks, ["history","$composes_txt",sub{
+    my($comp)=@_;
+    sy(&$ssh_add());
+    my ($dir) = &$get_deployer_conf($comp,1,qw[dir]);
+    sy(&$remote($comp,"cat $dir/$comp.args"));
+}];
+
 my $nc = sub{
     my($addr,$exch)=@_;
     my($host,$port) = $addr=~/^([\w\-\.]+):(\d+)$/ ? ($1,$2) : die $addr;
