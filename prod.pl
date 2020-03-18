@@ -645,29 +645,31 @@ my $make_kc_yml = sub{
     };
     #
     my @ingress_yml = do{
-        my @items = &$map(\%all,sub{ my($k,$v)=@_;
-            $k=~/^ingress:(.+)$/ ? {host=>$1,port=>$v-0} : ()
-        });
+        my $by_host = &$merge_list({},&$map(\%all,sub{ my($k,$v)=@_;
+            $k=~m{^ingress:([^/]+)(.*)$} ? {$1=>[{path=>$2,port=>$v-0}]} : ()
+        }));
+        my @hosts = &$map($by_host,sub{ my($host,$v)=@_; $host });
         my $disable_tls = 0; #make option when required
         my @annotations = $disable_tls ? () : (annotations=>{
             "cert-manager.io/cluster-issuer" => "letsencrypt-prod",
             "kubernetes.io/ingress.class" => "nginx",
         });
         my @tls = $disable_tls ? () : (tls=>[{
-            hosts => [map{$$_{host}}@items],
+            hosts => \@hosts,
             secretName => "$name-tls",
         }]);
-        my @rules = map{+{
-            host => $$_{host},
+        my @rules = &$map($by_host,sub{ my($host,$v)=@_; +{
+            host => $host,
             http => {
-                paths => [{
+                paths => [map{+{
                     backend => {
                         serviceName => $name,
                         servicePort => $$_{port},
                     },
-                }],
+                    $$_{path} ? (path=>$$_{path}) : (),
+                }}@$v],
             },
-        }} @items;
+        }});
         @rules ? &$to_yml_str({
             apiVersion => "extensions/v1beta1",
             kind => "Ingress",
@@ -895,13 +897,8 @@ my $make_secrets = sub{
     &$put($_,$auth{$_}) for sort keys %auth;
 };
 
-my $gate_ports = sub{
-    my($comp)=@_;
-    my $conf = &$get_compose($comp);
-    my $host = $$conf{host} || $comp;
-    my $external_http_port = $$conf{http_port} || $http_port;
-    ($host,$external_http_port);
-};
+my $inner_http_port = 8067;
+my $inner_sse_port = 8068;
 
 my $get_ingress = sub{
     my($comp,$http_port)=@_;
@@ -943,6 +940,7 @@ my $get_consumer_options = sub{
     !$prefix && !$bootstrap_servers ? do{
         my $host = $$conf{host} || $comp;
         my $external_broker_port = $$conf{broker_port} || 1093;
+        my $external_http_port = $$conf{http_port} || $http_port;
         (
             1,
             &$all_consumer_options(),
@@ -951,6 +949,7 @@ my $get_consumer_options = sub{
             C4KEYSTORE_PATH => "/c4conf/main.keystore.jks",
             C4TRUSTSTORE_PATH => "/c4conf/main.truststore.jks",
             C4BOOTSTRAP_SERVERS => "$host:$external_broker_port",
+            C4HTTP_SERVER => "http://$host:$external_http_port",
         )
     } : do{
         (
@@ -961,6 +960,7 @@ my $get_consumer_options = sub{
             C4KEYSTORE_PATH => "/c4conf-kafka-certs/kafka.keystore.jks",
             C4TRUSTSTORE_PATH => "/c4conf-kafka-certs/kafka.truststore.jks",
             C4BOOTSTRAP_SERVERS => ($bootstrap_servers||die "no host bootstrap_servers"),
+            C4HTTP_SERVER => "http://$comp:$inner_http_port",
         )
     }
 };
@@ -969,7 +969,6 @@ my $up_consumer = sub{
     my($run_comp)=@_;
     my $conf = &$get_compose($run_comp);
     my $gate_comp = $$conf{ca} || die "no ca";
-    my ($server,$external_http_port) = &$gate_ports($gate_comp);
     my ($has_int_broker,%consumer_options) = &$get_consumer_options($gate_comp);
     my $from_path = &$get_tmp_dir();
     &$need_deploy_cert($gate_comp,$from_path,$has_int_broker);
@@ -977,7 +976,6 @@ my $up_consumer = sub{
     &$need_logback($run_comp,$from_path);
     ($run_comp, $from_path, [{
         @var_img, name => "main", %consumer_options,
-        C4HTTP_SERVER => "http://$server:$external_http_port",
         @req_big,
         rolling => "/c4",
         %$conf,
@@ -985,12 +983,19 @@ my $up_consumer = sub{
 };
 my $up_gate = sub{
     my($run_comp)=@_;
-    my ($http_server,$external_http_port) = &$gate_ports($run_comp);
     my ($has_int_broker,%consumer_options) = &$get_consumer_options($run_comp);
+    my %gate_options = (
+        name => "gate",
+        C4DATA_DIR => "/c4db",
+        C4STATE_TOPIC_PREFIX => "gate",
+        C4STATE_REFRESH_SECONDS => 1000,
+        req_mem => "4Gi", req_cpu => "1000m",
+    );
     my $from_path = &$get_tmp_dir();
     &$need_deploy_cert($run_comp,$from_path,$has_int_broker);
     &$need_logback($run_comp,$from_path);
-    my @int_broker_containers = !$has_int_broker ? () : do{
+    my @containers = $has_int_broker ? do{
+        my $external_http_port = $consumer_options{C4HTTP_SERVER}=~/:(\d+)$/ ? $1 : die;
         my ($broker_server,$external_broker_port) =
             $consumer_options{C4BOOTSTRAP_SERVERS}=~/^(.+):(\d+)$/ ? ($1,$2) : die;
         ({
@@ -1007,30 +1012,34 @@ my $up_gate = sub{
             C4BOOTSTRAP_EXT_HOST => $broker_server,
             C4BOOTSTRAP_EXT_PORT => $external_broker_port, #UseContainerSupport?
             req_mem => "2Gi", req_cpu => "500m",
-        })
-    };
-    ($run_comp, $from_path, [
-        @int_broker_containers,
+        },
         {
             @var_img,
             %consumer_options,
-            !$has_int_broker ? () : (C4BOOTSTRAP_SERVERS => ""), #overriden
-            name => "gate",
-            C4DATA_DIR => "/c4db",
-            C4STATE_TOPIC_PREFIX => "gate",
-            C4STATE_REFRESH_SECONDS => 1000,
-            req_mem => "4Gi", req_cpu => "1000m",
+            %gate_options,
+            C4BOOTSTRAP_SERVERS => "", #overriden
         },
         {
             @var_img, name => "haproxy",
             C4HAPROXY_CONF=>"/c4/haproxy.cfg",
             C4JOINED_HTTP_PORT => $http_port,
-            C4DATA_DIR => "/c4db", #for get snapshot
             "port:$external_http_port:$http_port"=>"",
             &$get_ingress($run_comp,$external_http_port),
             @req_small,
-        },
-    ]);
+        })
+    } : do{
+        my $hostname = &$get_hostname($run_comp) || die "no le_hostname";
+        ({
+            @var_img,
+            %consumer_options,
+            %gate_options,
+            "port:$inner_http_port:$inner_http_port"=>"",
+            "port:$inner_sse_port:$inner_sse_port"=>"",
+            "ingress:$hostname/"=>$inner_http_port,
+            "ingress:$hostname/sse"=>$inner_sse_port,
+        })
+    };
+    ($run_comp, $from_path, \@containers);
 };
 
 my $base_image_steps = sub{(
@@ -1504,8 +1513,9 @@ push @tasks, ["visit-frp_client", "", sub{
     my $conf = &$get_compose($comp);
     my $gate_comp = $$conf{ca};
     my @http_client = !$gate_comp ? () : do{
-        my ($server,$external_http_port,$external_broker_port) = &$gate_ports($gate_comp);
-        ([http=>$external_http_port,$server])
+        my ($has_int_broker,%consumer_options) = &$get_consumer_options($gate_comp);
+        $has_int_broker or warn "sse will not be multiplexed";
+        $consumer_options{C4HTTP_SERVER}=~m{^(http)://(.+):(\d+)$} ? [$1,$3,$2] : die;
     };
     my @connects = &$map($conf,sub{ my($k,$v)=@_;
         $k=~/^frpc:(\w+)$/ ? ["$1",$v=~/^(.+):(\d+)$/?($2,$1):die] : ()
