@@ -91,7 +91,7 @@ import scala.util.control.NonFatal
       // to see: MergeHub/PartitionHub.statefulSink solution of the same task vs FHttpHandler
       binding <- http.bindAndHandleAsync(
         handler = handler,
-        interface = "localhost",
+        interface = "0.0.0.0",
         port = port,
         settings = ServerSettings(mat.system)
         //defapply(configOverrides: String): ServerSettings(system)//ServerSettings(system)
