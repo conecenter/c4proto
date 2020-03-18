@@ -5,6 +5,8 @@
   ["C4TAG", "def", "base_server.ee.cone.c4gate_akka.SimpleAkkaGatewayApp" ],
   ["C4TAG", "s3def", "base_server.ee.cone.c4gate_akka_s3.AkkaMinioGatewayApp" ],
   ["C4TAG", "all", "extra_examples.aggregate.XXX" ],
+  ["C4TAG", "noop", "base_server.ee.cone.c4gate_server.NoOpApp" ],
+  ["C4TAG", "ignore-all", "base_server.ee.cone.c4gate_server.IgnoreAllSnapshotsApp" ],
   ["C4TAG", "test-consumer", "base_examples.ee.cone.c4gate.TestConsumerApp" ],
 
   ["C4GENERATOR_MAIN", "ee.cone.c4generator.Main", "generator.ee.cone.c4generator" ],

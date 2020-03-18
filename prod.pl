@@ -204,7 +204,10 @@ push @tasks, ["ssh", "$composes_txt [command-with-args]", sub{
     sy(&$ssh_ctl($comp,@args));
 }];
 
-push @tasks, ["remote_service-gate",'',sub{"zookeeper"}]; #todo: fix if for lite gate
+push @tasks, ["remote_service-gate",'',sub{
+    print "deploy noop image if gate can not start\n";
+    "gate"
+}];
 push @tasks, ["remote_service-desktop",'',sub{"sshd"}];
 
 my $remote_acc  = sub{

@@ -3,8 +3,14 @@ package ee.cone.c4gate_server
 import ee.cone.c4actor_kafka_impl.{KafkaConsumerApp, KafkaProducerApp, LZ4RawCompressorApp}
 import ee.cone.c4actor_logback_impl.BasicLoggingApp
 import ee.cone.c4actor._
-import ee.cone.c4di.{c4, provide}
+import ee.cone.c4di.{c4, c4app, provide}
 import ee.cone.c4gate._
+
+@c4app class NoOpApp extends VMExecutionApp with ExecutableApp with BaseApp
+
+@c4app class IgnoreAllSnapshotsAppBase extends EnvConfigCompApp with VMExecutionApp with NoAssembleProfilerCompApp
+  with ExecutableApp with RichDataCompApp with KafkaConsumerApp
+  with SnapshotUtilImplApp with FileRawSnapshotSaverApp with ConfigDataDirApp
 
 /*
 @c4app class PublishAppBase extends ServerCompApp
@@ -19,6 +25,7 @@ import ee.cone.c4gate._
 
 trait ConfigDataDirAppBase
 trait FileRawSnapshotLoaderAppBase
+trait FileRawSnapshotSaverAppBase
 trait NoProxySSEConfigAppBase
 trait SafeToRunAppBase
 trait WorldProviderAppBase
@@ -76,12 +83,15 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
   extends SnapshotSavers(factory.create("snapshots"), factory.create("snapshot_txs"))
 
 trait SnapshotMakingAppBase extends TaskSignerApp
-  with FileRawSnapshotLoaderApp with ConfigDataDirApp with SignedReqUtilImplApp
+  with FileRawSnapshotLoaderApp with FileRawSnapshotSaverApp
+  with ConfigDataDirApp with SignedReqUtilImplApp
   with ConfigSimpleSignerApp with SnapshotUtilImplApp
 trait SnapshotPutAppBase extends SignedReqUtilImplApp with SnapshotLoaderFactoryImplApp
 trait SignedReqUtilImplAppBase
 
 trait SSEServerAppBase extends AlienProtocolApp
+
+
 
 @c4("SSEServerApp") class SSEServer(
   config: Config,
