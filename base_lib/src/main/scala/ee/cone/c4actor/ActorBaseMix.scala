@@ -15,7 +15,7 @@ trait NoAssembleProfilerCompAppBase
 trait NoObserversAppBase
 trait ParallelObserversAppBase
 trait ProtoAppBase
-trait RichDataCompAppBase extends BaseApp with ProtoApp with AssembleApp
+trait RichDataCompAppBase extends BaseApp with ProtoApp with AssembleApp with CatchNonFatalApp
 trait SerialObserversAppBase
 trait ServerCompAppBase extends RichDataCompApp with ExecutableApp with SnapshotLoaderImplApp
 trait SimpleAssembleProfilerCompAppBase
@@ -26,6 +26,7 @@ trait SnapshotUtilImplAppBase
 trait SyncTxFactoryImplAppBase
 trait TaskSignerAppBase
 trait TestVMRichDataCompAppBase extends RichDataCompApp with VMExecutionApp with EnvConfigCompApp
+trait CatchNonFatalAppBase
 
 trait VMExecutionAppBase extends AbstractComponents {
   lazy val componentRegistry = ComponentRegistry(this)

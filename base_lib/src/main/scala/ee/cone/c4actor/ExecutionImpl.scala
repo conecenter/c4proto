@@ -157,7 +157,7 @@ object ServerMain extends BaseServerMain(
 
 @c4("EnvConfigCompApp") class ActorNameImpl(config: Config) extends ActorName(config.get("C4STATE_TOPIC_PREFIX"))
 
-@c4("RichDataCompApp") class CatchNonFatalImpl extends CatchNonFatal with LazyLogging {
+@c4("CatchNonFatalApp") class CatchNonFatalImpl extends CatchNonFatal with LazyLogging {
   def apply[T](aTry: =>T)(getHint: =>String)(aCatch: Throwable=>T): T = try { aTry } catch {
     case NonFatal(e) =>
       logger.error(getHint,e)
