@@ -9,30 +9,37 @@ object ProdLens {
     throw new Exception("not expanded")
   def ofSet[C, I](of: C => I, set: I => C => C, meta: AbstractMetaAttr*): ProdLensStrict[C, I] =
     throw new Exception("not expanded")
-
-  //for generated code only
-  def ofSetStrict[C, I](of: C => I, set: I => C => C, fldName: String, clFrom: Class[C], clTo: Class[I], tkFrom: TypeKey, tkTo: TypeKey, meta: AbstractMetaAttr*): ProdLensStrict[C, I] =
-    ProdLensStrict[C, I](NameMetaAttr(fldName) :: meta.toList, clFrom, clTo, tkFrom, tkTo)(of, set)
+  def from[C, I](inner: AbstractProdLens[C,I], meta: AbstractMetaAttr*): ProdLensStrict[C, I] =
+    throw new Exception("not expanded")
 }
 
-object UnsafeProdLens {
-  //for minimal use inside @fieldAccess
-  def ofSet[C, I](fldName: String, of: C => I, set: I => C => C, meta: AbstractMetaAttr*): ProdLensStrict[C, I] =
-    throw new Exception("not expanded")
+object CreateProdLens {
+  //for generated code only
+  def from[C, I](clFrom: Class[C], clTo: Class[I], tkFrom: TypeKey, tkTo: TypeKey)(fldName: String)(inner: AbstractProdLens[C,I], meta: AbstractMetaAttr*): ProdLensStrict[C, I] =
+    ProdLensStrict[C, I](NameMetaAttr(fldName+"."+inner.hashCode) :: meta.toList, clFrom, clTo, tkFrom, tkTo)(inner.of, inner.set)
+  def ofSet[C, I](clFrom: Class[C], clTo: Class[I], tkFrom: TypeKey, tkTo: TypeKey)(fldName: String)(of: C => I, set: I => C => C, meta: AbstractMetaAttr*): ProdLensStrict[C, I] =
+    ProdLensStrict[C, I](NameMetaAttr(fldName) :: meta.toList, clFrom, clTo, tkFrom, tkTo)(of, set)
 }
 
 object ProdGetter {
   //for use inside @fieldAccess
+  def from[C, I](inner: AbstractProdGetter[C,I], meta: AbstractMetaAttr*): ProdGetterStrict[C, I] =
+    throw new Exception("not expanded")
   def of[C, I](of: C => I, meta: AbstractMetaAttr*): ProdGetterStrict[C, I] =
     throw new Exception("not expanded")
+}
+
+object CreateProdGetter {
   //for generated code only
-  def ofStrict[C, I](of: C => I, fldName: String, clFrom: Class[C], clTo: Class[I], tkFrom: TypeKey, tkTo: TypeKey, meta: AbstractMetaAttr*): ProdGetterStrict[C, I] =
+  def from[C, I](clFrom: Class[C], clTo: Class[I], tkFrom: TypeKey, tkTo: TypeKey)(fldName: String)(inner: AbstractProdGetter[C,I], meta: AbstractMetaAttr*): ProdGetterStrict[C, I] =
+    ProdGetterStrict[C, I](NameMetaAttr(fldName+"."+inner.hashCode) :: meta.toList, clFrom, clTo, tkFrom, tkTo)(inner.of)
+  def of[C, I](clFrom: Class[C], clTo: Class[I], tkFrom: TypeKey, tkTo: TypeKey)(fldName: String)(of: C => I, meta: AbstractMetaAttr*): ProdGetterStrict[C, I] =
     ProdGetterStrict[C, I](NameMetaAttr(fldName) :: meta.toList, clFrom, clTo, tkFrom, tkTo)(of)
 }
 
-object UnsafeProdGetter {
+@deprecated("results in bad product") object UnsafeProdGetter {
   //for minimal use inside @fieldAccess
-  def of[C, I](fldName: String, of: C => I, meta: AbstractMetaAttr*): ProdGetterStrict[C, I] =
+  def of[C, I](fldName: String)(of: C => I, meta: AbstractMetaAttr*): ProdGetterStrict[C, I] =
     throw new Exception("not expanded")
 }
 
@@ -49,7 +56,7 @@ trait GetterWithMetaList[C, +I] extends Getter[C, I] with Product {
   def +(metaAttrs: AbstractMetaAttr*): GetterWithMetaList[C, I]
 }
 
-trait ProdGetter[C, +I] extends GetterWithMetaList[C, I] {
+trait ProdGetter[C, +I] extends AbstractProdGetter[C, I] with GetterWithMetaList[C, I] {
   def +(metaAttrs: AbstractMetaAttr*): ProdGetter[C, I]
   def extraMetaList: List[AbstractMetaAttr]
   def tkFrom: TypeKey
@@ -58,7 +65,16 @@ trait ProdGetter[C, +I] extends GetterWithMetaList[C, I] {
   def clTo: Class[_ <: I]
 }
 
-abstract class ProdLens[C, I] extends AbstractLens[C, I] with GetterWithMetaList[C, I]{
+trait AbstractProdGetter[C,+I] extends Getter[C, I] with Product {
+  type OutOfType[J] = C=>J
+}
+
+trait AbstractProdLens[C,I] extends AbstractLens[C, I] with Product {
+  type OfType = C=>I
+  type SetType = I=>C=>C
+}
+
+abstract class ProdLens[C, I] extends AbstractProdLens[C, I] with GetterWithMetaList[C, I]{
   def to[V](inner: ProdLens[I, V]): ProdLens[C, V]
   def +(metaAttrs: AbstractMetaAttr*): ProdLens[C, I]
 }
