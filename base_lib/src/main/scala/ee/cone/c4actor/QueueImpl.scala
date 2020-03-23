@@ -45,13 +45,10 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq
     //println(s"sending: ${updates.size} ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
     val (bytes, headers) = toUpdate.toBytes(updates)
     val rec = new QRecordImpl(InboxTopicName(), bytes, headers)
-    def debugStr = WriteModelDebugKey.of(local).map(v=>s"\norig sent: $v").mkString
-    logger.debug(debugStr)
-    //val debugRec = new QRecordImpl(LogTopicName(),debugStr.getBytes(UTF_8), Nil)
     val offset = Single(Single(getRawQSender.value).send(List(rec)))
+    logger.debug(s"${updates.size} updates was sent -- $offset")
     Function.chain(Seq(
       WriteModelKey.set(Queue.empty),
-      WriteModelDebugKey.set(Queue.empty),
       ReadAfterWriteOffsetKey.set(offset)
     ))(local)
   }

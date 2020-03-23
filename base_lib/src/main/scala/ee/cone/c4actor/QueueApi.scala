@@ -240,7 +240,6 @@ trait TxTransform extends Product {
 }
 
 case object WriteModelKey extends TransientLens[Queue[N_Update]](Queue.empty)
-case object WriteModelDebugKey extends TransientLens[Queue[LEvent[Product]]](Queue.empty)
 case object ReadModelAddKey extends SharedComponentKey[Seq[RawEvent]=>(SharedContext with AssembledContext)=>ReadModel]
 case object WriteModelDebugAddKey extends SharedComponentKey[Seq[LEvent[Product]]=>Context=>Context]
 case object WriteModelAddKey extends SharedComponentKey[Seq[N_Update]=>Context=>Context]

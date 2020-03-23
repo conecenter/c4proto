@@ -171,10 +171,11 @@ class TreeAssembling(
       )*/
       new TreeAssembling(replace,origKeys)
     } :::
-      WriteModelDebugAddKey.set(out =>
-        if(out.isEmpty) identity[Context]
-        else WriteModelDebugKey.modify(_.enqueueAll(out))
-          .andThen(add(out.map(toUpdate.toUpdate)))
+      WriteModelDebugAddKey.set(out => local =>
+        if(out.isEmpty) local else {
+          logger.debug(out.map(v=>s"\norig added: $v").mkString)
+          add(out.map(toUpdate.toUpdate))(local)
+        }
       ) :::
       WriteModelAddKey.set(add) :::
       ReadModelAddKey.set(events=>context=>
