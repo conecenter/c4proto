@@ -3,6 +3,10 @@ package ee.cone.c4generator
 import java.nio.file.{Files, Path, Paths}
 import java.util.UUID
 import java.nio.charset.StandardCharsets.UTF_8
+
+import scala.concurrent.Future
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
 import scala.meta.parsers.Parsed.{Error, Success}
 import scala.meta._
 import scala.jdk.CollectionConverters.IterableHasAsScala
@@ -85,10 +89,22 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
     val rootCachePath = rootPath.resolve("cache")
     val fromPostfix = ".scala"
     Files.createDirectories(rootCachePath)
-    withIndex(ctx)(for {
-      path <- ctx.fromFiles.filter(_.toString.endsWith(fromPostfix))
-      toData <- Option(pathToData(path,rootCachePath)) if toData.length > 0
-    } yield path.getParent.resolve(s"$toPrefix${path.getFileName}") -> toData)
+    // 
+    val list = Await.result({
+      implicit val ec = scala.concurrent.ExecutionContext.global
+      Future.sequence(
+        ctx.fromFiles.filter(_.toString.endsWith(fromPostfix))
+          .map(path=>Future((path,pathToData(path,rootCachePath))))
+      )
+    },Duration.Inf).collect{
+      case (path,toData) if toData.length > 0 =>
+        path.getParent.resolve(s"$toPrefix${path.getFileName}") -> toData
+    }
+    withIndex(ctx)(list)
+//    withIndex(ctx)(for {
+//      path <- ctx.fromFiles.filter(_.toString.endsWith(fromPostfix))
+//      toData <- Option(pathToData(path,rootCachePath)) if toData.length > 0
+//    } yield path.getParent.resolve(s"$toPrefix${path.getFileName}") -> toData)
   }
   def pkgNameToId(pkgName: String): String =
     """[\._]+([a-z])""".r.replaceAllIn(s".$pkgName",m=>m.group(1).toUpperCase)
