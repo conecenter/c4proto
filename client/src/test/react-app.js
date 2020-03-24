@@ -15,7 +15,7 @@ import CanvasManager from "../main/canvas-manager"
 import {ExampleAuth,ExampleComponents} from "../test/vdom-components"
 import {ExampleRequestState} from "../test/request-state"
 //import CanvasExtraMix from "../extra/canvas-extra-mix"
-import {CanvasBaseMix,CanvasSimpleMix} from "../main/canvas-mix"
+import {CanvasBaseMix} from "../main/canvas-mix"
 
 
 function fail(data){ alert(data) }

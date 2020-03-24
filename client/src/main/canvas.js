@@ -263,7 +263,7 @@ export function BaseCanvasSetup(log, util, canvas){
         return canvasElement
     })
     function composeFrameStart(frame,prev,ctxName,sameAdd){//viewPos need integers
-        const {startTime,fromServerVersion,viewExternalSize,viewPos,zoom,zoomIsChanging,tileZoom} = frame
+        const {startTime,fromServerVersion,viewExternalSize,viewPos,zoom,tileZoom} = frame //zoomIsChanging
         const same = canvas.compareFrames(frame,prev)
         const samePos = comparePos(same)
         if(
@@ -526,7 +526,7 @@ export function DragViewPositionCanvasSetup(log,canvas){
         const zoomSteps = canvas.fromServer().zoomSteps
         const targetZoom = from.limitedTargetZoom + d * zoomSteps
         const tempTileZoom = from.tileZoom > targetZoom ? targetZoom - zoomSteps : from.tileZoom
-        const mapSize = canvas.mapSize()
+        // const mapSize = canvas.mapSize()
         const fromScale = canvas.zoomToScale(from.zoom)
         const pointPos = canvas.calcPos(dir => (from.viewPos[dir]+mouseRelPos[dir])/fromScale)
         return time => {

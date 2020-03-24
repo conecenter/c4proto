@@ -1,6 +1,6 @@
 
 import {spreadAll}     from "../main/util"
-import {dictKeys,branchByKey,rootCtx,ctxToPath,chain,someKeys,ifInputsChanged} from "../main/vdom-util"
+import {dictKeys,rootCtx,ctxToPath,chain,someKeys,ifInputsChanged} from "../main/vdom-util"
 
 const replaceArrayTree = replace => root => {
     const traverse = arr => {
@@ -78,7 +78,7 @@ export default function CanvasManager(react, canvasFactory, sender, log){
 
     const canvasStyle = prop => {
         if(prop.isGreedy || !prop.value) return prop.style;
-        const [cmdUnitsPerEMZoom,aspectRatioX,aspectRatioY,pxMapH] = prop.value.split(",")
+        const [cmdUnitsPerEMZoom,aspectRatioX,aspectRatioY,pxMapH] = prop.value.split(",") // eslint-disable-line no-unused-vars
         return ({ ...prop.style, height: pxMapH+"px" })
     }
 
