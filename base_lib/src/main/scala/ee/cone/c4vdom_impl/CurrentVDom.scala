@@ -45,11 +45,12 @@ case class VDomHandlerImpl[State](
 ) extends VDomHandler[State] {
 
   private def empty = Option(VDomState(wasNoValue,0))
-  private def init: Handler = _ => vDomStateKey.modify(_.orElse(empty))
+  private def init(state: State): State =
+    vDomStateKey.modify(_.orElse(empty))(state)
 
   private def pathHeader: VDomMessage => String = _.header("x-r-vdom-path")
   //dispatches incoming message // can close / set refresh time
-  private def dispatch: Handler = exchange => state => {
+  private def dispatch(exchange: VDomMessage, state: State): State = {
     val path = pathHeader(exchange)
     if(path.isEmpty) state else (VDomResolverImpl.resolve(path)(vDomStateKey.of(state).map(_.value)) match {
       case Some(v: Receiver[_]) => v.receive(exchange)
@@ -61,10 +62,13 @@ case class VDomHandlerImpl[State](
 
   //todo invalidate until by default
 
-  def receive: Handler = m => chain(List(init,dispatch,toAlien).map(_(m)))
+  def receive: Handler = m=>state=>doReceive(m,state)
+  private def doReceive(m: VDomMessage, state: State): State = {
+    chain(List(init(_),dispatch(m,_),toAlien(m,_)))(state)
+  }
 
-  private def diffSend(prev: VDomValue, send: sender.Send): State => State =
-    state => if(send.isEmpty) state else {
+  private def diffSend(prev: VDomValue, send: sender.Send, state: State): State =
+    if(send.isEmpty) state else {
       val next = vDomStateKey.of(state).get.value
       val diffTree = diff.diff(prev, next)
       if(diffTree.isEmpty) state else {
@@ -73,7 +77,7 @@ case class VDomHandlerImpl[State](
       }
     }
 
-  private def toAlien: Handler = exchange => state => {
+  private def toAlien(exchange: VDomMessage, state: State): State = {
     val vState = vDomStateKey.of(state).get
     val (keepTo,freshTo) = sender.sending(state)
     if(keepTo.isEmpty && freshTo.isEmpty){
@@ -90,13 +94,13 @@ case class VDomHandlerImpl[State](
     ) state
     else chain[State](Seq(
       vDomStateKey.set(empty), // need to remove prev DomState before review to avoid leak: local-vdom-el-action-local
-      reView,
-      diffSend(vState.value, keepTo),
-      diffSend(wasNoValue, freshTo)
+      reView(_),
+      diffSend(vState.value, keepTo, _),
+      diffSend(wasNoValue, freshTo, _)
     ))(state)
   }
 
-  private def reView: State => State = state => {
+  private def reView(state: State): State = {
     val (until,viewRes) = vDomUntil.get(view.view(state))
     val vPair = child("root", RootElement(sender.branchKey), viewRes).asInstanceOf[VPair]
     val nextDom = vPair.value

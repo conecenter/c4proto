@@ -160,6 +160,9 @@ push @tasks, ["gate_server_run_s3", sub{
     local $ENV{C4STATE_REFRESH_SECONDS} = 100;
     &$exec_server("base_server.ee.cone.c4gate_akka_s3.AkkaMinioGatewayApp");
 }];
+push @tasks, ["ignore_all_snapshots", sub{
+    &$exec_server("base_server.ee.cone.c4gate_server.IgnoreAllSnapshotsApp");
+}];
 push @tasks, ["run", sub{
     &$exec_server($_[0])
 }];

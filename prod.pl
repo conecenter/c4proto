@@ -1844,26 +1844,26 @@ push @tasks, ["cert","$composes_txt <hostname>",sub{
 my $tp_split = sub{ "$_[0]\n\n"=~/(.*?\n\n)/gs };
 
 my $tp_run = sub{
-    my($pkg,$wrap)=@_;
+    my($wrap)=@_;
     my $cmd = &$wrap("jcmd");
-    my @pid = map{/^(\d+)\s+(\S+)/ && index($2, $pkg)==0?"$1":()} syl($cmd);
-    my $pid = $pid[0] || return;
+    my @pid = map{/^(\d+)\s+(ee\.cone\.\S+)/  ?"$1":()} syl($cmd);
+    @pid || return;
+    my $p_cmd = &$wrap(join " && ", map{"jcmd $_ Thread.print"} @pid);
     while(1){
         select undef, undef, undef, 0.25;
-        print grep{ !/\.epollWait\(/ && /\sat\s/ } &$tp_split(syf(&$wrap("jcmd $pid Thread.print")));
+        print grep{ !/\.epollWait\(/ && /\sat\s/ } &$tp_split(syf($p_cmd));
     }
 };
 
 push @tasks, ["thread_print_local","<package>",sub{
-    my($pkg)=@_;
-    &$tp_run($pkg,sub{"$_[0]"});
+    &$tp_run(sub{"$_[0]"});
 }];
-push @tasks, ["thread_print","$composes_txt-<service> <package>",sub{
-    my($app,$pkg)=@_;
+push @tasks, ["thread_print","$composes_txt-<service>",sub{
+    my($app)=@_;
     sy(&$ssh_add());
     my($comp,$service) = &$split_app($app);
     my $mk_exec = &$find_exec_handler($comp);
-    &$tp_run($pkg,sub{ my($cmd)=@_; &$remote($comp,&$mk_exec("",$service,$cmd)) });#/RUNNABLE/
+    &$tp_run(sub{ my($cmd)=@_; &$remote($comp,&$mk_exec("",$service,$cmd)) });#/RUNNABLE/
 }];
 push @tasks, ["thread_grep_cut","<substring>",sub{
     my($v)=@_;
@@ -1884,6 +1884,12 @@ push @tasks, ["repl","$composes_txt-<service>",sub{
     my($comp,$service) = &$split_app($app);
     my $mk_exec = &$find_exec_handler($comp);
     sy(&$ssh_ctl($comp,'-t',&$mk_exec("-it",$service,"test -e /c4/.ssh/id_rsa || ssh-keygen;ssh localhost -p22222")));
+}];
+push @tasks, ["greys_local","<pid>",sub{
+    my($pid)=@_;
+    $pid || die;
+    -e "$ENV{HOME}/.greys" or sy("cd /tools/greys && bash ./install-local.sh");
+    sy("/tools/greys/greys.sh $pid");
 }];
 push @tasks, ["greys","$composes_txt-<service>",sub{
     my($app)=@_;
