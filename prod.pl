@@ -1261,13 +1261,29 @@ push @tasks, ["history","$composes_txt",sub{
     my ($dir) = &$get_deployer_conf($comp,1,qw[dir]);
     sy(&$remote($comp,"cat $dir/$comp.args"));
 }];
+my $get_comp_from_pod = sub{ $_[0]=~/^(.+)-\d+$/ ? "$1" : die "bad pod name" };
 push @tasks, ["bash","<pod> [container]",sub{ #<replica>
     my($pod,$service)=@_;
     sy(&$ssh_add());
-    my $comp = $pod=~/^(.+)-\d+$/ ? $1 : die "bad pod name";
+    my $comp = &$get_comp_from_pod($pod);
     my $ns = &$get_kc_ns($comp);
     my $service_str = $service ? "-c $service" : "";
     my $stm = qq[kubectl -n $ns exec -it $pod $service_str -- bash];
+    sy(&$ssh_ctl($comp,"-t",$stm));
+}];
+push @tasks, ["watch","$composes_txt",sub{ #<replica>
+    my($comp)=@_;
+    sy(&$ssh_add());
+    my $ns = &$get_kc_ns($comp);
+    sy(&$ssh_ctl($comp,"-t",qq[watch kubectl -n $ns get po -l app=$comp]));
+}];
+push @tasks, ["log","<pod> [tail] [add]",sub{ #<replica>
+    my($pod,$tail,$add)=@_;
+    sy(&$ssh_add());
+    my $comp = &$get_comp_from_pod($pod);
+    my $ns = &$get_kc_ns($comp);
+    my $tail_or = ($tail+0) || 100;
+    my $stm = qq[kubectl -n $ns log -f $pod --tail $tail_or $add];
     sy(&$ssh_ctl($comp,"-t",$stm));
 }];
 
