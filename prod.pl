@@ -210,58 +210,6 @@ push @tasks, ["remote_service-gate",'',sub{
 }];
 push @tasks, ["remote_service-desktop",'',sub{"sshd"}];
 
-my $remote_acc  = sub{
-    my($comp,$stm)=@_;
-    my $service = &$find_handler(remote_service=>$comp)->();
-    my $mk_exec = &$find_exec_handler($comp);
-    &$remote($comp,&$mk_exec("",$service,$stm));
-};
-
-my $snapshots_path = "/c4db/snapshots";
-my $list_snapshots = sub{
-    my($comp,$opt)=@_;
-    my $ls = &$remote_acc($comp,"ls $opt $snapshots_path");
-    print "$ls\n";
-    syl($ls);
-};
-
-my $get_sm_binary = sub{
-    my($comp,$from,$to)=@_;
-    &$remote_acc($comp,"cat $from")." > $to";
-};
-
-my $snapshot_name = sub{
-    my($snnm)=@_;
-    my @fn = $snnm=~/^(\w{16})(-\w{8}-\w{4}-\w{4}-\w{4}-\w{12}[-\w]*)\s*$/ ? ($1,$2) : die;
-    my $zero = '0' x length $fn[0];
-    ("$fn[0]$fn[1]","$zero$fn[1]")
-};
-
-my $get_snapshot = sub{
-    my($comp,$snnm,$mk_path)=@_;
-    my($fn,$zfn) = &$snapshot_name($snnm);
-    &$get_sm_binary($comp,"$snapshots_path/$fn",&$mk_path($zfn));
-};
-
-push @tasks, ["list_snapshots", $composes_txt, sub{
-    my($comp)=@_;
-    sy(&$ssh_add());
-    print &$list_snapshots($comp,"-la");
-}];
-
-push @tasks, ["get_snapshot", "$composes_txt <snapshot>", sub{
-    my($comp,$snnm)=@_;
-    sy(&$ssh_add());
-    sy(&$get_snapshot($comp,$snnm,sub{$_[0]}));
-}];
-
-push @tasks, ["get_last_snapshot", $composes_txt, sub{
-    my($comp)=@_;
-    sy(&$ssh_add());
-    my $snnm = (reverse sort &$list_snapshots($comp,""))[0];
-    sy(&$get_snapshot($comp,$snnm,sub{$_[0]}));
-}];
-
 my $get_hostname = sub{
     my($comp)=@_;
     &$get_compose($comp)->{le_hostname} || do{
@@ -269,36 +217,6 @@ my $get_hostname = sub{
         $domain_zone && "$comp.$domain_zone";
     };
 };
-
-my $put_snapshot = sub{
-    my($auth_path,$data_path,$addr)=@_;
-    my $gen_dir = $ENV{C4PROTO_DIR} || die;
-    my $data_fn = $data_path=~m{([^/]+)$} ? $1 : die "bad file path";
-    -e $auth_path or die "no gate auth";
-    sy("python3","$gen_dir/req.py",$auth_path,$data_path,$addr,"/put-snapshot","/put-snapshot","snapshots/$data_fn");
-};
-
-push @tasks, ["put_snapshot", "$composes_txt <file_path>", sub{
-    my($comp,$data_path)=@_;
-    sy(&$ssh_add());
-    my $host = &$get_hostname($comp) || die "need le_hostname or domain_zone";
-    my($conf_dir,$save) = @{&$get_conf_dir()};
-    my $auth_path = "$conf_dir/ca/$comp/simple.auth";
-    &$put_snapshot($auth_path,$data_path,"https://$host");
-}];
-push @tasks, ["put_snapshot_address", "${composes_txt} <to_address> <file_path> ", sub{
-    my($comp,$address,$data_path)=@_;
-    sy(&$ssh_add());
-    my($conf_dir,$save) = @{&$get_conf_dir()};
-    my $auth_path = "$conf_dir/ca/$comp/simple.auth";
-    &$put_snapshot($auth_path,$data_path,$address);
-}];
-push @tasks, ["put_snapshot_local", "<file_path>", sub{
-    my($data_path)=@_;
-    my $data_dir = $ENV{C4DATA_DIR} || die;
-    &$put_snapshot("$data_dir/simple.auth",$data_path,"http://127.0.0.1:$http_port");
-}];
-
 
 my $get_kc_ns = sub{
     my($comp)=@_;
@@ -1242,6 +1160,95 @@ push @tasks, ["restart","$composes_txt",sub{
     my ($dir) = &$get_deployer_conf($comp,1,qw[dir]);
     sy(&$remote($comp,"cd $dir/$comp && C4FORCE_RECREATE=1 ./up"));
 }];
+
+### snapshot op-s
+
+my $remote_acc  = sub{
+    my($comp,$stm)=@_;
+    my $service = &$find_handler(remote_service=>$comp)->();
+    my $mk_exec = &$find_exec_handler($comp);
+    &$remote($comp,&$mk_exec("",$service,$stm));
+};
+
+my $snapshots_path = "/c4db/snapshots";
+my $list_snapshots = sub{
+    my($comp,$opt)=@_;
+    my $ls = &$remote_acc($comp,"ls $opt $snapshots_path");
+    print "$ls\n";
+    syl($ls);
+};
+
+my $get_sm_binary = sub{
+    my($comp,$from,$to)=@_;
+    &$remote_acc($comp,"cat $from")." > $to";
+};
+
+my $snapshot_name = sub{
+    my($snnm)=@_;
+    my @fn = $snnm=~/^(\w{16})(-\w{8}-\w{4}-\w{4}-\w{4}-\w{12}[-\w]*)\s*$/ ? ($1,$2) : die;
+    my $zero = '0' x length $fn[0];
+    ("$fn[0]$fn[1]","$zero$fn[1]")
+};
+
+my $get_snapshot = sub{
+    my($comp,$snnm,$mk_path)=@_;
+    my($fn,$zfn) = &$snapshot_name($snnm);
+    &$get_sm_binary($comp,"$snapshots_path/$fn",&$mk_path($zfn));
+};
+
+push @tasks, ["list_snapshots", $composes_txt, sub{
+    my($comp)=@_;
+    sy(&$ssh_add());
+    print &$list_snapshots($comp,"-la");
+}];
+
+push @tasks, ["get_snapshot", "$composes_txt <snapshot>", sub{
+    my($comp,$snnm)=@_;
+    sy(&$ssh_add());
+    sy(&$get_snapshot($comp,$snnm,sub{$_[0]}));
+}];
+
+push @tasks, ["get_last_snapshot", $composes_txt, sub{
+    my($comp)=@_;
+    sy(&$ssh_add());
+    my $snnm = (reverse sort &$list_snapshots($comp,""))[0];
+    sy(&$get_snapshot($comp,$snnm,sub{$_[0]}));
+}];
+
+my $put_snapshot = sub{
+    my($auth_path,$data_path,$addr)=@_;
+    my $gen_dir = $ENV{C4PROTO_DIR} || die;
+    my $data_fn = $data_path=~m{([^/]+)$} ? $1 : die "bad file path";
+    -e $auth_path or die "no gate auth";
+    sy("python3","$gen_dir/req.py",$auth_path,$data_path,$addr,"/put-snapshot","/put-snapshot","snapshots/$data_fn");
+};
+
+my $need_auth_path = sub{
+    my($comp)=@_;
+    my ($has_int_broker,%consumer_options) = &$get_consumer_options($comp);
+    my $from_path = &$get_tmp_dir();
+    &$need_deploy_cert($comp,$from_path,$has_int_broker);
+    "$from_path/simple.auth"
+};
+
+push @tasks, ["put_snapshot", "$composes_txt <file_path>", sub{
+    my($comp,$data_path)=@_;
+    sy(&$ssh_add());
+    my $host = &$get_hostname($comp) || die "need le_hostname or domain_zone";
+    &$put_snapshot(&$need_auth_path($comp),$data_path,"https://$host");
+}];
+push @tasks, ["put_snapshot_address", "${composes_txt} <to_address> <file_path> ", sub{
+    my($comp,$address,$data_path)=@_;
+    sy(&$ssh_add());
+    &$put_snapshot(&$need_auth_path($comp),$data_path,$address);
+}];
+push @tasks, ["put_snapshot_local", "<file_path>", sub{
+    my($data_path)=@_;
+    my $data_dir = $ENV{C4DATA_DIR} || die;
+    &$put_snapshot("$data_dir/simple.auth",$data_path,"http://127.0.0.1:$http_port");
+}];
+
+###
 
 push @tasks, ["history","$composes_txt",sub{
     my($comp)=@_;
