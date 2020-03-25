@@ -221,6 +221,9 @@ my $get_hostname = sub{
 my $get_kc_ns = sub{
     my($comp)=@_;
     my $ns = syf(&$remote($comp,'cat /var/run/secrets/kubernetes.io/serviceaccount/namespace'))=~/(\w+)/ ? "$1" : die;
+};
+my $get_pod = sub{
+    my($comp,$ns)=@_;
     my $stm = qq[kubectl -n $ns get po -l app=$comp -o jsonpath="{.items[*].metadata.name}"];
     my @pods = syf(&$remote($comp,$stm))=~/(\S+)/g;
     my $pod = &$single_or_undef(@pods) || die "no single pod for $comp";
@@ -241,7 +244,8 @@ my $exec_dc = sub{
 };
 my $exec_kc = sub{
     my($comp)=@_;
-    my ($ns,$pod) = &$get_kc_ns($comp);
+    my $ns = &$get_kc_ns($comp);
+    my $pod = &$get_pod($comp,$ns);
     sub{ my($md,$service,$stm)=@_; &$exec_stm_kc($ns,$md,$pod,$service,$stm) };
 };
 my $lscont_dc = sub{
@@ -252,7 +256,8 @@ my $lscont_dc = sub{
 };
 my $lscont_kc = sub{
     my($comp)=@_;
-    my ($ns,$pod) = &$get_kc_ns($comp);
+    my $ns = &$get_kc_ns($comp);
+    my $pod = &$get_pod($comp,$ns);
     my $stm = "kubectl -n $ns get po/$pod -o jsonpath={.spec.containers[*].name}";
     map{ my $c = $_; sub{ my($stm)=@_; &$exec_stm_kc($ns,"",$pod,$c,$stm) } }
         syf(&$remote($comp,$stm))=~/(\w+)/g;
@@ -1255,6 +1260,15 @@ push @tasks, ["history","$composes_txt",sub{
     sy(&$ssh_add());
     my ($dir) = &$get_deployer_conf($comp,1,qw[dir]);
     sy(&$remote($comp,"cat $dir/$comp.args"));
+}];
+push @tasks, ["bash","<pod> [container]",sub{ #<replica>
+    my($pod,$service)=@_;
+    sy(&$ssh_add());
+    my $comp = $pod=~/^(.+)-\d+$/ ? $1 : die "bad pod name";
+    my $ns = &$get_kc_ns($comp);
+    my $service_str = $service ? "-c $service" : "";
+    my $stm = qq[kubectl -n $ns exec -it $pod $service_str -- bash];
+    sy(&$ssh_ctl($comp,"-t",$stm));
 }];
 
 my $nc = sub{
