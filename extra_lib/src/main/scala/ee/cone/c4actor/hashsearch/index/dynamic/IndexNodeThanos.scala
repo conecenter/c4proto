@@ -78,9 +78,9 @@ trait DynamicIndexAssembleBase
 
   def dynamicIndexAssembleDebugMode: Boolean = false
 
-  def dynamicIndexAutoStaticNodeCount: Int = 1000
+  def dynamicIndexAutoStaticNodeCount: Int //= 1000
 
-  def dynamicIndexAutoStaticLiveSeconds: Long = 60L * 60L
+  def dynamicIndexAutoStaticLiveSeconds: Long //= 60L * 60L
 
   def dynamicIndexDeleteAnywaySeconds: Long = 60L * 60L * 24L * 1L
 
