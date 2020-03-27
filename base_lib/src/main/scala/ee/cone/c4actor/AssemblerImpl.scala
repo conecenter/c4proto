@@ -19,11 +19,7 @@ import scala.concurrent.duration.Duration
       .map(nm => new OriginalWorldPart(origKeyFactory.value.rawKey(nm)))
 }
 
-case object TreeAssemblerKey extends SharedComponentKey[TreeAssembling]
-class TreeAssembling(
-  val replace: Replace,
-  val isActiveOrigKey: Set[AssembledKey],
-)
+case object TreeAssemblerKey extends SharedComponentKey[Replace]
 
 @c4("RichDataCompApp") class DefLongAssembleWarnPeriod extends LongAssembleWarnPeriod(Option(System.getenv("C4ASSEMBLE_WARN_PERIOD_MS")).fold(1000L)(_.toLong))
 
@@ -49,13 +45,13 @@ class TreeAssembling(
   assembleOptionsOuterKey: AssembledKey = origKeyFactory.value.rawKey(classOf[AssembleOptions].getName),
   assembleOptionsInnerKey: String = ToPrimaryKey(defaultAssembleOptions)
 ) extends ToInject with LazyLogging {
-  private def toTreeReplace(treeAssembling: TreeAssembling, assembled: ReadModel, updates: Seq[N_Update], profiling: JoiningProfiling, executionContext: OuterExecutionContext): Future[WorldTransition] = {
+  private def toTreeReplace(replace: Replace, isActiveOrig: Set[AssembledKey], assembled: ReadModel, updates: Seq[N_Update], profiling: JoiningProfiling, executionContext: OuterExecutionContext): Future[WorldTransition] = {
     val timer = NanoTimer()
     val mDiff = for {
       tpPair <- updates.groupBy(_.valueTypeId)
       (valueTypeId, tpUpdates) = tpPair : (Long,Seq[N_Update])
       valueAdapter <- qAdapterRegistry.byId.get(valueTypeId)
-      wKey <- Option(origKeyFactory.value.rawKey(valueAdapter.className)) if treeAssembling.isActiveOrigKey(wKey)
+      wKey <- Option(origKeyFactory.value.rawKey(valueAdapter.className)) if isActiveOrig(wKey)
     } yield {
       implicit val ec: ExecutionContext = executionContext.value
       wKey -> (for {
@@ -71,7 +67,7 @@ class TreeAssembling(
     }
     val diff = readModelUtil.create(mDiff.toMap)
     logger.trace(s"toTree ${timer.ms} ms")
-    treeAssembling.replace.replace(assembled,diff,profiling,executionContext)
+    replace.replace(assembled,diff,profiling,executionContext)
   }
 
   def waitFor[T](res: Future[T], options: AssembleOptions, stage: String): T = concurrent.blocking{
@@ -84,12 +80,12 @@ class TreeAssembling(
 
   // read model part:
   private def reduce(
-    treeAssembling: TreeAssembling,
+    replace: Replace, isActiveOrig: Set[AssembledKey],
     wasAssembled: ReadModel, updates: Seq[N_Update],
     options: AssembleOptions, executionContext: OuterExecutionContext
   ): ReadModel = {
     val profiling = assembleProfiler.createJoiningProfiling(None)
-    val res = toTreeReplace(treeAssembling, wasAssembled, updates, profiling, executionContext).map(_.result)(executionContext.value)
+    val res = toTreeReplace(replace, isActiveOrig, wasAssembled, updates, profiling, executionContext).map(_.result)(executionContext.value)
     waitFor(res, options, "read")
   }
 
@@ -97,20 +93,20 @@ class TreeAssembling(
     ev <- events.lastOption.toList
     lEvent <- LEvent.update(S_Offset(actorName.value,ev.srcId))
   } yield toUpdate.toUpdate(lEvent)
-  private def readModelAdd(replace: TreeAssembling, executionContext: OuterExecutionContext): Seq[RawEvent]=>ReadModel=>ReadModel = events => assembled => catchNonFatal {
+  private def readModelAdd(replace: Replace, isActiveOrig: Set[AssembledKey], executionContext: OuterExecutionContext): Seq[RawEvent]=>ReadModel=>ReadModel = events => assembled => catchNonFatal {
     val options = getAssembleOptions(assembled)
     val updates = offset(events) ::: toUpdate.toUpdates(events.toList)
-    reduce(replace, assembled, updates, options, executionContext)
+    reduce(replace, isActiveOrig, assembled, updates, options, executionContext)
   }("reduce"){ e => // ??? exception to record
       if(events.size == 1){
         val options = getAssembleOptions(assembled)
         val updates = offset(events) ++
           events.map(ev=>S_FailedUpdates(ev.srcId, e.getMessage))
             .flatMap(LEvent.update).map(toUpdate.toUpdate)
-        reduce(replace, assembled, updates, options, executionContext)
+        reduce(replace, isActiveOrig, assembled, updates, options, executionContext)
       } else {
         val(a,b) = events.splitAt(events.size / 2)
-        Function.chain(Seq(readModelAdd(replace, executionContext)(a), readModelAdd(replace, executionContext)(b)))(assembled)
+        Function.chain(Seq(readModelAdd(replace, isActiveOrig, executionContext)(a), readModelAdd(replace, isActiveOrig, executionContext)(b)))(assembled)
       }
   }
   // other parts:
@@ -122,9 +118,10 @@ class TreeAssembling(
       val processedOut = composes.mayBePar(processors, options).flatMap(_.process(out)).toSeq ++ out
       val externalOut = updateProcessor.fold(processedOut)(_.process(processedOut, WriteModelKey.of(local).size))
       val replace = TreeAssemblerKey.of(local)
+      val isActiveOrig = IsActiveOrigKey.of(local)
       val profiling = assembleProfiler.createJoiningProfiling(Option(local))
       val res = for {
-        transition <- toTreeReplace(replace, local.assembled, externalOut, profiling, local.executionContext)
+        transition <- toTreeReplace(replace, isActiveOrig, local.assembled, externalOut, profiling, local.executionContext)
         updates <- assembleProfiler.addMeta(transition, externalOut)
       } yield {
         val nLocal = new Context(local.injected, transition.result, local.executionContext, local.transient)
@@ -143,23 +140,22 @@ class TreeAssembling(
   }
 
   def toInject: List[Injectable] = {
-    TreeAssemblerKey.set{
-      logger.debug("getDependencies started")
-      val rules = getDependencies.value.flatMap(_.getRules).toList
-      logger.debug("getDependencies finished")
-      val isTargetWorldPartRule = Single.option(isTargetWorldPartRules).getOrElse(AnyIsTargetWorldPartRule)
-      val replace = treeAssembler.create(rules,isTargetWorldPartRule.check)
-      logger.debug(s"active rules: ${replace.active.size}")
-      logger.debug{
-        val isActive = replace.active.toSet
-        rules.map{ rule =>
-          s"\n${if(isActive(rule))"[+]" else "[-]"} ${rule match {
-            case r: DataDependencyFrom[_] => s"${r.assembleName} ${r.name}"
-            case r: DataDependencyTo[_] => s"out ${r.outputWorldKey}"
-          }}"
-        }.toString
-      }
-      val origKeys = replace.active.collect{ case o: OriginalWorldPart[_] => o.outputWorldKey }.toSet
+    logger.debug("getDependencies started")
+    val rules = getDependencies.value.flatMap(_.getRules).toList
+    logger.debug("getDependencies finished")
+    val isTargetWorldPartRule = Single.option(isTargetWorldPartRules).getOrElse(AnyIsTargetWorldPartRule)
+    val replace = treeAssembler.create(rules,isTargetWorldPartRule.check)
+    logger.debug(s"active rules: ${replace.active.size}")
+    logger.debug{
+      val isActive = replace.active.toSet
+      rules.map{ rule =>
+        s"\n${if(isActive(rule))"[+]" else "[-]"} ${rule match {
+          case r: DataDependencyFrom[_] => s"${r.assembleName} ${r.name}"
+          case r: DataDependencyTo[_] => s"out ${r.outputWorldKey}"
+        }}"
+      }.toString
+    }
+    val origKeys = replace.active.collect{ case o: OriginalWorldPart[_] => o.outputWorldKey }.toSet
       /*
       val reg = CheckedMap(
         replace.active.collect{
@@ -169,8 +165,7 @@ class TreeAssembling(
             k.valueClassName -> k
         }
       )*/
-      new TreeAssembling(replace,origKeys)
-    } :::
+    TreeAssemblerKey.set(replace) ::: IsActiveOrigKey.set(origKeys) :::
       WriteModelDebugAddKey.set(out => local =>
         if(out.isEmpty) local else {
           logger.debug(out.map(v=>s"\norig added: $v").mkString)
@@ -179,7 +174,7 @@ class TreeAssembling(
       ) :::
       WriteModelAddKey.set(add) :::
       ReadModelAddKey.set(events=>context=>
-        readModelAdd(TreeAssemblerKey.of(context), context.executionContext)(events)(context.assembled)
+        readModelAdd(replace, origKeys, context.executionContext)(events)(context.assembled)
       ) :::
       GetAssembleOptions.set(getAssembleOptions)
   }
@@ -222,9 +217,13 @@ case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K
 
 @c4("RichDataCompApp") class GetByPKUtil(keyFactory: KeyFactory) {
   def toAssembleKey(vTypeKey: TypeKey): AssembledKey = {
-    assert(vTypeKey.args.isEmpty)
-    // ?todo: assert OR alias and clName for joinKey should be extended by args
-    keyFactory.rawKey(vTypeKey.clName)
+    vTypeKey.args match {
+      case Seq() =>
+        keyFactory.rawKey(vTypeKey.clName)
+      case Seq(arg) if arg.args.isEmpty =>
+        keyFactory.rawKey(vTypeKey.clName + '[' + arg.clName + ']')
+      case _ => throw new Exception(s"$vTypeKey not implemented") // todo: ? JoinKey to contain TypeKey-s
+    }
   }
 }
 @c4("RichDataCompApp") class GetByPKComponentFactoryProvider(

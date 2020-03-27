@@ -1,8 +1,6 @@
 
 package ee.cone.c4generator
 
-import ee.cone.c4generator.ComponentsGenerator.fileNameToComponentsId
-
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.meta.Term.Name
 import scala.meta._
