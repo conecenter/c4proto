@@ -39,7 +39,11 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
     new Cached(component.out, new SimpleDeferredSeq[Object](values))
   }
   def resolveSingle: TypeKey => TypeKey => Object = outKey => inKey => resolveKey(inKey).value match {
-    case Seq(r:Object) => r
+    case Seq(r:Object) =>
+      debug.foreach { _ =>
+        println(s"resolved single $inKey for $outKey")
+      }
+      r
     case r => throw new Exception(s"resolution of $inKey for $outKey fails with $r")
   }
   def resolveKey(key: TypeKey): DeferredSeq[Any] = new SimpleDeferredSeq[Any](()=>{

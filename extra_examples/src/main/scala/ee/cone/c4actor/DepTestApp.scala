@@ -144,7 +144,7 @@ case class TestTransform(srcId: SrcId, access: Any) extends TxTransform {
 
   override def byClNameAllClasses: List[Class[_ <: Product]] = classOf[D_ValueNode] :: super.byClNameAllClasses
 
-  def depDraft: DepDraft = DepDraft(commonRequestUtilityFactory, askByPKFactory.forClass(classOf[D_ValueNode]), depAskFactory, byClassNameAllAsk, depFactory)
+  def depDraft: DepDraft = DepDraft(commonRequestUtilityFactory, askByPKFactory.forClass(classOf[D_ValueNode]), depAskFactory, resolveSingle(classOf[ByClassNameAllAsk]), depFactory)
 
   override def depHandlers: List[DepHandler] = {
     println(super.depHandlers.mkString("\n"))
