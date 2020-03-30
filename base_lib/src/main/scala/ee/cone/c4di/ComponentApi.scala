@@ -62,6 +62,6 @@ abstract class AutoMixer(val components: List[Component], val dependencies: List
 trait GeneralC4Factory0
 trait GeneralC4Factory1
 trait GeneralC4Factory2
-trait C4Factory0[Out] { def create(): Out }
-trait C4Factory1[In,Out] { def create(in: In): Out }
-trait C4Factory2[In1,In2,Out] { def create(in1: In1, in2: In2): Out }
+trait C4Factory0[+Out] { def create(): Out }
+trait C4Factory1[In,+Out] { def create(in: In): Out }
+trait C4Factory2[In1,In2,+Out] { def create(in1: In1, in2: In2): Out }
