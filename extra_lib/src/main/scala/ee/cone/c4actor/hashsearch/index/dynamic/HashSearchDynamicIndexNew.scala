@@ -10,7 +10,7 @@ import ee.cone.c4assemble._
 import ee.cone.c4di.{c4, provide}
 import ee.cone.c4proto._
 
-trait HashSearchDynamicIndexAppBase extends DynamicIndexModelsApp
+trait HashSearchDynamicIndexAppBase
 
 @c4("HashSearchDynamicIndexApp") class HashSearchDynamicIndexAssembles(
   hashSearchDynamicIndexCommonFactory: HashSearchDynamicIndexCommonFactory,
