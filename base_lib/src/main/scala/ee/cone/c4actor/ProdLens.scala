@@ -1,5 +1,6 @@
 package ee.cone.c4actor
 
+import ee.cone.c4actor.Types.{FieldId, TypeId}
 import ee.cone.c4assemble.Getter
 import ee.cone.c4di.TypeKey
 
@@ -45,7 +46,11 @@ object CreateProdGetter {
 
 case class NameMetaAttr(value: String) extends AbstractMetaAttr
 
-case class IdMetaAttr(fieldId: Long) extends AbstractMetaAttr
+case class IdMetaAttr(fieldId: FieldId) extends AbstractMetaAttr
+
+case class OrigIdAttr(typeId: TypeId) extends AbstractMetaAttr
+
+case class FieldNameAttr(fieldName: String) extends AbstractMetaAttr
 
 case class ClassesAttr(modelClName: String, fieldClName: String) extends AbstractMetaAttr
 

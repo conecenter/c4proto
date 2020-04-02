@@ -3,7 +3,7 @@ package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ArgTypes._
-import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.Types.{FieldId, SrcId, TypeId}
 import ee.cone.c4assemble.Single
 import ee.cone.c4di.Types.ComponentFactory
 import ee.cone.c4di.{CreateTypeKey, TypeKey, c4, provide}
@@ -90,6 +90,8 @@ class OptionArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter
 @c4("ProtoApp") class OKIOByteStringDefaultArgument extends DefaultArgument[okio.ByteString](ByteString.EMPTY)
 @c4("ProtoApp") class StringDefaultArgument extends DefaultArgument[String]("")
 @c4("ProtoApp") class SrcIdDefaultArgument extends DefaultArgument[SrcId]("")
+@c4("ProtoApp") class TypeIdDefaultArgument extends DefaultArgument[TypeId](0L)
+@c4("ProtoApp") class FieldIdDefaultArgument extends DefaultArgument[FieldId](0L)
 
 import com.squareup.wire.ProtoAdapter._
 
@@ -101,6 +103,8 @@ import com.squareup.wire.ProtoAdapter._
   @provide def getOKIOByteString: Seq[ProtoAdapter[okio.ByteString]] = List(BYTES)
   @provide def getString: Seq[ProtoAdapter[String]] = List(STRING)
   @provide def getSrcId: Seq[ProtoAdapter[SrcId]] = List(STRING)
+  @provide def getTypeId: Seq[ProtoAdapter[TypeId]] = List(SINT64.asInstanceOf[ProtoAdapter[Long]])
+  @provide def getFieldId: Seq[ProtoAdapter[FieldId]] = List(SINT64.asInstanceOf[ProtoAdapter[Long]])
 }
 
 /*

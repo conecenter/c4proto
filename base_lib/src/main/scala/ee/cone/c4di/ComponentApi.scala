@@ -21,6 +21,7 @@ trait TypeKey extends Product {
   def clName: String
   def args: List[TypeKey]
   def alias: String
+  lazy val fullAlias: String = s"$alias${if (args.isEmpty) "" else s"[${args.map(_.fullAlias).mkString(", ")}]"}"
   def copy(alias: String = alias, args: List[TypeKey] = args): TypeKey
 }
 

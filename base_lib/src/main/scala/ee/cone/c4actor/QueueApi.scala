@@ -137,6 +137,7 @@ trait ToUpdate {
 object Types {
   type ClName = String
   type TypeId = Long
+  type FieldId = Long
   type SrcId = String
   type TransientMap = Map[TransientLens[_],Object]
   type SharedComponentMap = Map[SharedComponentKey[_],Object]
