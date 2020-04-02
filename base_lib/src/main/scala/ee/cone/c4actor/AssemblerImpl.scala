@@ -234,8 +234,11 @@ case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K
 }
 
 @c4("RichDataCompApp") class NeedAssembledKeyRegistry(
-  util: GetByPKUtil, componentRegistry: ComponentRegistry,
-  classNames: Set[String] = Set(classOf[GetByPK[_]].getName) // can be extended later
+  util: GetByPKUtil, componentRegistry: ComponentRegistry, config: ListConfig,
+)(
+  disableCheck: Boolean = config.get("C4NO_INDEX_CHECK").nonEmpty
+)(
+  classNames: Set[String] = if(disableCheck) Set() else Set(classOf[GetByPK[_]].getName) // can be extended later
 )(
   val getRules: List[NeedWorldPartRule] = for{
     component <- componentRegistry.components.toList
@@ -246,7 +249,7 @@ case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K
 ) extends DataDependencyProvider {
   def toAssembleKey(typeKey: TypeKey): AssembledKey = {
     val joinKey = util.toAssembleKey(typeKey)
-    assert(values(joinKey),s"no need byPK self check: $joinKey")
+    assert(values(joinKey) || disableCheck, s"no need byPK self check: $joinKey")
     joinKey
   }
 }

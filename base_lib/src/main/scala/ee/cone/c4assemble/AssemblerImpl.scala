@@ -358,6 +358,8 @@ class DebugJoinMapIndex(
 }
 */
 
+class FailedRule(val message: List[String]) extends WorldPartRule
+
 @c4("AssembleApp") class TreeAssemblerImpl(
   byPriority: ByPriority, expressionsDumpers: List[ExpressionsDumper[Unit]],
   optimizer: AssembleSeqOptimizer, backStageFactory: BackStageFactory,
@@ -378,15 +380,21 @@ class DebugJoinMapIndex(
         inKey <- join.inputWorldKeys
         k <- uses.getOrElse(inKey,inKey match {
           case k: JoinKey if k.was => Nil
-          case k => throw new Exception(
-            s"$k not found \n" +
-              s"for assemble ${join.assembleName}, join ${join.name}"
-          )
+          case k => List(new FailedRule(List(
+            s"$k not found",
+            s"for assemble ${join.assembleName}, join ${join.name}"
+          )))
         })
       } yield k
       byPriority.byPriority[WorldPartRule,WorldPartRule](
         item=>(getJoins(item), _ => item)
       )(rules.filter(isTarget)).reverse
+    }
+    rulesByPriority.collect{ case r: FailedRule => r } match {
+      case Seq() => ()
+      case rules =>
+        val lines = s"${rules.size} rules have failed" :: rules.flatMap(_.message)
+        throw new Exception(lines.mkString("\n"))
     }
     val expressionsByPriority = rulesByPriority.collect{
       case e: WorldPartExpression with DataDependencyTo[_] with DataDependencyFrom[_] => e
