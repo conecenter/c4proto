@@ -20,6 +20,7 @@ import ee.cone.c4di.{c4, c4multi, provide}
 import ee.cone.c4proto._
 import okio.ByteString
 import ee.cone.c4actor.rdb._
+import ee.cone.c4actor.rdb_impl.ProtoIndentedParserError.S_IndentedParserError
 
 @c4("FromExternalDBSyncApp") class FromExternalDBOptionsProvider(
   rdbOptionFactory: RDBOptionFactory
@@ -212,10 +213,16 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(rDBType
 }
 
 @c4("FromExternalDBSyncApp") class IndentedParser(
-  universalProtoAdapter: ProtoAdapter[UniversalNode], rDBTypes: RDBTypes, universalNodeFactory: UniversalNodeFactory,
+  universalProtoAdapter: ProtoAdapter[UniversalNode],
+  rDBTypes: RDBTypes,
+  universalNodeFactory: UniversalNodeFactory,
   fromExternalDBUpdateFlag: FromExternalDBUpdateFlag,
+  errorAdapter: Option[ProtoAdapter[S_IndentedParserError]],
+  hashGen: HashGen,
   splitter: Char = ' ', lineSplitter: String = "\n"
-)(fromExternalDBFlag: Long = fromExternalDBUpdateFlag.flagValue) {
+)(
+  fromExternalDBFlag: Long = fromExternalDBUpdateFlag.flagValue
+) extends LazyLogging {
   //@tailrec final
   private def parseProp(key: String, value: List[String]): UniversalProp = {
     import universalNodeFactory._
@@ -237,23 +244,59 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(rDBType
       parseProps(left, parseProp(key, value) :: res)
     }
 
-  private def getNodeSrcId(node: UniversalNode): SrcId =
-    node.props.head.value match {
-      case s: String => s
+  private def getNodeSrcId(node: UniversalNode): Option[SrcId] =
+    node.props.headOption.map(_.value).collect {
+      case s: SrcId => s
     }
+
+  def reportError(prop: UniversalProp, text: String): List[N_Update] =
+    errorAdapter.map(adapter => {
+      logger.error(s"Prop with errors: $prop from text $text")
+      val errorTypeId = adapter.asInstanceOf[HasId].id
+      val error = S_IndentedParserError(
+        srcId = "",
+        text = text,
+        tag = prop.tag,
+        value = prop.value.toString
+      )
+      val errorId = hashGen.generate(error)
+      N_Update(
+        srcId = errorId,
+        valueTypeId = errorTypeId,
+        value = ToByteString(
+          adapter.encode(
+            error.copy(srcId = errorId)
+          )
+        ),
+        flags = 0L
+      )
+    }
+    ).toList
 
   def toUpdates(textEncoded: String): List[N_Update] = {
     val lines = textEncoded.split(lineSplitter).filter(_.nonEmpty).toList
     val universalNode = universalNodeFactory.node(parseProps(lines, Nil))
     //println(PrettyProduct.encode(universalNode))
-    universalNode.props.map { prop =>
-      val (srcId, value) = prop.value match {
+    universalNode.props.flatMap { prop =>
+      val (srcIdOpt, value) = prop.value match {
         case node: UniversalDeleteImpl => (getNodeSrcId(node), ToByteString(Array.emptyByteArray))
         case node: UniversalNode => (getNodeSrcId(node), ToByteString(prop.encodedValue))
       }
-      N_Update(srcId, prop.tag, value, fromExternalDBFlag)
+      srcIdOpt match {
+        case Some(srcId) => N_Update(srcId, prop.tag, value, fromExternalDBFlag) :: Nil
+        case None => reportError(prop, textEncoded)
+      }
     }
   }
+}
+
+@protocol("FromExternalDBSyncApp") object ProtoIndentedParserError {
+  @Id(0x00A0) case class S_IndentedParserError(
+    @Id(0x00A1) srcId: SrcId,
+    @Id(0x00A2) text: String,
+    @Id(0x00A3) tag: Int,
+    @Id(0x00A4) value: String
+  )
 }
 
 class ProtoToString(registry: QAdapterRegistry, rDBTypes: RDBTypes){
@@ -282,10 +325,15 @@ class ProtoToString(registry: QAdapterRegistry, rDBTypes: RDBTypes){
 
 object Hex { def apply(i: Long): String = "0x%04x".format(i) }
 
-@c4("RDBSyncApp") class RDBTypes(universalProtoAdapter: ProtoAdapter[UniversalNode], universalNodeFactory: UniversalNodeFactory) {
+@c4("RDBSyncApp") class RDBTypes(
+  universalProtoAdapter: ProtoAdapter[UniversalNode],
+  universalNodeFactory: UniversalNodeFactory,
+  srcIdProtoAdapter: ProtoAdapter[SrcId]
+) {
   import universalNodeFactory._
   def encode(p: Object): String = p match {
     case v: String => v
+    // case v: SrcId => v in case SrcId becomes something other than String
     case v: java.lang.Boolean => if(v) "T" else ""
     case v: java.lang.Long => v.toString
     case v: java.lang.Integer => v.toString
@@ -298,6 +346,8 @@ object Hex { def apply(i: Long): String = "0x%04x".format(i) }
   def toUniversalProp(tag: Int, typeName: String, value: String): UniversalProp = typeName match {
     case "String" =>
       prop[String](tag,value,ProtoAdapter.STRING)
+    case "SrcId" =>
+      prop[SrcId](tag,value,srcIdProtoAdapter)
     case "ByteString" =>
       prop[okio.ByteString](tag, okio.ByteString.decodeBase64(value),ProtoAdapter.BYTES)
     case "Boolean" =>
