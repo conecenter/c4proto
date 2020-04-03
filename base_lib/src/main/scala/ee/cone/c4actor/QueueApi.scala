@@ -168,6 +168,7 @@ class Context(
 
 trait GetByPK[V<:Product] extends Product {
   def ofA(context: AssembledContext): Map[SrcId,V]
+  //@deprecated def of(context: AssembledContext): Map[SrcId,V] = ???
   def typeKey: TypeKey
   def cl: Class[V]
 }
