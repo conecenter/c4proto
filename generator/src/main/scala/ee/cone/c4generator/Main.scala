@@ -15,10 +15,12 @@ import scala.jdk.CollectionConverters.IteratorHasAsScala
 object Main {
   def defaultGenerators(protocolStatsTransformers: List[ProtocolStatsTransformer]): List[Generator] = {
     val protocolGenerator = new ProtocolGenerator(protocolStatsTransformers)
+    val metaGenerator = new MetaGenerator(protocolStatsTransformers)
     List(
       ImportGenerator,
       new TimeGenerator(protocolGenerator),
       new AssembleGenerator(TimeJoinParamTransformer :: Nil),
+      metaGenerator,
       protocolGenerator,
       MultiGenerator,
       FieldAccessGenerator,

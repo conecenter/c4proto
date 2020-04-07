@@ -6,12 +6,15 @@ import ee.cone.c4proto._
 
 @protocol /*(Cat1)*/ object TestProtocolM {
 
+  trait TestTrait
+
   @ShortName("KEK")
   @GenLens
   @Id(1)
+  @Meta(NameMetaAttr("321"))
   @Cat(Cat2, Cat1) case class D_LUL(
     @Meta(NameMetaAttr("123"), IdMetaAttr(1)) @ShortName("LUL") @Id(2) test: String
-  )
+  ) extends TestTrait
 
   @Id(2)
   @Cat(Cat1) case class D_LUL2()

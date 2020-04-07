@@ -6,7 +6,7 @@ import ee.cone.c4proto.{DataCategory, MetaProp}
 trait MetaInformation {
   def shortName: Option[String]
   def typeKey: TypeKey
-  def metaAttrs: List[MetaAttr]
+  def metaAttrs: List[AbstractMetaAttr]
   def annotations: List[String] // Annotations other then @Id, @Meta, @ShortName
 }
 
@@ -15,7 +15,7 @@ case class FieldMeta(
   name: String,
   shortName: Option[String],
   typeKey: TypeKey,
-  metaAttrs: List[MetaAttr],
+  metaAttrs: List[AbstractMetaAttr],
   annotations: List[String]
 ) extends MetaInformation {
   lazy val typeAlias: String = typeKey.fullAlias
@@ -27,16 +27,10 @@ trait GeneralOrigMeta extends MetaInformation {
   def categories: List[DataCategory]
   def cl: Class[_]
   def fieldsMeta: List[FieldMeta]
+  def inherits: List[TypeKey]
 }
 
-case class OrigMeta[Orig <: Product](
-  id: Option[TypeId],
-  categories: List[DataCategory],
-  fieldsMeta: List[FieldMeta],
-  shortName: Option[String],
-  typeKey: TypeKey,
-  metaAttrs: List[MetaAttr],
-  annotations: List[String],
-) extends GeneralOrigMeta {
+trait OrigMeta[Orig <: Product] extends GeneralOrigMeta {
   def cl: Class[Orig] = typeKey.cl.asInstanceOf[Class[Orig]]
+  def replaces: Option[TypeKey]
 }
