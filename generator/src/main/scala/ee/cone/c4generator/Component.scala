@@ -19,7 +19,7 @@ object ComponentsGenerator extends Generator {
       s"""\n  private def create$name(args: Seq[Object]) = {""" +
       (caseSeq match {
         case Some(caseSeq) => s"""\n    val Seq(${caseSeq.mkString(",")}) = args;"""
-        case None => s"""println(s"WARN: $name component has more then 22 arguments");"""
+        case None => s"""println(s"WARN: $name component has more than 22 arguments");"""
       }) +
       s"""\n    $body""" +
       s"""\n  }""" +
