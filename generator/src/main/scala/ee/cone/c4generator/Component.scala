@@ -9,7 +9,7 @@ case class GeneratedComponentAppLink(app: String, link: String) extends Abstract
 case class GeneratedComponent(typeStr: String, link: String, fixIn: Option[(String,String)], content: String) extends AbstractGeneratedComponent
 
 object ComponentsGenerator extends Generator {
-  def toContent(typeStr: String, name: String, out: String, nonFinalOut: Option[String], in: List[String], caseSeq: List[String], body: String): GeneratedComponent =
+  def toContent(typeStr: String, name: String, out: String, nonFinalOut: Option[String], in: List[String], caseSeq: Option[List[String]], body: String): GeneratedComponent =
     GeneratedComponent(typeStr,s"link$name",nonFinalOut.map(k=>out->s"$k.get"),
       s"""\n  private def out$name = $out""" +
       s"""\n  private def nonFinalOut$name = """ + nonFinalOut.getOrElse("None") +
@@ -17,7 +17,10 @@ object ComponentsGenerator extends Generator {
       in.map(s=>s"\n    $s ::").mkString +
       s"""\n    Nil""" +
       s"""\n  private def create$name(args: Seq[Object]) = {""" +
-      s"""\n    val Seq(${caseSeq.mkString(",")}) = args;""" +
+      (caseSeq match {
+        case Some(caseSeq) => s"""\n    val Seq(${caseSeq.mkString(",")}) = args;"""
+        case None => s"""println(s"WARN: $name component has more then 22 arguments");"""
+      }) +
       s"""\n    $body""" +
       s"""\n  }""" +
       s"""\n  lazy val link$name: Component = new Component(out$name,nonFinalOut$name,in$name,create$name)"""
@@ -37,17 +40,36 @@ object ComponentsGenerator extends Generator {
       case Seq(r) => Option(r)
     }
   }
+
+  def prepareArgs(argsList: List[List[(Option[(Type, String)], String => String)]], size: Int): List[List[String]] = {
+    if (size > 22)
+      argsList.foldLeft((0, List.empty[List[String]])) {
+        case ((currInd, prepared), args) =>
+          val (newInd, prepedArgs) = args.foldLeft((currInd, List.empty[String])) {
+            case ((bracketInd, prepared), arg) => (bracketInd + 1, arg._2(s"args.apply($bracketInd)") :: prepared)
+          }
+          (newInd, prepedArgs.reverse :: prepared)
+      }._2.reverse
+    else
+      for {
+        args <- argsList
+      } yield for {
+        (Some((_, name)), arg) <- args
+      } yield arg(name)
+  }
+
   def getComponent(cl: ParsedClass, parseContext: ParseContext): List[GeneratedComponent] = {
     val tp = cl.name
-    val list = for{
+    val list: List[List[(Option[(Type, String)], String => String)]] = for{
       params <- cl.params.toList
     } yield for {
       param"..$mods ${Name(name)}: ${Some(tpe)} = $expropt" <- params.toList
       r <- if(expropt.nonEmpty) None
-      else Option((Option((tpe,name)),s"$name=$name.asInstanceOf[$tpe]"))
+      else Option((Option((tpe,name)),(argName: String) => s"$name=$argName.asInstanceOf[$tpe]"))
     } yield r
-    val args = for { args <- list } yield for { (_,a) <- args } yield a
-    val caseSeq = for {(o,_) <- list.flatten; (_,a) <- o} yield a
+    val argsSize = list.flatten.size
+    val args = prepareArgs(list, argsSize)
+    val caseSeq = if (argsSize > 22) None else Some(for {(o,_) <- list.flatten; (_,a) <- o} yield a)
     val depSeq = for { (o,_) <- list.flatten; (a,_) <- o } yield getTypeKey(a,None)
     val objName = Term.Name(s"${tp}Component")
     val concrete = s"Seq(new $tp${args.map(a=>s"(${a.mkString(",")})").mkString})"
@@ -59,7 +81,7 @@ object ComponentsGenerator extends Generator {
       val out = getTypeKey(t,wildCard)
       val isFinal = inSet(out)
       val fixIn = if(isFinal) Option(s"""Option($out).map(o=>o.copy(alias=s"NonFinal#"+o.alias))""") else None
-      toContent(t.toString,name,out,fixIn,List(mainOut),List("arg"),body(s"arg.asInstanceOf[$tp]"))
+      toContent(t.toString,name,out,fixIn,List(mainOut),Some(List("arg")),body(s"arg.asInstanceOf[$tp]"))
     }
     val abstractTypes: List[Type] = cl.ext.map{
       case init"${t@Type.Name(_)}(...$a)" =>

@@ -136,16 +136,7 @@ class QAdapterRegistryImpl(
 
 @c4("ProtoApp") class ProductProtoAdapter(
   qAdapterRegistryD: DeferredSeq[QAdapterRegistry]
-) extends ProtoAdapter[Product](FieldEncoding.LENGTH_DELIMITED, classOf[Product]) with HasId {
-  def id: Long = throw new Exception
-  def hasId: Boolean = false
-  def className: String = classOf[Product].getName
-  def props: List[MetaProp] = Nil
-  //
-  def categories: List[DataCategory] = List(N_Cat)
-  def cl: Class[_] = classOf[Product]
-  def shortName: Option[String] = None
-  //
+) extends ProtoAdapter[Product](FieldEncoding.LENGTH_DELIMITED, classOf[Product]) {
   private lazy val qAdapterRegistry = Single(qAdapterRegistryD.value)
   def encodedSize(value: Product): Int = {
     val adapter = qAdapterRegistry.byName(value.getClass.getName)

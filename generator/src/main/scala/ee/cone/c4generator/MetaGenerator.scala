@@ -32,7 +32,7 @@ class MetaGenerator(statTransformers: List[ProtocolStatsTransformer]) extends Ge
     }
     if (result.nonEmpty)
       GeneratedImport("import ee.cone.c4actor.Types._") ::
-      GeneratedImport("import ee.cone.c4actor.{AbstractMetaAttr, OrigMeta, GeneralOrigMeta, FieldMeta}") ::
+        GeneratedImport("import ee.cone.c4actor.{AbstractMetaAttr, OrigMeta, GeneralOrigMeta, FieldMeta}") ::
         GeneratedImport("import ee.cone.c4proto.DataCategory") ::
         GeneratedImport("import ee.cone.c4di._") ::
         result
@@ -62,6 +62,7 @@ class MetaGenerator(statTransformers: List[ProtocolStatsTransformer]) extends Ge
 
   def getMeta(parseContext: ParseContext, objectName: String, stats: List[Stat], c4ann: String): Seq[Generated] = {
     val classes = Util.matchClass(stats)
+    GeneratedImport(s"import $objectName._") ::
     classes.flatMap { classDef =>
       val annotations = classDef.mods.foldLeft(OrigMetaAnnotations())((curr, mod) => mod match {
         case mod"case" => curr
@@ -117,7 +118,6 @@ class MetaGenerator(statTransformers: List[ProtocolStatsTransformer]) extends Ge
           Utils.parseError(t, parseContext, "Invalid field defenition")
       }
       import annotations._
-      GeneratedImport(s"import $objectName._") ::
         GeneratedCode(
           s"""$c4ann class ${classDef.name}OrigMeta extends OrigMeta[${classDef.name}] {
              |  val id: Option[TypeId] = $id

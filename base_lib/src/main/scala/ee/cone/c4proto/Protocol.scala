@@ -20,14 +20,24 @@ class GenLens extends StaticAnnotation
 
 case class MetaProp(id: Int, propName: String, propShortName: Option[String], resultType: String, typeProp: TypeKey)
 
-trait HasId {
-  def id: Long
-  def hasId: Boolean
+trait ProtoOrigMeta {
+  def id: Option[Long]
   def categories: List[DataCategory]
-  def className: String
   def cl: Class[_]
   def shortName: Option[String]
   def props: List[MetaProp]
+}
+
+@deprecated("Deprecated, use OrigMeta[Orig]", "07/04/20")
+trait HasId {
+  def protoOrigMeta: ProtoOrigMeta
+  def id: Long = protoOrigMeta.id.getOrElse(throw new Exception("This orig has no Id"))
+  def hasId: Boolean = protoOrigMeta.id.nonEmpty
+  def categories: List[DataCategory] = protoOrigMeta.categories
+  lazy val className: String = protoOrigMeta.cl.getName
+  def cl: Class[_] = protoOrigMeta.cl
+  def shortName: Option[String] = protoOrigMeta.shortName
+  def props: List[MetaProp] = protoOrigMeta.props
 }
 
 object ToByteString {

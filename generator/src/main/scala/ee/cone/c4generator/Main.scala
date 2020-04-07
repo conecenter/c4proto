@@ -18,7 +18,7 @@ object Main {
     val metaGenerator = new MetaGenerator(protocolStatsTransformers)
     List(
       ImportGenerator,
-      new TimeGenerator(protocolGenerator),
+      new TimeGenerator(protocolGenerator, metaGenerator),
       new AssembleGenerator(TimeJoinParamTransformer :: Nil),
       metaGenerator,
       protocolGenerator,

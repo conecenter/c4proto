@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import ee.cone.c4actor.Types.{FieldId, TypeId, TypeKey}
-import ee.cone.c4proto.{DataCategory, MetaProp}
+import ee.cone.c4proto.{DataCategory, MetaProp, ProtoOrigMeta}
 
 trait MetaInformation {
   def shortName: Option[String]
@@ -30,7 +30,8 @@ trait GeneralOrigMeta extends MetaInformation {
   def inherits: List[TypeKey]
 }
 
-trait OrigMeta[Orig <: Product] extends GeneralOrigMeta {
+trait OrigMeta[Orig <: Product] extends GeneralOrigMeta with ProtoOrigMeta {
   def cl: Class[Orig] = typeKey.cl.asInstanceOf[Class[Orig]]
   def replaces: Option[TypeKey]
+  lazy val props: List[MetaProp] = fieldsMeta.map(_.metaProp)
 }
