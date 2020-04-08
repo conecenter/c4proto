@@ -28,15 +28,19 @@ trait ProtoOrigMeta {
   def metaProps: List[MetaProp]
 }
 
-@deprecated("Deprecated, use OrigMeta[Orig]", "07/04/20")
 trait HasId {
   def protoOrigMeta: ProtoOrigMeta
   def id: Long = protoOrigMeta.id.getOrElse(throw new Exception("This orig has no Id"))
   def hasId: Boolean = protoOrigMeta.id.nonEmpty
-  def categories: List[DataCategory] = protoOrigMeta.categories
   lazy val className: String = protoOrigMeta.cl.getName
+
+  @deprecated("Deprecated, use OrigMeta[Orig].categories", "07/04/20")
+  def categories: List[DataCategory] = protoOrigMeta.categories
+  @deprecated("Deprecated, use OrigMeta[Orig].cl", "07/04/20")
   def cl: Class[_] = protoOrigMeta.cl
+  @deprecated("Deprecated, use OrigMeta[Orig].shortName", "07/04/20")
   def shortName: Option[String] = protoOrigMeta.shortName
+  @deprecated("Deprecated, use OrigMeta[Orig].fieldsMeta", "07/04/20")
   def props: List[MetaProp] = protoOrigMeta.metaProps
 }
 

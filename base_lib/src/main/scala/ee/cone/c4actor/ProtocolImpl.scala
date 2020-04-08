@@ -3,7 +3,7 @@ package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ArgTypes._
-import ee.cone.c4actor.Types.{FieldId, SrcId, TypeId}
+import ee.cone.c4actor.Types.{ClName, FieldId, SrcId, TypeId}
 import ee.cone.c4assemble.Single
 import ee.cone.c4di.Types.ComponentFactory
 import ee.cone.c4di.{CreateTypeKey, TypeKey, c4, provide}
@@ -92,6 +92,7 @@ class OptionArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter
 @c4("ProtoApp") class SrcIdDefaultArgument extends DefaultArgument[SrcId]("")
 @c4("ProtoApp") class TypeIdDefaultArgument extends DefaultArgument[TypeId](0L)
 @c4("ProtoApp") class FieldIdDefaultArgument extends DefaultArgument[FieldId](0L)
+@c4("ProtoApp") class ClNameDefaultArgument extends DefaultArgument[ClName]("")
 
 import com.squareup.wire.ProtoAdapter._
 

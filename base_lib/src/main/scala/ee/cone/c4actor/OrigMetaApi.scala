@@ -34,7 +34,7 @@ trait GeneralOrigMeta extends MetaInformation with ProtoOrigMeta {
 }
 
 trait OrigMeta[Orig <: Product] extends GeneralOrigMeta {
-  def cl: Class[Orig] = typeKey.cl.asInstanceOf[Class[Orig]]
+  lazy val cl: Class[Orig] = replaces.getOrElse(typeKey).cl.asInstanceOf[Class[Orig]]
   lazy val fieldsById: Map[FieldId, FieldMeta] = fieldsMeta.map(field => field.id -> field).toMap
   def field(id: FieldId): FieldMeta = fieldsById.getOrElse(id, throw new Exception(s"${cl.getSimpleName} doesn't have ${f"0x$id%04X"} field"))
 }
@@ -42,7 +42,8 @@ trait OrigMeta[Orig <: Product] extends GeneralOrigMeta {
 trait OrigMetaRegistry {
   def all: List[GeneralOrigMeta]
   def byName: Map[ClName, OrigMeta[Product]]
-  def byCl[Orig <: Product](cl: Class[Orig]): OrigMeta[Orig]
+  def getByCl[Orig <: Product](cl: Class[Orig]): OrigMeta[Orig]
   def byId: Map[TypeId, OrigMeta[Product]]
-  def byId[Orig <: Product](id: TypeId): OrigMeta[Orig]
+  def getById[Orig <: Product](id: TypeId): OrigMeta[Orig]
+  def byTypeKey: Map[TypeKey, OrigMeta[Product]]
 }
