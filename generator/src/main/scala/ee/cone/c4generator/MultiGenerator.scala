@@ -39,6 +39,7 @@ object MultiGenerator extends Generator {
       case mod"@c4multi(...$e)" => mod"@c4(...$e)".syntax
     })
   } yield {
+    Util.assertFinal(cl)
     val name = s"${cl.name}Factory"
     val params = argsInner(cl.params)
     val par = args(params,name) _
@@ -64,7 +65,7 @@ object MultiGenerator extends Generator {
       else if(arity <= 2) s"extends C4Factory$arity[${params.head.map(p=>s"${p.pType},").mkString}${cl.name}]"
       else ""
     GeneratedCode(Seq(
-      s"\n$ann class $name${par(false,true,true)} $ext {",
+      s"\n$ann final class $name${par(false,true,true)} $ext {",
       s"\n  def create$typeParams${par(true,true,true)} = ",
       s"\n    new ${cl.name}$typeParamNames${par(true,false,true)}${par(false,false,true)}",
       s"\n  def complete$typeParams(obj: ${par(false,true,false)} => ${cl.name}$typeParamNames): ${cl.name}$typeParamNames = ",

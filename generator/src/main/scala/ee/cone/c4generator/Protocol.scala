@@ -98,7 +98,7 @@ class ProtocolGenerator(statTransformers: List[ProtocolStatsTransformer]) extend
     }
     traitUsages ::: List(resultType,factoryName).distinct.map(n=>GeneratedImport(s"""\nimport $objectName.$n""")) ::: List(
       GeneratedCode(s"""
-$c4ann class ${cl.name}ProtoAdapter(
+$c4ann final class ${cl.name}ProtoAdapter(
   ${props.map(p => s"\n    adapter_${p.name}: ArgAdapter[${p.argType}]").mkString(",")}
 ) extends ProtoAdapter[$resultType](FieldEncoding.LENGTH_DELIMITED,classOf[$resultType]) with HasId {
   def id = ${protoMods.id.getOrElse("throw new Exception")}
@@ -160,7 +160,7 @@ $c4ann class ${cl.name}ProtoAdapter(
           GeneratedTraitDef(tp),
           GeneratedImport(s"""\nimport $objectName.$tp"""),
           GeneratedCode(
-            s"\n$c4ann class ${tp}ProtoAdapterProvider(inner: ProtoAdapter[Product]) {" +
+            s"\n$c4ann final class ${tp}ProtoAdapterProvider(inner: ProtoAdapter[Product]) {" +
             s"\n  @provide def getProtoAdapter: Seq[ProtoAdapter[$tp]] = List(inner.asInstanceOf[ProtoAdapter[$tp]])" +
             s"\n  @provide def getHasId: Seq[HasId] = List(inner.asInstanceOf[HasId])" +
             s"\n}"

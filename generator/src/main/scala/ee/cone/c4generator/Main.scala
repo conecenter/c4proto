@@ -278,6 +278,12 @@ object Util {
     val SName(fName) = fileName
     fName.replace('-', '_')
   }
+
+
+  def assertFinal(cl: ParsedClass): Unit = {
+    assert(cl.mods.collect{ case mod"final" => true case mod"@open" => true }.nonEmpty,s"${cl.name} should be final")
+  }
+
 }
 case class PkgInfo(pkgPath: Path, pkgName: String)
 class ParsedClass(

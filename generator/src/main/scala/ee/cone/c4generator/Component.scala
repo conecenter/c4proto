@@ -33,6 +33,7 @@ object ComponentsGenerator extends Generator {
     }
   }
   def getComponent(cl: ParsedClass, parseContext: ParseContext): List[GeneratedComponent] = {
+    Util.assertFinal(cl)
     val tp = cl.name
     val list = for{
       params <- cl.params.toList
