@@ -55,7 +55,7 @@ curl 127.0.0.1:8067/connection -v -H x-r-action:pong -H x-r-connection:...
     List("GateTester"->GateTester(connections))*/
 }
 
-@c4multi("TestConsumerApp") case class TestHttpHandler(srcId: SrcId, req: S_HttpRequest)(catchNonFatal: CatchNonFatal, publisher: Publisher) extends TxTransform with LazyLogging {
+@c4multi("TestConsumerApp") final case class TestHttpHandler(srcId: SrcId, req: S_HttpRequest)(catchNonFatal: CatchNonFatal, publisher: Publisher) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = catchNonFatal {
     val next = if(req.method == "POST"){
       val prev = req.body.utf8()

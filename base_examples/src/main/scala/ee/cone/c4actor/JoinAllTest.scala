@@ -30,7 +30,7 @@ case class JoinAllTestItem(srcId: String)
   }
 }
 
-@c4("JoinAllTestApp") class JoinAllTestExecutable(
+@c4("JoinAllTestApp") final class JoinAllTestExecutable(
   contextFactory: ContextFactory,
   execution: Execution,
   getJoinAllTestItem: GetByPK[JoinAllTestItem],

@@ -51,7 +51,7 @@ case class WorldProviderTx(srcId: SrcId="WorldProviderTx")(receiverF: Future[Sta
 }
 
 
-@c4("WorldProviderApp") class WorldProviderProviderImpl(
+@c4("WorldProviderApp") final class WorldProviderProviderImpl(
   qMessages: QMessages,
   execution: Execution,
   statefulReceiverFactory: StatefulReceiverFactory,

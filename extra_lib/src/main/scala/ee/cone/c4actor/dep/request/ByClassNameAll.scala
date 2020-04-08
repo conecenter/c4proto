@@ -9,7 +9,7 @@ import ee.cone.c4assemble._
 import ee.cone.c4di.{Component, ComponentsApp, c4, provide}
 import ee.cone.c4proto.{Id, protocol}
 
-@c4("ByClassNameRequestMix") class ByClassNameAllAskImpl(depFactory: DepFactory) extends ByClassNameAllAsk {
+@c4("ByClassNameRequestMix") final class ByClassNameAllAskImpl(depFactory: DepFactory) extends ByClassNameAllAsk {
   def askByClAll[A <: Product](cl: Class[A]): Dep[List[A]] = depFactory.uncheckedRequestDep[List[A]](N_ByClassNameAllRequest(cl.getName))
 }
 
@@ -30,7 +30,7 @@ trait ByClassNameRequestApp extends ComponentsApp {
 
 trait ByClassNameAllRequestHandlerAppBase extends ByClassNameRequestApp
 
-@c4("ByClassNameAllRequestHandlerApp") class ByClassNameAllRequestHandlerAssembles(
+@c4("ByClassNameAllRequestHandlerApp") final class ByClassNameAllRequestHandlerAssembles(
   byClNameAllClasses: List[ByClNameAllClass],
   byClassNameAllRequestGenericHandlerFactory: ByClassNameAllRequestGenericHandlerFactory
 ) {

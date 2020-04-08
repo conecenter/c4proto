@@ -14,7 +14,7 @@ object Measure {
   }
 }
 
-@c4("NotEffectiveAssemblerTestApp") class NotEffectiveAssemblerTest(
+@c4("NotEffectiveAssemblerTestApp") final class NotEffectiveAssemblerTest(
   contextFactory: ContextFactory,
   execution: Execution
 ) extends Executable with LazyLogging {

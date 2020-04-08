@@ -27,7 +27,7 @@ trait HashSearchRangerRegistry {
 
 case class RangerWithClProvider(values: List[RangerWithCl[_ <: Product, _]])
 
-@c4("HashSearchRangerRegistryMix") case class HashSearchRangerRegistryImpl(
+@c4("HashSearchRangerRegistryMix") final case class HashSearchRangerRegistryImpl(
   providers: List[RangerWithClProvider],
   qAdapterRegistry: QAdapterRegistry
 ) extends HashSearchRangerRegistry {

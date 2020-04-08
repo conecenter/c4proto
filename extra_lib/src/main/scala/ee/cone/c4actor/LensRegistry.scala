@@ -22,7 +22,7 @@ trait LensRegistryMixBase extends ComponentProviderApp with ProdLensesApp {
   def lensRegistry: LensRegistry = resolveSingle(classOf[LensRegistry])
 }
 
-@c4("LensRegistryMix") class LensRegistryProvider(
+@c4("LensRegistryMix") final class LensRegistryProvider(
   lensListProviders: List[ProdLensListProvider],
   dynamicIndexModelsRegistry: Option[DynamicIndexModelsRegistry],
 ) {

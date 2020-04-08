@@ -7,7 +7,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor._
 import ee.cone.c4di.c4
 
-@c4("IgnoreAllSnapshotsApp") class IgnoreAllSnapshots(
+@c4("IgnoreAllSnapshotsApp") final class IgnoreAllSnapshots(
   toUpdate: ToUpdate,
   consuming: Consuming,
   factory: SnapshotSaverImplFactory,

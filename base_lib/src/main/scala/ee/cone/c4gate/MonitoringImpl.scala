@@ -64,7 +64,7 @@ case class PrometheusTx(path: String)(compressor: Compressor, metricsFactories: 
   }
 }*/
 
-@c4("AvailabilityApp") class Monitoring(publisher: Publisher) {
+@c4("AvailabilityApp") final class Monitoring(publisher: Publisher) {
   def publish(
     time: Long, updatePeriod: Long, timeout: Long,
     path: String, headers: List[N_Header], body: okio.ByteString

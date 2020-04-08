@@ -14,7 +14,7 @@ import ee.cone.c4di.c4
 
 import scala.concurrent.Future
 
-@c4("ServerCompApp") class ProgressObserverFactoryImpl(
+@c4("ServerCompApp") final class ProgressObserverFactoryImpl(
   inner: TxObserver, config: ListConfig,
   execution: Execution, getToStart: DeferredSeq[Executable]
 ) extends ProgressObserverFactory {
@@ -85,7 +85,7 @@ case class BuildVerTx(srcId: SrcId, path: Path, value: String)(execution: Execut
 
 ////
 
-@c4("ServerCompApp") class ServerExecutionFilter(inner: ExecutionFilter)
+@c4("ServerCompApp") final class ServerExecutionFilter(inner: ExecutionFilter)
   extends ExecutionFilter(e=>inner.check(e) && e.isInstanceOf[Early])
 
 class LateExecutionObserver(

@@ -63,9 +63,9 @@ trait HashSearchAssembleAppBase
 
 class HashSearchAssembleDebug(val value: Boolean)
 
-@c4("HashSearchAssembleApp") class DefHashSearchAssembleDebug extends HashSearchAssembleDebug(false)
+@c4("HashSearchAssembleApp") final class DefHashSearchAssembleDebug extends HashSearchAssembleDebug(false)
 
-@c4("HashSearchAssembleApp") class HashSearchAssembles(
+@c4("HashSearchAssembleApp") final class HashSearchAssembles(
   providers: List[DynamicIndexModelsProvider],
   factory: HashSearchAssembleFactory
 ) {

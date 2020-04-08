@@ -11,7 +11,7 @@ import ee.cone.c4di.c4
 
 import scala.annotation.tailrec
 
-@c4("RDBSyncApp") class ExternalDBSyncClient(
+@c4("RDBSyncApp") final class ExternalDBSyncClient(
   dbFactory: ExternalDBFactory,
   db: CompletableFuture[RConnectionPool] = new CompletableFuture() //dataSource: javax.sql.DataSource
 ) extends ToInject with Executable with ExternalDBClient {

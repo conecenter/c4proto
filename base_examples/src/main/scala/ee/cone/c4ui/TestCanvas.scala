@@ -11,7 +11,7 @@ import ee.cone.c4ui._
 import ee.cone.c4vdom.Types.{VDomKey, ViewRes}
 import ee.cone.c4vdom.{PathFactory, _}
 
-@c4("TestCanvasApp") class TestCanvasPublishFromStringsProvider extends PublishFromStringsProvider {
+@c4("TestCanvasApp") final class TestCanvasPublishFromStringsProvider extends PublishFromStringsProvider {
   def get: List[(String, String)] = List(
     "/test.svg" -> s"""<?xml version="1.0" encoding="UTF-8" standalone="no"?>
       <svg xmlns="http://www.w3.org/2000/svg" width="500" height="500">
@@ -42,7 +42,7 @@ trait TestCanvasViewApp extends ByLocationHashViewsApp {
     testCanvasView :: super.byLocationHashViews
 }*/
 
-@c4("TestCanvasApp") case class TestCanvasView(locationHash: String = "rectangle")(
+@c4("TestCanvasApp") final case class TestCanvasView(locationHash: String = "rectangle")(
   tTags: TestTags[Context],
   tags: Tags,
   styles: TagStyles,
@@ -105,7 +105,7 @@ case class GotoClick(vDomKey: VDomKey) extends ClickPathHandler[Context] {
     SessionAttr(Id(0x0009), classOf[B_TestCanvasState], UserLabel en "(TestCanvasState)")
 }
 
-@c4("CanvasApp") class PathFactoryProvider(childPairFactory: ChildPairFactory, tagJsonUtils: TagJsonUtils) {
+@c4("CanvasApp") final class PathFactoryProvider(childPairFactory: ChildPairFactory, tagJsonUtils: TagJsonUtils) {
   @provide def canvasToJson: Seq[CanvasToJson] = List(CanvasToJsonImpl)
   @provide def pathFactory: Seq[PathFactory] = List(PathFactoryImpl(childPairFactory,CanvasToJsonImpl))
 }
@@ -131,7 +131,7 @@ trait TestCanvasTags {
   def canvas(key: VDomKey, style: List[TagStyle], access: Access[String])(children: List[ChildPair[OfCanvas]]): ChildPair[OfDiv]
 }
 
-@c4("CanvasApp") class TestCanvasTagsImpl(child: ChildPairFactory, utils: TagJsonUtils, toJson: CanvasToJson) extends TestCanvasTags {
+@c4("CanvasApp") final class TestCanvasTagsImpl(child: ChildPairFactory, utils: TagJsonUtils, toJson: CanvasToJson) extends TestCanvasTags {
   def messageStrBody(o: VDomMessage): String =
     o.body match { case bs: okio.ByteString => bs.utf8() }
   def canvas(key: VDomKey, style: List[TagStyle], access: Access[String])(children: List[ChildPair[OfCanvas]]): ChildPair[OfDiv] =

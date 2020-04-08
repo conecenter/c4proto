@@ -20,7 +20,7 @@ import org.apache.sshd.server.auth.pubkey.AcceptAllPublickeyAuthenticator
     List(WithPK(factory.create()))
 }
 
-@c4multi("SSHDebugApp") case class SSHDebugTx(srcId: SrcId="SSHDebug")(
+@c4multi("SSHDebugApp") final case class SSHDebugTx(srcId: SrcId="SSHDebug")(
   reducer: RichRawWorldReducer,
   qMessages: QMessages
 ) extends TxTransform {

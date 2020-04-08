@@ -9,7 +9,7 @@ import scala.collection.immutable.Seq
 
 
 class TestQRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
-@c4("KafkaLatTestApp") class TestRootProducerImpl(rawQSender: RawQSender, toUpdate: ToUpdate) extends Executable with LazyLogging {
+@c4("KafkaLatTestApp") final class TestRootProducerImpl(rawQSender: RawQSender, toUpdate: ToUpdate) extends Executable with LazyLogging {
   def run(): Unit = {
     iteration()
   }
@@ -24,7 +24,7 @@ class TestQRecordImpl(val topic: TopicName, val value: Array[Byte], val headers:
 }
 
 
-@c4("KafkaLatTestApp") class TestRootConsumerImpl(consuming: Consuming) extends Executable with LazyLogging {
+@c4("KafkaLatTestApp") final class TestRootConsumerImpl(consuming: Consuming) extends Executable with LazyLogging {
   def run(): Unit = {
     consuming.process("0" * OffsetHexSize(), consumer => iteration(consumer))
   }

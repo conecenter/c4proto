@@ -60,7 +60,7 @@ case class TestTransform(srcId: SrcId, access: Any) extends TxTransform {
   def transform(local: Context): Context = access.asInstanceOf[Access[D_ValueNode]].updatingLens.get.set(access.asInstanceOf[Access[D_ValueNode]].initialValue.copy(value = 666))(local)
 }
 
-@c4("DepTestApp") class DepTestStart(
+@c4("DepTestApp") final class DepTestStart(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory,
   getDepTestResponse: GetByPK[DepTestResponse],
   getDepUnresolvedRequest: GetByPK[DepUnresolvedRequest],

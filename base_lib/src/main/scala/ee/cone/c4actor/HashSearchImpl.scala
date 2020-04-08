@@ -10,7 +10,7 @@ import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4di.c4
 
-@c4("RichDataCompApp") class DefHashSearchFactoryHolder(
+@c4("RichDataCompApp") final class DefHashSearchFactoryHolder(
   modelConditionFactory: ModelConditionFactory[Unit],
   preHashing: PreHashing,
   idGenUtil: IdGenUtil

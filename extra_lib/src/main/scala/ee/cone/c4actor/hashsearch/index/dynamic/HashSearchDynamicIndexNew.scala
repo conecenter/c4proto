@@ -12,7 +12,7 @@ import ee.cone.c4proto._
 
 trait HashSearchDynamicIndexAppBase
 
-@c4("HashSearchDynamicIndexApp") class HashSearchDynamicIndexAssembles(
+@c4("HashSearchDynamicIndexApp") final class HashSearchDynamicIndexAssembles(
   hashSearchDynamicIndexCommonFactory: HashSearchDynamicIndexCommonFactory,
   hashSearchDynamicIndexNewFactory: HashSearchDynamicIndexNewFactory,
   dynIndexModelProviders: List[DynamicIndexModelsProvider],

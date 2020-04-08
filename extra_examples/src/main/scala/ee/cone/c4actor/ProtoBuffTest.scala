@@ -46,7 +46,7 @@ class ProtoBuffTestAppBase
 This code proves that there is a problem with okio: SegmentPool.java blocks concurrent execution
  */
 
-@c4("ProtoBuffTestApp") class ProtoBuffTest(
+@c4("ProtoBuffTestApp") final class ProtoBuffTest(
   qAdapterRegistry: QAdapterRegistry
 ) extends Executable {
   def run(): Unit = {

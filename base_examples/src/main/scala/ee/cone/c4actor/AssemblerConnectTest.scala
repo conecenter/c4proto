@@ -40,7 +40,7 @@ case class ConnNodePath(path: List[D_Node])
   Is[List[D_Node]]    := WithPK(Each(By[ParentId,D_Node])::Each(Was[List[D_Node]]))
   */
 }
-@c4("ConnTestApp") class ConnStart(
+@c4("ConnTestApp") final class ConnStart(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory,
   getConnNodePath: GetByPK[ConnNodePath]
 ) extends Executable with LazyLogging {

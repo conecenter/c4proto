@@ -13,7 +13,7 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.control.NonFatal
 import scala.concurrent.duration.Duration
 
-@c4("RichDataCompApp") class ProtocolDataDependencies(qAdapterRegistry: QAdapterRegistry, origKeyFactory: OrigKeyFactoryFinalHolder) extends DataDependencyProvider {
+@c4("RichDataCompApp") final class ProtocolDataDependencies(qAdapterRegistry: QAdapterRegistry, origKeyFactory: OrigKeyFactoryFinalHolder) extends DataDependencyProvider {
   def getRules: List[WorldPartRule] =
     qAdapterRegistry.byId.values.map(_.className).toList.sorted
       .map(nm => new OriginalWorldPart(origKeyFactory.value.rawKey(nm)))
@@ -21,11 +21,11 @@ import scala.concurrent.duration.Duration
 
 case object TreeAssemblerKey extends SharedComponentKey[Replace]
 
-@c4("RichDataCompApp") class DefLongAssembleWarnPeriod extends LongAssembleWarnPeriod(Option(System.getenv("C4ASSEMBLE_WARN_PERIOD_MS")).fold(1000L)(_.toLong))
+@c4("RichDataCompApp") final class DefLongAssembleWarnPeriod extends LongAssembleWarnPeriod(Option(System.getenv("C4ASSEMBLE_WARN_PERIOD_MS")).fold(1000L)(_.toLong))
 
-@c4("RichDataCompApp") class DefAssembleOptions extends AssembleOptions("AssembleOptions",false,0L)
+@c4("RichDataCompApp") final class DefAssembleOptions extends AssembleOptions("AssembleOptions",false,0L)
 
-@c4("RichDataCompApp") class AssemblerInit(
+@c4("RichDataCompApp") final class AssemblerInit(
   qAdapterRegistry: QAdapterRegistry,
   toUpdate: ToUpdate,
   treeAssembler: TreeAssembler,
@@ -197,14 +197,14 @@ case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K
   override def keySet: Set[K] = indexUtil.keySet(index).asInstanceOf[Set[K]] // to get keys from index
 }
 
-@c4("RichDataCompApp") class DynamicByPKImpl(indexUtil: IndexUtil) extends DynamicByPK {
+@c4("RichDataCompApp") final class DynamicByPKImpl(indexUtil: IndexUtil) extends DynamicByPK {
   def get(joinKey: AssembledKey, context: AssembledContext): Map[SrcId,Product] = {
     val index: Index = joinKey.of(context.assembled).value.get.get
     UniqueIndexMap(index)(indexUtil)
   }
 }
 
-@c4multi("RichDataCompApp") case class GetByPKImpl[V<:Product](typeKey: TypeKey)(
+@c4multi("RichDataCompApp") final case class GetByPKImpl[V<:Product](typeKey: TypeKey)(
   dynamic: DynamicByPK,
   needAssembledKeyRegistry: NeedAssembledKeyRegistry,
 )(
@@ -215,7 +215,7 @@ case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K
     dynamic.get(joinKey,context).asInstanceOf[Map[SrcId,V]]
 }
 
-@c4("RichDataCompApp") class GetByPKUtil(keyFactory: KeyFactory) {
+@c4("RichDataCompApp") final class GetByPKUtil(keyFactory: KeyFactory) {
   def toAssembleKey(vTypeKey: TypeKey): AssembledKey = {
     vTypeKey.args match {
       case Seq() =>
@@ -226,14 +226,14 @@ case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K
     }
   }
 }
-@c4("RichDataCompApp") class GetByPKComponentFactoryProvider(
+@c4("RichDataCompApp") final class GetByPKComponentFactoryProvider(
   getByPKImplFactory: GetByPKImplFactory
 ) {
   @provide def get: Seq[ComponentFactory[GetByPK[_]]] =
     List(args=>List(getByPKImplFactory.create(Single(args))))
 }
 
-@c4("RichDataCompApp") class NeedAssembledKeyRegistry(
+@c4("RichDataCompApp") final class NeedAssembledKeyRegistry(
   util: GetByPKUtil, componentRegistry: ComponentRegistry, config: ListConfig,
 )(
   disableCheck: Boolean = config.get("C4NO_INDEX_CHECK").nonEmpty
@@ -260,6 +260,6 @@ class NeedWorldPartRule(
   def assembleName: String = "Tx"
 }
 
-@c4("SkipWorldPartsApp") class IsTargetWorldPartRuleImpl extends IsTargetWorldPartRule {
+@c4("SkipWorldPartsApp") final class IsTargetWorldPartRuleImpl extends IsTargetWorldPartRule {
   def check(rule: WorldPartRule): Boolean = rule.isInstanceOf[NeedWorldPartRule]
 }

@@ -108,7 +108,7 @@ abstract class GeneralCompatHolder {
 }
 class CompatHolder[T](val value: T) extends GeneralCompatHolder
 
-@c4("RichDataApp") class ModelConditionFactoryHolder(value: ModelConditionFactory[Unit])
+@c4("RichDataApp") final class ModelConditionFactoryHolder(value: ModelConditionFactory[Unit])
   extends CompatHolder[ModelConditionFactory[Unit]](value)
 /*
 trait AssembleProfilerApp extends ComponentsApp {
@@ -135,7 +135,7 @@ trait DefaultUpdateProcessorApp extends ComponentsApp {
 class ExpressionsDumperHolder(value: ExpressionsDumper[Unit])
   extends CompatHolder[ExpressionsDumper[Unit]](value)
 
-@c4("ExpressionsDumpersApp") class ExpressionsDumpersProvider(holders: List[ExpressionsDumperHolder]){
+@c4("ExpressionsDumpersApp") final class ExpressionsDumpersProvider(holders: List[ExpressionsDumperHolder]){
   @provide def get: Seq[ExpressionsDumper[Unit]] = holders.map(_.value)
 }
 

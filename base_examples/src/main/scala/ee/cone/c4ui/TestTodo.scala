@@ -50,7 +50,7 @@ import ee.cone.c4vdom.Types.ViewRes
 
 
 
-@c4("ReactHtmlApp") class ReactHtmlFromAlienTaskAssembleBase {
+@c4("ReactHtmlApp") final class ReactHtmlFromAlienTaskAssembleBase {
   @provide def subAssembles: Seq[Assemble] =
     new FromAlienTaskAssemble("/react-app.html") :: Nil
 }
@@ -102,7 +102,7 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
     testTodoRootView :: super.byLocationHashViews
 }*/
 
-@c4("TestTodoApp") case class TestTodoRootView(locationHash: String = "todo")(
+@c4("TestTodoApp") final case class TestTodoRootView(locationHash: String = "todo")(
   tags: TestTags[Context],
   mTags: Tags,
   styles: TagStyles,

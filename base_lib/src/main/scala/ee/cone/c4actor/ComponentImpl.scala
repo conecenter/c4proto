@@ -14,7 +14,7 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
   def value: Seq[Nothing] = Nil
 }
 
-@c4("BaseApp") class ComponentRegistryImpl(app: AbstractComponents)(
+@c4("BaseApp") final class ComponentRegistryImpl(app: AbstractComponents)(
   debug: Option[_] = Option(System.getenv("C4DEBUG_COMPONENTS"))
 ) extends ComponentRegistry {
   def toTypeKey[T](cl: Class[T], args: Seq[TypeKey]): TypeKey =
@@ -60,7 +60,7 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
     resolveKey(toTypeKey(cl,args)).asInstanceOf[DeferredSeq[T]]
 }
 
-@c4("BaseApp") class DefComponentFactoryProvider(
+@c4("BaseApp") final class DefComponentFactoryProvider(
   componentRegistry: ComponentRegistry
 ) {
   @provide def getDeferredSeq: Seq[ComponentFactory[DeferredSeq[_]]] =

@@ -12,7 +12,7 @@ trait SerializationUtilsMixBase extends SerializationUtilsApp with ComponentProv
   def serializer: SerializationUtils = resolveSingle(classOf[SerializationUtils])
 }
 
-@c4("SerializationUtilsMix") case class SerializationUtils(u: IdGenUtil, qAdapterRegistry: QAdapterRegistry, hashGen: HashGen) { // TODO remove IdGenUtil usage
+@c4("SerializationUtilsMix") final case class SerializationUtils(u: IdGenUtil, qAdapterRegistry: QAdapterRegistry, hashGen: HashGen) { // TODO remove IdGenUtil usage
   def srcIdFromMetaAttrList(metaAttrs: List[AbstractMetaAttr]): SrcId = //1
     u.srcIdFromSrcIds(metaAttrs.map(srcIdFromMetaAttr):_*)
   def srcIdFromMetaAttr(metaAttr: AbstractMetaAttr): SrcId =

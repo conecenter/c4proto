@@ -82,7 +82,7 @@ case class JoinKeyImpl(
   def withWas(was: Boolean): JoinKey = copy(was=was)
 }
 
-@c4("AssembleApp") case class IndexUtilImpl()(
+@c4("AssembleApp") final case class IndexUtilImpl()(
   val nonEmptySeq: Seq[Unit] = Seq(()),
   mergeIndexInner: Compose[InnerIndex] =
     Merge[Any,DMultiSet](v=>v.isEmpty,
@@ -190,7 +190,7 @@ class PreIndex(val inner: Seq[Index], val size: Long) extends Index {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-@c4("AssembleApp") class IndexFactoryImpl(
+@c4("AssembleApp") final class IndexFactoryImpl(
   val util: IndexUtil, factory: JoinMapIndexFactory
 ) extends IndexFactory {
   def createJoinMapIndex(join: Join):
@@ -205,7 +205,7 @@ trait ParallelAssembleStrategy {
 
 }*/
 
-@c4multi("AssembleApp") class JoinMapIndex(join: Join)(
+@c4multi("AssembleApp") final class JoinMapIndex(join: Join)(
   updater: IndexUpdater,
   composes: IndexUtil
 ) extends WorldPartExpression
@@ -360,7 +360,7 @@ class DebugJoinMapIndex(
 
 class FailedRule(val message: List[String]) extends WorldPartRule
 
-@c4("AssembleApp") class TreeAssemblerImpl(
+@c4("AssembleApp") final class TreeAssemblerImpl(
   byPriority: ByPriority, expressionsDumpers: List[ExpressionsDumper[Unit]],
   optimizer: AssembleSeqOptimizer, backStageFactory: BackStageFactory,
   replaceImplFactory: ReplaceImplFactory
@@ -409,7 +409,7 @@ class FailedRule(val message: List[String]) extends WorldPartRule
   }
 }
 
-@c4multi("AssembleApp") class ReplaceImpl(
+@c4multi("AssembleApp") final class ReplaceImpl(
   val active: List[WorldPartRule],
   transformAllOnce: WorldTransition=>WorldTransition
 )(
@@ -467,7 +467,7 @@ object UMLExpressionsDumper extends ExpressionsDumper[String] {
   }
 }
 
-@c4("AssembleApp") class AssembleDataDependencyFactoryImpl(indexFactory: IndexFactory) extends AssembleDataDependencyFactory {
+@c4("AssembleApp") final class AssembleDataDependencyFactoryImpl(indexFactory: IndexFactory) extends AssembleDataDependencyFactory {
   def create(assembles: List[Assemble]): List[WorldPartRule] = {
     def gather(assembles: List[Assemble]): List[Assemble] =
       if(assembles.isEmpty) Nil
@@ -484,7 +484,7 @@ object UMLExpressionsDumper extends ExpressionsDumper[String] {
   }
 }
 
-@c4("AssembleApp") class AssembleDataDependencies(
+@c4("AssembleApp") final class AssembleDataDependencies(
   factory: AssembleDataDependencyFactory, assembles: List[Assemble]
 ) extends DataDependencyProvider {
   def getRules: List[WorldPartRule] = factory.create(assembles)

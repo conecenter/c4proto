@@ -21,7 +21,7 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.control.NonFatal
 
-@c4("AkkaMatApp") class AkkaMatImpl(configs: List[AkkaConf], matPromise: Promise[ActorMaterializer] = Promise()) extends AkkaMat with Executable with Early {
+@c4("AkkaMatApp") final class AkkaMatImpl(configs: List[AkkaConf], matPromise: Promise[ActorMaterializer] = Promise()) extends AkkaMat with Executable with Early {
   def get: Future[ActorMaterializer] = matPromise.future
   def run(): Unit = {
     val config = ConfigFactory.parseString(configs.map(_.content).sorted.mkString("\n"))
@@ -30,7 +30,7 @@ import scala.util.control.NonFatal
   }
 }
 
-@c4("AkkaGatewayApp") class AkkaHttpServerConf extends AkkaConf {
+@c4("AkkaGatewayApp") final class AkkaHttpServerConf extends AkkaConf {
   def content: String = List(
     "akka.http.server.parsing.max-content-length = infinite",
     //"akka.http.server.parsing.max-to-strict-bytes = infinite",
@@ -42,7 +42,7 @@ import scala.util.control.NonFatal
   ).mkString("\n")
 }
 
-@c4("AkkaGatewayApp") class AkkaHttpServer(
+@c4("AkkaGatewayApp") final class AkkaHttpServer(
   config: Config, handler: FHttpHandler, execution: Execution, akkaMat: AkkaMat,
   requestPreHandler: AkkaRequestPreHandler
 )(
@@ -101,7 +101,7 @@ import scala.util.control.NonFatal
 }
 
 
-@c4("SimpleAkkaGatewayApp") class AkkaDefaultRequestPreHandler extends AkkaRequestPreHandler with LazyLogging {
+@c4("SimpleAkkaGatewayApp") final class AkkaDefaultRequestPreHandler extends AkkaRequestPreHandler with LazyLogging {
   def handleAsync(income: HttpRequest)(implicit ec: ExecutionContext): Future[HttpRequest] =
     Future.successful(income)
 }
@@ -109,7 +109,7 @@ import scala.util.control.NonFatal
 class AkkaStatefulReceiver[Message](ref: ActorRef) extends StatefulReceiver[Message] {
   def send(message: Message): Unit = ref ! message
 }
-@c4("AkkaStatefulReceiverFactoryApp") class AkkaStatefulReceiverFactory(execution: Execution, akkaMat: AkkaMat) extends StatefulReceiverFactory {
+@c4("AkkaStatefulReceiverFactoryApp") final class AkkaStatefulReceiverFactory(execution: Execution, akkaMat: AkkaMat) extends StatefulReceiverFactory {
   def create[Message](inner: List[Observer[Message]])(implicit executionContext: ExecutionContext): Future[StatefulReceiver[Message]] =
     for {
       mat <- akkaMat.get

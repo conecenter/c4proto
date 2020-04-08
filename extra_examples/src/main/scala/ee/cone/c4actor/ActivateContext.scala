@@ -3,7 +3,7 @@ package ee.cone.c4actor
 import ee.cone.c4actor.MetaAttrProtocol.D_TxTransformNameMeta
 import ee.cone.c4di.c4
 
-@c4("ActivateContextApp") class ActivateContext(
+@c4("ActivateContextApp") final class ActivateContext(
   getTxTransform: GetByPK[TxTransform]
 ) {
   def apply(local: Context): Context = {

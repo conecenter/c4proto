@@ -44,17 +44,17 @@ case object ContainsCheck extends ConditionCheck[B_Contains,String] {
   def defaultBy: Option[B_Contains => Boolean] = None
 }
 
-@c4("CommonFilterApp") class CommonFilterConditionChecksImpl extends CommonFilterConditionChecks {
+@c4("CommonFilterApp") final class CommonFilterConditionChecksImpl extends CommonFilterConditionChecks {
   lazy val dateBefore: ConditionCheck[B_DateBefore,Long] = DateBeforeCheck
   lazy val contains: ConditionCheck[B_Contains,String] = ContainsCheck
 }
 
-@c4("CommonFilterApp") class DateBeforeAccessView(testTags: TestTags[Context]) extends AccessView(classOf[B_DateBefore]) {
+@c4("CommonFilterApp") final class DateBeforeAccessView(testTags: TestTags[Context]) extends AccessView(classOf[B_DateBefore]) {
   def view(access: Access[B_DateBefore]): Context=>List[ChildPair[OfDiv]] =
     local => List(testTags.dateInput(access to CommonFilterAccess.dateBeforeValue))
 }
 
-@c4("CommonFilterApp") class ContainsAccessView(testTags: TestTags[Context]) extends AccessView(classOf[B_Contains]) {
+@c4("CommonFilterApp") final class ContainsAccessView(testTags: TestTags[Context]) extends AccessView(classOf[B_Contains]) {
   def view(access: Access[B_Contains]): Context=>List[ChildPair[OfDiv]] =
     local => List(testTags.input(access to CommonFilterAccess.containsValue))
 }

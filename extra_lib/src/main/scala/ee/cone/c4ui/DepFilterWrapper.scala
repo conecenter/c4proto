@@ -40,7 +40,7 @@ trait DepFilterWrapperCollectorApp extends ComponentsApp {
 
 case class DepFilterWrapperApiProvider(values: List[DepFilterWrapperApi[_ <: Product]])
 
-@c4("DepFilterWrapperCollectorMix") class DepFilterWrapperCollectorLeafs(
+@c4("DepFilterWrapperCollectorMix") final class DepFilterWrapperCollectorLeafs(
   providers: List[DepFilterWrapperApiProvider]
 ) {
   @provide def leafs: Seq[ProductLeafInfoHolder] = for {

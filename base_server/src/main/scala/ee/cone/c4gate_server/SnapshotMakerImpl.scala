@@ -21,7 +21,7 @@ import scala.annotation.tailrec
 import scala.concurrent.{ExecutionContext, Future}
 import scala.jdk.CollectionConverters.IterableHasAsScala
 
-@c4("SnapshotMakingApp") class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, httpResponseFactory: RHttpResponseFactory) extends LazyLogging {
+@c4("SnapshotMakingApp") final class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, httpResponseFactory: RHttpResponseFactory) extends LazyLogging {
   def wire: RHttpHandlerCreate = next => (request,local) =>
     if(request.method == "GET" && request.path.startsWith("/snapshot")){
       val path = request.path
@@ -111,7 +111,7 @@ case class RequestedSnapshotMakingTx(
 class SnapshotSavers(val full: SnapshotSaver, val tx: SnapshotSaver)
 
 //todo new
-@c4("SnapshotMakingApp") class SnapshotMakerImpl(
+@c4("SnapshotMakingApp") final class SnapshotMakerImpl(
   snapshotConfig: SnapshotConfig,
   snapshotLister: SnapshotLister,
   snapshotLoader: SnapshotLoader,
@@ -217,7 +217,7 @@ trait SnapshotMakerMaxTime {
   def maxTime: Long
 }
 
-@c4("SafeToRunApp") class SafeToRun(snapshotMaker: SnapshotMakerMaxTime) extends Executable with Early {
+@c4("SafeToRunApp") final class SafeToRun(snapshotMaker: SnapshotMakerMaxTime) extends Executable with Early {
   def run(): Unit = concurrent.blocking{
     Thread.sleep(10*minute)
     while(true){
@@ -235,9 +235,9 @@ trait SnapshotConfig {
 
 ////
 
-@c4("ConfigDataDirApp") class ConfigDataDir(config: Config) extends DataDir(config.get("C4DATA_DIR"))
+@c4("ConfigDataDirApp") final class ConfigDataDir(config: Config) extends DataDir(config.get("C4DATA_DIR"))
 
-@c4("SnapshotMakingApp") class FileSnapshotConfigImpl(dir: DataDir)(
+@c4("SnapshotMakingApp") final class FileSnapshotConfigImpl(dir: DataDir)(
   val ignore: Set[Long] =
     Option(Paths.get(dir.value).resolve(".ignore")).filter(Files.exists(_)).toSet.flatMap{
       (path:Path) =>
@@ -253,7 +253,7 @@ trait SnapshotMTime {
 
 
 
-@c4("FileRawSnapshotLoaderApp") class FileRawSnapshotLoaderImpl(baseDirConf: DataDir, util: SnapshotUtil)
+@c4("FileRawSnapshotLoaderApp") final class FileRawSnapshotLoaderImpl(baseDirConf: DataDir, util: SnapshotUtil)
   extends SnapshotMTime with RawSnapshotLoader with SnapshotLister
 {
   private def baseDir = Paths.get(baseDirConf.value)
@@ -278,7 +278,7 @@ trait SnapshotMTime {
   //remove Files.delete(path)
 }
 
-@c4("FileRawSnapshotSaverApp") class FileRawSnapshotSaver(baseDir: DataDir) extends RawSnapshotSaver with LazyLogging {
+@c4("FileRawSnapshotSaverApp") final class FileRawSnapshotSaver(baseDir: DataDir) extends RawSnapshotSaver with LazyLogging {
   def save(snapshot: RawSnapshot, data: Array[Byte]): Unit = {
     val path: Path = Paths.get(baseDir.value).resolve(snapshot.relativePath)
     Files.createDirectories(path.getParent)

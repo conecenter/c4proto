@@ -28,14 +28,14 @@ trait DynamicIndexAssembleDebugMode extends BooleanValue
 trait DynamicIndexDeleteAnywaySeconds extends IntValue
 trait HashSearchVersion extends StringValue
 
-@c4("DynamicIndexAssemble") class DefaultDynamicIndexAutoStaticNodeCount extends IntConstant(1000) with DynamicIndexAutoStaticNodeCount
-@c4("DynamicIndexAssemble") class DefaultDynamicIndexAutoStaticLiveSeconds extends IntConstant(60 * 60) with DynamicIndexAutoStaticLiveSeconds
-@c4("DynamicIndexAssemble") class DefaultDynamicIndexMaxEvents extends IntConstant(100000) with DynamicIndexMaxEvents
-@c4("DynamicIndexAssemble") class DefaultDynamicIndexAssembleDebugMode extends BooleanFalse with DynamicIndexAssembleDebugMode
-@c4("DynamicIndexAssemble") class DefaultDynamicIndexDeleteAnywaySeconds extends IntConstant(60 * 60 * 24 * 1) with DynamicIndexDeleteAnywaySeconds
-@c4("DynamicIndexAssemble") class DefaultHashSearchVersion extends StringConstant("MC5FLkU=") with HashSearchVersion // note equals to base64 http://base64decode.toolur.com/
+@c4("DynamicIndexAssemble") final class DefaultDynamicIndexAutoStaticNodeCount extends IntConstant(1000) with DynamicIndexAutoStaticNodeCount
+@c4("DynamicIndexAssemble") final class DefaultDynamicIndexAutoStaticLiveSeconds extends IntConstant(60 * 60) with DynamicIndexAutoStaticLiveSeconds
+@c4("DynamicIndexAssemble") final class DefaultDynamicIndexMaxEvents extends IntConstant(100000) with DynamicIndexMaxEvents
+@c4("DynamicIndexAssemble") final class DefaultDynamicIndexAssembleDebugMode extends BooleanFalse with DynamicIndexAssembleDebugMode
+@c4("DynamicIndexAssemble") final class DefaultDynamicIndexDeleteAnywaySeconds extends IntConstant(60 * 60 * 24 * 1) with DynamicIndexDeleteAnywaySeconds
+@c4("DynamicIndexAssemble") final class DefaultHashSearchVersion extends StringConstant("MC5FLkU=") with HashSearchVersion // note equals to base64 http://base64decode.toolur.com/
 
-@c4("DynamicIndexAssemble") class DynamicIndexModelsRegistry(providers: List[DynamicIndexModelsProvider], thanosTimeFiltersFactory: ThanosTimeFiltersFactory, indexNodeThanosFactory: IndexNodeThanosFactory) {
+@c4("DynamicIndexAssemble") final class DynamicIndexModelsRegistry(providers: List[DynamicIndexModelsProvider], thanosTimeFiltersFactory: ThanosTimeFiltersFactory, indexNodeThanosFactory: IndexNodeThanosFactory) {
   lazy val models: List[ProductWithId[_ <: Product]] = providers.flatMap(_.values).distinct
   @provide def assembles: Seq[Assemble] =
     (if (models.nonEmpty) thanosTimeFiltersFactory.create() :: Nil else Nil) :::
@@ -64,7 +64,7 @@ trait DynamicIndexAssembleBase
 
 }
 
-@c4("DynamicIndexAssemble") class ModelListIntegrityCheck(registry: DynamicIndexModelsRegistry) {
+@c4("DynamicIndexAssemble") final class ModelListIntegrityCheck(registry: DynamicIndexModelsRegistry) {
   val map = registry.models.groupBy(_.modelId)
   if (map.values.forall(_.size == 1)) {
   } else {
@@ -485,7 +485,7 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
     }
 }
 
-@c4multi("DynamicIndexAssemble") case class RealityTransform[Model <: Product, By <: Product](
+@c4multi("DynamicIndexAssemble") final case class RealityTransform[Model <: Product, By <: Product](
   srcId: SrcId, parentNodeId: String, heapIds: List[String], byStr: String, modelId: Int, defaultLive: Long
 )(
   getS_IndexNodeSettings: GetByPK[S_IndexNodeSettings],
@@ -549,7 +549,7 @@ case class SoulCorrectionTransform(srcId: SrcId, indexNodeList: List[S_IndexNode
 }
 
 
-@c4multi("DynamicIndexAssemble") case class SnapTransform(
+@c4multi("DynamicIndexAssemble") final case class SnapTransform(
   srcId: String, fbId: String, version: String
 )(
   getS_IndexNodesVersion: GetByPK[S_IndexNodesVersion],

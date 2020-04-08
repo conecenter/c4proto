@@ -15,9 +15,9 @@ trait TxTransforms {
   def get(global: RichContext): Map[SrcId,TransientMap=>TransientMap]
 }
 
-@c4("ServerCompApp") class DefLongTxWarnPeriod extends LongTxWarnPeriod(Option(System.getenv("C4TX_WARN_PERIOD_MS")).fold(500L)(_.toLong))
+@c4("ServerCompApp") final class DefLongTxWarnPeriod extends LongTxWarnPeriod(Option(System.getenv("C4TX_WARN_PERIOD_MS")).fold(500L)(_.toLong))
 
-@c4("ServerCompApp") class TxTransformsImpl(
+@c4("ServerCompApp") final class TxTransformsImpl(
   qMessages: QMessages, warnPeriod: LongTxWarnPeriod, catchNonFatal: CatchNonFatal,
   getTxTransform: GetByPK[TxTransform],
 ) extends TxTransforms with LazyLogging {
@@ -74,11 +74,11 @@ abstract class InnerTransientLens[Item](key: TransientLens[Item]) extends Abstra
 
 class TxObserver(val value: Observer[RichContext])
 
-@c4("SerialObserversApp") class SerialTxObserver(
+@c4("SerialObserversApp") final class SerialTxObserver(
   transforms: TxTransforms
 ) extends TxObserver(new SerialObserver(Map.empty)(transforms))
 
-@c4("ParallelObserversApp") class ParallelTxObserver(
+@c4("ParallelObserversApp") final class ParallelTxObserver(
   transforms: TxTransforms,
   execution: Execution
 ) extends TxObserver(new ParallelObserver(Map.empty,transforms,execution))

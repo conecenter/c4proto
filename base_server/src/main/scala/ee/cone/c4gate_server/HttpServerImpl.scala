@@ -26,7 +26,7 @@ import ee.cone.c4gate_server.RHttpTypes.{RHttpHandler, RHttpHandlerCreate}
 import scala.collection.immutable.Seq
 import scala.concurrent.{ExecutionContext, Future}
 
-@c4("AbstractHttpGatewayApp") class RHttpResponseFactoryImpl extends RHttpResponseFactory {
+@c4("AbstractHttpGatewayApp") final class RHttpResponseFactoryImpl extends RHttpResponseFactory {
   def directResponse(request: S_HttpRequest, patch: S_HttpResponse=>S_HttpResponse): RHttpResponse = {
     val resp = S_HttpResponse(request.srcId,200,Nil,ByteString.EMPTY,System.currentTimeMillis)
     RHttpResponse(Option(patch(resp)),Nil)
@@ -39,7 +39,7 @@ import scala.concurrent.{ExecutionContext, Future}
   }
 }
 
-@c4("AbstractHttpGatewayApp") class GetPublicationHttpHandler(
+@c4("AbstractHttpGatewayApp") final class GetPublicationHttpHandler(
   httpResponseFactory: RHttpResponseFactory,
   getByPathHttpPublication: GetByPK[ByPathHttpPublication],
   getByPathHttpPublicationUntil: GetByPK[ByPathHttpPublicationUntil],
@@ -88,7 +88,7 @@ object AuthOperations {
     correctHash == pbkdf2(password, correctHash)
 }
 
-@c4("AbstractHttpGatewayApp") class AuthHttpHandler(
+@c4("AbstractHttpGatewayApp") final class AuthHttpHandler(
   httpResponseFactory: RHttpResponseFactory,
   getC_PasswordRequirements: GetByPK[C_PasswordRequirements],
   getC_PasswordHashOfUser: GetByPK[C_PasswordHashOfUser],
@@ -137,12 +137,12 @@ object AuthOperations {
 }
 // no "signedIn"
 
-@c4("AbstractHttpGatewayApp") class DefSyncHttpHandler() extends LazyLogging {
+@c4("AbstractHttpGatewayApp") final class DefSyncHttpHandler() extends LazyLogging {
   def wire: RHttpHandler = (request,local) =>
     RHttpResponse(None, LEvent.update(request).toList)
 }
 
-@c4("AbstractHttpGatewayApp") class NotFoundProtectionHttpHandler(
+@c4("AbstractHttpGatewayApp") final class NotFoundProtectionHttpHandler(
   httpResponseFactory: RHttpResponseFactory,
   getLocalHttpConsumerExists: GetByPK[LocalHttpConsumerExists],
 ) extends LazyLogging {
@@ -158,7 +158,7 @@ object AuthOperations {
   }
 }
 
-@c4("AbstractHttpGatewayApp") class SelfDosProtectionHttpHandler(
+@c4("AbstractHttpGatewayApp") final class SelfDosProtectionHttpHandler(
   httpResponseFactory: RHttpResponseFactory, sseConfig: SSEConfig,
   getHttpRequestCount: GetByPK[HttpRequestCount],
 ) extends LazyLogging {
@@ -173,7 +173,7 @@ object AuthOperations {
     } else next(request,local)
 }
 
-@c4("SSEServerApp") class HttpReqAssemblesBase(mortal: MortalFactory, sseConfig: SSEConfig) {
+@c4("SSEServerApp") final class HttpReqAssemblesBase(mortal: MortalFactory, sseConfig: SSEConfig) {
   @provide def subAssembles: Seq[Assemble] = List(mortal(classOf[S_HttpRequest]))
 }
 
@@ -235,7 +235,7 @@ object ReqGroup {
     request.headers.find(_.key == key).map(_.value)
 }
 
-@c4multi("AbstractHttpGatewayApp") class FHttpHandlerImpl(handler: RHttpHandler)(
+@c4multi("AbstractHttpGatewayApp") final class FHttpHandlerImpl(handler: RHttpHandler)(
   worldProvider: WorldProvider,
   httpResponseFactory: RHttpResponseFactory,
   getS_HttpRequest: GetByPK[S_HttpRequest],

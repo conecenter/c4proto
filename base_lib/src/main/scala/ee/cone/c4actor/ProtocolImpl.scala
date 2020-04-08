@@ -12,7 +12,7 @@ import okio.ByteString
 
 import scala.collection.immutable.Seq
 
-@c4("ProtoApp") class ArgAdapterComponentFactoryProvider(
+@c4("ProtoApp") final class ArgAdapterComponentFactoryProvider(
   componentRegistry: ComponentRegistry,
   argAdapterFactoryList: List[ArgAdapterFactory],
   lazyArgAdapterFactoryList: List[LazyArgAdapterFactory],
@@ -57,8 +57,8 @@ class NoWrapArgAdapter[Value](val defaultValue: Value, inner: ProtoAdapter[Value
   def decodeFix(prev: Value): Value = prev
 }
 
-@c4("ProtoApp") class LazyListArgAdapterFactory(uKey: StrictTypeKey[LazyList[Unit]]) extends LazyArgAdapterFactory(uKey.value.copy(args=Nil), new ListArgAdapter(_))
-@c4("ProtoApp") class ListArgAdapterFactory(uKey: StrictTypeKey[List[Unit]]) extends ArgAdapterFactory(uKey.value.copy(args=Nil), new ListArgAdapter(_))
+@c4("ProtoApp") final class LazyListArgAdapterFactory(uKey: StrictTypeKey[LazyList[Unit]]) extends LazyArgAdapterFactory(uKey.value.copy(args=Nil), new ListArgAdapter(_))
+@c4("ProtoApp") final class ListArgAdapterFactory(uKey: StrictTypeKey[List[Unit]]) extends ArgAdapterFactory(uKey.value.copy(args=Nil), new ListArgAdapter(_))
 class ListArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter[List[Value]] {
   def encodedSizeWithTag(tag: Int, value: List[Value]): Int =
     value.foldLeft(0)((res,item)=>res+inner().encodedSizeWithTag(tag,item))
@@ -70,8 +70,8 @@ class ListArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter[L
   def decodeFix(prev: List[Value]): List[Value] = prev.reverse
 }
 
-@c4("ProtoApp") class LazyOptionArgAdapterFactory(uKey: StrictTypeKey[LazyOption[Unit]]) extends LazyArgAdapterFactory(uKey.value.copy(args=Nil), new OptionArgAdapter(_))
-@c4("ProtoApp") class OptionArgAdapterFactory(uKey: StrictTypeKey[Option[Unit]]) extends ArgAdapterFactory(uKey.value.copy(args=Nil), new OptionArgAdapter(_))
+@c4("ProtoApp") final class LazyOptionArgAdapterFactory(uKey: StrictTypeKey[LazyOption[Unit]]) extends LazyArgAdapterFactory(uKey.value.copy(args=Nil), new OptionArgAdapter(_))
+@c4("ProtoApp") final class OptionArgAdapterFactory(uKey: StrictTypeKey[Option[Unit]]) extends ArgAdapterFactory(uKey.value.copy(args=Nil), new OptionArgAdapter(_))
 class OptionArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter[Option[Value]] {
   def encodedSizeWithTag(tag: Int, value: Option[Value]): Int =
     value.foldLeft(0)((res,item)=>res+inner().encodedSizeWithTag(tag,item))
@@ -83,17 +83,17 @@ class OptionArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter
   def decodeFix(prev: Option[Value]): Option[Value] = prev
 }
 
-@c4("ProtoApp") class IntDefaultArgument extends DefaultArgument[Int](0)
-@c4("ProtoApp") class LongDefaultArgument extends DefaultArgument[Long](0L)
-@c4("ProtoApp") class BooleanDefaultArgument extends DefaultArgument[Boolean](false)
-@c4("ProtoApp") class ByteStringDefaultArgument extends DefaultArgument[ByteString](ByteString.EMPTY)
-@c4("ProtoApp") class OKIOByteStringDefaultArgument extends DefaultArgument[okio.ByteString](ByteString.EMPTY)
-@c4("ProtoApp") class StringDefaultArgument extends DefaultArgument[String]("")
-@c4("ProtoApp") class SrcIdDefaultArgument extends DefaultArgument[SrcId]("")
+@c4("ProtoApp") final class IntDefaultArgument extends DefaultArgument[Int](0)
+@c4("ProtoApp") final class LongDefaultArgument extends DefaultArgument[Long](0L)
+@c4("ProtoApp") final class BooleanDefaultArgument extends DefaultArgument[Boolean](false)
+@c4("ProtoApp") final class ByteStringDefaultArgument extends DefaultArgument[ByteString](ByteString.EMPTY)
+@c4("ProtoApp") final class OKIOByteStringDefaultArgument extends DefaultArgument[okio.ByteString](ByteString.EMPTY)
+@c4("ProtoApp") final class StringDefaultArgument extends DefaultArgument[String]("")
+@c4("ProtoApp") final class SrcIdDefaultArgument extends DefaultArgument[SrcId]("")
 
 import com.squareup.wire.ProtoAdapter._
 
-@c4("ProtoApp") class PrimitiveProtoAdapterProvider {
+@c4("ProtoApp") final class PrimitiveProtoAdapterProvider {
   @provide def getBoolean: Seq[ProtoAdapter[Boolean]] = List(BOOL.asInstanceOf[ProtoAdapter[Boolean]])
   @provide def getInt: Seq[ProtoAdapter[Int]] = List(SINT32.asInstanceOf[ProtoAdapter[Int]])
   @provide def getLong: Seq[ProtoAdapter[Long]] = List(SINT64.asInstanceOf[ProtoAdapter[Long]])
@@ -111,7 +111,7 @@ import com.squareup.wire.ProtoAdapter._
 
 }*/
 
-@c4("ProtoApp") class QAdapterRegistryProvider(adapters: List[HasId]) {
+@c4("ProtoApp") final class QAdapterRegistryProvider(adapters: List[HasId]) {
   @provide def get: Seq[QAdapterRegistry] = {
     val cAdapters = adapters.distinct.map(_.asInstanceOf[ProtoAdapter[Product] with HasId])
     Option(System.getenv("C4DEBUG_COMPONENTS")).foreach(_=>cAdapters.foreach(c=>println(s"adapter: ${c.className}")))
@@ -126,11 +126,11 @@ class QAdapterRegistryImpl(
   val byId: Map[Long, ProtoAdapter[Product] with HasId]
 ) extends QAdapterRegistry
 
-@c4("RichDataCompApp") class LocalQAdapterRegistryInit(qAdapterRegistry: QAdapterRegistry) extends ToInject {
+@c4("RichDataCompApp") final class LocalQAdapterRegistryInit(qAdapterRegistry: QAdapterRegistry) extends ToInject {
   def toInject: List[Injectable] = QAdapterRegistryKey.set(qAdapterRegistry)
 }
 
-@c4("ProtoApp") class ProductProtoAdapter(
+@c4("ProtoApp") final class ProductProtoAdapter(
   qAdapterRegistryD: DeferredSeq[QAdapterRegistry]
 ) extends ProtoAdapter[Product](FieldEncoding.LENGTH_DELIMITED, classOf[Product]) with HasId {
   def id: Long = throw new Exception

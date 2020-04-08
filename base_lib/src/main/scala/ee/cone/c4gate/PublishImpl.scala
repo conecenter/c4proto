@@ -43,7 +43,7 @@ trait PublicDirProvider {
   def get: List[(String,Path)]
 }
 
-@c4("PublishingCompApp") class ModPublicDirProvider(config: ListConfig) extends PublicDirProvider {
+@c4("PublishingCompApp") final class ModPublicDirProvider(config: ListConfig) extends PublicDirProvider {
   def get: List[(String,Path)] = {
     val Mod = """.+/mod\.([^/]+)\.(classes|jar)""".r
     val hasMod = (for {
@@ -63,7 +63,7 @@ trait PublicDirProvider {
 // we need it, because there's no good place to found there's new *.svg in src/
 case object InitialPublishDone extends TransientLens[Boolean](false)
 
-@c4("PublishingCompApp") class Publishing(
+@c4("PublishingCompApp") final class Publishing(
   idGenUtil: IdGenUtil,
   publishFromStringsProviders: List[PublishFromStringsProvider],
   mimeTypesProviders: List[PublishMimeTypesProvider],

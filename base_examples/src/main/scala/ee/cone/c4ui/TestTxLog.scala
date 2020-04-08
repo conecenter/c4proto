@@ -36,11 +36,11 @@ import scala.annotation.tailrec
     testTxLogView :: super.byLocationHashViews
 }*/
 
-@c4("TestTxLogApp") class TestTxLogMortalAssembleBase(mortal: MortalFactory) {
+@c4("TestTxLogApp") final class TestTxLogMortalAssembleBase(mortal: MortalFactory) {
   @provide def subAssembles: Seq[Assemble] =
     mortal(classOf[N_TxRef]) :: mortal(classOf[D_TxAddMeta]) :: Nil
 }
-@c4("TestTxLogApp") case class TestTxLogView(locationHash: String = "txlog")(
+@c4("TestTxLogApp") final case class TestTxLogView(locationHash: String = "txlog")(
   actorName: ActorName,
   untilPolicy: UntilPolicy,
   mTags: Tags,

@@ -42,7 +42,7 @@ class SnapshotMergerImpl(
   }
 }
 
-@c4("ServerCompApp") class SnapshotDifferImpl(
+@c4("ServerCompApp") final class SnapshotDifferImpl(
   toUpdate: ToUpdate,
   getOffset: GetOffset,
   snapshotMaker: SnapshotMaker,
