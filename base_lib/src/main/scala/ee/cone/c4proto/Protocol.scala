@@ -25,7 +25,7 @@ trait ProtoOrigMeta {
   def categories: List[DataCategory]
   def cl: Class[_]
   def shortName: Option[String]
-  def props: List[MetaProp]
+  def metaProps: List[MetaProp]
 }
 
 @deprecated("Deprecated, use OrigMeta[Orig]", "07/04/20")
@@ -37,7 +37,7 @@ trait HasId {
   lazy val className: String = protoOrigMeta.cl.getName
   def cl: Class[_] = protoOrigMeta.cl
   def shortName: Option[String] = protoOrigMeta.shortName
-  def props: List[MetaProp] = protoOrigMeta.props
+  def props: List[MetaProp] = protoOrigMeta.metaProps
 }
 
 object ToByteString {
