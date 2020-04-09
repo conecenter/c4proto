@@ -119,7 +119,7 @@ class MetaGenerator(statTransformers: List[ProtocolStatsTransformer]) extends Ge
       }
       import annotations._
         GeneratedCode(
-          s"""$c4ann class ${classDef.name}OrigMeta extends OrigMeta[${classDef.name}] {
+          s"""$c4ann final class ${classDef.name}OrigMeta extends OrigMeta[${classDef.name}] {
              |  val id: Option[TypeId] = $id
              |  val categories: List[DataCategory] = ${getCat(classDef.name,id) ::: cats}.distinct
              |  val fieldsMeta: List[FieldMeta] = List(
