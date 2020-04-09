@@ -281,7 +281,7 @@ object Util {
 
 
   def assertFinal(cl: ParsedClass): Unit = {
-    assert(cl.mods.collect{ case mod"final" => true case mod"@open" => true }.nonEmpty,s"${cl.name} should be final")
+    assert(cl.mods.collect{ case mod"final" => true }.nonEmpty,s"${cl.name} should be final")
   }
 
 }
