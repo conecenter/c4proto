@@ -35,6 +35,7 @@ trait GeneralOrigMeta extends MetaInformation with ProtoOrigMeta {
 }
 
 trait OrigMeta[Orig <: Product] extends GeneralOrigMeta {
+  // If you want to add more lazy vals here separate api and impl
   lazy val cl: Class[Orig] = replaces.getOrElse(typeKey).cl.asInstanceOf[Class[Orig]]
   lazy val fieldsById: Map[FieldId, FieldMeta] = fieldsMeta.map(field => field.id -> field).toMap
   def field(id: FieldId): FieldMeta = fieldsById.getOrElse(id, throw new Exception(s"${cl.getSimpleName} doesn't have ${f"0x$id%04X"} field"))
