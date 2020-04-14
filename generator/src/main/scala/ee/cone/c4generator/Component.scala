@@ -17,7 +17,7 @@ object ComponentsGenerator extends Generator {
       in.map(s=>s"\n    $s ::").mkString +
       s"""\n    Nil""" +
       s"""\n  private def create$name(args: Seq[Object]) = {""" +
-        (if (caseSeq.size < 22) s"""\n    val Seq(${caseSeq.mkString(",")}) = args;"""
+        (if (caseSeq.size <= 22) s"""\n    val Seq(${caseSeq.mkString(",")}) = args;"""
         else
           s"""\n    println(\"WARN: $name component has more than 22 arguments\");""" +
           caseSeq.zipWithIndex.map { case (name, ind) => s"""    val $name = args.apply($ind)""" }.mkString("\n", "\n", "")) +
