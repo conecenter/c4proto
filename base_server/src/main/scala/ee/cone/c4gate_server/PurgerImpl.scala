@@ -29,7 +29,7 @@ trait Purger {
   def process(keepPolicyList: List[KeepPolicy]): Unit
 }
 
-@c4("SnapshotMakingApp") class PurgerImpl(
+@c4("SnapshotMakingApp") final class PurgerImpl(
   lister: SnapshotLister, baseDir: DataDir
 ) extends Purger with LazyLogging {
   def process(keepPolicyList: List[KeepPolicy]/*todo: pass Loaded*/): Unit = {

@@ -28,7 +28,7 @@ import ee.cone.c4di.{c4, provide}
   )
 }
 
-@c4("SessionAttrCompApp") class  SessionDataAssemblesBase(mortal: MortalFactory) {
+@c4("SessionAttrCompApp") final class  SessionDataAssemblesBase(mortal: MortalFactory) {
   @provide def subAssembles: Seq[Assemble] = List(mortal(classOf[U_RawSessionData]))
 }
 
@@ -47,7 +47,7 @@ import ee.cone.c4di.{c4, provide}
   ): Values[(Alive, U_RawSessionData)] = List(WithPK(sessionData))
 }
 
-@c4("SessionAttrCompApp") class SessionAttrAccessFactoryImpl(
+@c4("SessionAttrCompApp") final class SessionAttrAccessFactoryImpl(
   registry: QAdapterRegistry,
   modelFactory: ModelFactory,
   modelAccessFactory: RModelAccessFactory,

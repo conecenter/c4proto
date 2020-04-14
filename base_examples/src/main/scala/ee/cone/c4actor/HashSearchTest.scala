@@ -71,7 +71,7 @@ import SomeModelAccess._
     List(WithPK(SomeResponse(response.srcId,response.lines)))
 }
 
-@c4("HashSearchTestApp") class HashSearchTestAddAssembleBase(
+@c4("HashSearchTestApp") final class HashSearchTestAddAssembleBase(
   hashSearchFactoryHolder: HashSearchFactoryHolder
 ) {
   import DefaultRangers._
@@ -98,7 +98,7 @@ object HashSearchTestMain {
   }
 }
 
-@c4("HashSearchTestApp") class HashSearchTestMain(
+@c4("HashSearchTestApp") final class HashSearchTestMain(
   modelConditionFactory: ModelConditionFactory[Unit],
   contextFactory: ContextFactory,
   execution: Execution,

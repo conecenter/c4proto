@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexModelsApp, DynamicIndexModelsProvider, HashSearchIdGeneration, ProductWithId}
+import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexModelsRegistry, HashSearchIdGeneration, ProductWithId}
 import ee.cone.c4di.{Component, ComponentsApp, c4, provide}
 
 
@@ -18,19 +18,18 @@ trait LensRegistryApp {
   def lensRegistry: LensRegistry
 }
 
-trait LensRegistryMixBase extends ComponentProviderApp with ProdLensesApp with DynamicIndexModelsApp{
+trait LensRegistryMixBase extends ComponentProviderApp with ProdLensesApp {
   def lensRegistry: LensRegistry = resolveSingle(classOf[LensRegistry])
 }
 
-@c4("LensRegistryMix") class LensRegistryProvider(
+@c4("LensRegistryMix") final class LensRegistryProvider(
   lensListProviders: List[ProdLensListProvider],
-  dynIndexModelProviders: List[DynamicIndexModelsProvider],
+  dynamicIndexModelsRegistry: Option[DynamicIndexModelsRegistry],
 ) {
   private def getterList = lensListProviders.flatMap(_.values)
-  private def dynIndexModels = dynIndexModelProviders.flatMap(_.values)
   @provide def get: Seq[LensRegistry] = Seq{
     lensIntegrityCheck()
-    LensRegistryImpl(getterList.distinct, dynIndexModels.distinct)
+    LensRegistryImpl(getterList.distinct, dynamicIndexModelsRegistry.toList.flatMap(_.models))
   }
 
   private def lensIntegrityCheck(): Unit = {

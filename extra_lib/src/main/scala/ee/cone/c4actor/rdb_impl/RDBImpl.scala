@@ -22,7 +22,7 @@ import okio.ByteString
 import ee.cone.c4actor.rdb._
 import ee.cone.c4actor.rdb_impl.ProtoIndentedParserError.S_IndentedParserError
 
-@c4("FromExternalDBSyncApp") class FromExternalDBOptionsProvider(
+@c4("FromExternalDBSyncApp") final class FromExternalDBOptionsProvider(
   rdbOptionFactory: RDBOptionFactory
 ) {
   @provide def get: Seq[ExternalDBOption] = List(
@@ -30,7 +30,7 @@ import ee.cone.c4actor.rdb_impl.ProtoIndentedParserError.S_IndentedParserError
   )
 }
 
-@c4("RDBSyncApp") class RDBOptionFactoryImpl(
+@c4("RDBSyncApp") final class RDBOptionFactoryImpl(
   toExternalDBOrigAssembleFactory: ToExternalDBOrigAssembleFactory
 ) extends RDBOptionFactory {
   def fromDB[P <: Product](cl: Class[P]): ExternalDBOption = new FromDBOption(cl)
@@ -58,7 +58,7 @@ object ToExternalDBTypes {
   type PseudoOrigNeedSrcId = SrcId
 }
 
-@c4("ToExternalDBSyncApp") class ToExternalDBAssemblesBase(options: List[ExternalDBOption]) {
+@c4("ToExternalDBSyncApp") final class ToExternalDBAssemblesBase(options: List[ExternalDBOption]) {
   @provide def subAssembles: Seq[Assemble] = options.collect{ case o: ToDBOption => o.assemble }
 }
 
@@ -190,7 +190,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(rDBType
     List(WithPK(factory.create("externalDBSync")))
 }
 
-@c4multi("FromExternalDBSyncApp") case class FromExternalDBSyncTransform(srcId:SrcId)(
+@c4multi("FromExternalDBSyncApp") final case class FromExternalDBSyncTransform(srcId:SrcId)(
   indentedParser: IndentedParser,
   getB_DBOffset: GetByPK[B_DBOffset],
 ) extends TxTransform with LazyLogging {
@@ -208,11 +208,11 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(rDBType
   }
 }
 
-@c4("FromExternalDBSyncApp") class FromExternalDBUpdateFlag extends UpdateFlag {
+@c4("FromExternalDBSyncApp") final class FromExternalDBUpdateFlag extends UpdateFlag {
   val flagValue: Long = 8L
 }
 
-@c4("FromExternalDBSyncApp") class IndentedParser(
+@c4("FromExternalDBSyncApp") final class IndentedParser(
   universalProtoAdapter: ProtoAdapter[UniversalNode],
   rDBTypes: RDBTypes,
   universalNodeFactory: UniversalNodeFactory,
@@ -325,7 +325,7 @@ class ProtoToString(registry: QAdapterRegistry, rDBTypes: RDBTypes){
 
 object Hex { def apply(i: Long): String = "0x%04x".format(i) }
 
-@c4("RDBSyncApp") class RDBTypes(
+@c4("RDBSyncApp") final class RDBTypes(
   universalProtoAdapter: ProtoAdapter[UniversalNode],
   universalNodeFactory: UniversalNodeFactory,
   srcIdProtoAdapter: ProtoAdapter[SrcId]

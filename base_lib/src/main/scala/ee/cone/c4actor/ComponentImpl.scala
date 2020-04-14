@@ -14,7 +14,7 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
   def value: Seq[Nothing] = Nil
 }
 
-@c4("BaseApp") class ComponentRegistryImpl(app: AbstractComponents)(
+@c4("BaseApp") final class ComponentRegistryImpl(app: AbstractComponents)(
   debug: Option[_] = Option(System.getenv("C4DEBUG_COMPONENTS"))
 ) extends ComponentRegistry {
   def toTypeKey[T](cl: Class[T], args: Seq[TypeKey]): TypeKey =
@@ -39,7 +39,11 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
     new Cached(component.out, new SimpleDeferredSeq[Object](values))
   }
   def resolveSingle: TypeKey => TypeKey => Object = outKey => inKey => resolveKey(inKey).value match {
-    case Seq(r:Object) => r
+    case Seq(r:Object) =>
+      debug.foreach { _ =>
+        println(s"resolved single $inKey for $outKey")
+      }
+      r
     case r => throw new Exception(s"resolution of $inKey for $outKey fails with $r")
   }
   def resolveKey(key: TypeKey): DeferredSeq[Any] = new SimpleDeferredSeq[Any](()=>{
@@ -56,7 +60,7 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
     resolveKey(toTypeKey(cl,args)).asInstanceOf[DeferredSeq[T]]
 }
 
-@c4("BaseApp") class DefComponentFactoryProvider(
+@c4("BaseApp") final class DefComponentFactoryProvider(
   componentRegistry: ComponentRegistry
 ) {
   @provide def getDeferredSeq: Seq[ComponentFactory[DeferredSeq[_]]] =

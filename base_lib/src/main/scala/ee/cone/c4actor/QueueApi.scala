@@ -169,6 +169,7 @@ class Context(
 
 trait GetByPK[V<:Product] extends Product {
   def ofA(context: AssembledContext): Map[SrcId,V]
+  //@deprecated def of(context: AssembledContext): Map[SrcId,V] = ???
   def typeKey: TypeKey
   def cl: Class[V]
 }
@@ -178,6 +179,8 @@ trait DynamicByPK { // low level api, think before use
 }
 
 case object GetAssembleOptions extends SharedComponentKey[ReadModel=>AssembleOptions]
+
+case object IsActiveOrigKey extends SharedComponentKey[Set[AssembledKey]]
 
 trait Lens[C,I] extends Getter[C,I] {
   def modify: (I=>I) => C=>C

@@ -19,7 +19,7 @@ trait CurrentTimeHandlerAppBase extends CurrentTimeConfigApp with ProtoApp {
   override def currentTimeConfig: List[CurrentTimeConfig] = CurrentTimeConfig(CurrentTimeRequestAssembleTimeId.id, 10L) :: super.currentTimeConfig
 }
 
-@c4multi("CurrentTimeApp") case class CurrentTimeTransform(
+@c4multi("CurrentTimeApp") final case class CurrentTimeTransform(
   srcId: SrcId, refreshRateSeconds: Long
 )(
   getS_CurrentTimeNode: GetByPK[S_CurrentTimeNode],
@@ -72,7 +72,7 @@ trait CurrentTimeConfigApp extends ComponentsApp {
 
 trait CurrentTimeAppBase extends CurrentTimeConfigApp
 
-@c4("CurrentTimeApp") class CurrentTimeAssembles(
+@c4("CurrentTimeApp") final class CurrentTimeAssembles(
   currentTimeConfig: List[CurrentTimeConfig],
   currentTimeAssembleFactory: CurrentTimeAssembleFactory
 ) {

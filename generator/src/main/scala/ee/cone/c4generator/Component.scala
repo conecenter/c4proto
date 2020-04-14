@@ -28,11 +28,6 @@ object ComponentsGenerator extends Generator {
 
   val IsId = """(\w+)""".r
 
-  def fileNameToComponentsId(fileName: String): String = {
-    val SName = """.+/([-\w]+)\.scala""".r
-    val SName(fName) = fileName
-    s"${fName.replace('-', '_')}Components"
-  }
   def annArgToStr(arg: Any): Option[String] = arg match {
     case Lit(v:String) => Option(v)
     case args: Seq[_] => args.toList.flatMap(a=>annArgToStr(a).toList) match {
@@ -41,6 +36,7 @@ object ComponentsGenerator extends Generator {
     }
   }
   def getComponent(cl: ParsedClass, parseContext: ParseContext): List[GeneratedComponent] = {
+    Util.assertFinal(cl)
     val tp = cl.name
     val list = for{
       params <- cl.params.toList
@@ -114,7 +110,7 @@ object ComponentsGenerator extends Generator {
     if(components.isEmpty) Nil else wrapComponents(parseContext,components)
   }
   def wrapComponents(parseContext: ParseContext, components: List[AbstractGeneratedComponent]): List[Generated] = {
-    val componentsId = fileNameToComponentsId(parseContext.path)
+    val componentsId = s"${Util.pathToId(parseContext.path)}Components"
     val connects: List[Generated] = components.collect{ case c: GeneratedComponentAppLink => c }.groupMap(_.app)(_.link).toList.sortBy(_._1).flatMap{
       case (app,links) => List(
         GeneratedCode(

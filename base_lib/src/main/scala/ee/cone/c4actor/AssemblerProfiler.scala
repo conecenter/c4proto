@@ -14,7 +14,7 @@ import ee.cone.c4proto.{Id, protocol}
 import scala.collection.immutable.Seq
 import scala.concurrent.{ExecutionContext, Future}
 
-@c4("NoAssembleProfilerCompApp") class NoAssembleProfilerProvider {
+@c4("NoAssembleProfilerCompApp") final class NoAssembleProfilerProvider {
   @provide def get: Seq[AssembleProfiler] = List(NoAssembleProfiler)
 }
 
@@ -49,7 +49,7 @@ case object NoJoiningProfiling extends JoiningProfiling {
   )
 }
 
-@c4("SimpleAssembleProfilerCompApp") case class SimpleAssembleProfiler(idGenUtil: IdGenUtil)(toUpdate: ToUpdate) extends AssembleProfiler {
+@c4("SimpleAssembleProfilerCompApp") final case class SimpleAssembleProfiler(idGenUtil: IdGenUtil)(toUpdate: ToUpdate) extends AssembleProfiler {
   def createJoiningProfiling(localOpt: Option[Context]) =
     if(localOpt.isEmpty) SimpleConsoleSerialJoiningProfiling
     else SimpleSerialJoiningProfiling(System.nanoTime)

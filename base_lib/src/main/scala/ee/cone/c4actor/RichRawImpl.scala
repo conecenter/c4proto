@@ -27,7 +27,7 @@ object Merge {
     }
 }
 
-@c4("RichDataCompApp") class GetOffsetImpl(
+@c4("RichDataCompApp") final class GetOffsetImpl(
   actorName: ActorName,
   getS_Offset: GetByPK[S_Offset],
 ) extends GetOffset {
@@ -36,7 +36,7 @@ object Merge {
   def empty: NextOffset = "0" * OffsetHexSize()
 }
 
-@c4("RichDataCompApp") class RichRawWorldReducerImpl(
+@c4("RichDataCompApp") final class RichRawWorldReducerImpl(
   toInjects: List[ToInject], toUpdate: ToUpdate, actorName: ActorName, execution: Execution, getOffset: GetOffsetImpl
 ) extends RichRawWorldReducer with LazyLogging {
   def reduce(contextOpt: Option[SharedContext with AssembledContext], addEvents: List[RawEvent]): RichContext = {

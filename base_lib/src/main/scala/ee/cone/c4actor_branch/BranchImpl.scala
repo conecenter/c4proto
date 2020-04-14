@@ -19,7 +19,7 @@ import scala.collection.immutable.Seq
 
 case object SessionKeysKey extends TransientLens[Set[BranchRel]](Set.empty)
 
-@c4multi("BranchApp") case class BranchTaskImpl(branchKey: String, seeds: List[BranchRel], product: Product)(
+@c4multi("BranchApp") final case class BranchTaskImpl(branchKey: String, seeds: List[BranchRel], product: Product)(
   getBranchTask: GetByPK[BranchTask]
 ) extends BranchTask with LazyLogging {
   def sending: Context => (Send,Send) = local => {
@@ -65,7 +65,7 @@ case object EmptyBranchMessage extends BranchMessage {
   def deletes: Seq[LEvent[Product]] = Nil
 }
 
-@c4multi("BranchApp") case class BranchTxTransform(
+@c4multi("BranchApp") final case class BranchTxTransform(
   branchKey: String,
   seed: Option[S_BranchResult],
   sessionKeys: List[SrcId],
@@ -165,7 +165,7 @@ case object EmptyBranchMessage extends BranchMessage {
 }
 
 //class UnconfirmedException() extends Exception
-@c4("BranchApp") class BranchOperationsImpl(registry: QAdapterRegistry, idGenUtil: IdGenUtil) extends BranchOperations {
+@c4("BranchApp") final class BranchOperationsImpl(registry: QAdapterRegistry, idGenUtil: IdGenUtil) extends BranchOperations {
   def toSeed(value: Product): S_BranchResult = {
     val valueAdapter = registry.byName(value.getClass.getName)
     val bytes = ToByteString(valueAdapter.encode(value))

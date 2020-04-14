@@ -71,9 +71,9 @@ class RUncaughtExceptionHandler(inner: UncaughtExceptionHandler) extends Uncaugh
     try inner.uncaughtException(thread,throwable) finally System.exit(1)
 }
 
-@c4("VMExecutionApp") class DefExecutionFilter extends ExecutionFilter(_=>true)
+@c4("VMExecutionApp") final class DefExecutionFilter extends ExecutionFilter(_=>true)
 
-@c4("VMExecutionApp") class VMExecution(getToStart: DeferredSeq[Executable], executionFilter: ExecutionFilter)(
+@c4("VMExecutionApp") final class VMExecution(getToStart: DeferredSeq[Executable], executionFilter: ExecutionFilter)(
   threadPool: ExecutorService = VMExecution.newExecutorService("tx-",Option(Runtime.getRuntime.availableProcessors)) // None?
 )(
   val mainExecutionContext: ExecutionContext = ExecutionContext.fromExecutor(threadPool)
@@ -147,17 +147,17 @@ object ServerMain extends BaseServerMain(
     .newInstance().asInstanceOf[ExecutableApp]
 )
 
-@c4("EnvConfigCompApp") class EnvConfigImpl extends ListConfig {
+@c4("EnvConfigCompApp") final class EnvConfigImpl extends ListConfig {
   def get(key: String): List[String] = Option(System.getenv(key)).toList
 }
-@c4("EnvConfigCompApp") class SingleConfigImpl(inner: ListConfig) extends Config {
+@c4("EnvConfigCompApp") final class SingleConfigImpl(inner: ListConfig) extends Config {
   def get(key: String): String =
     Single[String](inner.get(key), (l:Seq[String])=>new Exception(s"Need single ENV: $key: $l"))
 }
 
-@c4("EnvConfigCompApp") class ActorNameImpl(config: Config) extends ActorName(config.get("C4STATE_TOPIC_PREFIX"))
+@c4("EnvConfigCompApp") final class ActorNameImpl(config: Config) extends ActorName(config.get("C4STATE_TOPIC_PREFIX"))
 
-@c4("CatchNonFatalApp") class CatchNonFatalImpl extends CatchNonFatal with LazyLogging {
+@c4("CatchNonFatalApp") final class CatchNonFatalImpl extends CatchNonFatal with LazyLogging {
   def apply[T](aTry: =>T)(getHint: =>String)(aCatch: Throwable=>T): T = try { aTry } catch {
     case NonFatal(e) =>
       logger.error(getHint,e)

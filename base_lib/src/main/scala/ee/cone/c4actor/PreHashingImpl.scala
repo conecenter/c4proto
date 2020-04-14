@@ -3,7 +3,7 @@ package ee.cone.c4actor
 import ee.cone.c4di.c4
 
 // http://www.artima.com/pins1ed/object-equality.html
-@c4("RichDataCompApp") class PreHashingImpl extends PreHashing {
+@c4("RichDataCompApp") final class PreHashingImpl extends PreHashing {
   def wrap[T](value: T): PreHashed[T] = new PreHashedImpl(value.hashCode, value)
 }
 

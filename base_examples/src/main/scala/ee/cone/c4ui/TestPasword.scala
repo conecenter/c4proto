@@ -77,7 +77,7 @@ case class TestAntiDosRootView(branchKey: SrcId) extends View {
 }
 */
 
-@c4("TestPasswordApp") case class TestPasswordRootView(locationHash: String = "pass")(
+@c4("TestPasswordApp") final case class TestPasswordRootView(locationHash: String = "pass")(
   tags: TestTags[Context],
   mTags: Tags,
   untilPolicy: UntilPolicy,

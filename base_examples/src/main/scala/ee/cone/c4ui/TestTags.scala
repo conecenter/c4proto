@@ -52,11 +52,11 @@ case class ContainerLeftRight() extends ElementValue {
   }
 }
 
-@c4("TestTagsApp") class TestTagsProvider(factory: TestTagsFactory) {
+@c4("TestTagsApp") final class TestTagsProvider(factory: TestTagsFactory) {
   @provide def testTags: Seq[TestTags[Context]] = List(factory.create[Context]())
 }
 
-@c4multi("TestTagsApp") class TestTags[State]()(
+@c4multi("TestTagsApp") final class TestTags[State]()(
   child: ChildPairFactory, inputAttributes: TagJsonUtils, tags: Tags
 ) {
   def messageStrBody(o: VDomMessage): String =

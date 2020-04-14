@@ -5,7 +5,7 @@ import ee.cone.c4assemble.{IndexUtil, JoinKey, ReadModelUtil}
 import ee.cone.c4assemble.Types.Index
 import ee.cone.c4di.c4
 
-@c4("DefaultMetricsApp") class RichWorldMetricsFactory(readModelUtil: ReadModelUtil, indexUtil: IndexUtil) extends MetricsFactory {
+@c4("DefaultMetricsApp") final class RichWorldMetricsFactory(readModelUtil: ReadModelUtil, indexUtil: IndexUtil) extends MetricsFactory {
   def measure(local: Context): List[Metric] =
     readModelUtil.toMap(local.assembled).toList.collect{
       case (worldKey: JoinKey, index: Index) if !worldKey.was && worldKey.keyAlias == "SrcId" =>
@@ -16,7 +16,7 @@ import ee.cone.c4di.c4
     }
 }
 
-@c4("DefaultMetricsApp") class RuntimeMemoryMetricsFactory extends MetricsFactory {
+@c4("DefaultMetricsApp") final class RuntimeMemoryMetricsFactory extends MetricsFactory {
   def measure(local: Context): List[Metric] = {
     val runtime = Runtime.getRuntime
     List(

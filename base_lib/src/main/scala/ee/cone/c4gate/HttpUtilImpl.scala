@@ -13,7 +13,7 @@ import okio.ByteString
 import scala.jdk.CollectionConverters.MapHasAsScala
 import scala.jdk.CollectionConverters.ListHasAsScala
 
-@c4("HttpUtilApp") class HttpUtilImpl extends HttpUtil with LazyLogging {
+@c4("HttpUtilApp") final class HttpUtilImpl extends HttpUtil with LazyLogging {
   private def withConnection[T](url: String): (HttpURLConnection => T) => T =
     FinallyClose[HttpURLConnection, T](_.disconnect())(
       new URL(url).openConnection().asInstanceOf[HttpURLConnection]

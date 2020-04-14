@@ -28,7 +28,7 @@ import scala.concurrent.{Await, Future}
     List(WithPK(LocalHttpConsumer(s"/manage/${actorName.value}")))
 }
 
-@c4multi("ManagementApp") case class ManageHttpPostTx(srcId: SrcId, request: S_HttpRequest)(indexUtil: IndexUtil, readModelUtil: ReadModelUtil, catchNonFatal: CatchNonFatal) extends TxTransform with LazyLogging {
+@c4multi("ManagementApp") final case class ManageHttpPostTx(srcId: SrcId, request: S_HttpRequest)(indexUtil: IndexUtil, readModelUtil: ReadModelUtil, catchNonFatal: CatchNonFatal) extends TxTransform with LazyLogging {
   private def indent(l: String) = s"  $l"
   private def valueLines(index: Index)(k: Any): List[String] =
     indexUtil.getValues(index,k,"").flatMap(v=>s"$v".split("\n")).map(indent).toList

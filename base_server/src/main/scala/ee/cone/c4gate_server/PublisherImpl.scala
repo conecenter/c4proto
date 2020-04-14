@@ -13,7 +13,7 @@ import ee.cone.c4di.{c4, c4multi, provide}
 import ee.cone.c4gate.ByPathHttpPublication
 import ee.cone.c4gate.HttpProtocol.{S_HttpPublicationV1, S_HttpPublicationV2, S_Manifest}
 
-@c4multi("AbstractHttpGatewayApp") case class PublicationPurgerTx(srcId: SrcId = "PublicationPurgerTx")(
+@c4multi("AbstractHttpGatewayApp") final case class PublicationPurgerTx(srcId: SrcId = "PublicationPurgerTx")(
   getS_Manifest: GetByPK[S_Manifest]
 ) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = {
@@ -38,7 +38,7 @@ import ee.cone.c4gate.HttpProtocol.{S_HttpPublicationV1, S_HttpPublicationV2, S_
   ): Values[(Alive, S_HttpPublicationV1)] = Nil
 }
 
-@c4("AbstractHttpGatewayApp") class PublisherAssembles(mortal: MortalFactory) {
+@c4("AbstractHttpGatewayApp") final class PublisherAssembles(mortal: MortalFactory) {
   @provide def subAssembles: Seq[Assemble] =
     List(mortal(classOf[S_HttpPublicationV1]), mortal(classOf[S_HttpPublicationV2]))
 }

@@ -5,7 +5,7 @@ import ee.cone.c4di.c4
 
 import scala.concurrent.{ExecutionContext, Future}
 
-@c4("AssembleApp") class IndexUpdaterImpl(readModelUtil: ReadModelUtil) extends IndexUpdater {
+@c4("AssembleApp") final class IndexUpdaterImpl(readModelUtil: ReadModelUtil) extends IndexUpdater {
   def setPart(worldKey: AssembledKey, update: Future[IndexUpdate], logTask: Boolean): WorldTransition=>WorldTransition = transition => {
     implicit val executionContext: ExecutionContext = transition.executionContext.value
     val diff = readModelUtil.updated(worldKey,update.map(_.diff))(transition.diff)
@@ -19,7 +19,7 @@ import scala.concurrent.{ExecutionContext, Future}
   }
 }
 
-@c4("AssembleApp") class ReadModelUtilImpl(indexUtil: IndexUtil) extends ReadModelUtil {
+@c4("AssembleApp") final class ReadModelUtilImpl(indexUtil: IndexUtil) extends ReadModelUtil {
   def create(inner: MMap): ReadModel =
     new ReadModelImpl(inner)
   def updated(worldKey: AssembledKey, value: Future[Index]): ReadModel=>ReadModel = {

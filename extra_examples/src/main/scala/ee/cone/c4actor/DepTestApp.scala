@@ -60,7 +60,7 @@ case class TestTransform(srcId: SrcId, access: Any) extends TxTransform {
   def transform(local: Context): Context = access.asInstanceOf[Access[D_ValueNode]].updatingLens.get.set(access.asInstanceOf[Access[D_ValueNode]].initialValue.copy(value = 666))(local)
 }
 
-@c4("DepTestApp") class DepTestStart(
+@c4("DepTestApp") final class DepTestStart(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory,
   getDepTestResponse: GetByPK[DepTestResponse],
   getDepUnresolvedRequest: GetByPK[DepUnresolvedRequest],
@@ -144,7 +144,7 @@ case class TestTransform(srcId: SrcId, access: Any) extends TxTransform {
 
   override def byClNameAllClasses: List[Class[_ <: Product]] = classOf[D_ValueNode] :: super.byClNameAllClasses
 
-  def depDraft: DepDraft = DepDraft(commonRequestUtilityFactory, askByPKFactory.forClass(classOf[D_ValueNode]), depAskFactory, byClassNameAllAsk, depFactory)
+  def depDraft: DepDraft = DepDraft(commonRequestUtilityFactory, askByPKFactory.forClass(classOf[D_ValueNode]), depAskFactory, resolveSingle(classOf[ByClassNameAllAsk]), depFactory)
 
   override def depHandlers: List[DepHandler] = {
     println(super.depHandlers.mkString("\n"))

@@ -1259,7 +1259,9 @@ push @tasks, ["history","$composes_txt",sub{
     my($comp)=@_;
     sy(&$ssh_add());
     my ($dir) = &$get_deployer_conf($comp,1,qw[dir]);
-    sy(&$remote($comp,"cat $dir/$comp.args"));
+    my $history = syf(&$remote($comp,"cat $dir/$comp.args"));
+    my %vars = $history=~/([\w\-\.\:\/]+)/g;
+    print "$history\n".join("",&$map(\%vars,sub{"[$_[0]=$_[1]]\n"}));
 }];
 my $get_comp_from_pod = sub{ $_[0]=~/^(.+)-\d+$/ ? "$1" : die "bad pod name" };
 push @tasks, ["bash","<pod> [container]",sub{ #<replica>

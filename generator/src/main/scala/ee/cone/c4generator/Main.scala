@@ -274,6 +274,18 @@ object Util {
 
   def toBinFileList(in: Iterable[(Path,List[String])]): List[(Path,Array[Byte])] =
     in.map{ case (path,lines) => path->lines.mkString("\n").getBytes(UTF_8) }.toList.sortBy(_._1)
+
+  def pathToId(fileName: String): String = {
+    val SName = """.+/([-\w]+)\.scala""".r
+    val SName(fName) = fileName
+    fName.replace('-', '_')
+  }
+
+
+  def assertFinal(cl: ParsedClass): Unit = {
+    assert(cl.mods.collect{ case mod"final" => true }.nonEmpty,s"${cl.name} should be final")
+  }
+
 }
 case class PkgInfo(pkgPath: Path, pkgName: String)
 class ParsedClass(

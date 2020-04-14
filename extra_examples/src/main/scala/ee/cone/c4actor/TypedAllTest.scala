@@ -10,7 +10,7 @@ import ee.cone.c4di.{c4, c4app}
 import ee.cone.c4proto.{Id, protocol}
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.TypedAllTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
-@c4("TypedAllTestApp") class TypedAllTestStart(
+@c4("TypedAllTestApp") final class TypedAllTestStart(
   execution: Execution,
   toUpdate: ToUpdate,
   contextFactory: ContextFactory,

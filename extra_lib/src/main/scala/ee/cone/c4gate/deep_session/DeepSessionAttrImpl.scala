@@ -9,7 +9,7 @@ import ee.cone.c4gate.deep_session.DeepSessionDataProtocol.{U_RawRoleData, U_Raw
 import ee.cone.c4proto.ToByteString
 import okio.ByteString
 
-@c4("DeepSessionAttrFactoryImplApp") class DeepSessionAttrAccessFactoryImpl(
+@c4("DeepSessionAttrFactoryImplApp") final class DeepSessionAttrAccessFactoryImpl(
   registry: QAdapterRegistry,
   modelFactory: ModelFactory,
   modelAccessFactory: RModelAccessFactory,
@@ -181,7 +181,7 @@ case class DeepRawSessionData[P <: Product](
   }
 }
 
-@c4multi("TxDeepRawDataLensApp") case class TxDeepRawDataLens[P <: Product](initialValue: DeepRawSessionData[P])(
+@c4multi("TxDeepRawDataLensApp") final case class TxDeepRawDataLens[P <: Product](initialValue: DeepRawSessionData[P])(
   dataByPK: GetByPK[U_RawSessionData],
   userByPK: GetByPK[U_RawUserData],
   roleByPK: GetByPK[U_RawRoleData],

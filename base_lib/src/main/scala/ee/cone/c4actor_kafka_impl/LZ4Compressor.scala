@@ -7,7 +7,7 @@ import okio.{Buffer, ByteString}
 
 import scala.annotation.tailrec
 
-@c4("LZ4DeCompressorApp")
+@c4("LZ4DeCompressorApp") final 
 case class LZ4DeCompressor() extends DeCompressor {
   def name: String = "lz4"
   @tailrec
@@ -29,7 +29,7 @@ case class LZ4DeCompressor() extends DeCompressor {
     }
 }
 
-@c4("LZ4RawCompressorApp")
+@c4("LZ4RawCompressorApp") final 
 case class LZ4RawCompressor() extends RawCompressor {
   def name: String = "lz4"
   def compress(data: Array[Byte]): Array[Byte] =

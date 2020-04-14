@@ -13,7 +13,7 @@ object NoStreamCompressorFactory extends StreamCompressorFactory {
   def create(): Option[Compressor] = None
 }
 
-@c4("ProtoApp") case class DeCompressorRegistryImpl(
+@c4("ProtoApp") final case class DeCompressorRegistryImpl(
   compressors: List[DeCompressor],
   innerMultiDeCompressorFactory: InnerMultiDeCompressorFactory
 )(
@@ -33,7 +33,7 @@ class WrapMultiDeCompressor(compressor: DeCompressor) extends MultiDeCompressor 
     List(Future(compressor.deCompress(data)))
 }
 
-@c4multi("ProtoApp") class InnerMultiDeCompressor(
+@c4multi("ProtoApp") final class InnerMultiDeCompressor(
   byName: Map[String, DeCompressor]
 )(
   compressedUpdatesAdapter: ProtoAdapter[N_CompressedUpdates],
@@ -46,7 +46,7 @@ class WrapMultiDeCompressor(compressor: DeCompressor) extends MultiDeCompressor 
   }
 }
 
-@c4("ProtoApp") class InnerMultiRawCompressorProvider(
+@c4("ProtoApp") final class InnerMultiRawCompressorProvider(
   compressor: Option[RawCompressor],
   innerMultiRawCompressorFactory: InnerMultiRawCompressorFactory
 ) {
@@ -54,7 +54,7 @@ class WrapMultiDeCompressor(compressor: DeCompressor) extends MultiDeCompressor 
     compressor.map(innerMultiRawCompressorFactory.create).toSeq
 }
 
-@c4multi("ProtoApp") class InnerMultiRawCompressor(
+@c4multi("ProtoApp") final class InnerMultiRawCompressor(
   compressor: RawCompressor
 )(
   compressedUpdatesAdapter: ProtoAdapter[N_CompressedUpdates]
@@ -77,7 +77,7 @@ class WrapMultiDeCompressor(compressor: DeCompressor) extends MultiDeCompressor 
 
 ////
 
-@c4("ServerCompApp")
+@c4("ServerCompApp") final 
 case class GzipFullDeCompressor() extends DeCompressor {
   def name: String = "gzip"
 
@@ -108,7 +108,7 @@ case class GzipFullCompressor() extends Compressor {
     }
 }
 
-@c4("GzipRawCompressorApp")
+@c4("GzipRawCompressorApp") final 
 case class GzipFullRawCompressor() extends RawCompressor {
   def name: String = "gzip"
   def compress(body: Array[Byte]): Array[Byte] =

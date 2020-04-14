@@ -22,7 +22,7 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 //decode(new ProtoReader(new okio.Buffer().write(bytes)))
 //
 
-@c4("ProtoApp") class UpdateFlagsCheck(
+@c4("ProtoApp") final class UpdateFlagsCheck(
   val updateFlags: List[UpdateFlag]
 )(
   val flagsOk: Boolean = {
@@ -35,7 +35,7 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 
 class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
 
-@c4("ServerCompApp") class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender], flagsCheck: UpdateFlagsCheck) extends QMessages with LazyLogging {
+@c4("ServerCompApp") final class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender], flagsCheck: UpdateFlagsCheck) extends QMessages with LazyLogging {
   assert(flagsCheck.flagsOk, s"Some of the flags are incorrect: ${flagsCheck.updateFlags}")
   //import qAdapterRegistry._
   // .map(o=> nTx.setLocal(OffsetWorldKey, o+1))
@@ -54,17 +54,17 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq
   }
 }
 
-@c4("RichDataCompApp") class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(50000000L)
+@c4("RichDataCompApp") final class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(50000000L)
 
-@c4("ProtoApp") class FillTxIdUpdateFlag extends UpdateFlag {
+@c4("ProtoApp") final class FillTxIdUpdateFlag extends UpdateFlag {
   val flagValue: Long = 1L
 }
 
-@c4("ProtoApp") class ArchiveUpdateFlag extends UpdateFlag {
+@c4("ProtoApp") final class ArchiveUpdateFlag extends UpdateFlag {
   val flagValue: Long = 2L
 }
 
-@c4("ProtoApp") class ToUpdateImpl(
+@c4("ProtoApp") final class ToUpdateImpl(
   qAdapterRegistry: QAdapterRegistry,
   deCompressorRegistry: DeCompressorRegistry,
   compressorOpt: Option[MultiRawCompressor],

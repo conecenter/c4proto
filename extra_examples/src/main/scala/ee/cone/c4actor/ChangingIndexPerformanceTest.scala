@@ -127,7 +127,7 @@ case class ResultNodeFromList(srcId: SrcId, modelsSize: Int, result: String)
     List(WithPK(ResultNodeFromList(instr.srcId, list.list.size, list.list.groupBy(_.head).keys.toString)))
 }
 
-@c4("ChangingIndexPerformanceTestApp") class ChangingIndexPerformanceTest(
+@c4("ChangingIndexPerformanceTestApp") final class ChangingIndexPerformanceTest(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory,
   getResultNode: GetByPK[ResultNode],
   getResultNodeFromList: GetByPK[ResultNodeFromList],

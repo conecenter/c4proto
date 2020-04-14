@@ -27,11 +27,11 @@ trait PongRegistry {
   def pongs: TrieMap[String,Instant]
 }
 
-@c4("SSEServerApp") class PongRegistryImpl(val pongs: TrieMap[String,Instant] = TrieMap()) extends PongRegistry with ToInject {
+@c4("SSEServerApp") final class PongRegistryImpl(val pongs: TrieMap[String,Instant] = TrieMap()) extends PongRegistry with ToInject {
   def toInject: List[Injectable] = LastPongKey.set(pongs.get)
 }
 
-@c4("SSEServerApp") class PongHandler(
+@c4("SSEServerApp") final class PongHandler(
   sseConfig: SSEConfig, pongRegistry: PongRegistry,
   httpResponseFactory: RHttpResponseFactory,
   updateIfChanged: UpdateIfChanged,
@@ -152,7 +152,7 @@ case class SessionTxTransform( //?todo session/pongs purge
   }
 }
 
-@c4("SSEServerApp") class SSEAssembles(mortal: MortalFactory) {
+@c4("SSEServerApp") final class SSEAssembles(mortal: MortalFactory) {
   @provide def subAssembles: Seq[Assemble] =
     mortal(classOf[U_FromAlienState]) :: mortal(classOf[U_FromAlienStatus]) :: mortal(classOf[U_ToAlienWrite]) :: Nil
 }
@@ -208,7 +208,7 @@ case class SessionTxTransform( //?todo session/pongs purge
 
 case class Availability(path: String, until: Long)
 
-@c4("NoProxySSEConfigApp") case class NoProxySSEConfig()(config: Config) extends SSEConfig {
+@c4("NoProxySSEConfigApp") final case class NoProxySSEConfig()(config: Config) extends SSEConfig {
   def stateRefreshPeriodSeconds: Int = config.get("C4STATE_REFRESH_SECONDS").toInt
   def allowOrigin: Option[String] = Option("*")
   def pongURL: String = "/pong"

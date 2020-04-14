@@ -56,7 +56,7 @@ case class AllTestRich(srcId: SrcId, twos: List[D_AllTestOrig2])
 
 }
 
-@c4("AllTestTestApp") class AllTestTest(
+@c4("AllTestTestApp") final class AllTestTest(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory,
   getAllTestRich: GetByPK[AllTestRich]
 ) extends Executable with LazyLogging {

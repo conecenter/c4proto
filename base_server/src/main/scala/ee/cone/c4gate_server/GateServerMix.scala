@@ -48,7 +48,7 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
   with WorldProviderApp
   with SkipWorldPartsApp
 
-@c4("AbstractHttpGatewayApp") class DefFHttpHandlerProvider(
+@c4("AbstractHttpGatewayApp") final class DefFHttpHandlerProvider(
   fHttpHandlerFactory: FHttpHandlerImplFactory,
   httpGetSnapshotHandler: HttpGetSnapshotHandler,
   getPublicationHttpHandler: GetPublicationHttpHandler,
@@ -79,7 +79,7 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
 
 //()//todo secure?
 
-@c4("SnapshotMakingApp") class DefSnapshotSavers(factory: SnapshotSaverImplFactory)
+@c4("SnapshotMakingApp") final class DefSnapshotSavers(factory: SnapshotSaverImplFactory)
   extends SnapshotSavers(factory.create("snapshots"), factory.create("snapshot_txs"))
 
 trait SnapshotMakingAppBase extends TaskSignerApp
@@ -93,7 +93,7 @@ trait SSEServerAppBase extends AlienProtocolApp
 
 
 
-@c4("SSEServerApp") class SSEServer(
+@c4("SSEServerApp") final class SSEServer(
   config: Config,
   sseConfig: SSEConfig
 )(

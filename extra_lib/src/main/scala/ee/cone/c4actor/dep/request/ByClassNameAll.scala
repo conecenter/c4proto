@@ -9,7 +9,7 @@ import ee.cone.c4assemble._
 import ee.cone.c4di.{Component, ComponentsApp, c4, provide}
 import ee.cone.c4proto.{Id, protocol}
 
-case class ByClassNameAllAskImpl(depFactory: DepFactory) extends ByClassNameAllAsk {
+@c4("ByClassNameRequestMix") final class ByClassNameAllAskImpl(depFactory: DepFactory) extends ByClassNameAllAsk {
   def askByClAll[A <: Product](cl: Class[A]): Dep[List[A]] = depFactory.uncheckedRequestDep[List[A]](N_ByClassNameAllRequest(cl.getName))
 }
 
@@ -17,9 +17,7 @@ trait ByClassNameAllAsk {
   def askByClAll[A <: Product](cl: Class[A]): Dep[List[A]]
 }
 
-trait ByClassNameRequestMix extends DepFactoryApp with ByClassNameRequestApp {
-  def byClassNameAllAsk: ByClassNameAllAsk = ByClassNameAllAskImpl(depFactory)
-}
+trait ByClassNameRequestMixBase extends ByClassNameRequestApp
 
 class ByClNameAllClass(val value: Class[_ <: Product])
 
@@ -28,13 +26,11 @@ trait ByClassNameRequestApp extends ComponentsApp {
   private lazy val byClNameAllClassesComponent = provide(classOf[ByClNameAllClass], ()=>byClNameAllClasses.map(new ByClNameAllClass(_)))
   override def components: List[Component] = byClNameAllClassesComponent :: super.components
   def byClNameAllClasses: List[Class[_ <: Product]] = Nil
-  //
-  def byClassNameAllAsk: ByClassNameAllAsk
 }
 
 trait ByClassNameAllRequestHandlerAppBase extends ByClassNameRequestApp
 
-@c4("ByClassNameAllRequestHandlerApp") class ByClassNameAllRequestHandlerAssembles(
+@c4("ByClassNameAllRequestHandlerApp") final class ByClassNameAllRequestHandlerAssembles(
   byClNameAllClasses: List[ByClNameAllClass],
   byClassNameAllRequestGenericHandlerFactory: ByClassNameAllRequestGenericHandlerFactory
 ) {

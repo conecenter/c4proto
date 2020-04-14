@@ -22,7 +22,7 @@ trait WithMurMur3HashGenAppBase extends ComponentProviderApp {
   def hashGen: HashGen = resolveSingle(classOf[HashGen])
 }
 
-@c4("WithMurMur3HashGenApp") class MurMur3HashGen extends HashGen {
+@c4("WithMurMur3HashGenApp") final class MurMur3HashGen extends HashGen {
   private val parser: PreHashingMurMur3 = PreHashingMurMur3()
 
   def generate[Model](m: Model): String = {

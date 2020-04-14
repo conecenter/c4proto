@@ -64,7 +64,7 @@ class TimeGenerator(protocolGenerator: ProtocolGenerator, metaGenerator: MetaGen
       GeneratedImport("import ee.cone.c4actor.AssembledContext") ::
       GeneratedImport("import ee.cone.c4actor.AssembledContext") ::
       GeneratedCode(
-        s"""@c4${if (traits.isEmpty) "" else traits.mkString("(", ", ", ")")} class ${name}CurrTimeConfig(val timeGetter: GetByPK[T_${name}]) extends TimeGetter(${name}) with CurrTimeConfig[T_${name}] {
+        s"""@c4${if (traits.isEmpty) "" else traits.mkString("(", ", ", ")")} final class ${name}CurrTimeConfig(val timeGetter: GetByPK[T_${name}]) extends TimeGetter(${name}) with CurrTimeConfig[T_${name}] {
            |  lazy val cl: Class[T_${name}] = classOf[T_${name}]
            |  lazy val default: T_${name} = T_${name}(currentTime.srcId, currentTime.refreshRateSeconds)
            |  lazy val set: Long => T_${name} => T_${name} = v => _.copy(millis = v)

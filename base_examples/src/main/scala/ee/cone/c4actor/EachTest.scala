@@ -49,7 +49,7 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
   } yield WithPK(EachTestItem(item,vItem))
 }
 
-@c4("EachTestApp") class EachTestExecutable(
+@c4("EachTestApp") final class EachTestExecutable(
   execution: Execution, contextFactory: ContextFactory, indexUtil: IndexUtil,
   items: GetByPK[D_Item], eachTestItems: GetByPK[EachTestItem]
 ) extends Executable with LazyLogging {

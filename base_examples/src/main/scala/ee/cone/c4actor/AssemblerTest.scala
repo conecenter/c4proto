@@ -49,7 +49,7 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: Valu
 
 }
 
-@c4("SimpleAssemblerTestApp") class AssemblerTest(
+@c4("SimpleAssemblerTestApp") final class AssemblerTest(
   toUpdate: ToUpdate,
   contextFactory: ContextFactory,
   execution: Execution,

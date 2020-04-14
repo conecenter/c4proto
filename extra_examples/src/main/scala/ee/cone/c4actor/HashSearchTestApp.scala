@@ -11,7 +11,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleApp
 import ee.cone.c4actor.hashsearch.condition.ConditionCheckWithCl
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{S_IndexByNode, S_IndexNode, S_IndexNodeSettings}
-import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexAssemble, ProductWithId}
+import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexAssemble, DynamicIndexModelsProvider, ProductWithId}
 import ee.cone.c4actor.hashsearch.rangers.IndexType.{Default, IndexType}
 import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryMix, RangerWithCl}
 import ee.cone.c4assemble.Types.{Each, Values}
@@ -20,7 +20,7 @@ import ee.cone.c4di.{c4, c4app}
 import ee.cone.c4proto.{GenLens, Id, protocol}
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.HashSearchExtraTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
-@c4("HashSearchExtraTestApp") class HashSearchExtraTestStart(
+@c4("HashSearchExtraTestApp") final class HashSearchExtraTestStart(
   execution: Execution,
   toUpdate: ToUpdate,
   contextFactory: ContextFactory,
@@ -293,7 +293,7 @@ trait TestCondition extends SerializationUtilsApp {
 
   //override def rawQSender: RawQSender = NoRawQSender
 
-  override def dynamicIndexAssembleDebugMode: Boolean = false
+  //override def dynamicIndexAssembleDebugMode: Boolean = false
 
   override def assembles: List[Assemble] = {
     println((new CreateRequest(conditions, changingCondition) :: /*joiners*/
@@ -305,12 +305,12 @@ trait TestCondition extends SerializationUtilsApp {
 
   lazy val assembleProfiler = NoAssembleProfiler //ConsoleAssembleProfiler //ValueAssembleProfiler2
 
-  override def dynIndexModels: List[ProductWithId[_ <: Product]] = ProductWithId(classOf[D_TestObject], 1) :: super.dynIndexModels
-
   def dynamicIndexRefreshRateSeconds: Long = 1L
 
-  override def dynamicIndexNodeDefaultSetting: S_IndexNodeSettings = S_IndexNodeSettings("", false, Some(100L))
+  //override def dynamicIndexNodeDefaultSetting: S_IndexNodeSettings = S_IndexNodeSettings("", false, Some(100L))
 }
+
+@c4("HashSearchExtraTestApp") final class TestDynamicIndexModelsProvider extends DynamicIndexModelsProvider(ProductWithId(classOf[D_TestObject], 1) :: Nil)
 
 /*
 object ValueAssembleProfiler2 extends AssembleProfiler {

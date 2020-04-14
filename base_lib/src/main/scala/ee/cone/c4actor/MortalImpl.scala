@@ -7,7 +7,7 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by, c4assemble, c4multiAssemble, distinct}
 import ee.cone.c4di.c4
 
-@c4("MortalFactoryCompApp") case class MortalFactoryImpl(factory: MortalAssembleFactory) extends MortalFactory {
+@c4("MortalFactoryCompApp") final case class MortalFactoryImpl(factory: MortalAssembleFactory) extends MortalFactory {
   def apply[P <: Product](cl: Class[P]): Assemble = factory.create(cl)
 }
 

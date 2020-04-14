@@ -32,7 +32,7 @@ trait CurrTimeConfig[Model <: T_Time] extends GeneralCurrTimeConfig {
   def timeGetter: GetByPK[Model]
 }
 
-@c4("GeneralCurrentTimeApp") class TimeGettersImpl(timeGetters: List[TimeGetter]) extends TimeGetters {
+@c4("GeneralCurrentTimeApp") final class TimeGettersImpl(timeGetters: List[TimeGetter]) extends TimeGetters {
   lazy val gettersMap: Map[SrcId, TimeGetter] = timeGetters.map(getter => getter.currentTime.srcId -> getter).toMap
   def apply(currentTime: CurrentTime): TimeGetter =
     gettersMap(currentTime.srcId)

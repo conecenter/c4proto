@@ -25,7 +25,7 @@ trait CommonRequestUtilityFactory {
   def askMockRole: Dep[MockRoleOpt]
 }
 
-@c4("CommonRequestUtilityCompApp") case class CommonRequestUtilityFactoryImpl(
+@c4("CommonRequestUtilityCompApp") final case class CommonRequestUtilityFactoryImpl(
   depAskFactory: DepAskFactory
 ) extends CommonRequestUtilityFactory {
   private lazy val contextAsk: DepAsk[N_ContextIdRequest, ContextId] = depAskFactory.forClasses(classOf[N_ContextIdRequest], classOf[ContextId])

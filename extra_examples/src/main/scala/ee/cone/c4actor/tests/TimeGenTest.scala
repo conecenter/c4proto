@@ -18,6 +18,6 @@ import ee.cone.c4di.c4
   ): Values[(SrcId, TxTransform)] = Nil
 }
 
-@c4 class TestTime(timeGetters: TimeGetters) {
+@c4 final class TestTime(timeGetters: TimeGetters) {
   val test: AssembledContext => Option[T_Time] = timeGetters(TestTestTime).ofA
 }

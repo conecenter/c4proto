@@ -5,7 +5,7 @@ import ee.cone.c4gate.AlienProtocol.U_FromAlienState
 import ee.cone.c4gate.HttpProtocol.S_HttpRequest
 import ee.cone.c4di.c4
 
-@c4("DumperApp") class Dumper(
+@c4("DumperApp") final class Dumper(
   snapshotMaker: SnapshotMaker,
   snapshotLoader: SnapshotLoader,
   richRawWorldReducer: RichRawWorldReducer,
