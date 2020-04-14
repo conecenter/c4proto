@@ -32,7 +32,7 @@ class MetaGenerator(statTransformers: List[ProtocolStatsTransformer]) extends Ge
     }
     if (result.nonEmpty)
       GeneratedImport("import ee.cone.c4actor.Types._") ::
-        GeneratedImport("import ee.cone.c4actor.{AbstractMetaAttr, OrigMeta, GeneralOrigMeta, FieldMeta}") ::
+        GeneratedImport("import ee.cone.c4actor.{AbstractMetaAttr, OrigMeta, GeneralOrigMeta, FieldMeta, FieldMetaImpl}") ::
         GeneratedImport("import ee.cone.c4proto.DataCategory") ::
         GeneratedImport("import ee.cone.c4di._") ::
         result
@@ -106,7 +106,7 @@ class MetaGenerator(statTransformers: List[ProtocolStatsTransformer]) extends Ge
           val Some(tpe) = tpeopt
           val fieldTypeKey = ComponentsGenerator.getTypeKey(tpe, None)
           import fieldAnnotations._
-          s"""    FieldMeta(
+          s"""    FieldMetaImpl(
              |      id = ${id.get},
              |      name = ${wrapAsString(propName)},
              |      shortName = $shortName,
@@ -120,7 +120,7 @@ class MetaGenerator(statTransformers: List[ProtocolStatsTransformer]) extends Ge
       import annotations._
         GeneratedCode(
           s"""$c4ann final class ${classDef.name}OrigMeta extends OrigMeta[${classDef.name}] {
-             |  val id: Option[TypeId] = $id
+             |  val id: Option[Long] = $id
              |  val categories: List[DataCategory] = ${getCat(classDef.name,id) ::: cats}.distinct
              |  val fieldsMeta: List[FieldMeta] = List(
              |${fieldsMeta.mkString(",\n")}

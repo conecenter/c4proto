@@ -7,19 +7,19 @@ trait MetaInformation {
   def shortName: Option[String]
   def typeKey: TypeKey
   def metaAttrs: List[AbstractMetaAttr]
-  def annotations: List[String] // Annotations other then @Id, @Meta, @ShortName
+  def annotations: List[String] // Annotations other than @Id, @Meta, @ShortName
 }
 
-case class FieldMeta(
-  id: FieldId,
-  name: String,
-  shortName: Option[String],
-  typeKey: TypeKey,
-  metaAttrs: List[AbstractMetaAttr],
-  annotations: List[String]
-) extends MetaInformation {
-  lazy val typeAlias: String = typeKey.fullAlias
-  lazy val metaProp: MetaProp = MetaProp(id.toInt, name, shortName, typeAlias, typeKey)
+trait FieldMeta extends MetaInformation {
+  def id: FieldId
+  def name: String
+  def shortName: Option[String]
+  def typeKey: TypeKey
+  def metaAttrs: List[AbstractMetaAttr]
+  def annotations: List[String]
+  def typeAlias: String
+  @deprecated("Deprecated, used for compatibility with HasId", "07/04/20")
+  def metaProp: MetaProp
 }
 
 trait GeneralOrigMeta extends MetaInformation with ProtoOrigMeta {
@@ -30,6 +30,7 @@ trait GeneralOrigMeta extends MetaInformation with ProtoOrigMeta {
   def field(id: FieldId): FieldMeta
   def inherits: List[TypeKey]
   def replaces: Option[TypeKey] // @replaceBy
+  @deprecated("Deprecated, used for compatibility with HasId", "07/04/20")
   lazy val metaProps: List[MetaProp] = fieldsMeta.map(_.metaProp)
 }
 

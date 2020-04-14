@@ -46,9 +46,9 @@ object CreateProdGetter {
 
 case class NameMetaAttr(value: String) extends AbstractMetaAttr
 
-case class IdMetaAttr(fieldId: FieldId) extends AbstractMetaAttr
+case class IdMetaAttr(fieldId: Long) extends AbstractMetaAttr
 
-case class OrigIdAttr(typeId: TypeId) extends AbstractMetaAttr
+case class OrigIdAttr(typeId: Long) extends AbstractMetaAttr
 
 case class FieldNameAttr(fieldName: String) extends AbstractMetaAttr
 

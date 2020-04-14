@@ -9,7 +9,7 @@ import okio.ByteString
 import collection.immutable.Seq
 import scala.annotation.StaticAnnotation
 
-case class Id(id: Int) extends StaticAnnotation
+case class Id(id: Long) extends StaticAnnotation
 
 case class ShortName(name: String) extends StaticAnnotation
 
