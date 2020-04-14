@@ -9,7 +9,7 @@ import okio.ByteString
 import collection.immutable.Seq
 import scala.annotation.StaticAnnotation
 
-case class Id(id: Int) extends StaticAnnotation
+case class Id(id: Long) extends StaticAnnotation
 
 case class ShortName(name: String) extends StaticAnnotation
 
@@ -20,14 +20,28 @@ class GenLens extends StaticAnnotation
 
 case class MetaProp(id: Int, propName: String, propShortName: Option[String], resultType: String, typeProp: TypeKey)
 
-trait HasId {
-  def id: Long
-  def hasId: Boolean
+trait ProtoOrigMeta {
+  def id: Option[Long]
   def categories: List[DataCategory]
-  def className: String
   def cl: Class[_]
   def shortName: Option[String]
-  def props: List[MetaProp]
+  def metaProps: List[MetaProp]
+}
+
+trait HasId {
+  def protoOrigMeta: ProtoOrigMeta
+  def id: Long = protoOrigMeta.id.getOrElse(throw new Exception("This orig has no Id"))
+  def hasId: Boolean = protoOrigMeta.id.nonEmpty
+  lazy val className: String = protoOrigMeta.cl.getName
+
+  @deprecated("Deprecated, use OrigMeta[Orig].categories", "07/04/20")
+  def categories: List[DataCategory] = protoOrigMeta.categories
+  @deprecated("Deprecated, use OrigMeta[Orig].cl", "07/04/20")
+  def cl: Class[_] = protoOrigMeta.cl
+  @deprecated("Deprecated, use OrigMeta[Orig].shortName", "07/04/20")
+  def shortName: Option[String] = protoOrigMeta.shortName
+  @deprecated("Deprecated, use OrigMeta[Orig].fieldsMeta", "07/04/20")
+  def props: List[MetaProp] = protoOrigMeta.metaProps
 }
 
 object ToByteString {

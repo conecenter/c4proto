@@ -19,7 +19,7 @@ object TimeJoinParamTransformer extends JoinParamTransformer {
   }
 }
 
-class TimeGenerator(protocolGenerator: ProtocolGenerator) extends Generator {
+class TimeGenerator(protocolGenerator: ProtocolGenerator, metaGenerator: MetaGenerator) extends Generator {
 
   def get(parseContext: ParseContext): List[Generated] =
     parseContext.stats.collect {
@@ -27,6 +27,12 @@ class TimeGenerator(protocolGenerator: ProtocolGenerator) extends Generator {
         val id :: rest = exprs.asInstanceOf[List[Stat]].map(_.syntax)
         val protocol = getProtocol(name.value, id, rest)
         getProtocolImports ::: (GeneratedCode(protocol) ::
+          metaGenerator.get(
+            new ParseContext(
+              protocol.parse[Stat].get :: Nil,
+              parseContext.path, parseContext.pkg
+            )
+          ) :::
           protocolGenerator.get(
             new ParseContext(
               protocol.parse[Stat].get :: Nil,
