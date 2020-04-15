@@ -27,9 +27,11 @@ export default function Feedback(sessionStorage,location,fetch,setTimeout){
     )
     function never(){ throw ["not ready"] }
     const send = (message,modify) => {
+        const getSessionKey = () => sessionStorage.getItem("sessionKey") || (message.allowNoSession?"":never())
+        const sentSessionKey = getSessionKey()
         const headers = {
             ...message.options.headers,
-            "x-r-session": sessionStorage.getItem("sessionKey") || (message.allowNoSession?"":never()),
+            "x-r-session": sentSessionKey,
             "x-r-index": nextMessageIndex++,
             "x-r-alien-date": Date.now()
         }
@@ -37,7 +39,7 @@ export default function Feedback(sessionStorage,location,fetch,setTimeout){
         const qKey = headers["x-r-branch"] || message.url
         const sender = senders[qKey] || (senders[qKey] = Sender(fetch,setTimeout))
         const onComplete = resp => {
-            if(resp.headers.has("x-r-set-session")){
+            if(resp.headers.has("x-r-set-session") && sentSessionKey === getSessionKey()){ // another sender can change global sessionKey during this request
                 const sessionKey = resp.headers.get("x-r-set-session")
                 sessionStorage.clear()
                 sessionStorage.setItem("sessionKey",sessionKey)
