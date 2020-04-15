@@ -3,7 +3,7 @@ package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ArgTypes._
-import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.Types.{ClName, FieldId, SrcId, TypeId}
 import ee.cone.c4assemble.Single
 import ee.cone.c4di.Types.ComponentFactory
 import ee.cone.c4di.{CreateTypeKey, TypeKey, c4, provide}
@@ -90,6 +90,9 @@ class OptionArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter
 @c4("ProtoApp") final class OKIOByteStringDefaultArgument extends DefaultArgument[okio.ByteString](ByteString.EMPTY)
 @c4("ProtoApp") final class StringDefaultArgument extends DefaultArgument[String]("")
 @c4("ProtoApp") final class SrcIdDefaultArgument extends DefaultArgument[SrcId]("")
+@c4("ProtoApp") final class TypeIdDefaultArgument extends DefaultArgument[TypeId](0L)
+@c4("ProtoApp") final class FieldIdDefaultArgument extends DefaultArgument[FieldId](0L)
+@c4("ProtoApp") final class ClNameDefaultArgument extends DefaultArgument[ClName]("")
 
 import com.squareup.wire.ProtoAdapter._
 
@@ -101,6 +104,8 @@ import com.squareup.wire.ProtoAdapter._
   @provide def getOKIOByteString: Seq[ProtoAdapter[okio.ByteString]] = List(BYTES)
   @provide def getString: Seq[ProtoAdapter[String]] = List(STRING)
   @provide def getSrcId: Seq[ProtoAdapter[SrcId]] = List(STRING)
+  @provide def getTypeId: Seq[ProtoAdapter[TypeId]] = List(SINT64.asInstanceOf[ProtoAdapter[Long]])
+  @provide def getFieldId: Seq[ProtoAdapter[FieldId]] = List(SINT64.asInstanceOf[ProtoAdapter[Long]])
 }
 
 /*
@@ -132,16 +137,7 @@ class QAdapterRegistryImpl(
 
 @c4("ProtoApp") final class ProductProtoAdapter(
   qAdapterRegistryD: DeferredSeq[QAdapterRegistry]
-) extends ProtoAdapter[Product](FieldEncoding.LENGTH_DELIMITED, classOf[Product]) with HasId {
-  def id: Long = throw new Exception
-  def hasId: Boolean = false
-  def className: String = classOf[Product].getName
-  def props: List[MetaProp] = Nil
-  //
-  def categories: List[DataCategory] = List(N_Cat)
-  def cl: Class[_] = classOf[Product]
-  def shortName: Option[String] = None
-  //
+) extends ProtoAdapter[Product](FieldEncoding.LENGTH_DELIMITED, classOf[Product]) {
   private lazy val qAdapterRegistry = Single(qAdapterRegistryD.value)
   def encodedSize(value: Product): Int = {
     val adapter = qAdapterRegistry.byName(value.getClass.getName)
