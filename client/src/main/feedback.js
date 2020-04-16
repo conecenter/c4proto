@@ -27,11 +27,9 @@ export default function Feedback(sessionStorage,location,fetch,setTimeout){
     )
     function never(){ throw ["not ready"] }
     const send = (message,modify) => {
-        const getSessionKey = () => sessionStorage.getItem("sessionKey") || (message.allowNoSession?"":never())
-        const sentSessionKey = getSessionKey()
         const headers = {
             ...message.options.headers,
-            "x-r-session": sentSessionKey,
+            "x-r-session": sessionStorage.getItem("sessionKey") || (message.allowNoSession?"":never()),
             "x-r-index": nextMessageIndex++,
             "x-r-alien-date": Date.now()
         }
@@ -39,10 +37,14 @@ export default function Feedback(sessionStorage,location,fetch,setTimeout){
         const qKey = headers["x-r-branch"] || message.url
         const sender = senders[qKey] || (senders[qKey] = Sender(fetch,setTimeout))
         const onComplete = resp => {
-            if(resp.headers.has("x-r-set-session") && sentSessionKey === getSessionKey()){ // another sender can change global sessionKey during this request
+            if(resp.headers.has("x-r-set-session")){
                 const sessionKey = resp.headers.get("x-r-set-session")
+                if(!sessionKey && sessionStorage.getItem("sessionAt")-0>Date.now()-3000) return resp.ok; //may be: another sender can change global sessionKey during this request; or new session was not found (there's no read-after-write here)
                 sessionStorage.clear()
-                sessionStorage.setItem("sessionKey",sessionKey)
+                if(sessionKey){
+                    sessionStorage.setItem("sessionKey",sessionKey)
+                    sessionStorage.setItem("sessionAt",Date.now())
+                }
                 modify("SESSION_SET",pong(true,modify))
             }
             return resp.ok
