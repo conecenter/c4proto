@@ -41,8 +41,12 @@ export default function Feedback(sessionStorage,location,fetch,setTimeout){
         const onComplete = resp => {
             if(resp.headers.has("x-r-set-session") && sentSessionKey === getSessionKey()){ // another sender can change global sessionKey during this request
                 const sessionKey = resp.headers.get("x-r-set-session")
+                if(!sessionKey && sessionStorage.getItem("sessionAt")-0>Date.now()-3000) return resp.ok; //may be: another sender can change global sessionKey during this request; or new session was not found (there's no read-after-write here)
                 sessionStorage.clear()
-                sessionStorage.setItem("sessionKey",sessionKey)
+                if(sessionKey){
+                    sessionStorage.setItem("sessionKey",sessionKey)
+                    sessionStorage.setItem("sessionAt",Date.now())
+                }
                 modify("SESSION_SET",pong(true,modify))
             }
             return resp.ok
