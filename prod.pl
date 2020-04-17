@@ -1377,7 +1377,7 @@ push @tasks, ["ci_inner_build","",sub{
     while(syf("ps -ef")=~/\bbloop\s+compile\b/){
         my $thread_print = syf("jcmd $pid Thread.print");
         $n = $thread_print=~/\bBloopHighLevelCompiler\b/ ? 0 : $n+1;
-        sy("kill $pid"), print($thread_print), die if $n > 75;
+        sy("kill $pid"), print($thread_print), die if $n > 15;
         sleep 1;
     }
     print "tracking compiler 1\n";
