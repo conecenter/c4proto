@@ -284,4 +284,10 @@ my @app_traits_will = &$gen_app_traits($src_dir,\@src_fns,[&$dep_conf("C4DEP")])
 print "generation finished\n";
 &$put_text(&$need_path("$src_dir/target/gen-ver"),time);
 
-sy("cd $_ && npm install") for grep{$_ && !-e "$_/node_modules"} &$to(&$dep_conf("C4CLIENT"));
+for my $path(grep{$_} &$to(&$dep_conf("C4CLIENT"))){
+    my $sum_key = &$get_sum($path);
+    my $sum_val = &$get_sum(&$get_text("$path/package.json"));
+    &$if_changed("$tmp/client-dep-sum.$sum_key", $sum_val, sub{
+        sy("cd $path && npm install");
+    });
+}
