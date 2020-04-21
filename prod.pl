@@ -1386,12 +1386,19 @@ push @tasks, ["ci_inner_build","",sub{
     &$close();
     print "tracking compiler 2\n";
 }];
+my $client_mode_to_opt = sub{
+    my($mode)=@_;
+    $mode eq "fast" ? "--env.fast=true --mode development" :
+    $mode eq "dev" ? "--mode development" :
+    "--mode production";
+};
 my $build_client = sub{
-    my($gen_dir, $mode)=@_;
+    my($gen_dir, $opt)=@_;
+    $gen_dir || die;
     my $dir = "$gen_dir/client";
     my $build_dir = "$dir/build/test";
     unlink or die $! for <$build_dir/*>;
-    sy("cd $dir && node_modules/webpack/bin/webpack.js $mode");# -d
+    sy("cd $dir && node_modules/webpack/bin/webpack.js $opt");# -d
     &$put_text("$build_dir/publish_time",time);
     &$put_text("$build_dir/c4gen.ht.links",join"",
         map{ my $u = m"^/(.+)$"?$1:die; "base_lib.ee.cone.c4gate /$u $u\n" }
@@ -1401,13 +1408,22 @@ my $build_client = sub{
     my $to_dir = "$gen_dir/htdocs";
     $build_dir eq readlink $to_dir or symlink $build_dir, $to_dir or die $!;
 };
+my $if_changed = sub{
+    my($path,$will,$then)=@_;
+    return if (-e $path) && syf("cat $path") eq $will;
+    &$then();
+    &$put_text($path,$will);
+};
 push @tasks, ["build_client","<dir> [mode]",sub{
     my($dir,$mode)=@_;
-    my $mode =
-        $mode eq "fast" ? "--env.fast=true --mode development" :
-        $mode eq "dev" ? "--mode development" :
-        "--mode production";
-    &$build_client(($dir||die), $mode);
+    &$build_client($dir, &$client_mode_to_opt($mode));
+}];
+push @tasks, ["build_client_changed","<dir> [mode]",sub{
+    my($dir,$mode)=@_;
+    $dir || die;
+    &$if_changed("$dir/.bloop/c4/client-sums-compiled",syf("cat $dir/.bloop/c4/client-sums"),sub{
+        &$build_client($dir, &$client_mode_to_opt($mode));
+    });
 }];
 push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();

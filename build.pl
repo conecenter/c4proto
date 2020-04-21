@@ -20,7 +20,7 @@ my $get_text = sub{
 };
 my $find_files = sub{
     my $from = join(" ", @_)||die;
-    my @res = syf("find $from -type f")=~/(.*)/g;
+    my @res = syf("find $from -type f")=~/(.+)/g;
     sort @res;
 };
 my $need_path = sub{
@@ -282,12 +282,19 @@ my @src_fns = &$find_files(map{"$src_dir/$_"}@src_dirs);
 my @app_traits_will = &$gen_app_traits($src_dir,\@src_fns,[&$dep_conf("C4DEP")]); #after scalameta
 &$apply_will($by,\@src_fns,"ft-c4gen-base",[@app_traits_will]);
 print "generation finished\n";
+do{
+    my @dirs = grep{$_} &$to(&$dep_conf("C4CLIENT"));
+    for my $path(@dirs){
+        my $sum_key = &$get_sum($path);
+        my $sum_val = &$get_sum(&$get_text("$path/package.json"));
+        &$if_changed("$tmp/client-dep-sum.$sum_key", $sum_val, sub{
+            sy("cd $path && npm install");
+        });
+    }
+    my $files = join " ", &$find_files(map{"$_/src"} @dirs), sort grep{-f $_} map{<$_/*>} @dirs;
+    sy("md5sum $files > $tmp/client-sums");
+};
 &$put_text(&$need_path("$src_dir/target/gen-ver"),time);
 
-for my $path(grep{$_} &$to(&$dep_conf("C4CLIENT"))){
-    my $sum_key = &$get_sum($path);
-    my $sum_val = &$get_sum(&$get_text("$path/package.json"));
-    &$if_changed("$tmp/client-dep-sum.$sum_key", $sum_val, sub{
-        sy("cd $path && npm install");
-    });
-}
+
+
