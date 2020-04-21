@@ -23,7 +23,8 @@ import ee.cone.c4di.c4
       //sk: seems to be: max > total > free
       Metric("runtime_mem_max", runtime.maxMemory),
       Metric("runtime_mem_total", runtime.totalMemory),
-      Metric("runtime_mem_free", runtime.freeMemory)
+      Metric("runtime_mem_free", runtime.freeMemory),
+      Metric("gate_api_version", 1L),
     )
   }
 }
