@@ -111,7 +111,7 @@ case class RelOuterReq(callerId: SrcId)
   execution: Execution, contextFactory: ContextFactory
 ) extends Executable {
   def run(): Unit = {
-    contextFactory.updated(Nil)
+    IgnoreTestContext(contextFactory.updated(Nil))
     execution.complete()
   }
 }

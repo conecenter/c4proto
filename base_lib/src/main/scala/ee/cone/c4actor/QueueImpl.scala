@@ -41,16 +41,19 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq
   // .map(o=> nTx.setLocal(OffsetWorldKey, o+1))
   def send[M<:Product](local: Context): Context = {
     val updates: List[N_Update] = WriteModelKey.of(local).toList
-    if(updates.isEmpty) return local
-    //println(s"sending: ${updates.size} ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
-    val (bytes, headers) = toUpdate.toBytes(updates)
-    val rec = new QRecordImpl(InboxTopicName(), bytes, headers)
-    val offset = Single(Single(getRawQSender.value).send(List(rec)))
-    logger.debug(s"${updates.size} updates was sent -- $offset")
-    Function.chain(Seq(
-      WriteModelKey.set(Queue.empty),
-      ReadAfterWriteOffsetKey.set(offset)
-    ))(local)
+    if(updates.isEmpty) local else {
+      //println(s"sending: ${updates.size} ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
+      val (bytes, headers) = toUpdate.toBytes(updates)
+      val rec = new QRecordImpl(InboxTopicName(), bytes, headers)
+      val offset = Single(Single(getRawQSender.value).send(List(rec)))
+      logger.debug(s"${updates.size} updates was sent -- $offset")
+      Function.chain(
+        Seq(
+          WriteModelKey.set(Queue.empty),
+          ReadAfterWriteOffsetKey.set(offset)
+        )
+      )(local)
+    }
   }
 }
 

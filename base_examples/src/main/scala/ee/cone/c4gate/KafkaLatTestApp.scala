@@ -2,6 +2,7 @@ package ee.cone.c4gate
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.{RawQSender, _}
+import ee.cone.c4assemble.Single
 import ee.cone.c4di.c4
 
 import scala.annotation.tailrec
@@ -16,8 +17,8 @@ class TestQRecordImpl(val topic: TopicName, val value: Array[Byte], val headers:
   @tailrec private def iteration(): Unit = {
     val updates = Nil //LEvent.update(S_Firstborn(actorName,offset)).toList.map(toUpdate.toUpdate)
     val (bytes, headers) = toUpdate.toBytes(updates)
-    rawQSender.send(List(new TestQRecordImpl(InboxTopicName(),bytes,headers)))
-    logger.info(s"pushed")
+    val offset = Single(rawQSender.send(List(new TestQRecordImpl(InboxTopicName(),bytes,headers))))
+    logger.info(s"pushed $offset")
     Thread.sleep(1000)
     iteration()
   }

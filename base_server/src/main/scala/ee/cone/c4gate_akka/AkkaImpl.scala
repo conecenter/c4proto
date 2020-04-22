@@ -21,12 +21,12 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.control.NonFatal
 
-@c4("AkkaMatApp") final class AkkaMatImpl(configs: List[AkkaConf], matPromise: Promise[ActorMaterializer] = Promise()) extends AkkaMat with Executable with Early {
+@c4("AkkaMatApp") final class AkkaMatImpl(configs: List[AkkaConf], execution: Execution, matPromise: Promise[ActorMaterializer] = Promise()) extends AkkaMat with Executable with Early {
   def get: Future[ActorMaterializer] = matPromise.future
   def run(): Unit = {
     val config = ConfigFactory.parseString(configs.map(_.content).sorted.mkString("\n"))
     val system = ActorSystem.create("default",config)
-    matPromise.success(ActorMaterializer.create(system))
+    execution.success(matPromise, ActorMaterializer.create(system))
   }
 }
 

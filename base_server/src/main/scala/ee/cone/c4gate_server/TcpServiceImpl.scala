@@ -13,7 +13,7 @@ import ee.cone.c4actor._
 import scala.collection.concurrent.TrieMap
 import scala.collection.immutable.Queue
 
-class ChannelHandler(
+@SuppressWarnings(Array("org.wartremover.warts.Var")) class ChannelHandler(
   channel: AsynchronousSocketChannel, unregister: ()=>Unit, fail: Throwable=>Unit,
   executor: ScheduledExecutorService, timeout: Long, val compressor: Option[Compressor]
 ) extends CompletionHandler[Integer,Unit] with SenderToAgent {
@@ -69,12 +69,12 @@ class TcpServerImpl(
         listener.accept[Unit]((), this)
         val key = UUID.randomUUID.toString
         val sender = new ChannelHandler(ch, {() =>
-          channels -= key
+          assert(channels.remove(key).nonEmpty)
           tcpHandler.afterDisconnect(key)
         }, { error =>
           logger.error("channel",error)
         }, executor, timeout, compressorFactory.create())
-        channels += key -> sender
+        assert(channels.put(key,sender).isEmpty)
         tcpHandler.afterConnect(key, sender)
       }
       def failed(exc: Throwable, att: Unit): Unit = logger.error("tcp",exc) //! may be set status-finished

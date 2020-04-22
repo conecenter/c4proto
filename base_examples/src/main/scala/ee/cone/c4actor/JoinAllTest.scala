@@ -38,7 +38,7 @@ case class JoinAllTestItem(srcId: String)
   def run(): Unit = {
     val voidContext = contextFactory.updated(Nil)
 
-    Function.chain[Context](Seq(
+    IgnoreTestContext(Function.chain[Context](Seq(
       l => {
         println("will be recalc [12]-[ab] (4)")
         TxAdd(
@@ -60,7 +60,7 @@ case class JoinAllTestItem(srcId: String)
         assert(getJoinAllTestItem.ofA(l).keys.size == 9)
         l
       }
-    ))(voidContext)
+    ))(voidContext))
     execution.complete()
   }
 }

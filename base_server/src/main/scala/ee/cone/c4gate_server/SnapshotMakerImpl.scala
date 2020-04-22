@@ -77,9 +77,12 @@ import ee.cone.c4gate_server.Time._
 
 case object DeferPeriodicSnapshotUntilKey extends TransientLens[Long](0L)
 
-case class PeriodicSnapshotMakingTx(srcId: SrcId)(snapshotMaking: SnapshotMaker, maxTime: SnapshotMakerMaxTime) extends TxTransform {
+case class PeriodicSnapshotMakingTx(srcId: SrcId)(snapshotMaking: SnapshotMaker, maxTime: SnapshotMakerMaxTime) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = if(DeferPeriodicSnapshotUntilKey.of(local) < now){
-    if(maxTime.maxTime + hour < now) snapshotMaking.make(NextSnapshotTask(None))
+    if(maxTime.maxTime + hour < now){
+      val rawSnapshots = snapshotMaking.make(NextSnapshotTask(None))
+      rawSnapshots.foreach(s=>logger.debug(s"periodic snapshot created: ${s.relativePath}"))
+    }
     DeferPeriodicSnapshotUntilKey.set(now+minute)(local)
   } else local
 }
@@ -279,11 +282,12 @@ trait SnapshotMTime {
 }
 
 @c4("FileRawSnapshotSaverApp") final class FileRawSnapshotSaver(baseDir: DataDir) extends RawSnapshotSaver with LazyLogging {
+  private def ignoreTheSamePath(path: Path): Unit = ()
   def save(snapshot: RawSnapshot, data: Array[Byte]): Unit = {
     val path: Path = Paths.get(baseDir.value).resolve(snapshot.relativePath)
-    Files.createDirectories(path.getParent)
+    ignoreTheSamePath(Files.createDirectories(path.getParent))
     logger.debug(s"Writing snapshot...")
-    Files.write(path, data)
+    ignoreTheSamePath(Files.write(path, data))
     logger.debug(s"Writing snapshot done")
   }
 }

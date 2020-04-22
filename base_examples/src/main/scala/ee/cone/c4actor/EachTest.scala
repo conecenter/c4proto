@@ -56,14 +56,14 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
   def run(): Unit = {
     val voidContext = contextFactory.updated(Nil)
 
-    Function.chain[Context](Seq(
+    IgnoreTestContext(Function.chain[Context](Seq(
       TxAdd(LEvent.update(D_Item("1","2"))),
       TxAdd(LEvent.update(D_Item("1","3"))),
       l => {
         assert(items.ofA(l)("1").parent=="3","last stored item wins")
         l
       }
-    ))(voidContext)
+    ))(voidContext))
 
     assert(emptyIndex==indexUtil.mergeIndex(Seq(
       indexUtil.result("1",D_Item("1","2"),-1),
@@ -82,7 +82,7 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
       res
     }
 
-    Function.chain[Context](Seq(
+    IgnoreTestContext(Function.chain[Context](Seq(
       TxAdd(LEvent.update(D_Item(s"V",""))),
       l => measure(Function.chain[Context](
         (1 to 3000).map(n=>TxAdd(LEvent.update(D_Item(s"$n","V"))))
@@ -93,7 +93,7 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
         assert(r.values.forall(_.valueItem.parent.isEmpty))
         l
       }
-    ))(voidContext)
+    ))(voidContext))
 
     execution.complete()
   }

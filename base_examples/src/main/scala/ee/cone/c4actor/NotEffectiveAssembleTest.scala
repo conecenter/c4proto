@@ -25,11 +25,11 @@ object Measure {
     val local = contextFactory.updated(Nil)
 
     Measure { () =>
-      chain(nodes.map(update).map(TxAdd(_)))(local)
+      IgnoreTestContext(chain(nodes.map(update).map(TxAdd(_)))(local))
     }.foreach(t => logger.info(s"bad join with many add-s takes $t ms"))
 
     Measure { () =>
-      chain(List(TxAdd(nodes.flatMap(update))))(local)
+      IgnoreTestContext(chain(List(TxAdd(nodes.flatMap(update))))(local))
     }.foreach(t => logger.info(s"bad join with single add takes $t ms"))
     execution.complete()
   }

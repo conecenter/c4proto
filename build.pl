@@ -73,11 +73,15 @@ my $calc_bloop_conf = sub{
     my @resolved = @{$$coursier_out{dependencies}||die};
     my %resolved_by_name = map{($$_{coord}=>$_)} grep{$_||die} @resolved;
     my %scala_jars = map{m"/scala-(\w+)-[^/]*\.jar$"?("$1"=>$_):()} map{$$_{file}} @resolved;
+    my $wartremover = &$single(grep{m{/wartremover/}} map{$$_{file}} @resolved);
     my $scala = {
         "organization" => "org.scala-lang",
         "name" => "scala-compiler",
         "version" => "2.13.1",
-        "options" => [],
+        "options" => [
+            &$distinct(map{"-P:wartremover:traverser:$_"}&$to(&$dep_conf("C4WART"))),
+            "-Xplugin:$wartremover",
+        ],
         "jars" => [grep{$_||die}@scala_jars{qw[library compiler reflect]}],
     };
     my %external_to_jars = map{ my $d = $_;
@@ -295,6 +299,3 @@ do{
     sy("md5sum $files > $tmp/client-sums");
 };
 &$put_text(&$need_path("$src_dir/target/gen-ver"),time);
-
-
-

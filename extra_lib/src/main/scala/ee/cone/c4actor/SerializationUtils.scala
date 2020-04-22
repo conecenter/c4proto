@@ -41,7 +41,7 @@ trait SerializationUtilsMixBase extends SerializationUtilsApp with ComponentProv
             val names = c.metaList.collect { case NameMetaAttr(name) => name }
             hashGen.generate(modelCl.getName :: byHash ::: names)
           case None =>
-            PrintColored("r")(s"[Warning] NonSerializable condition by: ${rq.getClass}")
+            PrintColored.just("r")(s"[Warning] NonSerializable condition by: ${rq.getClass}")
             hashGen.generate(c.toString)
         }
       case c: Condition[_] =>

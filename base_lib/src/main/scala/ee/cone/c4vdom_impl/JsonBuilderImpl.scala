@@ -2,7 +2,7 @@ package ee.cone.c4vdom_impl
 
 import java.text.DecimalFormat
 
-import ee.cone.c4vdom.{MutableJsonBuilder, VDomValue}
+import ee.cone.c4vdom.{FinMutableJsonBuilder, MutableJsonBuilder, VDomValue}
 
 object JsonToStringImpl extends JsonToString {
   def apply(value: VDomValue): String = {
@@ -12,7 +12,17 @@ object JsonToStringImpl extends JsonToString {
   }
 }
 
-class JsonBuilderImpl(val result: StringBuilder = new StringBuilder) extends MutableJsonBuilder {
+class FinJsonBuilderImpl(outer: JsonBuilderImpl) extends FinMutableJsonBuilder {
+  def startArray(): Unit = outer.startArray()
+  def startObject(): Unit = outer.startObject()
+  def append(value: String): Unit = outer.appendStr(value)
+  def append(value: BigDecimal, decimalFormat: DecimalFormat): Unit = outer.append(value,decimalFormat)
+  def append(value: Boolean): Unit = outer.append(value)
+}
+
+@SuppressWarnings(Array("org.wartremover.warts.Var")) class JsonBuilderImpl(val result: StringBuilder = new StringBuilder) extends MutableJsonBuilder {
+  val just = new FinJsonBuilderImpl(this)
+
   private var checkStack: Long = 1L
   private var isOddStack: Long = 0L
   private var nonEmptyStack: Long = 0L
@@ -36,56 +46,57 @@ class JsonBuilderImpl(val result: StringBuilder = new StringBuilder) extends Mut
     isObjectStack >>>= 1
   }
 
+  private def ignoreTheSameBuilder(b: StringBuilder): Unit = ()
+
   private def startElement(): Unit =
-    if(is(nonEmptyStack)) result.append(if(objectNeedsValue) ':' else ',')
+    if(is(nonEmptyStack)) ignoreTheSameBuilder(result.append(if(objectNeedsValue) ':' else ','))
   private def endElement(): Unit = {
     nonEmptyStack |= 1L
     isOddStack ^= 1L
   }
 
-  private def start(isObjectFlag: Long, c: Char): MutableJsonBuilder = {
+  private def start(isObjectFlag: Long, c: Char): Unit = {
     startElement()
     push(isObjectFlag)
     //result.append('\n')
-    result.append(c)
-    this
+    ignoreTheSameBuilder(result.append(c))
   }
-  def startArray() = start(0L, '[')
-  def startObject() = start(1L, '{')
-  def end() = {
+  def startArray(): Unit = start(0L, '[')
+  def startObject(): Unit = start(1L, '{')
+  def end(): Unit = {
     if(objectNeedsValue) throw new Exception("objectNeedsValue")
-    result.append(if(is(isObjectStack)) '}' else ']')
+    ignoreTheSameBuilder(result.append(if(is(isObjectStack)) '}' else ']'))
     pop()
     endElement()
     if(objectNeedsValue) throw new Exception("objectNeedsKey")
-    this
   }
-  def append(value: String) = {
+  def append(value: String): FinMutableJsonBuilder = {
+    appendStr(value)
+    just
+  }
+  def appendStr(value: String): Unit = {
     startElement()
-    result.append('"')
+    ignoreTheSameBuilder(result.append('"'))
     var j = 0
     while(j < value.length){
       val c = value(j)
       if(c == '\\' || c == '"' ||  c < '\u0020')
-        result.append(if(c < '\u0010')"\\u000" else "\\u00").append(Integer.toHexString(c))
+        ignoreTheSameBuilder(result.append(if(c < '\u0010')"\\u000" else "\\u00").append(Integer.toHexString(c)))
       else
-        result.append(c)
+        ignoreTheSameBuilder(result.append(c))
       j += 1
     }
-    result.append('"')
+    ignoreTheSameBuilder(result.append('"'))
     endElement()
-    this
   }
-  def append(value: BigDecimal, decimalFormat: DecimalFormat) = {
+  def append(value: BigDecimal, decimalFormat: DecimalFormat): Unit = {
     startElement()
-    result.append(decimalFormat.format(value.bigDecimal))
+    ignoreTheSameBuilder(result.append(decimalFormat.format(value.bigDecimal)))
     endElement()
-    this
   }
-  def append(value: Boolean) = {
+  def append(value: Boolean): Unit = {
     startElement()
-    result.append(if(value) "true" else "false")
+    ignoreTheSameBuilder(result.append(if(value) "true" else "false"))
     endElement()
-    this
   }
 }

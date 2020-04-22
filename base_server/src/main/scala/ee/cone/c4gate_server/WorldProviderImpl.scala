@@ -63,25 +63,25 @@ case class WorldProviderTx(srcId: SrcId="WorldProviderTx")(receiverF: Future[Sta
   @provide def getWorldProvider: Seq[WorldProvider] =
     List(new WorldProviderImpl(qMessages,receiverFuture,None))
   def run(): Unit = execution.fatal { implicit ec =>
-    val receiverF = statefulReceiverFactory.create(List(new WorldProviderReceiverImpl(None,Nil,getOffset)))
-    receiverPromise.completeWith(receiverF)
+    val receiverF = statefulReceiverFactory.create(List(new WorldProviderReceiverImpl(None,Nil)(getOffset,execution)))
+    ignorePromise(receiverPromise.completeWith(receiverF))
     receiverF
   }
+  private def ignorePromise[T](value: Promise[T]): Unit = ()
 }
 
-class WorldProviderReceiverImpl(localOpt: Option[Context], waitList: List[WorldConsumerMessage], getOffset: GetOffset) extends Observer[WorldMessage] {
+class WorldProviderReceiverImpl(localOpt: Option[Context], waitList: List[WorldConsumerMessage])(getOffset: GetOffset, execution: Execution) extends Observer[WorldMessage] {
   def activate(message: WorldMessage): Observer[WorldMessage] = message match {
     case incoming: WorldProviderMessage =>
       val incomingOffset = getOffset.of(incoming.local)
       val(toHold,toResolve) = waitList.partition(sm=>sm.offsetOpt.exists(incomingOffset < _))
-
-      toResolve.foreach(_.promise.success(incoming.local))
-      new WorldProviderReceiverImpl(Option(incoming.local), toHold, getOffset)
+      toResolve.foreach(m=>execution.success(m.promise,incoming.local))
+      new WorldProviderReceiverImpl(Option(incoming.local), toHold)(getOffset,execution)
     case incoming: WorldConsumerMessage if incoming.offsetOpt.isEmpty && localOpt.nonEmpty =>
-      incoming.promise.success(localOpt.get)
+      execution.success(incoming.promise, localOpt.get)
       this
     case incoming: WorldConsumerMessage =>
-      new WorldProviderReceiverImpl(localOpt, incoming :: waitList, getOffset)
+      new WorldProviderReceiverImpl(localOpt, incoming :: waitList)(getOffset,execution)
   }
 }
 

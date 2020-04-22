@@ -46,8 +46,7 @@ trait Purger {
     for {
       path <- files.map(_.path).filterNot(keepPaths)
     } {
-      Files.deleteIfExists(path)
-      logger.info(s"removed $path")
+      if(Files.deleteIfExists(path)) logger.info(s"removed $path")
     }
     logger.debug("snapshots checked")
   }

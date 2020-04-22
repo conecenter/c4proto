@@ -13,13 +13,19 @@ trait VDomValue extends ToJson
 
 ////
 
-trait MutableJsonBuilder {
-  def startArray(): MutableJsonBuilder
-  def startObject(): MutableJsonBuilder
-  def end(): MutableJsonBuilder
-  def append(value: String): MutableJsonBuilder
-  def append(value: BigDecimal, decimalFormat: DecimalFormat): MutableJsonBuilder
-  def append(value: Boolean): MutableJsonBuilder
+trait MutableJsonBuilder extends AbstractMutableJsonBuilder {
+  def end(): Unit
+  def append(value: String): FinMutableJsonBuilder
+  def just: FinMutableJsonBuilder
+}
+trait FinMutableJsonBuilder extends AbstractMutableJsonBuilder {
+  def append(value: String): Unit
+}
+trait AbstractMutableJsonBuilder {
+  def startArray(): Unit
+  def startObject(): Unit
+  def append(value: BigDecimal, decimalFormat: DecimalFormat): Unit
+  def append(value: Boolean): Unit
 }
 
 ////

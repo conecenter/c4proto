@@ -19,7 +19,7 @@ object VMExecution {
     val thread = new Thread(new ShutdownRunnable(hint,f))
     Runtime.getRuntime.addShutdownHook(thread)
     () => try {
-      Runtime.getRuntime.removeShutdownHook(thread)
+      val ok = Runtime.getRuntime.removeShutdownHook(thread) // do we need to report?
     } catch {
       case e: IllegalStateException => ()
     }
@@ -40,6 +40,8 @@ object VMExecution {
     thread.setUncaughtExceptionHandler(new RUncaughtExceptionHandler(thread.getUncaughtExceptionHandler))
     thread
   }
+  def success[T](promise: Promise[T], value: T): Unit = ignorePromise(promise.success(value))
+  private def ignorePromise[T](value: Promise[T]): Unit = () //same promise?
 }
 
 class ShutdownRunnable(hint: String, f: () => Unit) extends Runnable with LazyLogging {
@@ -83,13 +85,14 @@ class RUncaughtExceptionHandler(inner: UncaughtExceptionHandler) extends Uncaugh
     logger.info(s"tracking ${toStart.size} services")
     toStart.foreach(f => fatal(Future(f.run())(_)))
   }
-  def fatal[T](future: ExecutionContext=>Future[T]): Unit = future(mainExecutionContext).recover{
+  private def ignoreRootFuture[T](value: Future[T]): Unit = ()
+  def fatal[T](future: ExecutionContext=>Future[T]): Unit = ignoreRootFuture(future(mainExecutionContext).recover{
     case NonFatal(e) =>
       System.err.println(s"FATAL ${e.getMessage}")
       e.printStackTrace()
       System.exit(1)
       throw e
-  }(mainExecutionContext)
+  }(mainExecutionContext))
   def onShutdown(hint: String, f: () => Unit): ()=>Unit =
     VMExecution.onShutdown(hint,f)
   def complete(): Unit = { // exit from pooled thread will block itself
@@ -100,6 +103,8 @@ class RUncaughtExceptionHandler(inner: UncaughtExceptionHandler) extends Uncaugh
     new SkippingFutureImpl[T](Future.successful(value),Promise[Unit]())(mainExecutionContext)
   def newExecutorService(prefix: String, threadCount: Option[Int]): ExecutorService =
     VMExecution.newExecutorService(prefix,threadCount)
+  def success[T](promise: Promise[T], value: T): Unit =
+    VMExecution.success(promise,value)
 }
 
 class SkippingFutureImpl[T](inner: Future[T], isNotLast: Promise[Unit])(implicit executionContext: ExecutionContext) extends SkippingFuture[T] with LazyLogging {
@@ -122,7 +127,7 @@ class SkippingFutureImpl[T](inner: Future[T], isNotLast: Promise[Unit])(implicit
     val nextFuture = inner.map(from =>
       if(nextIsNotLast.isCompleted) from else body(from)
     )
-    isNotLast.success(())
+    VMExecution.success(isNotLast,())
     new SkippingFutureImpl(nextFuture,nextIsNotLast)
   }
   def value: Option[Try[T]] = inner.value

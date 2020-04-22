@@ -10,18 +10,20 @@ object CanvasToJsonImpl extends CanvasToJson {
     new DecimalFormat("#0.##",symbols)
   }
   def appendPathJson(attrs: List[PathAttr], builder: MutableJsonBuilder): Unit =
-    PathToJsonImpl(attrs)(builder,createFormat()).buildJson()
+    new PathToJsonImpl(attrs)(builder,createFormat()).buildJson()
   def appendCanvasJson(attr: List[CanvasAttr], builder: MutableJsonBuilder): Unit = {
     builder.append("tp").append("Canvas")
     builder.append("ctx").append("ctx")
-    builder.append("content").startArray().append("rawMerge").end()
+    builder.append("content").startArray();{
+      builder.just.append("rawMerge")
+      builder.end()
+    }
 
     val decimalFormat = createFormat()
     //val builder = new JsonBuilderImpl()
     builder.append("width").append(100,decimalFormat) //map size
     builder.append("height").append(100,decimalFormat)
-    builder.append("options");{
-      builder.startObject()
+    builder.append("options").startObject();{
       builder.append("noOverlay").append(false)
       builder.end()
     }
@@ -33,7 +35,7 @@ object CanvasToJsonImpl extends CanvasToJson {
   }
 }
 
-case class PathToJsonImpl(attrs:List[PathAttr])(builder: MutableJsonBuilder, decimalFormat: DecimalFormat) {
+class PathToJsonImpl(attrs:List[PathAttr])(builder: MutableJsonBuilder, decimalFormat: DecimalFormat) {
   private def appendStyles(styles:List[BaseStyleCommand])(sf:BaseStyleCommand => Unit=_=>{}): Unit = {
     styles.foreach(applyStyle(sf))
     if(styles.exists(_.isInstanceOf[BaseFillStyle])) cmd("fill")
@@ -63,10 +65,10 @@ case class PathToJsonImpl(attrs:List[PathAttr])(builder: MutableJsonBuilder, dec
   }
   private def begin():Unit = builder.startArray()
   private def end():Unit = builder.end()
-  private def end(cmd:String):Unit = {builder.end();builder.append(cmd)}
+  private def end(cmd:String):Unit = {builder.end(); builder.just.append(cmd)}
   private def add(v: Boolean):Unit = builder.append(v)
   private def add(v: BigDecimal):Unit = builder.append(v, decimalFormat)
-  private def add(v: String):Unit = builder.append(v)
+  private def add(v: String):Unit = builder.just.append(v)
   private def add(x:BigDecimal,y:BigDecimal): Unit = { add(x); add(y) }
   private def cmd(v: String): Unit = { begin(); end(v) }
   private def cmd(n: BigDecimal, v: String): Unit = { begin(); add(n); end(v) }
@@ -83,15 +85,13 @@ case class PathToJsonImpl(attrs:List[PathAttr])(builder: MutableJsonBuilder, dec
     builder.startObject()
     builder.append("ctx").append("ctx")
     if(transforms.nonEmpty){
-      builder.append("commandsFinally"); {
-        builder.startArray()
+      builder.append("commandsFinally").startArray(); {
         cmd("setMainContext")
         cmd("restore")
         builder.end()
       }
     }
-    builder.append("commands"); {
-      builder.startArray();
+    builder.append("commands").startArray(); {
       {
         if(transforms.nonEmpty){
           cmd("setMainContext")

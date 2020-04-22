@@ -52,8 +52,9 @@ class ProgressObserverImpl(inner: Observer[RichContext], endOffset: NextOffset, 
 }
 
 class ReadyObserverImpl(inner: Observer[RichContext], path: Path, until: Long=0) extends Observer[RichContext] with LazyLogging {
+  private def ignoreTheSamePath(path: Path): Unit = ()
   def activate(rawWorld: RichContext): Observer[RichContext] = {
-    if(until == 0) Files.write(path.resolve("c4is-ready"),Array.empty[Byte])
+    if(until == 0) ignoreTheSamePath(Files.write(path.resolve("c4is-ready"),Array.empty[Byte]))
     val now = System.currentTimeMillis
     if(now < until) this
     else if(Files.exists(path.resolve("c4is-master"))) {
@@ -64,8 +65,8 @@ class ReadyObserverImpl(inner: Observer[RichContext], path: Path, until: Long=0)
       new ReadyObserverImpl(inner, path, now+1000)
     }
   }
-}
 
+}
 
 @c4assemble("ServerCompApp") class BuildVerAssembleBase(config: ListConfig, execution: Execution){
   def join(

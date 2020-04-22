@@ -80,7 +80,7 @@ class RootGenerator(generators: List[Generator]) {
       (path,data) <- will if !java.util.Arrays.equals(data,was.getOrElse(path,Array.empty))
     } {
       println(s"saving $path")
-      Files.write(path,data)
+      Util.ignoreTheSamePath(Files.write(path,data))
     }
     //println(s"3:${System.currentTimeMillis()}")
   }
@@ -88,9 +88,8 @@ class RootGenerator(generators: List[Generator]) {
 
 class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
   def get(ctx: WillGeneratorContext): List[(Path,Array[Byte])] = {
-    val rootCachePath = rootPath.resolve("cache")
+    val rootCachePath = Files.createDirectories(rootPath.resolve("cache"))
     val fromPostfix = ".scala"
-    Files.createDirectories(rootCachePath)
     // 
     val list = Await.result({
       implicit val ec = scala.concurrent.ExecutionContext.global
@@ -198,7 +197,7 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
           "\n" +
           content
         val toData = contentWithLinks.getBytes(UTF_8)
-        Files.write(cachePath,toData)
+        Util.ignoreTheSamePath(Files.write(cachePath,toData))
         toData
       }
     }
@@ -286,6 +285,7 @@ object Util {
     assert(cl.mods.collect{ case mod"final" => true }.nonEmpty,s"${cl.name} should be final")
   }
 
+  def ignoreTheSamePath(path: Path): Unit = ()
 }
 case class PkgInfo(pkgPath: Path, pkgName: String)
 class ParsedClass(

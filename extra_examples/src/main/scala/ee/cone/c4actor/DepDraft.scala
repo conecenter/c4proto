@@ -66,7 +66,7 @@ case class DepDraft(factory: CommonRequestUtilityFactory, valueNode: AskByPK[D_V
     c <- valueNode.list("123")
     b <- askFoo("B")
   } yield {
-    PrintColored("b")(contextIdOpt)
+    PrintColored.just("b")(contextIdOpt)
     a + b + c.map(_.value).headOption.getOrElse(0)
   }
 

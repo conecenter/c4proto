@@ -10,12 +10,13 @@ import scala.annotation.tailrec
 @c4("LZ4DeCompressorApp") final 
 case class LZ4DeCompressor() extends DeCompressor {
   def name: String = "lz4"
+  private def ignoreTheSameBuffer(value: Buffer): Unit = ()
   @tailrec
   private def readAgain(in: LZ4BlockInputStream, sink: Buffer): Unit = {
     val size = in.available()
     val byteArray = new Array[Byte](size)
     if (in.read(byteArray) >= 0) {
-      sink.write(byteArray)
+      ignoreTheSameBuffer(sink.write(byteArray))
       readAgain(in, sink)
     }
   }

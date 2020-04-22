@@ -50,10 +50,10 @@ import scala.jdk.CollectionConverters.{IterableHasAsScala,MapHasAsJava,MapHasAsS
       // + in broker config: message.max.bytes
     )
     val serializer = new ByteArraySerializer
-    producer.complete(new KafkaProducer[Array[Byte], Array[Byte]](
+    assert(producer.complete(new KafkaProducer[Array[Byte], Array[Byte]](
       props.asJava, serializer, serializer
-    ))
-    execution.onShutdown("Producer",() => producer.get.close())
+    )))
+    val remove = execution.onShutdown("Producer",() => producer.get.close()) // we'll not remove hook
   }
 
   private def sendStart(rec: QRecord): java.util.concurrent.Future[RecordMetadata] = {

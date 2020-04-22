@@ -31,7 +31,7 @@ import org.apache.sshd.server.auth.pubkey.AcceptAllPublickeyAuthenticator
       val context = ref.get.get
       f(new Context(context.injected,context.assembled,context.executionContext,Map.empty)) match {
         case local: Context =>
-          qMessages.send(local)
+          val nLocal = qMessages.send(local)
           Nil
         case res: List[_] => res
       }

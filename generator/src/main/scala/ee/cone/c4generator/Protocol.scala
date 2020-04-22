@@ -101,7 +101,7 @@ $c4ann final class ${cl.name}ProtoAdapter(
         ).mkString
       })").mkString}
     case _ =>
-      reader.peekFieldEncoding.rawProtoAdapter.decode(reader)
+      val r = reader.peekFieldEncoding.rawProtoAdapter.decode(reader) //do we need to report r?
       decodeMore(reader${props.map(p => s", prep_${p.name}").mkString})
   }
   def decode(reader: ProtoReader): ${resultType} = {

@@ -12,8 +12,7 @@ object TagJsonUtilsImpl extends TagJsonUtils {
   }
   def appendStyles(builder: MutableJsonBuilder, styles: List[TagStyle]): Unit =
     if(styles.nonEmpty){
-      builder.append("style"); {
-        builder.startObject()
+      builder.append("style").startObject(); {
         styles.foreach(_.appendStyle(builder))
         builder.end()
       }

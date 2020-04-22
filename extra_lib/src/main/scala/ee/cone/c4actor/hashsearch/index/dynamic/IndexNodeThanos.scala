@@ -318,14 +318,14 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
     (indexNodes.toList, leafs.toList) match {
       case (Nil, leaf :: _) =>
         if (dynamicIndexAssembleDebugMode.value)
-          PrintColored("y")(s"[Thanos.Soul, $modelId] Created S_IndexNode for ${(leaf.by.getClass.getName, leaf.commonPrefix)},${(modelCl.getName, modelId)}")
+          PrintColored.just("y")(s"[Thanos.Soul, $modelId] Created S_IndexNode for ${(leaf.by.getClass.getName, leaf.commonPrefix)},${(modelCl.getName, modelId)}")
         val indexType: IndexType = getIndexType(leaf.byId)
         WithAll(SoulTransform(leaf.indexNodeId, modelId, leaf.byId, leaf.commonPrefix, dynamicIndexNodeDefaultSetting, indexType)) :: Nil
       case (indexNode :: Nil, leaf :: _) =>
         if (dynamicIndexAssembleDebugMode.value) {
           val x = indexNode
           val y = leaf
-          PrintColored("y")(s"[Thanos.Soul, $modelId] Both alive $x ${y.by}")
+          PrintColored.just("y")(s"[Thanos.Soul, $modelId] Both alive $x ${y.by}")
         }
         Nil
       case (_ :: Nil, Nil) =>
@@ -356,7 +356,7 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
     (innerLeafs.toList, indexByNodes.toList) match {
       case (leaf :: Nil, Nil) =>
         if (dynamicIndexAssembleDebugMode.value)
-          PrintColored("r")(s"[Thanos.Reality, $modelId] Created ByNode for ${leaf.preProcessed.by}")
+          PrintColored.just("r")(s"[Thanos.Reality, $modelId] Created ByNode for ${leaf.preProcessed.by}")
         WithAll(realityTransformFactory.create(leaf.preProcessed.leafId, leaf.preProcessed.indexNodeId, leaf.heapIds, leaf.preProcessed.by.toString, modelId, dynamicIndexAutoStaticLiveSeconds.value)) :: Nil
       case (Nil, node :: Nil) =>
         if (indexByNodesLastSeen.isEmpty)
@@ -365,7 +365,7 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
           Nil
       case (leaf :: Nil, node :: Nil) =>
         if (dynamicIndexAssembleDebugMode.value)
-          PrintColored("r")(s"[Thanos.Reality, $modelId] Both alive ${leaf.preProcessed.by}")
+          PrintColored.just("r")(s"[Thanos.Reality, $modelId] Both alive ${leaf.preProcessed.by}")
         if (indexByNodesLastSeen.nonEmpty)
           WithAll(RevertedMindTransform(leaf.leafId)) :: Nil
         else
@@ -395,14 +395,14 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
           (setting.isDefined && (setting.get.alwaysAlive || currentTime - setting.get.keepAliveSeconds.getOrElse(0L) - lastPong <= 0))
       val rich = IndexByNodeRich[Model](node.leafId, isAlive, node.indexByNode)
       if (dynamicIndexAssembleDebugMode.value)
-        PrintColored("b", "w")(s"[Thanos.Space, $modelId] Updated IndexByNodeRich ${(isAlive, currentTime, node.leafId, innerLeafs.headOption.map(_.preProcessed.by))}")
+        PrintColored.just("b", "w")(s"[Thanos.Space, $modelId] Updated IndexByNodeRich ${(isAlive, currentTime, node.leafId, innerLeafs.headOption.map(_.preProcessed.by))}")
       (rich.indexByNode.indexNodeId -> rich) :: Nil
     } else if (innerLeafs.size == 1) {
       val leaf = innerLeafs.head
       val stubIndexByNode = S_IndexByNode(leaf.leafId, leaf.preProcessed.indexNodeId, modelId, leaf.heapIds, leaf.preProcessed.by.toString)
       val rich = IndexByNodeRich[Model](leaf.leafId, isAlive = true, stubIndexByNode)
       if (dynamicIndexAssembleDebugMode.value)
-        PrintColored("b", "w")(s"[Thanos.Space, $modelId] Created from leaf IndexByNodeRich ${(leaf.leafId, innerLeafs.headOption.map(_.preProcessed.by))}")
+        PrintColored.just("b", "w")(s"[Thanos.Space, $modelId] Created from leaf IndexByNodeRich ${(leaf.leafId, innerLeafs.headOption.map(_.preProcessed.by))}")
       (rich.indexByNode.indexNodeId -> rich) :: Nil
     } else Nil
 
@@ -420,7 +420,7 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
       val directive = prepareDirective(directives)
       val rich = IndexNodeRich[Model](indexNode.indexNodeId, isStatic, indexNode.indexNode, indexByNodeRiches.toList, directive)
       if (dynamicIndexAssembleDebugMode.value)
-        PrintColored("b", "w")(s"[Thanos.Space, $modelId] Updated IndexNodeRich Dynamic${(isStatic, indexNode.indexNodeId, indexByNodeRiches.size)}")
+        PrintColored.just("b", "w")(s"[Thanos.Space, $modelId] Updated IndexNodeRich Dynamic${(isStatic, indexNode.indexNodeId, indexByNodeRiches.size)}")
       WithPK(rich) :: Nil
     } else {
       Nil
@@ -449,7 +449,7 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
       val directive = prepareDirective(directives)
       val rich = IndexNodeRich[Model](indexNode.indexNodeId, isAlive, indexNode.indexNode, Nil, directive)
       if (dynamicIndexAssembleDebugMode.value)
-        PrintColored("b", "w")(s"[Thanos.Space, $modelId] Updated IndexNodeRich Static ${(isAlive, indexNode.indexNodeId)}")
+        PrintColored.just("b", "w")(s"[Thanos.Space, $modelId] Updated IndexNodeRich Static ${(isAlive, indexNode.indexNodeId)}")
       WithPK(rich) :: Nil
     } else {
       Nil
@@ -467,7 +467,7 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
         if !child.isAlive
       } yield {
         if (dynamicIndexAssembleDebugMode.value)
-          PrintColored("m")(s"[Thanos.Power, $modelId] Deleted ${(child.indexByNode.leafId, child.indexByNode.byStr)}")
+          PrintColored.just("m")(s"[Thanos.Power, $modelId] Deleted ${(child.indexByNode.leafId, child.indexByNode.byStr)}")
         WithAll(PowerTransform(child.srcId, s"Power-${child.srcId}"))
       }
     else Nil

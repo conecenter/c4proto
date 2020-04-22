@@ -62,5 +62,24 @@
   ["C4DEP", "extra_examples.aggregate", "base_examples.ee.cone.c4ui" ],
   ["C4DEP", "extra_examples.aggregate", "extra_lib.ee.cone.c4ui" ],
   ["C4DEP", "extra_examples.aggregate", "extra_examples.ee.cone.c4actor" ],
-  ["C4DEP", "extra_examples.aggregate", "extra_examples.ee.cone.c4gate" ]
+  ["C4DEP", "extra_examples.aggregate", "extra_examples.ee.cone.c4gate" ],
+
+  ["C4WART", "#", "org.wartremover.warts.Var"],
+  ["C4WART", "#", "org.wartremover.warts.Return"],
+  ["C4WART", "#", "org.wartremover.warts.NonUnitStatements"],
+  "#org.wartremover.warts.Any explore,",
+  "#org.wartremover.warts.AsInstanceOf todo",
+  "#org.wartremover.warts.DefaultArguments no need?",
+  "#org.wartremover.warts.EitherProjectionPartial no need?",
+  "#org.wartremover.warts.IsInstanceOf todo",
+  "#org.wartremover.warts.Null todo",
+  "#org.wartremover.warts.OptionPartial todo",
+  "#org.wartremover.warts.Product explore",
+  "#org.wartremover.warts.Serializable explore",
+  "#org.wartremover.warts.StringPlusAny explore",
+  "#org.wartremover.warts.Throw no need?",
+  "#org.wartremover.warts.TraversableOps explore",
+  "#org.wartremover.warts.TryPartial todo",
+
+  "#"
 ]
