@@ -133,7 +133,7 @@ case object TreeAssemblerKey extends SharedComponentKey[Replace]
   }
 
   private def getAssembleOptions(assembled: ReadModel): AssembleOptions = {
-    val index = assembleOptionsOuterKey.of(assembled).value.get.get
+    val index = composes.getInstantly(assembleOptionsOuterKey.of(assembled))
     composes.getValues(index,assembleOptionsInnerKey,"").collectFirst{
       case o: AssembleOptions => o
     }.getOrElse(defaultAssembleOptions)
@@ -199,7 +199,7 @@ case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K
 
 @c4("RichDataCompApp") final class DynamicByPKImpl(indexUtil: IndexUtil) extends DynamicByPK {
   def get(joinKey: AssembledKey, context: AssembledContext): Map[SrcId,Product] = {
-    val index: Index = joinKey.of(context.assembled).value.get.get
+    val index: Index = indexUtil.getInstantly(joinKey.of(context.assembled))
     UniqueIndexMap(index)(indexUtil)
   }
 }

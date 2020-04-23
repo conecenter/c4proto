@@ -34,7 +34,7 @@ import scala.concurrent.{ExecutionContext, Future}
     case (_,_) =>  throw new Exception("ReadModel op")
   })
   def toMap: ReadModel=>Map[AssembledKey,Index] = {
-    case model: ReadModelImpl => model.inner.transform((k,f) => f.value.get.get)
+    case model: ReadModelImpl => model.inner.transform((k,f) => indexUtil.getInstantly(f)) // .getOrElse(throw new Exception(s"index failure: $k"))
   }
   def ready(implicit executionContext: ExecutionContext): ReadModel=>Future[ReadModel] = {
     case model: ReadModelImpl =>

@@ -223,10 +223,12 @@ trait SnapshotMakerMaxTime {
 @c4("SafeToRunApp") final class SafeToRun(snapshotMaker: SnapshotMakerMaxTime) extends Executable with Early {
   def run(): Unit = concurrent.blocking{
     Thread.sleep(10*minute)
-    while(true){
-      assert(now < snapshotMaker.maxTime + 3*hour)
-      Thread.sleep(hour)
-    }
+    iter()
+  }
+  @tailrec private def iter(): Unit = {
+    assert(now < snapshotMaker.maxTime + 3*hour)
+    Thread.sleep(hour)
+    iter()
   }
 }
 

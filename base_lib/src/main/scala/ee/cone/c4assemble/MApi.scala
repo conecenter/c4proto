@@ -27,6 +27,8 @@ trait IndexUtil extends Product {
   def preIndex(seq: Seq[Index]): Index
   def buildIndex(joinRes: Index): Index
   def keyIteration(seq: Seq[Index], executionContext: OuterExecutionContext): (Any=>Seq[Index])=>Future[Index]
+  //
+  def getInstantly(future: Future[Index]): Index
 }
 
 trait OuterExecutionContext {

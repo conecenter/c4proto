@@ -32,7 +32,8 @@ object VMExecution {
     }{ fixedThreadCount =>
       val defaultThreadFactory = ForkJoinPool.defaultForkJoinWorkerThreadFactory
       val threadFactory = new RForkJoinWorkerThreadFactory(defaultThreadFactory,prefix)
-      new ForkJoinPool(fixedThreadCount, threadFactory, null, false)
+      @SuppressWarnings(Array("org.wartremover.warts.Null")) val handler: UncaughtExceptionHandler = null
+      new ForkJoinPool(fixedThreadCount, threadFactory, handler, false)
     }
   }
   def setup[T<:Thread](prefix: String, thread: T): T = {

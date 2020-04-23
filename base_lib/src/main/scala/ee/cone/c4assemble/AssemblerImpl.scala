@@ -10,6 +10,7 @@ import ee.cone.c4di.{c4, c4multi}
 
 import scala.collection.immutable
 import scala.collection.immutable.{Map, Seq, TreeMap}
+import scala.util.{Failure, Success}
 //import scala.collection.parallel.immutable.ParVector
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -182,6 +183,8 @@ case class JoinKeyImpl(
     case p: PreIndex => mergeIndex(p.inner.map(buildIndex))
     case i => i
   }
+
+  @SuppressWarnings(Array("org.wartremover.warts.TryPartial")) def getInstantly(future: Future[Index]): Index = future.value.get.get
 }
 
 class PreIndex(val inner: Seq[Index], val size: Long) extends Index {
