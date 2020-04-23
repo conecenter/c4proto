@@ -157,7 +157,10 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
       println(s"parsing $path")
       val content = new String(fromData,UTF_8).replace("\r\n","\n")
       val source = dialects.Scala213(content).parse[Source]
-      val Parsed.Success(source"..$sourceStatements") = source
+      val sourceStatements = source match {
+        case Parsed.Success(source"..$sourceStatements") => sourceStatements
+        case Parsed.Error(position, string, ex) => throw new Exception(s"Parse exception in ($path:${position.startLine})", ex)
+      }
       val resStatements: List[Generated] = for {
         sourceStatement <- (sourceStatements:Seq[Stat]).toList
         q"package $n { ..$packageStatements }" = sourceStatement
