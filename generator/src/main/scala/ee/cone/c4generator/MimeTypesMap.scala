@@ -1,6 +1,11 @@
-package ee.cone.c4actor
+package ee.cone.c4generator
 
 object MimeTypesMap {
+
+  lazy val imageTypes: Map[String, String] = fullMimeTypesMap.filter{
+    case (_, value) => value.contains("image")
+  }
+
   lazy val fullMimeTypesMap: Map[String, String] =
     Map(
       "3dm" -> "x-world/x-3dmf",
