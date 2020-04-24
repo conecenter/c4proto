@@ -25,10 +25,11 @@ object Main {
       MultiGenerator,
       FieldAccessGenerator,
       AppGenerator,
-      ValInNonFinalGenerator,
     ) //,UnBaseGenerator
   }
-  def main(args: Array[String]): Unit = new RootGenerator(defaultGenerators(Nil)).run()
+  def main(args: Array[String]): Unit = new RootGenerator(defaultGenerators(Nil) ::: List(
+    ValInNonFinalGenerator,
+  )).run()
   def toPrefix = "c4gen."
   def env(key: String): Option[String] = Option(System.getenv(key))
   def version: String = s"-w${env("C4GENERATOR_VER").getOrElse(throw new Exception(s"missing env C4GENERATOR_VER"))}"
