@@ -24,7 +24,8 @@ object Main {
       protocolGenerator,
       MultiGenerator,
       FieldAccessGenerator,
-      AppGenerator
+      AppGenerator,
+      ValInNonFinalGenerator,
     ) //,UnBaseGenerator
   }
   def main(args: Array[String]): Unit = new RootGenerator(defaultGenerators(Nil)).run()
@@ -184,14 +185,14 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
         }
       } yield res;
       {
-        val warnings = Lint.process(sourceStatements)
+
         val code = resStatements.flatMap{
           case c: GeneratedImport => List(c.content)
           case c: GeneratedCode => List(c.content)
           case c: GeneratedAppLink => Nil
           case c => throw new Exception(s"$c")
         }
-        val content = (warnings ++ code).mkString("\n")
+        val content = code.mkString("\n")
         val contentWithLinks = if(content.isEmpty) "" else
           s"// THIS FILE IS GENERATED; APPLINKS: " +
           resStatements.collect{ case s: GeneratedAppLink =>
@@ -308,28 +309,6 @@ case class GeneratedCode(content: String) extends Generated
 case class GeneratedTraitDef(name: String) extends Generated
 case class GeneratedTraitUsage(name: String) extends Generated
 case class GeneratedAppLink(pkg: String, app: String, expr: String) extends Generated
-
-object Lint {
-  def process(stats: Seq[Stat]): Seq[String] =
-    stats.flatMap{ stat =>
-      stat.collect{
-        case q"..$mods class $tname[..$tparams] ..$ctorMods (...$paramss) extends $template"
-          if mods.collect{ case mod"abstract" => true }.nonEmpty =>
-          ("abstract class",tname,template)
-        case q"..$mods trait $tname[..$tparams] extends $template" =>
-          ("trait",tname,template)
-      }.flatMap{
-        case (tp,tName,template"{ ..$statsA } with ..$inits { $self => ..$statsB }") =>
-          if(statsA.nonEmpty) println(s"warn: early initializer in $tName")
-          statsB.collect{
-            case q"..$mods val ..$patsnel: $tpeopt = $expr"
-              if mods.collect{ case mod"lazy" => true }.isEmpty =>
-              s"/*\nwarn: val ${patsnel.mkString(" ")} in $tp $tName \n*/"
-          }
-        case _ => Nil
-      }
-    }
-}
 
 case class PublicPathRoot(mainPublicPath: Path, pkgName: String, genPath: Path, publicPath: Path)
 class PublicPathsGenerator extends WillGenerator {

@@ -61,7 +61,7 @@ trait CurrTimeConfig[Model <: T_Time] extends GeneralCurrTimeConfig {
     WithPK(GeneralCurrentTimeTransform(s"${firstborn.srcId}-general-time", timeSetting.toList, typed)) :: Nil
 }
 
-case class GeneralCurrentTimeTransform(
+final case class GeneralCurrentTimeTransform(
   srcId: SrcId, configs: List[S_CurrentTimeNodeSetting],
   currentTimes: List[CurrTimeConfig[_ <: T_Time]]
 ) extends TxTransform with LazyLogging {

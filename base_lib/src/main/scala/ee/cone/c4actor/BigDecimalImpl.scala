@@ -14,10 +14,10 @@ object BigDecimalFactory {
 
 trait BigDecimalProtocolAdd {
   type BigDecimal = scala.math.BigDecimal
-  val BigDecimalFactory = ee.cone.c4actor.BigDecimalFactory
+  // val BigDecimalFactory = ee.cone.c4actor.BigDecimalFactory
 }
 
 @protocol("BigDecimalApp") object BigDecimalProtocol extends BigDecimalProtocolAdd {
-  @replaceBy[BigDecimal](BigDecimalFactory)
+  @replaceBy[BigDecimal](ee.cone.c4actor.BigDecimalFactory)
   case class SysBigDecimal(@Id(0x0001) scale: Int, @Id(0x0002) bytes: okio.ByteString)
 }

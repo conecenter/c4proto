@@ -20,7 +20,7 @@ class FinJsonBuilderImpl(outer: JsonBuilderImpl) extends FinMutableJsonBuilder {
   def append(value: Boolean): Unit = outer.append(value)
 }
 
-@SuppressWarnings(Array("org.wartremover.warts.Var","org.wartremover.warts.While")) class JsonBuilderImpl(val result: StringBuilder = new StringBuilder) extends MutableJsonBuilder {
+@SuppressWarnings(Array("org.wartremover.warts.Var","org.wartremover.warts.While")) final class JsonBuilderImpl(val result: StringBuilder = new StringBuilder) extends MutableJsonBuilder {
   val just = new FinJsonBuilderImpl(this)
 
   private var checkStack: Long = 1L

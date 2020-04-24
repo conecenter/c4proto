@@ -10,7 +10,7 @@ object TestHash extends HashSearchIdGeneration {
 }
 
 trait HashSearchIdGeneration {
-  private val hashGen: HashGen = new MurMur3HashGen
+  private lazy val hashGen: HashGen = new MurMur3HashGen
 
   private lazy val commonPrefixUd = 0
 

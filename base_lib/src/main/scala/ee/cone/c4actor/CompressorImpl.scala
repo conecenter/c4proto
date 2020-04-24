@@ -122,11 +122,12 @@ case class GzipFullRawCompressor() extends RawCompressor {
 }
 
 
-class GzipStreamCompressor extends Compressor {
+class GzipStreamCompressor(
+  readSink: Buffer = new Buffer()
+)(
+  gzipSink: GzipSink = new GzipSink(readSink)
+) extends Compressor {
   def name: String = "gzip"
-
-  private val readSink = new Buffer()
-  private val gzipSink = new GzipSink(readSink)
 
   def compress(body: ByteString): ByteString = synchronized {
     gzipSink.write(new Buffer().write(body), body.size)
@@ -138,5 +139,5 @@ class GzipStreamCompressor extends Compressor {
 }
 
 class GzipStreamCompressorFactory extends StreamCompressorFactory {
-  def create(): Option[Compressor] = Option(new GzipStreamCompressor)
+  def create(): Option[Compressor] = Option(new GzipStreamCompressor()())
 }
