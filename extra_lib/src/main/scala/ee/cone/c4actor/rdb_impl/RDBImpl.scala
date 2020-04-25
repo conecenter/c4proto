@@ -95,7 +95,9 @@ trait  ToExternalDBItemAssembleUtil {
     itemToHasState(item)
 }
 
-@c4assemble("ToExternalDBSyncApp") class ToExternalDBTxAssembleBase(rDBTypes: RDBTypes) extends   LazyLogging{
+@c4assemble("ToExternalDBSyncApp") class ToExternalDBTxAssembleBase(
+  toExternalDBTxFactory: ToExternalDBTxFactory
+) extends   LazyLogging{
   type TypeHex = String
   def joinTasks(
     key: SrcId,
@@ -118,7 +120,7 @@ trait  ToExternalDBItemAssembleUtil {
   def join(
     key: SrcId,
     @by[TypeHex] tasks: Values[ToExternalDBTask]
-  ): Values[(SrcId,TxTransform)] = List(WithPK(ToExternalDBTx(key, tasks.toList)(rDBTypes)))
+  ): Values[(SrcId,TxTransform)] = List(WithPK(toExternalDBTxFactory.create(key, tasks.toList)))
 }
 
 case class ToExternalDBTask(
@@ -130,7 +132,10 @@ case class ToExternalDBTask(
 
 case object RDBSleepUntilKey extends TransientLens[Map[SrcId,(Instant,Option[B_HasState])]](Map.empty)
 
-case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(rDBTypes: RDBTypes) extends TxTransform with LazyLogging {
+@c4multi("ToExternalDBSyncApp") final case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(
+  rDBTypes: RDBTypes,
+  txAdd: LTxAdd,
+) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = {
     val now = Instant.now()
     tasks.find{ task =>
@@ -162,7 +167,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(rDBType
       )(local)
       else RDBSleepUntilKey.modify(m =>
         m - task.srcId
-      ).andThen(TxAdd(
+      ).andThen(txAdd.add(
         from.toList.flatMap(LEvent.delete) ++ to.toList.flatMap(LEvent.update)
       ))(local)
     }}.getOrElse(local)
@@ -193,6 +198,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(rDBType
 @c4multi("FromExternalDBSyncApp") final case class FromExternalDBSyncTransform(srcId:SrcId)(
   indentedParser: IndentedParser,
   getB_DBOffset: GetByPK[B_DBOffset],
+  rawTxAdd: RawTxAdd,
 ) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = WithJDBCKey.of(local){ conn =>
     val offset =
@@ -203,7 +209,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(rDBType
     //  .map(n=>LEvent.add(LEvent.update(n)))
     if(textEncoded.isEmpty) local else {
       logger.debug(s"textEncoded $textEncoded")
-      WriteModelAddKey.of(local)(indentedParser.toUpdates(textEncoded))(local)
+      rawTxAdd.add(indentedParser.toUpdates(textEncoded))(local)
     }
   }
 }

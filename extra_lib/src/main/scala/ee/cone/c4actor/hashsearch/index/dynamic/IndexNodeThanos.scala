@@ -52,7 +52,7 @@ trait DynamicIndexAssembleBase
     with CurrentTimeConfigApp
     with HashSearchDynamicIndexApp
     with HashSearchRangerRegistryApp
-
+    with CollectiveTransformApp
     with ComponentProviderApp
 {
 
@@ -106,7 +106,8 @@ sealed trait ThanosTimeTypes {
 @c4multiAssemble("DynamicIndexAssemble") class ThanosTimeFiltersBase()(
   hashSearchVersion: HashSearchVersion,
   dynamicIndexMaxEvents: DynamicIndexMaxEvents,
-  snapTransformFactory: SnapTransformFactory
+  snapTransformFactory: SnapTransformFactory,
+  collectiveTransformFactory: CollectiveTransformFactory,
 ) extends ThanosTimeTypes {
   def SnapTransformWatcher(
     verId: SrcId,
@@ -126,7 +127,7 @@ sealed trait ThanosTimeTypes {
     @byEq[ThanosLEventsTransformsAll](All) @distinct events: Values[LEventTransform]
   ): Values[(SrcId, TxTransform)] =
     if (events.nonEmpty)
-      WithPK(CollectiveTransform("ThanosTX", events.take(dynamicIndexMaxEvents.value))) :: Nil
+      WithPK(collectiveTransformFactory.create("ThanosTX", events.take(dynamicIndexMaxEvents.value))) :: Nil
     else
       Nil
 }
@@ -559,6 +560,7 @@ case class SoulCorrectionTransform(srcId: SrcId, indexNodeList: List[S_IndexNode
   getS_IndexByNodeLastSeen: GetByPK[S_IndexByNodeLastSeen],
   getS_IndexByNodeSettings: GetByPK[S_IndexByNodeSettings],
   getS_TimeMeasurement: GetByPK[S_TimeMeasurement],
+  txAdd: LTxAdd,
 ) extends TxTransform {
   def transform(local: Context): Context = {
     val versionW = getS_IndexNodesVersion.ofA(local).values.headOption.map(_.version).getOrElse("")
@@ -573,7 +575,7 @@ case class SoulCorrectionTransform(srcId: SrcId, indexNodeList: List[S_IndexNode
         getS_TimeMeasurement.ofA(local).values
       ).flatMap(LEvent.delete).toList
       val add = LEvent.update(S_IndexNodesVersion(fbId, version))
-      TxAdd(delete ++ add)(local)
+      txAdd.add(delete ++ add)(local)
     }
     else
       local

@@ -15,7 +15,7 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
 }
 
 @c4("BaseApp") final class ComponentRegistryImpl(app: AbstractComponents)(
-  debug: Option[_] = Option(System.getenv("C4DEBUG_COMPONENTS"))
+  debug: Boolean = Option(System.getenv("C4DEBUG_COMPONENTS")).nonEmpty
 ) extends ComponentRegistry {
   def toTypeKey[T](cl: Class[T], args: Seq[TypeKey]): TypeKey =
     CreateTypeKey(cl,cl.getSimpleName,args.toList)
@@ -25,7 +25,7 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
       .transform((k,v)=>new SimpleDeferredSeq(()=>v.flatMap(_.deferredSeq.value)))
   // def toNonFinal(k: TypeKey): TypeKey = k.copy(alias = s"NonFinal#${k.alias}")
   def fixNonFinal(components: Seq[Component]): Seq[Component] = {
-    debug.foreach(_=>components.foreach(c=>println(s"component (out: ${c.out}) (in: ${c.in})")))
+    if(debug) components.foreach(c=>println(s"component (out: ${c.out}) (in: ${c.in})"))
     val toNonFinal = components.flatMap(c => c.nonFinalOut.map(nOut=>c.out->nOut)).toMap
     components.map{ c =>
       if(c.nonFinalOut.nonEmpty) c
@@ -40,25 +40,33 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
   }
   def resolveSingle: TypeKey => TypeKey => Object = outKey => inKey => resolveKey(inKey).value match {
     case Seq(r:Object) =>
-      debug.foreach { _ =>
-        println(s"resolved single $inKey for $outKey")
-      }
       r
     case r => throw new Exception(s"resolution of $inKey for $outKey fails with $r")
   }
-  def resolveKey(key: TypeKey): DeferredSeq[Any] = new SimpleDeferredSeq[Any](()=>{
+  def resolveKey(key: TypeKey): DeferredSeq[Any] =
+    new SimpleDeferredSeq[Any](()=>
+      if(!debug) resolveKeyDo(key) else try resolveKeyDo(key) catch{
+        case e: StackOverflowError =>
+          throw new ResolveKeyError(Set(key),s"${e.getMessage} with suggested dep loop:\n-- $key")
+        case e: ResolveKeyError if e.keys.isEmpty || e.keys(key) =>
+          throw new ResolveKeyError(Set.empty, e.message)
+        case e: ResolveKeyError =>
+          throw new ResolveKeyError(e.keys ++ Set(key),s"${e.message}\n-- $key")
+      }
+    )
+  def resolveKeyDo(key: TypeKey): Seq[Any] = {
     val directRes: DeferredSeq[Any] = reg.getOrElse(key,EmptyDeferredSeq)
     val factoryKey = CreateTypeKey(classOf[ComponentFactory[_]],"ComponentFactory",List(key.copy(args=Nil)))
     val factories = reg.getOrElse(factoryKey,EmptyDeferredSeq).asInstanceOf[DeferredSeq[ComponentFactory[_]]]
-    debug.foreach{_=>
-      //println(s"factoryKey $factoryKey -- ${factories.value.size}")
-      println(s"resolveKey $key")
-    }
     directRes.value ++ factories.value.flatMap(_(key.args))
-  })
+  }
   def resolve[T](cl: Class[T], args: Seq[TypeKey]): DeferredSeq[T] =
     resolveKey(toTypeKey(cl,args)).asInstanceOf[DeferredSeq[T]]
 }
+
+class ResolveKeyError(
+  val keys: Set[TypeKey], val message: String
+) extends Exception(message)
 
 @c4("BaseApp") final class DefComponentFactoryProvider(
   componentRegistry: ComponentRegistry

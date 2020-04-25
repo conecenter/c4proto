@@ -5,7 +5,7 @@ import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by, c4assemble, c4multiAssemble, distinct}
-import ee.cone.c4di.c4
+import ee.cone.c4di.{c4, c4multi}
 
 @c4("MortalFactoryCompApp") final case class MortalFactoryImpl(factory: MortalAssembleFactory) extends MortalFactory {
   def apply[P <: Product](cl: Class[P]): Assemble = factory.create(cl)
@@ -29,16 +29,20 @@ object Killing {
   } yield s"killing" -> killing //scaling: killing.hash.substring(0,1)
 }
 
-@c4assemble("MortalFactoryCompApp") class MortalFatalityAssembleBase   {
+@c4assemble("MortalFactoryCompApp") class MortalFatalityAssembleBase(
+  factory: SimpleTxTransformFactory
+){
   def aggregateKilling(
     key: SrcId,
     @by[KillerId] killings: Values[Killing]
   ): Values[(SrcId, TxTransform)] =
-    WithPK(SimpleTxTransform(s"killer/$key", killings.map(_.ev))) :: Nil
+    WithPK(factory.create(s"killer/$key", killings.map(_.ev))) :: Nil
 }
 
-case class SimpleTxTransform[P<:Product](srcId: SrcId, todo: Values[LEvent[P]]) extends TxTransform {
-  def transform(local: Context): Context = TxAdd(todo)(local)
+@c4multi("ServerCompApp") final case class SimpleTxTransform[P<:Product](srcId: SrcId, todo: Values[LEvent[P]])(
+  txAdd: LTxAdd,
+) extends TxTransform {
+  def transform(local: Context): Context = txAdd.add(todo)(local)
 }
 
 /*

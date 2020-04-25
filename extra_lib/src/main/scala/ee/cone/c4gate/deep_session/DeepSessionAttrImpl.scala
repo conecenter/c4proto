@@ -185,6 +185,7 @@ case class DeepRawSessionData[P <: Product](
   dataByPK: GetByPK[U_RawSessionData],
   userByPK: GetByPK[U_RawUserData],
   roleByPK: GetByPK[U_RawRoleData],
+  txAdd: LTxAdd,
 ) extends AbstractLens[Context, DeepRawSessionData[P]] {
 
   def of: Context => DeepRawSessionData[P] = local => {
@@ -200,7 +201,7 @@ case class DeepRawSessionData[P <: Product](
     val DeepRawSessionData(raw, user, _, _, _) = value
     val rawEvent = raw.map(LEvent.update).toList.flatten
     val userEvent = user.map(LEvent.update).toList.flatten
-    TxAdd(rawEvent ++ userEvent)(local)
+    txAdd.add(rawEvent ++ userEvent)(local)
   }
 
 }

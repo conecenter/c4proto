@@ -12,7 +12,8 @@ import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 class WorldProviderImpl(
   qMessages: QMessages,
   receiverF: Future[StatefulReceiver[WorldMessage]],
-  offsetOpt: Option[NextOffset]
+  offsetOpt: Option[NextOffset],
+  txAdd: LTxAdd,
 ) extends WorldProvider {
   def tx[R](f: Context=>(List[LEvent[Product]],R))(implicit executionContext: ExecutionContext): Future[TxRes[R]] = {
     val promise = Promise[Context]()
@@ -24,9 +25,9 @@ class WorldProviderImpl(
       }
     } yield {
       val (events,res) = f(local)
-      val nLocal = TxAdd(events)(local)
+      val nLocal = txAdd.add(events)(local)
       val offset = ReadAfterWriteOffsetKey.of(qMessages.send(nLocal))
-      new TxRes(res,new WorldProviderImpl(qMessages,receiverF,Option(offset)))
+      new TxRes(res,new WorldProviderImpl(qMessages,receiverF,Option(offset),txAdd))
     }
   }
 }
@@ -55,13 +56,14 @@ case class WorldProviderTx(srcId: SrcId="WorldProviderTx")(receiverF: Future[Sta
   qMessages: QMessages,
   execution: Execution,
   statefulReceiverFactory: StatefulReceiverFactory,
-  getOffset: GetOffset
+  getOffset: GetOffset,
+  txAdd: LTxAdd,
 )(
   receiverPromise: Promise[StatefulReceiver[WorldMessage]] = Promise()
 ) extends Executable {
   def receiverFuture: Future[StatefulReceiver[WorldMessage]] = receiverPromise.future
   @provide def getWorldProvider: Seq[WorldProvider] =
-    List(new WorldProviderImpl(qMessages,receiverFuture,None))
+    List(new WorldProviderImpl(qMessages,receiverFuture,None,txAdd))
   def run(): Unit = execution.fatal { implicit ec =>
     val receiverF = statefulReceiverFactory.create(List(new WorldProviderReceiverImpl(None,Nil)(getOffset,execution)))
     ignorePromise(receiverPromise.completeWith(receiverF))

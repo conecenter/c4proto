@@ -3,7 +3,7 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol._
 import ee.cone.c4actor.Types._
-import ee.cone.c4assemble._
+import ee.cone.c4assemble.{ReadModel, _}
 import ee.cone.c4assemble.Types._
 import ee.cone.c4di.Types.ComponentFactory
 import ee.cone.c4di.{c4, c4multi, provide}
@@ -19,33 +19,23 @@ import scala.concurrent.duration.Duration
       .map(nm => new OriginalWorldPart(origKeyFactory.value.rawKey(nm)))
 }
 
-case object TreeAssemblerKey extends SharedComponentKey[Replace]
+//case object TreeAssemblerKey extends SharedComponentKey[Replace]
 
 @c4("RichDataCompApp") final class DefLongAssembleWarnPeriod extends LongAssembleWarnPeriod(Option(System.getenv("C4ASSEMBLE_WARN_PERIOD_MS")).fold(1000L)(_.toLong))
 
 @c4("RichDataCompApp") final class DefAssembleOptions extends AssembleOptions("AssembleOptions",false,0L)
 
-@c4("RichDataCompApp") final class AssemblerInit(
+@c4("RichDataCompApp") final class AssemblerUtil(
   qAdapterRegistry: QAdapterRegistry,
-  toUpdate: ToUpdate,
-  treeAssembler: TreeAssembler,
-  getDependencies: DeferredSeq[DataDependencyProvider],
   composes: IndexUtil,
   origKeyFactory: OrigKeyFactoryFinalHolder,
-  assembleProfiler: AssembleProfiler,
   readModelUtil: ReadModelUtil,
-  actorName: ActorName,
-  updateProcessor: Option[UpdateProcessor],
-  processors: List[UpdatesPreprocessor],
-  defaultAssembleOptions: AssembleOptions,
   warnPeriod: LongAssembleWarnPeriod,
-  catchNonFatal: CatchNonFatal,
-  isTargetWorldPartRules: List[IsTargetWorldPartRule]
-)(
-  assembleOptionsOuterKey: AssembledKey = origKeyFactory.value.rawKey(classOf[AssembleOptions].getName),
-  assembleOptionsInnerKey: String = ToPrimaryKey(defaultAssembleOptions)
-) extends ToInject with LazyLogging {
-  private def toTreeReplace(replace: Replace, isActiveOrig: Set[AssembledKey], assembled: ReadModel, updates: Seq[N_Update], profiling: JoiningProfiling, executionContext: OuterExecutionContext): Future[WorldTransition] = {
+  replace: Replace,
+  activeOrigKeyRegistry: ActiveOrigKeyRegistry,
+) extends LazyLogging {
+  def toTreeReplace(assembled: ReadModel, updates: Seq[N_Update], profiling: JoiningProfiling, executionContext: OuterExecutionContext): Future[WorldTransition] = {
+    val isActiveOrig: Set[AssembledKey] = activeOrigKeyRegistry.values
     val timer = NanoTimer()
     val mDiff = for {
       tpPair <- updates.groupBy(_.valueTypeId)
@@ -78,73 +68,138 @@ case object TreeAssemblerKey extends SharedComponentKey[Replace]
     result
   }
 
-  // read model part:
-  private def reduce(
-    replace: Replace, isActiveOrig: Set[AssembledKey],
-    wasAssembled: ReadModel, updates: Seq[N_Update],
-    options: AssembleOptions, executionContext: OuterExecutionContext
-  ): ReadModel = {
-    val profiling = assembleProfiler.createJoiningProfiling(None)
-    val res = toTreeReplace(replace, isActiveOrig, wasAssembled, updates, profiling, executionContext).map(_.result)(executionContext.value)
-    waitFor(res, options, "read")
-  }
-
-  private def offset(events: Seq[RawEvent]): List[N_Update] = for{
-    ev <- events.lastOption.toList
-    lEvent <- LEvent.update(S_Offset(actorName.value,ev.srcId))
-  } yield toUpdate.toUpdate(lEvent)
-  private def readModelAdd(replace: Replace, isActiveOrig: Set[AssembledKey], executionContext: OuterExecutionContext): Seq[RawEvent]=>ReadModel=>ReadModel = events => assembled => catchNonFatal {
-    val options = getAssembleOptions(assembled)
-    val updates = offset(events) ::: toUpdate.toUpdates(events.toList)
-    reduce(replace, isActiveOrig, assembled, updates, options, executionContext)
-  }("reduce"){ e => // ??? exception to record
-      if(events.size == 1){
-        val options = getAssembleOptions(assembled)
-        val updates = offset(events) ++
-          events.map(ev=>S_FailedUpdates(ev.srcId, e.getMessage))
-            .flatMap(LEvent.update).map(toUpdate.toUpdate)
-        reduce(replace, isActiveOrig, assembled, updates, options, executionContext)
-      } else {
-        val(a,b) = events.splitAt(events.size / 2)
-        Function.chain(Seq(readModelAdd(replace, isActiveOrig, executionContext)(a), readModelAdd(replace, isActiveOrig, executionContext)(b)))(assembled)
+}
+/*
+    val reg = CheckedMap(
+      replace.active.collect{
+        case t: DataDependencyTo[_] => t.outputWorldKey
+      }.collect{
+        case k: JoinKey if keyFactory.rawKey(k.valueClassName)==k =>
+          k.valueClassName -> k
       }
-  }
-  // other parts:
-  private def add(out: Seq[N_Update]): Context => Context = {
-    if (out.isEmpty) identity[Context]
-    else { local =>
-      implicit val executionContext: ExecutionContext = local.executionContext.value
-      val options = getAssembleOptions(local.assembled)
-      val processedOut = composes.mayBePar(processors, options).flatMap(_.process(out)).toSeq ++ out
-      val externalOut = updateProcessor.fold(processedOut)(_.process(processedOut, WriteModelKey.of(local).size))
-      val replace = TreeAssemblerKey.of(local)
-      val isActiveOrig = IsActiveOrigKey.of(local)
-      val profiling = assembleProfiler.createJoiningProfiling(Option(local))
-      val res = for {
-        transition <- toTreeReplace(replace, isActiveOrig, local.assembled, externalOut, profiling, local.executionContext)
-        updates <- assembleProfiler.addMeta(transition, externalOut)
-      } yield {
-        val nLocal = new Context(local.injected, transition.result, local.executionContext, local.transient)
-        WriteModelKey.modify(_.enqueueAll(updates))(nLocal)
-      }
-      waitFor(res, options, "add")
-      //call add here for new mortal?
-    }
-  }
+    )*/
+class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
 
-  private def getAssembleOptions(assembled: ReadModel): AssembleOptions = {
+
+
+@c4("RichDataCompApp") final class GetAssembleOptionsImpl(
+  composes: IndexUtil,
+  origKeyFactory: OrigKeyFactoryFinalHolder,
+  defaultAssembleOptions: AssembleOptions,
+)(
+  assembleOptionsOuterKey: AssembledKey = origKeyFactory.value.rawKey(classOf[AssembleOptions].getName),
+  assembleOptionsInnerKey: String = ToPrimaryKey(defaultAssembleOptions)
+) extends GetAssembleOptions {
+  def get(assembled: ReadModel): AssembleOptions = {
     val index = composes.getInstantly(assembleOptionsOuterKey.of(assembled))
     composes.getValues(index,assembleOptionsInnerKey,"").collectFirst{
       case o: AssembleOptions => o
     }.getOrElse(defaultAssembleOptions)
   }
+}
 
-  def toInject: List[Injectable] = {
+@c4("RichDataCompApp") final class ReadModelAddImpl(
+  utilOpt: DeferredSeq[AssemblerUtil],
+  toUpdate: ToUpdate,
+  assembleProfiler: AssembleProfiler,
+  actorName: ActorName,
+  catchNonFatal: CatchNonFatal,
+  getAssembleOptions: GetAssembleOptions,
+) extends ReadModelAdd {
+  def add(events: Seq[RawEvent], context: AssembledContext): ReadModel = {
+    readModelAdd(context.executionContext)(events)(context.assembled)
+  }
+  // read model part:
+  private def reduce(
+    wasAssembled: ReadModel, updates: Seq[N_Update],
+    options: AssembleOptions, executionContext: OuterExecutionContext
+  ): ReadModel = {
+    val profiling = assembleProfiler.createJoiningProfiling(None)
+    val util = Single(utilOpt.value)
+    val res = util.toTreeReplace(wasAssembled, updates, profiling, executionContext).map(_.result)(executionContext.value)
+    util.waitFor(res, options, "read")
+  }
+  private def offset(events: Seq[RawEvent]): List[N_Update] = for{
+    ev <- events.lastOption.toList
+    lEvent <- LEvent.update(S_Offset(actorName.value,ev.srcId))
+  } yield toUpdate.toUpdate(lEvent)
+  private def readModelAdd(executionContext: OuterExecutionContext): Seq[RawEvent]=>ReadModel=>ReadModel = events => assembled => catchNonFatal {
+    val options = getAssembleOptions.get(assembled)
+    val updates = offset(events) ::: toUpdate.toUpdates(events.toList)
+    reduce(assembled, updates, options, executionContext)
+  }("reduce"){ e => // ??? exception to record
+    if(events.size == 1){
+      val options = getAssembleOptions.get(assembled)
+      val updates = offset(events) ++
+        events.map(ev=>S_FailedUpdates(ev.srcId, e.getMessage))
+          .flatMap(LEvent.update).map(toUpdate.toUpdate)
+      reduce(assembled, updates, options, executionContext)
+    } else {
+      val(a,b) = events.splitAt(events.size / 2)
+      Function.chain(Seq(readModelAdd(executionContext)(a), readModelAdd(executionContext)(b)))(assembled)
+    }
+  }
+}
+
+@c4("RichDataCompApp") final class RawTxAddImpl(
+  utilOpt: DeferredSeq[AssemblerUtil],
+  composes: IndexUtil,
+  assembleProfiler: AssembleProfiler,
+  updateProcessor: Option[UpdateProcessor],
+  processors: List[UpdatesPreprocessor],
+  getAssembleOptions: GetAssembleOptions,
+) extends RawTxAdd {
+  // other parts:
+  def add(out: Seq[N_Update]): Context => Context = {
+    if (out.isEmpty) identity[Context]
+    else { local =>
+      implicit val executionContext: ExecutionContext = local.executionContext.value
+      val options = getAssembleOptions.get(local.assembled)
+      val processedOut = composes.mayBePar(processors, options).flatMap(_.process(out)).toSeq ++ out
+      val externalOut = updateProcessor.fold(processedOut)(_.process(processedOut, WriteModelKey.of(local).size))
+      val profiling = assembleProfiler.createJoiningProfiling(Option(local))
+      val util = Single(utilOpt.value)
+      val res = for {
+        transition <- util.toTreeReplace(local.assembled, externalOut, profiling, local.executionContext)
+        updates <- assembleProfiler.addMeta(transition, externalOut)
+      } yield {
+        val nLocal = new Context(local.injected, transition.result, local.executionContext, local.transient)
+        WriteModelKey.modify(_.enqueueAll(updates))(nLocal)
+      }
+      util.waitFor(res, options, "add")
+      //call add here for new mortal?
+    }
+  }
+}
+
+@c4("RichDataCompApp") final class TxAddImpl(
+  toUpdate: ToUpdate,
+  rawTxAdd: RawTxAdd,
+) extends LTxAdd with LazyLogging {
+  def add[M<:Product](out: Seq[LEvent[M]]): Context=>Context =
+    local => if(out.isEmpty) local else {
+      logger.debug(out.map(v=>s"\norig added: $v").mkString)
+      rawTxAdd.add(out.map(toUpdate.toUpdate))(local)
+    }
+}
+
+@c4("RichDataCompApp") final class AssemblerInit(
+  treeAssembler: TreeAssembler,
+  getDependencies: DeferredSeq[DataDependencyProvider],
+  isTargetWorldPartRules: List[IsTargetWorldPartRule],
+) extends LazyLogging {
+  private lazy val rules = {
     logger.debug("getDependencies started")
-    val rules = getDependencies.value.flatMap(_.getRules).toList
+    val r = getDependencies.value.flatMap(_.getRules).toList
     logger.debug("getDependencies finished")
-    val isTargetWorldPartRule = Single.option(isTargetWorldPartRules).getOrElse(AnyIsTargetWorldPartRule)
-    val replace = treeAssembler.create(rules,isTargetWorldPartRule.check)
+    r
+  }
+  private lazy val isTargetWorldPartRule = Single.option(isTargetWorldPartRules).getOrElse(AnyIsTargetWorldPartRule)
+  private lazy val replace = treeAssembler.create(rules,isTargetWorldPartRule.check)
+  private lazy val origKeyRegistry = new ActiveOrigKeyRegistry(
+    replace.active.collect{ case o: OriginalWorldPart[_] => o.outputWorldKey }.toSet
+  )
+  @provide def getReplace: Seq[Replace] = {
     logger.debug(s"active rules: ${replace.active.size}")
     logger.debug{
       val isActive = replace.active.toSet
@@ -155,29 +210,10 @@ case object TreeAssemblerKey extends SharedComponentKey[Replace]
         }}"
       }.toString
     }
-    val origKeys = replace.active.collect{ case o: OriginalWorldPart[_] => o.outputWorldKey }.toSet
-      /*
-      val reg = CheckedMap(
-        replace.active.collect{
-          case t: DataDependencyTo[_] => t.outputWorldKey
-        }.collect{
-          case k: JoinKey if keyFactory.rawKey(k.valueClassName)==k =>
-            k.valueClassName -> k
-        }
-      )*/
-    TreeAssemblerKey.set(replace) ::: IsActiveOrigKey.set(origKeys) :::
-      WriteModelDebugAddKey.set(out => local =>
-        if(out.isEmpty) local else {
-          logger.debug(out.map(v=>s"\norig added: $v").mkString)
-          add(out.map(toUpdate.toUpdate))(local)
-        }
-      ) :::
-      WriteModelAddKey.set(add) :::
-      ReadModelAddKey.set(events=>context=>
-        readModelAdd(replace, origKeys, context.executionContext)(events)(context.assembled)
-      ) :::
-      GetAssembleOptions.set(getAssembleOptions)
+    Seq(replace)
   }
+  @provide def getActiveOrigKeyRegistry: Seq[ActiveOrigKeyRegistry] =
+    Seq(origKeyRegistry)
 }
 
 abstract class IsTargetWorldPartRule {

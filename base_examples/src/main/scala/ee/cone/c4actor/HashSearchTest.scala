@@ -104,6 +104,7 @@ object HashSearchTestMain {
   execution: Execution,
   getD_SomeModel: GetByPK[D_SomeModel],
   getSomeResponse: GetByPK[SomeResponse],
+  txAdd: LTxAdd,
 ) extends Executable with LazyLogging {
 
   def measure[T](hint: String)(f: ()=>T): T = {
@@ -134,7 +135,7 @@ object HashSearchTestMain {
     }
 
     val res2 = measure("index find models") { () =>
-      val local2 = TxAdd(LEvent.update(request))(local)
+      val local2 = txAdd.add(LEvent.update(request))(local)
       Single(getSomeResponse.ofA(local2).values.toList).lines
     }
 
@@ -147,7 +148,7 @@ object HashSearchTestMain {
   private def fillWorld(size: Int): Context=>Context = local => {
     val models = for{ i <- 1 to size } yield D_SomeModel(s"$i",s"${i%7}",s"${i%59}",s"${i%541}") //
     measure("TxAdd models"){ () =>
-      TxAdd(models.flatMap(LEvent.update))(local)
+      txAdd.add(models.flatMap(LEvent.update))(local)
     }
   }
 

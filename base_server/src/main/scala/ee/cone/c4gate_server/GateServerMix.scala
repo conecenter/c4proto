@@ -100,9 +100,9 @@ trait SSEServerAppBase extends AlienProtocolApp
   ssePort: Int = config.get("C4SSE_PORT").toInt
 )(
   inner: TcpServerImpl = new TcpServerImpl(ssePort, new SSEHandler(sseConfig), 10, new GzipStreamCompressorFactory)
-) extends Executable with ToInject {
-  def toInject: List[Injectable] = inner.toInject
-  def run(): Unit = inner.run()
+) {
+  @provide def getTcpServer: Seq[TcpServer] = Seq(inner)
+  @provide def getExecutable: Seq[Executable] = Seq(inner)
 }
 
 // I>P -- to agent, cmd>evl

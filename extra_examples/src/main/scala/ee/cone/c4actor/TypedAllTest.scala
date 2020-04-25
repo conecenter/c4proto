@@ -6,7 +6,7 @@ import ee.cone.c4actor.TypedAllTestProtocol.{D_Model1, D_Model2, D_ModelTest}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4di.{c4, c4app}
+import ee.cone.c4di.{c4, c4app, c4multi}
 import ee.cone.c4proto.{Id, protocol}
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.TypedAllTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
@@ -17,7 +17,8 @@ import ee.cone.c4proto.{Id, protocol}
   //rawWorldFactory: RichRawWorldFactory, /* progressObserverFactory: ProgressObserverFactory,*/
   //observer: Option[Observer],
   qAdapterRegistry: QAdapterRegistry,
-  activateContext: ActivateContext
+  activateContext: ActivateContext,
+  txAdd: LTxAdd,
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     import LEvent.update
@@ -36,9 +37,9 @@ import ee.cone.c4proto.{Id, protocol}
     println("1<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     //println( /*getD_TestObject: GetByPK[D_TestObject],*/getD_TestObject.ofA(newNGlobal).values.toList)
     println("2>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-    val test = TxAdd(update(D_ModelTest("1", 1)) ++ update(D_ModelTest("2", 2)))(nGlobalAAAA)
+    val test = txAdd.add(update(D_ModelTest("1", 1)) ++ update(D_ModelTest("2", 2)))(nGlobalAAAA)
     println("2<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-    val test2 = TxAdd(update(D_ModelTest("1", 3)) ++ update(D_ModelTest("3", 5)) ++ update(D_ModelTest("2", 2)))(test)
+    val test2 = txAdd.add(update(D_ModelTest("1", 3)) ++ update(D_ModelTest("3", 5)) ++ update(D_ModelTest("2", 2)))(test)
     //println( /*getD_TestObject: GetByPK[D_TestObject],*/getD_TestObject.ofA(newNGlobal).values.toList)
     execution.complete()
 
@@ -77,7 +78,9 @@ trait TypedAllType {
   }
 }
 
-@assemble class TypedAllTestAssembleBase[Model <: Product](modelCl: Class[Model]) extends TypedAllType {
+@c4multiAssemble("TypedAllTestApp") class TypedAllTestAssembleBase[Model <: Product](modelCl: Class[Model])(
+  testTxFactory: TestTxFactory
+) extends TypedAllType {
 
   def ModelToTypedAll(
     srcId: SrcId,
@@ -136,11 +139,13 @@ trait TypedAllType {
     srcId: SrcId,
     firstborn: Each[S_Firstborn],
     @byEq[FixedAll](All) models: Values[Model]
-  ): Values[(SrcId, TxTransform)] = WithPK(TestTx(srcId + modelCl.getName)) :: Nil
+  ): Values[(SrcId, TxTransform)] = WithPK(testTxFactory.create(srcId + modelCl.getName)) :: Nil
 }
 
-case class TestTx(srcId: SrcId) extends TxTransform {
-  def transform(local: Context): Context = TxAdd(LEvent.update(D_Model2(srcId)))(local)
+@c4multi("TypedAllTestApp") final case class TestTx(srcId: SrcId)(
+  txAdd: LTxAdd,
+) extends TxTransform {
+  def transform(local: Context): Context = txAdd.add(LEvent.update(D_Model2(srcId)))(local)
 }
 
 trait TypedAllTestProtocolAppBase
@@ -169,8 +174,10 @@ trait TypedAllTestProtocolAppBase
   with ActivateContextApp
 {
 
+  private lazy val typedAllTestAssembleFactory = resolveSingle(classOf[TypedAllTestAssembleFactory])
+
   override def assembles: List[Assemble] = {
-    new TypedAllTestAssemble(classOf[D_Model1]) :: new TypedAllTestAssemble(classOf[D_Model2]) ::
+    typedAllTestAssembleFactory.create(classOf[D_Model1]) :: typedAllTestAssembleFactory.create(classOf[D_Model2]) ::
       super.assembles
   }
 

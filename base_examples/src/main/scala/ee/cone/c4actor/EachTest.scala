@@ -51,14 +51,15 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
 
 @c4("EachTestApp") final class EachTestExecutable(
   execution: Execution, contextFactory: ContextFactory, indexUtil: IndexUtil,
-  items: GetByPK[D_Item], eachTestItems: GetByPK[EachTestItem]
+  items: GetByPK[D_Item], eachTestItems: GetByPK[EachTestItem],
+  txAdd: LTxAdd,
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     val voidContext = contextFactory.updated(Nil)
 
     IgnoreTestContext(Function.chain[Context](Seq(
-      TxAdd(LEvent.update(D_Item("1","2"))),
-      TxAdd(LEvent.update(D_Item("1","3"))),
+      txAdd.add(LEvent.update(D_Item("1","2"))),
+      txAdd.add(LEvent.update(D_Item("1","3"))),
       l => {
         assert(items.ofA(l)("1").parent=="3","last stored item wins")
         l
@@ -83,9 +84,9 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
     }
 
     IgnoreTestContext(Function.chain[Context](Seq(
-      TxAdd(LEvent.update(D_Item(s"V",""))),
+      txAdd.add(LEvent.update(D_Item(s"V",""))),
       l => measure(Function.chain[Context](
-        (1 to 3000).map(n=>TxAdd(LEvent.update(D_Item(s"$n","V"))))
+        (1 to 3000).map(n=>txAdd.add(LEvent.update(D_Item(s"$n","V"))))
       )(l)),
       { (l:Context) =>
         val r = eachTestItems.ofA(l)

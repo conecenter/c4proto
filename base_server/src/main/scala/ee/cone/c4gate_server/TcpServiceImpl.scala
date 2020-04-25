@@ -56,9 +56,9 @@ import scala.collection.immutable.Queue
 class TcpServerImpl(
   port: Int, tcpHandler: TcpHandler, timeout: Long, compressorFactory: StreamCompressorFactory,
   channels: TrieMap[String,ChannelHandler] = TrieMap()
-) extends ToInject with Executable with LazyLogging {
-  def toInject: List[Injectable] = GetSenderKey.set(channels.get)
-
+) extends TcpServer with Executable with LazyLogging {
+  def getSender(connectionKey: String): Option[SenderToAgent] =
+    channels.get(connectionKey)
   def run(): Unit = concurrent.blocking{
     tcpHandler.beforeServerStart()
     val address = new InetSocketAddress(port)

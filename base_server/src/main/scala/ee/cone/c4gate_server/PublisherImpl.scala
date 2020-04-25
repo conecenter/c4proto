@@ -6,7 +6,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.{Context, GetByPK, LEvent, MortalFactory, SleepUntilKey, TxAdd, TxTransform, WithPK}
+import ee.cone.c4actor.{Context, GetByPK, LEvent, MortalFactory, SleepUntilKey, LTxAdd, TxTransform, WithPK}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, c4assemble}
 import ee.cone.c4di.{c4, c4multi, provide}
@@ -14,13 +14,14 @@ import ee.cone.c4gate.ByPathHttpPublication
 import ee.cone.c4gate.HttpProtocol.{S_HttpPublicationV1, S_HttpPublicationV2, S_Manifest}
 
 @c4multi("AbstractHttpGatewayApp") final case class PublicationPurgerTx(srcId: SrcId = "PublicationPurgerTx")(
-  getS_Manifest: GetByPK[S_Manifest]
+  getS_Manifest: GetByPK[S_Manifest],
+  txAdd: LTxAdd,
 ) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = {
     val now = System.currentTimeMillis
     val events = getS_Manifest.ofA(local).values
       .filter(_.until<now).toSeq.sortBy(_.srcId).flatMap(LEvent.delete)
-    TxAdd(events).andThen(SleepUntilKey.set(Instant.ofEpochMilli(now+15*1000)))(local)
+    txAdd.add(events).andThen(SleepUntilKey.set(Instant.ofEpochMilli(now+15*1000)))(local)
   }
 }
 @c4assemble("AbstractHttpGatewayApp") class PublicationPurgerAssembleBase(

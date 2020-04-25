@@ -112,6 +112,7 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
   accessViewRegistry: AccessViewRegistry,
   untilPolicy: UntilPolicy,
   getB_TodoTask: GetByPK[B_TodoTask],
+  txAdd: LTxAdd,
 ) extends ByLocationHashView {
   def view: Context => ViewRes = untilPolicy.wrap{ local =>
     import mTags._
@@ -128,7 +129,7 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
 
     val btnList = List(
       divButton("add")(
-        TxAdd(update(B_TodoTask(UUID.randomUUID.toString,System.currentTimeMillis,"")))
+        txAdd.add(update(B_TodoTask(UUID.randomUUID.toString,System.currentTimeMillis,"")))
       )(List(text("text","+")))
     )
 
@@ -140,7 +141,7 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
     } yield div(prod.srcId,Nil)(List(
       tags.input(task to comments),
       div("remove",List(styles.width(100),styles.displayInlineBlock))(List(
-        divButton("remove")(TxAdd(delete(prod)))(List(text("caption","-")))
+        divButton("remove")(txAdd.add(delete(prod)))(List(text("caption","-")))
       ))
     ))
 

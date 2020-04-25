@@ -1,5 +1,6 @@
 package ee.cone.c4actor
 
+import ee.cone.c4actor.QProtocol.N_Update
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble._
 import ee.cone.c4actor._
@@ -163,3 +164,18 @@ trait UpdatesProcessorsApp extends ComponentsApp {
 trait SimpleAssembleProfilerApp extends SimpleAssembleProfilerCompApp with ComponentProviderApp {
   def assembleProfiler: AssembleProfiler = resolveSingle(classOf[AssembleProfiler])
 }
+
+////
+@c4("RichDataApp") final class TxAddInject(
+  txAdd: LTxAdd,
+  rawTxAdd: RawTxAdd,
+) extends ToInject {
+  def toInject: List[Injectable] =
+    TxAddKey.set(txAdd) ::: WriteModelAddKey.set(rawTxAdd.add)
+}
+@deprecated case object TxAddKey extends SharedComponentKey[LTxAdd]
+@deprecated object TxAdd {
+    def apply[M<:Product](out: Seq[LEvent[M]]): Context=>Context = context =>
+      TxAddKey.of(context).add(out)(context)
+}
+@deprecated case object WriteModelAddKey extends SharedComponentKey[Seq[N_Update]=>Context=>Context]

@@ -64,6 +64,7 @@ case class TestTransform(srcId: SrcId, access: Any) extends TxTransform {
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory,
   getDepTestResponse: GetByPK[DepTestResponse],
   getDepUnresolvedRequest: GetByPK[DepUnresolvedRequest],
+  txAdd: LTxAdd,
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     import LEvent.update
@@ -83,10 +84,10 @@ case class TestTransform(srcId: SrcId, access: Any) extends TxTransform {
     val access: Access[PffNode] =  /*getUpResolvable: GetByPK[UpResolvable],*/getUpResolvable.ofA(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value.get.asInstanceOf[Option[Access[PffNode]]].get
     println(s"Final result1: ${ /*getUpResolvable: GetByPK[UpResolvable],*/getUpResolvable.ofA(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value}")*/
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    val newLocal = TxAdd(LEvent.update(D_ValueNode("124", 555)))(nGlobal)
+    val newLocal = txAdd.add(LEvent.update(D_ValueNode("124", 555)))(nGlobal)
     println(getDepTestResponse.ofA(newLocal).values.toList)
 
-    val newLocal2 = TxAdd(LEvent.update(D_ValueNode("123", 100)))(newLocal)
+    val newLocal2 = txAdd.add(LEvent.update(D_ValueNode("123", 100)))(newLocal)
     println(getDepTestResponse.ofA(newLocal2).values.toList)
     /*println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     val newContext = access.updatingLens.get.set(access.initialValue.copy(value = 666))(nGlobal)

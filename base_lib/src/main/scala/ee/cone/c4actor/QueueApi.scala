@@ -178,9 +178,9 @@ trait DynamicByPK { // low level api, think before use
   def get(joinKey: AssembledKey, context: AssembledContext): Map[SrcId,Product]
 }
 
-case object GetAssembleOptions extends SharedComponentKey[ReadModel=>AssembleOptions]
+//case object GetAssembleOptions extends SharedComponentKey[ReadModel=>AssembleOptions]
 
-case object IsActiveOrigKey extends SharedComponentKey[Set[AssembledKey]]
+//case object IsActiveOrigKey extends SharedComponentKey[Set[AssembledKey]]
 
 trait Lens[C,I] extends Getter[C,I] {
   def modify: (I=>I) => C=>C
@@ -225,9 +225,17 @@ object WithPK {
   def apply[P<:Product](p: P): (SrcId,P) = ToPrimaryKey(p) -> p
 }
 
-object TxAdd {
-  def apply[M<:Product](out: Seq[LEvent[M]]): Context=>Context = context =>
-    WriteModelDebugAddKey.of(context)(out)(context)
+trait LTxAdd {
+  def add[M<:Product](out: Seq[LEvent[M]]): Context=>Context
+}
+trait RawTxAdd {
+  def add(out: Seq[N_Update]): Context=>Context
+}
+trait ReadModelAdd {
+  def add(events: Seq[RawEvent], context: AssembledContext): ReadModel
+}
+trait GetAssembleOptions {
+  def get(assembled: ReadModel): AssembleOptions
 }
 
 trait Observer[Message] {
@@ -244,9 +252,8 @@ trait TxTransform extends Product {
 }
 
 case object WriteModelKey extends TransientLens[Queue[N_Update]](Queue.empty)
-case object ReadModelAddKey extends SharedComponentKey[Seq[RawEvent]=>(SharedContext with AssembledContext)=>ReadModel]
-case object WriteModelDebugAddKey extends SharedComponentKey[Seq[LEvent[Product]]=>Context=>Context]
-case object WriteModelAddKey extends SharedComponentKey[Seq[N_Update]=>Context=>Context]
+//case object ReadModelAddKey extends SharedComponentKey[Seq[RawEvent]=>(SharedContext with AssembledContext)=>ReadModel]
+//case object WriteModelDebugAddKey extends SharedComponentKey[Seq[LEvent[Product]]=>Context=>Context]
 
 case class RawHeader(key: String, value: String)
 

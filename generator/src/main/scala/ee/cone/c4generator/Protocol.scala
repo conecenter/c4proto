@@ -48,7 +48,9 @@ class ProtocolGenerator(statTransformers: List[ProtocolStatsTransformer]) extend
   }
   def getAdapter(parseContext: ParseContext, objectName: String, cl: ParsedClass, c4ann: String): List[Generated] = {
     val protoMods = cl.mods.foldLeft(ProtoMods(cl.name, cl.name))((pMods,mod)=> mod match {
-      case mod"@replaceBy[${Type.Name(rt)}](${Term.Name(fact)})" =>
+      case mod"@replaceBy[$rtExpr]($factExpr)" =>
+        val Type.Name(rt) = rtExpr
+        val Term.Name(fact) = factExpr
         pMods.copy(resultType=rt, factoryName=fact)
       case _ => pMods
     })
@@ -72,7 +74,8 @@ class ProtocolGenerator(statTransformers: List[ProtocolStatsTransformer]) extend
       case init"${Type.Name(tn)}(...$_)" => GeneratedTraitUsage(tn)
       case t => throw new Exception(t.structure)
     }
-    traitUsages ::: List(resultType,factoryName).distinct.map(n=>GeneratedImport(s"""\nimport $objectName.$n""")) ::: List(
+    traitUsages ::: List(
+      GeneratedImport(s"""\nimport $objectName.$resultType"""),
       GeneratedCode(s"""
 $c4ann final class ${cl.name}ProtoAdapter(
   val protoOrigMeta: OrigMeta[${cl.name}],

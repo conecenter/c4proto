@@ -19,7 +19,9 @@ import okio.ByteString
 import scala.collection.immutable.Seq
 
 case object ToAlienPriorityKey extends TransientLens[java.lang.Long](0L)
-@c4("AlienExchangeApp") final class SendToAlienInit extends ToInject {
+@c4("AlienExchangeApp") final class SendToAlienInit(
+  txAdd: LTxAdd,
+) extends ToInject {
   def toInject: List[Injectable] = SendToAlienKey.set(
     (sessionKeys,event,data) => local => if(sessionKeys.isEmpty) local else {
       val priority = ToAlienPriorityKey.of(local)
@@ -29,7 +31,7 @@ case object ToAlienPriorityKey extends TransientLens[java.lang.Long](0L)
           update(U_ToAlienWrite(id,sessionKey,event,data,priority+i))
       }
       //println(s"messages: $messages")
-      ToAlienPriorityKey.modify(_+sessionKeys.size).andThen(TxAdd(messages))(local)
+      ToAlienPriorityKey.modify(_+sessionKeys.size).andThen(txAdd.add(messages))(local)
     }
   )
 }

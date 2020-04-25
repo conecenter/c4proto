@@ -31,6 +31,7 @@ import ee.cone.c4proto.{GenLens, Id, protocol}
   getCustomResponse: GetByPK[CustomResponse],
   getS_IndexNode: GetByPK[S_IndexNode],
   getS_IndexByNode: GetByPK[S_IndexByNode],
+  txAdd: LTxAdd,
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     import LEvent.update
@@ -53,7 +54,7 @@ import ee.cone.c4proto.{GenLens, Id, protocol}
     println(getS_IndexByNode.ofA(nGlobalAA).values.map(meh => meh.leafId -> meh.byStr))
     //Thread.sleep(3000)
     println("1>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-    val newNGlobal: Context = TxAdd(LEvent.update(D_TestObject("124", 239, "adb")) ++ LEvent.update(D_ChangingNode("test", "1")))(nGlobalAA)
+    val newNGlobal: Context = txAdd.add(LEvent.update(D_TestObject("124", 239, "adb")) ++ LEvent.update(D_ChangingNode("test", "1")))(nGlobalAA)
     val newNGlobalA = activateContext(newNGlobal)
     val newNGlobalAA = activateContext(newNGlobalA)
     println("1<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
@@ -62,7 +63,7 @@ import ee.cone.c4proto.{GenLens, Id, protocol}
     println("Answer", /*getCustomResponse: GetByPK[CustomResponse],*/ getCustomResponse.ofA(newNGlobalAA).values.toList.map(_.list.size))
     println(/*getS_IndexByNode: GetByPK[S_IndexByNode],*/ getS_IndexByNode.ofA(newNGlobalAA).values.map(meh => meh.leafId -> meh.byStr))
     println("2>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-    val newNGlobal2 = TxAdd(LEvent.update(D_TestObject("124", 239, "adb")) ++ LEvent.update(D_ChangingNode("test", "")))(newNGlobalAA)
+    val newNGlobal2 = txAdd.add(LEvent.update(D_TestObject("124", 239, "adb")) ++ LEvent.update(D_ChangingNode("test", "")))(newNGlobalAA)
     Thread.sleep(10000)
     val newNGlobal2A = activateContext(newNGlobal2)
     val newNGlobal2AA = activateContext(newNGlobal2A)

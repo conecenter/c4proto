@@ -16,7 +16,8 @@ object Measure {
 
 @c4("NotEffectiveAssemblerTestApp") final class NotEffectiveAssemblerTest(
   contextFactory: ContextFactory,
-  execution: Execution
+  execution: Execution,
+  txAdd: LTxAdd,
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     val nodes = List(D_RawParentNode("0", "P-1")) ++
@@ -25,11 +26,11 @@ object Measure {
     val local = contextFactory.updated(Nil)
 
     Measure { () =>
-      IgnoreTestContext(chain(nodes.map(update).map(TxAdd(_)))(local))
+      IgnoreTestContext(chain(nodes.map(update).map(txAdd.add(_)))(local))
     }.foreach(t => logger.info(s"bad join with many add-s takes $t ms"))
 
     Measure { () =>
-      IgnoreTestContext(chain(List(TxAdd(nodes.flatMap(update))))(local))
+      IgnoreTestContext(chain(List(txAdd.add(nodes.flatMap(update))))(local))
     }.foreach(t => logger.info(s"bad join with single add takes $t ms"))
     execution.complete()
   }

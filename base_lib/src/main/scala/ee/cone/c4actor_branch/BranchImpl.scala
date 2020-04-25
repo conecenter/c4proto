@@ -73,6 +73,7 @@ case object EmptyBranchMessage extends BranchMessage {
   handler: BranchHandler
 )(
   getS_BranchResult: GetByPK[S_BranchResult],
+  txAdd: LTxAdd,
 ) extends TxTransform with LazyLogging {
   private def saveResult: Context => Context = local => {
     //if(seed.isEmpty && newChildren.nonEmpty) println(s"newChildren: ${handler}")
@@ -84,7 +85,7 @@ case object EmptyBranchMessage extends BranchMessage {
     if(wasChildren == newChildren) local
     else {
       val newBranchResult = if(newChildren.isEmpty) Nil else List(seed.get.copy(children = newChildren))
-      TxAdd(wasBranchResults.flatMap(LEvent.delete) ++ newBranchResult.flatMap(LEvent.update))(local)
+      txAdd.add(wasBranchResults.flatMap(LEvent.delete) ++ newBranchResult.flatMap(LEvent.update))(local)
     }
     /* proposed:
     val newBranchResults = seed.toList.map(_.copy(children = handler.seeds(local)))
@@ -135,7 +136,7 @@ case object EmptyBranchMessage extends BranchMessage {
   private def saveErrors: String => Context => Context = text => {
     val now = System.currentTimeMillis
     val failure = U_SessionFailure(UUID.randomUUID.toString,text,now,sessionKeys)
-    TxAdd(LEvent.update(failure))
+    txAdd.add(LEvent.update(failure))
   }
 
   private def rmRequestsErrors: Context => Context = local => {
@@ -144,8 +145,8 @@ case object EmptyBranchMessage extends BranchMessage {
       val sessionKey = request.header("x-r-session")
       val index = request.header("x-r-index")
       val deletes = request.deletes
-      if(sessionKey.isEmpty) TxAdd(deletes)
-      else send(List(sessionKey), "ackChange", s"$branchKey $index").andThen(TxAdd(deletes))
+      if(sessionKey.isEmpty) txAdd.add(deletes)
+      else send(List(sessionKey), "ackChange", s"$branchKey $index").andThen(txAdd.add(deletes))
     }).andThen(ErrorKey.set(Nil))(local)
   }
 

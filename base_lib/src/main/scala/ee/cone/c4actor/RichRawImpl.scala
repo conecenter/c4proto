@@ -37,7 +37,13 @@ object Merge {
 }
 
 @c4("RichDataCompApp") final class RichRawWorldReducerImpl(
-  toInjects: List[ToInject], toUpdate: ToUpdate, actorName: ActorName, execution: Execution, getOffset: GetOffsetImpl
+  toInjects: List[ToInject],
+  toUpdate: ToUpdate,
+  actorName: ActorName,
+  execution: Execution,
+  getOffset: GetOffsetImpl,
+  readModelAdd: ReadModelAdd,
+  getAssembleOptions: GetAssembleOptions,
 ) extends RichRawWorldReducer with LazyLogging {
   def reduce(contextOpt: Option[SharedContext with AssembledContext], addEvents: List[RawEvent]): RichContext = {
     val events = if(contextOpt.nonEmpty) addEvents else {
@@ -57,14 +63,14 @@ object Merge {
         } yield Map(injected.pair)
         create(Merge(Nil,injectedList), emptyReadModel, EmptyOuterExecutionContext)
       }
-      val nAssembled = ReadModelAddKey.of(context)(events)(context)
+      val nAssembled = readModelAdd.add(events, context)
       create(context.injected, nAssembled, context.executionContext)
     }
   }
 
   def create(injected: SharedComponentMap, assembled: ReadModel, executionContext: OuterExecutionContext): RichRawWorldImpl = {
     val preWorld = new RichRawWorldImpl(injected, assembled, executionContext, "")
-    val threadCount = GetAssembleOptions.of(preWorld)(assembled).threadCount
+    val threadCount = getAssembleOptions.get(assembled).threadCount
     val offset = getOffset.of(preWorld)
     new RichRawWorldImpl(injected, assembled, needExecutionContext(threadCount)(executionContext), offset)
   }
