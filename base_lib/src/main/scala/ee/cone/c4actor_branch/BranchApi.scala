@@ -67,7 +67,9 @@ case class BranchRel(srcId: SrcId, seed: S_BranchResult, parentSrcId: SrcId, par
   )
 }
 
-case object SendToAlienKey extends SharedComponentKey[(Seq[String],String,String)=>Context=>Context]
+trait ToAlienSender {
+  def send(sessionKeys: Seq[String], evType: String, data: String): Context=>Context
+}
 
 trait BranchError {
   def message: String

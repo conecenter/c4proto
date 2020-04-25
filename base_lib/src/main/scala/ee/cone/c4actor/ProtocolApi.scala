@@ -17,8 +17,6 @@ object ArgTypes {
   type LazyList[T] = List[T]
 }
 
-case object QAdapterRegistryKey extends SharedComponentKey[QAdapterRegistry]
-
 trait QAdapterRegistry {
   def byName: Map[String, ProtoAdapter[Product] with HasId]
   def byId: Map[Long, ProtoAdapter[Product] with HasId]

@@ -131,10 +131,6 @@ class QAdapterRegistryImpl(
   val byId: Map[Long, ProtoAdapter[Product] with HasId]
 ) extends QAdapterRegistry
 
-@c4("RichDataCompApp") final class LocalQAdapterRegistryInit(qAdapterRegistry: QAdapterRegistry) extends ToInject {
-  def toInject: List[Injectable] = QAdapterRegistryKey.set(qAdapterRegistry)
-}
-
 @c4("ProtoApp") final class ProductProtoAdapter(
   qAdapterRegistryD: DeferredSeq[QAdapterRegistry]
 ) extends ProtoAdapter[Product](FieldEncoding.LENGTH_DELIMITED, classOf[Product]) {

@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.N_Update
-import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble._
 import ee.cone.c4actor._
 import ee.cone.c4di._
@@ -165,7 +165,48 @@ trait SimpleAssembleProfilerApp extends SimpleAssembleProfilerCompApp with Compo
   def assembleProfiler: AssembleProfiler = resolveSingle(classOf[AssembleProfiler])
 }
 
-////
+//// injectable api
+@deprecated trait ToInject {
+  def toInject: List[Injectable]
+}
+class Injectable(val pair: (SharedComponentKey[_],Object))
+trait InjectableGetter[C,I] extends Getter[C,I] {
+  def set: I => List[Injectable]
+}
+@deprecated abstract class SharedComponentKey[D_Item<:Object] extends InjectableGetter[SharedContext,D_Item] with LazyLogging {
+  def of: SharedContext => D_Item = context => context.injected match {
+    case r: ToInjectRegistry =>
+      r.values.getOrElse(this, throw new Exception(s"$this was not injected")).asInstanceOf[D_Item]
+  }
+  def set: D_Item => List[Injectable] = item => {
+    logger.debug(s"injecting ${getClass.getName}")
+    List(new Injectable((this,item)))
+  }
+}
+//// injectable impl
+object Merge {
+  def apply[A](path: List[Any], values: List[A]): A =
+    if(values.size <= 1) Single(values)
+    else {
+      val maps = values.collect{ case m: Map[_,_] => m.toList }
+      assert(values.size == maps.size, s"can not merge $values of $path")
+      maps.flatten
+        .groupBy(_._1).transform((k,kvs)=>Merge(k :: path, kvs.map(_._2)))
+        .asInstanceOf[A]
+    }
+}
+@c4("RichDataApp") final class ToInjectRegistry(
+  toInjects: List[ToInject],
+)(
+  val values: Map[SharedComponentKey[_], Object] = {
+    val injectedList = for{
+      toInject <- toInjects
+      injected <- toInject.toInject
+    } yield Map(injected.pair)
+    if(injectedList.isEmpty) Map.empty else Merge(Nil,injectedList)
+  }
+) extends Injected
+//// TxAdd impl
 @c4("RichDataApp") final class TxAddInject(
   txAdd: LTxAdd,
   rawTxAdd: RawTxAdd,
@@ -179,3 +220,5 @@ trait SimpleAssembleProfilerApp extends SimpleAssembleProfilerCompApp with Compo
       TxAddKey.of(context).add(out)(context)
 }
 @deprecated case object WriteModelAddKey extends SharedComponentKey[Seq[N_Update]=>Context=>Context]
+////
+@deprecated case object SendToAlienKey extends SharedComponentKey[(Seq[String],String,String)=>Context=>Context]

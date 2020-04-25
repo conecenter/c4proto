@@ -19,7 +19,7 @@ import ee.cone.c4assemble._
 import ee.cone.c4di.{c4, c4multi, provide}
 import ee.cone.c4proto._
 import okio.ByteString
-import ee.cone.c4actor.rdb._
+import ee.cone.c4actor.rdb.{ExternalDBClient, _}
 import ee.cone.c4actor.rdb_impl.ProtoIndentedParserError.S_IndentedParserError
 
 @c4("FromExternalDBSyncApp") final class FromExternalDBOptionsProvider(
@@ -135,6 +135,8 @@ case object RDBSleepUntilKey extends TransientLens[Map[SrcId,(Instant,Option[B_H
 @c4multi("ToExternalDBSyncApp") final case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(
   rDBTypes: RDBTypes,
   txAdd: LTxAdd,
+  registry: QAdapterRegistry,
+  externalDBClient: ExternalDBClient,
 ) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = {
     val now = Instant.now()
@@ -142,9 +144,8 @@ case object RDBSleepUntilKey extends TransientLens[Map[SrcId,(Instant,Option[B_H
       val skip = RDBSleepUntilKey.of(local)
       val(until,wasTo) = skip.getOrElse(task.srcId, (Instant.MIN,None))
       until.isBefore(now) || task.to != wasTo
-    }.map{ task => WithJDBCKey.of(local) { conn =>
+    }.map{ task => externalDBClient.getConnectionPool.doWith { conn =>
       import task.{from,to}
-      val registry = QAdapterRegistryKey.of(local)
       val protoToString = new ProtoToString(registry,rDBTypes)
       def recode(stateOpt: Option[B_HasState]) = stateOpt.map{ state =>
         protoToString.recode(state.valueTypeId, state.value)
@@ -199,8 +200,9 @@ case object RDBSleepUntilKey extends TransientLens[Map[SrcId,(Instant,Option[B_H
   indentedParser: IndentedParser,
   getB_DBOffset: GetByPK[B_DBOffset],
   rawTxAdd: RawTxAdd,
+  externalDBClient: ExternalDBClient,
 ) extends TxTransform with LazyLogging {
-  def transform(local: Context): Context = WithJDBCKey.of(local){ conn =>
+  def transform(local: Context): Context = externalDBClient.getConnectionPool.doWith { conn =>
     val offset =
       getB_DBOffset.ofA(local).getOrElse(srcId, B_DBOffset(srcId, 0L))
     logger.debug(s"offset $offset")//, By.srcId(classOf[Invoice]).of(world).size)

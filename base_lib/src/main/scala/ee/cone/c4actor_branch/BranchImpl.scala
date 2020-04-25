@@ -20,16 +20,16 @@ import scala.collection.immutable.Seq
 case object SessionKeysKey extends TransientLens[Set[BranchRel]](Set.empty)
 
 @c4multi("BranchApp") final case class BranchTaskImpl(branchKey: String, seeds: List[BranchRel], product: Product)(
-  getBranchTask: GetByPK[BranchTask]
+  getBranchTask: GetByPK[BranchTask],
+  toAlienSender: ToAlienSender,
 ) extends BranchTask with LazyLogging {
   def sending: Context => (Send,Send) = local => {
     val newSessionKeys = sessionKeys(local)
     val(keepTo,freshTo) = newSessionKeys.partition(SessionKeysKey.of(local))
-    val send = SendToAlienKey.of(local)
     def sendingPart(to: Set[BranchRel]): Send =
       if(to.isEmpty) None
       else Some((eventName,data) =>
-        send(to.map(_.parentSrcId).toList, eventName, data)
+        toAlienSender.send(to.map(_.parentSrcId).toList, eventName, data)
           .andThen(SessionKeysKey.set(newSessionKeys))
       )
     (sendingPart(keepTo), sendingPart(freshTo))
@@ -45,7 +45,7 @@ case object SessionKeysKey extends TransientLens[Set[BranchRel]](Set.empty)
   def relocate(to: String): Context => Context = local => {
     val(toSessions, toNested) = seeds.partition(_.parentIsSession)
     val sessionKeys = toSessions.map(_.parentSrcId)
-    val send = SendToAlienKey.of(local)(sessionKeys,"relocateHash",to)
+    val send = toAlienSender.send(sessionKeys,"relocateHash",to)
     val nest = toNested.map((rel:BranchRel) => relocateSeed(rel.parentSrcId,rel.seed.position,to))
     send.andThen(chain(nest))(local)
   }
@@ -74,6 +74,7 @@ case object EmptyBranchMessage extends BranchMessage {
 )(
   getS_BranchResult: GetByPK[S_BranchResult],
   txAdd: LTxAdd,
+  toAlienSender: ToAlienSender,
 ) extends TxTransform with LazyLogging {
   private def saveResult: Context => Context = local => {
     //if(seed.isEmpty && newChildren.nonEmpty) println(s"newChildren: ${handler}")
@@ -120,7 +121,7 @@ case object EmptyBranchMessage extends BranchMessage {
   }
 
   private def sendToAll(evType: String, data: String): Context => Context =
-    local => SendToAlienKey.of(local)(sessionKeys,evType,data)(local)
+    toAlienSender.send(sessionKeys,evType,data)
 
   private def errorText: Context => String = local => ErrorKey.of(local).map{
     case e:BranchError => e.message
@@ -140,13 +141,12 @@ case object EmptyBranchMessage extends BranchMessage {
   }
 
   private def rmRequestsErrors: Context => Context = local => {
-    val send = SendToAlienKey.of(local)
     chain(requests.map{ request =>
       val sessionKey = request.header("x-r-session")
       val index = request.header("x-r-index")
       val deletes = request.deletes
       if(sessionKey.isEmpty) txAdd.add(deletes)
-      else send(List(sessionKey), "ackChange", s"$branchKey $index").andThen(txAdd.add(deletes))
+      else toAlienSender.send(List(sessionKey), "ackChange", s"$branchKey $index").andThen(txAdd.add(deletes))
     }).andThen(ErrorKey.set(Nil))(local)
   }
 

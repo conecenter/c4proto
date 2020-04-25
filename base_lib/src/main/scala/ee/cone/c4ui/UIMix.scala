@@ -10,9 +10,9 @@ trait AccessViewAppBase
 
 trait PublicViewAssembleAppBase
 
-trait UICompAppBase extends AlienExchangeApp with BranchApp
+trait UICompAppBase extends AlienExchangeCompApp with BranchApp
 
-trait AlienExchangeAppBase extends AlienProtocolApp with HttpProtocolApp
+trait AlienExchangeCompAppBase extends AlienProtocolApp with HttpProtocolApp
 
 @c4("UICompApp") final class VDomProvider {
   private lazy val diff = new DiffImpl(MapVDomValueImpl,WasNoValueImpl)
