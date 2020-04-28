@@ -14,6 +14,8 @@ trait ImagePublicPath extends PublicPath {
 
 object SVGPublicPath {
   def adaptiveColor = "adaptive"
+
+  def empty = SVGPublicPath("", "")
 }
 
 case class DefaultPublicPath(path: String) extends PublicPath
