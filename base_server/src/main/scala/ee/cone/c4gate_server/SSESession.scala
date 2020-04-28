@@ -17,21 +17,28 @@ import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
 import ee.cone.c4gate.{ByPathHttpPublication, ByPathHttpPublicationUntil}
 import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpRequest}
-import ee.cone.c4di.{c4, provide}
+import ee.cone.c4di.{c4, c4multi, provide}
 import ee.cone.c4gate_server.RHttpTypes.RHttpHandlerCreate
 import okio.ByteString
-
-case object LastPongKey extends SharedComponentKey[String=>Option[Instant]]
 
 trait PongRegistry {
   def pongs: TrieMap[String,Instant]
 }
-
-@c4("SSEServerApp") class PongRegistryImpl(val pongs: TrieMap[String,Instant] = TrieMap()) extends PongRegistry with ToInject {
-  def toInject: List[Injectable] = LastPongKey.set(pongs.get)
+trait RoPongRegistry {
+  def get: String=>Option[Instant]
 }
 
-@c4("SSEServerApp") class PongHandler(
+@c4("SSEServerApp") final class PongRegistryImpl(
+  val pongs: TrieMap[String,Instant] = TrieMap()
+) extends PongRegistry
+
+@c4("SSEServerApp") final class RoPongRegistryImpl(
+  rw: PongRegistry
+) extends RoPongRegistry {
+  def get: String=>Option[Instant] = rw.pongs.get
+}
+
+@c4("SSEServerApp") final class PongHandler(
   sseConfig: SSEConfig, pongRegistry: PongRegistry,
   httpResponseFactory: RHttpResponseFactory,
   updateIfChanged: UpdateIfChanged,
@@ -114,26 +121,30 @@ class SSEHandler(config: SSEConfig) extends TcpHandler with LazyLogging {
 
 case object SSEPingTimeKey extends TransientLens[Instant](Instant.MIN)
 
-case class SessionTxTransform( //?todo session/pongs purge
+@c4multi("SSEServerApp") final case class SessionTxTransform( //?todo session/pongs purge
     sessionKey: SrcId,
     session: Option[U_AuthenticatedSession],
     connected: Option[U_FromAlienConnected],
     status: Option[U_FromAlienStatus],
     writes: Values[U_ToAlienWrite],
     availability: Option[Availability]
+)(
+  txAdd: LTxAdd,
+  lastPongs: RoPongRegistry,
+  server: TcpServer,
 ) extends TxTransform {
   def transform(local: Context): Context = {
     val now = Instant.now
-    val connectionAliveUntil = LastPongKey.of(local)(sessionKey).getOrElse(Instant.MIN)
+    val connectionAliveUntil = lastPongs.get(sessionKey).getOrElse(Instant.MIN)
     val connectionKey = connected.map(_.connectionKey)
-    val sender = connectionKey.flatMap(GetSenderKey.of(local))
+    val sender = connectionKey.flatMap(server.getSender)
     if(connectionAliveUntil.isBefore(now)) { //reconnect<precision<purge
       sender.foreach(_.close())
       val sessionAliveUntil =
           status.map(_.expirationSecond).orElse(session.map(_.untilSecond)).fold(Instant.MIN)(Instant.ofEpochSecond)
       if(sessionAliveUntil.isBefore(now))
-        TxAdd(session.toList.flatMap(LEvent.delete) ++ connected.toList.flatMap(LEvent.delete))(local)
-      else TxAdd(status.filter(_.isOnline).map(_.copy(isOnline = false)).toList.flatMap(LEvent.update(_)))(local)
+        txAdd.add(session.toList.flatMap(LEvent.delete) ++ connected.toList.flatMap(LEvent.delete))(local)
+      else txAdd.add(status.filter(_.isOnline).map(_.copy(isOnline = false)).toList.flatMap(LEvent.update(_)))(local)
     }
     else sender.map( sender =>
       ((local:Context) =>
@@ -146,18 +157,20 @@ case class SessionTxTransform( //?todo session/pongs purge
         }
       ).andThen{ local =>
         for(m <- writes) SSEMessage.message(sender, m.event, m.data)
-        TxAdd(writes.flatMap(LEvent.delete))(local)
+        txAdd.add(writes.flatMap(LEvent.delete))(local)
       }(local)
     ).getOrElse(local)
   }
 }
 
-@c4("SSEServerApp") class SSEAssembles(mortal: MortalFactory) {
+@c4("SSEServerApp") final class SSEAssembles(mortal: MortalFactory) {
   @provide def subAssembles: Seq[Assemble] =
     mortal(classOf[U_FromAlienState]) :: mortal(classOf[U_FromAlienStatus]) :: mortal(classOf[U_ToAlienWrite]) :: Nil
 }
 
-@c4assemble("SSEServerApp") class SSEAssembleBase   {
+@c4assemble("SSEServerApp") class SSEAssembleBase(
+  sessionTxTransformFactory: SessionTxTransformFactory
+){
   type SessionKey = SrcId
 
   def joinToAlienWrite(
@@ -172,7 +185,7 @@ case class SessionTxTransform( //?todo session/pongs purge
     statuses: Values[U_FromAlienStatus],
     @by[SessionKey] writes: Values[U_ToAlienWrite],
     @byEq[AbstractAll](All) availabilities: Values[Availability]
-  ): Values[(SrcId,TxTransform)] = List(WithPK(SessionTxTransform(key,
+  ): Values[(SrcId,TxTransform)] = List(WithPK(sessionTxTransformFactory.create(key,
     Single.option(sessions), Single.option(connected), Single.option(statuses),
     writes.sortBy(_.priority), Single.option(availabilities)
   )))
@@ -208,7 +221,7 @@ case class SessionTxTransform( //?todo session/pongs purge
 
 case class Availability(path: String, until: Long)
 
-@c4("NoProxySSEConfigApp") case class NoProxySSEConfig()(config: Config) extends SSEConfig {
+@c4("NoProxySSEConfigApp") final case class NoProxySSEConfig()(config: Config) extends SSEConfig {
   def stateRefreshPeriodSeconds: Int = config.get("C4STATE_REFRESH_SECONDS").toInt
   def allowOrigin: Option[String] = Option("*")
   def pongURL: String = "/pong"

@@ -25,7 +25,7 @@ import org.apache.kafka.common.serialization.{ByteArrayDeserializer, ByteArraySe
 import scala.collection.immutable.Map
 import scala.jdk.CollectionConverters.{IterableHasAsScala,MapHasAsJava,MapHasAsScala,SeqHasAsJava}
 
-@c4("KafkaConfigApp") class ConfigKafkaConfig(config: Config) extends KafkaConfig(
+@c4("KafkaConfigApp") final class ConfigKafkaConfig(config: Config) extends KafkaConfig(
   bootstrapServers = config.get("C4BOOTSTRAP_SERVERS"),
   inboxTopicPrefix = config.get("C4INBOX_TOPIC_PREFIX"),
   maxRequestSize = config.get("C4MAX_REQUEST_SIZE"),
@@ -34,7 +34,7 @@ import scala.jdk.CollectionConverters.{IterableHasAsScala,MapHasAsJava,MapHasAsS
   keyPassPath = config.get("C4STORE_PASS_PATH"),
 )()
 
-@c4("KafkaProducerApp") class KafkaRawQSender(conf: KafkaConfig, execution: Execution)(
+@c4("KafkaProducerApp") final class KafkaRawQSender(conf: KafkaConfig, execution: Execution)(
   producer: CompletableFuture[Producer[Array[Byte], Array[Byte]]] = new CompletableFuture()
 ) extends RawQSender with Executable {
   def run(): Unit = concurrent.blocking {
@@ -50,15 +50,15 @@ import scala.jdk.CollectionConverters.{IterableHasAsScala,MapHasAsJava,MapHasAsS
       // + in broker config: message.max.bytes
     )
     val serializer = new ByteArraySerializer
-    producer.complete(new KafkaProducer[Array[Byte], Array[Byte]](
+    assert(producer.complete(new KafkaProducer[Array[Byte], Array[Byte]](
       props.asJava, serializer, serializer
-    ))
-    execution.onShutdown("Producer",() => producer.get.close())
+    )))
+    val remove = execution.onShutdown("Producer",() => producer.get.close()) // we'll not remove hook
   }
 
   private def sendStart(rec: QRecord): java.util.concurrent.Future[RecordMetadata] = {
     //println(s"sending to server [$bootstrapServers] topic [${topicNameToString(rec.topic)}]")
-    val value: Array[Byte] = if(rec.value.nonEmpty) rec.value else null
+    @SuppressWarnings(Array("org.wartremover.warts.Null")) val value: Array[Byte] = if(rec.value.nonEmpty) rec.value else null //why null?
     val topic: String = conf.topicNameToString(rec.topic)
     val headers = rec.headers.map(h => new RecordHeader(h.key, h.value.getBytes(UTF_8)).asInstanceOf[Header]).asJava
     /*val record = new ProducerRecord[Array[Byte], Array[Byte]](topic, 0, null, Array.emptyByteArray, value, headers)
@@ -102,7 +102,7 @@ case class KafkaConfig(
   }
 }
 
-@c4("KafkaConsumerApp") case class KafkaConsuming(conf: KafkaConfig)(execution: Execution) extends Consuming with LazyLogging {
+@c4("KafkaConsumerApp") final case class KafkaConsuming(conf: KafkaConfig)(execution: Execution) extends Consuming with LazyLogging {
   def process[R](from: NextOffset, body: Consumer=>R): R = {
     val deserializer = new ByteArrayDeserializer
     val props: Map[String, Object] = conf.ssl ++ Map(

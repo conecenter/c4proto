@@ -8,12 +8,12 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.FinallyClose
 import ee.cone.c4di.c4
 import ee.cone.c4gate.HttpUtil.HttpMethod
-import okio.ByteString
+import okio.{Buffer, ByteString}
 
 import scala.jdk.CollectionConverters.MapHasAsScala
 import scala.jdk.CollectionConverters.ListHasAsScala
 
-@c4("HttpUtilApp") class HttpUtilImpl extends HttpUtil with LazyLogging {
+@c4("HttpUtilApp") final class HttpUtilImpl extends HttpUtil with LazyLogging {
   private def withConnection[T](url: String): (HttpURLConnection => T) => T =
     FinallyClose[HttpURLConnection, T](_.disconnect())(
       new URL(url).openConnection().asInstanceOf[HttpURLConnection]
@@ -29,6 +29,7 @@ import scala.jdk.CollectionConverters.ListHasAsScala
     Option(k).map(k => (k.toLowerCase(Locale.ENGLISH), v)).toList
   }
 
+  private def ignoreTheSameBuffer(value: Buffer): Unit = ()
   def get(url: String, headers: List[(String, String)]): HttpResponse = {
     logger.debug(s"http get $url")
     // TODO no way to find out that data download ended before fully loaded
@@ -36,7 +37,7 @@ import scala.jdk.CollectionConverters.ListHasAsScala
       setHeaders(conn, headers)
       FinallyClose(new BufferedInputStream(conn.getInputStream)) { is =>
         FinallyClose(new okio.Buffer) { buffer =>
-          buffer.readFrom(is)
+          ignoreTheSameBuffer(buffer.readFrom(is))
           val headers = conn.getHeaderFields.asScala.toList
             .flatMap(normalizeHeader).toMap.transform((_,v)=>v.asScala.toList)
           HttpResponse(conn.getResponseCode, headers, buffer.readByteString())
@@ -88,8 +89,8 @@ import scala.jdk.CollectionConverters.ListHasAsScala
   def post(url: String, headers: List[(String, String)]): Unit =
     post(url,headers,ByteString.EMPTY,None,200)
   def post(url: String, headers: List[(String, String)], body: ByteString, timeOut: Option[Int], expectCode: Int): Unit = {
-    genReq(HttpMethod.POST, url, headers, body, timeOut).ensuring(_ == expectCode)
-    ()
+    val code = genReq(HttpMethod.POST, url, headers, body, timeOut)
+    assert(code == expectCode)
   }
   def put(
     url: String,

@@ -6,7 +6,7 @@ import ee.cone.c4di.c4
 
 import scala.annotation.tailrec
 
-@c4("ServerCompApp") class RootConsumer(
+@c4("ServerCompApp") final class RootConsumer(
   reducer: RichRawWorldReducer,
   snapshotMaker: SnapshotMaker,
   loader: SnapshotLoader,

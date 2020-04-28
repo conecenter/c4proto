@@ -77,7 +77,7 @@ case class TestAntiDosRootView(branchKey: SrcId) extends View {
 }
 */
 
-@c4("TestPasswordApp") case class TestPasswordRootView(locationHash: String = "pass")(
+@c4("TestPasswordApp") final case class TestPasswordRootView(locationHash: String = "pass")(
   tags: TestTags[Context],
   mTags: Tags,
   untilPolicy: UntilPolicy,
@@ -85,6 +85,7 @@ case class TestAntiDosRootView(branchKey: SrcId) extends View {
   getU_FromAlienState: GetByPK[U_FromAlienState],
   getS_PasswordChangeRequest: GetByPK[S_PasswordChangeRequest],
   getU_AuthenticatedSession: GetByPK[U_AuthenticatedSession],
+  txAdd: LTxAdd,
 ) extends ByLocationHashView {
   def view: Context => ViewRes = untilPolicy.wrap{ local =>
     val freshDB = getC_PasswordHashOfUser.ofA(local).isEmpty
@@ -106,12 +107,12 @@ case class TestAntiDosRootView(branchKey: SrcId) extends View {
           val requests = getS_PasswordChangeRequest.ofA(local)
           val updates = requests.get(reqId).toList
             .flatMap(req=>LEvent.update(C_PasswordHashOfUser("test",req.hash)))
-          TxAdd(updates)(local)
+          txAdd.add(updates)(local)
         })
       ) ++ userName.map(n=>mTags.text("hint",s"signed in as $n")) ++
       List(mTags.divButton("kill-sessions"){ (local:Context) =>
         val sessions = getU_AuthenticatedSession.ofA(local).values.toList.sortBy(_.sessionKey)
-        TxAdd(sessions.flatMap(LEvent.delete))(local)
+        txAdd.add(sessions.flatMap(LEvent.delete))(local)
       }(List(mTags.text("text","kill sessions"))))
     }
   }

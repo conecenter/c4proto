@@ -12,9 +12,11 @@ object BigDecimalFactory {
   }
 }
 
+
+
 trait BigDecimalProtocolAdd {
   type BigDecimal = scala.math.BigDecimal
-  val BigDecimalFactory = ee.cone.c4actor.BigDecimalFactory
+  // val BigDecimalFactory = ee.cone.c4actor.BigDecimalFactory
 }
 
 @protocol("BigDecimalApp") object BigDecimalProtocol extends BigDecimalProtocolAdd {

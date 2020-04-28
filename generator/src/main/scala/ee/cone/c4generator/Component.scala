@@ -17,7 +17,10 @@ object ComponentsGenerator extends Generator {
       in.map(s=>s"\n    $s ::").mkString +
       s"""\n    Nil""" +
       s"""\n  private def create$name(args: Seq[Object]) = {""" +
-      s"""\n    val Seq(${caseSeq.mkString(",")}) = args;""" +
+        (if (caseSeq.size <= 22) s"""\n    val Seq(${caseSeq.mkString(",")}) = args;"""
+        else
+          s"""\n    println(\"WARN: $name component has more than 22 arguments\");""" +
+          caseSeq.zipWithIndex.map { case (name, ind) => s"""    val $name = args.apply($ind)""" }.mkString("\n", "\n", "")) +
       s"""\n    $body""" +
       s"""\n  }""" +
       s"""\n  lazy val link$name: Component = new Component(out$name,nonFinalOut$name,in$name,create$name)"""
@@ -25,11 +28,6 @@ object ComponentsGenerator extends Generator {
 
   val IsId = """(\w+)""".r
 
-  def fileNameToComponentsId(fileName: String): String = {
-    val SName = """.+/([-\w]+)\.scala""".r
-    val SName(fName) = fileName
-    s"${fName.replace('-', '_')}Components"
-  }
   def annArgToStr(arg: Any): Option[String] = arg match {
     case Lit(v:String) => Option(v)
     case args: Seq[_] => args.toList.flatMap(a=>annArgToStr(a).toList) match {
@@ -38,6 +36,7 @@ object ComponentsGenerator extends Generator {
     }
   }
   def getComponent(cl: ParsedClass, parseContext: ParseContext): List[GeneratedComponent] = {
+    Util.assertFinal(cl)
     val tp = cl.name
     val list = for{
       params <- cl.params.toList
@@ -111,7 +110,7 @@ object ComponentsGenerator extends Generator {
     if(components.isEmpty) Nil else wrapComponents(parseContext,components)
   }
   def wrapComponents(parseContext: ParseContext, components: List[AbstractGeneratedComponent]): List[Generated] = {
-    val componentsId = fileNameToComponentsId(parseContext.path)
+    val componentsId = s"${Util.pathToId(parseContext.path)}Components"
     val connects: List[Generated] = components.collect{ case c: GeneratedComponentAppLink => c }.groupMap(_.app)(_.link).toList.sortBy(_._1).flatMap{
       case (app,links) => List(
         GeneratedCode(

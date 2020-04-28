@@ -137,15 +137,18 @@ trait ToUpdate {
 object Types {
   type ClName = String
   type TypeId = Long
+  type FieldId = Long
   type SrcId = String
   type TransientMap = Map[TransientLens[_],Object]
-  type SharedComponentMap = Map[SharedComponentKey[_],Object]
   type NextOffset = String
   type TypeKey = ee.cone.c4di.TypeKey
 }
 
+
+trait Injected
+
 trait SharedContext {
-  def injected: SharedComponentMap
+  def injected: Injected
 }
 
 trait AssembledContext {
@@ -160,7 +163,7 @@ trait OffsetContext {
 trait RichContext extends OffsetContext with SharedContext with AssembledContext
 
 class Context(
-  val injected: SharedComponentMap,
+  val injected: Injected,
   val assembled: ReadModel,
   val executionContext: OuterExecutionContext,
   val transient: TransientMap
@@ -168,6 +171,7 @@ class Context(
 
 trait GetByPK[V<:Product] extends Product {
   def ofA(context: AssembledContext): Map[SrcId,V]
+  //@deprecated def of(context: AssembledContext): Map[SrcId,V] = ???
   def typeKey: TypeKey
   def cl: Class[V]
 }
@@ -175,8 +179,6 @@ trait GetByPK[V<:Product] extends Product {
 trait DynamicByPK { // low level api, think before use
   def get(joinKey: AssembledKey, context: AssembledContext): Map[SrcId,Product]
 }
-
-case object GetAssembleOptions extends SharedComponentKey[ReadModel=>AssembleOptions]
 
 trait Lens[C,I] extends Getter[C,I] {
   def modify: (I=>I) => C=>C
@@ -221,9 +223,17 @@ object WithPK {
   def apply[P<:Product](p: P): (SrcId,P) = ToPrimaryKey(p) -> p
 }
 
-object TxAdd {
-  def apply[M<:Product](out: Seq[LEvent[M]]): Context=>Context = context =>
-    WriteModelDebugAddKey.of(context)(out)(context)
+trait LTxAdd {
+  def add[M<:Product](out: Seq[LEvent[M]]): Context=>Context
+}
+trait RawTxAdd {
+  def add(out: Seq[N_Update]): Context=>Context
+}
+trait ReadModelAdd {
+  def add(events: Seq[RawEvent], context: AssembledContext): ReadModel
+}
+trait GetAssembleOptions {
+  def get(assembled: ReadModel): AssembleOptions
 }
 
 trait Observer[Message] {
@@ -240,9 +250,6 @@ trait TxTransform extends Product {
 }
 
 case object WriteModelKey extends TransientLens[Queue[N_Update]](Queue.empty)
-case object ReadModelAddKey extends SharedComponentKey[Seq[RawEvent]=>(SharedContext with AssembledContext)=>ReadModel]
-case object WriteModelDebugAddKey extends SharedComponentKey[Seq[LEvent[Product]]=>Context=>Context]
-case object WriteModelAddKey extends SharedComponentKey[Seq[N_Update]=>Context=>Context]
 
 case class RawHeader(key: String, value: String)
 

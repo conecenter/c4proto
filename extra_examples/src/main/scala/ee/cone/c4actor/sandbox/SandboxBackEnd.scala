@@ -11,7 +11,7 @@ import ee.cone.c4di.{c4, c4app}
   C4STATE_TOPIC_PREFIX=ee.cone.c4actor.sandbox.SandboxProject sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
  */
 
-@c4("SandboxProjectApp") class SandboxProject(
+@c4("SandboxProjectApp") final class SandboxProject(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory,
   getD_Sandbox: GetByPK[D_Sandbox],
 ) extends Executable with LazyLogging {

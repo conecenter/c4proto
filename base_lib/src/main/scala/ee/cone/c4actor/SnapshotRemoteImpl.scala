@@ -6,7 +6,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 
 import ee.cone.c4di.c4
 
-@c4("ConfigSimpleSignerApp") class SimpleSignerImpl(
+@c4("ConfigSimpleSignerApp") final class SimpleSignerImpl(
   config: Config, idGenUtil : IdGenUtil
 )(
   fileName: String = config.get("C4AUTH_KEY_FILE")
@@ -29,7 +29,7 @@ import ee.cone.c4di.c4
   }
 }
 
-@c4("TaskSignerApp") class SnapshotTaskSignerImpl(inner: SimpleSigner)(
+@c4("TaskSignerApp") final class SnapshotTaskSignerImpl(inner: SimpleSigner)(
   val url: String = "/need-snapshot"
 ) extends SnapshotTaskSigner {
   def sign(task: SnapshotTask, until: Long): String = inner.sign(List(url,task.name) ++ task.offsetOpt, until)

@@ -127,10 +127,11 @@ case class ResultNodeFromList(srcId: SrcId, modelsSize: Int, result: String)
     List(WithPK(ResultNodeFromList(instr.srcId, list.list.size, list.list.groupBy(_.head).keys.toString)))
 }
 
-@c4("ChangingIndexPerformanceTestApp") class ChangingIndexPerformanceTest(
+@c4("ChangingIndexPerformanceTestApp") final class ChangingIndexPerformanceTest(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory,
   getResultNode: GetByPK[ResultNode],
   getResultNodeFromList: GetByPK[ResultNodeFromList],
+  txAdd: LTxAdd,
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     import LEvent.update
@@ -148,21 +149,21 @@ case class ResultNodeFromList(srcId: SrcId, modelsSize: Int, result: String)
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println("World Ready")
 
-    val firstGlobal = TxAdd(LEvent.update(D_NodeInstruction("test", 0, worldSize / 2)))(nGlobal)
+    val firstGlobal = txAdd.add(LEvent.update(D_NodeInstruction("test", 0, worldSize / 2)))(nGlobal)
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println("TxAdd index")
     println(getResultNode.ofA(firstGlobal))
     println(getResultNodeFromList.ofA(firstGlobal))
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println("Change index")
-    val secondGlobal = TxAdd(LEvent.update(D_NodeInstruction("test", worldSize / 2, worldSize)))(firstGlobal)
+    val secondGlobal = txAdd.add(LEvent.update(D_NodeInstruction("test", worldSize / 2, worldSize)))(firstGlobal)
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println("TxAdd index")
     println(getResultNode.ofA(secondGlobal))
     println(getResultNodeFromList.ofA(secondGlobal))
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println("Change index")
-    val thirdGlobal = TxAdd(LEvent.update(D_NodeInstruction("test", 0, 0)))(secondGlobal)
+    val thirdGlobal = txAdd.add(LEvent.update(D_NodeInstruction("test", 0, 0)))(secondGlobal)
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println("TxAdd index")
     println(getResultNode.ofA(thirdGlobal))

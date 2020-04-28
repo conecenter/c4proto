@@ -16,17 +16,21 @@ import scala.jdk.CollectionConverters.IteratorHasAsScala
 object Main {
   def defaultGenerators(protocolStatsTransformers: List[ProtocolStatsTransformer]): List[Generator] = {
     val protocolGenerator = new ProtocolGenerator(protocolStatsTransformers)
+    val metaGenerator = new MetaGenerator(protocolStatsTransformers)
     List(
       ImportGenerator,
-      new TimeGenerator(protocolGenerator),
+      new TimeGenerator(protocolGenerator, metaGenerator),
       new AssembleGenerator(TimeJoinParamTransformer :: Nil),
+      metaGenerator,
       protocolGenerator,
       MultiGenerator,
       FieldAccessGenerator,
-      AppGenerator
+      AppGenerator,
     ) //,UnBaseGenerator
   }
-  def main(args: Array[String]): Unit = new RootGenerator(defaultGenerators(Nil)).run()
+  def main(args: Array[String]): Unit = new RootGenerator(defaultGenerators(Nil) ::: List(
+    ValInNonFinalGenerator,
+  )).run()
   def toPrefix = "c4gen."
   def env(key: String): Option[String] = Option(System.getenv(key))
   def version: String = s"-w${env("C4GENERATOR_VER").getOrElse(throw new Exception(s"missing env C4GENERATOR_VER"))}"
@@ -79,7 +83,7 @@ class RootGenerator(generators: List[Generator]) {
       (path,data) <- will if !java.util.Arrays.equals(data,was.getOrElse(path,Array.empty))
     } {
       println(s"saving $path")
-      Files.write(path,data)
+      Util.ignoreTheSamePath(Files.write(path,data))
     }
     //println(s"3:${System.currentTimeMillis()}")
   }
@@ -87,9 +91,8 @@ class RootGenerator(generators: List[Generator]) {
 
 class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
   def get(ctx: WillGeneratorContext): List[(Path,Array[Byte])] = {
-    val rootCachePath = rootPath.resolve("cache")
+    val rootCachePath = Files.createDirectories(rootPath.resolve("cache"))
     val fromPostfix = ".scala"
-    Files.createDirectories(rootCachePath)
     // 
     val list = Await.result({
       implicit val ec = scala.concurrent.ExecutionContext.global
@@ -156,7 +159,10 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
       println(s"parsing $path")
       val content = new String(fromData,UTF_8).replace("\r\n","\n")
       val source = dialects.Scala213(content).parse[Source]
-      val Parsed.Success(source"..$sourceStatements") = source
+      val sourceStatements = source match {
+        case Parsed.Success(source"..$sourceStatements") => sourceStatements
+        case Parsed.Error(position, string, ex) => throw new Exception(s"Parse exception in ($path:${position.startLine})", ex)
+      }
       val resStatements: List[Generated] = for {
         sourceStatement <- (sourceStatements:Seq[Stat]).toList
         q"package $n { ..$packageStatements }" = sourceStatement
@@ -181,14 +187,14 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
         }
       } yield res;
       {
-        val warnings = Lint.process(sourceStatements)
+
         val code = resStatements.flatMap{
           case c: GeneratedImport => List(c.content)
           case c: GeneratedCode => List(c.content)
           case c: GeneratedAppLink => Nil
           case c => throw new Exception(s"$c")
         }
-        val content = (warnings ++ code).mkString("\n")
+        val content = code.mkString("\n")
         val contentWithLinks = if(content.isEmpty) "" else
           s"// THIS FILE IS GENERATED; APPLINKS: " +
           resStatements.collect{ case s: GeneratedAppLink =>
@@ -197,7 +203,7 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
           "\n" +
           content
         val toData = contentWithLinks.getBytes(UTF_8)
-        Files.write(cachePath,toData)
+        Util.ignoreTheSamePath(Files.write(cachePath,toData))
         toData
       }
     }
@@ -273,6 +279,19 @@ object Util {
 
   def toBinFileList(in: Iterable[(Path,List[String])]): List[(Path,Array[Byte])] =
     in.map{ case (path,lines) => path->lines.mkString("\n").getBytes(UTF_8) }.toList.sortBy(_._1)
+
+  def pathToId(fileName: String): String = {
+    val SName = """.+/([-\w]+)\.scala""".r
+    val SName(fName) = fileName
+    fName.replace('-', '_')
+  }
+
+
+  def assertFinal(cl: ParsedClass): Unit = {
+    assert(cl.mods.collect{ case mod"final" => true }.nonEmpty,s"${cl.name} should be final")
+  }
+
+  def ignoreTheSamePath(path: Path): Unit = ()
 }
 case class PkgInfo(pkgPath: Path, pkgName: String)
 class ParsedClass(
@@ -292,28 +311,6 @@ case class GeneratedCode(content: String) extends Generated
 case class GeneratedTraitDef(name: String) extends Generated
 case class GeneratedTraitUsage(name: String) extends Generated
 case class GeneratedAppLink(pkg: String, app: String, expr: String) extends Generated
-
-object Lint {
-  def process(stats: Seq[Stat]): Seq[String] =
-    stats.flatMap{ stat =>
-      stat.collect{
-        case q"..$mods class $tname[..$tparams] ..$ctorMods (...$paramss) extends $template"
-          if mods.collect{ case mod"abstract" => true }.nonEmpty =>
-          ("abstract class",tname,template)
-        case q"..$mods trait $tname[..$tparams] extends $template" =>
-          ("trait",tname,template)
-      }.flatMap{
-        case (tp,tName,template"{ ..$statsA } with ..$inits { $self => ..$statsB }") =>
-          if(statsA.nonEmpty) println(s"warn: early initializer in $tName")
-          statsB.collect{
-            case q"..$mods val ..$patsnel: $tpeopt = $expr"
-              if mods.collect{ case mod"lazy" => true }.isEmpty =>
-              s"/*\nwarn: val ${patsnel.mkString(" ")} in $tp $tName \n*/"
-          }
-        case _ => Nil
-      }
-    }
-}
 
 case class PublicPathRoot(mainPublicPath: Path, pkgName: String, genPath: Path, publicPath: Path)
 class PublicPathsGenerator extends WillGenerator {

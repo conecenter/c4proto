@@ -225,7 +225,7 @@ class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends
     val res = c4ann.fold(
       q"""class ${Type.Name(className)} [..${cl.typeParams}] (...$paramNamesWithTypes)"""
     )(ann=>
-      q"""$ann class ${Type.Name(className)} [..${cl.typeParams}] (...$paramNamesWithTypes)"""
+      q"""$ann final class ${Type.Name(className)} [..${cl.typeParams}] (...$paramNamesWithTypes)"""
     )
 
     val factoryStats = MultiGenerator.getForStats(List(res))

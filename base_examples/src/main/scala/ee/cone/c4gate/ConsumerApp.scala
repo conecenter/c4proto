@@ -55,7 +55,11 @@ curl 127.0.0.1:8067/connection -v -H x-r-action:pong -H x-r-connection:...
     List("GateTester"->GateTester(connections))*/
 }
 
-@c4multi("TestConsumerApp") case class TestHttpHandler(srcId: SrcId, req: S_HttpRequest)(catchNonFatal: CatchNonFatal, publisher: Publisher) extends TxTransform with LazyLogging {
+@c4multi("TestConsumerApp") final case class TestHttpHandler(srcId: SrcId, req: S_HttpRequest)(
+  catchNonFatal: CatchNonFatal,
+  publisher: Publisher,
+  txAdd: LTxAdd,
+) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = catchNonFatal {
     val next = if(req.method == "POST"){
       val prev = req.body.utf8()
@@ -67,9 +71,9 @@ curl 127.0.0.1:8067/connection -v -H x-r-action:pong -H x-r-connection:...
       S_HttpResponse(req.srcId,200,List(N_Header("content-type","text/html; charset=UTF-8")),ToByteString(s"sync $next ${now-req.time}\n"),now)
     val pubEvents = publisher.publish(ByPathHttpPublication(req.path, Nil, ToByteString(s"async $next\n")), _+4000)
     logger.info(s"$resp --- $pubEvents")
-    TxAdd(delete(req) ++ update(resp) ++ pubEvents)(local)
+    txAdd.add(delete(req) ++ update(resp) ++ pubEvents)(local)
   }("test"){ e =>
-    TxAdd(delete(req))(local)
+    txAdd.add(delete(req))(local)
   }
 }
 

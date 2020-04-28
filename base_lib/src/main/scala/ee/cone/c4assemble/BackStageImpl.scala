@@ -10,7 +10,7 @@ object PrepareBackStage extends WorldPartExpression {
     transition.copy(prev=Option(transition), diff=emptyReadModel)
 }
 
-@c4multi("AssembleApp") class ConnectBackStage[MapKey, Value](
+@c4multi("AssembleApp") final class ConnectBackStage[MapKey, Value](
   val outputWorldKey: AssembledKey,
   val nextKey:        AssembledKey
 )(
@@ -30,7 +30,7 @@ object PrepareBackStage extends WorldPartExpression {
   }
 }
 
-@c4("AssembleApp") class BackStageFactoryImpl(factory: ConnectBackStageFactory) extends BackStageFactory {
+@c4("AssembleApp") final class BackStageFactoryImpl(factory: ConnectBackStageFactory) extends BackStageFactory {
   def create(l: List[DataDependencyFrom[_]]): List[WorldPartExpression] = {
     val wasKeys = (for {
       e <- l

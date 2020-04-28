@@ -2,6 +2,7 @@ package ee.cone.c4actor
 
 import ee.cone.c4actor.CollectiveTransformProtocol.D_CollectiveTransformMeta
 import ee.cone.c4assemble.Types.Values
+import ee.cone.c4di.c4multi
 import ee.cone.c4proto.{Id, protocol}
 
 import scala.collection.immutable.Seq
@@ -12,9 +13,12 @@ trait LEventTransform extends Product {
   def leventsDescription: String = this.getClass.getName
 }
 
-case class CollectiveTransform(srcId: String, events: Values[LEventTransform]) extends TxTransform {
+trait CollectiveTransformAppBase
+@c4multi("CollectiveTransformApp") final case class CollectiveTransform(srcId: String, events: Values[LEventTransform])(
+  txAdd: LTxAdd,
+) extends TxTransform {
   def transform(local: Context): Context =
-    TxAdd(events.flatMap(_.lEvents(local)))(InsertOrigMeta(D_CollectiveTransformMeta(events.map(_.leventsDescription).toList) :: Nil)(local))
+    txAdd.add(events.flatMap(_.lEvents(local)))(InsertOrigMeta(D_CollectiveTransformMeta(events.map(_.leventsDescription).toList) :: Nil)(local))
 }
 
 object InsertOrigMeta {

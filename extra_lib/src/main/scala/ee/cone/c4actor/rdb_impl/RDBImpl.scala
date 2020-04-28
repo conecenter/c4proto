@@ -19,10 +19,10 @@ import ee.cone.c4assemble._
 import ee.cone.c4di.{c4, c4multi, provide}
 import ee.cone.c4proto._
 import okio.ByteString
-import ee.cone.c4actor.rdb._
+import ee.cone.c4actor.rdb.{ExternalDBClient, _}
 import ee.cone.c4actor.rdb_impl.ProtoIndentedParserError.S_IndentedParserError
 
-@c4("FromExternalDBSyncApp") class FromExternalDBOptionsProvider(
+@c4("FromExternalDBSyncApp") final class FromExternalDBOptionsProvider(
   rdbOptionFactory: RDBOptionFactory
 ) {
   @provide def get: Seq[ExternalDBOption] = List(
@@ -30,7 +30,7 @@ import ee.cone.c4actor.rdb_impl.ProtoIndentedParserError.S_IndentedParserError
   )
 }
 
-@c4("RDBSyncApp") class RDBOptionFactoryImpl(
+@c4("RDBSyncApp") final class RDBOptionFactoryImpl(
   toExternalDBOrigAssembleFactory: ToExternalDBOrigAssembleFactory
 ) extends RDBOptionFactory {
   def fromDB[P <: Product](cl: Class[P]): ExternalDBOption = new FromDBOption(cl)
@@ -58,7 +58,7 @@ object ToExternalDBTypes {
   type PseudoOrigNeedSrcId = SrcId
 }
 
-@c4("ToExternalDBSyncApp") class ToExternalDBAssemblesBase(options: List[ExternalDBOption]) {
+@c4("ToExternalDBSyncApp") final class ToExternalDBAssemblesBase(options: List[ExternalDBOption]) {
   @provide def subAssembles: Seq[Assemble] = options.collect{ case o: ToDBOption => o.assemble }
 }
 
@@ -95,7 +95,9 @@ trait  ToExternalDBItemAssembleUtil {
     itemToHasState(item)
 }
 
-@c4assemble("ToExternalDBSyncApp") class ToExternalDBTxAssembleBase(rDBTypes: RDBTypes) extends   LazyLogging{
+@c4assemble("ToExternalDBSyncApp") class ToExternalDBTxAssembleBase(
+  toExternalDBTxFactory: ToExternalDBTxFactory
+) extends   LazyLogging{
   type TypeHex = String
   def joinTasks(
     key: SrcId,
@@ -118,7 +120,7 @@ trait  ToExternalDBItemAssembleUtil {
   def join(
     key: SrcId,
     @by[TypeHex] tasks: Values[ToExternalDBTask]
-  ): Values[(SrcId,TxTransform)] = List(WithPK(ToExternalDBTx(key, tasks.toList)(rDBTypes)))
+  ): Values[(SrcId,TxTransform)] = List(WithPK(toExternalDBTxFactory.create(key, tasks.toList)))
 }
 
 case class ToExternalDBTask(
@@ -130,16 +132,20 @@ case class ToExternalDBTask(
 
 case object RDBSleepUntilKey extends TransientLens[Map[SrcId,(Instant,Option[B_HasState])]](Map.empty)
 
-case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(rDBTypes: RDBTypes) extends TxTransform with LazyLogging {
+@c4multi("ToExternalDBSyncApp") final case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(
+  rDBTypes: RDBTypes,
+  txAdd: LTxAdd,
+  registry: QAdapterRegistry,
+  externalDBClient: ExternalDBClient,
+) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = {
     val now = Instant.now()
     tasks.find{ task =>
       val skip = RDBSleepUntilKey.of(local)
       val(until,wasTo) = skip.getOrElse(task.srcId, (Instant.MIN,None))
       until.isBefore(now) || task.to != wasTo
-    }.map{ task => WithJDBCKey.of(local) { conn =>
+    }.map{ task => externalDBClient.getConnectionPool.doWith { conn =>
       import task.{from,to}
-      val registry = QAdapterRegistryKey.of(local)
       val protoToString = new ProtoToString(registry,rDBTypes)
       def recode(stateOpt: Option[B_HasState]) = stateOpt.map{ state =>
         protoToString.recode(state.valueTypeId, state.value)
@@ -162,7 +168,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(rDBType
       )(local)
       else RDBSleepUntilKey.modify(m =>
         m - task.srcId
-      ).andThen(TxAdd(
+      ).andThen(txAdd.add(
         from.toList.flatMap(LEvent.delete) ++ to.toList.flatMap(LEvent.update)
       ))(local)
     }}.getOrElse(local)
@@ -190,11 +196,13 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(rDBType
     List(WithPK(factory.create("externalDBSync")))
 }
 
-@c4multi("FromExternalDBSyncApp") case class FromExternalDBSyncTransform(srcId:SrcId)(
+@c4multi("FromExternalDBSyncApp") final case class FromExternalDBSyncTransform(srcId:SrcId)(
   indentedParser: IndentedParser,
   getB_DBOffset: GetByPK[B_DBOffset],
+  rawTxAdd: RawTxAdd,
+  externalDBClient: ExternalDBClient,
 ) extends TxTransform with LazyLogging {
-  def transform(local: Context): Context = WithJDBCKey.of(local){ conn =>
+  def transform(local: Context): Context = externalDBClient.getConnectionPool.doWith { conn =>
     val offset =
       getB_DBOffset.ofA(local).getOrElse(srcId, B_DBOffset(srcId, 0L))
     logger.debug(s"offset $offset")//, By.srcId(classOf[Invoice]).of(world).size)
@@ -203,16 +211,16 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(rDBType
     //  .map(n=>LEvent.add(LEvent.update(n)))
     if(textEncoded.isEmpty) local else {
       logger.debug(s"textEncoded $textEncoded")
-      WriteModelAddKey.of(local)(indentedParser.toUpdates(textEncoded))(local)
+      rawTxAdd.add(indentedParser.toUpdates(textEncoded))(local)
     }
   }
 }
 
-@c4("FromExternalDBSyncApp") class FromExternalDBUpdateFlag extends UpdateFlag {
+@c4("FromExternalDBSyncApp") final class FromExternalDBUpdateFlag extends UpdateFlag {
   val flagValue: Long = 8L
 }
 
-@c4("FromExternalDBSyncApp") class IndentedParser(
+@c4("FromExternalDBSyncApp") final class IndentedParser(
   universalProtoAdapter: ProtoAdapter[UniversalNode],
   rDBTypes: RDBTypes,
   universalNodeFactory: UniversalNodeFactory,
@@ -325,7 +333,7 @@ class ProtoToString(registry: QAdapterRegistry, rDBTypes: RDBTypes){
 
 object Hex { def apply(i: Long): String = "0x%04x".format(i) }
 
-@c4("RDBSyncApp") class RDBTypes(
+@c4("RDBSyncApp") final class RDBTypes(
   universalProtoAdapter: ProtoAdapter[UniversalNode],
   universalNodeFactory: UniversalNodeFactory,
   srcIdProtoAdapter: ProtoAdapter[SrcId]

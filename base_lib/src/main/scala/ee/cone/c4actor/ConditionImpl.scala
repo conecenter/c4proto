@@ -3,7 +3,7 @@ package ee.cone.c4actor
 
 import ee.cone.c4di.{c4, provide}
 
-@c4("RichDataCompApp") class ModelConditionFactoryProvider {
+@c4("RichDataCompApp") final class ModelConditionFactoryProvider {
   @provide def get: Seq[ModelConditionFactory[Unit]] = List(new ModelConditionFactoryImpl[Unit])
 }
 

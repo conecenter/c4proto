@@ -9,9 +9,9 @@ import ee.cone.c4di._
 
 import scala.collection.immutable.Seq
 
-@c4("ProtoAdapterTestApp") class ExampleUpdateCompressionMinSize extends UpdateCompressionMinSize(0L)
+@c4("ProtoAdapterTestApp") final class ExampleUpdateCompressionMinSize extends UpdateCompressionMinSize(0L)
 
-@c4("ProtoAdapterTestApp")
+@c4("ProtoAdapterTestApp") final 
 class ProtoAdapterTest(
   qAdapterRegistry: QAdapterRegistry, toUpdate: ToUpdate, execution: Execution,
   finTest: FinTest
@@ -96,11 +96,11 @@ class ProtoAdapterTest(
 trait FinTest {
   def get: String
 }
-@c4("ProtoAdapterTestApp")
+@c4("ProtoAdapterTestApp") final 
 class NonFinalFinTest extends FinTest {
   def get: String = "{NonFinal}"
 }
-@c4("ProtoAdapterTestApp")
+@c4("ProtoAdapterTestApp") final 
 class FinalFinTest(inner: FinTest) extends FinTest {
   def get: String = s"<Final>${inner.get}</Final>"
 }

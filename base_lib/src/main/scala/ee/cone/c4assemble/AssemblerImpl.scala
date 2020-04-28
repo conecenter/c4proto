@@ -10,6 +10,7 @@ import ee.cone.c4di.{c4, c4multi}
 
 import scala.collection.immutable
 import scala.collection.immutable.{Map, Seq, TreeMap}
+import scala.util.{Failure, Success}
 //import scala.collection.parallel.immutable.ParVector
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -82,7 +83,7 @@ case class JoinKeyImpl(
   def withWas(was: Boolean): JoinKey = copy(was=was)
 }
 
-@c4("AssembleApp") case class IndexUtilImpl()(
+@c4("AssembleApp") final case class IndexUtilImpl()(
   val nonEmptySeq: Seq[Unit] = Seq(()),
   mergeIndexInner: Compose[InnerIndex] =
     Merge[Any,DMultiSet](v=>v.isEmpty,
@@ -182,6 +183,8 @@ case class JoinKeyImpl(
     case p: PreIndex => mergeIndex(p.inner.map(buildIndex))
     case i => i
   }
+
+  @SuppressWarnings(Array("org.wartremover.warts.TryPartial")) def getInstantly(future: Future[Index]): Index = future.value.get.get
 }
 
 class PreIndex(val inner: Seq[Index], val size: Long) extends Index {
@@ -190,7 +193,7 @@ class PreIndex(val inner: Seq[Index], val size: Long) extends Index {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-@c4("AssembleApp") class IndexFactoryImpl(
+@c4("AssembleApp") final class IndexFactoryImpl(
   val util: IndexUtil, factory: JoinMapIndexFactory
 ) extends IndexFactory {
   def createJoinMapIndex(join: Join):
@@ -205,7 +208,7 @@ trait ParallelAssembleStrategy {
 
 }*/
 
-@c4multi("AssembleApp") class JoinMapIndex(join: Join)(
+@c4multi("AssembleApp") final class JoinMapIndex(join: Join)(
   updater: IndexUpdater,
   composes: IndexUtil
 ) extends WorldPartExpression
@@ -358,7 +361,9 @@ class DebugJoinMapIndex(
 }
 */
 
-@c4("AssembleApp") class TreeAssemblerImpl(
+class FailedRule(val message: List[String]) extends WorldPartRule
+
+@c4("AssembleApp") final class TreeAssemblerImpl(
   byPriority: ByPriority, expressionsDumpers: List[ExpressionsDumper[Unit]],
   optimizer: AssembleSeqOptimizer, backStageFactory: BackStageFactory,
   replaceImplFactory: ReplaceImplFactory
@@ -378,15 +383,21 @@ class DebugJoinMapIndex(
         inKey <- join.inputWorldKeys
         k <- uses.getOrElse(inKey,inKey match {
           case k: JoinKey if k.was => Nil
-          case k => throw new Exception(
-            s"$k not found \n" +
-              s"for assemble ${join.assembleName}, join ${join.name}"
-          )
+          case k => List(new FailedRule(List(
+            s"$k not found",
+            s"for assemble ${join.assembleName}, join ${join.name}"
+          )))
         })
       } yield k
       byPriority.byPriority[WorldPartRule,WorldPartRule](
         item=>(getJoins(item), _ => item)
       )(rules.filter(isTarget)).reverse
+    }
+    rulesByPriority.collect{ case r: FailedRule => r } match {
+      case Seq() => ()
+      case rules =>
+        val lines = s"${rules.size} rules have failed" :: rules.flatMap(_.message)
+        throw new Exception(lines.mkString("\n"))
     }
     val expressionsByPriority = rulesByPriority.collect{
       case e: WorldPartExpression with DataDependencyTo[_] with DataDependencyFrom[_] => e
@@ -401,7 +412,7 @@ class DebugJoinMapIndex(
   }
 }
 
-@c4multi("AssembleApp") class ReplaceImpl(
+@c4multi("AssembleApp") final class ReplaceImpl(
   val active: List[WorldPartRule],
   transformAllOnce: WorldTransition=>WorldTransition
 )(
@@ -459,7 +470,7 @@ object UMLExpressionsDumper extends ExpressionsDumper[String] {
   }
 }
 
-@c4("AssembleApp") class AssembleDataDependencyFactoryImpl(indexFactory: IndexFactory) extends AssembleDataDependencyFactory {
+@c4("AssembleApp") final class AssembleDataDependencyFactoryImpl(indexFactory: IndexFactory) extends AssembleDataDependencyFactory {
   def create(assembles: List[Assemble]): List[WorldPartRule] = {
     def gather(assembles: List[Assemble]): List[Assemble] =
       if(assembles.isEmpty) Nil
@@ -476,7 +487,7 @@ object UMLExpressionsDumper extends ExpressionsDumper[String] {
   }
 }
 
-@c4("AssembleApp") class AssembleDataDependencies(
+@c4("AssembleApp") final class AssembleDataDependencies(
   factory: AssembleDataDependencyFactory, assembles: List[Assemble]
 ) extends DataDependencyProvider {
   def getRules: List[WorldPartRule] = factory.create(assembles)

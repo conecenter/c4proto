@@ -20,7 +20,7 @@ class MemRawSnapshotLoader(relativePath: String, bytes: ByteString) extends RawS
   }
 }
 
-@c4("SnapshotPutApp") class SnapshotPutter(
+@c4("SnapshotPutApp") final class SnapshotPutter(
   snapshotLoaderFactory: SnapshotLoaderFactory,
   snapshotDiffer: SnapshotDiffer
 ) extends LazyLogging {

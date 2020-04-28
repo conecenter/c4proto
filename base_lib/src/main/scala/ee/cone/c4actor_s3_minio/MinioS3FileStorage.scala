@@ -11,7 +11,7 @@ import io.minio.MinioClient
 
 import scala.util.{Failure, Success, Try}
 
-@c4("MinioS3App") class MinioS3FileStorage(
+@c4("MinioS3App") final class MinioS3FileStorage(
   config: Config,
 ) extends S3FileStorage
   with LazyLogging {

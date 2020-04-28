@@ -1,5 +1,7 @@
 package ee.cone.c4actor
 
+import scala.annotation.tailrec
+
 //import ee.cone.c4proto.BigDecimalFactory
 
 case class PreHashingMurMur3() extends PreHashing {
@@ -23,6 +25,12 @@ case class PreHashingMurMur3() extends PreHashing {
   9 - okio.ByteString
    */
 
+  @tailrec private def calculateN(model: Product, messengerInner: Java128HashInterface, counter: Int, arity: Int): Unit =
+    if(counter < arity){
+      calculateModelHash(model.productElement(counter), messengerInner)
+      calculateN(model, messengerInner, counter + 1, arity)
+    }
+
   def calculateModelHash[Model](model: Model, messengerInner: Java128HashInterface): Unit = {
     model match {
       case i: List[_] =>
@@ -30,13 +38,9 @@ case class PreHashingMurMur3() extends PreHashing {
         i.foreach(calculateModelHash(_, messengerInner)) // TODO this is sad, but with out it can cause stackOverFlow
       case g: Product =>
         val arity = g.productArity
-        var counter = 0
         messengerInner.updateLong(10 + arity) // TODO can be [10, 10+22], 22 is Scala limit
         messengerInner.updateString(g.getClass.getName)
-        while (counter < arity) {
-          calculateModelHash(g.productElement(counter), messengerInner)
-          counter = counter + 1
-        }
+        calculateN(g, messengerInner, 0, arity)
       case f: PreHashedMurMur3[_] =>
         messengerInner.updateLong(6)
         messengerInner.updateLong(f.MD5Hash1)
@@ -82,12 +86,12 @@ object ArityGenerator{
     //val s = "          case a: Product3[_, _, _] =>\n            calculateModelHash(a._1, messengerInner)\n            calculateModelHash(a._2, messengerInner)\n            calculateModelHash(a._3, messengerInner)"
     for (
       i <- 1 to 22
-    ) yield {
+    ) {
       val generic = Range(0, i).map(_ => "_").mkString(", ")
       println(s"          case a: Product$i[$generic] =>")
       for (
         j <- 1 to i
-      ) yield {
+      ) {
         println(s"            calculateModelHash(a._$j, messengerInner)")
       }
     }

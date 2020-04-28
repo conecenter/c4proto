@@ -33,7 +33,7 @@ class RelSrcImpl[From<:Product,Value](from: Class[From], lens: ProdLens[From,Val
   }
 }
 
-@c4("RevRelFactoryImplApp") class RevRelFactoryImpl extends RevRelFactory {
+@c4("RevRelFactoryImplApp") final class RevRelFactoryImpl extends RevRelFactory {
   def rel[From<:Product](lens: ProdLens[From,List[SrcId]])(implicit cf: ClassTag[From]): RelSrc[From,List[SrcId]] = {
     val from = cf.runtimeClass.asInstanceOf[Class[From]]
     new RelSrcImpl[From,List[SrcId]](from,lens,identity[List[SrcId]])
@@ -107,11 +107,11 @@ case class RelOuterReq(callerId: SrcId)
   def result: Result = tupled(join _) //join(_:SrcId,???,???)
 }
 
-@c4("JustJoinTestApp") class JustJoinTestExecutable(
+@c4("JustJoinTestApp") final class JustJoinTestExecutable(
   execution: Execution, contextFactory: ContextFactory
 ) extends Executable {
   def run(): Unit = {
-    contextFactory.updated(Nil)
+    IgnoreTestContext(contextFactory.updated(Nil))
     execution.complete()
   }
 }

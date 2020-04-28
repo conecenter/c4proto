@@ -37,7 +37,7 @@ object ScalametaTest {
     val text = "@Meta(Atata, ee.cone.ee.Totoot(1,1,1)) val a = 1".parse[Stat].get
     text match {
       case q"@Meta(...$exprss) val a = 1" => println(parseArgs(exprss))
-      case _ => Nil
+      case _ => ()
     }
   }
 }

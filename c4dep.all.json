@@ -1,4 +1,5 @@
 [
+  ["C4EXT", "generator.ee.cone.c4generator", "org.wartremover:wartremover_2.13:2.4.7"],
   ["C4EXT", "generator.ee.cone.c4generator", "org.scalameta:scalameta_2.13:4.3.0" ],
   ["C4EXT", "base_lib.ee.cone.c4actor", "com.typesafe.scala-logging:scala-logging_2.13:3.9.2" ],
   ["C4EXT", "base_lib.ee.cone.c4actor_kafka_impl", "org.apache.kafka:kafka-clients:2.3.0" ],

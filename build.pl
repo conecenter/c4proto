@@ -20,7 +20,7 @@ my $get_text = sub{
 };
 my $find_files = sub{
     my $from = join(" ", @_)||die;
-    my @res = syf("find $from -type f")=~/(.*)/g;
+    my @res = syf("find $from -type f")=~/(.+)/g;
     sort @res;
 };
 my $need_path = sub{
@@ -73,11 +73,15 @@ my $calc_bloop_conf = sub{
     my @resolved = @{$$coursier_out{dependencies}||die};
     my %resolved_by_name = map{($$_{coord}=>$_)} grep{$_||die} @resolved;
     my %scala_jars = map{m"/scala-(\w+)-[^/]*\.jar$"?("$1"=>$_):()} map{$$_{file}} @resolved;
+    my $wartremover = &$single(grep{m{/wartremover/}} map{$$_{file}} @resolved);
     my $scala = {
         "organization" => "org.scala-lang",
         "name" => "scala-compiler",
         "version" => "2.13.1",
-        "options" => [],
+        "options" => [
+            &$distinct(map{"-P:wartremover:traverser:$_"}&$to(&$dep_conf("C4WART"))),
+            "-Xplugin:$wartremover",
+        ],
         "jars" => [grep{$_||die}@scala_jars{qw[library compiler reflect]}],
     };
     my %external_to_jars = map{ my $d = $_;
@@ -282,6 +286,16 @@ my @src_fns = &$find_files(map{"$src_dir/$_"}@src_dirs);
 my @app_traits_will = &$gen_app_traits($src_dir,\@src_fns,[&$dep_conf("C4DEP")]); #after scalameta
 &$apply_will($by,\@src_fns,"ft-c4gen-base",[@app_traits_will]);
 print "generation finished\n";
+do{
+    my @dirs = grep{$_} &$to(&$dep_conf("C4CLIENT"));
+    for my $path(@dirs){
+        my $sum_key = &$get_sum($path);
+        my $sum_val = &$get_sum(&$get_text("$path/package.json"));
+        &$if_changed("$tmp/client-dep-sum.$sum_key", $sum_val, sub{
+            sy("cd $path && npm install");
+        });
+    }
+    my $files = join " ", &$find_files(map{"$_/src"} @dirs), sort grep{-f $_} map{<$_/*>} @dirs;
+    sy("md5sum $files > $tmp/client-sums");
+};
 &$put_text(&$need_path("$src_dir/target/gen-ver"),time);
-
-sy("cd $_ && npm install") for grep{$_ && !-e "$_/node_modules"} &$to(&$dep_conf("C4CLIENT"));

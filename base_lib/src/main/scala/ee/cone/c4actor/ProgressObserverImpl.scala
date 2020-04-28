@@ -14,7 +14,7 @@ import ee.cone.c4di.c4
 
 import scala.concurrent.Future
 
-@c4("ServerCompApp") class ProgressObserverFactoryImpl(
+@c4("ServerCompApp") final class ProgressObserverFactoryImpl(
   inner: TxObserver, config: ListConfig,
   execution: Execution, getToStart: DeferredSeq[Executable]
 ) extends ProgressObserverFactory {
@@ -52,8 +52,9 @@ class ProgressObserverImpl(inner: Observer[RichContext], endOffset: NextOffset, 
 }
 
 class ReadyObserverImpl(inner: Observer[RichContext], path: Path, until: Long=0) extends Observer[RichContext] with LazyLogging {
+  private def ignoreTheSamePath(path: Path): Unit = ()
   def activate(rawWorld: RichContext): Observer[RichContext] = {
-    if(until == 0) Files.write(path.resolve("c4is-ready"),Array.empty[Byte])
+    if(until == 0) ignoreTheSamePath(Files.write(path.resolve("c4is-ready"),Array.empty[Byte]))
     val now = System.currentTimeMillis
     if(now < until) this
     else if(Files.exists(path.resolve("c4is-master"))) {
@@ -64,8 +65,8 @@ class ReadyObserverImpl(inner: Observer[RichContext], path: Path, until: Long=0)
       new ReadyObserverImpl(inner, path, now+1000)
     }
   }
-}
 
+}
 
 @c4assemble("ServerCompApp") class BuildVerAssembleBase(config: ListConfig, execution: Execution){
   def join(
@@ -85,7 +86,7 @@ case class BuildVerTx(srcId: SrcId, path: Path, value: String)(execution: Execut
 
 ////
 
-@c4("ServerCompApp") class ServerExecutionFilter(inner: ExecutionFilter)
+@c4("ServerCompApp") final class ServerExecutionFilter(inner: ExecutionFilter)
   extends ExecutionFilter(e=>inner.check(e) && e.isInstanceOf[Early])
 
 class LateExecutionObserver(

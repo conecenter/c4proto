@@ -20,8 +20,7 @@ case class DivButton[State]()(val receive:VDomMessage => State => State) extends
     builder.startObject()
     builder.append("tp").append("div")
     builder.append("onClick").append("sendThen")
-    builder.append("style"); {
-      builder.startObject()
+    builder.append("style").startObject(); {
       builder.append("cursor").append("pointer")
       builder.end()
     }
@@ -45,10 +44,8 @@ case class SeedElement(seed: Product, styles: List[TagStyle], src: String)(utils
     builder.append("tp").append("iframe")
     builder.append("src").append(src)
     utils.appendStyles(builder, styles)
-    builder.append("ref");{
-      builder.startArray()
-      builder.append("seed")
-      builder.append(seed.productElement(0).toString)
+    builder.append("ref").startArray(); {
+      builder.append("seed").append(seed.productElement(0).toString)
       builder.end()
     }
     builder.end()

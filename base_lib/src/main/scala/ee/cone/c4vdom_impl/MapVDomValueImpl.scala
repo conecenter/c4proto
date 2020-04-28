@@ -6,7 +6,7 @@ case class MapVDomValueImpl(pairs: List[VPair]) extends MapVDomValue {
   def appendJson(builder: MutableJsonBuilder) = {
     builder.startObject()
     pairs.foreach{ p =>
-      builder.append(p.jsonKey)
+      builder.just.append(p.jsonKey)
       p.value.appendJson(builder)
     }
     builder.end()

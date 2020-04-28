@@ -164,7 +164,7 @@ object StaticHashSearchImpl {
 
 trait HashSearchStaticLeafFactoryMixBase extends SerializationUtilsApp
 
-@c4("HashSearchStaticLeafFactoryMix") class StaticFactoryImplProvider(
+@c4("HashSearchStaticLeafFactoryMix") final class StaticFactoryImplProvider(
   modelConditionFactory: ModelConditionFactory[Unit],
   serializer: SerializationUtils,
   idGenUtil: IdGenUtil,

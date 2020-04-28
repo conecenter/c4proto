@@ -50,7 +50,7 @@ import ee.cone.c4vdom.Types.ViewRes
 
 
 
-@c4("ReactHtmlApp") class ReactHtmlFromAlienTaskAssembleBase {
+@c4("ReactHtmlApp") final class ReactHtmlFromAlienTaskAssembleBase {
   @provide def subAssembles: Seq[Assemble] =
     new FromAlienTaskAssemble("/react-app.html") :: Nil
 }
@@ -102,7 +102,7 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
     testTodoRootView :: super.byLocationHashViews
 }*/
 
-@c4("TestTodoApp") case class TestTodoRootView(locationHash: String = "todo")(
+@c4("TestTodoApp") final case class TestTodoRootView(locationHash: String = "todo")(
   tags: TestTags[Context],
   mTags: Tags,
   styles: TagStyles,
@@ -112,6 +112,7 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
   accessViewRegistry: AccessViewRegistry,
   untilPolicy: UntilPolicy,
   getB_TodoTask: GetByPK[B_TodoTask],
+  txAdd: LTxAdd,
 ) extends ByLocationHashView {
   def view: Context => ViewRes = untilPolicy.wrap{ local =>
     import mTags._
@@ -128,7 +129,7 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
 
     val btnList = List(
       divButton("add")(
-        TxAdd(update(B_TodoTask(UUID.randomUUID.toString,System.currentTimeMillis,"")))
+        txAdd.add(update(B_TodoTask(UUID.randomUUID.toString,System.currentTimeMillis,"")))
       )(List(text("text","+")))
     )
 
@@ -140,7 +141,7 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
     } yield div(prod.srcId,Nil)(List(
       tags.input(task to comments),
       div("remove",List(styles.width(100),styles.displayInlineBlock))(List(
-        divButton("remove")(TxAdd(delete(prod)))(List(text("caption","-")))
+        divButton("remove")(txAdd.add(delete(prod)))(List(text("caption","-")))
       ))
     ))
 

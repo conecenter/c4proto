@@ -19,7 +19,7 @@ my $ssl_bootstrap_server = "localhost:$ssl_kafka_port";
 my $http_server = "127.0.0.1:$http_port";
 my $gen_dir = "."; #"target/c4gen/res";
 $ENV{PATH}.=":tmp/$kafka/bin";
-
+my $prod_pl = ($ENV{C4PROTO_DIR}||".")."/prod.pl";
 
 sub syn{ print join(" ",@_),"\n"; system @_; }
 sub sy{
@@ -68,8 +68,8 @@ push @tasks, ["restart_kafka", sub{
     &$stop_kafka();
     &$need_tmp();
     &$put_text("tmp/zookeeper.properties","dataDir=$data_dir/zookeeper\nclientPort=$zoo_port\n");
-    sy("perl prod.pl need_certs $data_dir/ca cu.broker $data_dir $data_dir");
-    sy("perl prod.pl need_certs $data_dir/ca cu.def $data_dir");
+    sy("perl $prod_pl need_certs $data_dir/ca cu.broker $data_dir $data_dir");
+    sy("perl $prod_pl need_certs $data_dir/ca cu.def $data_dir");
     &$put_text("tmp/server.properties", join '', map{"$_\n"}
         "log.dirs=$data_dir/kafka-logs",
         "zookeeper.connect=127.0.0.1:$zoo_port",
@@ -148,7 +148,7 @@ my $exec_server = sub{
     &$exec(". .bloop/c4/mod.$mod.classpath.sh && $env java ee.cone.c4actor.ServerMain");
 };
 push @tasks, ["gate_publish", sub{
-    sy("perl prod.pl build_client .");
+    sy("perl $prod_pl build_client .");
 }];
 push @tasks, ["gate_server_run", sub{
     &$inbox_configure();
@@ -164,6 +164,7 @@ push @tasks, ["ignore_all_snapshots", sub{
     &$exec_server("base_server.ee.cone.c4gate_server.IgnoreAllSnapshotsApp");
 }];
 push @tasks, ["run", sub{
+    sy("perl $prod_pl build_client_changed . dev");
     &$exec_server($_[0])
 }];
 push @tasks, ["test", sub{

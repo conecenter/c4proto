@@ -1,21 +1,16 @@
 
 package ee.cone.c4generator
 
-import ee.cone.c4generator.ComponentsGenerator.fileNameToComponentsId
-
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.meta.Term.Name
 import scala.meta._
 import scala.collection.immutable.Seq
 
-case class ProtoProp(id: Int, name: String, argType: String, metaProp: String)
+case class ProtoProp(id: Int, name: String, argType: String)
 
 case class ProtoMods(
   resultType: String,
-  factoryName: String,
-  id: Option[Int]=None,
-  category: List[String],
-  shortName: Option[String] = None
+  factoryName: String
 )
 case class FieldMods(id: Option[Int]=None, shortName: Option[String] = None)
 
@@ -52,44 +47,25 @@ class ProtocolGenerator(statTransformers: List[ProtocolStatsTransformer]) extend
     case _ => Nil
   }
   def getAdapter(parseContext: ParseContext, objectName: String, cl: ParsedClass, c4ann: String): List[Generated] = {
-    val protoMods = cl.mods.foldLeft(ProtoMods(cl.name, cl.name, category = Nil))((pMods,mod)=> mod match {
-      case mod"case" => pMods
-      case mod"@Cat(...$exprss)" =>
-        val old = pMods.category
-        pMods.copy(category = parseArgs(exprss) ::: old)
-      case mod"@Id(${Lit(id:Int)})" if pMods.id.isEmpty =>
-        pMods.copy(id=Option(id))
-      case mod"@replaceBy[${Type.Name(rt)}](${Term.Name(fact)})" =>
+    val protoMods = cl.mods.foldLeft(ProtoMods(cl.name, cl.name))((pMods,mod)=> mod match {
+      case mod"@replaceBy[$rtExpr]($factExpr)" =>
+        val Type.Name(rt) = rtExpr
+        val Term.Name(fact) = factExpr
         pMods.copy(resultType=rt, factoryName=fact)
-      case mod"@ShortName(${Lit(shortName:String)})" if pMods.shortName.isEmpty =>
-        pMods.copy(shortName=Option(shortName))
-      /*
-      case mod"@GenLens" => pMods
-      case mod"@Getters" => pMods
-      case mod"@deprecated(...$notes)" => pMods
-      case t: Tree => Utils.parseError(t, parseContext)
-      */
       case _ => pMods
     })
     import protoMods.{resultType,factoryName}
     val Seq(params) = cl.params
     val props: List[ProtoProp] = params.map{
-      case param"..$mods ${Term.Name(propName)}: $tpeopt = $v" =>
-        val fieldProps = mods.foldLeft(FieldMods())((fMods, mod) => mod match {
-          case mod"@Id(${Lit(id:Int)})" =>
-            fMods.copy(id = Option(id))
-          case mod"@ShortName(${Lit(shortName:String)})" =>
-            fMods.copy(shortName = Option(shortName))
-          /*case mod"@deprecated(...$notes)" => fMods
-          case mod"@Meta(...$exprss)" => fMods
-          case t: Tree =>
-            Utils.parseError(t, parseContext)*/
-          case _ => fMods
-        })
+      case param@param"..$mods ${Term.Name(propName)}: $tpeopt = $v" =>
         val tp = tpeopt.asInstanceOf[Option[Type]].get
-        val id = fieldProps.id.get
-        val metaProp = s"""ee.cone.c4proto.MetaProp($id,"$propName",${deOpt(fieldProps.shortName)},"$tp", ${ComponentsGenerator.getTypeKey(tp,None)})"""
-        ProtoProp(id, propName, s"$tp", metaProp)
+        val id = mods.foldLeft[Option[Int]](None)((idOpt, mod) => mod match {
+          case mod"@Id(${Lit(id:Int)})" =>
+            if (idOpt.isEmpty) Option(id)
+            else Utils.parseError(param, parseContext, "Orig field with multiple @Id")
+          case _ => idOpt
+        }).getOrElse(Utils.parseError(param, parseContext, "Orig field without @Id"))
+        ProtoProp(id, propName, s"$tp")
       case t: Tree =>
         Utils.parseError(t, parseContext)
     }.toList
@@ -98,14 +74,13 @@ class ProtocolGenerator(statTransformers: List[ProtocolStatsTransformer]) extend
       case init"${Type.Name(tn)}(...$_)" => GeneratedTraitUsage(tn)
       case t => throw new Exception(t.structure)
     }
-    traitUsages ::: List(resultType,factoryName).distinct.map(n=>GeneratedImport(s"""\nimport $objectName.$n""")) ::: List(
+    traitUsages ::: List(
+      GeneratedImport(s"""\nimport $objectName.$resultType"""),
       GeneratedCode(s"""
-$c4ann class ${cl.name}ProtoAdapter(
+$c4ann final class ${cl.name}ProtoAdapter(
+  val protoOrigMeta: OrigMeta[${cl.name}],
   ${props.map(p => s"\n    adapter_${p.name}: ArgAdapter[${p.argType}]").mkString(",")}
 ) extends ProtoAdapter[$resultType](FieldEncoding.LENGTH_DELIMITED,classOf[$resultType]) with HasId {
-  def id = ${protoMods.id.getOrElse("throw new Exception")}
-  def hasId = ${protoMods.id.nonEmpty}
-  def className = classOf[$resultType].getName
   def encodedSize(value: $resultType): Int = {
     val $struct = value
     (0
@@ -129,7 +104,7 @@ $c4ann class ${cl.name}ProtoAdapter(
         ).mkString
       })").mkString}
     case _ =>
-      reader.peekFieldEncoding.rawProtoAdapter.decode(reader)
+      val r = reader.peekFieldEncoding.rawProtoAdapter.decode(reader) //do we need to report r?
       decodeMore(reader${props.map(p => s", prep_${p.name}").mkString})
   }
   def decode(reader: ProtoReader): ${resultType} = {
@@ -138,12 +113,6 @@ $c4ann class ${cl.name}ProtoAdapter(
     reader.endMessage(token)
     res
   }
-  def props = List(${props.map(_.metaProp).mkString(",")})
-
-  // extra
-  def cl = classOf[$resultType]
-  lazy val categories = List(${(getCat(resultType,protoMods.id) ::: protoMods.category).mkString(", ")}).distinct
-  def shortName = ${deOpt(protoMods.shortName)}
 }
         """)
     )
@@ -162,9 +131,9 @@ $c4ann class ${cl.name}ProtoAdapter(
           GeneratedTraitDef(tp),
           GeneratedImport(s"""\nimport $objectName.$tp"""),
           GeneratedCode(
-            s"\n$c4ann class ${tp}ProtoAdapterProvider(inner: ProtoAdapter[Product]) {" +
+            s"\n$c4ann final class ${tp}ProtoAdapterProvider(inner: ProtoAdapter[Product]) {" +
             s"\n  @provide def getProtoAdapter: Seq[ProtoAdapter[$tp]] = List(inner.asInstanceOf[ProtoAdapter[$tp]])" +
-            s"\n  @provide def getHasId: Seq[HasId] = List(inner.asInstanceOf[HasId])" +
+            //s"\n  @provide def getHasId: Seq[HasId] = List(inner.asInstanceOf[HasId])" +
             s"\n}"
           )
         )

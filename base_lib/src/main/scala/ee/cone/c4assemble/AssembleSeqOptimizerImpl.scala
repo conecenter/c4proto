@@ -7,7 +7,7 @@ import scala.annotation.tailrec
 import scala.collection.immutable.{Map, Seq}
 import scala.concurrent.{ExecutionContext, Future}
 
-@c4multi("AssembleApp") class LoopExpression[MapKey, Value](
+@c4multi("AssembleApp") final class LoopExpression[MapKey, Value](
   outputWorldKey: AssembledKey,
   wasOutputWorldKey: AssembledKey,
   main: WorldPartExpression, // with DataDependencyTo[Index[MapKey, Value]],
@@ -51,7 +51,7 @@ import scala.concurrent.{ExecutionContext, Future}
   }
 }
 
-@c4("AssembleApp") class ShortAssembleSeqOptimizer(
+@c4("AssembleApp") final class ShortAssembleSeqOptimizer(
   backStageFactory: BackStageFactory,
   loopExpressionFactory: LoopExpressionFactory
 ) extends AssembleSeqOptimizer {

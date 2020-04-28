@@ -49,21 +49,22 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
   } yield WithPK(EachTestItem(item,vItem))
 }
 
-@c4("EachTestApp") class EachTestExecutable(
+@c4("EachTestApp") final class EachTestExecutable(
   execution: Execution, contextFactory: ContextFactory, indexUtil: IndexUtil,
-  items: GetByPK[D_Item], eachTestItems: GetByPK[EachTestItem]
+  items: GetByPK[D_Item], eachTestItems: GetByPK[EachTestItem],
+  txAdd: LTxAdd,
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     val voidContext = contextFactory.updated(Nil)
 
-    Function.chain[Context](Seq(
-      TxAdd(LEvent.update(D_Item("1","2"))),
-      TxAdd(LEvent.update(D_Item("1","3"))),
+    IgnoreTestContext(Function.chain[Context](Seq(
+      txAdd.add(LEvent.update(D_Item("1","2"))),
+      txAdd.add(LEvent.update(D_Item("1","3"))),
       l => {
         assert(items.ofA(l)("1").parent=="3","last stored item wins")
         l
       }
-    ))(voidContext)
+    ))(voidContext))
 
     assert(emptyIndex==indexUtil.mergeIndex(Seq(
       indexUtil.result("1",D_Item("1","2"),-1),
@@ -82,10 +83,10 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
       res
     }
 
-    Function.chain[Context](Seq(
-      TxAdd(LEvent.update(D_Item(s"V",""))),
+    IgnoreTestContext(Function.chain[Context](Seq(
+      txAdd.add(LEvent.update(D_Item(s"V",""))),
       l => measure(Function.chain[Context](
-        (1 to 3000).map(n=>TxAdd(LEvent.update(D_Item(s"$n","V"))))
+        (1 to 3000).map(n=>txAdd.add(LEvent.update(D_Item(s"$n","V"))))
       )(l)),
       { (l:Context) =>
         val r = eachTestItems.ofA(l)
@@ -93,7 +94,7 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
         assert(r.values.forall(_.valueItem.parent.isEmpty))
         l
       }
-    ))(voidContext)
+    ))(voidContext))
 
     execution.complete()
   }

@@ -1,7 +1,7 @@
 package ee.cone.c4actor.rdb_impl
 
 import java.lang.Math.toIntExact
-import java.sql.{CallableStatement, Connection, ResultSet}
+import java.sql.{CallableStatement, Connection, PreparedStatement, ResultSet}
 import java.util.concurrent.{CompletableFuture, ExecutorService, Executors}
 
 import com.typesafe.scalalogging.LazyLogging
@@ -11,13 +11,13 @@ import ee.cone.c4di.c4
 
 import scala.annotation.tailrec
 
-@c4("RDBSyncApp") class ExternalDBSyncClient(
+@c4("RDBSyncApp") final class ExternalDBSyncClient(
   dbFactory: ExternalDBFactory,
   db: CompletableFuture[RConnectionPool] = new CompletableFuture() //dataSource: javax.sql.DataSource
-) extends ToInject with Executable with ExternalDBClient {
-  def toInject: List[Injectable] = WithJDBCKey.set(f=>getConnectionPool.doWith(f))
+) extends Executable with ExternalDBClient {
+  // def toInject: List[Injectable] = WithJDBCKey.set(f=>getConnectionPool.doWith(f))
   def run(): Unit = concurrent.blocking {
-    db.complete(dbFactory.create(
+    assert(db.complete(dbFactory.create(
       createConnection => new RConnectionPool {
         def doWith[T](f: RConnection => T): T = {
           FinallyClose(createConnection()) { sqlConn =>
@@ -29,8 +29,7 @@ import scala.annotation.tailrec
           }
         }
       }
-    )
-    )
+    )))
   }
   def getConnectionPool: RConnectionPool = concurrent.blocking(db.get)
 }
@@ -60,6 +59,10 @@ abstract class RDBBindImpl[R] extends RDBBind[R] with LazyLogging {
     logger.debug(s"${Thread.currentThread.getName} code $theCode")
     FinallyClose(connection.prepareCall(theCode))(execute)
   }
+  def justExecute(stmt: CallableStatement) = {
+    ignoreIrrelevantExecutionResult(stmt.execute())
+  }
+  private def ignoreIrrelevantExecutionResult(value: Boolean): Unit = ()
 }
 
 class InObjectRDBBind[R](val prev: RDBBindImpl[R], value: Object) extends ArgRDBBind[R] {
@@ -72,7 +75,7 @@ class InObjectRDBBind[R](val prev: RDBBindImpl[R], value: Object) extends ArgRDB
 class InTextRDBBind[R](val prev: RDBBindImpl[R], value: String) extends ArgRDBBind[R] {
   def execute(stmt: CallableStatement): R = {
     FinallyClose[java.sql.Clob,R](_.free())(connection.createClob()){ clob =>
-      clob.setString(1,value)
+      assert(clob.setString(1,value)==value.length)
       stmt.setClob(index,clob)
       prev.execute(stmt)
     }
@@ -92,7 +95,7 @@ class OutUnitRDBBind(
 ) extends RDBBindImpl[Unit] {
   def index = 0
   def code(wasCode: String): String = s"{call $name ($wasCode)}"
-  def execute(stmt: CallableStatement): Unit = stmt.execute()
+  def execute(stmt: CallableStatement): Unit = justExecute(stmt)
 }
 
 class OutLongRDBBind(
@@ -102,7 +105,7 @@ class OutLongRDBBind(
   def code(wasCode: String): String = s"{? = call $name ($wasCode)}"
   def execute(stmt: CallableStatement): Option[Long] = {
     stmt.registerOutParameter(index,java.sql.Types.BIGINT)
-    stmt.execute()
+    justExecute(stmt)
     Option(stmt.getLong(index))
   }
 }
@@ -114,7 +117,7 @@ class OutTextRDBBind(
   def code(wasCode: String): String = s"{? = call $name ($wasCode)}"
   def execute(stmt: CallableStatement): String = {
     stmt.registerOutParameter(index,java.sql.Types.CLOB)
-    stmt.execute()
+    justExecute(stmt)
     FinallyClose[Option[java.sql.Clob],String](_.foreach(_.free()))(
       Option(stmt.getClob(index))
     ){ clob =>
@@ -135,10 +138,11 @@ class RConnectionImpl(conn: java.sql.Connection) extends RConnection with LazyLo
   def execute(code: String): Unit = concurrent.blocking {
     FinallyClose(conn.prepareStatement(code)) { stmt =>
       logger.debug(code)
-      stmt.execute()
+      ignoreIrrelevantExecutionResult(stmt.execute())
       //println(stmt.getWarnings)
     }
   }
+  private def ignoreIrrelevantExecutionResult(value: Boolean): Unit = ()
 
   def executeQuery(
     code: String, cols: List[String], bindList: List[Object]

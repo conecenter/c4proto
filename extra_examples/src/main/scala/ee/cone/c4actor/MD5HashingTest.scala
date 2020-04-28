@@ -86,7 +86,8 @@ trait MD5HashingProtocolAppBase
 }
 
 class MD5HashingTest(
-  execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
+  execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory,
+  txAdd: LTxAdd,
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     println(ManagementFactory.getRuntimeMXBean.getName)
@@ -112,7 +113,7 @@ class MD5HashingTest(
         i <- 1 to worldSize / 2
       } yield generateRandomEasy(i.toString) :: generateHard(i.toString) :: Nil).flatten
     val worldUpdate2: immutable.Seq[LEvent[Product]] = world2.flatMap(update)
-    val firstGlobal = TxAdd(worldUpdate2)(nGlobal)
+    val firstGlobal = txAdd.add(worldUpdate2)(nGlobal)
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println("Change index")
 
@@ -140,7 +141,7 @@ class MD5HashingTestApp extends TestVMRichDataApp
   with VMExecutionApp
   with ToStartApp
   with MD5HashingProtocolApp {
-  override def toStart: List[Executable] = new MD5HashingTest(execution, toUpdate, contextFactory) :: super.toStart
+  override def toStart: List[Executable] = new MD5HashingTest(execution, toUpdate, contextFactory, resolveSingle(classOf[LTxAdd])) :: super.toStart
 
   override def assembles: List[Assemble] = new MD5HashingAssemble(PreHashingMurMur3()) :: super.assembles
 

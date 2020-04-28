@@ -14,7 +14,7 @@ import ee.cone.c4gate.AlienProtocol.U_FromAlienStatus
 import ee.cone.c4di.{c4, c4multi, provide}
 
 //println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/sse.html")
-@c4("TestSSEApp")  class SSEFromAlienTaskAssembleBase {
+@c4("TestSSEApp") final  class SSEFromAlienTaskAssembleBase {
   @provide def subAssembles: Seq[Assemble] =
     new FromAlienTaskAssemble("/sse.html") :: Nil
 }
@@ -31,7 +31,7 @@ import ee.cone.c4di.{c4, c4multi, provide}
   }
 }
 
-@c4multi("TestSSEApp") case class TestSSEHandler(branchKey: SrcId, task: BranchTask)(
+@c4multi("TestSSEApp") final case class TestSSEHandler(branchKey: SrcId, task: BranchTask)(
   getU_FromAlienStatus: GetByPK[U_FromAlienStatus],
 ) extends BranchHandler with LazyLogging {
   def exchange: BranchMessage => Context => Context = message => local => {

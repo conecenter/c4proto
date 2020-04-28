@@ -82,7 +82,7 @@ object Test {
     )
     println("started")
     Thread.sleep(5000)*/
-    PreHashingMurMur3().wrap(Array[Byte](1,2,3,1,1,
+    val doWeNeedToCheck = PreHashingMurMur3().wrap(Array[Byte](1,2,3,1,1,
       1,1,1,1,1,
       1,1,1,1,1,
       1,1,1,1,1,

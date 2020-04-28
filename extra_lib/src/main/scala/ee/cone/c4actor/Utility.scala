@@ -8,6 +8,7 @@ import ee.cone.c4proto._
 import scala.annotation.tailrec
 import scala.collection.generic.CanBuildFrom
 import scala.collection.immutable.Seq
+import scala.collection.mutable
 
 object ByClassAdapter {
   def apply[Model <: Product](qAdapterRegistry: QAdapterRegistry)(model: Class[Model]): ProtoAdapter[Model] with HasId =
@@ -22,7 +23,7 @@ trait WithMurMur3HashGenAppBase extends ComponentProviderApp {
   def hashGen: HashGen = resolveSingle(classOf[HashGen])
 }
 
-@c4("WithMurMur3HashGenApp") class MurMur3HashGen extends HashGen {
+@c4("WithMurMur3HashGenApp") final class MurMur3HashGen extends HashGen {
   private val parser: PreHashingMurMur3 = PreHashingMurMur3()
 
   def generate[Model](m: Model): String = {
@@ -72,6 +73,11 @@ object PrintYellow {
 }
 
 object PrintColored {
+  def just[R](color: String = "", bgColor: String = "")(f: => R): Unit = {
+    val result = f
+    println(makeColored(color.toLowerCase, bgColor.toLowerCase)(result))
+  }
+
   def apply[R](color: String = "", bgColor: String = "")(f: => R): R = {
     val result = f
     println(makeColored(color.toLowerCase, bgColor.toLowerCase)(result))
@@ -136,21 +142,13 @@ object MergeBySrcId {
       combine(seqOfSeq)
     }
   }
-
-  private def combine[A <: Product](xss: Seq[List[A]]): List[A] = {
-    val b = List.newBuilder[A]
-    var its: Seq[List[(String, A)]] = xss.map(elem => elem.map(item => ToPrimaryKey(item) -> item))
-    var lastItem: Option[A] = None
-    while (its.nonEmpty) {
-      its = its.filter(_.nonEmpty)
-      val (minElem, newIts) = minElemAndNewIter(its, lastItem)
-      lastItem = if (minElem.isDefined) minElem else lastItem
-      if (minElem.isDefined)
-        b += minElem.get
-      its = newIts
-    }
-    b.result
-  }
+  @tailrec private def iter[A <: Product](itsArg: Seq[List[(String, A)]], res: List[A]): List[A] = if(itsArg.nonEmpty){
+    val its = itsArg.filter(_.nonEmpty)
+    val (minElem, newIts) = minElemAndNewIter(its, res.headOption)
+    if (minElem.isDefined) iter(newIts, minElem.get :: res) else iter(newIts, res)
+  } else res.reverse
+  private def combine[A <: Product](xss: Seq[List[A]]): List[A] =
+    iter(xss.map(elem => elem.map(item => ToPrimaryKey(item) -> item)), Nil)
 
   def minElemAndNewIter[A <: Product](in: Seq[List[(String, A)]], lastItem: Option[A]): (Option[A], Seq[List[(String, A)]]) = {
     if (in.nonEmpty) {

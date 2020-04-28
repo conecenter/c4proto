@@ -7,15 +7,16 @@ import okio.{Buffer, ByteString}
 
 import scala.annotation.tailrec
 
-@c4("LZ4DeCompressorApp")
+@c4("LZ4DeCompressorApp") final 
 case class LZ4DeCompressor() extends DeCompressor {
   def name: String = "lz4"
+  private def ignoreTheSameBuffer(value: Buffer): Unit = ()
   @tailrec
   private def readAgain(in: LZ4BlockInputStream, sink: Buffer): Unit = {
     val size = in.available()
     val byteArray = new Array[Byte](size)
     if (in.read(byteArray) >= 0) {
-      sink.write(byteArray)
+      ignoreTheSameBuffer(sink.write(byteArray))
       readAgain(in, sink)
     }
   }
@@ -29,7 +30,7 @@ case class LZ4DeCompressor() extends DeCompressor {
     }
 }
 
-@c4("LZ4RawCompressorApp")
+@c4("LZ4RawCompressorApp") final 
 case class LZ4RawCompressor() extends RawCompressor {
   def name: String = "lz4"
   def compress(data: Array[Byte]): Array[Byte] =

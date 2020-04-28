@@ -48,7 +48,7 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
   with WorldProviderApp
   with SkipWorldPartsApp
 
-@c4("AbstractHttpGatewayApp") class DefFHttpHandlerProvider(
+@c4("AbstractHttpGatewayApp") final class DefFHttpHandlerProvider(
   fHttpHandlerFactory: FHttpHandlerImplFactory,
   httpGetSnapshotHandler: HttpGetSnapshotHandler,
   getPublicationHttpHandler: GetPublicationHttpHandler,
@@ -79,7 +79,7 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
 
 //()//todo secure?
 
-@c4("SnapshotMakingApp") class DefSnapshotSavers(factory: SnapshotSaverImplFactory)
+@c4("SnapshotMakingApp") final class DefSnapshotSavers(factory: SnapshotSaverImplFactory)
   extends SnapshotSavers(factory.create("snapshots"), factory.create("snapshot_txs"))
 
 trait SnapshotMakingAppBase extends TaskSignerApp
@@ -93,16 +93,16 @@ trait SSEServerAppBase extends AlienProtocolApp
 
 
 
-@c4("SSEServerApp") class SSEServer(
+@c4("SSEServerApp") final class SSEServer(
   config: Config,
   sseConfig: SSEConfig
 )(
   ssePort: Int = config.get("C4SSE_PORT").toInt
 )(
   inner: TcpServerImpl = new TcpServerImpl(ssePort, new SSEHandler(sseConfig), 10, new GzipStreamCompressorFactory)
-) extends Executable with ToInject {
-  def toInject: List[Injectable] = inner.toInject
-  def run(): Unit = inner.run()
+) {
+  @provide def getTcpServer: Seq[TcpServer] = Seq(inner)
+  @provide def getExecutable: Seq[Executable] = Seq(inner)
 }
 
 // I>P -- to agent, cmd>evl

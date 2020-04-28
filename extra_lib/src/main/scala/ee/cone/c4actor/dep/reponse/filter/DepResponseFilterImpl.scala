@@ -16,7 +16,7 @@ case class DepResponseForwardFilterImpl(
 
 trait DepResponseFiltersMixAppBase
 
-@c4("DepResponseFiltersMixApp") class DepResponseFilterFactoryImpl extends DepResponseFilterFactory {
+@c4("DepResponseFiltersMixApp") final class DepResponseFilterFactoryImpl extends DepResponseFilterFactory {
   def withParent(parentCl: Class[_ <: DepRequest], childCl: Class[_ <: DepRequest]): (DepResponse => Option[DepResponse]) => DepResponseForwardFilter =
     DepResponseForwardFilterImpl(Some(parentCl), childCl)
 
@@ -38,7 +38,7 @@ trait DepCommonResponseForward {
   def massForwardSessionIds(requests: List[Class[_ <: DepRequest]]): List[DepResponseForwardFilter]
 }
 
-@c4("DepResponseFiltersMixApp") case class DepCommonResponseForwardImpl(factory: DepResponseFilterFactory) extends DepCommonResponseForward {
+@c4("DepResponseFiltersMixApp") final case class DepCommonResponseForwardImpl(factory: DepResponseFilterFactory) extends DepCommonResponseForward {
   def forwardSessionIds(request: Class[_ <: DepRequest]): DepResponseForwardFilter = {
     factory.withChild(request)(resp => resp.innerRequest.request match {
       case _: N_ContextIdRequest | _: N_RoleIdRequest | _: N_UserIdRequest | _: N_MockRoleRequest => Some(resp)
