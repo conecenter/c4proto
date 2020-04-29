@@ -1465,7 +1465,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
             syf("cat $dir/c4gen.ht.links")=~/(.+)/g;
         my $sync = [map{"$$_[1]\n"} @pub];
         my $links = [map{"$$_[0]\n"}@pub];
-        +{ dir=>$dir, sync=>$sync, links=>$links }
+        @pub ? +{ dir=>$dir, sync=>$sync, links=>$links } : ()
     } grep{-e $_} "$gen_dir/htdocs", @main_public_path;
     for my $part(@public_part){
         my $from_dir = $$part{dir} || die;
