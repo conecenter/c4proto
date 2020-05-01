@@ -3,7 +3,7 @@ package ee.cone.c4assemble
 import ee.cone.c4assemble.Types._
 import ee.cone.c4di.{c4, c4multi}
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 object PrepareBackStage extends WorldPartExpression {
   def transform(transition: WorldTransition): WorldTransition =
@@ -11,8 +11,8 @@ object PrepareBackStage extends WorldPartExpression {
 }
 
 @c4multi("AssembleApp") final class ConnectBackStage[MapKey, Value](
-  val outputWorldKey: AssembledKey,
-  val nextKey:        AssembledKey
+  val outputWorldKeys: Seq[AssembledKey], //was=true
+  val nextKeys:        Seq[AssembledKey], //was=false
 )(
   updater: IndexUpdater,
   composes: IndexUtil
@@ -20,13 +20,13 @@ object PrepareBackStage extends WorldPartExpression {
   def transform(transition: WorldTransition): WorldTransition = {
     implicit val executionContext: ExecutionContext = transition.executionContext.value
     val next = for {
-      diff <- nextKey.of(transition.prev.get.diff)
-      result <- nextKey.of(transition.result)
-    } yield new IndexUpdate(diff,result,Nil)
+      diff <- Future.sequence(nextKeys.map(_.of(transition.prev.get.diff)))
+      result <- Future.sequence(nextKeys.map(_.of(transition.result)))
+    } yield new IndexUpdates(diff,result,Nil)
     //println(s"AAA: $nextKey $diffPart")
     //println(s"BBB: $transition")
     //if(composes.isEmpty(diffPart)) transition else
-    updater.setPart(outputWorldKey,next,logTask = true)(transition)
+    updater.setPart(outputWorldKeys,next,logTask = true)(transition)
   }
 }
 
@@ -38,6 +38,6 @@ object PrepareBackStage extends WorldPartExpression {
         case k:JoinKey if k.was => k
       }) // multiple @was are not supported due to possible different join loop rates
     } yield key).distinct
-    PrepareBackStage :: wasKeys.map(k=>factory.create(k,k.withWas(was=false)))
+    PrepareBackStage :: factory.create(wasKeys, wasKeys.map(_.withWas(was=false))) :: Nil
   }
 }

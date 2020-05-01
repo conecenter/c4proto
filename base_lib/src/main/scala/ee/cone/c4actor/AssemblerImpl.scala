@@ -8,6 +8,7 @@ import ee.cone.c4assemble.Types._
 import ee.cone.c4di.Types.ComponentFactory
 import ee.cone.c4di.{c4, c4multi, provide}
 
+import scala.collection.immutable
 import scala.collection.immutable.{Map, Seq}
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.control.NonFatal
@@ -16,7 +17,7 @@ import scala.concurrent.duration.Duration
 @c4("RichDataCompApp") final class ProtocolDataDependencies(qAdapterRegistry: QAdapterRegistry, origKeyFactory: OrigKeyFactoryFinalHolder) extends DataDependencyProvider {
   def getRules: List[WorldPartRule] =
     qAdapterRegistry.byId.values.map(_.className).toList.sorted
-      .map(nm => new OriginalWorldPart(origKeyFactory.value.rawKey(nm)))
+      .map(nm => new OriginalWorldPart(Seq(origKeyFactory.value.rawKey(nm))))
 }
 
 //case object TreeAssemblerKey extends SharedComponentKey[Replace]
@@ -37,6 +38,7 @@ import scala.concurrent.duration.Duration
   def toTreeReplace(assembled: ReadModel, updates: Seq[N_Update], profiling: JoiningProfiling, executionContext: OuterExecutionContext): Future[WorldTransition] = {
     val isActiveOrig: Set[AssembledKey] = activeOrigKeyRegistry.values
     val timer = NanoTimer()
+    val outFactory = composes.createOutFactory(0, +1)
     val mDiff = for {
       tpPair <- updates.groupBy(_.valueTypeId)
       (valueTypeId, tpUpdates) = tpPair : (Long,Seq[N_Update])
@@ -46,14 +48,17 @@ import scala.concurrent.duration.Duration
       implicit val ec: ExecutionContext = executionContext.value
       wKey -> (for {
         wasIndex <- wKey.of(assembled)
-      } yield composes.mergeIndex(for {
-        iPair <- tpUpdates.groupBy(_.srcId)
-        (srcId, iUpdates) = iPair
-        rawValue = iUpdates.last.value
-        remove = composes.removingDiff(wasIndex,srcId)
-        add = if(rawValue.size > 0) composes.result(srcId,valueAdapter.decode(rawValue),+1) :: Nil else Nil
-        res <- remove :: add
-      } yield res))
+      } yield {
+        val updatesBySrcId = tpUpdates.groupBy(_.srcId)
+        val adds = for {
+          iPair <- updatesBySrcId
+          (srcId, iUpdates) = iPair
+          rawValue = iUpdates.last.value if rawValue.size > 0
+        } yield outFactory.result(srcId,valueAdapter.decode(rawValue))
+        val add = composes.buildIndex(composes.wrap(adds.toSeq),1)
+        val remove = Seq(composes.removingDiff(wasIndex,updatesBySrcId.keys))
+        Single(composes.zipMergeIndex(add)(remove))
+      })
     }
     val diff = readModelUtil.create(mDiff.toMap)
     logger.trace(s"toTree ${timer.ms} ms")
@@ -197,7 +202,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   private lazy val isTargetWorldPartRule = Single.option(isTargetWorldPartRules).getOrElse(AnyIsTargetWorldPartRule)
   private lazy val replace = treeAssembler.create(rules,isTargetWorldPartRule.check)
   private lazy val origKeyRegistry = new ActiveOrigKeyRegistry(
-    replace.active.collect{ case o: OriginalWorldPart[_] => o.outputWorldKey }.toSet
+    replace.active.collect{ case o: OriginalWorldPart[_] => o.outputWorldKeys }.flatten.toSet
   )
   @provide def getReplace: Seq[Replace] = {
     logger.debug(s"active rules: ${replace.active.size}")
@@ -206,7 +211,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
       rules.map{ rule =>
         s"\n${if(isActive(rule))"[+]" else "[-]"} ${rule match {
           case r: DataDependencyFrom[_] => s"${r.assembleName} ${r.name}"
-          case r: DataDependencyTo[_] => s"out ${r.outputWorldKey}"
+          case r: DataDependencyTo[_] => s"out ${r.outputWorldKeys}"
         }}"
       }.toString
     }

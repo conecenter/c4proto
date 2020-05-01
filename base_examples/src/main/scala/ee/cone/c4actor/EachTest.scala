@@ -3,7 +3,7 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.EachTestProtocol.D_Item
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.{IndexUtil, assemble, by, c4assemble}
+import ee.cone.c4assemble.{IndexUtil, Single, assemble, by, c4assemble}
 import ee.cone.c4assemble.Types._
 import ee.cone.c4di.c4
 import ee.cone.c4proto.{Id, protocol}
@@ -66,10 +66,10 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
       }
     ))(voidContext))
 
-    assert(emptyIndex==indexUtil.mergeIndex(Seq(
-      indexUtil.result("1",D_Item("1","2"),-1),
-      indexUtil.result("1",D_Item("1","2"),+1)
-    )))
+    assert(emptyIndex==Single(indexUtil.buildIndex(indexUtil.wrap(Seq(
+      indexUtil.createOutFactory(0,-1).result("1",D_Item("1","2")),
+      indexUtil.createOutFactory(0,+1).result("1",D_Item("1","2")),
+    )),1)))
 
     /*println(indexUtil.mergeIndex(Seq(
       indexUtil.result("1",D_Item("1","2"),-1),

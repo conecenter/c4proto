@@ -6,8 +6,14 @@ import scala.meta._
 
 sealed trait JRule extends Product
 case class JStat(content: String) extends JRule
-case class JoinDef(params: Seq[JConnDef], inKeyType: KeyNSType, out: JConnDef) extends JRule
-case class JConnDef(name: String, indexKeyName: String, inValOuterType: String, many: Boolean, distinct: Boolean, keyEq: Option[String])
+case class JoinDef(defName: String, params: Seq[JConnDef], inKeyType: KeyNSType, outKeyName: Option[String]) extends JRule
+sealed trait JConnDef {
+  def name: String
+  def indexKeyName: String
+  def inValOuterType: String
+}
+case class InJConnDef(name: String, indexKeyName: String, inValOuterType: String, many: Boolean, distinct: Boolean, keyEq: Option[String]) extends JConnDef
+case class OutJConnDef(name: String, indexKeyName: String, inValOuterType: String) extends JConnDef
 case class KeyValType(name: String, of: List[KeyValType])
 case class KeyNSType(key: KeyValType, str: String, ns: String)
 case class SubAssembleName(name: String) extends JRule
@@ -100,14 +106,22 @@ class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends
           case q"super.subAssembles" => List("ok")
           case _ => Nil
         }.flatten.headOption.map(_ => Nil).getOrElse(throw new Exception(s"\'override def subAssembles\' doesnt have \'super.subAssembles\'"))
-      case q"def ${Term.Name(defName)}(...${Seq(params)}): Values[(${ExtractKeyNSType(outKeyType)},${ExtractKeyValType(outValType)})] = $expr" =>
+      case q"def ${Term.Name(defName)}(...${Seq(params)}): ${Some(outTypeE)} = $expr" =>
         val param"$keyName: ${ExtractKeyNSType(inKeyType)}" = params.head
         val paramInfo: List[(JConnDef,List[JRule])] = params.tail.toList.map{
           param => transformers.foldLeft(param)((current, transform) => transform(current).getOrElse(current))
         }.map{
-          case param"..$mods ${Term.Name(paramName)}: $inValOuterTypeOpt = $defVal" =>
-            val Some(inValOuterType) = inValOuterTypeOpt
-            val t"$manyT[${ExtractKeyValType(inValType)}]" = inValOuterType
+          case param"..$mods ${Term.Name(paramName)}: ${Some(inValOuterType)} = $defVal" =>
+            val fullNamePrefix = s"${defName}_$paramName"
+            val fullName = s"${fullNamePrefix}_inKey"
+            (mods,defVal.asInstanceOf[Option[Term]],paramName,fullNamePrefix,fullName,inValOuterType)
+        }.map{
+          case (mods,defVal,paramName,fullNamePrefix,fullName,inValOuterType@t"OutFactory[${ExtractKeyNSType(outKeyType)},${ExtractKeyValType(outValType)}]") =>
+            assert(mods.isEmpty)
+            assert(defVal.isEmpty)
+            val statements = joinKey(fullName, was=false, outKeyType , outValType) :: Nil
+            (OutJConnDef(paramName, fullName, s"$inValOuterType"),statements)
+          case (mods,defVal,paramName,fullNamePrefix,fullName,inValOuterType@t"$manyT[${ExtractKeyValType(inValType)}]") =>
             val many = manyT match { case t"Values" => true case t"Each" => false }
             //
             object DistinctAnn
@@ -131,9 +145,7 @@ class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends
               keyEq <- by.keyEq
             } yield keyEq
             //
-            val fullNamePrefix = s"${defName}_$paramName"
-            val fullName = s"${fullNamePrefix}_inKey"
-            val statements = defVal.asInstanceOf[Option[Term]] match {
+            val statements = defVal match {
               case None =>
                 val by = byOpt.getOrElse(new ByAnn(inKeyType,None))
                 joinKey(fullName, was, by.keyType , inValType) :: Nil
@@ -145,12 +157,18 @@ class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends
                 mkLazyVal(subAssembleName,s"$expr") ::
                 joinKeyB(fullName, s"$subAssembleName.resultKey") :: Nil
             }
-            (JConnDef(paramName, fullName, s"$inValOuterType", many, distinct, keyEq),statements)
+            (InJConnDef(paramName, fullName, s"$inValOuterType", many, distinct, keyEq),statements)
         }
         val joinDefParams = paramInfo.map(_._1)
-        val fullName = s"${defName}_outKey"
-        joinKey(fullName,was=false,outKeyType,outValType) ::
-        JoinDef(joinDefParams,inKeyType,JConnDef(defName,fullName,"",many=false,distinct=false,None)) :: paramInfo.flatMap(_._2)
+        val (outKeyName,outLines): (Option[String],List[JRule]) = outTypeE match {
+          case t"Values[(${ExtractKeyNSType(outKeyType)},${ExtractKeyValType(outValType)})]" =>
+            val fullName = s"${defName}_outKey"
+            val statements = joinKey(fullName,was=false,outKeyType,outValType) :: Nil
+            (Option(fullName),statements)
+          case t"Outs" =>
+            (None,Nil)
+        }
+        outLines ::: JoinDef(defName,joinDefParams,inKeyType,outKeyName) :: paramInfo.flatMap(_._2)
       case s: Tree => Utils.parseError(s, parseContext)
     }
     val toString =
@@ -160,15 +178,18 @@ class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends
         ).mkString("+','+")} +']'"""
       }}"""
     val joinImpl = rules.collect{
-      case JoinDef(params,inKeyType,out) =>
+      case JoinDef(defName,ioParams,inKeyType,outKeyName) =>
+        val params = ioParams.collect{ case p: InJConnDef => p }
+        val outParams = ioParams.collect{ case p: OutJConnDef => p }
+        val outKeyNames: Seq[String] = outKeyName.fold(outParams.map(_.indexKeyName)){k=>assert(outParams.isEmpty);Seq(k)}
         val (seqParams,eachParams) = params.partition(_.many)
         val (keyEqParams,keyIdParams) = params.partition(_.keyEq.nonEmpty)
-        def litOrId(p: JConnDef): String = p.keyEq.getOrElse("id")
-        s"""  private class ${out.name}_Join(indexFactory: IndexFactory) extends Join(
+        def litOrId(p: InJConnDef): String = p.keyEq.getOrElse("id")
+        s"""  private class ${defName}_Join(indexFactory: IndexFactory) extends Join(
            |    $toString,
-           |    "${out.name}",
-           |    collection.immutable.Seq(${params.map(p=>s"${p.indexKeyName}(indexFactory)").mkString(",")}),
-           |    ${out.indexKeyName}(indexFactory)
+           |    "${defName}",
+           |    Seq(${params.map(_.indexKeyName).mkString(",")}).map(_(indexFactory)),
+           |    Seq(${outKeyNames.mkString(",")}).map(_(indexFactory)),
            |  ) {
            |    def joins(diffIndexRawSeq: DiffIndexRawSeq, executionContext: OuterExecutionContext): Result = {
            |      implicit val ec = executionContext.value
@@ -178,13 +199,15 @@ class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends
            |      val invalidateKeySetOpt =
            |          ${if(keyEqParams.isEmpty)"" else s"""if(${keyEqParams.map(p=>s"${p.name}_isAllChanged").mkString(" || ")}) None else """}
            |          Option(iUtil.keyIteration(Seq(${keyIdParams.map(p=>s"${p.name}_diffIndex").mkString(",")}),executionContext))
-           |      ${params.map(p => if(p.distinct) s"""val ${p.name}_warn = "";""" else s"""val ${p.name}_warn = "${out.name} ${p.name} "+${p.indexKeyName}(indexFactory).valueClassName;""").mkString}
+           |      ${params.map(p => if(p.distinct) s"""val ${p.name}_warn = "";""" else s"""val ${p.name}_warn = "${defName} ${p.name} "+${p.indexKeyName}(indexFactory).valueClassName;""").mkString}
            |      (dir,indexRawSeq) => {
+           |        ${outKeyName.fold("")(_=>s"val outFactory = iUtil.createOutFactory(0,dir);")}
+           |        ${outParams.zipWithIndex.map{ case (p,i) => s"val ${p.name}_arg = iUtil.createOutFactory($i,dir); "}.mkString}
            |        val Seq(${params.map(p=>s"${p.name}_index").mkString(",")}) = indexRawSeq
            |        invalidateKeySetOpt.getOrElse(iUtil.keyIteration(Seq(${keyIdParams.map(p=>s"${p.name}_index").mkString(",")}),executionContext)){ id =>
-           |        ${seqParams.map(p=>s"val ${p.name}_arg = iUtil.getValues(${p.name}_index,${litOrId(p)},${p.name}_warn); ").mkString}
-           |        ${seqParams.map(p=>s"val ${p.name}_isChanged = iUtil.nonEmpty(${p.name}_diffIndex,${litOrId(p)}); ").mkString}
-           |        ${eachParams.map(p=>s"val ${p.name}_parts = iUtil.partition(${p.name}_index,${p.name}_diffIndex,${litOrId(p)},${p.name}_warn); ").mkString}
+           |          ${seqParams.map(p=>s"val ${p.name}_arg = iUtil.getValues(${p.name}_index,${litOrId(p)},${p.name}_warn); ").mkString}
+           |          ${seqParams.map(p=>s"val ${p.name}_isChanged = iUtil.nonEmpty(${p.name}_diffIndex,${litOrId(p)}); ").mkString}
+           |          ${eachParams.map(p=>s"val ${p.name}_parts = iUtil.partition(${p.name}_index,${p.name}_diffIndex,${litOrId(p)},${p.name}_warn); ").mkString}
            |          for {
            |            ${eachParams.map(p=>s" ${p.name}_part <- ${p.name}_parts; (${p.name}_isChanged,${p.name}_items) = ${p.name}_part; ").mkString}
            |            pass <- if(
@@ -192,11 +215,8 @@ class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends
            |              (${params.map(p=>s"${p.name}_isChanged").mkString(" || ")})
            |            ) iUtil.nonEmptySeq else Nil;
            |            ${eachParams.map(p=>s"${p.name}_arg <- ${p.name}_items(); ").mkString}
-           |            pair <- ${out.name}(id.asInstanceOf[${inKeyType.str}],${params.map(p=>s"${p.name}_arg.asInstanceOf[${p.inValOuterType}]").mkString(",")})
-           |          } yield {
-           |            val (byKey,product) = pair
-           |            iUtil.result(byKey,product,dir)
-           |          }
+           |            pair <- ${defName}(id.asInstanceOf[${inKeyType.str}],${ioParams.map(p=>s"${p.name}_arg.asInstanceOf[${p.inValOuterType}]").mkString(",")})
+           |          } yield ${outKeyName.fold("pair")(_=>s"outFactory.result(pair)")}
            |        }
            |      }
            |    }
@@ -204,7 +224,7 @@ class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends
            |""".stripMargin
     }.mkString
     val dataDependencies = rules.collect {
-      case d: JoinDef => s"new ${d.out.name}_Join(indexFactory)"
+      case d: JoinDef => s"new ${d.defName}_Join(indexFactory)"
     }.mkString(s"  def dataDependencies = indexFactory => List(",",",").map(indexFactory.createJoinMapIndex)\n")
     val statRules = rules.collect{ case JStat(c) => s"  $c\n" }.mkString
 

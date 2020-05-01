@@ -3,7 +3,7 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ConnProtocol.D_Node
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.Types.{Each, Values}
+import ee.cone.c4assemble.Types.{Each, Outs, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4di.c4
 import ee.cone.c4proto.{Id, protocol}
@@ -39,12 +39,28 @@ case class ConnNodePath(path: List[D_Node])
   Is[List[D_Node]]    := for(node <- Is[D_Node] if node.parentId.isEmpty) yield WithPK(node::Nil)
   Is[List[D_Node]]    := WithPK(Each(By[ParentId,D_Node])::Each(Was[List[D_Node]]))
   */
+
+  def multiOut(
+    key: SrcId,
+    orig: Each[D_Node],
+    @was @by[ParentId] children: Values[RichNode],
+    richToParentOut: OutFactory[ParentId,RichNode],
+    richOut: OutFactory[SrcId,RichNode],
+  ): Outs = {
+    val rich = RichNode(orig,children.sortBy(ToPrimaryKey(_)).toList)
+    richToParentOut.result(orig.parentId,rich) :: richOut.result(WithPK(rich)) :: Nil
+  }
+
 }
+
+case class RichNode(orig: D_Node, children: List[RichNode])
+
 @c4("ConnTestApp") final class ConnStart(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory,
-  getConnNodePath: GetByPK[ConnNodePath]
+  getConnNodePath: GetByPK[ConnNodePath],
+  getRichNode: GetByPK[RichNode],
 ) extends Executable with LazyLogging {
-  def run() = {
+  def run(): Unit = {
     import LEvent.update
     val recs = update(D_Node("1","")) ++
       update(D_Node("12","1")) ++ update(D_Node("13","1")) ++
@@ -57,6 +73,17 @@ case class ConnNodePath(path: List[D_Node])
       getConnNodePath.ofA(nGlobal)("125") ==
       ConnNodePath(List(
         D_Node("125","12"), D_Node("12","1"), D_Node("1","")
+      ))
+    )
+
+    assert(
+      getRichNode.ofA(nGlobal)("1") ==
+      RichNode(D_Node("1",""),List(
+        RichNode(D_Node("12","1"),List(
+          RichNode(D_Node("124","12"),List()),
+          RichNode(D_Node("125","12"),List())
+        )),
+        RichNode(D_Node("13","1"),List())
       ))
     )
 

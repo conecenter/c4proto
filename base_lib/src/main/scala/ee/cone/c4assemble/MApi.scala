@@ -4,6 +4,7 @@ package ee.cone.c4assemble
 import Types._
 
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
+import scala.collection.immutable.Seq
 import scala.concurrent.{ExecutionContext, Future}
 
 case class AssembleOptions(srcId: String, @deprecated isParallel: Boolean, threadCount: Long)
@@ -13,10 +14,10 @@ trait IndexUtil extends Product {
   def isEmpty(index: Index): Boolean
   def keySet(index: Index): Set[Any]
   def mergeIndex(l: DPIterable[Index]): Index
+  def zipMergeIndex(aDiffs: Seq[Index])(bDiffs: Seq[Index]): Seq[Index]
   def getValues(index: Index, key: Any, warning: String): Values[Product] //m
   def nonEmpty(index: Index, key: Any): Boolean //m
-  def removingDiff(index: Index, key: Any): Index
-  def result(key: Any, product: Product, count: Int): Index //m
+  def removingDiff(index: Index, keys: Iterable[Any]): Index
   type Partitioning = Seq[(Boolean,()=>DPIterable[Product])]
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Partitioning  //m
   def nonEmptySeq: Seq[Unit] //m
@@ -24,11 +25,18 @@ trait IndexUtil extends Product {
   def mayBePar[V](iterable: Seq[V], options: AssembleOptions): Seq[V]
   def mayBePar[V](seq: Seq[V]): DPIterable[V]
   //
-  def preIndex(seq: Seq[Index]): Index
-  def buildIndex(joinRes: Index): Index
-  def keyIteration(seq: Seq[Index], executionContext: OuterExecutionContext): (Any=>Seq[Index])=>Future[Index]
+  def wrap(seq: Seq[DOut]): DOut
+  def buildIndex(joinRes: DOut, outCount: Int): Seq[Index]
+  def keyIteration(seq: Seq[Index], executionContext: OuterExecutionContext): (Any=>Seq[DOut])=>Future[DOut]
   //
   def getInstantly(future: Future[Index]): Index
+  //
+  def createOutFactory(pos: Int, dir: Int): OutFactory[Any,Product]
+}
+
+trait OutFactory[K,V<:Product] {
+  def result(key: K, value: V): DOut
+  def result(pair: (K,V)): DOut
 }
 
 trait OuterExecutionContext {
@@ -36,7 +44,10 @@ trait OuterExecutionContext {
   def threadCount: Long
 }
 
+trait DOut
+
 object Types {
+  type Outs = Seq[DOut]
   type Values[V] = Seq[V]
   type Each[V] = V
   type DMap[K,V] = Map[K,V] //ParMap[K,V]
@@ -58,7 +69,7 @@ object Types {
 trait ReadModelUtil {
   type MMap = DMap[AssembledKey, Future[Index]]
   def create(inner: MMap): ReadModel
-  def updated(worldKey: AssembledKey, value: Future[Index]): ReadModel=>ReadModel
+  def updated(worldKeys: Seq[AssembledKey], values: Future[Seq[Index]])(implicit ec: ExecutionContext): ReadModel=>ReadModel
   def isEmpty(implicit executionContext: ExecutionContext): ReadModel=>Future[Boolean]
   def op(op: (MMap,MMap)=>MMap): (ReadModel,ReadModel)=>ReadModel
   def ready(implicit executionContext: ExecutionContext): ReadModel=>Future[ReadModel]
@@ -116,7 +127,7 @@ trait DataDependencyFrom[From] {
 }
 
 trait DataDependencyTo[To] {
-  def outputWorldKey: AssembledKey
+  def outputWorldKeys: Seq[AssembledKey]
 }
 
 trait DataDependencyProvider {
@@ -127,12 +138,12 @@ abstract class Join(
   val assembleName: String,
   val name: String,
   val inputWorldKeys: Seq[AssembledKey],
-  val outputWorldKey: AssembledKey
+  val outputWorldKeys: Seq[AssembledKey],
 ) extends DataDependencyFrom[Index]
   with DataDependencyTo[Index]
 {
   type DiffIndexRawSeq = Seq[Index]
-  type Result = (Int,Seq[Index]) => Future[Index]
+  type Result = (Int,Seq[Index]) => Future[DOut]
   def joins(diffIndexRawSeq: DiffIndexRawSeq, executionContext: OuterExecutionContext): Result
 }
 

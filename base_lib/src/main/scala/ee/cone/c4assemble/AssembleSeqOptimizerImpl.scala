@@ -8,7 +8,8 @@ import scala.collection.immutable.{Map, Seq}
 import scala.concurrent.{ExecutionContext, Future}
 
 @c4multi("AssembleApp") final class LoopExpression[MapKey, Value](
-  outputWorldKey: AssembledKey,
+  outputWorldKeys: Seq[AssembledKey],
+  loopOutputIndex: Int,
   wasOutputWorldKey: AssembledKey,
   main: WorldPartExpression, // with DataDependencyTo[Index[MapKey, Value]],
   continue: List[WorldPartExpression],
@@ -19,34 +20,37 @@ import scala.concurrent.{ExecutionContext, Future}
   continueF: WorldTransition=>WorldTransition = Function.chain(continue.map(h=>h.transform(_)))
 ) extends WorldPartExpression {
   private def inner(
-    left: Int, transition: WorldTransition, resDiff: Index
-  ): Future[IndexUpdate] = {
+    left: Int,
+    transition: WorldTransition,
+    wasSumDiffs: Option[Seq[Index]], //do not inclide transition.diff-s
+  ): Future[(IndexUpdates,IndexUpdates)] = {
     implicit val executionContext: ExecutionContext = transition.executionContext.value
     for {
-      diffPart <- outputWorldKey.of(transition.diff)
-      res <- {
-        if(composes.isEmpty(diffPart)) for {
-          resVal <- outputWorldKey.of(transition.result)
-        } yield new IndexUpdate(resDiff, resVal, Nil)
-        else if(left > 0) inner(
-          left - 1,
-          main.transform(continueF(transition)),
-          composes.mergeIndex(Seq(resDiff, diffPart))
+      diffParts <- Future.sequence(outputWorldKeys.map(_.of(transition.diff)))
+      sumDiffs = wasSumDiffs.fold(diffParts)(composes.zipMergeIndex(diffParts))
+      res <- if(composes.isEmpty(diffParts(loopOutputIndex))){
+        for {
+          results <- Future.sequence(outputWorldKeys.map(_.of(transition.result)))
+        } yield (
+          new IndexUpdates(sumDiffs, results, Nil),
+          new IndexUpdates(Seq(emptyIndex),Seq(results(loopOutputIndex)),Nil)
         )
-        else throw new Exception(s"unstable local assemble ${transition.diff}")
+      } else {
+        assert(left > 0, s"unstable local assemble $diffParts")
+        inner(left - 1, main.transform(continueF(transition)), Option(sumDiffs))
       }
     } yield res
   }
   def transform(transition: WorldTransition): WorldTransition = {
     val transitionA = main.transform(transition)
     if(transition eq transitionA) transition
-    else finishTransform(transition, inner(1000, transitionA, emptyIndex))
+    else finishTransform(transition, inner(1000, transitionA, None))
   }
-  def finishTransform(transition: WorldTransition, next: Future[IndexUpdate]): WorldTransition = {
+  def finishTransform(transition: WorldTransition, next: Future[(IndexUpdates,IndexUpdates)]): WorldTransition = {
     implicit val executionContext: ExecutionContext = transition.executionContext.value
     Function.chain(Seq(
-      updater.setPart(outputWorldKey,next,logTask = true),
-      updater.setPart(wasOutputWorldKey,next.map(update=>new IndexUpdate(emptyIndex,update.result,Nil)),logTask = false)
+      updater.setPart(outputWorldKeys,next.map(_._1),logTask = true),
+      updater.setPart(Seq(wasOutputWorldKey),next.map(_._2),logTask = false)
     ))(transition)
   }
 }
@@ -57,19 +61,20 @@ import scala.concurrent.{ExecutionContext, Future}
 ) extends AssembleSeqOptimizer {
   private def getSingleKeys[K]: Seq[K] => Set[K] = _.groupBy(i=>i).collect{ case (k,Seq(_)) => k }.toSet
   def optimize: List[Expr]=>List[WorldPartExpression] = expressionsByPriority => {
-    val singleOutputKeys: Set[AssembledKey] = getSingleKeys(expressionsByPriority.map(_.outputWorldKey))
+    val singleOutputKeys: Set[AssembledKey] = getSingleKeys(expressionsByPriority.flatMap(_.outputWorldKeys))
     val singleInputKeys = getSingleKeys(expressionsByPriority.flatMap(_.inputWorldKeys))
-    expressionsByPriority.map{ e => e.outputWorldKey match {
-      case key:JoinKey =>
+    expressionsByPriority.map{ e =>
+      Single.option(e.outputWorldKeys.map{ case k:JoinKey => k }.zipWithIndex.flatMap{ case (key,i) =>
         val wKey = key.withWas(was=true)
         if(
           singleOutputKeys(key) && singleInputKeys(wKey) &&
             e.inputWorldKeys.contains(wKey)
         ) loopExpressionFactory.create[Any,Any](
-          key, wKey, e, backStageFactory.create(List(e))
-        )
-        else e
-    }}
+          e.outputWorldKeys, i, wKey, e, backStageFactory.create(List(e))
+        ) :: Nil
+        else Nil
+      }).getOrElse(e)
+    }
   }
 }
 
