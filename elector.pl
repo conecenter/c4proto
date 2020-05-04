@@ -32,21 +32,30 @@ push @tasks, [elector=>sub{
             my $id = $container_status && $$container_status{containerID};
             my $pod_name = $$pod{metadata}{name} || die;
             my $exec = $container_name && "kubectl -n $ns exec $pod_name -c $container_name -- ";
-            my $get = $exec && "$exec ls $rolling";
+            my $get = $exec && "$exec sh -c ls $rolling";
             my $set = $exec && "$exec sh -c '>$rolling/c4is-master'";
+            my $running = $exec && ($$container_status{state}||{})->{running} ? 1:0;
             $id && $container_name ? [$app,{
-                container_id => $id, exec_get => $get, exec_set => $set,
+                container_id => $id, exec_get => $get, exec_set => $set, is_running=>$running,
             }] : ()
         } @{&$json()->decode($pods_data)->{items}||die});
         my $container_ids_by_app = {map{
-            ($_ => join " ", sort map{$$_{container_id}} &$pods_by_app($_))
+            ($_ => join " ", sort map{"$$_{container_id}/$$_{is_running}"} &$pods_by_app($_))
         }@$apps};
         my @invalidate_apps = grep{ $$container_ids_by_app{$_} ne $$was_container_ids_by_app{$_} } @$apps;
         #
         for my $app(@invalidate_apps){
-            my @pods = &$pods_by_app($app);
-            grep{syf($$_{exec_get})=~/\bc4is-master\b/} @pods #todo Terminating may not report as master; we should remember set or ignore transient states?
-                or syf($pods[0]{exec_set}||die);
+            my @pods = map{
+              my $r = syf($$_{exec_get});
+              my $is_master = $r=~/\bc4is-master\b/ ? 1:0;
+              my $is_ready = $r=~/\bc4is-ready\b/ ? 1:0;
+              print "is ready: $is_ready; is master: $is_master\n";
+              +{ %$_, is_ready=>$is_ready, is_master=>$is_master }
+            } grep{ $$_{is_running} } &$pods_by_app($app);
+            my @ready_pods = grep{$$_{is_ready}} @pods;
+            my @master_pods = grep{$$_{is_master}} @pods;
+            next if @master_pods || !@pods; #todo Terminating may not report as master; we should remember set or ignore transient states?
+            syf((@ready_pods,@pods)[0]{exec_set}||die);
         }
         sleep 1;
         ($container_ids_by_app);
