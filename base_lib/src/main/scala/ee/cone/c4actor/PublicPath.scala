@@ -1,10 +1,22 @@
 package ee.cone.c4actor
 
+import scala.util.matching.{Regex, UnanchoredRegex}
+
 trait ImageSize
 
 trait PublicPath extends Product {
+  def isEmpty: Boolean = path.trim.isEmpty
+  def nonEmpty: Boolean = path.trim.nonEmpty
   def path: String
-  //def withPath(newPath: String): PublicPath
+  def pathType: String
+
+  def format(name: String, value: String): String = {
+    assert(!value.contains("}"))
+    ImagePublicPath.packFormat.format(name, value)
+  }
+  def convert: String = {
+    s"${format(ImagePublicPath.pathType, pathType)} ${format(ImagePublicPath.path, path)}"
+  }
 }
 
 trait ImagePublicPath extends PublicPath {
@@ -12,24 +24,95 @@ trait ImagePublicPath extends PublicPath {
   def withSize(newSize: Option[ImageSize]): ImagePublicPath
 }
 
-object SVGPublicPath {
-  def adaptiveColor = "adaptive"
-
-  def empty = SVGPublicPath("", "")
+case class DefaultPublicPath(path: String) extends PublicPath {
+  def pathType: String = DefaultPublicPath.curPathType
 }
-
-case class DefaultPublicPath(path: String) extends PublicPath
-  //def withPath(newPath: String): PublicPath = copy(path = newPath)
 
 
 case class NonSVGPublicPath(path: String, size: Option[ImageSize] = None) extends ImagePublicPath {
-  //def withPath(newPath: String): PublicPath = copy(path = newPath)
   def withSize(newSize: Option[ImageSize]): ImagePublicPath = copy(size = newSize)
+
+  def pathType: String = NonSVGPublicPath.curPathType
 }
 
 case class SVGPublicPath(path: String, viewPort: String, size: Option[ImageSize] = None, color: String = "") extends ImagePublicPath {
   def withSize(newSize: Option[ImageSize]): ImagePublicPath = copy(size = newSize)
   def withColor(newColor: String): SVGPublicPath = copy(color = newColor)
   def withAdaptiveColor: SVGPublicPath = copy(color = SVGPublicPath.adaptiveColor)
-  //def withPath(newPath: String): PublicPath = copy(path = newPath)
+
+  def pathType: String = SVGPublicPath.curPathType
+
+  override def convert: String = s"${format(SVGPublicPath.viewPort, viewPort)} " + super.convert
+}
+
+object ImagePublicPath {
+  def packFormat: String = "%s={%s}"
+  def unpackFormat: Regex = """(\w+)=\{(.*?)}""".r
+
+  def path = "path"
+  def pathType = "pathType"
+
+  def createPublicPath(url: String) = {
+    url match {
+      case filepath =>
+        val ext = ???
+        ext match {
+          case "svg" => ???
+        }
+    }
+  }
+
+  def unpack(url: String): PublicPath = {
+    val map = ImagePublicPath.unpackFormat.findAllMatchIn(url)
+      .map(regMatch => regMatch.group(1) -> regMatch.group(2)).toMap
+
+    val pathOpt = map.get(path)
+    val pathType_ = map.get(pathType)
+
+    pathOpt.map{path_ =>
+      pathType_.map{
+        case SVGPublicPath.curPathType =>
+          val viewPort_ = map.getOrElse(SVGPublicPath.viewPort, "")
+          SVGPublicPath(path_, viewPort_)
+        case NonSVGPublicPath.curPathType =>
+          NonSVGPublicPath(path_)
+        case DefaultPublicPath.curPathType =>
+          DefaultPublicPath(path_)
+      }.get
+    }.getOrElse(DefaultPublicPath(url))
+  }
+
+  implicit final class StringToPublicPath(private val str: String) extends AnyVal {
+    def unpackImg: PublicPath = unpack(str)
+  }
+
+  implicit final class OptStringToPublicPath(private val strOpt: Option[String]) extends AnyVal {
+    def unpackImgOpt: Option[PublicPath] = strOpt.map(unpack)
+  }
+
+  implicit final class ChangeSizeWithMatch(private val path: PublicPath) extends AnyVal {
+    def withSize(size: ImageSize): PublicPath = path match {
+      case img: ImagePublicPath => img.withSize(Some(size))
+      case path_ => path_
+    }
+  }
+}
+
+object DefaultPublicPath {
+  lazy val curPathType = "default"
+
+  def empty = DefaultPublicPath("")
+}
+
+object NonSVGPublicPath {
+  lazy val curPathType = "nonSVG"
+}
+
+object SVGPublicPath {
+  lazy val curPathType = "svg"
+
+  def viewPort = "viewPort"
+  def adaptiveColor = "adaptive"
+
+  def empty: SVGPublicPath = SVGPublicPath("", "")
 }
