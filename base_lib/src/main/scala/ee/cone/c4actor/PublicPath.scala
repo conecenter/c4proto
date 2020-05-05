@@ -52,16 +52,6 @@ object ImagePublicPath {
   def path = "path"
   def pathType = "pathType"
 
-  def createPublicPath(url: String) = {
-    url match {
-      case filepath =>
-        val ext = ???
-        ext match {
-          case "svg" => ???
-        }
-    }
-  }
-
   def unpack(url: String): PublicPath = {
     val map = ImagePublicPath.unpackFormat.findAllMatchIn(url)
       .map(regMatch => regMatch.group(1) -> regMatch.group(2)).toMap
