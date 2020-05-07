@@ -21,7 +21,8 @@ trait PublicPath extends Product {
 
 trait ImagePublicPath extends PublicPath {
   def size: Option[ImageSize]
-  def withSize(newSize: Option[ImageSize]): ImagePublicPath
+  def withSize(newSize: ImageSize): ImagePublicPath
+  def withNoSize: ImagePublicPath
 }
 
 case class DefaultPublicPath(path: String) extends PublicPath {
@@ -30,13 +31,16 @@ case class DefaultPublicPath(path: String) extends PublicPath {
 
 
 case class NonSVGPublicPath(path: String, size: Option[ImageSize] = None) extends ImagePublicPath {
-  def withSize(newSize: Option[ImageSize]): ImagePublicPath = copy(size = newSize)
+  def withSize(newSize: ImageSize): NonSVGPublicPath = copy(size = Some(newSize))
+  def withNoSize: NonSVGPublicPath = copy(size = None)
 
   def pathType: String = NonSVGPublicPath.curPathType
 }
 
 case class SVGPublicPath(path: String, viewPort: String, size: Option[ImageSize] = None, color: String = "") extends ImagePublicPath {
-  def withSize(newSize: Option[ImageSize]): ImagePublicPath = copy(size = newSize)
+  def withSize(newSize: ImageSize): SVGPublicPath = copy(size = Some(newSize))
+  def withNoSize: SVGPublicPath = copy(size = None)
+
   def withColor(newColor: String): SVGPublicPath = copy(color = newColor)
   def withAdaptiveColor: SVGPublicPath = copy(color = SVGPublicPath.adaptiveColor)
 
@@ -72,19 +76,17 @@ object ImagePublicPath {
     }.getOrElse(DefaultPublicPath(url))
   }
 
+  def matchImagePublicPath(publicPath: PublicPath): ImagePublicPath = publicPath match {
+    case img: ImagePublicPath => img
+    case _ => NonSVGPublicPath(publicPath.path)
+  }
+
   implicit final class StringToPublicPath(private val str: String) extends AnyVal {
     def unpackImg: PublicPath = unpack(str)
   }
 
   implicit final class OptStringToPublicPath(private val strOpt: Option[String]) extends AnyVal {
     def unpackImgOpt: Option[PublicPath] = strOpt.map(unpack)
-  }
-
-  implicit final class ChangeSizeWithMatch(private val path: PublicPath) extends AnyVal {
-    def withSize(size: ImageSize): PublicPath = path match {
-      case img: ImagePublicPath => img.withSize(Some(size))
-      case path_ => path_
-    }
   }
 }
 
@@ -96,6 +98,8 @@ object DefaultPublicPath {
 
 object NonSVGPublicPath {
   lazy val curPathType = "nonSVG"
+
+  def empty = NonSVGPublicPath("")
 }
 
 object SVGPublicPath {
