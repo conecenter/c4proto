@@ -185,42 +185,81 @@ class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends
         val (seqParams,eachParams) = params.partition(_.many)
         val (keyEqParams,keyIdParams) = params.partition(_.keyEq.nonEmpty)
         def litOrId(p: InJConnDef): String = p.keyEq.getOrElse("id")
-        s"""  private class ${defName}_Join(indexFactory: IndexFactory) extends Join(
+        def parts(map: Seq[InJConnDef]=>Seq[(String,String)]): String =
+          map(seqParams).map{ case(nm,id) => s"val ${nm}_arg = iUtil.getValues(${nm}_index,$id,${nm}_warn); "}.mkString +
+          map(seqParams).map{ case(nm,id) => s"val ${nm}_isChanged = iUtil.nonEmpty(${nm}_diffIndex,$id); "}.mkString +
+          map(eachParams).map{ case(nm,id) => s"val ${nm}_parts = iUtil.partition(${nm}_index,${nm}_diffIndex,$id,${nm}_warn); "}.mkString
+        val keyIdParts = parts(pp => for(p <- pp if p.keyEq.isEmpty) yield (p.name,"id"))
+        val keyEqParts = parts(pp => for(p <- pp; id <- p.keyEq) yield (p.name,id))
+        val doJoin = s"${defName}(id.asInstanceOf[${inKeyType.str}],${ioParams.map(p=>s"${p.name}_arg.asInstanceOf[${p.inValOuterType}]").mkString(",")}).foreach(add)"
+        val isChangedCond = params.map(p=>s"${p.name}_isChanged").mkString("("," || ",")")
+        val nonEmptyCond = seqParams.filter(_.keyEq.isEmpty).map(p=>s"${p.name}_arg.nonEmpty").mkString("("," || ",")")
+        val add = outKeyName.fold("def add(value: DOut): Unit = { val _ = buffer.addOne(value) }")(_=>s"def add(pair:(Any,Product)): Unit = { val _ = buffer.addOne(outFactory.result(pair)) }")
+        val body = if(eachParams.isEmpty)
+          s"""{
+          |    import transJoin._
+          |    import dirJoin._
+          |    $keyIdParts
+          |    $add
+          |    def execute() = if(
+          |      $nonEmptyCond &&
+          |      $isChangedCond
+          |    ) $doJoin
+          |  }
+          |""" else
+          s""" extends PartMultiFor.Handler${eachParams.size} with ProdMultiFor.Handler${eachParams.size} {
+          |    import transJoin._
+          |    import dirJoin._
+          |    $keyIdParts
+          |    $add
+          |    def handleProducts(${eachParams.map(p=>s"${p.name}_arg: Product").mkString(", ")}): Unit = $doJoin
+          |    def handleMultiForParts(${eachParams.map(p=>s"${p.name}_part: MultiForPart").mkString(", ")}): Unit = {
+          |      ${eachParams.map(p=>s"val ${p.name}_isChanged = ${p.name}_part.isChanged; ").mkString}
+          |      if(
+          |        ${if(eachParams.exists(_.keyEq.isEmpty))"" else s"$nonEmptyCond && "}
+          |        $isChangedCond
+          |      ) ProdMultiFor.foreach(${eachParams.map(p=>s"${p.name}_part.items(), ").mkString}this)
+          |    }
+          |    def execute(): Unit =
+          |      PartMultiFor.foreach(${eachParams.map(p=>s"${p.name}_parts, ").mkString}this)
+          |  }
+          |"""
+        s"""  import ee.cone.c4assemble.Types.{DiffIndexRawSeq,Index}
+           |  import scala.concurrent.Future
+           |  private final class ${defName}_Join(val indexFactory: IndexFactory) extends Join(
            |    $toString,
            |    "${defName}",
            |    Seq(${params.map(_.indexKeyName).mkString(",")}).map(_(indexFactory)),
            |    Seq(${outKeyNames.mkString(",")}).map(_(indexFactory)),
            |  ) {
-           |    def joins(diffIndexRawSeq: DiffIndexRawSeq, executionContext: OuterExecutionContext): Result = {
-           |      implicit val ec = executionContext.value
-           |      val iUtil = indexFactory.util
-           |      val Seq(${params.map(p=>s"${p.name}_diffIndex").mkString(",")}) = diffIndexRawSeq
-           |      ${keyEqParams.map(p=>s"val ${p.name}_isAllChanged = iUtil.nonEmpty(${p.name}_diffIndex,${litOrId(p)}); ").mkString}
-           |      val invalidateKeySetOpt =
-           |          ${if(keyEqParams.isEmpty)"" else s"""if(${keyEqParams.map(p=>s"${p.name}_isAllChanged").mkString(" || ")}) None else """}
-           |          Option(iUtil.keyIteration(Seq(${keyIdParams.map(p=>s"${p.name}_diffIndex").mkString(",")}),executionContext))
-           |      ${params.map(p => if(p.distinct) s"""val ${p.name}_warn = "";""" else s"""val ${p.name}_warn = "${defName} ${p.name} "+${p.indexKeyName}(indexFactory).valueClassName;""").mkString}
-           |      (dir,indexRawSeq) => {
-           |        ${outKeyName.fold("")(_=>s"val outFactory = iUtil.createOutFactory(0,dir);")}
-           |        ${outParams.zipWithIndex.map{ case (p,i) => s"val ${p.name}_arg = iUtil.createOutFactory($i,dir); "}.mkString}
-           |        val Seq(${params.map(p=>s"${p.name}_index").mkString(",")}) = indexRawSeq
-           |        invalidateKeySetOpt.getOrElse(iUtil.keyIteration(Seq(${keyIdParams.map(p=>s"${p.name}_index").mkString(",")}),executionContext)){ id =>
-           |          ${seqParams.map(p=>s"val ${p.name}_arg = iUtil.getValues(${p.name}_index,${litOrId(p)},${p.name}_warn); ").mkString}
-           |          ${seqParams.map(p=>s"val ${p.name}_isChanged = iUtil.nonEmpty(${p.name}_diffIndex,${litOrId(p)}); ").mkString}
-           |          ${eachParams.map(p=>s"val ${p.name}_parts = iUtil.partition(${p.name}_index,${p.name}_diffIndex,${litOrId(p)},${p.name}_warn); ").mkString}
-           |          for {
-           |            ${eachParams.map(p=>s" ${p.name}_part <- ${p.name}_parts; (${p.name}_isChanged,${p.name}_items) = ${p.name}_part; ").mkString}
-           |            pass <- if(
-           |              ${if(eachParams.exists(_.keyEq.isEmpty))"" else seqParams.filter(_.keyEq.isEmpty).map(p=>s"${p.name}_arg.nonEmpty").mkString("("," || ",") && ")}
-           |              (${params.map(p=>s"${p.name}_isChanged").mkString(" || ")})
-           |            ) iUtil.nonEmptySeq else Nil;
-           |            ${eachParams.map(p=>s"${p.name}_arg <- ${p.name}_items(); ").mkString}
-           |            pair <- ${defName}(id.asInstanceOf[${inKeyType.str}],${ioParams.map(p=>s"${p.name}_arg.asInstanceOf[${p.inValOuterType}]").mkString(",")})
-           |          } yield ${outKeyName.fold("pair")(_=>s"outFactory.result(pair)")}
-           |        }
-           |      }
-           |    }
+           |    def joins(diffIndexRawSeq: DiffIndexRawSeq, executionContext: OuterExecutionContext): TransJoin =
+           |      new ${defName}_TransJoin(this,diffIndexRawSeq,executionContext)
            |  }
+           |  private final class ${defName}_TransJoin(join: ${defName}_Join, diffIndexRawSeq: DiffIndexRawSeq, val executionContext: OuterExecutionContext) extends TransJoin {
+           |    import join._
+           |    implicit val ec = executionContext.value
+           |    val iUtil = indexFactory.util
+           |    val Seq(${params.map(p=>s"${p.name}_diffIndex").mkString(",")}) = diffIndexRawSeq
+           |    ${keyEqParams.map(p=>s"val ${p.name}_isAllChanged = iUtil.nonEmpty(${p.name}_diffIndex,${litOrId(p)}); ").mkString}
+           |    val invalidateKeySetOpt =
+           |      ${if(keyEqParams.isEmpty)"" else s"""if(${keyEqParams.map(p=>s"${p.name}_isAllChanged").mkString(" || ")}) None else """}
+           |      Option(iUtil.keyIteration(Seq(${keyIdParams.map(p=>s"${p.name}_diffIndex").mkString(",")}),executionContext))
+           |    ${params.map(p => if(p.distinct) s"""val ${p.name}_warn = "";""" else s"""val ${p.name}_warn = "${defName} ${p.name} "+${p.indexKeyName}(indexFactory).valueClassName;""").mkString}
+           |    def dirJoin(dir: Int, indexRawSeq: Seq[Index]): Future[DOut] =
+           |      new ${defName}_DirJoin(this,dir,indexRawSeq).execute()
+           |  }
+           |  private final class ${defName}_DirJoin(transJoin: ${defName}_TransJoin, dir: Int, indexRawSeq: Seq[Index]) extends KeyIterationHandler {
+           |    import transJoin._
+           |    ${outKeyName.fold("")(_=>s"val outFactory = iUtil.createOutFactory(0,dir);")}
+           |    ${outParams.zipWithIndex.map{ case (p,i) => s"val ${p.name}_arg = iUtil.createOutFactory($i,dir); "}.mkString}
+           |    val Seq(${params.map(p=>s"${p.name}_index").mkString(",")}) = indexRawSeq
+           |    $keyEqParts
+           |    val invalidateKeySet = invalidateKeySetOpt.getOrElse(iUtil.keyIteration(Seq(${keyIdParams.map(p=>s"${p.name}_index").mkString(",")}),executionContext))
+           |    def execute(): Future[DOut] = invalidateKeySet.execute(this)
+           |    def execute(id: Any, buffer: collection.mutable.Buffer[DOut]) = new ${defName}_KeyJoin(transJoin,this,id,buffer).execute()
+           |  }
+           |  private final class ${defName}_KeyJoin(transJoin: ${defName}_TransJoin, dirJoin: ${defName}_DirJoin, id: Any, buffer: collection.mutable.Buffer[DOut]) $body
+           |
            |""".stripMargin
     }.mkString
     val dataDependencies = rules.collect {

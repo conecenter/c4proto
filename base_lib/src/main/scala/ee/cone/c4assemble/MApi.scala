@@ -5,6 +5,7 @@ import Types._
 
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.collection.immutable.Seq
+import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
 
 case class AssembleOptions(srcId: String, @deprecated isParallel: Boolean, threadCount: Long)
@@ -18,20 +19,24 @@ trait IndexUtil extends Product {
   def getValues(index: Index, key: Any, warning: String): Values[Product] //m
   def nonEmpty(index: Index, key: Any): Boolean //m
   def removingDiff(index: Index, keys: Iterable[Any]): Index
-  type Partitioning = Seq[(Boolean,()=>DPIterable[Product])]
-  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Partitioning  //m
+  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): List[MultiForPart]  //m
   def nonEmptySeq: Seq[Unit] //m
-  def mayBeParVector[V](iterable: Set[V], options: AssembleOptions): DPIterable[V]
-  def mayBePar[V](iterable: Seq[V], options: AssembleOptions): Seq[V]
   def mayBePar[V](seq: Seq[V]): DPIterable[V]
   //
   def wrap(seq: Seq[DOut]): DOut
   def buildIndex(joinRes: DOut, outCount: Int): Seq[Index]
-  def keyIteration(seq: Seq[Index], executionContext: OuterExecutionContext): (Any=>Seq[DOut])=>Future[DOut]
+  def keyIteration(seq: Seq[Index], executionContext: OuterExecutionContext): KeyIteration
   //
   def getInstantly(future: Future[Index]): Index
   //
   def createOutFactory(pos: Int, dir: Int): OutFactory[Any,Product]
+}
+
+trait KeyIterationHandler {
+  def execute(id: Any, buffer: mutable.Buffer[DOut]): Unit
+}
+trait KeyIteration {
+  def execute(inner: KeyIterationHandler): Future[DOut]
 }
 
 trait OutFactory[K,V<:Product] {
@@ -47,6 +52,7 @@ trait OuterExecutionContext {
 trait DOut
 
 object Types {
+  type DiffIndexRawSeq = Seq[Index]
   type Outs = Seq[DOut]
   type Values[V] = Seq[V]
   type Each[V] = V
@@ -111,6 +117,10 @@ trait JoiningProfiling extends Product {
   def handle(join: Join, stage: Long, start: Long, joinRes: Res, wasLog: ProfilingLog): ProfilingLog
 }
 
+trait ResultCountingProfiling {
+  def count(result: DOut): Long //todo traverse
+}
+
 trait IndexFactory {
   def createJoinMapIndex(join: Join):
   WorldPartExpression
@@ -142,10 +152,12 @@ abstract class Join(
 ) extends DataDependencyFrom[Index]
   with DataDependencyTo[Index]
 {
-  type DiffIndexRawSeq = Seq[Index]
-  type Result = (Int,Seq[Index]) => Future[DOut]
-  def joins(diffIndexRawSeq: DiffIndexRawSeq, executionContext: OuterExecutionContext): Result
+  def joins(diffIndexRawSeq: DiffIndexRawSeq, executionContext: OuterExecutionContext): TransJoin
 }
+trait TransJoin {
+  def dirJoin(dir: Int, indexRawSeq: Seq[Index]): Future[DOut]
+}
+
 
 trait Assemble {
   def dataDependencies: IndexFactory => List[WorldPartRule with DataDependencyTo[_]]

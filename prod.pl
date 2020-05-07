@@ -1899,11 +1899,11 @@ push @tasks, ["cert","$composes_txt <hostname>",sub{
 my $tp_split = sub{ "$_[0]\n\n"=~/(.*?\n\n)/gs };
 
 my $tp_run = sub{
-    my($wrap)=@_;
+    my($only_last,$wrap)=@_;
     my $cmd = &$wrap("jcmd");
-    my @pid = map{/^(\d+)\s+(ee\.cone\.\S+)/  ?"$1":()} syl($cmd);
+    my @pid = sort{$b<=>$a} map{/^(\d+)\s+(ee\.cone\.\S+)/  ?"$1":()} syl($cmd);
     @pid || return;
-    my $p_cmd = &$wrap(join " && ", map{"jcmd $_ Thread.print"} @pid);
+    my $p_cmd = &$wrap(join " && ", map{"jcmd $_ Thread.print"} $only_last? $pid[0] : @pid);
     while(1){
         select undef, undef, undef, 0.25;
         print grep{ !/\.epollWait\(/ && /\sat\s/ } &$tp_split(syf($p_cmd));
@@ -1911,22 +1911,25 @@ my $tp_run = sub{
 };
 
 push @tasks, ["thread_print_local","<package>",sub{
-    &$tp_run(sub{"$_[0]"});
+    &$tp_run(1,sub{"$_[0]"});
 }];
 push @tasks, ["thread_print","$composes_txt-<service>",sub{
     my($app)=@_;
     sy(&$ssh_add());
     my($comp,$service) = &$split_app($app);
     my $mk_exec = &$find_exec_handler($comp);
-    &$tp_run(sub{ my($cmd)=@_; &$remote($comp,&$mk_exec("",$service,$cmd)) });#/RUNNABLE/
+    &$tp_run(0,sub{ my($cmd)=@_; &$remote($comp,&$mk_exec("",$service,$cmd)) });#/RUNNABLE/
 }];
 push @tasks, ["thread_grep_cut","<substring>",sub{
     my($v)=@_;
     print map{ my $i = index $_,$v; $i<0?():substr($_,0,$i)."\n\n" } &$tp_split(join '',<STDIN>);
 }];
-push @tasks, ["thread_grep_not","<substring>",sub{
-    my($v)=@_;
-    print grep{ 0 > index $_,$v } &$tp_split(join '',<STDIN>);
+push @tasks, ["thread_grep_sub","<expression>",sub{
+    my($body)=@_;
+    my $expr = q^sub{ my $at0=/(.*\bat\b.*)/?$1:''; ^.$body.q^}^;
+    my $by = eval $expr;
+    die "$@ -- $expr" if $@;
+    print grep{&$by} &$tp_split(join '',<STDIN>);
 }];
 push @tasks, ["thread_count"," ",sub{
     my @r = grep{/\S/} &$tp_split(join '',<STDIN>);

@@ -160,8 +160,8 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     else { local =>
       implicit val executionContext: ExecutionContext = local.executionContext.value
       val options = getAssembleOptions.get(local.assembled)
-      val processedOut = composes.mayBePar(processors, options).flatMap(_.process(out)).toSeq ++ out
-      val externalOut = updateProcessor.fold(processedOut)(_.process(processedOut, WriteModelKey.of(local).size))
+      val processedOut: List[N_Update] = processors.flatMap(_.process(out)) ++ out
+      val externalOut = updateProcessor.fold(processedOut)(_.process(processedOut, WriteModelKey.of(local).size).toList)
       val profiling = assembleProfiler.createJoiningProfiling(Option(local))
       val util = Single(utilOpt.value)
       val res = for {

@@ -9,6 +9,8 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4di.c4
 import okio.ByteString
 
+import scala.collection.immutable.TreeMap
+
 @c4("RichDataCompApp") final case class IdGenUtilImpl()(
   proto: MessageDigest = MessageDigest.getInstance("MD5")
 ) extends IdGenUtil {

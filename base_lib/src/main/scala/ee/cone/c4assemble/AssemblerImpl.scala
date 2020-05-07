@@ -143,29 +143,26 @@ case class JoinKeyImpl(
     IndexUtilImpl.makeIndex(pairs.toMap)
   }
 
-  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Partitioning = {
-    getMS(currentIndex,key).fold(Nil:Partitioning){currentValues =>
+  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): List[MultiForPart] = {
+    getMS(currentIndex,key).fold(Nil:List[MultiForPart]){currentValues =>
       val diffValues = getMS(diffIndex,key).getOrElse(emptyMS)
-      val changed = mayBeParProd(for {
-        (k,v) <- diffValues; values <- currentValues.get(k)
-      } yield IndexUtilImpl.single(values,warning))
-      lazy val unchanged = mayBeParProd(for {
-        (k,values) <- currentValues if !diffValues.contains(k)
-      } yield IndexUtilImpl.single(values,warning))
-      val unchangedRes = (false,()=>unchanged) :: Nil
-      if(changed.nonEmpty) (true,()=>changed) :: unchangedRes else unchangedRes
+      if(currentValues eq diffValues){
+        val changed = (for {
+          (k,values) <- currentValues
+        } yield IndexUtilImpl.single(values,warning)).toList
+        new ChangedMultiForPart(changed) :: Nil
+      } else {
+        val changed = (for {
+          (k,v) <- diffValues; values <- currentValues.get(k)
+        } yield IndexUtilImpl.single(values,warning)).toList
+        val unchanged: ()=>List[Product] = ()=>(for {
+          (k,values) <- currentValues if !diffValues.contains(k)
+        } yield IndexUtilImpl.single(values,warning)).toList
+        val unchangedRes = new UnchangedMultiForPart(unchanged) :: Nil
+        if(changed.nonEmpty) new ChangedMultiForPart(changed) :: unchangedRes else unchangedRes
+      }
     }
   }
-
-  // def isParallel(options: AssembleOptions): Boolean = options.isParallel
-
-  def mayBeParVector[V](iterable: immutable.Set[V], options: AssembleOptions): DPIterable[V] =
-    /*if(isParallel(options)) iterable.to[ParVector] else*/ iterable
-
-  def mayBeParProd[V](iterable: Iterable[Product]): DPIterable[Product] =
-    /*if(isParallel(options)) iterable.par else*/ iterable
-  def mayBePar[V](iterable: immutable.Seq[V], options: AssembleOptions): Seq[V] =
-    /*if(isParallel(options)) iterable.par else*/ iterable
 
   def mayBePar[V](seq: immutable.Seq[V]): DPIterable[V] = seq match {
     case s: DValuesImpl => /*if(isParallel(s.options)) s.par else*/ s
@@ -173,14 +170,12 @@ case class JoinKeyImpl(
   }
 
   // mapDiv cpuCount
-  def wrap(seq: Seq[DOut]): DOut =
-    new AggrDOut(seq.asInstanceOf[Seq[GatherDOut]],seq.map{ case p: AggrDOut => p.size case _ => 1 }.sum)
-  def keyIteration(seq: Seq[Index], executionContext: OuterExecutionContext): (Any=>Seq[DOut])=>Future[DOut] = {
-    implicit val ec: ExecutionContext = executionContext.value
+  def wrap(seq: Seq[DOut]): DOut = new AggrDOut(seq.asInstanceOf[Seq[GatherDOut]])
+  def keyIteration(seq: Seq[Index], executionContext: OuterExecutionContext): KeyIteration    = {
     val ids = seq.foldLeft(Set.empty[Any])((st,index)=>st ++ data(index).keySet).toVector
-    val groupSize = ids.size / Math.toIntExact(executionContext.threadCount)+1
+    val groupSize = ids.size / Math.toIntExact(executionContext.threadCount) + 1
     val groups: Seq[Seq[Any]] = ids.grouped(groupSize).toVector
-    f => Future.sequence(groups.map(part=>Future(wrap(part.map(f).map(wrap))))).map(wrap)
+    new KeyIterationImpl(this, groups, groupSize, executionContext)
   }
   def buildIndex(joinRes: DOut, outCount: Int): Seq[Index] = {
     val out = new MutableGathered(outCount)
@@ -192,6 +187,24 @@ case class JoinKeyImpl(
 
   @SuppressWarnings(Array("org.wartremover.warts.TryPartial")) def getInstantly(future: Future[Index]): Index = future.value.get.get
 }
+
+final class ChangedMultiForPart(val items: List[Product]) extends MultiForPart {
+  def isChanged: Boolean = true
+}
+final class UnchangedMultiForPart(getItems: ()=>List[Product]) extends MultiForPart {
+  def isChanged: Boolean = true
+  lazy val items: List[Product] = getItems()
+}
+
+final class KeyIterationImpl(util: IndexUtil, groups: Seq[Seq[Any]], groupSize: Int, executionContext: OuterExecutionContext) extends KeyIteration {
+  implicit val ec: ExecutionContext = executionContext.value
+  def execute(inner: KeyIterationHandler): Future[DOut] = Future.sequence(groups.map(part=>Future{
+    val buffer = new mutable.ArrayBuffer[DOut](groupSize)
+    for(id <- part) inner.execute(id,buffer)
+    util.wrap(buffer.toIndexedSeq)
+  })).map(util.wrap)
+}
+
 
 final class MutableGathered(outCount: Int) {
   type Out = Array[mutable.Map[Any,DMultiSet]]
@@ -225,7 +238,7 @@ abstract class GatherDOut extends DOut {
 final class OneRecDOut(val pos: Int, val key: Any, val mKey: InnerKey, val count: Count) extends GatherDOut {
   def gatherTo(out: MutableGathered): Unit = out.add(this)
 }
-final class AggrDOut(val inner: Seq[GatherDOut], val size: Long) extends GatherDOut {
+final class AggrDOut(val inner: Seq[GatherDOut]) extends GatherDOut {
   def gatherTo(out: MutableGathered): Unit = inner.foreach(_.gatherTo(out))
 }
 
@@ -281,9 +294,9 @@ trait ParallelAssembleStrategy {
           profiler = transition.profiling
           calcStart = profiler.time
           runJoin = join.joins(worldDiffs, transition.executionContext)
-          joinResSeq <- Future.sequence(Seq(runJoin(-1,prevInputs), runJoin(+1,inputs)))
+          joinResSeq <- Future.sequence(Seq(runJoin.dirJoin(-1,prevInputs), runJoin.dirJoin(+1,inputs)))
           joinRes = composes.wrap(joinResSeq)
-          joinResSize = joinRes match { case p: AggrDOut => p.size case _ => 0 }
+          joinResSize = profiler match{ case p: ResultCountingProfiling => p.count(joinRes) case _ => 0L }
           calcLog = profiler.handle(join, 0L, calcStart, joinResSize, Nil)
           findChangesStart = profiler.time
           indexDiffs = composes.buildIndex(joinRes,outputWorldKeys.size)
