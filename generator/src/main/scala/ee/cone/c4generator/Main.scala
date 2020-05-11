@@ -4,6 +4,7 @@ import java.nio.file.{Files, Path, Paths}
 import java.util.UUID
 import java.nio.charset.StandardCharsets.UTF_8
 
+
 import scala.concurrent.Future
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
@@ -330,20 +331,50 @@ class PublicPathsGenerator extends WillGenerator {
     val toModRoot = Util.matchThisOrParent(isModRoot)
     val pathByRoot = ctx.fromFiles.groupBy(toModRoot)
     val RefOk = """([\w\-\./]+)""".r
+    val ExtRegEx = """.*\.(\w+)""".r
+    val ViewBoxRegEx = """viewBox=["'](.+?)["']""".r.unanchored
+    val fullMimeTypesMap: Map[String, String] = (for {
+      path <- ctx.fromFiles.filter(_.getFileName.toString == "MimeTypesMap.scala")
+      Parsed.Success(source"..$sourceStatements") = Files.readString(path).parse[Source]
+      statement <- sourceStatements
+      (ext,tp) <- statement.collect{
+        case q"${Lit.String(ext)} -> ${Lit.String(tp)}" => (ext,tp)
+      }
+    } yield (ext,tp)).groupMapReduce(_._1)(_._2){(a,b)=>
+      assert(a==b)
+      a
+    }
+    val imageExtensions: Set[String] = fullMimeTypesMap.collect{
+      case (key, value) if value.startsWith("image/") => key
+    }.toSet
     Util.toBinFileList(roots.flatMap { (root:PublicPathRoot) =>
       val defs = pathByRoot.getOrElse(Option(root.publicPath),Nil)
         .map{ path =>
-            val RefOk(r) = root.publicPath.relativize(path).toString
-            val rel = root.mainPublicPath.relativize(path)
-            val ref = s"/mod/main/$rel"
-            (
-              s"""    def `/$r` = "$ref" """,
-              s"main.${root.pkgName} $ref $rel"
-            )
+          val RefOk(r) = root.publicPath.relativize(path).toString
+          val ExtRegEx(ext) = r
+          val rel = root.mainPublicPath.relativize(path)
+          val ref = s"/mod/main/$rel"
+
+          val publicPath = ext match {
+            case "svg" =>
+              val svg = Files.readString(path)
+              val viewBox = svg match {
+                case ViewBoxRegEx(sizes) => sizes
+                case _ => ""
+              }
+              s"""SVGPublicPath("$ref", "$viewBox")"""
+            case e if imageExtensions.contains(e) => s"""NonSVGPublicPath("$ref")"""
+            case _ => s"""DefaultPublicPath("$ref")"""
+          }
+          (
+            s"""    def `/$r` = $publicPath """,
+            s"main.${root.pkgName} $ref $rel"
+          )
         }
       val lines = if(defs.isEmpty) Nil else
         "/** THIS FILE IS GENERATED; CHANGES WILL BE LOST **/" ::
         s"package ${root.pkgName}" ::
+        "\nimport ee.cone.c4actor.{DefaultPublicPath, SVGPublicPath, NonSVGPublicPath}\n" ::
         "object PublicPath {" :: defs.map(_._1) ::: "}" :: Nil
       List(root.genPath -> lines, root.mainPublicPath.resolve("c4gen.ht.links") -> defs.map(_._2))
     }.groupMap(_._1)(_._2).transform((k,v)=>v.flatten))
