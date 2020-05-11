@@ -37,7 +37,6 @@ import scala.concurrent.duration.Duration
 ) extends LazyLogging {
   def toTreeReplace(assembled: ReadModel, updates: Seq[N_Update], profiling: JoiningProfiling, executionContext: OuterExecutionContext): Future[WorldTransition] = {
     val isActiveOrig: Set[AssembledKey] = activeOrigKeyRegistry.values
-    val timer = NanoTimer()
     val outFactory = composes.createOutFactory(0, +1)
     val mDiff = for {
       tpPair <- updates.groupBy(_.valueTypeId)
@@ -46,22 +45,21 @@ import scala.concurrent.duration.Duration
       wKey <- Option(origKeyFactory.value.rawKey(valueAdapter.className)) if isActiveOrig(wKey)
     } yield {
       implicit val ec: ExecutionContext = executionContext.value
-      wKey -> (for {
+      val indexF = for {
         wasIndex <- wKey.of(assembled)
-      } yield {
-        val updatesBySrcId = tpUpdates.groupBy(_.srcId)
-        val adds = for {
+        updatesBySrcId = tpUpdates.groupBy(_.srcId)
+        adds = for {
           iPair <- updatesBySrcId
           (srcId, iUpdates) = iPair
           rawValue = iUpdates.last.value if rawValue.size > 0
         } yield outFactory.result(srcId,valueAdapter.decode(rawValue))
-        val add = composes.buildIndex(composes.wrap(adds.toSeq),1)
-        val remove = Seq(composes.removingDiff(wasIndex,updatesBySrcId.keys))
-        Single(composes.zipMergeIndex(add)(remove))
-      })
+        addF = Single(composes.buildIndex(Seq(composes.aggregate(adds))))
+        remove = composes.removingDiff(wasIndex,updatesBySrcId.keys)
+        add <- addF
+      } yield composes.mergeIndex(Seq(add,remove))
+      wKey -> indexF
     }
     val diff = readModelUtil.create(mDiff.toMap)
-    logger.trace(s"toTree ${timer.ms} ms")
     replace.replace(assembled,diff,profiling,executionContext)
   }
 

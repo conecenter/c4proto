@@ -83,8 +83,15 @@ case class JoinKeyImpl(
   def withWas(was: Boolean): JoinKey = copy(was=was)
 }
 
+final case class ParallelExecution(power: Int) {
+  val parallelPartCount: Int = 1 << power
+  def keyToPartPos(elem: Any): Int = elem.hashCode & (parallelPartCount-1)
+  private val parallelRange = (0 until parallelPartCount).toVector
+  def execute[T](f: Int=>T)(implicit ec: ExecutionContext): Future[Vector[T]] =
+    Future.sequence(parallelRange.map(partId=>Future(f(partId))))
+}
+
 @c4("AssembleApp") final case class IndexUtilImpl()(
-  val nonEmptySeq: Seq[Unit] = Seq(()),
   mergeIndexInner: Compose[InnerIndex] =
     Merge[Any,DMultiSet](v=>v.isEmpty,
       IndexUtilImpl.toOrdered(
@@ -95,7 +102,6 @@ case class JoinKeyImpl(
 
   def joinKey(was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String): JoinKey =
     JoinKeyImpl(was,keyAlias,keyClassName,valueClassName)
-
 
   def data(index: Index): InnerIndex = index match {
     case i: IndexImpl => i.data
@@ -164,23 +170,44 @@ case class JoinKeyImpl(
     }
   }
 
-  def mayBePar[V](seq: immutable.Seq[V]): DPIterable[V] = seq match {
-    case s: DValuesImpl => /*if(isParallel(s.options)) s.par else*/ s
-    case s if s.isEmpty => s
-  }
+  def mayBePar[V](seq: immutable.Seq[V]): DPIterable[V] = seq
 
-  // mapDiv cpuCount
-  def wrap(seq: Seq[DOut]): DOut = new AggrDOut(seq.asInstanceOf[Seq[GatherDOut]])
-  def keyIteration(seq: Seq[Index], executionContext: OuterExecutionContext): KeyIteration    = {
-    val ids = seq.foldLeft(Set.empty[Any])((st,index)=>st ++ data(index).keySet).toVector
-    val groupSize = ids.size / Math.toIntExact(executionContext.threadCount) + 1
-    val groups: Seq[Seq[Any]] = ids.grouped(groupSize).toVector
-    new KeyIterationImpl(this, groups, groupSize, executionContext)
+  def aggregate(values: Iterable[DOut]): AggrDOut = {
+    val setup = IndexBuildSetup(1)
+    val buffer = setup.createBuffer()
+    values.foreach(buffer.add)
+    buffer.result
   }
-  def buildIndex(joinRes: DOut, outCount: Int): Seq[Index] = {
-    val out = new MutableGathered(outCount)
-    joinRes match { case i: GatherDOut => i.gatherTo(out) }
-    out.toIndex
+  def keyIteration(seq: Seq[Index]): KeyIteration    = {
+    val parallelExecution = ParallelExecution(5) //32
+    val buffer = new MutableGroupingBufferImpl[Any](parallelExecution.parallelPartCount)
+    seq.foreach(index=>data(index).keySet.foreach(key=>buffer.add(parallelExecution.keyToPartPos(key),key)))
+    val groups = buffer.toVector.map(_.distinct)
+    new KeyIterationImpl(parallelExecution, groups)
+  }
+  def buildIndex(data: Seq[AggrDOut])(implicit ec: ExecutionContext): Seq[Future[Index]] = {
+    assert(data.nonEmpty)
+    val dataI = data.map{ case v: AggrDOutImpl => v }
+    val setup = Single(dataI.map(_.setup).distinct)
+    (0 until setup.outCount).map{ outPos =>
+      setup.parallelExecution.execute{ partPos =>
+        val index: mutable.Map[Any,DMultiSet] = mutable.Map()
+        dataI.foreach{ aggr =>
+          aggr.byOutThenTarget(setup.bufferPos(outPos, partPos)).foreach{ rec =>
+            val key = rec.key
+            val mKey = rec.mKey
+            val wasValues = index.getOrElse(key,Map.empty)
+            val wasCounts = wasValues.getOrElse(mKey,Nil)
+            val counts = IndexUtilImpl.mergeProduct(rec.count,wasCounts)
+            val values: DMultiSet = IndexUtilImpl.toOrdered(if(counts.nonEmpty) wasValues.updated(mKey,counts) else wasValues.removed(mKey))
+            if(values.nonEmpty) index(key) = values else assert(index.remove(key).nonEmpty)
+          }
+        }
+        index.toMap
+      }.map{ pRes: Seq[InnerIndex] =>
+        IndexUtilImpl.makeIndex(pRes.reduce((a,b)=>a++b))
+      }
+    }
   }
   def createOutFactory(pos: Int, dir: Int): OutFactory[Any, Product] =
     new OutFactoryImpl(pos,dir)
@@ -196,50 +223,53 @@ final class UnchangedMultiForPart(getItems: ()=>List[Product]) extends MultiForP
   lazy val items: List[Product] = getItems()
 }
 
-final class KeyIterationImpl(util: IndexUtil, groups: Seq[Seq[Any]], groupSize: Int, executionContext: OuterExecutionContext) extends KeyIteration {
-  implicit val ec: ExecutionContext = executionContext.value
-  def execute(inner: KeyIterationHandler): Future[DOut] = Future.sequence(groups.map(part=>Future{
-    val buffer = new mutable.ArrayBuffer[DOut](groupSize)
-    for(id <- part) inner.execute(id,buffer)
-    util.wrap(buffer.toIndexedSeq)
-  })).map(util.wrap)
+final class MutableGroupingBufferImpl[T](count: Int) {
+  private val buffers = Vector.fill(count)(new mutable.ArrayBuffer[T])
+  def add(pos: Int, value: T): Unit = { val _ = buffers(pos).addOne(value) }
+  def toVector: Vector[Vector[T]] = buffers.map(_.toVector)
 }
+// util.keyToPartId(key)util.parallelPartCount
 
-
-final class MutableGathered(outCount: Int) {
-  type Out = Array[mutable.Map[Any,DMultiSet]]
-  val out: Out = Array.fill(outCount)(mutable.Map())
-  def add(rec: OneRecDOut): Unit = {
-    val index = out(rec.pos)
-    val key = rec.key
-    val mKey = rec.mKey
-    val wasValues = index.getOrElse(key,Map.empty)
-    val wasCounts = wasValues.getOrElse(mKey,Nil)
-    val counts = IndexUtilImpl.mergeProduct(rec.count,wasCounts)
-    val values: DMultiSet = IndexUtilImpl.toOrdered(if(counts.nonEmpty) wasValues.updated(mKey,counts) else wasValues.removed(mKey))
-    if(values.nonEmpty) index(key) = values else assert(index.remove(key).nonEmpty)
+final case class IndexBuildSetup(outCount: Int){
+  val parallelExecution: ParallelExecution = ParallelExecution(2)
+  def bufferCount: Int = outCount * parallelExecution.parallelPartCount
+  def bufferPos(outPos: Int, key: Any): Int = outPos * parallelExecution.parallelPartCount + parallelExecution.keyToPartPos(key)
+  def createBuffer(): DOutAggregationBuffer = new DOutAggregationBuffer(this)
+}
+final class AggrDOutImpl(val setup: IndexBuildSetup, val byOutThenTarget: Vector[Vector[DOutImpl]]) extends AggrDOut
+final class DOutAggregationBuffer(setup: IndexBuildSetup) extends MutableBuffer[DOut] {
+  private val inner = new MutableGroupingBufferImpl[DOutImpl](setup.bufferCount)
+  def add(value: DOut): Unit = value match { case v: DOutImpl =>
+    inner.add(setup.bufferPos(v.pos,v.key), v)
   }
-  def toIndex: Seq[Index] = out.map(muIndex=>IndexUtilImpl.makeIndex(muIndex.toMap)).toSeq
+  def result: AggrDOutImpl = new AggrDOutImpl(setup, inner.toVector)
 }
+//final class DOutAggregation(){
+//
+//  def createBuffer() = new DOutAggregationBuffer
+//}
 
+
+final class KeyIterationImpl(parallelExecution: ParallelExecution, parts: Vector[Vector[Any]]) extends KeyIteration {
+  def execute(inner: KeyIterationHandler)(implicit ec: ExecutionContext): Future[Seq[AggrDOut]] = {
+    val setup = IndexBuildSetup(inner.outCount)
+    parallelExecution.execute{ partId =>
+      val buffer = setup.createBuffer()
+      parts(partId).foreach(key=>inner.handle(key,buffer))
+      buffer.result
+    }
+  }
+}
 
 // makeIndex(Map(key->Map((ToPrimaryKey(product),product.hashCode)->(Count(product,count)::Nil)))/*, opt*/)
+final class DOutImpl(val pos: Int, val key: Any, val mKey: InnerKey, val count: Count) extends DOut
 final class OutFactoryImpl(pos: Int, dir: Int) extends OutFactory[Any, Product] {
   def result(key: Any, value: Product): DOut =
-    new OneRecDOut(pos,key,(ToPrimaryKey(value),value.hashCode),Count(value,dir))
+    new DOutImpl(pos,key,(ToPrimaryKey(value),value.hashCode),Count(value,dir))
   def result(pair: (Any, Product)): DOut = {
     val (k,v) = pair
     result(k,v)
   }
-}
-abstract class GatherDOut extends DOut {
-  def gatherTo(out: MutableGathered): Unit
-}
-final class OneRecDOut(val pos: Int, val key: Any, val mKey: InnerKey, val count: Count) extends GatherDOut {
-  def gatherTo(out: MutableGathered): Unit = out.add(this)
-}
-final class AggrDOut(val inner: Seq[GatherDOut]) extends GatherDOut {
-  def gatherTo(out: MutableGathered): Unit = inner.foreach(_.gatherTo(out))
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -295,11 +325,11 @@ trait ParallelAssembleStrategy {
           calcStart = profiler.time
           runJoin = join.joins(worldDiffs, transition.executionContext)
           joinResSeq <- Future.sequence(Seq(runJoin.dirJoin(-1,prevInputs), runJoin.dirJoin(+1,inputs)))
-          joinRes = composes.wrap(joinResSeq)
+          joinRes = joinResSeq.flatten
           joinResSize = profiler match{ case p: ResultCountingProfiling => p.count(joinRes) case _ => 0L }
           calcLog = profiler.handle(join, 0L, calcStart, joinResSize, Nil)
           findChangesStart = profiler.time
-          indexDiffs = composes.buildIndex(joinRes,outputWorldKeys.size)
+          indexDiffs <- Future.sequence(composes.buildIndex(joinRes))
           findChangesLog = profiler.handle(join, 1L, findChangesStart, joinResSize, calcLog)
           noUpdates <- getNoUpdates(findChangesLog)
         } yield {

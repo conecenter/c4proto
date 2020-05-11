@@ -191,16 +191,14 @@ class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends
           map(eachParams).map{ case(nm,id) => s"val ${nm}_parts = iUtil.partition(${nm}_index,${nm}_diffIndex,$id,${nm}_warn); "}.mkString
         val keyIdParts = parts(pp => for(p <- pp if p.keyEq.isEmpty) yield (p.name,"id"))
         val keyEqParts = parts(pp => for(p <- pp; id <- p.keyEq) yield (p.name,id))
-        val doJoin = s"${defName}(id.asInstanceOf[${inKeyType.str}],${ioParams.map(p=>s"${p.name}_arg.asInstanceOf[${p.inValOuterType}]").mkString(",")}).foreach(add)"
+        val doJoin = s"$className.this.${defName}(id.asInstanceOf[${inKeyType.str}],${ioParams.map(p=>s"${p.name}_arg.asInstanceOf[${p.inValOuterType}]").mkString(",")}).foreach(add)"
         val isChangedCond = params.map(p=>s"${p.name}_isChanged").mkString("("," || ",")")
         val nonEmptyCond = seqParams.filter(_.keyEq.isEmpty).map(p=>s"${p.name}_arg.nonEmpty").mkString("("," || ",")")
-        val add = outKeyName.fold("def add(value: DOut): Unit = { val _ = buffer.addOne(value) }")(_=>s"def add(pair:(Any,Product)): Unit = { val _ = buffer.addOne(outFactory.result(pair)) }")
         val body = if(eachParams.isEmpty)
           s"""{
           |    import transJoin._
           |    import dirJoin._
           |    $keyIdParts
-          |    $add
           |    def execute() = if(
           |      $nonEmptyCond &&
           |      $isChangedCond
@@ -211,7 +209,6 @@ class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends
           |    import transJoin._
           |    import dirJoin._
           |    $keyIdParts
-          |    $add
           |    def handleProducts(${eachParams.map(p=>s"${p.name}_arg: Product").mkString(", ")}): Unit = $doJoin
           |    def handleMultiForParts(${eachParams.map(p=>s"${p.name}_part: MultiForPart").mkString(", ")}): Unit = {
           |      ${eachParams.map(p=>s"val ${p.name}_isChanged = ${p.name}_part.isChanged; ").mkString}
@@ -243,9 +240,9 @@ class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends
            |    ${keyEqParams.map(p=>s"val ${p.name}_isAllChanged = iUtil.nonEmpty(${p.name}_diffIndex,${litOrId(p)}); ").mkString}
            |    val invalidateKeySetOpt =
            |      ${if(keyEqParams.isEmpty)"" else s"""if(${keyEqParams.map(p=>s"${p.name}_isAllChanged").mkString(" || ")}) None else """}
-           |      Option(iUtil.keyIteration(Seq(${keyIdParams.map(p=>s"${p.name}_diffIndex").mkString(",")}),executionContext))
+           |      Option(iUtil.keyIteration(Seq(${keyIdParams.map(p=>s"${p.name}_diffIndex").mkString(",")})))
            |    ${params.map(p => if(p.distinct) s"""val ${p.name}_warn = "";""" else s"""val ${p.name}_warn = "${defName} ${p.name} "+${p.indexKeyName}(indexFactory).valueClassName;""").mkString}
-           |    def dirJoin(dir: Int, indexRawSeq: Seq[Index]): Future[DOut] =
+           |    def dirJoin(dir: Int, indexRawSeq: Seq[Index]): Future[Seq[AggrDOut]] =
            |      new ${defName}_DirJoin(this,dir,indexRawSeq).execute()
            |  }
            |  private final class ${defName}_DirJoin(transJoin: ${defName}_TransJoin, dir: Int, indexRawSeq: Seq[Index]) extends KeyIterationHandler {
@@ -254,11 +251,12 @@ class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends
            |    ${outParams.zipWithIndex.map{ case (p,i) => s"val ${p.name}_arg = iUtil.createOutFactory($i,dir); "}.mkString}
            |    val Seq(${params.map(p=>s"${p.name}_index").mkString(",")}) = indexRawSeq
            |    $keyEqParts
-           |    val invalidateKeySet = invalidateKeySetOpt.getOrElse(iUtil.keyIteration(Seq(${keyIdParams.map(p=>s"${p.name}_index").mkString(",")}),executionContext))
-           |    def execute(): Future[DOut] = invalidateKeySet.execute(this)
-           |    def execute(id: Any, buffer: collection.mutable.Buffer[DOut]) = new ${defName}_KeyJoin(transJoin,this,id,buffer).execute()
+           |    val invalidateKeySet = invalidateKeySetOpt.getOrElse(iUtil.keyIteration(Seq(${keyIdParams.map(p=>s"${p.name}_index").mkString(",")})))
+           |    def execute(): Future[Seq[AggrDOut]] = invalidateKeySet.execute(this)
+           |    def outCount: Int = ${outKeyNames.size}
+           |    def handle(id: Any, buffer: MutableBuffer[DOut]) = new ${defName}_KeyJoin(transJoin,this,id,${outKeyName.fold("buffer.add _")(_=>"pair=>buffer.add(outFactory.result(pair))")}).execute()
            |  }
-           |  private final class ${defName}_KeyJoin(transJoin: ${defName}_TransJoin, dirJoin: ${defName}_DirJoin, id: Any, buffer: collection.mutable.Buffer[DOut]) $body
+           |  private final class ${defName}_KeyJoin(transJoin: ${defName}_TransJoin, dirJoin: ${defName}_DirJoin, id: Any, add: ${outKeyName.fold("DOut=>Unit")(_=>"Tuple2[Any,Product]=>Unit")}) $body
            |
            |""".stripMargin
     }.mkString

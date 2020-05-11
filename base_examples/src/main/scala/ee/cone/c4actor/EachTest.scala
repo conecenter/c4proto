@@ -8,6 +8,9 @@ import ee.cone.c4assemble.Types._
 import ee.cone.c4di.c4
 import ee.cone.c4proto.{Id, protocol}
 
+import scala.concurrent.Await
+import scala.concurrent.duration.{Duration, SECONDS}
+
 //  new EachTestNotEffectiveAssemble :: // 25s vs 1s for 3K 1-item-tx-s
 
 @protocol("EachTestApp") object EachTestProtocol   {
@@ -31,7 +34,7 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
   }
 }
 
-@c4assemble("EachTestApp") class EachTestNotEffectiveAssembleBase   {
+/*@c4assemble("EachTestApp")*/ class EachTestNotEffectiveAssembleBase   {
   type ByParent = SrcId
   def joinByVal(
     key: SrcId,
@@ -65,11 +68,16 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
         l
       }
     ))(voidContext))
+    println("TEST 0 OK")
 
-    assert(emptyIndex==Single(indexUtil.buildIndex(indexUtil.wrap(Seq(
+    implicit val ec = scala.concurrent.ExecutionContext.global
+    val resF = Single(indexUtil.buildIndex(Seq(indexUtil.aggregate(Seq(
       indexUtil.createOutFactory(0,-1).result("1",D_Item("1","2")),
       indexUtil.createOutFactory(0,+1).result("1",D_Item("1","2")),
-    )),1)))
+    )))))
+    val res = Await.result(resF,Duration(5,SECONDS))
+    assert(emptyIndex==res)
+    println("TEST 1 OK")
 
     /*println(indexUtil.mergeIndex(Seq(
       indexUtil.result("1",D_Item("1","2"),-1),
@@ -95,6 +103,7 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
         l
       }
     ))(voidContext))
+    println("TEST 2 OK")
 
     execution.complete()
   }

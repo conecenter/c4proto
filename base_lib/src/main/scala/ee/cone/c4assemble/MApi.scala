@@ -20,23 +20,26 @@ trait IndexUtil extends Product {
   def nonEmpty(index: Index, key: Any): Boolean //m
   def removingDiff(index: Index, keys: Iterable[Any]): Index
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): List[MultiForPart]  //m
-  def nonEmptySeq: Seq[Unit] //m
   def mayBePar[V](seq: Seq[V]): DPIterable[V]
   //
-  def wrap(seq: Seq[DOut]): DOut
-  def buildIndex(joinRes: DOut, outCount: Int): Seq[Index]
-  def keyIteration(seq: Seq[Index], executionContext: OuterExecutionContext): KeyIteration
+  def aggregate(values: Iterable[DOut]): AggrDOut
+  def buildIndex(data: Seq[AggrDOut])(implicit ec: ExecutionContext): Seq[Future[Index]]
+  def keyIteration(seq: Seq[Index]): KeyIteration
   //
   def getInstantly(future: Future[Index]): Index
   //
   def createOutFactory(pos: Int, dir: Int): OutFactory[Any,Product]
 }
 
+trait MutableBuffer[T] {
+  def add(value: T): Unit
+}
 trait KeyIterationHandler {
-  def execute(id: Any, buffer: mutable.Buffer[DOut]): Unit
+  def outCount: Int
+  def handle(id: Any, buffer: MutableBuffer[DOut]): Unit
 }
 trait KeyIteration {
-  def execute(inner: KeyIterationHandler): Future[DOut]
+  def execute(inner: KeyIterationHandler)(implicit ec: ExecutionContext): Future[Seq[AggrDOut]]
 }
 
 trait OutFactory[K,V<:Product] {
@@ -48,6 +51,8 @@ trait OuterExecutionContext {
   def value: ExecutionContext
   def threadCount: Long
 }
+
+trait AggrDOut
 
 trait DOut
 
@@ -118,7 +123,7 @@ trait JoiningProfiling extends Product {
 }
 
 trait ResultCountingProfiling {
-  def count(result: DOut): Long //todo traverse
+  def count(result: Seq[AggrDOut]): Long //todo traverse
 }
 
 trait IndexFactory {
@@ -155,7 +160,7 @@ abstract class Join(
   def joins(diffIndexRawSeq: DiffIndexRawSeq, executionContext: OuterExecutionContext): TransJoin
 }
 trait TransJoin {
-  def dirJoin(dir: Int, indexRawSeq: Seq[Index]): Future[DOut]
+  def dirJoin(dir: Int, indexRawSeq: Seq[Index]): Future[Seq[AggrDOut]]
 }
 
 
