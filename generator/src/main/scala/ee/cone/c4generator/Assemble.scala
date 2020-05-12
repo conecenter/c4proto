@@ -191,7 +191,7 @@ class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends
           map(eachParams).map{ case(nm,id) => s"val ${nm}_parts = iUtil.partition(${nm}_index,${nm}_diffIndex,$id,${nm}_warn); "}.mkString
         val keyIdParts = parts(pp => for(p <- pp if p.keyEq.isEmpty) yield (p.name,"id"))
         val keyEqParts = parts(pp => for(p <- pp; id <- p.keyEq) yield (p.name,id))
-        val doJoin = s"$className.this.${defName}(id.asInstanceOf[${inKeyType.str}],${ioParams.map(p=>s"${p.name}_arg.asInstanceOf[${p.inValOuterType}]").mkString(",")}).foreach(add)"
+        val doJoin = s"buffer.add(${outKeyName.fold("")(_=>"outFactory, ")}$className.this.${defName}(id.asInstanceOf[${inKeyType.str}],${ioParams.map(p=>s"${p.name}_arg.asInstanceOf[${p.inValOuterType}]").mkString(",")}))"
         val isChangedCond = params.map(p=>s"${p.name}_isChanged").mkString("("," || ",")")
         val nonEmptyCond = seqParams.filter(_.keyEq.isEmpty).map(p=>s"${p.name}_arg.nonEmpty").mkString("("," || ",")")
         val body = if(eachParams.isEmpty)
@@ -254,9 +254,9 @@ class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends
            |    val invalidateKeySet = invalidateKeySetOpt.getOrElse(iUtil.keyIteration(Seq(${keyIdParams.map(p=>s"${p.name}_index").mkString(",")})))
            |    def execute(): Future[Seq[AggrDOut]] = invalidateKeySet.execute(this)
            |    def outCount: Int = ${outKeyNames.size}
-           |    def handle(id: Any, buffer: MutableBuffer[DOut]) = new ${defName}_KeyJoin(transJoin,this,id,${outKeyName.fold("buffer.add _")(_=>"pair=>buffer.add(outFactory.result(pair))")}).execute()
+           |    def handle(id: Any, buffer: MutableDOutBuffer) = new ${defName}_KeyJoin(transJoin,this,id,buffer).execute()
            |  }
-           |  private final class ${defName}_KeyJoin(transJoin: ${defName}_TransJoin, dirJoin: ${defName}_DirJoin, id: Any, add: ${outKeyName.fold("DOut=>Unit")(_=>"Tuple2[Any,Product]=>Unit")}) $body
+           |  private final class ${defName}_KeyJoin(transJoin: ${defName}_TransJoin, dirJoin: ${defName}_DirJoin, id: Any, buffer: MutableDOutBuffer) $body
            |
            |""".stripMargin
     }.mkString

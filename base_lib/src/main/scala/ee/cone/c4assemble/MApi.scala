@@ -3,9 +3,8 @@ package ee.cone.c4assemble
 
 import Types._
 
-import scala.annotation.{StaticAnnotation, compileTimeOnly}
+import scala.annotation.StaticAnnotation
 import scala.collection.immutable.Seq
-import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
 
 case class AssembleOptions(srcId: String, @deprecated isParallel: Boolean, threadCount: Long)
@@ -25,18 +24,24 @@ trait IndexUtil extends Product {
   def aggregate(values: Iterable[DOut]): AggrDOut
   def buildIndex(data: Seq[AggrDOut])(implicit ec: ExecutionContext): Seq[Future[Index]]
   def keyIteration(seq: Seq[Index]): KeyIteration
+  def countResults(data: Seq[AggrDOut]): ProfilingCounts
   //
   def getInstantly(future: Future[Index]): Index
   //
   def createOutFactory(pos: Int, dir: Int): OutFactory[Any,Product]
 }
 
-trait MutableBuffer[T] {
-  def add(value: T): Unit
+// ${outKeyName.fold("DOut=>Unit")(_=>"Tuple2[Any,Product]=>Unit")}      ${outKeyName.fold("buffer.add _")(_=>"pair=>buffer.add(outFactory.result(pair))")}  MutableDOutBuffer
+
+case class ProfilingCounts(callCount: Long, resultCount: Long)
+
+trait MutableDOutBuffer {
+  def add(values: Iterable[DOut]): Unit
+  def add[K,V<:Product](outFactory: OutFactory[K,V], values: Seq[(K,V)]): Unit
 }
 trait KeyIterationHandler {
   def outCount: Int
-  def handle(id: Any, buffer: MutableBuffer[DOut]): Unit
+  def handle(id: Any, buffer: MutableDOutBuffer): Unit
 }
 trait KeyIteration {
   def execute(inner: KeyIterationHandler)(implicit ec: ExecutionContext): Future[Seq[AggrDOut]]
@@ -119,11 +124,8 @@ case class WorldTransition(
 trait JoiningProfiling extends Product {
   type Res = Long
   def time: Long
-  def handle(join: Join, stage: Long, start: Long, joinRes: Res, wasLog: ProfilingLog): ProfilingLog
-}
-
-trait ResultCountingProfiling {
-  def count(result: Seq[AggrDOut]): Long //todo traverse
+  def handle(join: Join, result: Seq[AggrDOut], wasLog: ProfilingLog): ProfilingLog
+  def handle(join: Join, stage: Long, start: Long, wasLog: ProfilingLog): ProfilingLog
 }
 
 trait IndexFactory {
