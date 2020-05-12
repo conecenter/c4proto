@@ -12,6 +12,7 @@ import ee.cone.c4gate_akka._
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
+@SuppressWarnings(Array("org.wartremover.warts.NonUnitStatements"))
 @c4("AkkaMinioGatewayApp") final class AkkaMinioRequestPreHandler(
   s3FileStorage: S3FileStorage,
   akkaMat: AkkaMat,
