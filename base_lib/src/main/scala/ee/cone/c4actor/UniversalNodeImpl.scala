@@ -18,6 +18,7 @@ case class UniversalPropImpl[T<:Object](tag: Int, value: T)(adapter: ProtoAdapte
 }
 
 @c4("RichDataCompApp") final class UniversalProtoAdapter extends ProtoAdapter[UniversalNode](FieldEncoding.LENGTH_DELIMITED, classOf[UniversalNode]) {
+  def redact(e: UniversalNode): UniversalNode = e
   def encodedSize(value: UniversalNode): Int =
     value.props.map(_.encodedSize).sum
   def encode(writer: ProtoWriter, value: UniversalNode): Unit =

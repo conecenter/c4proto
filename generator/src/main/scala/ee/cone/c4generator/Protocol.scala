@@ -81,6 +81,7 @@ $c4ann final class ${cl.name}ProtoAdapter(
   val protoOrigMeta: OrigMeta[${cl.name}],
   ${props.map(p => s"\n    adapter_${p.name}: ArgAdapter[${p.argType}]").mkString(",")}
 ) extends ProtoAdapter[$resultType](FieldEncoding.LENGTH_DELIMITED,classOf[$resultType]) with HasId {
+  def redact(value: $resultType): $resultType = value
   def encodedSize(value: $resultType): Int = {
     val $struct = value
     (0

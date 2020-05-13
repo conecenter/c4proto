@@ -5,7 +5,7 @@
   ["C4EXT", "base_lib.ee.cone.c4actor_kafka_impl", "org.apache.kafka:kafka-clients:2.3.0" ],
   ["C4EXT", "base_lib.ee.cone.c4actor_logback_impl", "ch.qos.logback:logback-classic:1.2.3" ],
   ["C4EXT", "base_lib.ee.cone.c4actor_repl_impl", "com.lihaoyi:ammonite-sshd_2.13.1:2.0.4" ],
-  ["C4EXT", "base_lib.ee.cone.c4proto", "com.squareup.wire:wire-runtime:2.2.0" ],
+  ["C4EXT", "base_lib.ee.cone.c4proto", "com.squareup.wire:wire-runtime:3.2.1" ],
   ["C4EXT", "base_lib.ee.cone.c4actor_s3_minio", "io.minio:minio:6.0.11" ],
 
   ["C4DEP", "base_lib.ee.cone.c4proto", "base_lib.ee.cone.c4di" ],

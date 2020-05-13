@@ -375,6 +375,7 @@ object Hex { def apply(i: Long): String = "0x%04x".format(i) }
 ///
 
 object UniversalDeleteProtoAdapter extends ProtoAdapter[UniversalDeleteImpl](FieldEncoding.LENGTH_DELIMITED, classOf[UniversalDeleteImpl]) {
+  def redact(e: UniversalDeleteImpl): UniversalDeleteImpl = throw new Exception("Can't be called")
   def encodedSize(value: UniversalDeleteImpl): Int = throw new Exception("Can't be called")
   def encode(writer: ProtoWriter, value: UniversalDeleteImpl): Unit = throw new Exception("Can't be called")
   def decode(reader: ProtoReader): UniversalDeleteImpl = throw new Exception("Can't be called")

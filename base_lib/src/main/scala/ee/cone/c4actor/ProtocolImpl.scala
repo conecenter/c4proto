@@ -134,6 +134,7 @@ class QAdapterRegistryImpl(
 @c4("ProtoApp") final class ProductProtoAdapter(
   qAdapterRegistryD: DeferredSeq[QAdapterRegistry]
 ) extends ProtoAdapter[Product](FieldEncoding.LENGTH_DELIMITED, classOf[Product]) {
+  def redact(e: Product): Product = e
   private lazy val qAdapterRegistry = Single(qAdapterRegistryD.value)
   def encodedSize(value: Product): Int = {
     val adapter = qAdapterRegistry.byName(value.getClass.getName)
