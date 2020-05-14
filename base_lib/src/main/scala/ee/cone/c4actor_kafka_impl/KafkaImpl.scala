@@ -104,6 +104,9 @@ case class KafkaConfig(
 
 @c4("KafkaConsumerApp") final case class KafkaConsuming(conf: KafkaConfig)(execution: Execution) extends Consuming with LazyLogging {
   def process[R](from: NextOffset, body: Consumer=>R): R = {
+    process(List(conf.topicNameToString(InboxTopicName())->from), body)
+  }
+  def process[R](from: List[(String,NextOffset)], body: Consumer=>R): R = {
     val deserializer = new ByteArrayDeserializer
     val props: Map[String, Object] = conf.ssl ++ Map(
       "enable.auto.commit" -> "false",
@@ -116,13 +119,18 @@ case class KafkaConfig(
     )) { consumer =>
       val remove = execution.onShutdown("Consumer",() => consumer.wakeup()) //todo unregister
       try {
-        val inboxTopicName = InboxTopicName()
-        val inboxTopicPartition = List(new TopicPartition(conf.topicNameToString(inboxTopicName), 0))
-        logger.info(s"server [${conf.bootstrapServers}] inbox [${conf.topicNameToString(inboxTopicName)}] from [$from]")
-        consumer.assign(inboxTopicPartition.asJava)
-        val initialOffset = java.lang.Long.parseLong(from,16)
-        consumer.seek(Single(inboxTopicPartition), initialOffset)
-        body(new RKafkaConsumer(consumer, inboxTopicPartition))
+        val fromList = from.map{
+          case (topicName,offset) => (new TopicPartition(topicName, 0),offset)
+        }
+        val topicPartitions = fromList.map{ case(topicPartition,_)=> topicPartition }
+        logger.info(s"server [${conf.bootstrapServers}]")
+        consumer.assign(topicPartitions.asJava)
+        for((topicPartition,offset)<-fromList){
+          logger.info(s"from topic [${topicPartition.topic}] from offset [$offset]")
+          val initialOffset = java.lang.Long.parseLong(offset,16)
+          consumer.seek(topicPartition, initialOffset)
+        }
+        body(new RKafkaConsumer(consumer, topicPartitions))
       } finally {
         remove()
       }
@@ -139,10 +147,10 @@ class RKafkaConsumer(
     consumer.poll(Duration.ofMillis(200) /*timeout*/).asScala.toList.map { rec: ConsumerRecord[Array[Byte], Array[Byte]] =>
       val compHeader = rec.headers().toArray.toList.map(h => RawHeader(h.key(), new String(h.value(), UTF_8)))
       val data: Array[Byte] = if (rec.value ne null) rec.value else Array.empty
-      KafkaRawEvent(OffsetHex(rec.offset + 1L), ToByteString(data), compHeader, rec.timestamp)
+      KafkaRawEvent(OffsetHex(rec.offset + 1L), ToByteString(data), compHeader, rec.timestamp, rec.topic)
     }
-  def endOffset: NextOffset =
+  def endOffset: NextOffset = // may be extend to endOffset-s
     OffsetHex(Single(consumer.endOffsets(inboxTopicPartition.asJava).asScala.values.toList): java.lang.Long)
 }
 
-case class KafkaRawEvent(srcId: SrcId, data: ByteString, headers: List[RawHeader], mTime: Long) extends RawEvent with MTime
+case class KafkaRawEvent(srcId: SrcId, data: ByteString, headers: List[RawHeader], mTime: Long, topicName: String) extends RawEvent with MTime with FromTopicRawEvent

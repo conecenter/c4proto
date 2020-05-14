@@ -270,7 +270,9 @@ trait ProgressObserverFactory {
   def create(endOffset: NextOffset): Observer[RichContext]
 }
 
-
+trait FromTopicRawEvent {
+  def topicName: String
+}
 
 trait MTime {
   def mTime: Long
