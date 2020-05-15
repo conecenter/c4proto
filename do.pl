@@ -127,7 +127,8 @@ push @tasks, ["inbox_copy", sub{
 my $exec_server = sub{
     my($arg)=@_;
     my ($nm,$mod,$cl) = $arg=~/^(\w+)\.(.+)\.(\w+)$/ ? ($1,"$1.$2","$2.$3") : die;
-    sy("bloop compile $mod");
+    my $tmp = ".bloop/c4";
+    sy("perl $tmp/compile.pl $mod");
     my $data_dir = $ENV{C4DATA_DIR} || die "no C4DATA_DIR";
     my %env = (
         C4BOOTSTRAP_SERVERS => $ssl_bootstrap_server,
@@ -145,7 +146,7 @@ my $exec_server = sub{
         C4APP_CLASS => $cl,
     );
     my $env = join " ", map{"$_=$env{$_}"} sort keys %env;
-    &$exec(". .bloop/c4/mod.$mod.classpath.sh && $env java ee.cone.c4actor.ServerMain");
+    &$exec(". $tmp/mod.$mod.classpath.sh && $env java ee.cone.c4actor.ServerMain");
 };
 push @tasks, ["gate_publish", sub{
     sy("perl $prod_pl build_client .");

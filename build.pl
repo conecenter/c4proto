@@ -138,7 +138,7 @@ my $calc_bloop_conf = sub{
         my($from,$to)=@$_;
         my($mod,$cl) = $to=~/^(\w+\.)(.*)(\.\w+)$/ ? ("$1$2","$2$3") : die;
         (
-            +{ fn=>"$tmp/tag.$from.compile", content=>"exec bloop compile $mod" },
+            +{ fn=>"$tmp/tag.$from.compile", content=>"exec perl $tmp/compile.pl $mod" },
             +{ fn=>"$tmp/tag.$from.mod", content=>$mod },
             +{ fn=>"$tmp/tag.$from.main", content=>$cl },
         )
@@ -272,9 +272,11 @@ my $src_list = join"\n", grep{!m"/c4gen-[^/]+$"} &$find_files(map{"$src_dir/$_"}
     &$put_text(&$need_path("$tmp/gen/src"),$src_list);
 });
 #
+
+&$if_changed("$tmp/compile.pl",q^open FF,'|-','bloop','compile',@ARGV; close FF or die;^,sub{}); ### bloop returns 0-exit-code if interrupted with ^C SIGINT; perl during 'system' will not fail on ^C; so we use 'open'
 my $sum = &$get_sum(join"\n",map{&$get_text($_)} sort grep{/\.scala$/} &$find_files(&$get_text("$tmp/generator-src-dirs")=~/(\S+)/g));
 &$if_changed("$tmp/generator-src-sum",$sum,sub{
-    sy("cd $src_dir && bloop compile $gen_mod");
+    sy("cd $src_dir && perl $tmp/compile.pl $gen_mod");
 });
 print "generation starting\n";
 my $main = &$single(&$from(&$dep_conf("C4GENERATOR_MAIN")));
