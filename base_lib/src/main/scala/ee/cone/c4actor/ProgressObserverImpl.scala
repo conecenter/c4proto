@@ -12,6 +12,7 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Single, c4assemble}
 import ee.cone.c4di.c4
 
+import scala.annotation.tailrec
 import scala.concurrent.Future
 
 @c4("ServerCompApp") final class ProgressObserverFactoryImpl(
@@ -67,7 +68,7 @@ class ReadyObserverImpl(inner: Observer[RichContext], path: Path, until: Long=0)
   }
 
 }
-
+/*
 @c4assemble("ServerCompApp") class BuildVerAssembleBase(config: ListConfig, execution: Execution){
   def join(
     srcId: SrcId,
@@ -81,6 +82,16 @@ case class BuildVerTx(srcId: SrcId, path: Path, value: String)(execution: Execut
   def transform(local: Context): Context = {
     if(new String(Files.readAllBytes(path), UTF_8) != value) execution.complete()
     SleepUntilKey.set(Instant.ofEpochMilli(System.currentTimeMillis+1000))(local)
+  }
+}*/
+
+@c4("ServerCompApp") final class LocalElectorDeath(config: ListConfig, execution: Execution) extends Executable with Early {
+  def run(): Unit =
+    for(path <- config.get("C4ELECTOR_PROC_PATH")) iteration(Paths.get(path))
+  @tailrec private def iteration(path: Path): Unit = {
+    if(Files.notExists(path)) execution.complete()
+    Thread.sleep(1000)
+    iteration(path)
   }
 }
 
