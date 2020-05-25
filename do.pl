@@ -200,6 +200,32 @@ my $keep_only = sub{
     kill 'TERM', @to_kill;
     1;
 };
+
+my $debug_port = 5005;
+my $debug_proxy = sub{
+    my($pre,$address)=@_;
+    my $ha_cfg_path = "$pre-haproxy.cfg";
+    my $ha_pid_path = "$pre-haproxy.pid";
+    &$put_text($ha_cfg_path, join "\n",
+        "global",
+        "  tune.ssl.default-dh-param 2048",
+        "defaults",
+        "  timeout connect 5s",
+        "  timeout client  3d",
+        "  timeout server  3d",
+        "  mode tcp",
+        "listen listen_def",
+        "  bind 127.0.0.1:$debug_port",
+        "  server s_def $address",
+    );
+    my @ha_pids = (-e $ha_pid_path) ? &$get_text($ha_pid_path)=~/(\d+)/g : ();
+    sy("/usr/sbin/haproxy","-D","-f",$ha_cfg_path,"-p",$ha_pid_path,"-sf",@ha_pids);
+};
+my $get_debug_ip = sub{
+    my($pid)=@_;
+    "127.1.".(($pid>>8) & 0xFF).".".($pid & 0xFF);
+};
+
 push @tasks, ["loop", sub{
     my ($arg) = @_;
     my $was_ver;
@@ -233,12 +259,16 @@ push @tasks, ["loop", sub{
                     my $dir = "$droll$$";
                     &$prep_empty_dir($dir);
                     $ENV{C4ROLLING} = $dir;
+                    my $debug_ip = &$get_debug_ip($$);
+                    $ENV{JAVA_TOOL_OPTIONS} = " -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$debug_ip:$debug_port $ENV{JAVA_TOOL_OPTIONS}";
                     #
                     sy("perl $prod_pl build_client_changed . dev");
                     &$exec_server($arg);
                     die;
                 }
                 print &$colored_line(bright_yellow=>"Spawned $pid");
+                my $debug_ip = &$get_debug_ip($pid);
+                &$debug_proxy($droll,"$debug_ip:$debug_port");
                 push @active_pid, $pid;
             };
         } elsif($last_ready && $last_ready != $master){
