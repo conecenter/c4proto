@@ -1897,28 +1897,50 @@ push @tasks, ["cert","$composes_txt <hostname>",sub{
 ####
 
 my $tp_split = sub{ "$_[0]\n\n"=~/(.*?\n\n)/gs };
-
+my $sleep = sub{ select undef, undef, undef, $_[0] };
 my $tp_run = sub{
-    my($only_last,$wrap)=@_;
+    my($wrap)=@_;
     my $cmd = &$wrap("jcmd");
-    my @pid = sort{$b<=>$a} map{/^(\d+)\s+(ee\.cone\.\S+)/  ?"$1":()} syl($cmd);
-    @pid || return;
-    my $p_cmd = &$wrap(join " && ", map{"jcmd $_ Thread.print"} $only_last? $pid[0] : @pid);
-    while(1){
-        select undef, undef, undef, 0.25;
-        print grep{ !/\.epollWait\(/ && /\sat\s/ } &$tp_split(syf($p_cmd));
-    }
+    my $get_pids = sub{
+        sort{$b<=>$a} map{/^(\d+)\s+(ee\.cone\.\S+)/  ?"$1":()} syl($cmd);
+    };
+    my $prn = sub{
+        my @pid = @_;
+        my $p_cmd = &$wrap(join " && ", map{"jcmd $_ Thread.print"} @pid);
+        while(1){
+            &$sleep(0.25);
+            print grep{ !/\.epollWait\(/ && /\sat\s/ } &$tp_split(syf($p_cmd));
+        }
+    };
+    ($get_pids,$prn);
 };
-
-push @tasks, ["thread_print_local","<package>",sub{
-    &$tp_run(1,sub{"$_[0]"});
+push @tasks, ["thread_print_local_next"," ",sub{
+    my($get_pids,$prn) = &$tp_run(sub{"$_[0]"});
+    my %was = map{($_=>1)} &$get_pids();
+    my $wait_next = sub{
+        while(1){
+            &$sleep(0.25);
+            $was{$_} or return $_ for &$get_pids();
+        }
+    };
+    my $pid = &$wait_next();
+    &$prn($pid);
+}];
+push @tasks, ["thread_print_local_max"," ",sub{
+    my($get_pids,$prn) = &$tp_run(sub{"$_[0]"});
+    my @pid = &$get_pids();
+    @pid || return;
+    &$prn($pid[0]);
 }];
 push @tasks, ["thread_print","$composes_txt-<service>",sub{
     my($app)=@_;
     sy(&$ssh_add());
     my($comp,$service) = &$split_app($app);
     my $mk_exec = &$find_exec_handler($comp);
-    &$tp_run(0,sub{ my($cmd)=@_; &$remote($comp,&$mk_exec("",$service,$cmd)) });#/RUNNABLE/
+    my($get_pids,$prn) = &$tp_run(sub{ my($cmd)=@_; &$remote($comp,&$mk_exec("",$service,$cmd)) });#/RUNNABLE/
+    my @pid = &$get_pids();
+    @pid || return;
+    &$prn(@pid);
 }];
 push @tasks, ["thread_grep_cut","<substring>",sub{
     my($v)=@_;
