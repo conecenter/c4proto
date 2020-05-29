@@ -8,21 +8,33 @@ const localByKey = dictKeys(f=>({local:f}))
 function ctxToPatch(ctx,res){
     return !ctx ? res : ctxToPatch(ctx.parent, ctx.key ? {[ctx.key]:res} : res)
 }
-const setDeferred = (ctx,target) => {
+const getChange = (ctx,target,changing) => {
+    const headers = ({...target.headers, "x-r-changing": changing?"1":""})
+    const patch = ctxToPatch(ctx, { value: target.value, changing })
+    const change = ({ctx,target:{...target,headers,skipByPath:true},patch})
+    return change
+}
+const setDeferred = (ctx,aTarget,changing) => {
     const rCtx = rootCtx(ctx)
     const path = ctxToPath(ctx)
-    const patch = ctxToPatch(ctx, { value: target.value, changing: true })
-    const change = ({ctx,target:{...target,skipByPath:true},patch})
-    rCtx.modify("CHANGE_SET",branchByKey.one(rCtx.branchKey,localByKey.one(path, st => change)))
+    rCtx.modify("CHANGE_SET",branchByKey.one(rCtx.branchKey,localByKey.one(path, wasChange => {
+        const target = aTarget || wasChange && wasChange.target
+        return target ? getChange(ctx,target,changing) : wasChange
+    })))
+}
+const sendChanging = (sender,ctx,target) => {
+    const rCtx = rootCtx(ctx)
+    const path = ctxToPath(ctx)
+    const change = getChange(ctx,target,"1")
+    rCtx.modify("CHANGING_SEND", branchByKey.one(rCtx.branchKey,localByKey.one(path, st =>
+        st && st.target.headers["x-r-changing"] ? change : sendOneDeferred(sender)(change)
+    )))
 }
 const sendDeferred = (sender,ctx) => {
     const rCtx = rootCtx(ctx)
-    rCtx.modify("CHANGE_SEND",branchByKey.all(localByKey.all(st => {
-        return st.sent ? st : {...st, sent: sender.send(st.ctx,st.target)} // todo fix bug, ask aku
-    })))
+    rCtx.modify("CHANGE_SEND",branchByKey.all(localByKey.all(sendOneDeferred(sender))))
 }
-
-
+const sendOneDeferred = sender => st => st.sent ? st : {...st, sent: sender.send(st.ctx,st.target)}
 
 //todo branch LIFE
 
@@ -186,11 +198,12 @@ export function VDomAttributes(react, sender){
     const sendThen = ctx => event => sender.send(ctx,{value:""})
     const onClick = ({/*send,*/sendThen}) //react gives some warning on stopPropagation
     const onChange = {
-        "local": ctx => event => setDeferred(ctx, event.target),
-        "send": ctx => event => { setDeferred(ctx, event.target); sendDeferred(sender, ctx) } // todo no resize anti-dos
+        "local": ctx => event => setDeferred(ctx, event.target, true),
+        "send_first": ctx => event => sendChanging(sender, ctx, event.target),
+        "send": ctx => event => { setDeferred(ctx, event.target, true); sendDeferred(sender, ctx) } // todo no resize anti-dos
     }
     const onBlur = {
-        "send": ctx => event => sendDeferred(sender, ctx)
+        "send": ctx => event => { setDeferred(ctx, null, false); sendDeferred(sender, ctx) }
     }
     const seed = ctx => element => {
         const rCtx = rootCtx(ctx)
