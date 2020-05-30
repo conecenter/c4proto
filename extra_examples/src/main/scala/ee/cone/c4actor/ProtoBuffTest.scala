@@ -56,7 +56,7 @@ object ProtoBuffTest {
   def run(): Unit = {
     import ProtoBuffTest._
     println("started")
-    for(_ <- 1 to 5) {
+    for(_ <- 1 to 10) {
       val times = TimeColored("g", "single thread") {
         for {i <- 1 to n} yield {
           TestCode.test(testOrigs, qAdapterRegistry)
@@ -80,7 +80,7 @@ object ProtoBuffTest {
     import ProtoBuffTest._
     println("started")
 
-    for(_ <- 1 to 5) {
+    for(_ <- 1 to 10) {
       val runnables = for (i <- 1 to n) yield new SerializationRunnable(
         i,
         testOrigs,
