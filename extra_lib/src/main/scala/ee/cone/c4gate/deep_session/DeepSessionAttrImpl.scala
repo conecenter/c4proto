@@ -19,7 +19,7 @@ import okio.ByteString
   roleByPK: GetByPK[U_RawRoleData],
   dataByPK: GetByPK[U_RawSessionData],
   userByPK: GetByPK[U_RawUserData],
-) extends DeepSessionAttrAccessFactory with KeyGenerator {
+) extends DeepSessionAttrAccessFactory with SessionAttrAccessFactory with KeyGenerator {
   lazy val rawDataAdapter = registry.byName(classOf[U_RawSessionData].getName)
   lazy val rawUserAdapter = registry.byName(classOf[U_RawUserData].getName)
   lazy val rawRoleAdapter = registry.byName(classOf[U_RawRoleData].getName)
