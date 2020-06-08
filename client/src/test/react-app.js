@@ -40,7 +40,7 @@ const canvas = CanvasManager(React,Canvas.CanvasFactory(util, canvasMods), sende
 
 const vDomAttributes = VDomAttributes(React,exampleRequestState)
 const exampleComponents = ExampleComponents(vDomAttributes.transforms.tp)
-const exampleAuth = ExampleAuth(pairOfInputAttributes,vDomAttributes.transforms.tp)
+const exampleAuth = ExampleAuth(pairOfInputAttributes)
 const transforms = mergeAll([vDomAttributes.transforms, exampleComponents.transforms, exampleAuth.transforms, canvas.transforms])
 
 const vDom = VDomCore(React,ReactDOM,update,log,transforms,getRootElement)

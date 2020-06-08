@@ -18,5 +18,5 @@ export function ExampleRequestState(sender){
         console.log("req handled",branchKey,index)
     }
     const receivers = ({ackChange})
-    return {send,receivers}
+    return {send,flush:sender.flush,receivers}
 }

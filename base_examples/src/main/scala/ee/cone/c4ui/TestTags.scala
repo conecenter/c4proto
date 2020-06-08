@@ -3,7 +3,7 @@ package ee.cone.c4ui
 import ee.cone.c4actor._
 import ee.cone.c4di.{c4, c4multi, provide}
 import ee.cone.c4vdom.Types.VDomKey
-import ee.cone.c4vdom._
+import ee.cone.c4vdom.{OnChangeMode, _}
 
 abstract class ElementValue extends VDomValue {
   def elementType: String
@@ -16,13 +16,13 @@ abstract class ElementValue extends VDomValue {
   }
 }
 
-case class InputTextElement[State](value: String, deferSend: Boolean, placeholder: String)(
+case class InputTextElement[State](value: String, mode: OnChangeMode, placeholder: String)(
   input: TagJsonUtils, val receive: VDomMessage => State => State
 ) extends ElementValue with Receiver[State] {
   def elementType = "ExampleInput"
   def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {
     builder.append("type").append("text")
-    input.appendInputAttributes(builder, value, deferSend)
+    input.appendInputAttributes(builder, value, mode)
     if(placeholder.nonEmpty) builder.append("placeholder").append(placeholder)
   }
 }
@@ -32,7 +32,7 @@ case class SignIn[State]()(
 ) extends ElementValue with Receiver[State] {
   def elementType: String = "SignIn"
   def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {
-    input.appendInputAttributes(builder, "", deferSend = true)
+    input.appendInputAttributes(builder, "", OnChangeMode.Defer)
   }
 }
 
@@ -41,7 +41,7 @@ case class ChangePassword[State]()(
 ) extends ElementValue with Receiver[State] {
   def elementType: String = "ChangePassword"
   def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {
-    input.appendInputAttributes(builder, "", deferSend = true)
+    input.appendInputAttributes(builder, "", OnChangeMode.Defer)
   }
 }
 
@@ -65,12 +65,12 @@ case class ContainerLeftRight() extends ElementValue {
   def messageStrBody(o: VDomMessage): String =
     o.body match { case bs: okio.ByteString => bs.utf8() }
 
-  def input(access: Access[String]): ChildPair[OfDiv] = input(access, deferSend = true)
-  def input(access: Access[String], deferSend: Boolean): ChildPair[OfDiv] = {
+  def input(access: Access[String]): ChildPair[OfDiv] = input(access, OnChangeMode.Defer)
+  def input(access: Access[String], mode: OnChangeMode): ChildPair[OfDiv] = {
     val name = access.metaList.collect{ case l: NameMetaAttr => l.value }.mkString(".")
     access.updatingLens.map { lens =>
       val placeholder = access.metaList.collect{ case l: UserLabel => l.values.get("en") }.flatten.lastOption.getOrElse("")
-      val input = InputTextElement(access.initialValue, deferSend, placeholder)(
+      val input = InputTextElement(access.initialValue, mode, placeholder)(
         inputAttributes,
         message => lens.set(messageStrBody(message))
       )
@@ -82,7 +82,7 @@ case class ContainerLeftRight() extends ElementValue {
     input(access to ProdLensNonstrict[Option[Long],String](Nil)(
       _.map(_.toString).getOrElse(""),
       s=>_=> for(s<-Option(s) if s.nonEmpty) yield s.toLong
-    ), deferSend = false)
+    ), OnChangeMode.Send)
 
   def signIn(change: String => State => State): ChildPair[OfDiv] =
     child[OfDiv]("signIn", SignIn()(inputAttributes,

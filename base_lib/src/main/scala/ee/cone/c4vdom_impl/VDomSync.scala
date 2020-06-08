@@ -1,14 +1,16 @@
 package ee.cone.c4vdom_impl
 
-import ee.cone.c4vdom.{MutableJsonBuilder, TagJsonUtils, TagStyle}
+import ee.cone.c4vdom.{MutableJsonBuilder, OnChangeMode, TagJsonUtils, TagStyle}
 
 object TagJsonUtilsImpl extends TagJsonUtils {
-  def appendInputAttributes(builder: MutableJsonBuilder, value: String, deferSend: Boolean): Unit = {
+  def appendInputAttributes(builder: MutableJsonBuilder, value: String, mode: OnChangeMode): Unit = {
     builder.append("value").append(value)
-    if(deferSend){
+    if(mode.value.nonEmpty)
+      builder.append("onChange").append(mode.value)
+    /*if(deferSend){
       builder.append("onChange").append("local")
       builder.append("onBlur").append("send")
-    } else builder.append("onChange").append("send")
+    } else builder.append("onChange").append("send")*/
   }
   def appendStyles(builder: MutableJsonBuilder, styles: List[TagStyle]): Unit =
     if(styles.nonEmpty){

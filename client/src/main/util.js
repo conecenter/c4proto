@@ -23,3 +23,4 @@ export function splitFirst(splitter,data){
     return [data.substring(0,i), data.substring(i+1)]
 }
 
+export function oValues(o){ return Object.keys(o||{}).sort().map(k=>o[k]) }

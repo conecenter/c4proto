@@ -120,7 +120,7 @@ case class CanvasElement(attr: List[CanvasAttr], styles: List[TagStyle], value: 
 ) extends VDomValue with Receiver[Context] {
   def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
-    utils.appendInputAttributes(builder, value, deferSend=false)
+    utils.appendInputAttributes(builder, value, OnChangeMode.Send)
     utils.appendStyles(builder, styles)
     toJson.appendCanvasJson(attr, builder)
     builder.end()

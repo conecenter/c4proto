@@ -19,11 +19,12 @@ export function VDomSender(feedback){ // todo: may be we need a queue to be sure
         return feedback.send({
             url: "/connection",
             options: { headers, body: target.value },
+            defer: target.skipByPath,
             skip: target.skipByPath && skipByPath,
             retry: target.skipByPath //vdom-changes are more or less idempotent and can be retried
         },rCtx.modify)
     }
-    return ({send})
+    return ({send,flush:feedback.flush})
 }
 
 export const pairOfInputAttributes = ({value,onChange,salt},headers) => {
@@ -70,7 +71,3 @@ export const ifInputsChanged = log => (cacheKey,inpKeysObj,f) => {
         return res
     }
 }
-
-export const traverse = (props,cKey,createElement) => (
-    props[cKey] && props[cKey].map(key => createElement(props[key]))
-)

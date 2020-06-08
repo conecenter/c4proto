@@ -111,7 +111,14 @@ trait VDomUntil {
 
 ////
 
+sealed abstract class OnChangeMode(val value: String) extends Product
+object OnChangeMode {
+  case object ReadOnly extends OnChangeMode("")
+  case object Send extends OnChangeMode("send")
+  case object Defer extends OnChangeMode("local")
+}
+
 trait TagJsonUtils {
-  def appendInputAttributes(builder: MutableJsonBuilder, value: String, deferSend: Boolean): Unit
+  def appendInputAttributes(builder: MutableJsonBuilder, value: String, mode: OnChangeMode): Unit
   def appendStyles(builder: MutableJsonBuilder, styles: List[TagStyle]): Unit
 }

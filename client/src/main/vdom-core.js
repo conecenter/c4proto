@@ -1,26 +1,6 @@
 
-import {merger,splitFirst,spreadAll}    from "../main/util"
-import {ifInputsChanged,traverse} from "../main/vdom-util"
-import {dictKeys,branchByKey,rootCtx,ctxToPath,chain,deleted} from "../main/vdom-util"
-
-const localByKey = dictKeys(f=>({local:f}))
-
-function ctxToPatch(ctx,res){
-    return !ctx ? res : ctxToPatch(ctx.parent, ctx.key ? {[ctx.key]:res} : res)
-}
-const setDeferred = (ctx,target) => {
-    const rCtx = rootCtx(ctx)
-    const path = ctxToPath(ctx)
-    const patch = ctxToPatch(ctx, { value: target.value, changing: true })
-    const change = ({ctx,target:{...target,skipByPath:true},patch})
-    rCtx.modify("CHANGE_SET",branchByKey.one(rCtx.branchKey,localByKey.one(path, st => change)))
-}
-const sendDeferred = (sender,ctx) => {
-    const rCtx = rootCtx(ctx)
-    rCtx.modify("CHANGE_SEND",branchByKey.all(localByKey.all(st => {
-        return st.sent ? st : {...st, sent: sender.send(st.ctx,st.target)} // todo fix bug, ask aku
-    })))
-}
+import {splitFirst,spreadAll,oValues}    from "../main/util"
+import {ifInputsChanged,dictKeys,branchByKey,rootCtx,ctxToPath,chain,someKeys} from "../main/vdom-util"
 
 
 
@@ -47,8 +27,6 @@ function setupIncomingDiff(by,content,parent) {
 
     return changes.length>0 ? spreadAll(content, ...changes) : content
 }
-
-const oValues = o => Object.keys(o||{}).sort().map(k=>o[k])
 
 export function VDomCore(react,reactDOM,update,log,activeTransforms,getRootElement){
         
@@ -97,17 +75,11 @@ export function VDomCore(react,reactDOM,update,log,activeTransforms,getRootEleme
         return {...changed(state), rootNativeElement}
     })
 
-    const merging = ifInputsChanged(log)("mergedFrom", {incoming:1,local:1}, changed => state => {
-        const merge = merger((l,r)=>r)
-        const merged = !state.incoming ? null :
-            oValues(state.local).reduce((m,v)=>merge(m,v.patch), state.incoming)
-        return {...changed(state), merged}
-    })
-
-    const Traverse = activeTransforms.tp.Traverse
-    const rendering = ifInputsChanged(log)("renderedFrom", {merged:1,rootNativeElement:1}, changed => state => {
-        if(state.merged && state.rootNativeElement){
-            const rootVirtualElement = react.createElement(Traverse,state.merged)
+    const SyncInputRoot = activeTransforms.tp.SyncInputRoot
+    const rendering = ifInputsChanged(log)("renderedFrom", {incoming:1,ack:1,rootNativeElement:1}, changed => state => {
+        if(state.incoming && state.rootNativeElement){
+            const rootVirtualElement =
+                react.createElement(SyncInputRoot,{ack:state.ack,incoming:state.incoming})
             reactDOM.render(rootVirtualElement, state.rootNativeElement)
         }
         return changed(state)
@@ -130,7 +102,6 @@ export function VDomCore(react,reactDOM,update,log,activeTransforms,getRootEleme
             findRootParent,
             findFrameParent,
             setupRootElement,
-            merging,
             rendering,
             mortality
         ]))
@@ -157,9 +128,7 @@ export function VDomCore(react,reactDOM,update,log,activeTransforms,getRootEleme
     const ackChange = (data,modify) => {
         const [branchKey,body] = splitFirst(" ", data)
         const index = parseInt(body)
-        modify("ACK_CHANGE",branchByKey.one(branchKey,localByKey.all(st => {
-            return st.sent && index >= parseInt(st.sent["x-r-index"]) ? null : st
-        })))
+        modify("ACK_CHANGE",branchByKey.one(branchKey,someKeys({ack:st=>({index})})))
     }
 
     const receivers = ({branches,showDiff,ackChange})
@@ -173,25 +142,91 @@ const checkUpdate = changes => state => (
         state : {...state,...changes}
 )
 
+function SyncMod(react){
+    const {createContext,createElement,useState,useContext,useCallback,useEffect} = react
+    const NoContext = createContext()
+    const AckContext = createContext()
+    const SenderContext = createContext()
+    const useSync = ({identity,deferSend}) => {
+        const [patch,setPatch] = useState()
+        const sender = useContext(SenderContext)
+        const enqueuePatch = useCallback(aPatch=>{
+            setPatch({...aPatch, sentIndex: sender.enqueue(identity,aPatch)})
+        },[sender,identity])
+        const ack = useContext(patch ? AckContext : NoContext)
+        useEffect(()=>{
+            setPatch(aPatch => aPatch && ack && aPatch.sentIndex <= ack.index ? undefined : aPatch)
+        },[ack])
+        const flush = sender.flush
+        useEffect(()=>{
+            deferSend || flush()
+        },[sender,patch,deferSend])
+        return [patch,enqueuePatch,flush]
+    }
+    function createSyncProviders({sender,ack,children}){
+        return createElement(SenderContext.Provider, {value:sender},
+            createElement(AckContext.Provider, {value:ack}, children)
+        )
+    }
+    return ({useSync,createSyncProviders})
+}
+function SyncInputMod({useCallback},{useSync}){
+    function useSyncInput(options){
+        const [patch,enqueuePatch,flush] = useSync(options)
+        const onChange = useCallback(event => {
+            enqueuePatch({ headers: event.target.headers, value: event.target.value, changing: true})
+        },[])
+        const onBlur = useCallback(event=>flush(),[flush])
+        return [patch,onChange,onBlur]
+    }
+    return ({useSyncInput})
+}
+
+// no x-r-changing, todo focus server handler
+
+
+// todo no resize anti-dos
+
 export function VDomAttributes(react, sender){
-    const traverseDef = props => traverse(props,"chl",prop=>react.createElement(Traverse, prop))
-    const Traverse = react.memo(function Traverse(props){
-        const at = props.at
+    const {memo,createElement} = react
+    const {useSync,createSyncProviders} = SyncMod(react)
+    const {useSyncInput} = SyncInputMod(react,{useSync})
+
+    function traverseOne(prop){
         const content =
-            at.content && at.content[0] === "rawMerge" ? props :
-            traverseDef(props) ||  at.content || null
-        return react.createElement(at.tp, at, content)
+            prop.at.content && prop.at.content[0] === "rawMerge" ? prop :
+            prop.chl && createElement(Traverse,prop) ||  prop.at.content || null
+        return prop.at.onChange ?
+            createElement(SyncInput, prop.at, uProp=>createElement(uProp.tp, uProp, content)) :
+            createElement(prop.at.tp, prop.at, content)
+    }
+    const Traverse = memo(function Traverse(props){
+        return (props.chl||[]).map(key => traverseOne(props[key]))
     })
+    const SyncInput = memo(function SyncInput(props){
+        const [patch,onChange,onBlur] = useSyncInput(props.onChange)
+        return props.children({...props, onChange, onBlur, ...patch})
+    })
+
+    const inpSender = {
+        enqueue: (identityCtx,patch) => {
+            const sent = sender.send(identityCtx,{ ...patch, skipByPath: true })
+            return parseInt(sent["x-r-index"])
+        },
+        flush: ()=>sender.flush()
+    }
+    function SyncInputRoot({incoming,ack}){
+        return createSyncProviders({ ack, sender: inpSender, children: traverseOne(incoming) })
+    }
 
     const sendThen = ctx => event => sender.send(ctx,{value:""})
     const onClick = ({/*send,*/sendThen}) //react gives some warning on stopPropagation
+
     const onChange = {
-        "local": ctx => event => setDeferred(ctx, event.target),
-        "send": ctx => event => { setDeferred(ctx, event.target); sendDeferred(sender, ctx) } // todo no resize anti-dos
+        "local": ctx => ({identity:ctx,deferSend:true}),
+        "send": ctx => ({identity:ctx,deferSend:false})
     }
-    const onBlur = {
-        "send": ctx => event => sendDeferred(sender, ctx)
-    }
+
     const seed = ctx => element => {
         const rCtx = rootCtx(ctx)
         const path = ctxToPath(ctx)
@@ -201,18 +236,11 @@ export function VDomAttributes(react, sender){
           checkUpdate({branchKey,element,fontSize})
         )))
     }
-    const noPass = {value:1}
-    const ReControlledInput = react.forwardRef((prop, ref) => react.createElement("input",{
-        ...deleted(noPass)(prop),
-        ref: el=>{
-            if(el) el.value = prop.value //todo m. b. gather, do not update dom in ref
-            if(ref) ref(el)
-        }
-    },null))
+
     const ref = ({seed})
     const ctx = { ctx: ctx => ctx }
     const path = { "I": ctxToPath }
-    const tp = ({Traverse,ReControlledInput})
-    const transforms = {onClick,onChange,onBlur,ref,ctx,tp,path}
+    const tp = ({Traverse,ReControlledInput:"input",SyncInputRoot})
+    const transforms = {onClick,onChange,ref,ctx,tp,path}
     return ({transforms})
 }
