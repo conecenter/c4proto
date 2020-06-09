@@ -192,17 +192,26 @@ export function VDomAttributes(react, sender){
     const {useSync,createSyncProviders} = SyncMod(react)
     const {useSyncInput} = SyncInputMod(react,{useSync})
 
-    function traverseOne(prop){
+    function TraverseOne(props){
+        const at = props.at
         const content =
-            prop.at.content && prop.at.content[0] === "rawMerge" ? prop :
-            prop.chl && createElement(Traverse,prop) ||  prop.at.content || null
-        return prop.at.onChange ?
-            createElement(SyncInput, prop.at, uProp=>createElement(uProp.tp, uProp, content)) :
-            createElement(prop.at.tp, prop.at, content)
+            at.content && at.content[0] === "rawMerge" ? props :
+            props.chl && traverseChildren(props) ||  at.content || null
+        return at.onChange ?
+            createElement(SyncInput, at, uProp=>createElement(uProp.tp, uProp, content)) :
+            createElement(at.tp, at, content)
     }
-    const Traverse = memo(function Traverse(props){
+    function TraverseChildren(props){
         return (props.chl||[]).map(key => traverseOne(props[key]))
-    })
+    }
+
+    const TraverseOneMemo = memo(TraverseOne)
+    const traverseOne = props => createElement(TraverseOneMemo,props)
+    const traverseChildren = TraverseChildren
+    // const TraverseChildrenMemo = memo(TraverseChildren)
+    // const traverseChildren = props => createElement(TraverseChildrenMemo,props)
+
+
     const SyncInput = memo(function SyncInput(props){
         const [patch,onChange,onBlur] = useSyncInput(props.onChange)
         return props.children({...props, onChange, onBlur, ...patch})
@@ -240,7 +249,7 @@ export function VDomAttributes(react, sender){
     const ref = ({seed})
     const ctx = { ctx: ctx => ctx }
     const path = { "I": ctxToPath }
-    const tp = ({Traverse,ReControlledInput:"input",SyncInputRoot})
+    const tp = ({TraverseChildren,ReControlledInput:"input",SyncInputRoot})
     const transforms = {onClick,onChange,ref,ctx,tp,path}
     return ({transforms})
 }

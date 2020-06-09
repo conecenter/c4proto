@@ -1,7 +1,7 @@
 
 import {createElement} from 'react'
 
-export function ExampleComponents({Traverse}){
+export function ExampleComponents({TraverseChildren}){
     const ExampleInput = prop => {
         const style = prop.changing ? {...prop.style, backgroundColor: "yellow"} : prop.style
         return createElement("input", {...prop, style}, null)
@@ -9,8 +9,8 @@ export function ExampleComponents({Traverse}){
     //
     const ContainerLeftRight = prop => {
         return createElement("table",{},createElement("tbody",{},createElement("tr",{},[
-            createElement("td",{key:"left"},createElement(Traverse, {...prop.children, chl: prop.children.leftChildList})),
-            createElement("td",{key:"right"},createElement(Traverse, {...prop.children, chl: prop.children.rightChildList}))
+            createElement("td",{key:"left"},createElement(TraverseChildren, {...prop.children, chl: prop.children.leftChildList})),
+            createElement("td",{key:"right"},createElement(TraverseChildren, {...prop.children, chl: prop.children.rightChildList}))
         ])))
     }
     //
