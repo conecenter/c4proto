@@ -25,10 +25,16 @@ import scala.annotation.tailrec
   def create(baseURL: String): RawSnapshotLoader = inner.create(baseURL)
 }
 
-@c4("RemoteRawSnapshotApp") final class RemoteSnapshotUtilImpl(util: HttpUtil) extends RemoteSnapshotUtil {
+@c4("RemoteRawSnapshotApp") final class RemoteSnapshotUtilImpl(util: HttpUtil) extends RemoteSnapshotUtil with LazyLogging {
   def authHeaders(signed: String): List[(String, String)] =
     List(("x-r-signed", signed))
-  def request(appURL: String, signed: String): ()=>List[RawSnapshot] = {
+  def measure[R](f: =>R): R = {
+    val startTime = System.currentTimeMillis
+    val res = f
+    logger.debug(s"Snapshot request time: ${System.currentTimeMillis - startTime}")
+    res
+  }
+  def request(appURL: String, signed: String): ()=>List[RawSnapshot] = measure{
     val url: String = "/need-snapshot"
     val uuid = UUID.randomUUID().toString
     util.post(s"$appURL$url", ("x-r-response-key",uuid) :: authHeaders(signed))

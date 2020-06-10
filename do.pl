@@ -203,7 +203,7 @@ my $keep_only = sub{
 
 my $debug_port = 5005;
 my $debug_proxy = sub{
-    my($pre,$address)=@_;
+    my($pre,$debug_ext_address,$debug_int_address)=@_;
     my $ha_cfg_path = "$pre-haproxy.cfg";
     my $ha_pid_path = "$pre-haproxy.pid";
     &$put_text($ha_cfg_path, join "\n",
@@ -215,8 +215,8 @@ my $debug_proxy = sub{
         "  timeout server  3d",
         "  mode tcp",
         "listen listen_def",
-        "  bind 127.0.0.1:$debug_port",
-        "  server s_def $address",
+        "  bind $debug_ext_address",
+        "  server s_def $debug_int_address",
     );
     my @ha_pids = (-e $ha_pid_path) ? &$get_text($ha_pid_path)=~/(\d+)/g : ();
     sy("/usr/sbin/haproxy","-D","-f",$ha_cfg_path,"-p",$ha_pid_path,"-sf",@ha_pids);
@@ -232,6 +232,8 @@ push @tasks, ["loop", sub{
     my @active_pid;
     my $droll = "./target/dev-rolling-";
     $ENV{C4ELECTOR_PROC_PATH} = "/proc/$$";
+    my ($debug_ext_address,$debug_port) = !$ENV{C4DEBUG_PROXY} ? (undef,undef) :
+        $ENV{C4DEBUG_PROXY}=~/^([\d\.]+:(\d+))$/ ? ($1,$2) : die;
     while(1){
         @active_pid = grep{
             my $res = waitpid($_, WNOHANG);
@@ -259,16 +261,20 @@ push @tasks, ["loop", sub{
                     my $dir = "$droll$$";
                     &$prep_empty_dir($dir);
                     $ENV{C4ROLLING} = $dir;
-                    my $debug_ip = &$get_debug_ip($$);
-                    $ENV{JAVA_TOOL_OPTIONS} = " -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$debug_ip:$debug_port $ENV{JAVA_TOOL_OPTIONS}";
+                    $ENV{JAVA_TOOL_OPTIONS} = !$debug_port ? $ENV{JAVA_TOOL_OPTIONS} : do{
+                        my $debug_int_ip = &$get_debug_ip($$);
+                        " -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$debug_int_ip:$debug_port $ENV{JAVA_TOOL_OPTIONS}";
+                    };
                     #
                     sy("perl $prod_pl build_client_changed . dev");
                     &$exec_server($arg);
                     die;
                 }
                 print &$colored_line(bright_yellow=>"Spawned $pid");
-                my $debug_ip = &$get_debug_ip($pid);
-                &$debug_proxy($droll,"$debug_ip:$debug_port");
+                if($debug_port){
+                    my $debug_int_ip = &$get_debug_ip($pid);
+                    &$debug_proxy($droll,$debug_ext_address,"$debug_int_ip:$debug_port");
+                }
                 push @active_pid, $pid;
             };
         } elsif($last_ready && $last_ready != $master){

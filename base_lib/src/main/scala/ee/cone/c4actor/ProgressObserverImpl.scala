@@ -1,5 +1,6 @@
 package ee.cone.c4actor
 
+import java.lang.management.ManagementFactory
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path, Paths}
 import java.time.Instant
@@ -47,7 +48,7 @@ class ProgressObserverImpl(inner: Observer[RichContext], endOffset: NextOffset, 
         new ProgressObserverImpl(inner, endOffset, now+1000)
       }
     } else {
-      logger.info(s"Stats OK -- loaded ALL/$endOffset")
+      logger.info(s"Stats OK -- loaded ALL/$endOffset -- uptime ${ManagementFactory.getRuntimeMXBean.getUptime}ms")
       inner.activate(rawWorld)
     }
 }

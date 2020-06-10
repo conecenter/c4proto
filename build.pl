@@ -70,6 +70,7 @@ my $calc_bloop_conf = sub{
     my ($ext_dep_by_from) = &$group(&$dep_conf("C4EXT"));
     my ($int_dep_by_from) = &$group(&$dep_conf("C4DEP"));
     my ($lib_dep_by_from) = &$group(&$dep_conf("C4LIB"));
+    my @excl = &$distinct(&$to(&$dep_conf("C4EXCL")));
     my @resolved = @{$$coursier_out{dependencies}||die};
     my %resolved_by_name = map{($$_{coord}=>$_)} grep{$_||die} @resolved;
     my %scala_jars = map{m"/scala-(\w+)-[^/]*\.jar$"?("$1"=>$_):()} map{$$_{file}} @resolved;
@@ -87,6 +88,7 @@ my $calc_bloop_conf = sub{
     my %external_to_jars = map{ my $d = $_;
         my @dep = grep{$_}
             map{ $resolved_by_name{$_} || do{ print "dep ignored: $_\n"; undef } }
+            grep{ my $str = $_; !grep{0<index $str,$_} @excl }
             @{$$d{dependencies}||die};
         ($$d{coord}=>[grep{$_} map{$$_{file}} $d, @dep]);
     } values %resolved_by_name;
