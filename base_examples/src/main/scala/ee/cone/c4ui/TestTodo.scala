@@ -3,15 +3,16 @@ package ee.cone.c4ui
 import java.util.UUID
 
 import ee.cone.c4actor.LEvent.{delete, update}
+import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble._
-import ee.cone.c4di.{c4, provide}
+import ee.cone.c4di.{c4, c4multi, provide}
 import ee.cone.c4gate._
 import ee.cone.c4ui.CommonFilterProtocol._
-import ee.cone.c4ui.TestTodoProtocol.B_TodoTask
+import ee.cone.c4ui.TestTodoProtocol.{B_TodoTask, B_TodoTaskOrder}
 import ee.cone.c4proto._
-import ee.cone.c4vdom.{TagStyles, Tags}
-import ee.cone.c4vdom.Types.ViewRes
+import ee.cone.c4vdom.{ChildPair, OfDiv, SortHandler, SortTags, TagStyles, Tags}
+import ee.cone.c4vdom.Types.{VDomKey, ViewRes}
 
 // @c4mod class FooCargoType extends CargoType
 
@@ -61,6 +62,10 @@ import ee.cone.c4vdom.Types.ViewRes
     @Id(0x0003) createdAt: Long,
     @Id(0x0004) comments: String
   )
+  @Id(0x0002) case class B_TodoTaskOrder(
+    @Id(0x0002) srcId: SrcId,
+    @Id(0x0005) order: List[SrcId]
+  )
 }
 
 import TestTodoAccess._
@@ -105,6 +110,7 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
 @c4("TestTodoApp") final case class TestTodoRootView(locationHash: String = "todo")(
   tags: TestTags[Context],
   mTags: Tags,
+  sortTags: SortTags,
   styles: TagStyles,
   contextAccess: RModelAccessFactory,
   filterPredicates: FilterPredicateBuilder,
@@ -113,6 +119,8 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
   untilPolicy: UntilPolicy,
   getB_TodoTask: GetByPK[B_TodoTask],
   txAdd: LTxAdd,
+  todoSortOrderFactory: TodoSortOrderFactory,
+  todoSortHandlerFactory: TodoSortHandlerFactory,
 ) extends ByLocationHashView {
   def view: Context => ViewRes = untilPolicy.wrap{ local =>
     import mTags._
@@ -133,19 +141,67 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
       )(List(text("text","+")))
     )
 
-    val todoTasks = getB_TodoTask.ofA(local).values
-      .filter(filterPredicate.condition.check).toList.sortBy(-_.createdAt)
+    def cell(key: VDomKey, content: ChildPair[OfDiv]): ChildPair[OfDiv] =
+      div(key,List(styles.width(100),styles.displayInlineBlock))(List(content))
+
+    val todoSortOrder = todoSortOrderFactory.create("todoSortOrderId")
+    val todoTasks = todoSortOrder.getKeys(local).map(getB_TodoTask.ofA(local))
+      .filter(filterPredicate.condition.check)
+    
     val taskLines = for {
       prod <- todoTasks
       task <- contextAccess.to(getB_TodoTask,prod)
-    } yield div(prod.srcId,Nil)(List(
-      tags.input(task to comments),
-      div("remove",List(styles.width(100),styles.displayInlineBlock))(List(
+    } yield tags.row(prod.srcId,List(
+      tags.cell("sortHandle",sortTags.handle("sortHandle",text("caption","o"))),
+      tags.cell("input",tags.input(task to comments)),
+      tags.cell("remove",
         divButton("remove")(txAdd.add(delete(prod)))(List(text("caption","-")))
-      ))
+      )
     ))
 
-    tags.containerLeftRight("clr",filterList,btnList) :: taskLines
+    val todoSortHandler = todoSortHandlerFactory.create(todoSortOrder)
+    val table = tags.table("table",List(
+      tags.tHead(List(
+        tags.row("head",List(
+          tags.cell("sortHandle",text("sortHandle","drag")),
+          tags.cell("input",text("input","comments")),
+          tags.cell("remove",text("remove","remove")),
+        ))
+      )),
+      sortTags.tBodyRoot(todoSortHandler,taskLines)
+    ))
+
+    tags.containerLeftRight("clr",filterList,btnList) :: table :: Nil
+  }
+}
+
+@c4multi("TestTodoApp") final case class TodoSortOrder(orderSrcId: SrcId)(
+  getB_TodoTask: GetByPK[B_TodoTask],
+  getB_TodoTaskOrder: GetByPK[B_TodoTaskOrder],
+) {
+  def getKeys: Context => List[SrcId] = local => {
+    val wasOrder = getB_TodoTaskOrder.ofA(local).get(orderSrcId).fold(List.empty[SrcId])(_.order)
+    val todoTaskMap = getB_TodoTask.ofA(local)
+    todoTaskMap.keys.filterNot(wasOrder.toSet).map(todoTaskMap).toList.sortBy(-_.createdAt).map(_.srcId) ::: wasOrder.filter(todoTaskMap.contains)
+  }
+  def events(keys: List[SrcId]): Seq[LEvent[Product]] =
+    LEvent.update(B_TodoTaskOrder(orderSrcId,keys))
+}
+
+@c4multi("TestTodoApp") final case class TodoSortHandler(todoSortOrder: TodoSortOrder)(
+  txAdd: LTxAdd
+) extends SortHandler[Context] {
+  def handle(
+    objKey: VDomKey,
+    orderKeys: (VDomKey,VDomKey)
+  ): Context => Context = local => {
+    val (orderKey0,orderKey1) = orderKeys
+    val order = todoSortOrder.getKeys(local).flatMap{
+      case k if k == objKey => Nil
+      case k if k == orderKey0 || k == orderKey1 => List(orderKey0,orderKey1)
+      case k => List(k)
+    }
+    txAdd.add(todoSortOrder.events(order))(local)
   }
 }
 

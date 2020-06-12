@@ -97,7 +97,43 @@ case class ContainerLeftRight() extends ElementValue {
       child.group("rightChildList","?",right)
     )
 
+  def table(key: VDomKey, items: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
+    child[OfDiv](key, Table(), items)
+  def tHead(items: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
+    child[OfDiv]("head", TableHead(), items)
+  //def tBody(items: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
+  //  child[OfDiv]("body", TableBody(), items)
+  def row(key: VDomKey, items: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
+    child[OfDiv](key, Row(), items)
+  def cell(key: VDomKey, item: ChildPair[OfDiv]): ChildPair[OfDiv] =
+    child[OfDiv](key, Cell(), item::Nil)
 }
+
+case class Table() extends ElementValue {
+  def elementType: String = "table"
+  def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {}
+}
+case class TableHead() extends ElementValue {
+  def elementType: String = "thead"
+  def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {}
+}
+//case class TableBody() extends ElementValue {
+//  def elementType: String = "tbody"
+//  def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {}
+//}
+case class Row() extends ElementValue {
+  def elementType: String = "tr"
+  def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {}
+}
+case class Cell() extends ElementValue {
+  def elementType: String = "td"
+  def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {}
+}
+
+
+
+
+
 
 object UserLabel {
   def en: String => UserLabel = UserLabel().en

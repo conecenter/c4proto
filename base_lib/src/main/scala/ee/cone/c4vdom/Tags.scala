@@ -11,3 +11,13 @@ trait Tags {
   def divButton[State](key:VDomKey)(action:State=>State)(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv]
   def seed(product: Product)(attr: List[TagStyle], src: String)(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv]
 }
+
+
+
+trait SortHandler[State] extends Product {
+  def handle(objKey: VDomKey, orderKeys: (VDomKey,VDomKey)): State => State
+}
+trait SortTags {
+  def tBodyRoot[State](handler: SortHandler[State], items: List[ChildPair[OfDiv]]): ChildPair[OfDiv] //todo OfTable
+  def handle(key: VDomKey, items: ChildPair[OfDiv]): ChildPair[OfDiv]
+}

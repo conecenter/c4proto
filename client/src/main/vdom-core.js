@@ -1,4 +1,5 @@
 
+import {createContext,createElement,useState,useContext,useCallback,useEffect,memo} from 'react'
 import {splitFirst,spreadAll,oValues}    from "../main/util"
 import {ifInputsChanged,dictKeys,branchByKey,rootCtx,ctxToPath,chain,someKeys} from "../main/vdom-util"
 
@@ -142,84 +143,85 @@ const checkUpdate = changes => state => (
         state : {...state,...changes}
 )
 
-function SyncMod(react){
-    const {createContext,createElement,useState,useContext,useCallback,useEffect} = react
-    const NoContext = createContext()
-    const AckContext = createContext()
-    const SenderContext = createContext()
-    const useSync = ({identity,deferSend}) => {
-        const [patch,setPatch] = useState()
-        const sender = useContext(SenderContext)
-        const enqueuePatch = useCallback(aPatch=>{
-            setPatch({...aPatch, sentIndex: sender.enqueue(identity,aPatch)})
-        },[sender,identity])
-        const ack = useContext(patch ? AckContext : NoContext)
-        useEffect(()=>{
-            setPatch(aPatch => aPatch && ack && aPatch.sentIndex <= ack.index ? undefined : aPatch)
-        },[ack])
-        const flush = sender.flush
-        useEffect(()=>{
-            deferSend || flush()
-        },[sender,patch,deferSend])
-        return [patch,enqueuePatch,flush]
-    }
-    function createSyncProviders({sender,ack,children}){
-        return createElement(SenderContext.Provider, {value:sender},
-            createElement(AckContext.Provider, {value:ack}, children)
-        )
-    }
-    return ({useSync,createSyncProviders})
+/********* sync ***************************************************************/
+
+const NoContext = createContext()
+const AckContext = createContext()
+const SenderContext = createContext()
+const nonMerged = ack => aPatch => !(aPatch && ack && aPatch.sentIndex <= ack.index)
+export const useSync = (identity,deferSend) => {
+    const [patches,setPatches] = useState([])
+    const sender = useContext(SenderContext)
+    const enqueuePatch = useCallback(aPatch=>{
+        setPatches(aPatches=>[...aPatches,{...aPatch, sentIndex: sender.enqueue(identity,aPatch)}])
+    },[sender,identity])
+    const ack = useContext(patches.length>0 ? AckContext : NoContext)
+    useEffect(()=>{
+        setPatches(aPatches => aPatches.every(nonMerged(ack)) ? aPatches : aPatches.filter(nonMerged(ack)))
+    },[ack])
+    const flush = sender.flush
+    useEffect(()=>{
+        deferSend || flush()
+    },[sender,patches,deferSend])
+    return [patches,enqueuePatch,flush]
 }
-function SyncInputMod({useCallback},{useSync}){
-    function useSyncInput(options){
-        const [patch,enqueuePatch,flush] = useSync(options)
-        const onChange = useCallback(event => {
-            enqueuePatch({ headers: event.target.headers, value: event.target.value, changing: true})
-        },[])
-        const onBlur = useCallback(event=>flush(),[flush])
-        return [patch,onChange,onBlur]
-    }
-    return ({useSyncInput})
+function createSyncProviders({sender,ack,children}){
+    return createElement(SenderContext.Provider, {value:sender},
+        createElement(AckContext.Provider, {value:ack}, children)
+    )
 }
+
+/********* sync input *********************************************************/
+
+function useSyncInput(identity,incomingValue,deferSend){
+    const [patches,enqueuePatch,flush] = useSync(identity,deferSend)
+    const onChange = useCallback(event => {
+        enqueuePatch({ headers: event.target.headers, value: event.target.value, skipByPath: true})
+    },[])
+    const onBlur = useCallback(event=>flush(),[flush])
+    const patch = patches.slice(-1).map(({value,changing})=>({value,changing,onChange,onBlur}))[0] //add filter for blur
+    const value = patch ? patch.value : incomingValue
+    const changing = patch ? "1" : undefined
+    return ({value,changing,onChange,onBlur})
+}
+const SyncInput = memo(function SyncInput({value,onChange,...props}){
+    const {identity,deferSend} = onChange
+    const patch = useSyncInput(identity,value,deferSend)
+    return props.children({...props, ...patch})
+})
+
+/********* traverse ***********************************************************/
+
+function TraverseOne(props){
+    const {tp,content,...at} = props.at
+    const children =
+        content && content[0] === "rawMerge" ? props :
+        props.chl ? traverseChildren(props) : content
+    return at.onChange ?
+        createElement(at.onChange.tp, at, uProp=>createElement(tp, uProp, children)) :
+        createElement(tp, at, children)
+}
+function TraverseChildren(props){
+    return (props.chl||[]).map(key => traverseOne(props[key]))
+}
+
+const TraverseOneMemo = memo(TraverseOne)
+const traverseOne = props => createElement(TraverseOneMemo,props)
+const traverseChildren = TraverseChildren
+// const TraverseChildrenMemo = memo(TraverseChildren)
+// const traverseChildren = props => createElement(TraverseChildrenMemo,props)
+
+/******************************************************************************/
 
 // no x-r-changing, todo focus server handler
 
 
 // todo no resize anti-dos
 
-export function VDomAttributes(react, sender){
-    const {memo,createElement} = react
-    const {useSync,createSyncProviders} = SyncMod(react)
-    const {useSyncInput} = SyncInputMod(react,{useSync})
-
-    function TraverseOne(props){
-        const at = props.at
-        const content =
-            at.content && at.content[0] === "rawMerge" ? props :
-            props.chl && traverseChildren(props) ||  at.content || null
-        return at.onChange ?
-            createElement(SyncInput, at, uProp=>createElement(uProp.tp, uProp, content)) :
-            createElement(at.tp, at, content)
-    }
-    function TraverseChildren(props){
-        return (props.chl||[]).map(key => traverseOne(props[key]))
-    }
-
-    const TraverseOneMemo = memo(TraverseOne)
-    const traverseOne = props => createElement(TraverseOneMemo,props)
-    const traverseChildren = TraverseChildren
-    // const TraverseChildrenMemo = memo(TraverseChildren)
-    // const traverseChildren = props => createElement(TraverseChildrenMemo,props)
-
-
-    const SyncInput = memo(function SyncInput(props){
-        const [patch,onChange,onBlur] = useSyncInput(props.onChange)
-        return props.children({...props, onChange, onBlur, ...patch})
-    })
-
+export function VDomAttributes(sender){
     const inpSender = {
         enqueue: (identityCtx,patch) => {
-            const sent = sender.send(identityCtx,{ ...patch, skipByPath: true })
+            const sent = sender.send(identityCtx,patch)
             return parseInt(sent["x-r-index"])
         },
         flush: ()=>sender.flush()
@@ -232,8 +234,8 @@ export function VDomAttributes(react, sender){
     const onClick = ({/*send,*/sendThen}) //react gives some warning on stopPropagation
 
     const onChange = {
-        "local": ctx => ({identity:ctx,deferSend:true}),
-        "send": ctx => ({identity:ctx,deferSend:false})
+        "local": ctx => ({identity:ctx,deferSend:true,tp:SyncInput}),
+        "send": ctx => ({identity:ctx,deferSend:false,tp:SyncInput})
     }
 
     const seed = ctx => element => {
@@ -248,8 +250,9 @@ export function VDomAttributes(react, sender){
 
     const ref = ({seed})
     const ctx = { ctx: ctx => ctx }
+    const identity = { ctx: ctx => ctx }
     const path = { "I": ctxToPath }
     const tp = ({TraverseChildren,ReControlledInput:"input",SyncInputRoot})
-    const transforms = {onClick,onChange,ref,ctx,tp,path}
+    const transforms = {onClick,onChange,ref,ctx,tp,path,identity}
     return ({transforms})
 }
