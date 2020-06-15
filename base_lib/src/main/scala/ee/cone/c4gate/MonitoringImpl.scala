@@ -8,7 +8,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4di.c4
+import ee.cone.c4di.{c4, c4multi}
 import ee.cone.c4gate.ActorAccessProtocol.C_ActorAccessKey
 import ee.cone.c4gate.AvailabilitySettingProtocol.C_AvailabilitySetting
 import ee.cone.c4gate.HttpProtocol._
@@ -24,19 +24,23 @@ import okio.ByteString
 
 }
 
-@c4assemble("ActorAccessApp") class ActorAccessAssembleBase {
+@c4assemble("ActorAccessApp") class ActorAccessAssembleBase(
+  actorAccessCreateTxFactory: ActorAccessCreateTxFactory,
+){
   def join(
     key: SrcId,
     first: Each[S_Firstborn],
     accessKeys: Values[C_ActorAccessKey]
   ): Values[(SrcId, TxTransform)] =
     if (accessKeys.nonEmpty) Nil
-    else List(WithPK(ActorAccessCreateTx(s"ActorAccessCreateTx-${first.srcId}", first)))
+    else List(WithPK(actorAccessCreateTxFactory.create(s"ActorAccessCreateTx-${first.srcId}", first)))
 }
 
-case class ActorAccessCreateTx(srcId: SrcId, first: S_Firstborn) extends TxTransform {
+@c4multi("ActorAccessApp") final case class ActorAccessCreateTx(srcId: SrcId, first: S_Firstborn)(
+  txAdd: LTxAdd,
+) extends TxTransform {
   def transform(local: Context): Context =
-    TxAdd(LEvent.update(C_ActorAccessKey(first.srcId, s"${UUID.randomUUID}")))(local)
+    txAdd.add(LEvent.update(C_ActorAccessKey(first.srcId, s"${UUID.randomUUID}")))(local)
 }
 
 /*
@@ -64,14 +68,17 @@ case class PrometheusTx(path: String)(compressor: Compressor, metricsFactories: 
   }
 }*/
 
-@c4("AvailabilityApp") class Monitoring(publisher: Publisher) {
+@c4("AvailabilityApp") final class Monitoring(
+  publisher: Publisher,
+  txAdd: LTxAdd,
+) {
   def publish(
     time: Long, updatePeriod: Long, timeout: Long,
     path: String, headers: List[N_Header], body: okio.ByteString
   ): Context => Context = {
     val nextTime = time + updatePeriod
     val pubEvents = publisher.publish(ByPathHttpPublication(path, headers, body), _+updatePeriod+timeout)
-    TxAdd(pubEvents).andThen(SleepUntilKey.set(Instant.ofEpochMilli(nextTime)))
+    txAdd.add(pubEvents).andThen(SleepUntilKey.set(Instant.ofEpochMilli(nextTime)))
   }
 }
 

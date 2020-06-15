@@ -98,7 +98,7 @@ class SeqUncheckedParallelDep[A](depSeq: Seq[Dep[A]]) extends DepImpl[Seq[A]] {
   }
 }
 
-@c4("DepAssembleCompApp") case class DepFactoryImpl() extends DepFactory {
+@c4("DepAssembleCompApp") final case class DepFactoryImpl() extends DepFactory {
   def parallelSeq[A](value: Seq[Dep[A]]): Dep[Seq[A]] =
     new SeqParallelDep[A](value.asInstanceOf[Seq[Dep[A]]])
   def uncheckedRequestDep[Out](request: DepRequest): Dep[Out] =

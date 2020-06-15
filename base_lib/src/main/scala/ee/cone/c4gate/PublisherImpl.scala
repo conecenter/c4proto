@@ -11,7 +11,7 @@ import ee.cone.c4assemble._
 import ee.cone.c4di._
 import ee.cone.c4gate.HttpProtocol._
 
-@c4("PublisherApp") class PublisherImpl(
+@c4("PublisherApp") final class PublisherImpl(
   idGenUtil: IdGenUtil,
   actorName: ActorName,
   updateIfChanged: UpdateIfChanged,

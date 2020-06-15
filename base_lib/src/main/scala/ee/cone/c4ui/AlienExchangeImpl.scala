@@ -19,19 +19,20 @@ import okio.ByteString
 import scala.collection.immutable.Seq
 
 case object ToAlienPriorityKey extends TransientLens[java.lang.Long](0L)
-@c4("AlienExchangeApp") class SendToAlienInit extends ToInject {
-  def toInject: List[Injectable] = SendToAlienKey.set(
-    (sessionKeys,event,data) => local => if(sessionKeys.isEmpty) local else {
-      val priority = ToAlienPriorityKey.of(local)
-      val messages = sessionKeys.zipWithIndex.flatMap{
-        case (sessionKey,i) =>
-          val id = UUID.randomUUID.toString
-          update(U_ToAlienWrite(id,sessionKey,event,data,priority+i))
-      }
-      //println(s"messages: $messages")
-      ToAlienPriorityKey.modify(_+sessionKeys.size).andThen(TxAdd(messages))(local)
+
+@c4("AlienExchangeCompApp") final class ToAlienSenderImpl(
+  txAdd: LTxAdd,
+) extends ToAlienSender {
+  def send(sessionKeys: Seq[String], evType: String, data: String): Context => Context = local => if(sessionKeys.isEmpty) local else {
+    val priority = ToAlienPriorityKey.of(local)
+    val messages = sessionKeys.zipWithIndex.flatMap{
+      case (sessionKey,i) =>
+        val id = UUID.randomUUID.toString
+        update(U_ToAlienWrite(id,sessionKey,evType,data,priority+i))
     }
-  )
+    //println(s"messages: $messages")
+    ToAlienPriorityKey.modify(_+sessionKeys.size).andThen(txAdd.add(messages))(local)
+  }
 }
 
 case class MessageFromAlienImpl(
@@ -45,7 +46,7 @@ case class MessageFromAlienImpl(
   def deletes: Seq[LEvent[Product]] = delete(request)
 }
 
-@c4assemble("AlienExchangeApp") class MessageFromAlienAssembleBase   {
+@c4assemble("AlienExchangeCompApp") class MessageFromAlienAssembleBase   {
   def mapHttpReqByBranch(
     key: SrcId,
     req: Each[S_HttpRequest]
@@ -66,7 +67,7 @@ case class MessageFromAlienImpl(
 
 }
 
-@c4assemble("AlienExchangeApp") class FromAlienBranchAssembleBase(operations: BranchOperations)   {
+@c4assemble("AlienExchangeCompApp") class FromAlienBranchAssembleBase(operations: BranchOperations)   {
   // more rich session may be joined
   def fromAliensToSeeds(
     key: SrcId,

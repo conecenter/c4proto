@@ -5,7 +5,7 @@ import ee.cone.c4actor._
 import ee.cone.c4assemble.Single
 import ee.cone.c4di.c4
 
-@c4("FilterPredicateBuilderApp") class FilterPredicateBuilderImpl(
+@c4("FilterPredicateBuilderApp") final class FilterPredicateBuilderImpl(
   sessionAttrAccessFactory: SessionAttrAccessFactory,
   modelConditionFactory: ModelConditionFactory[Unit]
 ) extends FilterPredicateBuilder {

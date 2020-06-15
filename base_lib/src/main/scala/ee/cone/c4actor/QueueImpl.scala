@@ -22,7 +22,7 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 //decode(new ProtoReader(new okio.Buffer().write(bytes)))
 //
 
-@c4("ProtoApp") class UpdateFlagsCheck(
+@c4("ProtoApp") final class UpdateFlagsCheck(
   val updateFlags: List[UpdateFlag]
 )(
   val flagsOk: Boolean = {
@@ -35,39 +35,39 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 
 class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
 
-@c4("ServerCompApp") class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender], flagsCheck: UpdateFlagsCheck) extends QMessages with LazyLogging {
+@c4("ServerCompApp") final class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender], flagsCheck: UpdateFlagsCheck) extends QMessages with LazyLogging {
   assert(flagsCheck.flagsOk, s"Some of the flags are incorrect: ${flagsCheck.updateFlags}")
   //import qAdapterRegistry._
   // .map(o=> nTx.setLocal(OffsetWorldKey, o+1))
   def send[M<:Product](local: Context): Context = {
     val updates: List[N_Update] = WriteModelKey.of(local).toList
-    if(updates.isEmpty) return local
-    //println(s"sending: ${updates.size} ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
-    val (bytes, headers) = toUpdate.toBytes(updates)
-    val rec = new QRecordImpl(InboxTopicName(), bytes, headers)
-    def debugStr = WriteModelDebugKey.of(local).map(v=>s"\norig sent: $v").mkString
-    logger.debug(debugStr)
-    //val debugRec = new QRecordImpl(LogTopicName(),debugStr.getBytes(UTF_8), Nil)
-    val offset = Single(Single(getRawQSender.value).send(List(rec)))
-    Function.chain(Seq(
-      WriteModelKey.set(Queue.empty),
-      WriteModelDebugKey.set(Queue.empty),
-      ReadAfterWriteOffsetKey.set(offset)
-    ))(local)
+    if(updates.isEmpty) local else {
+      //println(s"sending: ${updates.size} ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
+      val (bytes, headers) = toUpdate.toBytes(updates)
+      val rec = new QRecordImpl(InboxTopicName(), bytes, headers)
+      val offset = Single(Single(getRawQSender.value).send(List(rec)))
+      logger.debug(s"${updates.size} updates was sent -- $offset")
+      Function.chain(
+        Seq(
+          WriteModelKey.set(Queue.empty),
+          ReadAfterWriteOffsetKey.set(offset)
+        )
+      )(local)
+    }
   }
 }
 
-@c4("RichDataCompApp") class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(50000000L)
+@c4("RichDataCompApp") final class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(50000000L)
 
-@c4("ProtoApp") class FillTxIdUpdateFlag extends UpdateFlag {
+@c4("ProtoApp") final class FillTxIdUpdateFlag extends UpdateFlag {
   val flagValue: Long = 1L
 }
 
-@c4("ProtoApp") class ArchiveUpdateFlag extends UpdateFlag {
+@c4("ProtoApp") final class ArchiveUpdateFlag extends UpdateFlag {
   val flagValue: Long = 2L
 }
 
-@c4("ProtoApp") class ToUpdateImpl(
+@c4("ProtoApp") final class ToUpdateImpl(
   qAdapterRegistry: QAdapterRegistry,
   deCompressorRegistry: DeCompressorRegistry,
   compressorOpt: Option[MultiRawCompressor],

@@ -5,7 +5,7 @@ import ee.cone.c4proto.ToByteString
 import ee.cone.c4actor.QProtocol._
 import scala.collection.immutable.Map
 
-@c4("TestVMRichDataCompApp") class ContextFactoryImpl(reducer: RichRawWorldReducer, toUpdate: ToUpdate) extends ContextFactory {
+@c4("TestVMRichDataCompApp") final class ContextFactoryImpl(reducer: RichRawWorldReducer, toUpdate: ToUpdate) extends ContextFactory {
   def updated(updates: List[N_Update]): Context = {
     val (bytes, headers) = toUpdate.toBytes(updates)
     val firstUpdate = SimpleRawEvent("0" * OffsetHexSize(), ToByteString(bytes), headers)

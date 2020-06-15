@@ -56,6 +56,6 @@ object Main {
     g.dispose()
 
     // write image to a file
-    javax.imageio.ImageIO.write(canvas, "png", new java.io.File("drawing.png"))
+    assert(javax.imageio.ImageIO.write(canvas, "png", new java.io.File("drawing.png")))
   }
 }

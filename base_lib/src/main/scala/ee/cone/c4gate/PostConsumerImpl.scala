@@ -8,7 +8,9 @@ import ee.cone.c4assemble._
 import ee.cone.c4gate.AlienProtocol.E_HttpConsumer
 
 @c4assemble("ManagementApp") class HttpConsumerAssembleBase(
-  actorName: ActorName, syncTxFactory: SyncTxFactory
+  actorName: ActorName,
+  syncTxFactory: SyncTxFactory,
+  simpleTxTransformFactory: SimpleTxTransformFactory,
 ) extends CallerAssemble {
   def needConsumers(
     key: SrcId,
@@ -18,6 +20,6 @@ import ee.cone.c4gate.AlienProtocol.E_HttpConsumer
 
   override def subAssembles: List[Assemble] = List(syncTxFactory.create[E_HttpConsumer](
     classOf[E_HttpConsumer], c => c.consumer == actorName.value, _ => "PostConsumerSync",
-    (key,tasks)=>SimpleTxTransform(key,tasks.flatMap(_.events))
+    (key,tasks)=>simpleTxTransformFactory.create(key,tasks.flatMap(_.events))
   )) ::: super.subAssembles
 }

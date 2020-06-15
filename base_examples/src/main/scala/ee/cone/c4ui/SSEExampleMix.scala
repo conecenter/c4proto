@@ -15,7 +15,7 @@ trait CanvasAppBase
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
   with BranchApp
-  with AlienExchangeApp
+  with AlienExchangeCompApp
   with NoAssembleProfilerCompApp
   with ManagementApp with PublishingCompApp
   with RemoteRawSnapshotApp

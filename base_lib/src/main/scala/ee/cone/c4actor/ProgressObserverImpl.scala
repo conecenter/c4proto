@@ -1,5 +1,6 @@
 package ee.cone.c4actor
 
+import java.lang.management.ManagementFactory
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path, Paths}
 import java.time.Instant
@@ -12,9 +13,10 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Single, c4assemble}
 import ee.cone.c4di.c4
 
+import scala.annotation.tailrec
 import scala.concurrent.Future
 
-@c4("ServerCompApp") class ProgressObserverFactoryImpl(
+@c4("ServerCompApp") final class ProgressObserverFactoryImpl(
   inner: TxObserver, config: ListConfig,
   execution: Execution, getToStart: DeferredSeq[Executable]
 ) extends ProgressObserverFactory {
@@ -46,14 +48,15 @@ class ProgressObserverImpl(inner: Observer[RichContext], endOffset: NextOffset, 
         new ProgressObserverImpl(inner, endOffset, now+1000)
       }
     } else {
-      logger.info(s"Stats OK -- loaded ALL/$endOffset")
+      logger.info(s"Stats OK -- loaded ALL/$endOffset -- uptime ${ManagementFactory.getRuntimeMXBean.getUptime}ms")
       inner.activate(rawWorld)
     }
 }
 
 class ReadyObserverImpl(inner: Observer[RichContext], path: Path, until: Long=0) extends Observer[RichContext] with LazyLogging {
+  private def ignoreTheSamePath(path: Path): Unit = ()
   def activate(rawWorld: RichContext): Observer[RichContext] = {
-    if(until == 0) Files.write(path.resolve("c4is-ready"),Array.empty[Byte])
+    if(until == 0) ignoreTheSamePath(Files.write(path.resolve("c4is-ready"),Array.empty[Byte]))
     val now = System.currentTimeMillis
     if(now < until) this
     else if(Files.exists(path.resolve("c4is-master"))) {
@@ -64,9 +67,9 @@ class ReadyObserverImpl(inner: Observer[RichContext], path: Path, until: Long=0)
       new ReadyObserverImpl(inner, path, now+1000)
     }
   }
+
 }
-
-
+/*
 @c4assemble("ServerCompApp") class BuildVerAssembleBase(config: ListConfig, execution: Execution){
   def join(
     srcId: SrcId,
@@ -81,11 +84,21 @@ case class BuildVerTx(srcId: SrcId, path: Path, value: String)(execution: Execut
     if(new String(Files.readAllBytes(path), UTF_8) != value) execution.complete()
     SleepUntilKey.set(Instant.ofEpochMilli(System.currentTimeMillis+1000))(local)
   }
+}*/
+
+@c4("ServerCompApp") final class LocalElectorDeath(config: ListConfig, execution: Execution) extends Executable with Early {
+  def run(): Unit =
+    for(path <- config.get("C4ELECTOR_PROC_PATH")) iteration(Paths.get(path))
+  @tailrec private def iteration(path: Path): Unit = {
+    if(Files.notExists(path)) execution.complete()
+    Thread.sleep(1000)
+    iteration(path)
+  }
 }
 
 ////
 
-@c4("ServerCompApp") class ServerExecutionFilter(inner: ExecutionFilter)
+@c4("ServerCompApp") final class ServerExecutionFilter(inner: ExecutionFilter)
   extends ExecutionFilter(e=>inner.check(e) && e.isInstanceOf[Early])
 
 class LateExecutionObserver(

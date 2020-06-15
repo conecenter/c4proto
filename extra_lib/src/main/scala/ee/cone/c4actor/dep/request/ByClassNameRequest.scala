@@ -13,7 +13,7 @@ trait ByClassNameRequestHandlerAppBase
 
 class ByClassNameClass(val value: Class[_ <: Product])
 
-@c4("ByClassNameRequestHandlerApp") class ByClassNameRequestHandlerAssembles(
+@c4("ByClassNameRequestHandlerApp") final class ByClassNameRequestHandlerAssembles(
   idGenUtil: IdGenUtil,
   byClassNameClasses: List[ByClassNameClass],
   byClassNameGenericAssembleFactory: ByClassNameGenericAssembleFactory

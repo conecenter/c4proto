@@ -9,7 +9,7 @@ import ee.cone.c4gate.deep_session.DeepSessionDataProtocol.{U_RawRoleData, U_Raw
 import ee.cone.c4proto.ToByteString
 import okio.ByteString
 
-@c4("DeepSessionAttrFactoryImplApp") class DeepSessionAttrAccessFactoryImpl(
+@c4("DeepSessionAttrFactoryImplApp") final class DeepSessionAttrAccessFactoryImpl(
   registry: QAdapterRegistry,
   modelFactory: ModelFactory,
   modelAccessFactory: RModelAccessFactory,
@@ -19,7 +19,7 @@ import okio.ByteString
   roleByPK: GetByPK[U_RawRoleData],
   dataByPK: GetByPK[U_RawSessionData],
   userByPK: GetByPK[U_RawUserData],
-) extends DeepSessionAttrAccessFactory with KeyGenerator {
+) extends DeepSessionAttrAccessFactory with SessionAttrAccessFactory with KeyGenerator {
   lazy val rawDataAdapter = registry.byName(classOf[U_RawSessionData].getName)
   lazy val rawUserAdapter = registry.byName(classOf[U_RawUserData].getName)
   lazy val rawRoleAdapter = registry.byName(classOf[U_RawRoleData].getName)
@@ -181,10 +181,11 @@ case class DeepRawSessionData[P <: Product](
   }
 }
 
-@c4multi("TxDeepRawDataLensApp") case class TxDeepRawDataLens[P <: Product](initialValue: DeepRawSessionData[P])(
+@c4multi("TxDeepRawDataLensApp") final case class TxDeepRawDataLens[P <: Product](initialValue: DeepRawSessionData[P])(
   dataByPK: GetByPK[U_RawSessionData],
   userByPK: GetByPK[U_RawUserData],
   roleByPK: GetByPK[U_RawRoleData],
+  txAdd: LTxAdd,
 ) extends AbstractLens[Context, DeepRawSessionData[P]] {
 
   def of: Context => DeepRawSessionData[P] = local => {
@@ -200,7 +201,7 @@ case class DeepRawSessionData[P <: Product](
     val DeepRawSessionData(raw, user, _, _, _) = value
     val rawEvent = raw.map(LEvent.update).toList.flatten
     val userEvent = user.map(LEvent.update).toList.flatten
-    TxAdd(rawEvent ++ userEvent)(local)
+    txAdd.add(rawEvent ++ userEvent)(local)
   }
 
 }

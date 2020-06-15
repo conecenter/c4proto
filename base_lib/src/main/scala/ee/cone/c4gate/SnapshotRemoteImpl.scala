@@ -10,7 +10,7 @@ import okio.ByteString
 
 import scala.annotation.tailrec
 
-@c4multi("RemoteRawSnapshotLoaderImplApp") class RemoteRawSnapshotLoaderImpl(baseURL: String)(util: HttpUtil) extends RawSnapshotLoader with LazyLogging {
+@c4multi("RemoteRawSnapshotLoaderImplApp") final class RemoteRawSnapshotLoaderImpl(baseURL: String)(util: HttpUtil) extends RawSnapshotLoader with LazyLogging {
   def load(snapshot: RawSnapshot): ByteString = {
     val tm = NanoTimer()
     val resp = util.get(s"$baseURL/${snapshot.relativePath}", Nil)
@@ -21,14 +21,20 @@ import scala.annotation.tailrec
 }
 
 
-@c4("MergingSnapshotApp") class RemoteRawSnapshotLoaderFactory(inner: RemoteRawSnapshotLoaderImplFactory) extends RawSnapshotLoaderFactory {
+@c4("MergingSnapshotApp") final class RemoteRawSnapshotLoaderFactory(inner: RemoteRawSnapshotLoaderImplFactory) extends RawSnapshotLoaderFactory {
   def create(baseURL: String): RawSnapshotLoader = inner.create(baseURL)
 }
 
-@c4("RemoteRawSnapshotApp") class RemoteSnapshotUtilImpl(util: HttpUtil) extends RemoteSnapshotUtil {
+@c4("RemoteRawSnapshotApp") final class RemoteSnapshotUtilImpl(util: HttpUtil) extends RemoteSnapshotUtil with LazyLogging {
   def authHeaders(signed: String): List[(String, String)] =
     List(("x-r-signed", signed))
-  def request(appURL: String, signed: String): ()=>List[RawSnapshot] = {
+  def measure[R](f: =>R): R = {
+    val startTime = System.currentTimeMillis
+    val res = f
+    logger.debug(s"Snapshot request time: ${System.currentTimeMillis - startTime}")
+    res
+  }
+  def request(appURL: String, signed: String): ()=>List[RawSnapshot] = measure{
     val url: String = "/need-snapshot"
     val uuid = UUID.randomUUID().toString
     util.post(s"$appURL$url", ("x-r-response-key",uuid) :: authHeaders(signed))
@@ -53,13 +59,13 @@ import scala.annotation.tailrec
 
 class RemoteSnapshotAppURL(val value: String)
 
-@c4("RemoteRawSnapshotApp") class DefRemoteSnapshotAppURL(config: Config) extends RemoteSnapshotAppURL(config.get("C4HTTP_SERVER"))
+@c4("RemoteRawSnapshotApp") final class DefRemoteSnapshotAppURL(config: Config) extends RemoteSnapshotAppURL(config.get("C4HTTP_SERVER"))
 
-@c4("RemoteRawSnapshotApp") class EnvRemoteRawSnapshotLoader(url: RemoteSnapshotAppURL, factory: RemoteRawSnapshotLoaderImplFactory) {
+@c4("RemoteRawSnapshotApp") final class EnvRemoteRawSnapshotLoader(url: RemoteSnapshotAppURL, factory: RemoteRawSnapshotLoaderImplFactory) {
   @provide def get: Seq[RawSnapshotLoader] = List(factory.create(url.value))
 }
 
-@c4("RemoteRawSnapshotApp") class RemoteSnapshotMaker(
+@c4("RemoteRawSnapshotApp") final class RemoteSnapshotMaker(
   appURL: RemoteSnapshotAppURL, util: RemoteSnapshotUtil, signer: SnapshotTaskSigner
 ) extends SnapshotMaker {
   def make(task: SnapshotTask): List[RawSnapshot] =

@@ -43,7 +43,7 @@ trait PublicDirProvider {
   def get: List[(String,Path)]
 }
 
-@c4("PublishingCompApp") class ModPublicDirProvider(config: ListConfig) extends PublicDirProvider {
+@c4("PublishingCompApp") final class ModPublicDirProvider(config: ListConfig) extends PublicDirProvider {
   def get: List[(String,Path)] = {
     val Mod = """.+/mod\.([^/]+)\.(classes|jar)""".r
     val hasMod = (for {
@@ -63,13 +63,14 @@ trait PublicDirProvider {
 // we need it, because there's no good place to found there's new *.svg in src/
 case object InitialPublishDone extends TransientLens[Boolean](false)
 
-@c4("PublishingCompApp") class Publishing(
+@c4("PublishingCompApp") final class Publishing(
   idGenUtil: IdGenUtil,
   publishFromStringsProviders: List[PublishFromStringsProvider],
   mimeTypesProviders: List[PublishMimeTypesProvider],
   publicDirProviders: List[PublicDirProvider],
   publishFullCompressor: PublishFullCompressor,
   publisher: Publisher,
+  txAdd: LTxAdd,
 )(
   mimeTypes: String=>Option[String] = mimeTypesProviders.flatMap(_.get).toMap.get,
   compressor: Compressor = publishFullCompressor.value
@@ -79,18 +80,18 @@ case object InitialPublishDone extends TransientLens[Boolean](false)
       publishFromStringsProvider <- publishFromStringsProviders
       (path,body) <- publishFromStringsProvider.get
     } yield prepare(path,ToByteString(body)))(local)
-    TxAdd(strEvents).andThen(SleepUntilKey.set(Instant.MAX))(local)
+    txAdd.add(strEvents).andThen(SleepUntilKey.set(Instant.MAX))(local)
   }
   def checkPublishFromFiles(local: Context): Context = //Seq[Observer[RichContext]]
     if(!InitialPublishDone.of(local))
-      TxAdd(publishFromFiles(local)).andThen(InitialPublishDone.set(true))(local)
+      txAdd.add(publishFromFiles(local)).andThen(InitialPublishDone.set(true))(local)
     else {
       val timeToPublish =
         List(Paths.get("htdocs/publish_time")).filter(Files.exists(_))
           .flatMap(path=>publisher.publish("FromFilesTime",List(prepare("/publish_time",ToByteString(Files.readAllBytes(path)))))(local))
       if(timeToPublish.isEmpty)
         SleepUntilKey.set(Instant.ofEpochMilli(System.currentTimeMillis+1000))(local)
-      else TxAdd(publishFromFiles(local) ++ timeToPublish)(local)
+      else txAdd.add(publishFromFiles(local) ++ timeToPublish)(local)
     }
   def publishFromFiles: Context=>Seq[LEvent[Product]] =
     publisher.publish("FromFiles", for {

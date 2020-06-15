@@ -14,7 +14,7 @@ import ee.cone.c4proto.ToByteString
 
 import scala.util.Try
 
-@c4("PrometheusPostApp") class PrometheusPostSettingsProvider(config: ListConfig) {
+@c4("PrometheusPostApp") final class PrometheusPostSettingsProvider(config: ListConfig) {
   def defaultPrometheusPostRefresh: Long = 30L * 1000L
   @provide def get: Seq[PrometheusPostSettings] =
     config.get("C4PROMETHEUS_POST_URL")
@@ -58,7 +58,7 @@ import PrometheusPostSettingsObj._
     }
 }
 
-@c4multi("PrometheusPostApp") case class PrometheusPostTx(srcId: SrcId, settings: PrometheusPostSettings)(metricsFactories: List[MetricsFactory], util: HttpUtil) extends TxTransform with LazyLogging {
+@c4multi("PrometheusPostApp") final case class PrometheusPostTx(srcId: SrcId, settings: PrometheusPostSettings)(metricsFactories: List[MetricsFactory], util: HttpUtil) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = {
     val time = System.currentTimeMillis
     val metrics = metricsFactories.flatMap(_.measure(local))

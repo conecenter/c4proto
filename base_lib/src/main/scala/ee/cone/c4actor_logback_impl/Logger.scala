@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory
 
 import scala.annotation.tailrec
 
-@c4("BasicLoggingApp") class LoggerTest extends Executable with Early with LazyLogging {
+@c4("BasicLoggingApp") final class LoggerTest extends Executable with Early with LazyLogging {
   def run(): Unit = if(Option(System.getenv("C4LOGBACK_TEST")).nonEmpty) iteration(0L)
   @tailrec private def iteration(v: Long): Unit = {
     Thread.sleep(1000)
@@ -23,7 +23,7 @@ import scala.annotation.tailrec
   }
 }
 
-@c4("BasicLoggingApp") class DefLoggerConfigurator(
+@c4("BasicLoggingApp") final class DefLoggerConfigurator(
   config: ListConfig,
   catchNonFatal: CatchNonFatal
 ) extends LoggerConfigurator(

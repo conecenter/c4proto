@@ -1,7 +1,9 @@
 package ee.cone.c4actor
 
+import java.nio.file.Path
 import java.util.concurrent.ExecutorService
-import scala.concurrent.{ExecutionContext, Future}
+
+import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.Try
 
 trait Execution extends Runnable {
@@ -11,6 +13,7 @@ trait Execution extends Runnable {
   def newExecutorService(prefix: String, threadCount: Option[Int]): ExecutorService
   def fatal[T](future: ExecutionContext=>Future[T]): Unit
   def mainExecutionContext: ExecutionContext
+  def success[T](promise: Promise[T], value: T): Unit
 }
 
 trait SkippingFuture[T] {

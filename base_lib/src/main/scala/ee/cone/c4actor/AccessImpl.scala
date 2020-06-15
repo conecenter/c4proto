@@ -4,10 +4,12 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.ToPrimaryKey
 import ee.cone.c4di._
 
-@c4("ModelAccessFactoryCompApp") class RModelAccessFactoryImpl extends RModelAccessFactory {
+@c4("ModelAccessFactoryCompApp") final class RModelAccessFactoryImpl(
+  txAdd: LTxAdd,
+) extends RModelAccessFactory {
   def to[P <: Product](key: GetByPK[P], product: P): Option[Access[P]] = {
     val name = product.getClass.getName
-    val lens = TxProtoLens[P](product)(key.ofA)
+    val lens = TxProtoLens[P](product)(key.ofA,txAdd)
     Option(AccessImpl(product,Option(lens),NameMetaAttr(name) :: Nil))
   }
 }
@@ -31,7 +33,7 @@ case class ComposedLens[C,T,I](
   def of: C => I = container => inner.of(outer.of(container))
 }
 
-case class TxProtoLens[V<:Product](initialValue: V)(mapOf: AssembledContext=>Map[SrcId,V]) extends AbstractLens[Context,V] {
+case class TxProtoLens[V<:Product](initialValue: V)(mapOf: AssembledContext=>Map[SrcId,V], txAdd: LTxAdd) extends AbstractLens[Context,V] {
   private def className = initialValue.getClass.getName
   private def srcId = ToPrimaryKey(initialValue)
   def of: Context => V = local => mapOf(local).getOrElse(srcId,initialValue)
@@ -40,6 +42,6 @@ case class TxProtoLens[V<:Product](initialValue: V)(mapOf: AssembledContext=>Map
     val eventsC = List(UpdateLEvent(srcId, className, value))
     val eventsA = LEvent.update(value)
     if(eventsC != eventsA) throw new Exception(s"'$eventsC' != '$eventsA'")
-    TxAdd(eventsC)(local)
+    txAdd.add(eventsC)(local)
   }
 }

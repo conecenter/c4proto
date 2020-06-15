@@ -10,7 +10,7 @@ object TestHash extends HashSearchIdGeneration {
 }
 
 trait HashSearchIdGeneration {
-  private val hashGen: HashGen = new MurMur3HashGen
+  private lazy val hashGen: HashGen = new MurMur3HashGen
 
   private lazy val commonPrefixUd = 0
 
@@ -54,12 +54,12 @@ trait HashSearchIdGeneration {
   }
 }
 
-trait CreateRangerDirective extends HashSearchIdGeneration {
+trait CreateRangerDirective extends HashSearchIdGeneration with ComponentProviderApp {
   def qAdapterRegistry: QAdapterRegistry
 
-  def dynIndexModels: List[ProductWithId[_ <: Product]]
+  private lazy val dynamicIndexModelsRegistry: DynamicIndexModelsRegistry = resolveSingle(classOf[DynamicIndexModelsRegistry])
 
-  lazy val modelIdMap: Map[String, Int] = dynIndexModels.map(p => p.modelCl.getName -> p.modelId).toMap
+  lazy val modelIdMap: Map[String, Int] = dynamicIndexModelsRegistry.models.map(p => p.modelCl.getName -> p.modelId).toMap
   lazy val nameToIdMap: Map[String, Long] = qAdapterRegistry.byName.transform((_, v) => if (v.hasId) v.id else -1)
 
   def apply[Model <: Product, By <: Product](modelCl: Class[Model], by: By, lensName: List[String]): RangerDirective[Model] = {

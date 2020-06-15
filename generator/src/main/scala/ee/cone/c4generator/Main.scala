@@ -3,6 +3,11 @@ package ee.cone.c4generator
 import java.nio.file.{Files, Path, Paths}
 import java.util.UUID
 import java.nio.charset.StandardCharsets.UTF_8
+
+
+import scala.concurrent.Future
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
 import scala.meta.parsers.Parsed.{Error, Success}
 import scala.meta._
 import scala.jdk.CollectionConverters.IterableHasAsScala
@@ -11,17 +16,21 @@ import scala.jdk.CollectionConverters.IteratorHasAsScala
 object Main {
   def defaultGenerators(protocolStatsTransformers: List[ProtocolStatsTransformer]): List[Generator] = {
     val protocolGenerator = new ProtocolGenerator(protocolStatsTransformers)
+    val metaGenerator = new MetaGenerator(protocolStatsTransformers)
     List(
       ImportGenerator,
-      new TimeGenerator(protocolGenerator),
+      new TimeGenerator(protocolGenerator, metaGenerator),
       new AssembleGenerator(TimeJoinParamTransformer :: Nil),
+      metaGenerator,
       protocolGenerator,
       MultiGenerator,
       FieldAccessGenerator,
-      AppGenerator
+      AppGenerator,
     ) //,UnBaseGenerator
   }
-  def main(args: Array[String]): Unit = new RootGenerator(defaultGenerators(Nil)).run()
+  def main(args: Array[String]): Unit = new RootGenerator(defaultGenerators(Nil) ::: List(
+    ValInNonFinalGenerator,
+  )).run()
   def toPrefix = "c4gen."
   def env(key: String): Option[String] = Option(System.getenv(key))
   def version: String = s"-w${env("C4GENERATOR_VER").getOrElse(throw new Exception(s"missing env C4GENERATOR_VER"))}"
@@ -74,7 +83,7 @@ class RootGenerator(generators: List[Generator]) {
       (path,data) <- will if !java.util.Arrays.equals(data,was.getOrElse(path,Array.empty))
     } {
       println(s"saving $path")
-      Files.write(path,data)
+      Util.ignoreTheSamePath(Files.write(path,data))
     }
     //println(s"3:${System.currentTimeMillis()}")
   }
@@ -82,13 +91,24 @@ class RootGenerator(generators: List[Generator]) {
 
 class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
   def get(ctx: WillGeneratorContext): List[(Path,Array[Byte])] = {
-    val rootCachePath = rootPath.resolve("cache")
+    val rootCachePath = Files.createDirectories(rootPath.resolve("cache"))
     val fromPostfix = ".scala"
-    Files.createDirectories(rootCachePath)
-    withIndex(ctx)(for {
-      path <- ctx.fromFiles.filter(_.toString.endsWith(fromPostfix))
-      toData <- Option(pathToData(path,rootCachePath)) if toData.length > 0
-    } yield path.getParent.resolve(s"$toPrefix${path.getFileName}") -> toData)
+    // 
+    val list = Await.result({
+      implicit val ec = scala.concurrent.ExecutionContext.global
+      Future.sequence(
+        ctx.fromFiles.filter(_.toString.endsWith(fromPostfix))
+          .map(path=>Future((path,pathToData(path,rootCachePath))))
+      )
+    },Duration.Inf).collect{
+      case (path,toData) if toData.length > 0 =>
+        path.getParent.resolve(s"$toPrefix${path.getFileName}") -> toData
+    }
+    withIndex(ctx)(list)
+//    withIndex(ctx)(for {
+//      path <- ctx.fromFiles.filter(_.toString.endsWith(fromPostfix))
+//      toData <- Option(pathToData(path,rootCachePath)) if toData.length > 0
+//    } yield path.getParent.resolve(s"$toPrefix${path.getFileName}") -> toData)
   }
   def pkgNameToId(pkgName: String): String =
     """[\._]+([a-z])""".r.replaceAllIn(s".$pkgName",m=>m.group(1).toUpperCase)
@@ -139,7 +159,10 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
       println(s"parsing $path")
       val content = new String(fromData,UTF_8).replace("\r\n","\n")
       val source = dialects.Scala213(content).parse[Source]
-      val Parsed.Success(source"..$sourceStatements") = source
+      val sourceStatements = source match {
+        case Parsed.Success(source"..$sourceStatements") => sourceStatements
+        case Parsed.Error(position, string, ex) => throw new Exception(s"Parse exception in ($path:${position.startLine})", ex)
+      }
       val resStatements: List[Generated] = for {
         sourceStatement <- (sourceStatements:Seq[Stat]).toList
         q"package $n { ..$packageStatements }" = sourceStatement
@@ -164,14 +187,14 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
         }
       } yield res;
       {
-        val warnings = Lint.process(sourceStatements)
+
         val code = resStatements.flatMap{
           case c: GeneratedImport => List(c.content)
           case c: GeneratedCode => List(c.content)
           case c: GeneratedAppLink => Nil
           case c => throw new Exception(s"$c")
         }
-        val content = (warnings ++ code).mkString("\n")
+        val content = code.mkString("\n")
         val contentWithLinks = if(content.isEmpty) "" else
           s"// THIS FILE IS GENERATED; APPLINKS: " +
           resStatements.collect{ case s: GeneratedAppLink =>
@@ -180,7 +203,7 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
           "\n" +
           content
         val toData = contentWithLinks.getBytes(UTF_8)
-        Files.write(cachePath,toData)
+        Util.ignoreTheSamePath(Files.write(cachePath,toData))
         toData
       }
     }
@@ -256,6 +279,19 @@ object Util {
 
   def toBinFileList(in: Iterable[(Path,List[String])]): List[(Path,Array[Byte])] =
     in.map{ case (path,lines) => path->lines.mkString("\n").getBytes(UTF_8) }.toList.sortBy(_._1)
+
+  def pathToId(fileName: String): String = {
+    val SName = """.+/([-\w]+)\.scala""".r
+    val SName(fName) = fileName
+    fName.replace('-', '_')
+  }
+
+
+  def assertFinal(cl: ParsedClass): Unit = {
+    assert(cl.mods.collect{ case mod"final" => true }.nonEmpty,s"${cl.name} should be final")
+  }
+
+  def ignoreTheSamePath(path: Path): Unit = ()
 }
 case class PkgInfo(pkgPath: Path, pkgName: String)
 class ParsedClass(
@@ -276,28 +312,6 @@ case class GeneratedTraitDef(name: String) extends Generated
 case class GeneratedTraitUsage(name: String) extends Generated
 case class GeneratedAppLink(pkg: String, app: String, expr: String) extends Generated
 
-object Lint {
-  def process(stats: Seq[Stat]): Seq[String] =
-    stats.flatMap{ stat =>
-      stat.collect{
-        case q"..$mods class $tname[..$tparams] ..$ctorMods (...$paramss) extends $template"
-          if mods.collect{ case mod"abstract" => true }.nonEmpty =>
-          ("abstract class",tname,template)
-        case q"..$mods trait $tname[..$tparams] extends $template" =>
-          ("trait",tname,template)
-      }.flatMap{
-        case (tp,tName,template"{ ..$statsA } with ..$inits { $self => ..$statsB }") =>
-          if(statsA.nonEmpty) println(s"warn: early initializer in $tName")
-          statsB.collect{
-            case q"..$mods val ..$patsnel: $tpeopt = $expr"
-              if mods.collect{ case mod"lazy" => true }.isEmpty =>
-              s"/*\nwarn: val ${patsnel.mkString(" ")} in $tp $tName \n*/"
-          }
-        case _ => Nil
-      }
-    }
-}
-
 case class PublicPathRoot(mainPublicPath: Path, pkgName: String, genPath: Path, publicPath: Path)
 class PublicPathsGenerator extends WillGenerator {
   def get(ctx: WillGeneratorContext): List[(Path, Array[Byte])] = {
@@ -317,20 +331,50 @@ class PublicPathsGenerator extends WillGenerator {
     val toModRoot = Util.matchThisOrParent(isModRoot)
     val pathByRoot = ctx.fromFiles.groupBy(toModRoot)
     val RefOk = """([\w\-\./]+)""".r
+    val ExtRegEx = """.*\.(\w+)""".r
+    val ViewBoxRegEx = """viewBox=["'](.+?)["']""".r.unanchored
+    val fullMimeTypesMap: Map[String, String] = (for {
+      path <- ctx.fromFiles.filter(_.getFileName.toString == "MimeTypesMap.scala")
+      Parsed.Success(source"..$sourceStatements") = Files.readString(path).parse[Source]
+      statement <- sourceStatements
+      (ext,tp) <- statement.collect{
+        case q"${Lit.String(ext)} -> ${Lit.String(tp)}" => (ext,tp)
+      }
+    } yield (ext,tp)).groupMapReduce(_._1)(_._2){(a,b)=>
+      assert(a==b)
+      a
+    }
+    val imageExtensions: Set[String] = fullMimeTypesMap.collect{
+      case (key, value) if value.startsWith("image/") => key
+    }.toSet
     Util.toBinFileList(roots.flatMap { (root:PublicPathRoot) =>
       val defs = pathByRoot.getOrElse(Option(root.publicPath),Nil)
         .map{ path =>
-            val RefOk(r) = root.publicPath.relativize(path).toString
-            val rel = root.mainPublicPath.relativize(path)
-            val ref = s"/mod/main/$rel"
-            (
-              s"""    def `/$r` = "$ref" """,
-              s"main.${root.pkgName} $ref $rel"
-            )
+          val RefOk(r) = root.publicPath.relativize(path).toString
+          val ExtRegEx(ext) = r
+          val rel = root.mainPublicPath.relativize(path)
+          val ref = s"/mod/main/$rel"
+
+          val publicPath = ext match {
+            case "svg" =>
+              val svg = Files.readString(path)
+              val viewBox = svg match {
+                case ViewBoxRegEx(sizes) => sizes
+                case _ => ""
+              }
+              s"""SVGPublicPath("$ref", "$viewBox")"""
+            case e if imageExtensions.contains(e) => s"""NonSVGPublicPath("$ref")"""
+            case _ => s"""DefaultPublicPath("$ref")"""
+          }
+          (
+            s"""    def `/$r` = $publicPath """,
+            s"main.${root.pkgName} $ref $rel"
+          )
         }
       val lines = if(defs.isEmpty) Nil else
         "/** THIS FILE IS GENERATED; CHANGES WILL BE LOST **/" ::
         s"package ${root.pkgName}" ::
+        "\nimport ee.cone.c4actor.{DefaultPublicPath, SVGPublicPath, NonSVGPublicPath}\n" ::
         "object PublicPath {" :: defs.map(_._1) ::: "}" :: Nil
       List(root.genPath -> lines, root.mainPublicPath.resolve("c4gen.ht.links") -> defs.map(_._2))
     }.groupMap(_._1)(_._2).transform((k,v)=>v.flatten))
@@ -345,7 +389,7 @@ class ModRootsGenerator extends WillGenerator {
       pkgInfo <- Util.pkgInfo(mainScalaPath,pp.path)
     } {
       assert(!pkgInfo.pkgName.contains("._"),s"unclear name: ${pkgInfo.pkgName}; create dummy *.scala file or remove '_' prefix")
-      assert(pp.removed.isEmpty || pp.removed.head.startsWith("_"), s"bad sub: $pp")
+      assert(pp.removed.isEmpty || pp.removed.head.startsWith("_"), s"bad sub: ${pp.removed}")
     }
     Nil
   }

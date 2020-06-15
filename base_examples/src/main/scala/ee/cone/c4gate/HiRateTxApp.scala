@@ -6,21 +6,25 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
+import ee.cone.c4di.c4multi
 import ee.cone.c4proto.ToByteString
 
-@c4assemble("HiRateTxApp") class HiRateAssembleBase(publisher: Publisher) {
+@c4assemble("HiRateTxApp") class HiRateAssembleBase(factory: HiRateTxFactory) {
   def joinPosts(
     key: SrcId,
     firstborn: Each[S_Firstborn]
-  ): Values[(SrcId, TxTransform)] = List(WithPK(HiRateTx("HiRateTx")(publisher)))
+  ): Values[(SrcId, TxTransform)] = List(WithPK(factory.create("HiRateTx")))
 }
 
-case class HiRateTx(srcId: SrcId)(publisher: Publisher) extends TxTransform with LazyLogging {
+@c4multi("HiRateTxApp") final case class HiRateTx(srcId: SrcId)(
+  publisher: Publisher,
+  txAdd: LTxAdd,
+) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = {
     val timeStr = System.currentTimeMillis.toString
     logger.info(s"start handling $timeStr")
     val bytes = ToByteString(timeStr)
-    TxAdd(publisher.publish(ByPathHttpPublication("/time",Nil,bytes),_+1000*60))(local)
+    txAdd.add(publisher.publish(ByPathHttpPublication("/time",Nil,bytes),_+1000*60))(local)
   }
 }
 
@@ -40,6 +44,6 @@ case class HiRateTx(srcId: SrcId, post: HttpPost) extends TxTransform with LazyL
       Thread.sleep(1000)
     }
     logger.info(s"finish handling $srcId")
-    TxAdd(delete(post))(local)
+    txAdd.add(delete(post))(local)
   }
 }*/

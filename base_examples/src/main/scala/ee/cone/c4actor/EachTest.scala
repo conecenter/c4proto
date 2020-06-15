@@ -3,10 +3,13 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.EachTestProtocol.D_Item
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.{IndexUtil, assemble, by, c4assemble}
+import ee.cone.c4assemble.{IndexUtil, Single, assemble, by, c4assemble}
 import ee.cone.c4assemble.Types._
 import ee.cone.c4di.c4
 import ee.cone.c4proto.{Id, protocol}
+
+import scala.concurrent.Await
+import scala.concurrent.duration.{Duration, SECONDS}
 
 //  new EachTestNotEffectiveAssemble :: // 25s vs 1s for 3K 1-item-tx-s
 
@@ -31,7 +34,7 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
   }
 }
 
-@c4assemble("EachTestApp") class EachTestNotEffectiveAssembleBase   {
+/*@c4assemble("EachTestApp")*/ class EachTestNotEffectiveAssembleBase   {
   type ByParent = SrcId
   def joinByVal(
     key: SrcId,
@@ -49,26 +52,32 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
   } yield WithPK(EachTestItem(item,vItem))
 }
 
-@c4("EachTestApp") class EachTestExecutable(
+@c4("EachTestApp") final class EachTestExecutable(
   execution: Execution, contextFactory: ContextFactory, indexUtil: IndexUtil,
-  items: GetByPK[D_Item], eachTestItems: GetByPK[EachTestItem]
+  items: GetByPK[D_Item], eachTestItems: GetByPK[EachTestItem],
+  txAdd: LTxAdd,
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     val voidContext = contextFactory.updated(Nil)
 
-    Function.chain[Context](Seq(
-      TxAdd(LEvent.update(D_Item("1","2"))),
-      TxAdd(LEvent.update(D_Item("1","3"))),
+    IgnoreTestContext(Function.chain[Context](Seq(
+      txAdd.add(LEvent.update(D_Item("1","2"))),
+      txAdd.add(LEvent.update(D_Item("1","3"))),
       l => {
         assert(items.ofA(l)("1").parent=="3","last stored item wins")
         l
       }
-    ))(voidContext)
+    ))(voidContext))
+    println("TEST 0 OK")
 
-    assert(emptyIndex==indexUtil.mergeIndex(Seq(
-      indexUtil.result("1",D_Item("1","2"),-1),
-      indexUtil.result("1",D_Item("1","2"),+1)
-    )))
+    implicit val ec = scala.concurrent.ExecutionContext.global
+    val resF = Single(indexUtil.buildIndex(Seq(indexUtil.aggregate(Seq(
+      indexUtil.createOutFactory(0,-1).result("1",D_Item("1","2")),
+      indexUtil.createOutFactory(0,+1).result("1",D_Item("1","2")),
+    )))))
+    val res = Await.result(resF,Duration(5,SECONDS))
+    assert(emptyIndex==res)
+    println("TEST 1 OK")
 
     /*println(indexUtil.mergeIndex(Seq(
       indexUtil.result("1",D_Item("1","2"),-1),
@@ -82,10 +91,10 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
       res
     }
 
-    Function.chain[Context](Seq(
-      TxAdd(LEvent.update(D_Item(s"V",""))),
+    IgnoreTestContext(Function.chain[Context](Seq(
+      txAdd.add(LEvent.update(D_Item(s"V",""))),
       l => measure(Function.chain[Context](
-        (1 to 3000).map(n=>TxAdd(LEvent.update(D_Item(s"$n","V"))))
+        (1 to 3000).map(n=>txAdd.add(LEvent.update(D_Item(s"$n","V"))))
       )(l)),
       { (l:Context) =>
         val r = eachTestItems.ofA(l)
@@ -93,7 +102,8 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
         assert(r.values.forall(_.valueItem.parent.isEmpty))
         l
       }
-    ))(voidContext)
+    ))(voidContext))
+    println("TEST 2 OK")
 
     execution.complete()
   }

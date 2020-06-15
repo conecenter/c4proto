@@ -43,7 +43,7 @@ case class ConflictRich(conflict: D_ConflictOrig)
 
 }
 
-@c4("D_ConflictOrigTestApp") class ConflictingOrigTest(
+@c4("D_ConflictOrigTestApp") final class ConflictingOrigTest(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory,
   getConflictRich: GetByPK[ConflictRich],
 ) extends Executable with LazyLogging {

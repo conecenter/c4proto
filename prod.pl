@@ -3,7 +3,7 @@
 use strict;
 use Digest::MD5 qw(md5_hex);
 
-my $sys_image_ver = "v65";
+my $sys_image_ver = "v70";
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -204,60 +204,11 @@ push @tasks, ["ssh", "$composes_txt [command-with-args]", sub{
     sy(&$ssh_ctl($comp,@args));
 }];
 
-push @tasks, ["remote_service-gate",'',sub{"zookeeper"}];
+push @tasks, ["remote_service-gate",'',sub{
+    print "deploy noop image if gate can not start\n";
+    "gate"
+}];
 push @tasks, ["remote_service-desktop",'',sub{"sshd"}];
-
-my $remote_acc  = sub{
-    my($comp,$stm)=@_;
-    my $service = &$find_handler(remote_service=>$comp)->();
-    my $mk_exec = &$find_exec_handler($comp);
-    &$remote($comp,&$mk_exec("",$service,$stm));
-};
-
-my $snapshots_path = "/c4db/snapshots";
-my $list_snapshots = sub{
-    my($comp,$opt)=@_;
-    my $ls = &$remote_acc($comp,"ls $opt $snapshots_path");
-    print "$ls\n";
-    syl($ls);
-};
-
-my $get_sm_binary = sub{
-    my($comp,$from,$to)=@_;
-    &$remote_acc($comp,"cat $from")." > $to";
-};
-
-my $snapshot_name = sub{
-    my($snnm)=@_;
-    my @fn = $snnm=~/^(\w{16})(-\w{8}-\w{4}-\w{4}-\w{4}-\w{12}[-\w]*)\s*$/ ? ($1,$2) : die;
-    my $zero = '0' x length $fn[0];
-    ("$fn[0]$fn[1]","$zero$fn[1]")
-};
-
-my $get_snapshot = sub{
-    my($comp,$snnm,$mk_path)=@_;
-    my($fn,$zfn) = &$snapshot_name($snnm);
-    &$get_sm_binary($comp,"$snapshots_path/$fn",&$mk_path($zfn));
-};
-
-push @tasks, ["list_snapshots", $composes_txt, sub{
-    my($comp)=@_;
-    sy(&$ssh_add());
-    print &$list_snapshots($comp,"-la");
-}];
-
-push @tasks, ["get_snapshot", "$composes_txt <snapshot>", sub{
-    my($comp,$snnm)=@_;
-    sy(&$ssh_add());
-    sy(&$get_snapshot($comp,$snnm,sub{$_[0]}));
-}];
-
-push @tasks, ["get_last_snapshot", $composes_txt, sub{
-    my($comp)=@_;
-    sy(&$ssh_add());
-    my $snnm = (reverse sort &$list_snapshots($comp,""))[0];
-    sy(&$get_snapshot($comp,$snnm,sub{$_[0]}));
-}];
 
 my $get_hostname = sub{
     my($comp)=@_;
@@ -267,39 +218,12 @@ my $get_hostname = sub{
     };
 };
 
-my $put_snapshot = sub{
-    my($auth_path,$data_path,$addr)=@_;
-    my $gen_dir = $ENV{C4PROTO_DIR} || die;
-    my $data_fn = $data_path=~m{([^/]+)$} ? $1 : die "bad file path";
-    -e $auth_path or die "no gate auth";
-    sy("python3","$gen_dir/req.py",$auth_path,$data_path,$addr,"/put-snapshot","/put-snapshot","snapshots/$data_fn");
-};
-
-push @tasks, ["put_snapshot", "$composes_txt <file_path>", sub{
-    my($comp,$data_path)=@_;
-    sy(&$ssh_add());
-    my $host = &$get_hostname($comp) || die "need le_hostname or domain_zone";
-    my($conf_dir,$save) = @{&$get_conf_dir()};
-    my $auth_path = "$conf_dir/ca/$comp/simple.auth";
-    &$put_snapshot($auth_path,$data_path,"https://$host");
-}];
-push @tasks, ["put_snapshot_address", "${composes_txt} <to_address> <file_path> ", sub{
-    my($comp,$address,$data_path)=@_;
-    sy(&$ssh_add());
-    my($conf_dir,$save) = @{&$get_conf_dir()};
-    my $auth_path = "$conf_dir/ca/$comp/simple.auth";
-    &$put_snapshot($auth_path,$data_path,$address);
-}];
-push @tasks, ["put_snapshot_local", "<file_path>", sub{
-    my($data_path)=@_;
-    my $data_dir = $ENV{C4DATA_DIR} || die;
-    &$put_snapshot("$data_dir/simple.auth",$data_path,"http://127.0.0.1:$http_port");
-}];
-
-
 my $get_kc_ns = sub{
     my($comp)=@_;
     my $ns = syf(&$remote($comp,'cat /var/run/secrets/kubernetes.io/serviceaccount/namespace'))=~/(\w+)/ ? "$1" : die;
+};
+my $get_pod = sub{
+    my($comp,$ns)=@_;
     my $stm = qq[kubectl -n $ns get po -l app=$comp -o jsonpath="{.items[*].metadata.name}"];
     my @pods = syf(&$remote($comp,$stm))=~/(\S+)/g;
     my $pod = &$single_or_undef(@pods) || die "no single pod for $comp";
@@ -320,7 +244,8 @@ my $exec_dc = sub{
 };
 my $exec_kc = sub{
     my($comp)=@_;
-    my ($ns,$pod) = &$get_kc_ns($comp);
+    my $ns = &$get_kc_ns($comp);
+    my $pod = &$get_pod($comp,$ns);
     sub{ my($md,$service,$stm)=@_; &$exec_stm_kc($ns,$md,$pod,$service,$stm) };
 };
 my $lscont_dc = sub{
@@ -331,7 +256,8 @@ my $lscont_dc = sub{
 };
 my $lscont_kc = sub{
     my($comp)=@_;
-    my ($ns,$pod) = &$get_kc_ns($comp);
+    my $ns = &$get_kc_ns($comp);
+    my $pod = &$get_pod($comp,$ns);
     my $stm = "kubectl -n $ns get po/$pod -o jsonpath={.spec.containers[*].name}";
     map{ my $c = $_; sub{ my($stm)=@_; &$exec_stm_kc($ns,"",$pod,$c,$stm) } }
         syf(&$remote($comp,$stm))=~/(\w+)/g;
@@ -391,6 +317,7 @@ use List::Util qw(reduce);
 
 my $map = sub{ my($opt,$f)=@_; map{&$f($_,$$opt{$_})} sort keys %$opt };
 my $merge_list = sub{ reduce{ &$merge($a,$b) } @_ };
+my $single = sub{ @_==1 ? $_[0] : die };
 
 my $to_yml_str = sub{
     my($generated) = @_;
@@ -499,19 +426,40 @@ my $make_kc_yml = sub{
         &$map($ip2aliases, sub{ my($k,$v)=@_; +{ip=>$k, hostnames=>$v} });
     };
     #
-    my @secrets = map{
+    my @int_secrets = map{
         my $opt = $_;
         my $nm = &$mandatory_of(name=>$opt);
         my @files = &$map($opt,sub{ my($k,$v)=@_;
             $k=~/^C4/ && $v=~m{^/c4conf/([\w\.]+)$} ? "$1" : ()
         });
-        @files ? { name => "$name-$nm", files => \@files } : ();
+        @files ? { container => $nm, secret => "$name-$nm", path=>"/c4conf", files => \@files } : ();
     } @$options;
-    my @secret_volumes = map{
-        my $n = &$mandatory_of(name=>$_);
-        +{ name => "$n-secret", secret => { secretName => $n } }
-    } @secrets;
-    my %secret_volumes_by_name = map{($$_{name}=>$_)} @secret_volumes;
+    my @ext_secrets = map{
+        my $opt = $_;
+        my $nm = &$mandatory_of(name=>$opt);
+        &$map($opt,sub{ my($k,$v)=@_;
+            $k=~/^C4/ && $v=~m{^(/c4conf-([\w\-]+))/} ? {container=>$nm,secret=>"$2",path=>"$1"} : ()
+        });
+    } @$options;
+    my @all_secrets = (@int_secrets,@ext_secrets);
+    my @secret_volumes = &$map(
+        +{map{(&$mandatory_of(secret=>$_)=>1)} @all_secrets},
+        sub{ my($secret,$v)=@_;
+            +{ name => "$secret-secret", secret => { secretName => $secret } }
+        }
+    );
+    my %secret_mounts = &$map(
+        &$merge_list({},map{
+            +{&$mandatory_of(container=>$_)=>{&$mandatory_of(path=>$_)=>{&$mandatory_of(secret=>$_)=>1}}}
+        } @all_secrets),
+        sub{ my($container,$v)=@_;
+            my @mounts = &$map($v,sub{ my($path,$v)=@_;
+                my $secret = &$single(keys %$v);
+                +{ name => "$secret-secret", mountPath => $path }
+            });
+            ($container=>\@mounts)
+        }
+    );
     #
     my @containers = map{
         my $opt = $_;
@@ -519,10 +467,9 @@ my $make_kc_yml = sub{
         my @env = &$map($opt,sub{ my($k,$v)=@_;
             $k=~/^([A-Z].+)/ ? {name=>$1,value=>"$v"} : ()
         });
-        my $secret_name = "$name-$nm-secret";
         my $data_dir = $$opt{C4DATA_DIR};
         my @volume_mounts = (
-            $secret_volumes_by_name{$secret_name} ? { name => $secret_name, mountPath => "/c4conf" } : (),
+            @{$secret_mounts{$nm}||[]},
             $data_dir ? { name => "db4", mountPath => $data_dir } : (),
         );
         +{
@@ -624,29 +571,31 @@ my $make_kc_yml = sub{
     };
     #
     my @ingress_yml = do{
-        my @items = &$map(\%all,sub{ my($k,$v)=@_;
-            $k=~/^ingress:(.+)$/ ? {host=>$1,port=>$v-0} : ()
-        });
+        my $by_host = &$merge_list({},&$map(\%all,sub{ my($k,$v)=@_;
+            $k=~m{^ingress:([^/]+)(.*)$} ? {$1=>[{path=>$2,port=>$v-0}]} : ()
+        }));
+        my @hosts = &$map($by_host,sub{ my($host,$v)=@_; $host });
         my $disable_tls = 0; #make option when required
         my @annotations = $disable_tls ? () : (annotations=>{
             "cert-manager.io/cluster-issuer" => "letsencrypt-prod",
             "kubernetes.io/ingress.class" => "nginx",
         });
         my @tls = $disable_tls ? () : (tls=>[{
-            hosts => [map{$$_{host}}@items],
+            hosts => \@hosts,
             secretName => "$name-tls",
         }]);
-        my @rules = map{+{
-            host => $$_{host},
+        my @rules = &$map($by_host,sub{ my($host,$v)=@_; +{
+            host => $host,
             http => {
-                paths => [{
+                paths => [map{+{
                     backend => {
                         serviceName => $name,
                         servicePort => $$_{port},
                     },
-                }],
+                    $$_{path} ? (path=>$$_{path}) : (),
+                }}@$v],
             },
-        }} @items;
+        }});
         @rules ? &$to_yml_str({
             apiVersion => "extensions/v1beta1",
             kind => "Ingress",
@@ -658,10 +607,10 @@ my $make_kc_yml = sub{
     my @secrets_yml = map{ &$to_yml_str({
         apiVersion => "v1",
         kind => "Secret",
-        metadata => { name => $$_{name} },
+        metadata => { name => &$mandatory_of(secret=>$_) },
         type => "Opaque",
         data => { map{($_=>syf("base64 -w0 < $tmp_path/$_"))} @{$$_{files}||die} },
-    })} @secrets;
+    })} @int_secrets;
     #
     join("", @secrets_yml, @service_yml, @ingress_yml, $stateful_set_yml);
 };
@@ -783,16 +732,14 @@ my $make_visitor_conf = sub{
 #C4INTERNAL_PORTS => "1080,1443",
 #my $conf = &$to_ini_file([&$frp_web($$conf{proxy_dom}||$run_comp)]);
 
-my $consumer_options = sub{(
+my $all_consumer_options = sub{(
     tty => "true",
     C4MAX_REQUEST_SIZE => "250000000",
-    C4INBOX_TOPIC_PREFIX => "",
-    C4AUTH_KEY_FILE => "/c4conf/simple.auth", #gate does no symlinks
-    C4KEYSTORE_PATH => "/c4conf/main.keystore.jks",
-    C4TRUSTSTORE_PATH => "/c4conf/main.truststore.jks",
     JAVA_TOOL_OPTIONS => "-XX:-UseContainerSupport ", # -XX:ActiveProcessorCount=36
     C4LOGBACK_XML => "/c4conf/logback.xml",
+    C4AUTH_KEY_FILE => "/c4conf/simple.auth", #gate does no symlinks
 )};
+
 # todo secure jmx
 #            JAVA_TOOL_OPTIONS => join(' ',qw(
 #                -Dcom.sun.management.jmxremote.port=9010
@@ -853,10 +800,16 @@ my $need_certs = sub{
 };
 
 my $need_deploy_cert = sub{
-    my($comp,$from_path)=@_;
-    my($dir,$save) = @{&$get_conf_dir()};
-    my $was_no_ca = &$need_certs("$dir/ca/$comp","main",$from_path,"/c4conf");
-    sy($save) if $was_no_ca;
+    my($comp,$from_path,$has_int_broker)=@_;
+    if($has_int_broker){
+        my($dir,$save) = @{&$get_conf_dir()};
+        my $was_no_ca = &$need_certs("$dir/ca/$comp","main",$from_path,"/c4conf");
+        sy($save) if $was_no_ca;
+    } else {
+        my %auth = &$get_auth($comp);
+        my $put = &$rel_put_text($from_path);
+        &$put($_,&$mandatory_of($_=>\%auth)) for "simple.auth";
+    }
 };
 
 my @var_img = (image=>"<var:image:''>");
@@ -870,14 +823,8 @@ my $make_secrets = sub{
     &$put($_,$auth{$_}) for sort keys %auth;
 };
 
-my $gate_ports = sub{
-    my($comp)=@_;
-    my $conf = &$get_compose($comp);
-    my $host = $$conf{host} || $comp;
-    my $external_broker_port = $$conf{broker_port} || 1093;
-    my $external_http_port = $$conf{http_port} || $http_port;
-    ($host,$external_http_port,$external_broker_port);
-};
+my $inner_http_port = 8067;
+my $inner_sse_port = 8068;
 
 my $get_ingress = sub{
     my($comp,$http_port)=@_;
@@ -911,19 +858,50 @@ my $need_logback = sub{
     &$put($_,$auth{$_}||"") for "logback.xml";
 };
 
+my $get_consumer_options = sub{
+    my($comp)=@_;
+    my $conf = &$get_compose($comp);
+    my $prefix = $$conf{C4INBOX_TOPIC_PREFIX};
+    my ($bootstrap_servers) = &$get_deployer_conf($comp,0,qw[bootstrap_servers]);
+    !$prefix && !$bootstrap_servers ? do{
+        my $host = $$conf{host} || $comp;
+        my $external_broker_port = $$conf{broker_port} || 1093;
+        my $external_http_port = $$conf{http_port} || $http_port;
+        (
+            1,
+            &$all_consumer_options(),
+            C4INBOX_TOPIC_PREFIX => "",
+            C4STORE_PASS_PATH => "/c4conf/simple.auth",
+            C4KEYSTORE_PATH => "/c4conf/main.keystore.jks",
+            C4TRUSTSTORE_PATH => "/c4conf/main.truststore.jks",
+            C4BOOTSTRAP_SERVERS => "$host:$external_broker_port",
+            C4HTTP_SERVER => "http://$host:$external_http_port",
+        )
+    } : do{
+        (
+            0,
+            &$all_consumer_options(),
+            C4INBOX_TOPIC_PREFIX => ($prefix||die "no C4INBOX_TOPIC_PREFIX"),
+            C4STORE_PASS_PATH => "/c4conf-kafka-auth/kafka.store.auth",
+            C4KEYSTORE_PATH => "/c4conf-kafka-certs/kafka.keystore.jks",
+            C4TRUSTSTORE_PATH => "/c4conf-kafka-certs/kafka.truststore.jks",
+            C4BOOTSTRAP_SERVERS => ($bootstrap_servers||die "no host bootstrap_servers"),
+            C4HTTP_SERVER => "http://$comp:$inner_http_port",
+        )
+    }
+};
+
 my $up_consumer = sub{
     my($run_comp)=@_;
     my $conf = &$get_compose($run_comp);
     my $gate_comp = $$conf{ca} || die "no ca";
-    my ($server,$external_http_port,$external_broker_port) = &$gate_ports($gate_comp);
+    my ($has_int_broker,%consumer_options) = &$get_consumer_options($gate_comp);
     my $from_path = &$get_tmp_dir();
-    &$need_deploy_cert($gate_comp,$from_path);
+    &$need_deploy_cert($gate_comp,$from_path,$has_int_broker);
     &$make_secrets($run_comp,$from_path);
     &$need_logback($run_comp,$from_path);
     ($run_comp, $from_path, [{
-        @var_img, name => "main", &$consumer_options(),
-        C4HTTP_SERVER => "http://$server:$external_http_port",
-        C4BOOTSTRAP_SERVERS => "$server:$external_broker_port",
+        @var_img, name => "main", %consumer_options,
         @req_big,
         rolling => "/c4",
         %$conf,
@@ -931,12 +909,22 @@ my $up_consumer = sub{
 };
 my $up_gate = sub{
     my($run_comp)=@_;
-    my ($server,$external_http_port,$external_broker_port) = &$gate_ports($run_comp);
+    my ($has_int_broker,%consumer_options) = &$get_consumer_options($run_comp);
+    my %gate_options = (
+        name => "gate",
+        C4DATA_DIR => "/c4db",
+        C4STATE_TOPIC_PREFIX => "gate",
+        C4STATE_REFRESH_SECONDS => 1000,
+        req_mem => "4Gi", req_cpu => "1000m",
+    );
     my $from_path = &$get_tmp_dir();
-    &$need_deploy_cert($run_comp,$from_path);
+    &$need_deploy_cert($run_comp,$from_path,$has_int_broker);
     &$need_logback($run_comp,$from_path);
-    ($run_comp, $from_path, [
-        {
+    my @containers = $has_int_broker ? do{
+        my $external_http_port = $consumer_options{C4HTTP_SERVER}=~/:(\d+)$/ ? $1 : die;
+        my ($broker_server,$external_broker_port) =
+            $consumer_options{C4BOOTSTRAP_SERVERS}=~/^(.+):(\d+)$/ ? ($1,$2) : die;
+        ({
             @var_img, name => "zookeeper", C4DATA_DIR => "/c4db", #UseContainerSupport?
             req_mem => "1Gi", req_cpu => "250m",
         },
@@ -947,18 +935,15 @@ my $up_gate = sub{
             C4KEYSTORE_PATH => "/c4conf/main.keystore.jks",
             C4TRUSTSTORE_PATH => "/c4conf/main.truststore.jks",
             C4SSL_PROPS => "/c4conf/main.properties",
-            C4BOOTSTRAP_EXT_HOST => $server,
+            C4BOOTSTRAP_EXT_HOST => $broker_server,
             C4BOOTSTRAP_EXT_PORT => $external_broker_port, #UseContainerSupport?
             req_mem => "2Gi", req_cpu => "500m",
         },
         {
             @var_img,
-            &$consumer_options(),
-            name => "gate",
-            C4DATA_DIR => "/c4db",
-            C4STATE_TOPIC_PREFIX => "gate",
-            C4STATE_REFRESH_SECONDS => 1000,
-            req_mem => "4Gi", req_cpu => "1000m",
+            %consumer_options,
+            %gate_options,
+            C4BOOTSTRAP_SERVERS => "", #overriden
         },
         {
             @var_img, name => "haproxy",
@@ -967,8 +952,20 @@ my $up_gate = sub{
             "port:$external_http_port:$http_port"=>"",
             &$get_ingress($run_comp,$external_http_port),
             @req_small,
-        },
-    ]);
+        })
+    } : do{
+        my $hostname = &$get_hostname($run_comp) || die "no le_hostname";
+        ({
+            @var_img,
+            %consumer_options,
+            %gate_options,
+            "port:$inner_http_port:$inner_http_port"=>"",
+            "port:$inner_sse_port:$inner_sse_port"=>"",
+            "ingress:$hostname/"=>$inner_http_port,
+            "ingress:$hostname/sse"=>$inner_sse_port,
+        })
+    };
+    ($run_comp, $from_path, \@containers);
 };
 
 my $base_image_steps = sub{(
@@ -1115,7 +1112,7 @@ my $up_desktop = sub{
         {
             image => $img, name => "bloop",
             C4DATA_DIR => "/c4db",
-            JAVA_TOOL_OPTIONS => "-Xmx4g",
+            JAVA_TOOL_OPTIONS => "-Xmx4g -Xss8m",
             @req_big,
         },
     ])
@@ -1167,6 +1164,129 @@ push @tasks, ["restart","$composes_txt",sub{
     sy(&$ssh_add());
     my ($dir) = &$get_deployer_conf($comp,1,qw[dir]);
     sy(&$remote($comp,"cd $dir/$comp && C4FORCE_RECREATE=1 ./up"));
+}];
+
+### snapshot op-s
+
+my $remote_acc  = sub{
+    my($comp,$stm)=@_;
+    my $service = &$find_handler(remote_service=>$comp)->();
+    my $mk_exec = &$find_exec_handler($comp);
+    &$remote($comp,&$mk_exec("",$service,$stm));
+};
+
+my $snapshots_path = "/c4db/snapshots";
+my $list_snapshots = sub{
+    my($comp,$opt)=@_;
+    my $ls = &$remote_acc($comp,"ls $opt $snapshots_path");
+    print "$ls\n";
+    syl($ls);
+};
+
+my $get_sm_binary = sub{
+    my($comp,$from,$to)=@_;
+    &$remote_acc($comp,"cat $from")." > $to";
+};
+
+my $snapshot_name = sub{
+    my($snnm)=@_;
+    my @fn = $snnm=~/^(\w{16})(-\w{8}-\w{4}-\w{4}-\w{4}-\w{12}[-\w]*)\s*$/ ? ($1,$2) : die;
+    my $zero = '0' x length $fn[0];
+    ("$fn[0]$fn[1]","$zero$fn[1]")
+};
+
+my $get_snapshot = sub{
+    my($comp,$snnm,$mk_path)=@_;
+    my($fn,$zfn) = &$snapshot_name($snnm);
+    &$get_sm_binary($comp,"$snapshots_path/$fn",&$mk_path($zfn));
+};
+
+push @tasks, ["list_snapshots", $composes_txt, sub{
+    my($comp)=@_;
+    sy(&$ssh_add());
+    print &$list_snapshots($comp,"-la");
+}];
+
+push @tasks, ["get_snapshot", "$composes_txt <snapshot>", sub{
+    my($comp,$snnm)=@_;
+    sy(&$ssh_add());
+    sy(&$get_snapshot($comp,$snnm,sub{$_[0]}));
+}];
+
+push @tasks, ["get_last_snapshot", $composes_txt, sub{
+    my($comp)=@_;
+    sy(&$ssh_add());
+    my $snnm = (reverse sort &$list_snapshots($comp,""))[0];
+    sy(&$get_snapshot($comp,$snnm,sub{$_[0]}));
+}];
+
+my $put_snapshot = sub{
+    my($auth_path,$data_path,$addr)=@_;
+    my $gen_dir = $ENV{C4PROTO_DIR} || die;
+    my $data_fn = $data_path=~m{([^/]+)$} ? $1 : die "bad file path";
+    -e $auth_path or die "no gate auth";
+    sy("python3","$gen_dir/req.py",$auth_path,$data_path,$addr,"/put-snapshot","/put-snapshot","snapshots/$data_fn");
+};
+
+my $need_auth_path = sub{
+    my($comp)=@_;
+    my ($has_int_broker,%consumer_options) = &$get_consumer_options($comp);
+    my $from_path = &$get_tmp_dir();
+    &$need_deploy_cert($comp,$from_path,$has_int_broker);
+    "$from_path/simple.auth"
+};
+
+push @tasks, ["put_snapshot", "$composes_txt <file_path>", sub{
+    my($comp,$data_path)=@_;
+    sy(&$ssh_add());
+    my $host = &$get_hostname($comp) || die "need le_hostname or domain_zone";
+    &$put_snapshot(&$need_auth_path($comp),$data_path,"https://$host");
+}];
+push @tasks, ["put_snapshot_address", "${composes_txt} <to_address> <file_path> ", sub{
+    my($comp,$address,$data_path)=@_;
+    sy(&$ssh_add());
+    &$put_snapshot(&$need_auth_path($comp),$data_path,$address);
+}];
+push @tasks, ["put_snapshot_local", "<file_path>", sub{
+    my($data_path)=@_;
+    my $data_dir = $ENV{C4DATA_DIR} || die;
+    &$put_snapshot("$data_dir/simple.auth",$data_path,"http://127.0.0.1:$http_port");
+}];
+
+###
+
+push @tasks, ["history","$composes_txt",sub{
+    my($comp)=@_;
+    sy(&$ssh_add());
+    my ($dir) = &$get_deployer_conf($comp,1,qw[dir]);
+    my $history = syf(&$remote($comp,"cat $dir/$comp.args"));
+    my %vars = $history=~/([\w\-\.\:\/]+)/g;
+    print "$history\n".join("",&$map(\%vars,sub{"[$_[0]=$_[1]]\n"}));
+}];
+my $get_comp_from_pod = sub{ $_[0]=~/^(.+)-\d+$/ ? "$1" : die "bad pod name" };
+push @tasks, ["bash","<pod> [container]",sub{ #<replica>
+    my($pod,$service)=@_;
+    sy(&$ssh_add());
+    my $comp = &$get_comp_from_pod($pod);
+    my $ns = &$get_kc_ns($comp);
+    my $service_str = $service ? "-c $service" : "";
+    my $stm = qq[kubectl -n $ns exec -it $pod $service_str -- bash];
+    sy(&$ssh_ctl($comp,"-t",$stm));
+}];
+push @tasks, ["watch","$composes_txt",sub{ #<replica>
+    my($comp)=@_;
+    sy(&$ssh_add());
+    my $ns = &$get_kc_ns($comp);
+    sy(&$ssh_ctl($comp,"-t",qq[watch kubectl -n $ns get po -l app=$comp]));
+}];
+push @tasks, ["log","<pod> [tail] [add]",sub{ #<replica>
+    my($pod,$tail,$add)=@_;
+    sy(&$ssh_add());
+    my $comp = &$get_comp_from_pod($pod);
+    my $ns = &$get_kc_ns($comp);
+    my $tail_or = ($tail+0) || 100;
+    my $stm = qq[kubectl -n $ns log -f $pod --tail $tail_or $add];
+    sy(&$ssh_ctl($comp,"-t",$stm));
 }];
 
 my $nc = sub{
@@ -1266,12 +1386,19 @@ push @tasks, ["ci_inner_build","",sub{
     &$close();
     print "tracking compiler 2\n";
 }];
+my $client_mode_to_opt = sub{
+    my($mode)=@_;
+    $mode eq "fast" ? "--env.fast=true --mode development" :
+    $mode eq "dev" ? "--mode development" :
+    "--mode production";
+};
 my $build_client = sub{
-    my($gen_dir, $mode)=@_;
+    my($gen_dir, $opt)=@_;
+    $gen_dir || die;
     my $dir = "$gen_dir/client";
     my $build_dir = "$dir/build/test";
     unlink or die $! for <$build_dir/*>;
-    sy("cd $dir && node_modules/webpack/bin/webpack.js $mode");# -d
+    sy("cd $dir && node_modules/webpack/bin/webpack.js $opt");# -d
     &$put_text("$build_dir/publish_time",time);
     &$put_text("$build_dir/c4gen.ht.links",join"",
         map{ my $u = m"^/(.+)$"?$1:die; "base_lib.ee.cone.c4gate /$u $u\n" }
@@ -1281,13 +1408,22 @@ my $build_client = sub{
     my $to_dir = "$gen_dir/htdocs";
     $build_dir eq readlink $to_dir or symlink $build_dir, $to_dir or die $!;
 };
+my $if_changed = sub{
+    my($path,$will,$then)=@_;
+    return if (-e $path) && syf("cat $path") eq $will;
+    &$then();
+    &$put_text($path,$will);
+};
 push @tasks, ["build_client","<dir> [mode]",sub{
     my($dir,$mode)=@_;
-    my $mode =
-        $mode eq "fast" ? "--env.fast=true --mode development" :
-        $mode eq "dev" ? "--mode development" :
-        "--mode production";
-    &$build_client(($dir||die), $mode);
+    &$build_client($dir, &$client_mode_to_opt($mode));
+}];
+push @tasks, ["build_client_changed","<dir> [mode]",sub{
+    my($dir,$mode)=@_;
+    $dir || die;
+    &$if_changed("$dir/.bloop/c4/client-sums-compiled",syf("cat $dir/.bloop/c4/client-sums"),sub{
+        &$build_client($dir, &$client_mode_to_opt($mode));
+    });
 }];
 push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
@@ -1329,7 +1465,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
             syf("cat $dir/c4gen.ht.links")=~/(.+)/g;
         my $sync = [map{"$$_[1]\n"} @pub];
         my $links = [map{"$$_[0]\n"}@pub];
-        +{ dir=>$dir, sync=>$sync, links=>$links }
+        @pub ? +{ dir=>$dir, sync=>$sync, links=>$links } : ()
     } grep{-e $_} "$gen_dir/htdocs", @main_public_path;
     for my $part(@public_part){
         my $from_dir = $$part{dir} || die;
@@ -1442,8 +1578,9 @@ push @tasks, ["visit-frp_client", "", sub{
     my $conf = &$get_compose($comp);
     my $gate_comp = $$conf{ca};
     my @http_client = !$gate_comp ? () : do{
-        my ($server,$external_http_port,$external_broker_port) = &$gate_ports($gate_comp);
-        ([http=>$external_http_port,$server])
+        my ($has_int_broker,%consumer_options) = &$get_consumer_options($gate_comp);
+        $has_int_broker or warn "sse will not be multiplexed";
+        $consumer_options{C4HTTP_SERVER}=~m{^(http)://(.+):(\d+)$} ? [$1,$3,$2] : die;
     };
     my @connects = &$map($conf,sub{ my($k,$v)=@_;
         $k=~/^frpc:(\w+)$/ ? ["$1",$v=~/^(.+):(\d+)$/?($2,$1):die] : ()
@@ -1760,36 +1897,61 @@ push @tasks, ["cert","$composes_txt <hostname>",sub{
 ####
 
 my $tp_split = sub{ "$_[0]\n\n"=~/(.*?\n\n)/gs };
-
+my $sleep = sub{ select undef, undef, undef, $_[0] };
 my $tp_run = sub{
-    my($pkg,$wrap)=@_;
+    my($wrap)=@_;
     my $cmd = &$wrap("jcmd");
-    my @pid = map{/^(\d+)\s+(\S+)/ && index($2, $pkg)==0?"$1":()} syl($cmd);
-    my $pid = $pid[0] || return;
-    while(1){
-        select undef, undef, undef, 0.25;
-        print grep{ !/\.epollWait\(/ && /\sat\s/ } &$tp_split(syf(&$wrap("jcmd $pid Thread.print")));
-    }
+    my $get_pids = sub{
+        sort{$b<=>$a} map{/^(\d+)\s+(ee\.cone\.\S+)/  ?"$1":()} syl($cmd);
+    };
+    my $prn = sub{
+        my @pid = @_;
+        my $p_cmd = &$wrap(join " && ", map{"jcmd $_ Thread.print"} @pid);
+        while(1){
+            &$sleep(0.25);
+            print grep{ !/\.epollWait\(/ && /\sat\s/ } &$tp_split(syf($p_cmd));
+        }
+    };
+    ($get_pids,$prn);
 };
-
-push @tasks, ["thread_print_local","<package>",sub{
-    my($pkg)=@_;
-    &$tp_run($pkg,sub{"$_[0]"});
+push @tasks, ["thread_print_local_next"," ",sub{
+    my($get_pids,$prn) = &$tp_run(sub{"$_[0]"});
+    my %was = map{($_=>1)} &$get_pids();
+    my $wait_next = sub{
+        while(1){
+            &$sleep(0.25);
+            $was{$_} or return $_ for &$get_pids();
+        }
+    };
+    my $pid = &$wait_next();
+    &$prn($pid);
 }];
-push @tasks, ["thread_print","$composes_txt-<service> <package>",sub{
-    my($app,$pkg)=@_;
+push @tasks, ["thread_print_local_max"," ",sub{
+    my($get_pids,$prn) = &$tp_run(sub{"$_[0]"});
+    my @pid = &$get_pids();
+    @pid || return;
+    &$prn($pid[0]);
+}];
+push @tasks, ["thread_print","$composes_txt-<service>",sub{
+    my($app)=@_;
     sy(&$ssh_add());
     my($comp,$service) = &$split_app($app);
     my $mk_exec = &$find_exec_handler($comp);
-    &$tp_run($pkg,sub{ my($cmd)=@_; &$remote($comp,&$mk_exec("",$service,$cmd)) });#/RUNNABLE/
+    my($get_pids,$prn) = &$tp_run(sub{ my($cmd)=@_; &$remote($comp,&$mk_exec("",$service,$cmd)) });#/RUNNABLE/
+    my @pid = &$get_pids();
+    @pid || return;
+    &$prn(@pid);
 }];
 push @tasks, ["thread_grep_cut","<substring>",sub{
     my($v)=@_;
     print map{ my $i = index $_,$v; $i<0?():substr($_,0,$i)."\n\n" } &$tp_split(join '',<STDIN>);
 }];
-push @tasks, ["thread_grep_not","<substring>",sub{
-    my($v)=@_;
-    print grep{ 0 > index $_,$v } &$tp_split(join '',<STDIN>);
+push @tasks, ["thread_grep_sub","<expression>",sub{
+    my($body)=@_;
+    my $expr = q^sub{ my $at0=/(.*\bat\b.*)/?$1:''; ^.$body.q^}^;
+    my $by = eval $expr;
+    die "$@ -- $expr" if $@;
+    print grep{&$by} &$tp_split(join '',<STDIN>);
 }];
 push @tasks, ["thread_count"," ",sub{
     my @r = grep{/\S/} &$tp_split(join '',<STDIN>);
@@ -1802,6 +1964,12 @@ push @tasks, ["repl","$composes_txt-<service>",sub{
     my($comp,$service) = &$split_app($app);
     my $mk_exec = &$find_exec_handler($comp);
     sy(&$ssh_ctl($comp,'-t',&$mk_exec("-it",$service,"test -e /c4/.ssh/id_rsa || ssh-keygen;ssh localhost -p22222")));
+}];
+push @tasks, ["greys_local","<pid>",sub{
+    my($pid)=@_;
+    $pid || die;
+    -e "$ENV{HOME}/.greys" or sy("cd /tools/greys && bash ./install-local.sh");
+    sy("/tools/greys/greys.sh $pid");
 }];
 push @tasks, ["greys","$composes_txt-<service>",sub{
     my($app)=@_;

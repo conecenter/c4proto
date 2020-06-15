@@ -58,13 +58,15 @@ object GZipTest {
 
 case class DeflaterCompressor(level: Int = 1) extends DeCompressor with Compressor with RawCompressor {
 
+  private def ignoreTheSameBuffer(value: Buffer): Unit = ()
+
   @tailrec
   private def readAgain(in: InflaterInputStream, sink: Buffer, offset: Int = 0): Unit = {
     val size = 32000000
     val byteArray = new Array[Byte](size)
     val read = in.read(byteArray)
     if (read >= 0) {
-      sink.write(byteArray, 0, read)
+      ignoreTheSameBuffer(sink.write(byteArray, 0, read))
       readAgain(in, sink, offset + read)
     }
   }

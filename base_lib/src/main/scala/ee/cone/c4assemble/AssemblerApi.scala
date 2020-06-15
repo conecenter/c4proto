@@ -28,7 +28,7 @@ object ToPrimaryKey {
 
 trait WorldPartRule
 
-class OriginalWorldPart[A<:Object](val outputWorldKey: AssembledKey) extends WorldPartRule with DataDependencyTo[A]
+class OriginalWorldPart[A<:Object](val outputWorldKeys: Seq[AssembledKey]) extends WorldPartRule with DataDependencyTo[A]
 
 trait Replace {
   def active: List[WorldPartRule]
@@ -49,10 +49,11 @@ trait ByPriority {
 ////
 // moment -> mod/index -> key/srcId -> value -> count
 
-class IndexUpdate(val diff: Index, val result: Index, val log: ProfilingLog)
+class IndexUpdates(val diffs: Seq[Index], val results: Seq[Index], val log: ProfilingLog)
 
 trait IndexUpdater {
-  def setPart(worldKey: AssembledKey, update: Future[IndexUpdate], logTask: Boolean): WorldTransition=>WorldTransition
+  def setPart(worldKeys: Seq[AssembledKey], update: Future[IndexUpdates], logTask: Boolean): WorldTransition=>WorldTransition
+  //def setPart(worldKey: AssembledKey, update: Future[IndexUpdate], logTask: Boolean): WorldTransition=>WorldTransition
 }
 
 trait AssembleSeqOptimizer {

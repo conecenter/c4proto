@@ -19,10 +19,11 @@ trait CurrentTimeHandlerAppBase extends CurrentTimeConfigApp with ProtoApp {
   override def currentTimeConfig: List[CurrentTimeConfig] = CurrentTimeConfig(CurrentTimeRequestAssembleTimeId.id, 10L) :: super.currentTimeConfig
 }
 
-@c4multi("CurrentTimeApp") case class CurrentTimeTransform(
+@c4multi("CurrentTimeApp") final case class CurrentTimeTransform(
   srcId: SrcId, refreshRateSeconds: Long
 )(
   getS_CurrentTimeNode: GetByPK[S_CurrentTimeNode],
+  txAdd: LTxAdd,
 ) extends TxTransform {
   private val refreshMilli = refreshRateSeconds * 1000L
   private val random: SecureRandom = new SecureRandom()
@@ -37,10 +38,10 @@ trait CurrentTimeHandlerAppBase extends CurrentTimeConfigApp with ProtoApp {
     prev match {
       case Some(currentTimeNode) if currentTimeNode.currentTimeMilli + getOffset < nowMilli =>
         val nowSeconds = now.getEpochSecond
-        TxAdd(LEvent.update(currentTimeNode.copy(currentTimeSeconds = nowSeconds, currentTimeMilli = nowMilli)))(newLocal)
+        txAdd.add(LEvent.update(currentTimeNode.copy(currentTimeSeconds = nowSeconds, currentTimeMilli = nowMilli)))(newLocal)
       case None =>
         val nowSeconds = now.getEpochSecond
-        TxAdd(LEvent.update(S_CurrentTimeNode(srcId, nowSeconds, nowMilli)))(newLocal)
+        txAdd.add(LEvent.update(S_CurrentTimeNode(srcId, nowSeconds, nowMilli)))(newLocal)
       case _ => l
     }
   }
@@ -72,7 +73,7 @@ trait CurrentTimeConfigApp extends ComponentsApp {
 
 trait CurrentTimeAppBase extends CurrentTimeConfigApp
 
-@c4("CurrentTimeApp") class CurrentTimeAssembles(
+@c4("CurrentTimeApp") final class CurrentTimeAssembles(
   currentTimeConfig: List[CurrentTimeConfig],
   currentTimeAssembleFactory: CurrentTimeAssembleFactory
 ) {

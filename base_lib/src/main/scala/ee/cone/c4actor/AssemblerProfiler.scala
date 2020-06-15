@@ -3,6 +3,7 @@ package ee.cone.c4actor
 import java.util.UUID
 
 import com.typesafe.scalalogging.LazyLogging
+import ee.cone.c4actor.NoJoiningProfiling.Res
 import ee.cone.c4actor.QProtocol.{N_TxRef, N_Update}
 import ee.cone.c4actor.SimpleAssembleProfilerProtocol.{D_LogEntry, D_TxAddMeta}
 import ee.cone.c4assemble.Types.DPIterable
@@ -14,7 +15,7 @@ import ee.cone.c4proto.{Id, protocol}
 import scala.collection.immutable.Seq
 import scala.concurrent.{ExecutionContext, Future}
 
-@c4("NoAssembleProfilerCompApp") class NoAssembleProfilerProvider {
+@c4("NoAssembleProfilerCompApp") final class NoAssembleProfilerProvider {
   @provide def get: Seq[AssembleProfiler] = List(NoAssembleProfiler)
 }
 
@@ -27,7 +28,8 @@ case object NoAssembleProfiler extends AssembleProfiler {
 
 case object NoJoiningProfiling extends JoiningProfiling {
   def time: Long = 0L
-  def handle(join: Join, stage: Long, start: Long, joinRes: Res, wasLog: ProfilingLog): ProfilingLog = Nil
+  def handle(join: Join, result: Seq[AggrDOut], wasLog: ProfilingLog): ProfilingLog = wasLog
+  def handle(join: Join, stage: Res, start: Res, wasLog: ProfilingLog): ProfilingLog = wasLog
 }
 
 ////
@@ -49,7 +51,7 @@ case object NoJoiningProfiling extends JoiningProfiling {
   )
 }
 
-@c4("SimpleAssembleProfilerCompApp") case class SimpleAssembleProfiler(idGenUtil: IdGenUtil)(toUpdate: ToUpdate) extends AssembleProfiler {
+@c4("SimpleAssembleProfilerCompApp") final case class SimpleAssembleProfiler(idGenUtil: IdGenUtil)(toUpdate: ToUpdate) extends AssembleProfiler {
   def createJoiningProfiling(localOpt: Option[Context]) =
     if(localOpt.isEmpty) SimpleConsoleSerialJoiningProfiling
     else SimpleSerialJoiningProfiling(System.nanoTime)
@@ -79,18 +81,20 @@ case object NoJoiningProfiling extends JoiningProfiling {
 
 case class SimpleSerialJoiningProfiling(startedAt: Long) extends JoiningProfiling {
   def time: Long = System.nanoTime
-  def handle(join: Join, stage: Long, start: Long, joinRes: Res, wasLog: ProfilingLog): ProfilingLog = {
+  def handle(join: Join, stage: Long, start: Long, wasLog: ProfilingLog): ProfilingLog = {
     val period = (System.nanoTime - start) / 1000
     D_LogEntry(join.name,stage,period) :: wasLog
   }
+  def handle(join: Join, result: Seq[AggrDOut], wasLog: ProfilingLog): ProfilingLog = wasLog
 }
 
 case object SimpleConsoleSerialJoiningProfiling extends JoiningProfiling with LazyLogging {
   def time: Long = System.nanoTime
-  def handle(join: Join, stage: Long, start: Long, joinRes: Res, wasLog: ProfilingLog): ProfilingLog = {
+  def handle(join: Join, stage: Long, start: Long, wasLog: ProfilingLog): ProfilingLog = {
     val period = (System.nanoTime - start) / 1000000
     if(period > 50)
       logger.debug(s"$period ms for ${join.name}-$stage") // "${joinRes.size} items"
     wasLog
   }
+  def handle(join: Join, result: Seq[AggrDOut], wasLog: ProfilingLog): ProfilingLog = wasLog
 }

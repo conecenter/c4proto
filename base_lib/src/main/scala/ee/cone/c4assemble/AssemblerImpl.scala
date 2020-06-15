@@ -8,8 +8,9 @@ import ee.cone.c4assemble.IndexTypes.{DMultiSet, InnerIndex, InnerKey, Products}
 import ee.cone.c4assemble.Merge.Compose
 import ee.cone.c4di.{c4, c4multi}
 
-import scala.collection.immutable
+import scala.collection.{immutable, mutable}
 import scala.collection.immutable.{Map, Seq, TreeMap}
+import scala.util.{Failure, Success}
 //import scala.collection.parallel.immutable.ParVector
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -24,7 +25,7 @@ case class DValuesImpl(asMultiSet: DMultiSet, warning: String) extends Values[Pr
   override def isEmpty: Boolean = asMultiSet.isEmpty //optim
 }
 
-class IndexImpl(val data: InnerIndex) extends Index {
+final  class IndexImpl(val data: InnerIndex) extends Index {
   override def toString: String = s"IndexImpl($data)"
 }
 
@@ -49,14 +50,11 @@ object IndexUtilImpl {
       distinct.head.item
     }
 
-  def toOrdered(inner: Compose[DMultiSet]): Compose[DMultiSet] = { // Ordering.by can drop keys!: https://github.com/scala/bug/issues/8674
-    (a, b) => {
-      val res = inner(a, b)
-      val tRes = if(res.size > 1 && !res.isInstanceOf[TreeMap[_, _]])
-        TreeMap.empty[InnerKey,Products] ++ res else res
-      tRes
-    }
-  }
+  def toOrdered(inner: Compose[DMultiSet]): Compose[DMultiSet] =  // Ordering.by can drop keys!: https://github.com/scala/bug/issues/8674
+    (a, b) => toOrdered(inner(a, b))
+  def toOrdered(res: DMultiSet): DMultiSet =
+    if(res.size > 1 && !res.isInstanceOf[TreeMap[_, _]])
+    TreeMap.empty[InnerKey,Products] ++ res else res
 
   def inverse(a: Count): Count = a.copy(count = -a.count)
 
@@ -72,6 +70,9 @@ object IndexUtilImpl {
   def mergeProducts(aList: Products, bList: Products): Products =
     if(aList.isEmpty) bList
     else mergeProducts(aList.tail, mergeProduct(aList.head, bList))
+
+  def makeIndex(data: InnerIndex): Index =
+    if(data.isEmpty) emptyIndex else new IndexImpl(data)
 }
 
 case class JoinKeyImpl(
@@ -82,8 +83,15 @@ case class JoinKeyImpl(
   def withWas(was: Boolean): JoinKey = copy(was=was)
 }
 
-@c4("AssembleApp") case class IndexUtilImpl()(
-  val nonEmptySeq: Seq[Unit] = Seq(()),
+final case class ParallelExecution(power: Int) {
+  val parallelPartCount: Int = 1 << power
+  def keyToPartPos(elem: Any): Int = elem.hashCode & (parallelPartCount-1)
+  private val parallelRange = (0 until parallelPartCount).toVector
+  def execute[T](f: Int=>T)(implicit ec: ExecutionContext): Future[Vector[T]] =
+    Future.sequence(parallelRange.map(partId=>Future(f(partId))))
+}
+
+@c4("AssembleApp") final case class IndexUtilImpl()(
   mergeIndexInner: Compose[InnerIndex] =
     Merge[Any,DMultiSet](v=>v.isEmpty,
       IndexUtilImpl.toOrdered(
@@ -94,10 +102,6 @@ case class JoinKeyImpl(
 
   def joinKey(was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String): JoinKey =
     JoinKeyImpl(was,keyAlias,keyClassName,valueClassName)
-
-  def makeIndex(data: InnerIndex/*, opt: IndexOpt*/): Index =
-    if(data.isEmpty) emptyIndex else new IndexImpl(data)
-
 
   def data(index: Index): InnerIndex = index match {
     case i: IndexImpl => i.data
@@ -126,71 +130,175 @@ case class JoinKeyImpl(
 
   def mergeIndex(l: DPIterable[Index]): Index = {
     val res =
-      makeIndex(l.map(data).foldLeft(Map.empty: InnerIndex)(mergeIndexInner))
+      IndexUtilImpl.makeIndex(l.map(data).foldLeft(Map.empty: InnerIndex)(mergeIndexInner))
     res
+  }
+
+  def zipMergeIndex(aDiffs: Seq[Index])(bDiffs: Seq[Index]): Seq[Index] = {
+    assert(aDiffs.size == bDiffs.size)
+    (aDiffs zip bDiffs).map{ case (a,b) => mergeIndex(Seq(a, b)) }
   }
 
   def emptyMS: DMultiSet = Map.empty
 
-  def removingDiff(index: Index, key: Any): Index = getMS(index,key).fold(emptyIndex){
-    values => makeIndex(Map(key->values.transform((k,v)=> v.map(IndexUtilImpl.inverse)))/*, index match { case i: IndexImpl => i.opt }*/)
+  def removingDiff(index: Index, keys: Iterable[Any]): Index = {
+    val pairs = for {
+      key <- keys
+      values <- getMS(index,key)
+    } yield key->values.transform((k,v)=> v.map(IndexUtilImpl.inverse))
+    IndexUtilImpl.makeIndex(pairs.toMap)
   }
 
-  def result(key: Any, product: Product, count: Int): Index =
-    makeIndex(Map(key->Map((ToPrimaryKey(product),product.hashCode)->(Count(product,count)::Nil)))/*, opt*/)
-
-  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Partitioning = {
-    getMS(currentIndex,key).fold(Nil:Partitioning){currentValues =>
+  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): List[MultiForPart] = {
+    getMS(currentIndex,key).fold(Nil:List[MultiForPart]){currentValues =>
       val diffValues = getMS(diffIndex,key).getOrElse(emptyMS)
-      val changed = mayBeParProd(for {
-        (k,v) <- diffValues; values <- currentValues.get(k)
-      } yield IndexUtilImpl.single(values,warning))
-      lazy val unchanged = mayBeParProd(for {
-        (k,values) <- currentValues if !diffValues.contains(k)
-      } yield IndexUtilImpl.single(values,warning))
-      val unchangedRes = (false,()=>unchanged) :: Nil
-      if(changed.nonEmpty) (true,()=>changed) :: unchangedRes else unchangedRes
+      if(currentValues eq diffValues){
+        val changed = (for {
+          (k,values) <- currentValues
+        } yield IndexUtilImpl.single(values,warning)).toList
+        new ChangedMultiForPart(changed) :: Nil
+      } else {
+        val changed = (for {
+          (k,v) <- diffValues; values <- currentValues.get(k)
+        } yield IndexUtilImpl.single(values,warning)).toList
+        val unchanged: ()=>List[Product] = ()=>(for {
+          (k,values) <- currentValues if !diffValues.contains(k)
+        } yield IndexUtilImpl.single(values,warning)).toList
+        val unchangedRes = new UnchangedMultiForPart(unchanged) :: Nil
+        if(changed.nonEmpty) new ChangedMultiForPart(changed) :: unchangedRes else unchangedRes
+      }
     }
   }
 
-  // def isParallel(options: AssembleOptions): Boolean = options.isParallel
+  def mayBePar[V](seq: immutable.Seq[V]): DPIterable[V] = seq
 
-  def mayBeParVector[V](iterable: immutable.Set[V], options: AssembleOptions): DPIterable[V] =
-    /*if(isParallel(options)) iterable.to[ParVector] else*/ iterable
-
-  def mayBeParProd[V](iterable: Iterable[Product]): DPIterable[Product] =
-    /*if(isParallel(options)) iterable.par else*/ iterable
-  def mayBePar[V](iterable: immutable.Seq[V], options: AssembleOptions): Seq[V] =
-    /*if(isParallel(options)) iterable.par else*/ iterable
-
-  def mayBePar[V](seq: immutable.Seq[V]): DPIterable[V] = seq match {
-    case s: DValuesImpl => /*if(isParallel(s.options)) s.par else*/ s
-    case s if s.isEmpty => s
+  def aggregate(values: Iterable[DOut]): AggrDOut = {
+    val setup = IndexBuildSetup(1)
+    val buffer = setup.createBuffer()
+    buffer.add(values)
+    buffer.result
   }
-
-  // mapDiv cpuCount
-  def preIndex(seq: Seq[Index]): Index = new PreIndex(seq,seq.map{ case p: PreIndex => p.size case _ => 1 }.sum)
-  def keyIteration(seq: Seq[Index], executionContext: OuterExecutionContext): (Any=>Seq[Index])=>Future[Index] = {
-    implicit val ec: ExecutionContext = executionContext.value
-    val ids = seq.foldLeft(Set.empty[Any])((st,index)=>st ++ data(index).keySet).toVector
-    val groupSize = ids.size / Math.toIntExact(executionContext.threadCount)+1
-    val groups: Seq[Seq[Any]] = ids.grouped(groupSize).toVector
-    f => Future.sequence(groups.map(part=>Future(preIndex(part.map(f).map(preIndex))))).map(preIndex)
+  def keyIteration(seq: Seq[Index]): KeyIteration    = {
+    val parallelExecution = ParallelExecution(5) //32
+    val buffer = new MutableGroupingBufferImpl[Any](parallelExecution.parallelPartCount)
+    seq.foreach(index=>data(index).keySet.foreach(key=>buffer.add(parallelExecution.keyToPartPos(key),key)))
+    val groups = buffer.toVector.map(_.distinct)
+    new KeyIterationImpl(parallelExecution, groups)
   }
-  //
-  def buildIndex(joinRes: Index): Index = joinRes match {
-    case p: PreIndex => mergeIndex(p.inner.map(buildIndex))
-    case i => i
+  def buildIndex(data: Seq[AggrDOut])(implicit ec: ExecutionContext): Seq[Future[Index]] = {
+    assert(data.nonEmpty)
+    val dataI = data.asInstanceOf[Seq[AggrDOutImpl]]
+    val setup = Single(dataI.map(_.setup).distinct)
+    (0 until setup.outCount).map{ outPos =>
+      setup.parallelExecution.execute{ partPos =>
+        val index: mutable.Map[Any,DMultiSet] = mutable.Map()
+        dataI.foreach{ aggr =>
+          aggr.byOutThenTarget(setup.bufferPos(outPos, partPos)).foreach{ rec =>
+            val key = rec.key
+            val mKey = rec.mKey
+            val wasValues = index.getOrElse(key,Map.empty)
+            val wasCounts = wasValues.getOrElse(mKey,Nil)
+            val counts = IndexUtilImpl.mergeProduct(rec.count,wasCounts)
+            val values: DMultiSet = IndexUtilImpl.toOrdered(if(counts.nonEmpty) wasValues.updated(mKey,counts) else wasValues.removed(mKey))
+            if(values.nonEmpty) index(key) = values else assert(index.remove(key).nonEmpty)
+          }
+        }
+        index.toMap
+      }.map{ pRes: Seq[InnerIndex] =>
+        IndexUtilImpl.makeIndex(pRes.reduce((a,b)=>a++b))
+      }
+    }
+  }
+  def countResults(data: Seq[AggrDOut]): ProfilingCounts =
+    data.asInstanceOf[Seq[AggrDOutImpl]]
+      .foldLeft(ProfilingCounts(0L,0L))((res,aggr) => res.copy(
+        callCount = res.callCount + aggr.profilingCounts.callCount,
+        resultCount = res.resultCount + aggr.profilingCounts.resultCount,
+      ))
+
+  def createOutFactory(pos: Int, dir: Int): OutFactory[Any, Product] =
+    new OutFactoryImpl(pos,dir)
+
+  @SuppressWarnings(Array("org.wartremover.warts.TryPartial")) def getInstantly(future: Future[Index]): Index = future.value.get.get
+}
+
+final class ChangedMultiForPart(val items: List[Product]) extends MultiForPart {
+  def isChanged: Boolean = true
+}
+final class UnchangedMultiForPart(getItems: ()=>List[Product]) extends MultiForPart {
+  def isChanged: Boolean = true
+  lazy val items: List[Product] = getItems()
+}
+
+final class MutableGroupingBufferImpl[T](count: Int) {
+  private val buffers: Array[List[T]] = Array.fill(count)(Nil)
+  def add(pos: Int, value: T): Unit = { buffers(pos) = value :: buffers(pos) }
+  def toVector: Vector[Seq[T]] = buffers.toVector
+}
+
+/*
+final class MutableGroupingBufferImpl[T](count: Int) {
+  private val buffers = Vector.fill(count)(new mutable.ArrayBuffer[T])
+  def add(pos: Int, value: T): Unit = { val _ = buffers(pos).addOne(value) }
+  def toVector: Vector[Vector[T]] = buffers.map(_.toVector)
+}
+*/
+
+final case class IndexBuildSetup(outCount: Int){
+  val parallelExecution: ParallelExecution = ParallelExecution(2)
+  def bufferCount: Int = outCount * parallelExecution.parallelPartCount
+  def bufferPos(outPos: Int, key: Any): Int = outPos * parallelExecution.parallelPartCount + parallelExecution.keyToPartPos(key)
+  def createBuffer(): DOutAggregationBuffer = new DOutAggregationBuffer(this)
+}
+final class AggrDOutImpl(val setup: IndexBuildSetup, val byOutThenTarget: Vector[Seq[DOutImpl]], val profilingCounts: ProfilingCounts) extends AggrDOut
+final class DOutAggregationBuffer(setup: IndexBuildSetup) extends MutableDOutBuffer {
+  private val inner = new MutableGroupingBufferImpl[DOutImpl](setup.bufferCount)
+  private val callCounter = Array[Long](0L,0L)
+  private val addOne: DOut=>Unit = { case v: DOutImpl =>
+    inner.add(setup.bufferPos(v.pos,v.key), v)
+    callCounter(1) += 1
+  }
+  def add(values: Iterable[DOut]): Unit = {
+    callCounter(0) += 1
+    values.foreach(addOne)
+  }
+  def add[K,V<:Product](outFactory: OutFactory[K,V], values: Seq[(K,V)]): Unit = {
+    callCounter(0) += 1
+    values.foreach(pair => addOne(outFactory.result(pair)))
+  }
+  def result: AggrDOutImpl = new AggrDOutImpl(setup, inner.toVector, ProfilingCounts(callCounter(0),callCounter(1)))
+}
+//final class DOutAggregation(){
+//
+//  def createBuffer() = new DOutAggregationBuffer
+//}
+
+
+final class KeyIterationImpl(parallelExecution: ParallelExecution, parts: Vector[Seq[Any]]) extends KeyIteration {
+  def execute(inner: KeyIterationHandler)(implicit ec: ExecutionContext): Future[Seq[AggrDOut]] = {
+    val setup = IndexBuildSetup(inner.outCount)
+    parallelExecution.execute{ partId =>
+      val buffer = setup.createBuffer()
+      parts(partId).foreach(key=>inner.handle(key,buffer))
+      buffer.result
+    }
   }
 }
 
-class PreIndex(val inner: Seq[Index], val size: Long) extends Index {
-  override def toString: String = s"IndexImpl($inner)"
+// makeIndex(Map(key->Map((ToPrimaryKey(product),product.hashCode)->(Count(product,count)::Nil)))/*, opt*/)
+final class DOutImpl(val pos: Int, val key: Any, val mKey: InnerKey, val count: Count) extends DOut
+final class OutFactoryImpl(pos: Int, dir: Int) extends OutFactory[Any, Product] {
+  def result(key: Any, value: Product): DOut =
+    new DOutImpl(pos,key,(ToPrimaryKey(value),value.hashCode),Count(value,dir))
+  def result(pair: (Any, Product)): DOut = {
+    val (k,v) = pair
+    result(k,v)
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-@c4("AssembleApp") class IndexFactoryImpl(
+@c4("AssembleApp") final class IndexFactoryImpl(
   val util: IndexUtil, factory: JoinMapIndexFactory
 ) extends IndexFactory {
   def createJoinMapIndex(join: Join):
@@ -205,7 +313,7 @@ trait ParallelAssembleStrategy {
 
 }*/
 
-@c4multi("AssembleApp") class JoinMapIndex(join: Join)(
+@c4multi("AssembleApp") final class JoinMapIndex(join: Join)(
   updater: IndexUpdater,
   composes: IndexUtil
 ) extends WorldPartExpression
@@ -215,9 +323,9 @@ trait ParallelAssembleStrategy {
   def assembleName = join.assembleName
   def name = join.name
   def inputWorldKeys: Seq[AssembledKey] = join.inputWorldKeys
-  def outputWorldKey: AssembledKey = join.outputWorldKey
+  def outputWorldKeys: Seq[AssembledKey] = join.outputWorldKeys
 
-  override def toString: String = s"${super.toString} \n($assembleName,$name,\nInput keys:\n${inputWorldKeys.mkString("\t\n")},\nOutput key:$outputWorldKey)"
+  override def toString: String = s"${super.toString} \n($assembleName,$name,\nInput keys:\n${inputWorldKeys.mkString("\t\n")},\nOutput keys:$outputWorldKeys)"
 
   def transform(transition: WorldTransition): WorldTransition = {
     val worldDiffOpts: Seq[Option[Future[Index]]] = inputWorldKeys.map(transition.diff.getFuture)
@@ -226,42 +334,38 @@ trait ParallelAssembleStrategy {
   }
   def doTransform(transition: WorldTransition, worldDiffOpts: Seq[Option[Future[Index]]]): WorldTransition = {
     implicit val executionContext: ExecutionContext = transition.executionContext.value
-    val next: Future[IndexUpdate] = for {
+    def getNoUpdates(log: ProfilingLog): Future[IndexUpdates] = for {
+      outputDiffs <- Future.sequence(outputWorldKeys.map(_.of(transition.diff)))
+      outputResults <- Future.sequence(outputWorldKeys.map(_.of(transition.result)))
+    } yield new IndexUpdates(outputDiffs,outputResults,log)
+    val next: Future[IndexUpdates] = for {
       worldDiffs <- Future.sequence(worldDiffOpts.map(OrEmptyIndex(_)))
       res <- {
-        if (worldDiffs.forall(composes.isEmpty)) for {
-          outputDiff <- outputWorldKey.of(transition.diff)
-          outputData <- outputWorldKey.of(transition.result)
-        } yield new IndexUpdate(outputDiff,outputData,Nil)
+        if (worldDiffs.forall(composes.isEmpty)) getNoUpdates(Nil)
         else for {
           prevInputs <- Future.sequence(inputWorldKeys.map(_.of(transition.prev.get.result)))
           inputs <- Future.sequence(inputWorldKeys.map(_.of(transition.result)))
           profiler = transition.profiling
           calcStart = profiler.time
           runJoin = join.joins(worldDiffs, transition.executionContext)
-          joinResSeq <- Future.sequence(Seq(runJoin(-1,prevInputs), runJoin(+1,inputs)))
-          joinRes = composes.preIndex(joinResSeq)
-          joinResSize = joinRes match { case p: PreIndex => p.size case _ => 0 }
-          calcLog = profiler.handle(join, 0L, calcStart, joinResSize, Nil)
+          joinResSeq <- Future.sequence(Seq(runJoin.dirJoin(-1,prevInputs), runJoin.dirJoin(+1,inputs)))
+          joinRes = joinResSeq.flatten
+          calcLog = profiler.handle(join, 0L, calcStart, Nil)
+          countLog = profiler.handle(join, joinRes, calcLog)
           findChangesStart = profiler.time
-          indexDiff = composes.buildIndex(joinRes)
-          findChangesLog = profiler.handle(join, 1L, findChangesStart, joinResSize, calcLog)
-          outputDiff <- outputWorldKey.of(transition.diff)
-          outputData <- outputWorldKey.of(transition.result)
+          indexDiffs <- Future.sequence(composes.buildIndex(joinRes))
+          findChangesLog = profiler.handle(join, 1L, findChangesStart, countLog)
+          noUpdates <- getNoUpdates(findChangesLog)
         } yield {
-          if(composes.isEmpty(indexDiff))
-            new IndexUpdate(outputDiff,outputData,findChangesLog)
-          else {
-            val patchStart = profiler.time
-            val nextDiff = composes.mergeIndex(Seq(outputDiff, indexDiff))
-            val nextResult = composes.mergeIndex(Seq(outputData, indexDiff))
-            val patchLog = profiler.handle(join, 2L, patchStart, joinResSize, findChangesLog)
-            new IndexUpdate(nextDiff,nextResult,patchLog)
-          }
+          val patchStart = profiler.time
+          val diffs = composes.zipMergeIndex(noUpdates.diffs)(indexDiffs)
+          val results = composes.zipMergeIndex(noUpdates.results)(indexDiffs)
+          val patchLog = profiler.handle(join, 2L, patchStart, findChangesLog)
+          new IndexUpdates(diffs, results, patchLog)
         }
       }
     } yield res
-    updater.setPart(outputWorldKey,next,logTask = true)(transition)
+    updater.setPart(outputWorldKeys,next,logTask = true)(transition)
   }
 }
 
@@ -358,15 +462,20 @@ class DebugJoinMapIndex(
 }
 */
 
-@c4("AssembleApp") class TreeAssemblerImpl(
+class FailedRule(val message: List[String]) extends WorldPartRule
+
+@c4("AssembleApp") final class TreeAssemblerImpl(
   byPriority: ByPriority, expressionsDumpers: List[ExpressionsDumper[Unit]],
   optimizer: AssembleSeqOptimizer, backStageFactory: BackStageFactory,
   replaceImplFactory: ReplaceImplFactory
 ) extends TreeAssembler {
   def create(rules: List[WorldPartRule], isTarget: WorldPartRule=>Boolean): Replace = {
     type RuleByOutput = Map[AssembledKey, Seq[WorldPartRule]]
-    val uses: RuleByOutput =
-        rules.collect{ case e: DataDependencyTo[_] => e }.groupBy(_.outputWorldKey)
+    val uses: RuleByOutput = (for{
+      e <- rules.collect{ case e: DataDependencyTo[_] => e }
+      outputWorldKey <- e.outputWorldKeys
+    } yield outputWorldKey -> e).groupMap(_._1)(_._2)
+    // rules.collect{ case e: DataDependencyTo[_] => e }.flatMap().groupBy(_.outputWorldKey)
     for {
       (key,rules) <- uses
       _:OriginalWorldPart[_] <- rules
@@ -378,15 +487,21 @@ class DebugJoinMapIndex(
         inKey <- join.inputWorldKeys
         k <- uses.getOrElse(inKey,inKey match {
           case k: JoinKey if k.was => Nil
-          case k => throw new Exception(
-            s"$k not found \n" +
-              s"for assemble ${join.assembleName}, join ${join.name}"
-          )
+          case k => List(new FailedRule(List(
+            s"$k not found",
+            s"for assemble ${join.assembleName}, join ${join.name}"
+          )))
         })
       } yield k
       byPriority.byPriority[WorldPartRule,WorldPartRule](
         item=>(getJoins(item), _ => item)
       )(rules.filter(isTarget)).reverse
+    }
+    rulesByPriority.collect{ case r: FailedRule => r } match {
+      case Seq() => ()
+      case rules =>
+        val lines = s"${rules.size} rules have failed" :: rules.flatMap(_.message)
+        throw new Exception(lines.mkString("\n"))
     }
     val expressionsByPriority = rulesByPriority.collect{
       case e: WorldPartExpression with DataDependencyTo[_] with DataDependencyFrom[_] => e
@@ -401,7 +516,7 @@ class DebugJoinMapIndex(
   }
 }
 
-@c4multi("AssembleApp") class ReplaceImpl(
+@c4multi("AssembleApp") final class ReplaceImpl(
   val active: List[WorldPartRule],
   transformAllOnce: WorldTransition=>WorldTransition
 )(
@@ -445,7 +560,7 @@ class DebugJoinMapIndex(
 object UMLExpressionsDumper extends ExpressionsDumper[String] {
   def dump(expressions: List[DataDependencyTo[_] with DataDependencyFrom[_]]): String = {
     val keyAliases: List[(AssembledKey, String)] =
-      expressions.flatMap(e => e.outputWorldKey :: e.inputWorldKeys.toList)
+      expressions.flatMap(e => e.outputWorldKeys.toList ::: e.inputWorldKeys.toList)
         .distinct.zipWithIndex.map{ case (k,i) => (k,s"wk$i")}
     val keyToAlias: Map[AssembledKey, String] = keyAliases.toMap
     List(
@@ -453,13 +568,13 @@ object UMLExpressionsDumper extends ExpressionsDumper[String] {
         s"(${k.productElement(0)} ${k.productElement(2).toString.split("[\\$\\.]").last}) as $a",
       for((e,eIndex) <- expressions.zipWithIndex; k <- e.inputWorldKeys)
         yield s"${keyToAlias(k)} --> $eIndex-${e.name}",
-      for((e,eIndex) <- expressions.zipWithIndex)
-        yield s"$eIndex-${e.name} --> ${keyToAlias(e.outputWorldKey)}"
+      for((e,eIndex) <- expressions.zipWithIndex; k <- e.outputWorldKeys)
+        yield s"$eIndex-${e.name} --> ${keyToAlias(k)}"
     ).flatten.mkString("@startuml\n","\n","\n@enduml")
   }
 }
 
-@c4("AssembleApp") class AssembleDataDependencyFactoryImpl(indexFactory: IndexFactory) extends AssembleDataDependencyFactory {
+@c4("AssembleApp") final class AssembleDataDependencyFactoryImpl(indexFactory: IndexFactory) extends AssembleDataDependencyFactory {
   def create(assembles: List[Assemble]): List[WorldPartRule] = {
     def gather(assembles: List[Assemble]): List[Assemble] =
       if(assembles.isEmpty) Nil
@@ -476,7 +591,7 @@ object UMLExpressionsDumper extends ExpressionsDumper[String] {
   }
 }
 
-@c4("AssembleApp") class AssembleDataDependencies(
+@c4("AssembleApp") final class AssembleDataDependencies(
   factory: AssembleDataDependencyFactory, assembles: List[Assemble]
 ) extends DataDependencyProvider {
   def getRules: List[WorldPartRule] = factory.create(assembles)

@@ -48,13 +48,13 @@ object ByPKTypes {
     else List(WithPK(util.wrap(rq.request, Option(items.toList))))
 }
 
-@c4("ByPKRequestHandlerCompApp") class ByPKAssembleProvider(askByPKs: List[AbstractAskByPK]) {
+@c4("ByPKRequestHandlerCompApp") final class ByPKAssembleProvider(askByPKs: List[AbstractAskByPK]) {
   @provide
   def byPKAssembles: Seq[Assemble] =
     askByPKs.distinctBy(_.forClassName).collect { case bc: AskByPKImpl[_] => bc.assemble }
 }
 
-@c4("ByPKRequestHandlerCompApp") case class AskByPKFactoryImpl(
+@c4("ByPKRequestHandlerCompApp") final case class AskByPKFactoryImpl(
   depAskFactory: DepAskFactory,
   byPKGenericAssembleFactory: ByPKGenericAssembleFactory
 ) extends AskByPKFactory {

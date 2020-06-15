@@ -14,7 +14,7 @@ import ee.cone.c4gate.{KeyGenerator, SessionAttr}
 import ee.cone.c4proto._
 import okio.ByteString
 
-@c4("SessionAttrAskCompApp") case class SessionAttrAskFactoryImpl(
+@c4("SessionAttrAskCompApp") final case class SessionAttrAskFactoryImpl(
   qAdapterRegistry: QAdapterRegistry,
   modelFactory: ModelFactory,
   modelAccessFactory: RModelAccessFactory,
@@ -226,6 +226,6 @@ import okio.ByteString
   }
 }
 
-@c4("CurrentTimeAskCompApp") case class CurrentTimeAskFactoryImpl() extends CurrentTimeAskFactory {
+@c4("CurrentTimeAskCompApp") final case class CurrentTimeAskFactoryImpl() extends CurrentTimeAskFactory {
   def askCurrentTime(eachNSeconds: Long): Dep[Long] = new RequestDep[Long](N_CurrentTimeRequest(eachNSeconds))
 }

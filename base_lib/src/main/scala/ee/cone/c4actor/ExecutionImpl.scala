@@ -19,7 +19,7 @@ object VMExecution {
     val thread = new Thread(new ShutdownRunnable(hint,f))
     Runtime.getRuntime.addShutdownHook(thread)
     () => try {
-      Runtime.getRuntime.removeShutdownHook(thread)
+      val ok = Runtime.getRuntime.removeShutdownHook(thread) // do we need to report?
     } catch {
       case e: IllegalStateException => ()
     }
@@ -32,7 +32,8 @@ object VMExecution {
     }{ fixedThreadCount =>
       val defaultThreadFactory = ForkJoinPool.defaultForkJoinWorkerThreadFactory
       val threadFactory = new RForkJoinWorkerThreadFactory(defaultThreadFactory,prefix)
-      new ForkJoinPool(fixedThreadCount, threadFactory, null, false)
+      @SuppressWarnings(Array("org.wartremover.warts.Null")) val handler: UncaughtExceptionHandler = null
+      new ForkJoinPool(fixedThreadCount, threadFactory, handler, false)
     }
   }
   def setup[T<:Thread](prefix: String, thread: T): T = {
@@ -40,6 +41,8 @@ object VMExecution {
     thread.setUncaughtExceptionHandler(new RUncaughtExceptionHandler(thread.getUncaughtExceptionHandler))
     thread
   }
+  def success[T](promise: Promise[T], value: T): Unit = ignorePromise(promise.success(value))
+  private def ignorePromise[T](value: Promise[T]): Unit = () //same promise?
 }
 
 class ShutdownRunnable(hint: String, f: () => Unit) extends Runnable with LazyLogging {
@@ -71,9 +74,9 @@ class RUncaughtExceptionHandler(inner: UncaughtExceptionHandler) extends Uncaugh
     try inner.uncaughtException(thread,throwable) finally System.exit(1)
 }
 
-@c4("VMExecutionApp") class DefExecutionFilter extends ExecutionFilter(_=>true)
+@c4("VMExecutionApp") final class DefExecutionFilter extends ExecutionFilter(_=>true)
 
-@c4("VMExecutionApp") class VMExecution(getToStart: DeferredSeq[Executable], executionFilter: ExecutionFilter)(
+@c4("VMExecutionApp") final class VMExecution(getToStart: DeferredSeq[Executable], executionFilter: ExecutionFilter)(
   threadPool: ExecutorService = VMExecution.newExecutorService("tx-",Option(Runtime.getRuntime.availableProcessors)) // None?
 )(
   val mainExecutionContext: ExecutionContext = ExecutionContext.fromExecutor(threadPool)
@@ -83,13 +86,14 @@ class RUncaughtExceptionHandler(inner: UncaughtExceptionHandler) extends Uncaugh
     logger.info(s"tracking ${toStart.size} services")
     toStart.foreach(f => fatal(Future(f.run())(_)))
   }
-  def fatal[T](future: ExecutionContext=>Future[T]): Unit = future(mainExecutionContext).recover{
+  private def ignoreRootFuture[T](value: Future[T]): Unit = ()
+  def fatal[T](future: ExecutionContext=>Future[T]): Unit = ignoreRootFuture(future(mainExecutionContext).recover{
     case NonFatal(e) =>
       System.err.println(s"FATAL ${e.getMessage}")
       e.printStackTrace()
       System.exit(1)
       throw e
-  }(mainExecutionContext)
+  }(mainExecutionContext))
   def onShutdown(hint: String, f: () => Unit): ()=>Unit =
     VMExecution.onShutdown(hint,f)
   def complete(): Unit = { // exit from pooled thread will block itself
@@ -100,6 +104,8 @@ class RUncaughtExceptionHandler(inner: UncaughtExceptionHandler) extends Uncaugh
     new SkippingFutureImpl[T](Future.successful(value),Promise[Unit]())(mainExecutionContext)
   def newExecutorService(prefix: String, threadCount: Option[Int]): ExecutorService =
     VMExecution.newExecutorService(prefix,threadCount)
+  def success[T](promise: Promise[T], value: T): Unit =
+    VMExecution.success(promise,value)
 }
 
 class SkippingFutureImpl[T](inner: Future[T], isNotLast: Promise[Unit])(implicit executionContext: ExecutionContext) extends SkippingFuture[T] with LazyLogging {
@@ -122,7 +128,7 @@ class SkippingFutureImpl[T](inner: Future[T], isNotLast: Promise[Unit])(implicit
     val nextFuture = inner.map(from =>
       if(nextIsNotLast.isCompleted) from else body(from)
     )
-    isNotLast.success(())
+    VMExecution.success(isNotLast,())
     new SkippingFutureImpl(nextFuture,nextIsNotLast)
   }
   def value: Option[Try[T]] = inner.value
@@ -147,17 +153,17 @@ object ServerMain extends BaseServerMain(
     .newInstance().asInstanceOf[ExecutableApp]
 )
 
-@c4("EnvConfigCompApp") class EnvConfigImpl extends ListConfig {
+@c4("EnvConfigCompApp") final class EnvConfigImpl extends ListConfig {
   def get(key: String): List[String] = Option(System.getenv(key)).toList
 }
-@c4("EnvConfigCompApp") class SingleConfigImpl(inner: ListConfig) extends Config {
+@c4("EnvConfigCompApp") final class SingleConfigImpl(inner: ListConfig) extends Config {
   def get(key: String): String =
     Single[String](inner.get(key), (l:Seq[String])=>new Exception(s"Need single ENV: $key: $l"))
 }
 
-@c4("EnvConfigCompApp") class ActorNameImpl(config: Config) extends ActorName(config.get("C4STATE_TOPIC_PREFIX"))
+@c4("EnvConfigCompApp") final class ActorNameImpl(config: Config) extends ActorName(config.get("C4STATE_TOPIC_PREFIX"))
 
-@c4("RichDataCompApp") class CatchNonFatalImpl extends CatchNonFatal with LazyLogging {
+@c4("CatchNonFatalApp") final class CatchNonFatalImpl extends CatchNonFatal with LazyLogging {
   def apply[T](aTry: =>T)(getHint: =>String)(aCatch: Throwable=>T): T = try { aTry } catch {
     case NonFatal(e) =>
       logger.error(getHint,e)

@@ -18,7 +18,7 @@ import ee.cone.c4vdom.Types.ViewRes
 
 
 
-@c4("TestCoWorkApp") class TestCoWorkPublishFromStringsProvider extends PublishFromStringsProvider {
+@c4("TestCoWorkApp") final class TestCoWorkPublishFromStringsProvider extends PublishFromStringsProvider {
   def get: List[(String, String)] = List(
     "/blank.html" -> s"""<!DOCTYPE html><meta charset="UTF-8"><body id="blank"></body>"""
   )
@@ -40,7 +40,7 @@ trait TestCoWorkerViewApp extends ByLocationHashViewsApp {
     testCoWorkerView :: super.byLocationHashViews
 }*/
 
-@c4("TestCoWorkApp") case class TestCoWorkerView(locationHash: String = "worker")(
+@c4("TestCoWorkApp") final case class TestCoWorkerView(locationHash: String = "worker")(
   tags: TestTags[Context],
   sessionAttrAccess: SessionAttrAccessFactory
 ) extends ByLocationHashView  {
@@ -63,7 +63,7 @@ trait TestCoLeaderViewApp extends ByLocationHashViewsApp {
     testCoLeaderView :: super.byLocationHashViews
 }*/
 
-@c4("TestCoWorkApp") case class TestCoLeaderView(locationHash: String = "leader")(
+@c4("TestCoWorkApp") final case class TestCoLeaderView(locationHash: String = "leader")(
   tags: Tags,
   styles: TagStyles,
   branchOperations: BranchOperations,

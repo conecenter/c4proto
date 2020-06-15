@@ -56,9 +56,10 @@ case class AllTestRich(srcId: SrcId, twos: List[D_AllTestOrig2])
 
 }
 
-@c4("AllTestTestApp") class AllTestTest(
+@c4("AllTestTestApp") final class AllTestTest(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory,
-  getAllTestRich: GetByPK[AllTestRich]
+  getAllTestRich: GetByPK[AllTestRich],
+  txAdd: LTxAdd,
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     import LEvent.update
@@ -67,15 +68,15 @@ case class AllTestRich(srcId: SrcId, twos: List[D_AllTestOrig2])
 
     logger.info("============From 0 to 1===================")
     val worldUpdate: collection.immutable.Seq[LEvent[Product]] = List(D_AllTestOrig("main", 1), D_AllTestOrig2("test", 2)).flatMap(update)
-    val zero = TxAdd(worldUpdate)(emptyLocal)
+    val zero = txAdd.add(worldUpdate)(emptyLocal)
     println(getAllTestRich.ofA(zero).values.toList)
 
     logger.info("============Intermission===================")
-    val two = TxAdd(LEvent.update(D_AllTestOrig("main", 2)))(zero)
+    val two = txAdd.add(LEvent.update(D_AllTestOrig("main", 2)))(zero)
     println(getAllTestRich.ofA(two).values.toList)
 
     logger.info("============From 0 to 1===================")
-    val three = TxAdd(LEvent.update(D_AllTestOrig2("kek", 3)))(two)
+    val three = txAdd.add(LEvent.update(D_AllTestOrig2("kek", 3)))(two)
     println(getAllTestRich.ofA(three).values.toList)
 
     //logger.info(s"${nGlobal.assembled}")

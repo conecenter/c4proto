@@ -7,7 +7,11 @@ import ee.cone.c4di.c4
 import ee.cone.c4gate.{ByPathHttpPublication, Publisher}
 import okio.ByteString
 
-@c4("SignedReqUtilImplApp") class SignedReqUtilImpl(val catchNonFatal: CatchNonFatal, publisher: Publisher) extends SignedReqUtil {
+@c4("SignedReqUtilImplApp") final class SignedReqUtilImpl(
+  val catchNonFatal: CatchNonFatal,
+  publisher: Publisher,
+  txAdd: LTxAdd,
+) extends SignedReqUtil {
   def header(headers: List[N_Header], key: String): Option[String] =
     headers.find(_.key == key).map(_.value)
   def signed(headers: List[N_Header]): Option[String] = header(headers,"x-r-signed")
@@ -22,6 +26,6 @@ import okio.ByteString
       (post, headers) <- res
       delete <- LEvent.delete(post)
     } yield delete
-    TxAdd(updates ++ deletes)
+    txAdd.add(updates ++ deletes)
   }
 }

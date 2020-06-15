@@ -29,7 +29,7 @@ trait Purger {
   def process(keepPolicyList: List[KeepPolicy]): Unit
 }
 
-@c4("SnapshotMakingApp") class PurgerImpl(
+@c4("SnapshotMakingApp") final class PurgerImpl(
   lister: SnapshotLister, baseDir: DataDir
 ) extends Purger with LazyLogging {
   def process(keepPolicyList: List[KeepPolicy]/*todo: pass Loaded*/): Unit = {
@@ -46,8 +46,7 @@ trait Purger {
     for {
       path <- files.map(_.path).filterNot(keepPaths)
     } {
-      Files.deleteIfExists(path)
-      logger.info(s"removed $path")
+      if(Files.deleteIfExists(path)) logger.info(s"removed $path")
     }
     logger.debug("snapshots checked")
   }

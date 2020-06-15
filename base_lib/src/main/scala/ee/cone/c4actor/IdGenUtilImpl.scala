@@ -9,7 +9,9 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4di.c4
 import okio.ByteString
 
-@c4("RichDataCompApp")case class IdGenUtilImpl()(
+import scala.collection.immutable.TreeMap
+
+@c4("RichDataCompApp") final case class IdGenUtilImpl()(
   proto: MessageDigest = MessageDigest.getInstance("MD5")
 ) extends IdGenUtil {
   private def md5(data: Array[Byte]*): String = {

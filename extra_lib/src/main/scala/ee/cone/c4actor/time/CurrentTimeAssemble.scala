@@ -10,7 +10,7 @@ import ee.cone.c4actor.dep.request.CurrentTimeApp
 import ee.cone.c4actor.dep.request.CurrentTimeProtocol.S_CurrentTimeNodeSetting
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{AbstractAll, All, byEq, c4assemble}
-import ee.cone.c4di.c4
+import ee.cone.c4di.{c4, c4multi}
 
 trait T_Time extends Product {
   def srcId: SrcId
@@ -32,13 +32,16 @@ trait CurrTimeConfig[Model <: T_Time] extends GeneralCurrTimeConfig {
   def timeGetter: GetByPK[Model]
 }
 
-@c4("GeneralCurrentTimeApp") class TimeGettersImpl(timeGetters: List[TimeGetter]) extends TimeGetters {
+@c4("GeneralCurrentTimeApp") final class TimeGettersImpl(timeGetters: List[TimeGetter]) extends TimeGetters {
   lazy val gettersMap: Map[SrcId, TimeGetter] = timeGetters.map(getter => getter.currentTime.srcId -> getter).toMap
   def apply(currentTime: CurrentTime): TimeGetter =
     gettersMap(currentTime.srcId)
 }
 
-@c4assemble("GeneralCurrentTimeApp") class CurrentTimeGeneralAssembleBase(configs: List[GeneralCurrTimeConfig])(
+@c4assemble("GeneralCurrentTimeApp") class CurrentTimeGeneralAssembleBase(
+  configs: List[GeneralCurrTimeConfig],
+  generalCurrentTimeTransformFactory: GeneralCurrentTimeTransformFactory,
+)(
   typed: List[CurrTimeConfig[_ <: T_Time]] =
   CheckedMap(configs.asInstanceOf[List[CurrTimeConfig[_ <: T_Time]]]
     .map(c => c.currentTime.srcId -> c)
@@ -58,12 +61,14 @@ trait CurrTimeConfig[Model <: T_Time] extends GeneralCurrTimeConfig {
     @byEq[CurrentTimeGeneralAll](All) timeSetting: Values[S_CurrentTimeNodeSetting],
     //@time(TestDepTime) time: Each[Time] // byEq[SrcId](TestTime.srcId) time: Each[Time]
   ): Values[(SrcId, TxTransform)] =
-    WithPK(GeneralCurrentTimeTransform(s"${firstborn.srcId}-general-time", timeSetting.toList, typed)) :: Nil
+    WithPK(generalCurrentTimeTransformFactory.create(s"${firstborn.srcId}-general-time", timeSetting.toList, typed)) :: Nil
 }
 
-case class GeneralCurrentTimeTransform(
+@c4multi("GeneralCurrentTimeApp") final case class GeneralCurrentTimeTransform(
   srcId: SrcId, configs: List[S_CurrentTimeNodeSetting],
   currentTimes: List[CurrTimeConfig[_ <: T_Time]]
+)(
+  txAdd: LTxAdd,
 ) extends TxTransform with LazyLogging {
   private val random: SecureRandom = new SecureRandom()
 
@@ -77,7 +82,7 @@ case class GeneralCurrentTimeTransform(
   def transform(local: Context): Context = {
     actions.flatMap(_.apply(local)) match { // TODO may be throttle time updates and do them one by one
       case updates if updates.isEmpty => local
-      case updates => TxAdd(updates)(local)
+      case updates => txAdd.add(updates)(local)
     }
   }
 

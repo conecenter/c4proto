@@ -12,7 +12,7 @@ import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{S_IndexNodeSe
 import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistry, HashSearchRangerRegistryApp, IndexType, RangerWithCl}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4di.{Component, ComponentsApp, c4, c4multi}
+import ee.cone.c4di.{Component, ComponentsApp, c4, c4multi, provide}
 
 import scala.collection.immutable
 import scala.collection.immutable.Seq
@@ -21,12 +21,25 @@ case class ProductWithId[Model <: Product](modelCl: Class[Model], modelId: Int)
 
 case class DynamicIndexModelsProvider(values: List[ProductWithId[_ <: Product]])
 
-trait DynamicIndexModelsApp extends ComponentsApp {
-  import ComponentProvider.provide
-  private lazy val dynIndexModelsComponent =
-    provide(classOf[DynamicIndexModelsProvider], ()=>Seq(DynamicIndexModelsProvider(dynIndexModels)))
-  override def components: List[Component] = dynIndexModelsComponent :: super.components
-  def dynIndexModels: List[ProductWithId[_ <: Product]] = Nil
+trait DynamicIndexAutoStaticNodeCount extends IntValue
+trait DynamicIndexAutoStaticLiveSeconds extends IntValue
+trait DynamicIndexMaxEvents extends IntValue
+trait DynamicIndexAssembleDebugMode extends BooleanValue
+trait DynamicIndexDeleteAnywaySeconds extends IntValue
+trait HashSearchVersion extends StringValue
+
+@c4("DynamicIndexAssemble") final class DefaultDynamicIndexAutoStaticNodeCount extends IntConstant(1000) with DynamicIndexAutoStaticNodeCount
+@c4("DynamicIndexAssemble") final class DefaultDynamicIndexAutoStaticLiveSeconds extends IntConstant(60 * 60) with DynamicIndexAutoStaticLiveSeconds
+@c4("DynamicIndexAssemble") final class DefaultDynamicIndexMaxEvents extends IntConstant(100000) with DynamicIndexMaxEvents
+@c4("DynamicIndexAssemble") final class DefaultDynamicIndexAssembleDebugMode extends BooleanFalse with DynamicIndexAssembleDebugMode
+@c4("DynamicIndexAssemble") final class DefaultDynamicIndexDeleteAnywaySeconds extends IntConstant(60 * 60 * 24 * 1) with DynamicIndexDeleteAnywaySeconds
+@c4("DynamicIndexAssemble") final class DefaultHashSearchVersion extends StringConstant("MC5FLkU=") with HashSearchVersion // note equals to base64 http://base64decode.toolur.com/
+
+@c4("DynamicIndexAssemble") final class DynamicIndexModelsRegistry(providers: List[DynamicIndexModelsProvider], thanosTimeFiltersFactory: ThanosTimeFiltersFactory, indexNodeThanosFactory: IndexNodeThanosFactory) {
+  lazy val models: List[ProductWithId[_ <: Product]] = providers.flatMap(_.values).distinct
+  @provide def assembles: Seq[Assemble] =
+    (if (models.nonEmpty) thanosTimeFiltersFactory.create() :: Nil else Nil) :::
+      models.distinct.map(p => indexNodeThanosFactory.create(p.modelCl, p.modelId))
 }
 
 object DynIndexRefresh {
@@ -35,64 +48,28 @@ object DynIndexRefresh {
 
 trait DynamicIndexAssembleBase
   extends AssemblesApp
-    with DynamicIndexModelsApp
     with SerializationUtilsApp
     with CurrentTimeConfigApp
     with HashSearchDynamicIndexApp
     with HashSearchRangerRegistryApp
-
+    with CollectiveTransformApp
     with ComponentProviderApp
 {
 
   def dynamicIndexRefreshRateSeconds: Long
 
-  def dynamicIndexNodeDefaultSetting: S_IndexNodeSettings = S_IndexNodeSettings("", false, None)
-
   override def currentTimeConfig: List[CurrentTimeConfig] =
     CurrentTimeConfig(DynIndexRefresh(), dynamicIndexRefreshRateSeconds) ::
       super.currentTimeConfig
 
-  private lazy val indexNodeThanosFactory: IndexNodeThanosFactory =
-    resolveSingle(classOf[IndexNodeThanosFactory])
+}
 
-  private lazy val thanosTimeFiltersFactory: ThanosTimeFiltersFactory =
-    resolveSingle(classOf[ThanosTimeFiltersFactory])
-
-  override def assembles: List[Assemble] = {
-    modelListIntegrityCheck(dynIndexModels.distinct)
-    (if (dynIndexModels.nonEmpty) thanosTimeFiltersFactory.create(hashSearchVersion, maxTransforms = dynamicIndexMaxEvents) :: Nil else Nil) :::
-      dynIndexModels.distinct.map(p =>
-        indexNodeThanosFactory.create(
-          p.modelCl, p.modelId,
-          dynamicIndexAssembleDebugMode,
-          dynamicIndexAutoStaticNodeCount,
-          dynamicIndexAutoStaticLiveSeconds,
-          dynamicIndexNodeDefaultSetting,
-          dynamicIndexDeleteAnywaySeconds
-        )
-      ) :::
-      super.assembles
+@c4("DynamicIndexAssemble") final class ModelListIntegrityCheck(registry: DynamicIndexModelsRegistry) {
+  val map = registry.models.groupBy(_.modelId)
+  if (map.values.forall(_.size == 1)) {
+  } else {
+    FailWith.apply(s"Dyn model List contains models with same Id: ${map.filter(_._2.size > 1)}")
   }
-
-  def dynamicIndexMaxEvents: Int = 100000
-
-  def dynamicIndexAssembleDebugMode: Boolean = false
-
-  def dynamicIndexAutoStaticNodeCount: Int = 1000
-
-  def dynamicIndexAutoStaticLiveSeconds: Long = 60L * 60L
-
-  def dynamicIndexDeleteAnywaySeconds: Long = 60L * 60L * 24L * 1L
-
-  private def modelListIntegrityCheck: List[ProductWithId[_ <: Product]] => Unit = list => {
-    val map = list.distinct.groupBy(_.modelId)
-    if (map.values.forall(_.size == 1)) {
-    } else {
-      FailWith.apply(s"Dyn model List contains models with same Id: ${map.filter(_._2.size > 1)}")
-    }
-  }
-
-  lazy val hashSearchVersion: String = "MC5FLkU=" // note equals to base64 http://base64decode.toolur.com/
 }
 
 case class IndexNodeRich[Model <: Product](
@@ -126,19 +103,21 @@ sealed trait ThanosTimeTypes {
   type ThanosLEventsTransformsAll = AbstractAll
 }
 
-@c4multiAssemble("DynamicIndexAssemble") class ThanosTimeFiltersBase(version: String, maxTransforms: Int)(
-  snapTransformFactory: SnapTransformFactory
+@c4multiAssemble("DynamicIndexAssemble") class ThanosTimeFiltersBase()(
+  hashSearchVersion: HashSearchVersion,
+  dynamicIndexMaxEvents: DynamicIndexMaxEvents,
+  snapTransformFactory: SnapTransformFactory,
+  collectiveTransformFactory: CollectiveTransformFactory,
 ) extends ThanosTimeTypes {
-
   def SnapTransformWatcher(
     verId: SrcId,
     firstBorn: Each[S_Firstborn],
     versions: Values[S_IndexNodesVersion]
   ): Values[(SrcId, TxTransform)] =
-    if (versions.headOption.map(_.version).getOrElse("") == version) {
+    if (versions.headOption.map(_.version).getOrElse("") == hashSearchVersion.value) {
       Nil
     } else {
-      WithPK(snapTransformFactory.create(firstBorn.srcId + "Snap", firstBorn.srcId, version)) :: Nil
+      WithPK(snapTransformFactory.create(firstBorn.srcId + "Snap", firstBorn.srcId, hashSearchVersion.value)) :: Nil
     }
 
 
@@ -148,7 +127,7 @@ sealed trait ThanosTimeTypes {
     @byEq[ThanosLEventsTransformsAll](All) @distinct events: Values[LEventTransform]
   ): Values[(SrcId, TxTransform)] =
     if (events.nonEmpty)
-      WithPK(CollectiveTransform("ThanosTX", events.take(maxTransforms))) :: Nil
+      WithPK(collectiveTransformFactory.create("ThanosTX", events.take(dynamicIndexMaxEvents.value))) :: Nil
     else
       Nil
 }
@@ -263,18 +242,18 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
 }
 
 @c4multiAssemble("DynamicIndexAssemble") class IndexNodeThanosBase[Model <: Product](
-  modelCl: Class[Model], val modelId: Int,
-  debugMode: Boolean,
-  autoCount: Int,
-  autoLive: Long,
-  dynamicIndexNodeDefaultSetting: S_IndexNodeSettings,
-  deleteAnyway: Long
+  modelCl: Class[Model], val modelId: Int
 )(
+  dynamicIndexAssembleDebugMode: DynamicIndexAssembleDebugMode,
+  dynamicIndexAutoStaticNodeCount: DynamicIndexAutoStaticNodeCount,
+  dynamicIndexAutoStaticLiveSeconds: DynamicIndexAutoStaticNodeCount,
+  dynamicIndexDeleteAnywaySeconds: DynamicIndexDeleteAnywaySeconds,
   val modelFactory: ModelFactory,
   val qAdapterRegistry: QAdapterRegistry,
   val rangerRegistryApi: HashSearchRangerRegistry,
   val idGenUtil: IdGenUtil,
   realityTransformFactory: RealityTransformFactory,
+  dynamicIndexNodeDefaultSetting: S_IndexNodeSettings = S_IndexNodeSettings("", false, None)
 )
   extends AssembleName("IndexNodeThanos", modelCl) with ThanosTimeTypes
     with IndexNodeThanosUtils[Model] {
@@ -339,15 +318,15 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
   ): Values[(ThanosLEventsTransformsAll, LEventTransform)] =
     (indexNodes.toList, leafs.toList) match {
       case (Nil, leaf :: _) =>
-        if (debugMode)
-          PrintColored("y")(s"[Thanos.Soul, $modelId] Created S_IndexNode for ${(leaf.by.getClass.getName, leaf.commonPrefix)},${(modelCl.getName, modelId)}")
+        if (dynamicIndexAssembleDebugMode.value)
+          PrintColored.just("y")(s"[Thanos.Soul, $modelId] Created S_IndexNode for ${(leaf.by.getClass.getName, leaf.commonPrefix)},${(modelCl.getName, modelId)}")
         val indexType: IndexType = getIndexType(leaf.byId)
         WithAll(SoulTransform(leaf.indexNodeId, modelId, leaf.byId, leaf.commonPrefix, dynamicIndexNodeDefaultSetting, indexType)) :: Nil
       case (indexNode :: Nil, leaf :: _) =>
-        if (debugMode) {
+        if (dynamicIndexAssembleDebugMode.value) {
           val x = indexNode
           val y = leaf
-          PrintColored("y")(s"[Thanos.Soul, $modelId] Both alive $x ${y.by}")
+          PrintColored.just("y")(s"[Thanos.Soul, $modelId] Both alive $x ${y.by}")
         }
         Nil
       case (_ :: Nil, Nil) =>
@@ -377,17 +356,17 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
   ): Values[(ThanosLEventsTransformsAll, LEventTransform)] = {
     (innerLeafs.toList, indexByNodes.toList) match {
       case (leaf :: Nil, Nil) =>
-        if (debugMode)
-          PrintColored("r")(s"[Thanos.Reality, $modelId] Created ByNode for ${leaf.preProcessed.by}")
-        WithAll(realityTransformFactory.create(leaf.preProcessed.leafId, leaf.preProcessed.indexNodeId, leaf.heapIds, leaf.preProcessed.by.toString, modelId, autoLive)) :: Nil
+        if (dynamicIndexAssembleDebugMode.value)
+          PrintColored.just("r")(s"[Thanos.Reality, $modelId] Created ByNode for ${leaf.preProcessed.by}")
+        WithAll(realityTransformFactory.create(leaf.preProcessed.leafId, leaf.preProcessed.indexNodeId, leaf.heapIds, leaf.preProcessed.by.toString, modelId, dynamicIndexAutoStaticLiveSeconds.value)) :: Nil
       case (Nil, node :: Nil) =>
         if (indexByNodesLastSeen.isEmpty)
           WithAll(MindTransform(node.leafId)) :: Nil
         else
           Nil
       case (leaf :: Nil, node :: Nil) =>
-        if (debugMode)
-          PrintColored("r")(s"[Thanos.Reality, $modelId] Both alive ${leaf.preProcessed.by}")
+        if (dynamicIndexAssembleDebugMode.value)
+          PrintColored.just("r")(s"[Thanos.Reality, $modelId] Both alive ${leaf.preProcessed.by}")
         if (indexByNodesLastSeen.nonEmpty)
           WithAll(RevertedMindTransform(leaf.leafId)) :: Nil
         else
@@ -416,15 +395,15 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
         leafIsPresent || indexByNodesLastSeen.isEmpty ||
           (setting.isDefined && (setting.get.alwaysAlive || currentTime - setting.get.keepAliveSeconds.getOrElse(0L) - lastPong <= 0))
       val rich = IndexByNodeRich[Model](node.leafId, isAlive, node.indexByNode)
-      if (debugMode)
-        PrintColored("b", "w")(s"[Thanos.Space, $modelId] Updated IndexByNodeRich ${(isAlive, currentTime, node.leafId, innerLeafs.headOption.map(_.preProcessed.by))}")
+      if (dynamicIndexAssembleDebugMode.value)
+        PrintColored.just("b", "w")(s"[Thanos.Space, $modelId] Updated IndexByNodeRich ${(isAlive, currentTime, node.leafId, innerLeafs.headOption.map(_.preProcessed.by))}")
       (rich.indexByNode.indexNodeId -> rich) :: Nil
     } else if (innerLeafs.size == 1) {
       val leaf = innerLeafs.head
       val stubIndexByNode = S_IndexByNode(leaf.leafId, leaf.preProcessed.indexNodeId, modelId, leaf.heapIds, leaf.preProcessed.by.toString)
       val rich = IndexByNodeRich[Model](leaf.leafId, isAlive = true, stubIndexByNode)
-      if (debugMode)
-        PrintColored("b", "w")(s"[Thanos.Space, $modelId] Created from leaf IndexByNodeRich ${(leaf.leafId, innerLeafs.headOption.map(_.preProcessed.by))}")
+      if (dynamicIndexAssembleDebugMode.value)
+        PrintColored.just("b", "w")(s"[Thanos.Space, $modelId] Created from leaf IndexByNodeRich ${(leaf.leafId, innerLeafs.headOption.map(_.preProcessed.by))}")
       (rich.indexByNode.indexNodeId -> rich) :: Nil
     } else Nil
 
@@ -437,12 +416,12 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
     directives: Values[RangerDirective[Model]]
   ): Values[(SrcId, IndexNodeRich[Model])] = {
     val settings = indexNodeSettings.headOption
-    val isStatic = (settings.isDefined && settings.get.allAlwaysAlive) || (settings.isDefined && settings.get.keepAliveSeconds.isEmpty && indexByNodeRiches.size > autoCount)
+    val isStatic = (settings.isDefined && settings.get.allAlwaysAlive) || (settings.isDefined && settings.get.keepAliveSeconds.isEmpty && indexByNodeRiches.size > dynamicIndexAutoStaticNodeCount.value)
     if (!isStatic) {
       val directive = prepareDirective(directives)
       val rich = IndexNodeRich[Model](indexNode.indexNodeId, isStatic, indexNode.indexNode, indexByNodeRiches.toList, directive)
-      if (debugMode)
-        PrintColored("b", "w")(s"[Thanos.Space, $modelId] Updated IndexNodeRich Dynamic${(isStatic, indexNode.indexNodeId, indexByNodeRiches.size)}")
+      if (dynamicIndexAssembleDebugMode.value)
+        PrintColored.just("b", "w")(s"[Thanos.Space, $modelId] Updated IndexNodeRich Dynamic${(isStatic, indexNode.indexNodeId, indexByNodeRiches.size)}")
       WithPK(rich) :: Nil
     } else {
       Nil
@@ -466,12 +445,12 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
   ): Values[(SrcId, IndexNodeRich[Model])] = {
     val settings = indexNodeSettings.headOption
     val childCount = childCounts.headOption.map(_.indexByNodeCount).getOrElse(0)
-    val isAlive = (settings.isDefined && settings.get.allAlwaysAlive) || (settings.isDefined && settings.get.keepAliveSeconds.isEmpty && childCount > autoCount)
+    val isAlive = (settings.isDefined && settings.get.allAlwaysAlive) || (settings.isDefined && settings.get.keepAliveSeconds.isEmpty && childCount > dynamicIndexAutoStaticNodeCount.value)
     if (isAlive) {
       val directive = prepareDirective(directives)
       val rich = IndexNodeRich[Model](indexNode.indexNodeId, isAlive, indexNode.indexNode, Nil, directive)
-      if (debugMode)
-        PrintColored("b", "w")(s"[Thanos.Space, $modelId] Updated IndexNodeRich Static ${(isAlive, indexNode.indexNodeId)}")
+      if (dynamicIndexAssembleDebugMode.value)
+        PrintColored.just("b", "w")(s"[Thanos.Space, $modelId] Updated IndexNodeRich Static ${(isAlive, indexNode.indexNodeId)}")
       WithPK(rich) :: Nil
     } else {
       Nil
@@ -488,8 +467,8 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
         child <- parent.indexByNodes
         if !child.isAlive
       } yield {
-        if (debugMode)
-          PrintColored("m")(s"[Thanos.Power, $modelId] Deleted ${(child.indexByNode.leafId, child.indexByNode.byStr)}")
+        if (dynamicIndexAssembleDebugMode.value)
+          PrintColored.just("m")(s"[Thanos.Power, $modelId] Deleted ${(child.indexByNode.leafId, child.indexByNode.byStr)}")
         WithAll(PowerTransform(child.srcId, s"Power-${child.srcId}"))
       }
     else Nil
@@ -500,14 +479,14 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
     indexByNodesLastSeen: Values[S_IndexByNodeLastSeen],
     @byEq[SrcId](DynIndexRefresh()) currentTimes: Each[S_CurrentTimeNode]
   ): Values[(ThanosLEventsTransformsAll, LEventTransform)] =
-    if (indexByNodesLastSeen.nonEmpty && currentTimes.currentTimeSeconds - indexByNodesLastSeen.head.lastSeenAtSeconds > deleteAnyway) {
+    if (indexByNodesLastSeen.nonEmpty && currentTimes.currentTimeSeconds - indexByNodesLastSeen.head.lastSeenAtSeconds > dynamicIndexDeleteAnywaySeconds.value) {
       WithAll(PowerTransform(indexByNodes.leafId, s"Anyway-${indexByNodes.leafId}")) :: Nil
     } else {
       Nil
     }
 }
 
-@c4multi("DynamicIndexAssemble") case class RealityTransform[Model <: Product, By <: Product](
+@c4multi("DynamicIndexAssemble") final case class RealityTransform[Model <: Product, By <: Product](
   srcId: SrcId, parentNodeId: String, heapIds: List[String], byStr: String, modelId: Int, defaultLive: Long
 )(
   getS_IndexNodeSettings: GetByPK[S_IndexNodeSettings],
@@ -571,7 +550,7 @@ case class SoulCorrectionTransform(srcId: SrcId, indexNodeList: List[S_IndexNode
 }
 
 
-@c4multi("DynamicIndexAssemble") case class SnapTransform(
+@c4multi("DynamicIndexAssemble") final case class SnapTransform(
   srcId: String, fbId: String, version: String
 )(
   getS_IndexNodesVersion: GetByPK[S_IndexNodesVersion],
@@ -581,6 +560,7 @@ case class SoulCorrectionTransform(srcId: SrcId, indexNodeList: List[S_IndexNode
   getS_IndexByNodeLastSeen: GetByPK[S_IndexByNodeLastSeen],
   getS_IndexByNodeSettings: GetByPK[S_IndexByNodeSettings],
   getS_TimeMeasurement: GetByPK[S_TimeMeasurement],
+  txAdd: LTxAdd,
 ) extends TxTransform {
   def transform(local: Context): Context = {
     val versionW = getS_IndexNodesVersion.ofA(local).values.headOption.map(_.version).getOrElse("")
@@ -595,7 +575,7 @@ case class SoulCorrectionTransform(srcId: SrcId, indexNodeList: List[S_IndexNode
         getS_TimeMeasurement.ofA(local).values
       ).flatMap(LEvent.delete).toList
       val add = LEvent.update(S_IndexNodesVersion(fbId, version))
-      TxAdd(delete ++ add)(local)
+      txAdd.add(delete ++ add)(local)
     }
     else
       local

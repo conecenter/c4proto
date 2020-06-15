@@ -93,7 +93,7 @@ trait DepRequestHandlerRegistry {
   def filter(parent: DepInnerRequest, child: DepOuterRequest, response: DepResponse): Values[(String, DepResponse)]
 }
 
-@c4("DepAssembleCompApp") case class DepRequestHandlerRegistryImpl(
+@c4("DepAssembleCompApp") final case class DepRequestHandlerRegistryImpl(
   depRequestFactory: DepRequestFactory,
   depResponseFactory: DepResponseFactory,
   handlerSeq: List[DepHandler],
@@ -147,7 +147,7 @@ trait DepRequestHandlerRegistry {
 
 }
 
-@c4("DepAssembleCompApp") case class DepResponseFactoryImpl()(preHashing: PreHashing) extends DepResponseFactory {
+@c4("DepAssembleCompApp") final case class DepResponseFactoryImpl()(preHashing: PreHashing) extends DepResponseFactory {
   def wrap(req: DepInnerRequest, value: Option[_]): DepResponse =
     DepResponseImpl(req,preHashing.wrap(value))
 
@@ -155,7 +155,7 @@ trait DepRequestHandlerRegistry {
     DepResponseImpl(req,valueRaw)
 }
 
-@c4("DepAssembleCompApp") case class DepRequestFactoryImpl(idGenUtil: IdGenUtil)(qAdapterRegistry: QAdapterRegistry) extends DepRequestFactory {
+@c4("DepAssembleCompApp") final case class DepRequestFactoryImpl(idGenUtil: IdGenUtil)(qAdapterRegistry: QAdapterRegistry) extends DepRequestFactory {
   def tupledOuterRequest(parentId: SrcId)(rq: DepRequest): (SrcId,DepOuterRequest) = {
     val inner = innerRequest(rq)
     val outerId = idGenUtil.srcIdFromSrcIds(parentId, inner.srcId)
@@ -179,7 +179,7 @@ case class DepAskImpl[In<:Product,Out](name: String, depFactory: DepFactory)(val
   def byParent[ReasonIn <: Product](reason: DepAsk[ReasonIn, _], handler: ReasonIn => Map[In, Out]): DepHandler =
     AddDepHandler(reason match { case DepAskImpl(nm,_) => nm })(handler.asInstanceOf[DepRequest => DepCtx])
 }
-@c4("DepAssembleCompApp") case class DepAskFactoryImpl(depFactory: DepFactory) extends DepAskFactory {
+@c4("DepAssembleCompApp") final case class DepAskFactoryImpl(depFactory: DepFactory) extends DepAskFactory {
   def forClasses[In<:Product,Out](in: Class[In], out: Class[Out]): DepAsk[In,Out] =
     DepAskImpl[In,Out](in.getName, depFactory)(in)
 }

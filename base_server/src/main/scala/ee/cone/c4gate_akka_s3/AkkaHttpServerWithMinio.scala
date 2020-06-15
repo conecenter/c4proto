@@ -12,7 +12,7 @@ import ee.cone.c4gate_akka._
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
-@c4("AkkaMinioGatewayApp") class AkkaMinioRequestPreHandler(
+@c4("AkkaMinioGatewayApp") final class AkkaMinioRequestPreHandler(
   s3FileStorage: S3FileStorage,
   akkaMat: AkkaMat,
 ) extends AkkaRequestPreHandler with LazyLogging {

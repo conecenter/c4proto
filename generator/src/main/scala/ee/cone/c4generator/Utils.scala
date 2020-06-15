@@ -9,6 +9,6 @@ object Utils {
 
 final case class GeneratorError(
   private val message: String = "",
-  private val cause: Throwable = None.orNull
+  //private val cause: Throwable = None.orNull
 )
-  extends Exception(message, cause)
+  extends Exception(message/*, cause*/)

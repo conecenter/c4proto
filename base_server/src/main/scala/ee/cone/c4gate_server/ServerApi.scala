@@ -15,7 +15,9 @@ trait SenderToAgent {
   def compressor: Option[Compressor]
 }
 
-case object GetSenderKey extends SharedComponentKey[String=>Option[SenderToAgent]]
+trait TcpServer {
+  def getSender(connectionKey: String): Option[SenderToAgent]
+}
 
 trait TcpHandler {
   def beforeServerStart(): Unit

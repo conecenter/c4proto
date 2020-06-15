@@ -10,7 +10,7 @@ abstract class ElementValue extends VDomValue {
   def appendJsonAttributes(builder: MutableJsonBuilder): Unit
   def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
-      .append("tp").append(elementType)
+    builder.append("tp").append(elementType)
     appendJsonAttributes(builder)
     builder.end()
   }
@@ -48,15 +48,18 @@ case class ChangePassword[State]()(
 case class ContainerLeftRight() extends ElementValue {
   def elementType: String = "ContainerLeftRight"
   def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {
-    builder.append("content").startArray().append("rawMerge").end()
+    builder.append("content").startArray();{
+      builder.just.append("rawMerge")
+      builder.end()
+    }
   }
 }
 
-@c4("TestTagsApp") class TestTagsProvider(factory: TestTagsFactory) {
+@c4("TestTagsApp") final class TestTagsProvider(factory: TestTagsFactory) {
   @provide def testTags: Seq[TestTags[Context]] = List(factory.create[Context]())
 }
 
-@c4multi("TestTagsApp") class TestTags[State]()(
+@c4multi("TestTagsApp") final class TestTags[State]()(
   child: ChildPairFactory, inputAttributes: TagJsonUtils, tags: Tags
 ) {
   def messageStrBody(o: VDomMessage): String =

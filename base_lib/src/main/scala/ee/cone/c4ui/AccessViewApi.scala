@@ -1,6 +1,6 @@
 package ee.cone.c4ui
 
-import ee.cone.c4actor.{Access, Context, InjectableGetter}
+import ee.cone.c4actor.{Access, Context}
 import ee.cone.c4vdom.{ChildPair, OfDiv}
 
 trait AccessViewRegistry {

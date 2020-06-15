@@ -20,7 +20,7 @@ import org.apache.sshd.server.auth.pubkey.AcceptAllPublickeyAuthenticator
     List(WithPK(factory.create()))
 }
 
-@c4multi("SSHDebugApp") case class SSHDebugTx(srcId: SrcId="SSHDebug")(
+@c4multi("SSHDebugApp") final case class SSHDebugTx(srcId: SrcId="SSHDebug")(
   reducer: RichRawWorldReducer,
   qMessages: QMessages
 ) extends TxTransform {
@@ -31,7 +31,7 @@ import org.apache.sshd.server.auth.pubkey.AcceptAllPublickeyAuthenticator
       val context = ref.get.get
       f(new Context(context.injected,context.assembled,context.executionContext,Map.empty)) match {
         case local: Context =>
-          qMessages.send(local)
+          val nLocal = qMessages.send(local)
           Nil
         case res: List[_] => res
       }
@@ -66,7 +66,7 @@ rollback()
 import ee.cone.c4actor._
 import ee.cone.c4gate._
 tx(ByPK(classOf[AlienProtocol.U_FromAlienState]).of(_).values.toList.sortBy(_.sessionKey))
-tx(TxAdd(LEvent.delete(AlienProtocol.U_FromAlienState("61297c47-c5de-4fd9-add9-1967615a44a8", "https://skh.dev.cone.ee/react-app.html", "61297c47-c5de-4fd9-add9-1967615a44a8", None))))
+tx(txAdd.add(LEvent.delete(AlienProtocol.U_FromAlienState("61297c47-c5de-4fd9-add9-1967615a44a8", "https://skh.dev.cone.ee/react-app.html", "61297c47-c5de-4fd9-add9-1967615a44a8", None))))
  */
 
 case object SSHDebugKey extends TransientLens[Option[RichContext=>Unit]](None)

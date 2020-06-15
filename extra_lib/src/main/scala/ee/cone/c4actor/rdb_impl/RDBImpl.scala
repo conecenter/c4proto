@@ -19,9 +19,10 @@ import ee.cone.c4assemble._
 import ee.cone.c4di.{c4, c4multi, provide}
 import ee.cone.c4proto._
 import okio.ByteString
-import ee.cone.c4actor.rdb._
+import ee.cone.c4actor.rdb.{ExternalDBClient, _}
+import ee.cone.c4actor.rdb_impl.ProtoIndentedParserError.S_IndentedParserError
 
-@c4("FromExternalDBSyncApp") class FromExternalDBOptionsProvider(
+@c4("FromExternalDBSyncApp") final class FromExternalDBOptionsProvider(
   rdbOptionFactory: RDBOptionFactory
 ) {
   @provide def get: Seq[ExternalDBOption] = List(
@@ -29,7 +30,7 @@ import ee.cone.c4actor.rdb._
   )
 }
 
-@c4("RDBSyncApp") class RDBOptionFactoryImpl(
+@c4("RDBSyncApp") final class RDBOptionFactoryImpl(
   toExternalDBOrigAssembleFactory: ToExternalDBOrigAssembleFactory
 ) extends RDBOptionFactory {
   def fromDB[P <: Product](cl: Class[P]): ExternalDBOption = new FromDBOption(cl)
@@ -57,7 +58,7 @@ object ToExternalDBTypes {
   type PseudoOrigNeedSrcId = SrcId
 }
 
-@c4("ToExternalDBSyncApp") class ToExternalDBAssemblesBase(options: List[ExternalDBOption]) {
+@c4("ToExternalDBSyncApp") final class ToExternalDBAssemblesBase(options: List[ExternalDBOption]) {
   @provide def subAssembles: Seq[Assemble] = options.collect{ case o: ToDBOption => o.assemble }
 }
 
@@ -94,7 +95,9 @@ trait  ToExternalDBItemAssembleUtil {
     itemToHasState(item)
 }
 
-@c4assemble("ToExternalDBSyncApp") class ToExternalDBTxAssembleBase(rDBTypes: RDBTypes) extends   LazyLogging{
+@c4assemble("ToExternalDBSyncApp") class ToExternalDBTxAssembleBase(
+  toExternalDBTxFactory: ToExternalDBTxFactory
+) extends   LazyLogging{
   type TypeHex = String
   def joinTasks(
     key: SrcId,
@@ -117,7 +120,7 @@ trait  ToExternalDBItemAssembleUtil {
   def join(
     key: SrcId,
     @by[TypeHex] tasks: Values[ToExternalDBTask]
-  ): Values[(SrcId,TxTransform)] = List(WithPK(ToExternalDBTx(key, tasks.toList)(rDBTypes)))
+  ): Values[(SrcId,TxTransform)] = List(WithPK(toExternalDBTxFactory.create(key, tasks.toList)))
 }
 
 case class ToExternalDBTask(
@@ -129,16 +132,20 @@ case class ToExternalDBTask(
 
 case object RDBSleepUntilKey extends TransientLens[Map[SrcId,(Instant,Option[B_HasState])]](Map.empty)
 
-case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(rDBTypes: RDBTypes) extends TxTransform with LazyLogging {
+@c4multi("ToExternalDBSyncApp") final case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(
+  rDBTypes: RDBTypes,
+  txAdd: LTxAdd,
+  registry: QAdapterRegistry,
+  externalDBClient: ExternalDBClient,
+) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = {
     val now = Instant.now()
     tasks.find{ task =>
       val skip = RDBSleepUntilKey.of(local)
       val(until,wasTo) = skip.getOrElse(task.srcId, (Instant.MIN,None))
       until.isBefore(now) || task.to != wasTo
-    }.map{ task => WithJDBCKey.of(local) { conn =>
+    }.map{ task => externalDBClient.getConnectionPool.doWith { conn =>
       import task.{from,to}
-      val registry = QAdapterRegistryKey.of(local)
       val protoToString = new ProtoToString(registry,rDBTypes)
       def recode(stateOpt: Option[B_HasState]) = stateOpt.map{ state =>
         protoToString.recode(state.valueTypeId, state.value)
@@ -161,7 +168,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(rDBType
       )(local)
       else RDBSleepUntilKey.modify(m =>
         m - task.srcId
-      ).andThen(TxAdd(
+      ).andThen(txAdd.add(
         from.toList.flatMap(LEvent.delete) ++ to.toList.flatMap(LEvent.update)
       ))(local)
     }}.getOrElse(local)
@@ -189,11 +196,13 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(rDBType
     List(WithPK(factory.create("externalDBSync")))
 }
 
-@c4multi("FromExternalDBSyncApp") case class FromExternalDBSyncTransform(srcId:SrcId)(
+@c4multi("FromExternalDBSyncApp") final case class FromExternalDBSyncTransform(srcId:SrcId)(
   indentedParser: IndentedParser,
   getB_DBOffset: GetByPK[B_DBOffset],
+  rawTxAdd: RawTxAdd,
+  externalDBClient: ExternalDBClient,
 ) extends TxTransform with LazyLogging {
-  def transform(local: Context): Context = WithJDBCKey.of(local){ conn =>
+  def transform(local: Context): Context = externalDBClient.getConnectionPool.doWith { conn =>
     val offset =
       getB_DBOffset.ofA(local).getOrElse(srcId, B_DBOffset(srcId, 0L))
     logger.debug(s"offset $offset")//, By.srcId(classOf[Invoice]).of(world).size)
@@ -202,20 +211,26 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(rDBType
     //  .map(n=>LEvent.add(LEvent.update(n)))
     if(textEncoded.isEmpty) local else {
       logger.debug(s"textEncoded $textEncoded")
-      WriteModelAddKey.of(local)(indentedParser.toUpdates(textEncoded))(local)
+      rawTxAdd.add(indentedParser.toUpdates(textEncoded))(local)
     }
   }
 }
 
-@c4("FromExternalDBSyncApp") class FromExternalDBUpdateFlag extends UpdateFlag {
+@c4("FromExternalDBSyncApp") final class FromExternalDBUpdateFlag extends UpdateFlag {
   val flagValue: Long = 8L
 }
 
-@c4("FromExternalDBSyncApp") class IndentedParser(
-  universalProtoAdapter: ProtoAdapter[UniversalNode], rDBTypes: RDBTypes, universalNodeFactory: UniversalNodeFactory,
+@c4("FromExternalDBSyncApp") final class IndentedParser(
+  universalProtoAdapter: ProtoAdapter[UniversalNode],
+  rDBTypes: RDBTypes,
+  universalNodeFactory: UniversalNodeFactory,
   fromExternalDBUpdateFlag: FromExternalDBUpdateFlag,
+  errorAdapter: Option[ProtoAdapter[S_IndentedParserError]],
+  hashGen: HashGen,
   splitter: Char = ' ', lineSplitter: String = "\n"
-)(fromExternalDBFlag: Long = fromExternalDBUpdateFlag.flagValue) {
+)(
+  fromExternalDBFlag: Long = fromExternalDBUpdateFlag.flagValue
+) extends LazyLogging {
   //@tailrec final
   private def parseProp(key: String, value: List[String]): UniversalProp = {
     import universalNodeFactory._
@@ -237,23 +252,59 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(rDBType
       parseProps(left, parseProp(key, value) :: res)
     }
 
-  private def getNodeSrcId(node: UniversalNode): SrcId =
-    node.props.head.value match {
-      case s: String => s
+  private def getNodeSrcId(node: UniversalNode): Option[SrcId] =
+    node.props.headOption.map(_.value).collect {
+      case s: SrcId => s
     }
+
+  def reportError(prop: UniversalProp, text: String): List[N_Update] =
+    errorAdapter.map(adapter => {
+      logger.error(s"Prop with errors: $prop from text $text")
+      val errorTypeId = adapter.asInstanceOf[HasId].id
+      val error = S_IndentedParserError(
+        srcId = "",
+        text = text,
+        tag = prop.tag,
+        value = prop.value.toString
+      )
+      val errorId = hashGen.generate(error)
+      N_Update(
+        srcId = errorId,
+        valueTypeId = errorTypeId,
+        value = ToByteString(
+          adapter.encode(
+            error.copy(srcId = errorId)
+          )
+        ),
+        flags = 0L
+      )
+    }
+    ).toList
 
   def toUpdates(textEncoded: String): List[N_Update] = {
     val lines = textEncoded.split(lineSplitter).filter(_.nonEmpty).toList
     val universalNode = universalNodeFactory.node(parseProps(lines, Nil))
     //println(PrettyProduct.encode(universalNode))
-    universalNode.props.map { prop =>
-      val (srcId, value) = prop.value match {
+    universalNode.props.flatMap { prop =>
+      val (srcIdOpt, value) = prop.value match {
         case node: UniversalDeleteImpl => (getNodeSrcId(node), ToByteString(Array.emptyByteArray))
         case node: UniversalNode => (getNodeSrcId(node), ToByteString(prop.encodedValue))
       }
-      N_Update(srcId, prop.tag, value, fromExternalDBFlag)
+      srcIdOpt match {
+        case Some(srcId) => N_Update(srcId, prop.tag, value, fromExternalDBFlag) :: Nil
+        case None => reportError(prop, textEncoded)
+      }
     }
   }
+}
+
+@protocol("FromExternalDBSyncApp") object ProtoIndentedParserError {
+  @Id(0x00A0) case class S_IndentedParserError(
+    @Id(0x00A1) srcId: SrcId,
+    @Id(0x00A2) text: String,
+    @Id(0x00A3) tag: Int,
+    @Id(0x00A4) value: String
+  )
 }
 
 class ProtoToString(registry: QAdapterRegistry, rDBTypes: RDBTypes){
@@ -282,10 +333,15 @@ class ProtoToString(registry: QAdapterRegistry, rDBTypes: RDBTypes){
 
 object Hex { def apply(i: Long): String = "0x%04x".format(i) }
 
-@c4("RDBSyncApp") class RDBTypes(universalProtoAdapter: ProtoAdapter[UniversalNode], universalNodeFactory: UniversalNodeFactory) {
+@c4("RDBSyncApp") final class RDBTypes(
+  universalProtoAdapter: ProtoAdapter[UniversalNode],
+  universalNodeFactory: UniversalNodeFactory,
+  srcIdProtoAdapter: ProtoAdapter[SrcId]
+) {
   import universalNodeFactory._
   def encode(p: Object): String = p match {
     case v: String => v
+    // case v: SrcId => v in case SrcId becomes something other than String
     case v: java.lang.Boolean => if(v) "T" else ""
     case v: java.lang.Long => v.toString
     case v: java.lang.Integer => v.toString
@@ -298,6 +354,8 @@ object Hex { def apply(i: Long): String = "0x%04x".format(i) }
   def toUniversalProp(tag: Int, typeName: String, value: String): UniversalProp = typeName match {
     case "String" =>
       prop[String](tag,value,ProtoAdapter.STRING)
+    case "SrcId" =>
+      prop[SrcId](tag,value,srcIdProtoAdapter)
     case "ByteString" =>
       prop[okio.ByteString](tag, okio.ByteString.decodeBase64(value),ProtoAdapter.BYTES)
     case "Boolean" =>
@@ -317,6 +375,7 @@ object Hex { def apply(i: Long): String = "0x%04x".format(i) }
 ///
 
 object UniversalDeleteProtoAdapter extends ProtoAdapter[UniversalDeleteImpl](FieldEncoding.LENGTH_DELIMITED, classOf[UniversalDeleteImpl]) {
+  def redact(e: UniversalDeleteImpl): UniversalDeleteImpl = throw new Exception("Can't be called")
   def encodedSize(value: UniversalDeleteImpl): Int = throw new Exception("Can't be called")
   def encode(writer: ProtoWriter, value: UniversalDeleteImpl): Unit = throw new Exception("Can't be called")
   def decode(reader: ProtoReader): UniversalDeleteImpl = throw new Exception("Can't be called")

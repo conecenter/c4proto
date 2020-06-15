@@ -20,7 +20,7 @@ my $get_text = sub{
 };
 my $find_files = sub{
     my $from = join(" ", @_)||die;
-    my @res = syf("find $from -type f")=~/(.*)/g;
+    my @res = syf("find $from -type f")=~/(.+)/g;
     sort @res;
 };
 my $need_path = sub{
@@ -70,19 +70,25 @@ my $calc_bloop_conf = sub{
     my ($ext_dep_by_from) = &$group(&$dep_conf("C4EXT"));
     my ($int_dep_by_from) = &$group(&$dep_conf("C4DEP"));
     my ($lib_dep_by_from) = &$group(&$dep_conf("C4LIB"));
+    my @excl = &$distinct(&$to(&$dep_conf("C4EXCL")));
     my @resolved = @{$$coursier_out{dependencies}||die};
     my %resolved_by_name = map{($$_{coord}=>$_)} grep{$_||die} @resolved;
     my %scala_jars = map{m"/scala-(\w+)-[^/]*\.jar$"?("$1"=>$_):()} map{$$_{file}} @resolved;
+    my $wartremover = &$single(grep{m{/wartremover/}} map{$$_{file}} @resolved);
     my $scala = {
         "organization" => "org.scala-lang",
         "name" => "scala-compiler",
         "version" => "2.13.1",
-        "options" => [],
+        "options" => [
+            &$distinct(map{"-P:wartremover:traverser:$_"}&$to(&$dep_conf("C4WART"))),
+            "-Xplugin:$wartremover",
+        ],
         "jars" => [grep{$_||die}@scala_jars{qw[library compiler reflect]}],
     };
     my %external_to_jars = map{ my $d = $_;
         my @dep = grep{$_}
             map{ $resolved_by_name{$_} || do{ print "dep ignored: $_\n"; undef } }
+            grep{ my $str = $_; !grep{0<index $str,$_} @excl }
             @{$$d{dependencies}||die};
         ($$d{coord}=>[grep{$_} map{$$_{file}} $d, @dep]);
     } values %resolved_by_name;
@@ -134,7 +140,7 @@ my $calc_bloop_conf = sub{
         my($from,$to)=@$_;
         my($mod,$cl) = $to=~/^(\w+\.)(.*)(\.\w+)$/ ? ("$1$2","$2$3") : die;
         (
-            +{ fn=>"$tmp/tag.$from.compile", content=>"exec bloop compile $mod" },
+            +{ fn=>"$tmp/tag.$from.compile", content=>"exec perl $tmp/compile.pl $mod" },
             +{ fn=>"$tmp/tag.$from.mod", content=>$mod },
             +{ fn=>"$tmp/tag.$from.main", content=>$cl },
         )
@@ -268,9 +274,11 @@ my $src_list = join"\n", grep{!m"/c4gen-[^/]+$"} &$find_files(map{"$src_dir/$_"}
     &$put_text(&$need_path("$tmp/gen/src"),$src_list);
 });
 #
+
+&$if_changed("$tmp/compile.pl",q^open FF,'|-','bloop','compile',@ARGV; close FF or die;^,sub{}); ### bloop returns 0-exit-code if interrupted with ^C SIGINT; perl during 'system' will not fail on ^C; so we use 'open'
 my $sum = &$get_sum(join"\n",map{&$get_text($_)} sort grep{/\.scala$/} &$find_files(&$get_text("$tmp/generator-src-dirs")=~/(\S+)/g));
 &$if_changed("$tmp/generator-src-sum",$sum,sub{
-    sy("cd $src_dir && bloop compile $gen_mod");
+    sy("cd $src_dir && perl $tmp/compile.pl $gen_mod");
 });
 print "generation starting\n";
 my $main = &$single(&$from(&$dep_conf("C4GENERATOR_MAIN")));
@@ -282,6 +290,16 @@ my @src_fns = &$find_files(map{"$src_dir/$_"}@src_dirs);
 my @app_traits_will = &$gen_app_traits($src_dir,\@src_fns,[&$dep_conf("C4DEP")]); #after scalameta
 &$apply_will($by,\@src_fns,"ft-c4gen-base",[@app_traits_will]);
 print "generation finished\n";
+do{
+    my @dirs = grep{$_} &$to(&$dep_conf("C4CLIENT"));
+    for my $path(@dirs){
+        my $sum_key = &$get_sum($path);
+        my $sum_val = &$get_sum(&$get_text("$path/package.json"));
+        &$if_changed("$tmp/client-dep-sum.$sum_key", $sum_val, sub{
+            sy("cd $path && npm install");
+        });
+    }
+    my $files = join " ", &$find_files(map{"$_/src"} @dirs), sort grep{-f $_} map{<$_/*>} @dirs;
+    sy("md5sum $files > $tmp/client-sums");
+};
 &$put_text(&$need_path("$src_dir/target/gen-ver"),time);
-
-sy("cd $_ && npm install") for grep{$_ && !-e "$_/node_modules"} &$to(&$dep_conf("C4CLIENT"));

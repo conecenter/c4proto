@@ -15,19 +15,7 @@ import ee.cone.c4actor.QProtocol._
 import ee.cone.c4actor.Types._
 import ee.cone.c4di.c4
 
-object Merge {
-  def apply[A](path: List[Any], values: List[A]): A =
-    if(values.size <= 1) Single(values)
-    else {
-      val maps = values.collect{ case m: Map[_,_] => m.toList }
-      assert(values.size == maps.size, s"can not merge $values of $path")
-      maps.flatten
-        .groupBy(_._1).transform((k,kvs)=>Merge(k :: path, kvs.map(_._2)))
-            .asInstanceOf[A]
-    }
-}
-
-@c4("RichDataCompApp") class GetOffsetImpl(
+@c4("RichDataCompApp") final class GetOffsetImpl(
   actorName: ActorName,
   getS_Offset: GetByPK[S_Offset],
 ) extends GetOffset {
@@ -36,8 +24,16 @@ object Merge {
   def empty: NextOffset = "0" * OffsetHexSize()
 }
 
-@c4("RichDataCompApp") class RichRawWorldReducerImpl(
-  toInjects: List[ToInject], toUpdate: ToUpdate, actorName: ActorName, execution: Execution, getOffset: GetOffsetImpl
+object EmptyInjected extends Injected
+
+@c4("RichDataCompApp") final class RichRawWorldReducerImpl(
+  injected: List[Injected],
+  toUpdate: ToUpdate,
+  actorName: ActorName,
+  execution: Execution,
+  getOffset: GetOffsetImpl,
+  readModelAdd: ReadModelAdd,
+  getAssembleOptions: GetAssembleOptions,
 ) extends RichRawWorldReducer with LazyLogging {
   def reduce(contextOpt: Option[SharedContext with AssembledContext], addEvents: List[RawEvent]): RichContext = {
     val events = if(contextOpt.nonEmpty) addEvents else {
@@ -50,21 +46,17 @@ object Merge {
       case context: RichRawWorldImpl => context
       case context => create(context.injected, context.assembled, context.executionContext)
     } else {
-      val context = contextOpt.getOrElse{
-        val injectedList = for{
-          toInject <- toInjects
-          injected <- toInject.toInject
-        } yield Map(injected.pair)
-        create(Merge(Nil,injectedList), emptyReadModel, EmptyOuterExecutionContext)
-      }
-      val nAssembled = ReadModelAddKey.of(context)(events)(context)
+      val context = contextOpt.getOrElse(
+        create(Single.option(injected).getOrElse(EmptyInjected), emptyReadModel, EmptyOuterExecutionContext)
+      )
+      val nAssembled = readModelAdd.add(events, context)
       create(context.injected, nAssembled, context.executionContext)
     }
   }
 
-  def create(injected: SharedComponentMap, assembled: ReadModel, executionContext: OuterExecutionContext): RichRawWorldImpl = {
+  def create(injected: Injected, assembled: ReadModel, executionContext: OuterExecutionContext): RichRawWorldImpl = {
     val preWorld = new RichRawWorldImpl(injected, assembled, executionContext, "")
-    val threadCount = GetAssembleOptions.of(preWorld)(assembled).threadCount
+    val threadCount = getAssembleOptions.get(assembled).threadCount
     val offset = getOffset.of(preWorld)
     new RichRawWorldImpl(injected, assembled, needExecutionContext(threadCount)(executionContext), offset)
   }
@@ -98,7 +90,7 @@ object EmptyOuterExecutionContext extends OuterExecutionContext {
 }
 
 class RichRawWorldImpl(
-  val injected: SharedComponentMap,
+  val injected: Injected,
   val assembled: ReadModel,
   val executionContext: OuterExecutionContext,
   val offset: NextOffset

@@ -19,7 +19,7 @@ object TimeJoinParamTransformer extends JoinParamTransformer {
   }
 }
 
-class TimeGenerator(protocolGenerator: ProtocolGenerator) extends Generator {
+class TimeGenerator(protocolGenerator: ProtocolGenerator, metaGenerator: MetaGenerator) extends Generator {
 
   def get(parseContext: ParseContext): List[Generated] =
     parseContext.stats.collect {
@@ -27,6 +27,12 @@ class TimeGenerator(protocolGenerator: ProtocolGenerator) extends Generator {
         val id :: rest = exprs.asInstanceOf[List[Stat]].map(_.syntax)
         val protocol = getProtocol(name.value, id, rest)
         getProtocolImports ::: (GeneratedCode(protocol) ::
+          metaGenerator.get(
+            new ParseContext(
+              protocol.parse[Stat].get :: Nil,
+              parseContext.path, parseContext.pkg
+            )
+          ) :::
           protocolGenerator.get(
             new ParseContext(
               protocol.parse[Stat].get :: Nil,
@@ -58,7 +64,7 @@ class TimeGenerator(protocolGenerator: ProtocolGenerator) extends Generator {
       GeneratedImport("import ee.cone.c4actor.AssembledContext") ::
       GeneratedImport("import ee.cone.c4actor.AssembledContext") ::
       GeneratedCode(
-        s"""@c4${if (traits.isEmpty) "" else traits.mkString("(", ", ", ")")} class ${name}CurrTimeConfig(val timeGetter: GetByPK[T_${name}]) extends TimeGetter(${name}) with CurrTimeConfig[T_${name}] {
+        s"""@c4${if (traits.isEmpty) "" else traits.mkString("(", ", ", ")")} final class ${name}CurrTimeConfig(val timeGetter: GetByPK[T_${name}]) extends TimeGetter(${name}) with CurrTimeConfig[T_${name}] {
            |  lazy val cl: Class[T_${name}] = classOf[T_${name}]
            |  lazy val default: T_${name} = T_${name}(currentTime.srcId, currentTime.refreshRateSeconds)
            |  lazy val set: Long => T_${name} => T_${name} = v => _.copy(millis = v)

@@ -30,7 +30,7 @@ object SnapshotUtilImpl extends SnapshotUtil {
   def hashFromData: Array[Byte]=>String = UUID.nameUUIDFromBytes(_).toString
 }
 
-@c4("SnapshotUtilImplApp") class SnapshotUtilProvider {
+@c4("SnapshotUtilImplApp") final class SnapshotUtilProvider {
   @provide def provide: Seq[SnapshotUtil] = List(SnapshotUtilImpl)
 }
 
@@ -38,7 +38,7 @@ object SnapshotUtilImpl extends SnapshotUtil {
 import SnapshotUtilImpl._
 
 //case class Snapshot(offset: NextOffset, uuid: String, raw: RawSnapshot)
-@c4multi("SnapshotUtilImplApp") class SnapshotSaverImpl(subDirStr: String)(inner: RawSnapshotSaver) extends SnapshotSaver {
+@c4multi("SnapshotUtilImplApp") final class SnapshotSaverImpl(subDirStr: String)(inner: RawSnapshotSaver) extends SnapshotSaver {
   def save(offset: NextOffset, data: Array[Byte], headers: List[RawHeader]): RawSnapshot = {
     val snapshot = RawSnapshot(s"$subDirStr/$offset-${hashFromData(data)}${headers.map(h => s"-${h.key}-${h.value}").mkString}")
     assert(hashFromName(snapshot).nonEmpty, s"Not a valid name ${snapshot.relativePath}")
@@ -47,7 +47,7 @@ import SnapshotUtilImpl._
   }
 }
 
-@c4("SnapshotLoaderImplApp") class SnapshotLoaderImpl(raw: RawSnapshotLoader) extends SnapshotLoader with LazyLogging {
+@c4("SnapshotLoaderImplApp") final class SnapshotLoaderImpl(raw: RawSnapshotLoader) extends SnapshotLoader with LazyLogging {
   def load(snapshot: RawSnapshot): Option[RawEvent] = {
     logger.debug(s"Loading raw snapshot [${snapshot.relativePath}]")
     val res = for {
@@ -59,7 +59,7 @@ import SnapshotUtilImpl._
   }
 }
 
-@c4("SnapshotLoaderFactoryImplApp") class SnapshotLoaderFactoryImpl extends SnapshotLoaderFactory {
+@c4("SnapshotLoaderFactoryImplApp") final class SnapshotLoaderFactoryImpl extends SnapshotLoaderFactory {
   def create(raw: RawSnapshotLoader): SnapshotLoader =
     new SnapshotLoaderImpl(raw)
 }

@@ -3,28 +3,32 @@ package ee.cone.c4assemble
 import ee.cone.c4assemble.Types.{DMap, Index, emptyIndex}
 import ee.cone.c4di.c4
 
+import scala.collection.immutable.Seq
 import scala.concurrent.{ExecutionContext, Future}
 
-@c4("AssembleApp") class IndexUpdaterImpl(readModelUtil: ReadModelUtil) extends IndexUpdater {
-  def setPart(worldKey: AssembledKey, update: Future[IndexUpdate], logTask: Boolean): WorldTransition=>WorldTransition = transition => {
-    implicit val executionContext: ExecutionContext = transition.executionContext.value
-    val diff = readModelUtil.updated(worldKey,update.map(_.diff))(transition.diff)
-    val next = readModelUtil.updated(worldKey,update.map(_.result))(transition.result)
+@c4("AssembleApp") final class IndexUpdaterImpl(readModelUtil: ReadModelUtil) extends IndexUpdater {
+  def setPart(worldKeys: Seq[AssembledKey], update: Future[IndexUpdates], logTask: Boolean): WorldTransition=>WorldTransition = transition => {
+    implicit val ec: ExecutionContext = transition.executionContext.value
+    val diff = readModelUtil.updated(worldKeys,update.map(_.diffs))(ec)(transition.diff)
+    val next = readModelUtil.updated(worldKeys,update.map(_.results))(ec)(transition.result)
     val log = for {
       log <- transition.log
       u <- update
     } yield u.log ::: log
-    val nTaskLog = if(logTask) worldKey :: transition.taskLog else transition.taskLog
+    val nTaskLog = if(logTask) worldKeys.toList ::: transition.taskLog else transition.taskLog
     transition.copy(diff=diff,result=next,log=log,taskLog=nTaskLog)
   }
 }
 
-@c4("AssembleApp") class ReadModelUtilImpl(indexUtil: IndexUtil) extends ReadModelUtil {
+@c4("AssembleApp") final class ReadModelUtilImpl(indexUtil: IndexUtil) extends ReadModelUtil {
   def create(inner: MMap): ReadModel =
     new ReadModelImpl(inner)
-  def updated(worldKey: AssembledKey, value: Future[Index]): ReadModel=>ReadModel = {
-    case from: ReadModelImpl => new ReadModelImpl(from.inner + (worldKey -> value))
+  def updated(worldKeys: Seq[AssembledKey], values: Future[Seq[Index]])(implicit ec: ExecutionContext): ReadModel=>ReadModel = {
+    case from: ReadModelImpl =>
+      val cValues = values.map{l=>assert(l.size==worldKeys.size);l}
+      new ReadModelImpl(from.inner ++ worldKeys.zipWithIndex.map{ case (k,i) => k -> cValues.map(_(i)) })
   }
+
   def isEmpty(implicit executionContext: ExecutionContext): ReadModel=>Future[Boolean] = {
     case model: ReadModelImpl =>
       Future.sequence(model.inner.values).map(_.forall(indexUtil.isEmpty))
@@ -34,7 +38,7 @@ import scala.concurrent.{ExecutionContext, Future}
     case (_,_) =>  throw new Exception("ReadModel op")
   })
   def toMap: ReadModel=>Map[AssembledKey,Index] = {
-    case model: ReadModelImpl => model.inner.transform((k,f) => f.value.get.get)
+    case model: ReadModelImpl => model.inner.transform((k,f) => indexUtil.getInstantly(f)) // .getOrElse(throw new Exception(s"index failure: $k"))
   }
   def ready(implicit executionContext: ExecutionContext): ReadModel=>Future[ReadModel] = {
     case model: ReadModelImpl =>

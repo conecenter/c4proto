@@ -14,7 +14,7 @@ import ee.cone.c4di.{c4, provide}
 import ee.cone.c4proto._
 import okio.ByteString
 
-@c4("HashSearchRequestApp") class HashSearchRequestAssembles(
+@c4("HashSearchRequestApp") final class HashSearchRequestAssembles(
   leafRegistry: LeafRegistry,
   hsDepRequestAssembleFactory: HSDepRequestAssembleFactory,
 ) {
@@ -75,7 +75,7 @@ case class LeafInfoHolder[Model <: Product, By <: Product, Field](
 
 trait LeafRegistryMixBase
 
-@c4("LeafRegistryMix") case class LeafRegistryImpl(
+@c4("LeafRegistryMix") final case class LeafRegistryImpl(
   leafList: List[ProductLeafInfoHolder]
 )(
   models: List[Class[_ <: Product]] = leafList.map(_.modelCl)
@@ -93,7 +93,7 @@ trait LeafRegistryMixBase
   def getModelsList: List[Class[_ <: Product]] = models.distinct
 }
 
-@c4("HashSearchRequestApp") case class HashSearchDepRequestHandler(leafs: LeafRegistry, condFactory: ModelConditionFactory[Unit], modelFactory: ModelFactory, qAdapterRegistry: QAdapterRegistry) {
+@c4("HashSearchRequestApp") final case class HashSearchDepRequestHandler(leafs: LeafRegistry, condFactory: ModelConditionFactory[Unit], modelFactory: ModelFactory, qAdapterRegistry: QAdapterRegistry) {
 
   def handle: N_HashSearchDepRequest => Condition[_] = request =>
     parseCondition(
