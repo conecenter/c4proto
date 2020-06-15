@@ -50,7 +50,7 @@ trait RoPongRegistry {
   def wire: RHttpHandlerCreate = next => (request,local) =>
     if(request.method == "POST" && request.path == sseConfig.pongURL) {
       logger.debug(s"pong-enter")
-      val headers = request.headers.groupMap(_.key)(_.value).transform((k,v) => Single(v))
+      val headers = request.headers.filter(_.key.startsWith("x-r-")).groupMap(_.key)(_.value).transform((k,v) => Single(v))
       headers.get("x-r-session").filter(_.nonEmpty).fold{ //start
         logger.debug(s"pong-y-start")
         httpResponseFactory.setSession(request,Option(""),None)
