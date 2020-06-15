@@ -37,7 +37,7 @@ trait DepFilterWrapperProvider {
 trait DepFilterWrapperCollectorMixBase
   extends HashSearchDepRequestFactoryApp
 
-@c4("DepFilterWrapperCollectorMix") class DepFilterWrapperCollectorLeafs(
+@c4("DepFilterWrapperCollectorMix") final class DepFilterWrapperCollectorLeafs(
   providers: List[DepFilterWrapperProvider],
   creator: HashSearchDepRequestFactoryCreator
 ) {
