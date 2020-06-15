@@ -1,18 +1,14 @@
 package ee.cone.c4actor.hashsearch.base
 
-import ee.cone.c4actor.QProtocol.S_Firstborn
-import ee.cone.c4actor.{Condition, _}
 import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol._
+import ee.cone.c4actor.{Condition, _}
+import ee.cone.c4di.c4
 import ee.cone.c4proto.ToByteString
 
-trait HashSearchDepRequestFactoryApp {
-  def hashSearchDepRequestFactory: HashSearchDepRequestFactory[_]
-}
+trait HashSearchDepRequestFactoryAppBase
 
-trait HashSearchDepRequestFactoryMix extends HashSearchDepRequestFactoryApp{
-  def qAdapterRegistry: QAdapterRegistry
-
-  def hashSearchDepRequestFactory: HashSearchDepRequestFactory[_] = HashSearchDepRequestFactoryImpl(S_Firstborn.getClass, qAdapterRegistry)
+trait HashSearchDepRequestFactoryCreator {
+  def ofWithCl[Model](otherModel: Class[Model]): HashSearchDepRequestFactory[Model]
 }
 
 trait HashSearchDepRequestFactory[Model] {
@@ -34,7 +30,12 @@ trait HashSearchDepRequestFactory[Model] {
   def ofWithCl[OtherModel](otherModel: Class[OtherModel]): HashSearchDepRequestFactory[OtherModel]
 }
 
-case class HashSearchDepRequestFactoryImpl[Model](modelCl: Class[Model], qAdapterRegistry: QAdapterRegistry) extends HashSearchDepRequestFactory[Model] {
+@c4("HashSearchDepRequestFactoryApp") final class HashSearchDepRequestFactoryCreatorImpl(qAdapterRegistry: QAdapterRegistry) extends HashSearchDepRequestFactoryCreator {
+  def ofWithCl[Model](otherModel: Class[Model]): HashSearchDepRequestFactory[Model] =
+    new HashSearchDepRequestFactoryImpl(otherModel, qAdapterRegistry)
+}
+
+class HashSearchDepRequestFactoryImpl[Model](modelCl: Class[Model], qAdapterRegistry: QAdapterRegistry) extends HashSearchDepRequestFactory[Model] {
 
   def intersect: (ProtoDepCondition, ProtoDepCondition) => ProtoDepCondition =
     (a, b) => N_DepConditionIntersect(Option(a), Option(b))
@@ -71,5 +72,6 @@ case class HashSearchDepRequestFactoryImpl[Model](modelCl: Class[Model], qAdapte
     case cant => FailWith.apply(s"No such condition node $cant")
   }
 
-  def ofWithCl[OtherModel](otherModel: Class[OtherModel]): HashSearchDepRequestFactory[OtherModel] = HashSearchDepRequestFactoryImpl(otherModel, qAdapterRegistry)
+  def ofWithCl[OtherModel](otherModel: Class[OtherModel]): HashSearchDepRequestFactory[OtherModel] =
+    new HashSearchDepRequestFactoryImpl(otherModel, qAdapterRegistry)
 }
