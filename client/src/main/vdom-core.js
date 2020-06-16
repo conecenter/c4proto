@@ -253,7 +253,7 @@ export function VDomAttributes(sender){
     const ctx = { ctx: ctx => ctx }
     const identity = { ctx: ctx => ctx }
     const path = { "I": ctxToPath }
-    const tp = ({TraverseChildren,ReControlledInput:"input",SyncInputRoot})
+    const tp = ({TraverseChildren,SyncInputRoot})
     const transforms = {onClick,onChange,ref,ctx,tp,path,identity}
     return ({transforms})
 }
