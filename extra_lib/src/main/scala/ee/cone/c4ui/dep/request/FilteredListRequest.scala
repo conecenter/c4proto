@@ -14,8 +14,8 @@ import ee.cone.c4ui.FromAlienTask
 
 case class FLRequestDef(listName: String, filterPK: String, matches: List[String] = List(".*"))(val requestDep: Dep[List[_]])
 
-trait FilterListRequestApp {
-  def filterDepList: List[FLRequestDef] = Nil
+trait FilterListRequestApp extends ComponentProviderApp {
+  def filterDepList: List[FLRequestDef] = componentRegistry.resolve(classOf[FLRequestDef], Nil).value.toList
 }
 
 trait FilterListRequestHandlerAppBase
