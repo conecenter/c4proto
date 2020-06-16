@@ -57,12 +57,12 @@ export default function Feedback(sessionStorage,location,fetch,setTimeout){
         if(!message.defer) sender.flush()
         return headers
     }
-    const flush = () => oValues(senders).forEach(s=>s.flush())
+    //const flush = () => oValues(senders).forEach(s=>s.flush())
     function relocateHash(data) {
         location.href = "#"+data
     }
     const receivers = {connect,ping,relocateHash}
-    return ({receivers,send,flush})
+    return ({receivers,send})
 }
 
 const withNext = f => (item,index,list) => f(item,list[index+1])

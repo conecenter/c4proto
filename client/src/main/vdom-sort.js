@@ -31,11 +31,11 @@ const createPatchOpt = (patchedValue, oldIndex, newIndex) => {
         "x-r-sort-order-0": order[0],
         "x-r-sort-order-1": order[1],
     }
-    return [{headers}]
+    return [{headers,retry:true}]
 }
 
 const useSortRoot = (identity,value) => {
-    const [patches,enqueuePatch,flush] = useSync(identity,false)
+    const [patches,enqueuePatch] = useSync(identity)
     const patchedValue = useMemo(()=>applyPatches(value,patches),[value,patches])
     const onSortEnd = useCallback(({oldIndex, newIndex}) => {
         createPatchOpt(patchedValue, oldIndex, newIndex).forEach(p=>enqueuePatch(p))

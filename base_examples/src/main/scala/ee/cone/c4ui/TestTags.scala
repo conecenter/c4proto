@@ -65,7 +65,7 @@ case class ContainerLeftRight() extends ElementValue {
   def messageStrBody(o: VDomMessage): String =
     o.body match { case bs: okio.ByteString => bs.utf8() }
 
-  def input(access: Access[String]): ChildPair[OfDiv] = input(access, OnChangeMode.Defer)
+  def input(access: Access[String]): ChildPair[OfDiv] = input(access, OnChangeMode.SendFirst)
   def input(access: Access[String], mode: OnChangeMode): ChildPair[OfDiv] = {
     val name = access.metaList.collect{ case l: NameMetaAttr => l.value }.mkString(".")
     access.updatingLens.map { lens =>

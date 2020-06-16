@@ -149,7 +149,7 @@ const NoContext = createContext()
 const AckContext = createContext()
 const SenderContext = createContext()
 const nonMerged = ack => aPatch => !(aPatch && ack && aPatch.sentIndex <= ack.index)
-export const useSync = (identity,deferSend) => {
+export const useSync = identity => {
     const [patches,setPatches] = useState([])
     const sender = useContext(SenderContext)
     const enqueuePatch = useCallback(aPatch=>{
@@ -159,11 +159,7 @@ export const useSync = (identity,deferSend) => {
     useEffect(()=>{
         setPatches(aPatches => aPatches.every(nonMerged(ack)) ? aPatches : aPatches.filter(nonMerged(ack)))
     },[ack])
-    const flush = sender.flush
-    useEffect(()=>{
-        deferSend || flush()
-    },[sender,patches,deferSend])
-    return [patches,enqueuePatch,flush]
+    return [patches,enqueuePatch]
 }
 function createSyncProviders({sender,ack,children}){
     return createElement(SenderContext.Provider, {value:sender},
@@ -174,14 +170,22 @@ function createSyncProviders({sender,ack,children}){
 /********* sync input *********************************************************/
 
 function useSyncInput(identity,incomingValue,deferSend){
-    const [patches,enqueuePatch,flush] = useSync(identity,deferSend)
+    const [patches,enqueuePatch] = useSync(identity)
+    const [lastPatch,setLastPatch] = useState()
+    const defer = deferSend(!!lastPatch)
     const onChange = useCallback(event => {
-        enqueuePatch({ headers: event.target.headers, value: event.target.value, skipByPath: true})
-    },[])
-    const onBlur = useCallback(event=>flush(),[flush])
-    const patch = patches.slice(-1).map(({value,changing})=>({value,changing,onChange,onBlur}))[0] //add filter for blur
+        const headers = ({...event.target.headers})
+        const value = event.target.value
+        enqueuePatch({ headers: {...headers,"x-r-changing":"1"}, value, skipByPath: true, retry: true, defer})
+        setLastPatch({ headers, value, skipByPath: true, retry: true })
+    },[enqueuePatch,defer])
+    const onBlur = useCallback(event => {
+        if(lastPatch) enqueuePatch(lastPatch)
+        setLastPatch(undefined)
+    },[enqueuePatch,lastPatch])
+    const patch = patches.slice(-1).map(({value})=>({value}))[0] //add filter for blur
     const value = patch ? patch.value : incomingValue
-    const changing = patch ? "1" : undefined
+    const changing = patch || lastPatch ? "1" : undefined
     return ({value,changing,onChange,onBlur})
 }
 const SyncInput = memo(function SyncInput({value,onChange,...props}){
@@ -213,9 +217,6 @@ const traverseChildren = TraverseChildren
 
 /******************************************************************************/
 
-// no x-r-changing, todo focus server handler
-
-
 // todo no resize anti-dos
 
 export function VDomAttributes(sender){
@@ -224,7 +225,6 @@ export function VDomAttributes(sender){
             const sent = sender.send(identityCtx,patch)
             return parseInt(sent["x-r-index"])
         },
-        flush: ()=>sender.flush()
     }
     function SyncInputRoot({incoming,ack}){
         return createSyncProviders({ ack, sender: inpSender, children: traverseOne(incoming) })
@@ -234,8 +234,9 @@ export function VDomAttributes(sender){
     const onClick = ({/*send,*/sendThen}) //react gives some warning on stopPropagation
 
     const onChange = {
-        "local": ctx => ({identity:ctx,deferSend:true,tp:SyncInput}),
-        "send": ctx => ({identity:ctx,deferSend:false,tp:SyncInput})
+        "local": ctx => ({identity:ctx,deferSend:changing=>true,tp:SyncInput}),
+        "send": ctx => ({identity:ctx,deferSend:changing=>false,tp:SyncInput}),
+        "send_first": ctx => ({identity:ctx,deferSend:changing=>changing,tp:SyncInput}),
     }
 
     const seed = ctx => element => {

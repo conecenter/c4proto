@@ -116,6 +116,7 @@ sealed abstract class OnChangeMode(val value: String) extends Product
 object OnChangeMode {
   case object ReadOnly extends OnChangeMode("")
   case object Send extends OnChangeMode("send")
+  case object SendFirst extends OnChangeMode("send_first")
   case object Defer extends OnChangeMode("local")
 }
 

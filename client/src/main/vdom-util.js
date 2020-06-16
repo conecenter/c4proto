@@ -19,12 +19,12 @@ export function VDomSender(feedback){ // todo: may be we need a queue to be sure
         return feedback.send({
             url: "/connection",
             options: { headers, body: target.value },
-            defer: target.skipByPath,
+            defer: target.defer,
             skip: target.skipByPath && skipByPath,
-            retry: target.skipByPath //vdom-changes are more or less idempotent and can be retried
+            retry: target.retry //vdom-changes are more or less idempotent and can be retried
         },rCtx.modify)
     }
-    return ({send,flush:feedback.flush})
+    return ({send})
 }
 
 export const pairOfInputAttributes = ({value,onChange,salt},headers) => {
