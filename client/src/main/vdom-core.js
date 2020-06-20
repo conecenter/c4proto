@@ -180,10 +180,15 @@ function useSyncInput(identity,incomingValue,deferSend){
         setLastPatch({ headers, value, skipByPath: true, retry: true })
     },[enqueuePatch,defer])
     const onBlur = useCallback(event => {
-        if(lastPatch) enqueuePatch(lastPatch)
-        setLastPatch(undefined)
-    },[enqueuePatch,lastPatch])
-    const patch = patches.slice(-1).map(({value})=>({value}))[0] //add filter for blur
+        setLastPatch(wasLastPatch=>{
+            if(wasLastPatch) enqueuePatch(wasLastPatch)
+            return undefined
+        })
+    },[enqueuePatch])
+    useEffect(()=>{
+        setLastPatch(wasLastPatch => wasLastPatch && wasLastPatch.value === incomingValue ? wasLastPatch : undefined)
+    },[incomingValue])
+    const patch = patches.slice(-1).map(({value})=>({value}))[0]
     const value = patch ? patch.value : incomingValue
     const changing = patch || lastPatch ? "1" : undefined
     return ({value,changing,onChange,onBlur})
@@ -197,10 +202,10 @@ const SyncInput = memo(function SyncInput({value,onChange,...props}){
 /********* traverse ***********************************************************/
 
 function TraverseOne(props){
-    const {tp,content,...at} = props.at
+    const {tp,...at} = props.at
     const children =
-        content && content[0] === "rawMerge" ? props :
-        props.chl ? traverseChildren(props) : content
+        at.content && at.content[0] === "rawMerge" ? props :
+        props.chl ? traverseChildren(props) : at.content
     return at.onChange ?
         createElement(at.onChange.tp, at, uProp=>createElement(tp, uProp, children)) :
         createElement(tp, at, children)
@@ -230,7 +235,9 @@ export function VDomAttributes(sender){
         return createSyncProviders({ ack, sender: inpSender, children: traverseOne(incoming) })
     }
 
-    const sendThen = ctx => event => sender.send(ctx,{value:""})
+    const sendThen = ctx => event => {
+        sender.send(ctx,{value:""})
+    }
     const onClick = ({/*send,*/sendThen}) //react gives some warning on stopPropagation
 
     const onChange = {

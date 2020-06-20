@@ -43,6 +43,7 @@ const config = (HtmlWebpackPlugin,kind,outDir,loaderRules) =>{
         }),
       ],
       resolve: {
+        modules: [outDir+"/node_modules"],
         alias: {
           c4p: path.resolve(__dirname, "src")
         }
