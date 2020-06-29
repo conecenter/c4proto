@@ -34,7 +34,7 @@ trait CurrTimeConfig[Model <: T_Time] extends GeneralCurrTimeConfig with LazyLog
   def timeGetter: GetByPK[Model]
 
   def process(refreshRate: Option[Long], offset: Long): Context => Seq[LEvent[Product]] = {
-    val refreshRateMillis = currentTime.refreshRateSeconds * 1000L
+    val refreshRateMillis = refreshRate.getOrElse(currentTime.refreshRateSeconds) * 1000L
     local => {
       val now = System.currentTimeMillis()
       val model: Option[Model] = timeGetter.ofA(local).get(currentTime.srcId)
