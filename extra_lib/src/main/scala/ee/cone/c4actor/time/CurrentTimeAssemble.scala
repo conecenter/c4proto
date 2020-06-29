@@ -44,6 +44,7 @@ trait CurrTimeConfig[Model <: T_Time] extends GeneralCurrTimeConfig with LazyLog
           LEvent.update(set(now)(time))
         case None =>
           LEvent.update(set(now)(default))
+        case _ => Nil
       }
     }
   }
