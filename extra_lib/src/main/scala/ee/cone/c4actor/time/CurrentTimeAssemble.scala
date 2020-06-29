@@ -23,13 +23,31 @@ trait WithCurrentTime {
   def currentTime: CurrentTime
 }
 
-trait GeneralCurrTimeConfig extends WithCurrentTime
+trait GeneralCurrTimeConfig extends WithCurrentTime {
+  def process(refreshRate: Option[Long], offset: Long): Context => Seq[LEvent[Product]]
+}
 
-trait CurrTimeConfig[Model <: T_Time] extends GeneralCurrTimeConfig {
+trait CurrTimeConfig[Model <: T_Time] extends GeneralCurrTimeConfig with LazyLogging {
   def cl: Class[Model]
   def set: Long => Model => Model
   def default: Model
   def timeGetter: GetByPK[Model]
+
+  def process(refreshRate: Option[Long], offset: Long): Context => Seq[LEvent[Product]] = {
+    val refreshRateMillis = currentTime.refreshRateSeconds * 1000L
+    local => {
+      val now = System.currentTimeMillis()
+      val model: Option[Model] = timeGetter.ofA(local).get(currentTime.srcId)
+      model match {
+        case Some(time) if time.millis + offset + refreshRateMillis < now =>
+          logger.debug(s"Updating ${currentTime.srcId} with ${offset}")
+          LEvent.update(set(now)(time))
+        case None =>
+          LEvent.update(set(now)(default))
+      }
+    }
+  }
+
 }
 
 @c4("GeneralCurrentTimeApp") final class TimeGettersImpl(timeGetters: List[TimeGetter]) extends TimeGetters {
@@ -39,13 +57,7 @@ trait CurrTimeConfig[Model <: T_Time] extends GeneralCurrTimeConfig {
 }
 
 @c4assemble("GeneralCurrentTimeApp") class CurrentTimeGeneralAssembleBase(
-  configs: List[GeneralCurrTimeConfig],
   generalCurrentTimeTransformFactory: GeneralCurrentTimeTransformFactory,
-)(
-  typed: List[CurrTimeConfig[_ <: T_Time]] =
-  CheckedMap(configs.asInstanceOf[List[CurrTimeConfig[_ <: T_Time]]]
-    .map(c => c.currentTime.srcId -> c)
-  ).values.toList
 ) {
   type CurrentTimeGeneralAll = AbstractAll
 
@@ -61,50 +73,30 @@ trait CurrTimeConfig[Model <: T_Time] extends GeneralCurrTimeConfig {
     @byEq[CurrentTimeGeneralAll](All) timeSetting: Values[S_CurrentTimeNodeSetting],
     //@time(TestDepTime) time: Each[Time] // byEq[SrcId](TestTime.srcId) time: Each[Time]
   ): Values[(SrcId, TxTransform)] =
-    WithPK(generalCurrentTimeTransformFactory.create(s"${firstborn.srcId}-general-time", timeSetting.toList, typed)) :: Nil
+    WithPK(generalCurrentTimeTransformFactory.create(s"${firstborn.srcId}-general-time", timeSetting.toList)) :: Nil
 }
 
 @c4multi("GeneralCurrentTimeApp") final case class GeneralCurrentTimeTransform(
-  srcId: SrcId, configs: List[S_CurrentTimeNodeSetting],
-  currentTimes: List[CurrTimeConfig[_ <: T_Time]]
+  srcId: SrcId, configs: List[S_CurrentTimeNodeSetting]
 )(
+  generalCurrTimeConfigs: List[GeneralCurrTimeConfig],
   txAdd: LTxAdd,
-) extends TxTransform with LazyLogging {
+) extends TxTransform {
+  lazy val currentTimes: List[GeneralCurrTimeConfig] =
+    CheckedMap(generalCurrTimeConfigs.map(c => c.currentTime.srcId -> c)).values.toList
   private val random: SecureRandom = new SecureRandom()
 
   lazy val configsMap: Map[String, Long] =
     configs.map(conf => conf.timeNodeId -> conf.refreshSeconds).toMap
   lazy val actions: List[Context => Seq[LEvent[Product]]] =
     currentTimes.map(currentTime =>
-      process(currentTime, configsMap.get(currentTime.currentTime.srcId), random.nextInt(500))
+      currentTime.process(configsMap.get(currentTime.currentTime.srcId), random.nextInt(500))
     )
 
   def transform(local: Context): Context = {
     actions.flatMap(_.apply(local)) match { // TODO may be throttle time updates and do them one by one
       case updates if updates.isEmpty => local
       case updates => txAdd.add(updates)(local)
-    }
-  }
-
-  def process[Model <: T_Time](
-    config: CurrTimeConfig[Model],
-    refreshRate: Option[Long],
-    offset: Long
-  ): Context => Seq[LEvent[Product]] = {
-    val default = config.default
-    val srcId = config.currentTime.srcId
-    val set = config.set
-    val refreshRateMillis = config.currentTime.refreshRateSeconds * 1000L
-    local => {
-      val now = System.currentTimeMillis()
-      config.timeGetter.ofA(local).get(srcId) match {
-        case Some(time) if time.millis + offset + refreshRateMillis < now =>
-          logger.debug(s"Updating ${config.currentTime.srcId} with ${offset}")
-          LEvent.update(set(now)(time))
-        case None =>
-          LEvent.update(set(now)(default))
-        case _ => Nil
-      }
     }
   }
 
