@@ -19,11 +19,14 @@ trait ByClassNameAllAsk {
 
 trait ByClassNameRequestMixBase extends ByClassNameRequestApp
 
-class ByClNameAllClass(val value: Class[_ <: Product])
+trait GeneralByClNameAllClass {
+  def value: Class[_ <: Product]
+}
+class ByClNameAllClass[CL <: Product](val value: Class[CL]) extends GeneralByClNameAllClass
 
 trait ByClassNameRequestApp extends ComponentsApp {
   import ee.cone.c4actor.ComponentProvider.provide
-  private lazy val byClNameAllClassesComponent = provide(classOf[ByClNameAllClass], ()=>byClNameAllClasses.map(new ByClNameAllClass(_)))
+  private lazy val byClNameAllClassesComponent = provide(classOf[GeneralByClNameAllClass], ()=>byClNameAllClasses.map(new ByClNameAllClass(_)))
   override def components: List[Component] = byClNameAllClassesComponent :: super.components
   def byClNameAllClasses: List[Class[_ <: Product]] = Nil
 }
@@ -31,7 +34,7 @@ trait ByClassNameRequestApp extends ComponentsApp {
 trait ByClassNameAllRequestHandlerAppBase extends ByClassNameRequestApp
 
 @c4("ByClassNameAllRequestHandlerApp") final class ByClassNameAllRequestHandlerAssembles(
-  byClNameAllClasses: List[ByClNameAllClass],
+  byClNameAllClasses: List[GeneralByClNameAllClass],
   byClassNameAllRequestGenericHandlerFactory: ByClassNameAllRequestGenericHandlerFactory
 ) {
   @provide def assembles: Seq[Assemble] =
