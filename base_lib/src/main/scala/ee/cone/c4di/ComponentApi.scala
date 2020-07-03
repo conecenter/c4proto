@@ -31,10 +31,13 @@ class c4multi(apps: String*) extends StaticAnnotation
 trait AbstractComponents {
   def components: Seq[Component]
 }
-class Component(val out: TypeKey, val nonFinalOut: Option[TypeKey], val in: Seq[TypeKey], val create: Seq[Object]=>Seq[Object]) extends AbstractComponents {
+trait Component
+class ComponentCreator(val out: TypeKey, val nonFinalOut: Option[TypeKey], val in: Seq[TypeKey], val create: Seq[Object]=>Seq[Object]) extends Component
+class ComponentCreatorTemplate(from: TypeKey, create: TypeKey=>ComponentCreator) extends Component
+
+/*Component extends AbstractComponents {
   def components: Seq[Component] = Seq(this)
 }
-/*
 abstract class Components(componentsList: Seq[AbstractComponents]) extends AbstractComponents {
   def components: Seq[Component] = componentsList.flatMap(_.components)
 }*/

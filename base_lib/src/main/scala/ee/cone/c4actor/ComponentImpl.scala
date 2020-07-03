@@ -19,22 +19,22 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
 ) extends ComponentRegistry {
   def toTypeKey[T](cl: Class[T], args: Seq[TypeKey]): TypeKey =
     CreateTypeKey(cl,cl.getSimpleName,args.toList)
-  lazy val components: Seq[Component] = fixNonFinal(app.components.distinct)
+  lazy val components: Seq[ComponentCreator] = fixNonFinal(app.components.map{ case c: ComponentCreator => c }.distinct)
   lazy val reg: Map[TypeKey,DeferredSeq[Object]] =
     components.map(toCached).groupBy(_.out)
       .transform((k,v)=>new SimpleDeferredSeq(()=>v.flatMap(_.deferredSeq.value)))
   // def toNonFinal(k: TypeKey): TypeKey = k.copy(alias = s"NonFinal#${k.alias}")
-  def fixNonFinal(components: Seq[Component]): Seq[Component] = {
+  def fixNonFinal(components: Seq[ComponentCreator]): Seq[ComponentCreator] = {
     if(debug) components.foreach(c=>println(s"component (out: ${c.out}) (in: ${c.in})"))
     val toNonFinal = components.flatMap(c => c.nonFinalOut.map(nOut=>c.out->nOut)).toMap
     components.map{ c =>
       if(c.nonFinalOut.nonEmpty) c
-      else toNonFinal.get(c.out).fold(c)(nOut=>new Component(nOut, c.nonFinalOut, c.in, c.create))
+      else toNonFinal.get(c.out).fold(c)(nOut=>new ComponentCreator(nOut, c.nonFinalOut, c.in, c.create))
     }
   }
   class Cached(val out: TypeKey, val deferredSeq: DeferredSeq[Object])
-  def toCached(component: Component): Cached = {
-    val values = if(ComponentRegistry.isRegistry(component)) ()=>Seq(this)
+  def toCached(component: ComponentCreator): Cached = {
+    val values = if(ComponentRegistry.toRegistry(component).nonEmpty) ()=>Seq(this)
       else () => component.create(component.in.map(resolveSingle(component.out)))
     new Cached(component.out, new SimpleDeferredSeq[Object](values))
   }

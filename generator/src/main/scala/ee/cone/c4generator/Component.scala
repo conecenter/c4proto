@@ -23,7 +23,7 @@ object ComponentsGenerator extends Generator {
           caseSeq.zipWithIndex.map { case (name, ind) => s"""    val $name = args.apply($ind)""" }.mkString("\n", "\n", "")) +
       s"""\n    $body""" +
       s"""\n  }""" +
-      s"""\n  lazy val link$name: Component = new Component(out$name,nonFinalOut$name,in$name,create$name)"""
+      s"""\n  lazy val link$name: Component = new ComponentCreator(out$name,nonFinalOut$name,in$name,create$name)"""
     )
 
   val IsId = """(\w+)""".r
