@@ -72,7 +72,7 @@ class MetaGenerator(statTransformers: List[ProtocolStatsTransformer]) extends Ge
           if (curr.id.isEmpty) curr.copy(id = Some(value.syntax))
           else Utils.parseError(classDef.nameNode, parseContext, "Orig has multiple @Id")
         case mod"@replaceBy[$tpe](${Term.Name(_)})" =>
-          curr.copy(replaceBy = Some(ComponentsGenerator.getTypeKey(tpe, None)))
+          curr.copy(replaceBy = Some(ComponentsGenerator.getTypeKey(tpe)))
         case mod"@ShortName(${Lit(shortName: String)})" =>
           if (curr.shortName.isEmpty) curr.copy(shortName = Some(shortName))
           else Utils.parseError(classDef.nameNode, parseContext, "Orig has multiple @ShortName")
@@ -82,9 +82,9 @@ class MetaGenerator(statTransformers: List[ProtocolStatsTransformer]) extends Ge
           curr.copy(anns = wrapAsString(annot.init.syntax) :: curr.anns)
       }
       )
-      val origTypeKey = ComponentsGenerator.getTypeKey(classDef.nameNode, None)
+      val origTypeKey = ComponentsGenerator.getTypeKey(classDef.nameNode)
       val inherits = classDef.ext.map{
-        case init"$tpe(...$_)" => ComponentsGenerator.getTypeKey(tpe, None)
+        case init"$tpe(...$_)" => ComponentsGenerator.getTypeKey(tpe)
         case t => throw new Exception(t.structure)
       }
       val Seq(fields) = classDef.params
@@ -104,7 +104,7 @@ class MetaGenerator(statTransformers: List[ProtocolStatsTransformer]) extends Ge
             case _ => curr
           })
           val Some(tpe) = tpeopt
-          val fieldTypeKey = ComponentsGenerator.getTypeKey(tpe, None)
+          val fieldTypeKey = ComponentsGenerator.getTypeKey(tpe)
           import fieldAnnotations._
           s"""    FieldMetaImpl(
              |      id = ${id.get},

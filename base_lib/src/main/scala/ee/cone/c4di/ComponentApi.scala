@@ -4,10 +4,6 @@ package ee.cone.c4di
 import scala.annotation.StaticAnnotation
 import scala.collection.immutable.Seq
 
-object Types {
-  type ComponentFactory[T] = Seq[TypeKey]=>Seq[T]
-}
-
 object CreateTypeKey { // to use mostly from generated code
   def apply(cl: Class[_], alias: String, args: List[TypeKey]): TypeKey =
     Value(cl.getName, alias, args)(cl)
@@ -32,7 +28,11 @@ trait AbstractComponents {
   def components: Seq[Component]
 }
 trait Component
-class ComponentCreator(val out: TypeKey, val nonFinalOut: Option[TypeKey], val in: Seq[TypeKey], val create: Seq[Object]=>Seq[Object]) extends Component
+abstract class ComponentCreator extends Component {
+  def out: TypeKey
+  def in: Seq[TypeKey]
+  def create(args: Seq[Object]): Seq[Object]
+}
 class ComponentCreatorTemplate(from: TypeKey, create: TypeKey=>ComponentCreator) extends Component
 
 /*Component extends AbstractComponents {

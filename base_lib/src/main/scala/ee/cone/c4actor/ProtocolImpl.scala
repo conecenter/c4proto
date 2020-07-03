@@ -1,50 +1,35 @@
 
 package ee.cone.c4actor
 
-import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ArgTypes._
 import ee.cone.c4actor.Types.{ClName, FieldId, SrcId, TypeId}
 import ee.cone.c4assemble.Single
-import ee.cone.c4di.Types.ComponentFactory
-import ee.cone.c4di.{CreateTypeKey, TypeKey, c4, provide}
+import ee.cone.c4di.{c4, provide}
 import ee.cone.c4proto._
 import okio.ByteString
 
 import scala.collection.immutable.Seq
 
-@c4("ProtoApp") final class ArgAdapterComponentFactoryProvider(
-  componentRegistry: ComponentRegistry,
-  argAdapterFactoryList: List[ArgAdapterFactory],
-  lazyArgAdapterFactoryList: List[LazyArgAdapterFactory],
-)(
-  argAdapterFactoryMap: Map[TypeKey,ArgAdapterFactory] = CheckedMap(argAdapterFactoryList.map(a=>a.key->a)),
-  lazyArgAdapterFactoryMap: Map[TypeKey,LazyArgAdapterFactory] = CheckedMap(lazyArgAdapterFactoryList.map(a=>a.key->a)),
-) extends LazyLogging {
-  def getProtoAdapters(args: Seq[TypeKey]): Seq[ProtoAdapter[Any]] =
-    componentRegistry.resolve(classOf[ProtoAdapter[Any]],args).value
-
-  @provide def get: Seq[ComponentFactory[ArgAdapter[_]]] = List(args=>{
-    val simpleRes = getProtoAdapters(args).map{ protoAdapter =>
-      val defaultValue = Single.option(componentRegistry.resolve(classOf[DefaultArgument[_]], args).value) match {
-        case Some(defaultValue) => defaultValue
-        case None => throw new Exception(s"Couldn't find DefaultArgument[$args]")
-      }
-      new NoWrapArgAdapter[Any](defaultValue.value,protoAdapter)
+@c4("ProtoApp") final class SimpleArgAdapterProvider {
+  @provide def get[T](
+    typeKey: StrictTypeKey[T],
+    defaultArguments: List[DefaultArgument[T]],
+    protoAdapters: List[ProtoAdapter[T]],
+  ): Seq[ArgAdapter[T]] = protoAdapters.map { protoAdapter =>
+    val defaultValue = Single.option(defaultArguments) match {
+      case Some(defaultValue) => defaultValue
+      case None => throw new Exception(s"Couldn't find DefaultArgument[$typeKey]")
     }
-    val arg = Single(args)
-    val collectionType = arg.copy(args=Nil)
-    val itemTypes = arg.args
-    def getProtoAdapter = getProtoAdapters(itemTypes) match {
-      case Seq(a) => a
-      case o => throw new Exception(s"non-single (${o.size}) of ${itemTypes}")
-    }
-    val strictRes = argAdapterFactoryMap.get(collectionType).toList
-      .map{ f => val a = getProtoAdapter; f.wrap(()=>a) }
-    val lazyRes = lazyArgAdapterFactoryMap.get(collectionType).toList
-      .map{ f => lazy val a = getProtoAdapter; f.wrap(()=>a) }
-    logger.trace(s"collectionType: $collectionType, res: ${simpleRes.size} ${strictRes.size} ${lazyRes.size}")
-    simpleRes ++ strictRes ++ lazyRes
-  })
+    new NoWrapArgAdapter[T](defaultValue.value, protoAdapter)
+  }
+  @provide def get[T](protoAdapter: ProtoAdapter[T]): Seq[ArgAdapter[List[T]]] =
+    Seq(new ListArgAdapter[T](()=>protoAdapter))
+  @provide def get[T](protoAdapter: ProtoAdapter[T]): Seq[ArgAdapter[Option[T]]] =
+    Seq(new OptionArgAdapter[T](()=>protoAdapter))
+  @provide def get[T](protoAdapters: DeferredSeq[ProtoAdapter[T]]): Seq[ArgAdapter[LazyList[T]]] =
+    Seq(new ListArgAdapter[T](()=>Single(protoAdapters.value)))
+  @provide def get[T](protoAdapters: DeferredSeq[ProtoAdapter[T]]): Seq[ArgAdapter[LazyOption[T]]] =
+    Seq(new OptionArgAdapter[T](()=>Single(protoAdapters.value)))
 }
 
 class NoWrapArgAdapter[Value](val defaultValue: Value, inner: ProtoAdapter[Value]) extends ArgAdapter[Value] {
@@ -57,8 +42,6 @@ class NoWrapArgAdapter[Value](val defaultValue: Value, inner: ProtoAdapter[Value
   def decodeFix(prev: Value): Value = prev
 }
 
-@c4("ProtoApp") final class LazyListArgAdapterFactory(uKey: StrictTypeKey[LazyList[Unit]]) extends LazyArgAdapterFactory(uKey.value.copy(args=Nil), new ListArgAdapter(_))
-@c4("ProtoApp") final class ListArgAdapterFactory(uKey: StrictTypeKey[List[Unit]]) extends ArgAdapterFactory(uKey.value.copy(args=Nil), new ListArgAdapter(_))
 class ListArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter[List[Value]] {
   def encodedSizeWithTag(tag: Int, value: List[Value]): Int =
     value.foldLeft(0)((res,item)=>res+inner().encodedSizeWithTag(tag,item))
@@ -70,8 +53,6 @@ class ListArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter[L
   def decodeFix(prev: List[Value]): List[Value] = prev.reverse
 }
 
-@c4("ProtoApp") final class LazyOptionArgAdapterFactory(uKey: StrictTypeKey[LazyOption[Unit]]) extends LazyArgAdapterFactory(uKey.value.copy(args=Nil), new OptionArgAdapter(_))
-@c4("ProtoApp") final class OptionArgAdapterFactory(uKey: StrictTypeKey[Option[Unit]]) extends ArgAdapterFactory(uKey.value.copy(args=Nil), new OptionArgAdapter(_))
 class OptionArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter[Option[Value]] {
   def encodedSizeWithTag(tag: Int, value: Option[Value]): Int =
     value.foldLeft(0)((res,item)=>res+inner().encodedSizeWithTag(tag,item))

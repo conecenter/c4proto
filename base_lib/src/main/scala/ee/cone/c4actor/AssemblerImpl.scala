@@ -5,7 +5,6 @@ import ee.cone.c4actor.QProtocol._
 import ee.cone.c4actor.Types._
 import ee.cone.c4assemble.{ReadModel, _}
 import ee.cone.c4assemble.Types._
-import ee.cone.c4di.Types.ComponentFactory
 import ee.cone.c4di.{c4, c4multi, provide}
 
 import scala.collection.immutable
@@ -265,11 +264,11 @@ case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K
     }
   }
 }
-@c4("RichDataCompApp") final class GetByPKComponentFactoryProvider(
+@c4("RichDataCompApp") final class GetByPKProvider(
   getByPKImplFactory: GetByPKImplFactory
 ) {
-  @provide def get: Seq[ComponentFactory[GetByPK[_]]] =
-    List(args=>List(getByPKImplFactory.create(Single(args))))
+  @provide def get[T](typeKey: StrictTypeKey[T]): Seq[GetByPK[T]] =
+    List(getByPKImplFactory.create[T](typeKey.value))
 }
 
 @c4("RichDataCompApp") final class NeedAssembledKeyRegistry(

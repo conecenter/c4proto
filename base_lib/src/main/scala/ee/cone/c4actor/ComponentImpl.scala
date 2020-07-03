@@ -1,18 +1,46 @@
 package ee.cone.c4actor
 
-import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4assemble.Single
 import ee.cone.c4di._
-import ee.cone.c4di.Types._
 
 import scala.collection.immutable.Seq
+import scala.concurrent.Promise
 
-class SimpleDeferredSeq[T](get: ()=>Seq[T]) extends DeferredSeq[T] {
-  lazy val value: Seq[T] = get()
-}
 object EmptyDeferredSeq extends DeferredSeq[Nothing] {
   def value: Seq[Nothing] = Nil
 }
+
+/*
+=> creators, templates
+res_ioKeySet = 0
+res_creators = 0
+loop:
+  res_creators += _new_creators
+  _new_creators => new_ioKeySet (strip List)
+  new_ioKeySet - res_ioKeySet => do_new_ioKeySet
+  res_ioKeySet += do_new_ioKeySet
+  do_new_ioKeySet =[templates]=> _new_creators
+order creators
+create components/reg
+DeferredSetup
+
+DeferredSeq[ComponentRegistry] ?
+
+ */
+
+@c4("BaseApp") final class ComponentRegistryImpl(app: AbstractComponents)(
+
+){
+  def setup() = {
+    val appComponents = app.components
+    val simpleCreators = appComponents.collect{ case c: ComponentCreator => c }
+    val templates = appComponents.collect{ case c: ComponentCreatorTemplate => c }
+
+  }
+
+}
+
+
 
 @c4("BaseApp") final class ComponentRegistryImpl(app: AbstractComponents)(
   debug: Boolean = Option(System.getenv("C4DEBUG_COMPONENTS")).nonEmpty
@@ -68,15 +96,39 @@ class ResolveKeyError(
   val keys: Set[TypeKey], val message: String
 ) extends Exception(message)
 
+
+@c4("BaseApp") final class OptionProvider {
+  @provide def getOption[T](items: List[T]): Seq[Option[T]] =
+    Seq(Single.option(items))
+}
+
+class DeferredSetup(val run: ()=>Unit)
+
+
+abstract class SimpleDeferredSeq[T] extends DeferredSeq[T] {
+  def set(value: Seq[T]): Unit
+}
+@c4("BaseApp") final class DeferredSeqProvider {
+  @provide def getDeferredSeq[T](key: StrictTypeKey[T]): Seq[DeferredSeq[T]] = {
+    val promise: Promise[Seq[T]] = Promise()
+    val future = promise.future
+    Seq(new SimpleDeferredSeq[T]{
+      def value: Seq[T] = future.value.getOrElse(throw new Exception(s"can not access DeferredSeq at this stage: $key")).get
+      def set(value: Seq[T]): Unit = promise.success(value)
+    })
+  }
+  @provide def getDeferredSeqSetup[T](seq: DeferredSeq[T], list: List[T]): Seq[DeferredSetup] =
+    Seq(new DeferredSetup(()=>seq.asInstanceOf[SimpleDeferredSeq[T]].set(list)))
+}
+
+
+
 @c4("BaseApp") final class DefComponentFactoryProvider(
   componentRegistry: ComponentRegistry
 ) {
-  @provide def getDeferredSeq: Seq[ComponentFactory[DeferredSeq[_]]] =
-    List(args=>Seq(componentRegistry.resolveKey(Single(args))))
   @provide def getList: Seq[ComponentFactory[List[_]]] =
     List(args=>Seq(componentRegistry.resolveKey(Single(args)).value.toList))
-  @provide def getOption: Seq[ComponentFactory[Option[_]]] =
-    List(args=>Seq(Single.option(componentRegistry.resolveKey(Single(args)).value)))
   @provide def getTypeKey: Seq[ComponentFactory[StrictTypeKey[_]]] =
     List(args=>Seq(StrictTypeKey(Single(args))))
 }
+

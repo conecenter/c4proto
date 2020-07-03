@@ -78,8 +78,8 @@ object FieldAccessGenerator extends Generator {
   }.map{ case s: Stat => s }
 
   private def strict(from: Type, to: Type): List[scala.meta.Term] = {
-    val fromTypeKey: Term = ComponentsGenerator.getTypeKey(from, None).parse[Term].get
-    val toTypeKey: Term = ComponentsGenerator.getTypeKey(to, None).parse[Term].get
+    val fromTypeKey: Term = ComponentsGenerator.getTypeKey(from).parse[Term].get
+    val toTypeKey: Term = ComponentsGenerator.getTypeKey(to).parse[Term].get
     q"classOf[$from]" :: q"classOf[$to]" :: fromTypeKey :: toTypeKey :: Nil
   }
 }
