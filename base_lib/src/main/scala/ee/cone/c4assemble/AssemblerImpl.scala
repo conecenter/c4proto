@@ -226,7 +226,7 @@ final class ChangedMultiForPart(val items: List[Product]) extends MultiForPart {
   def isChanged: Boolean = true
 }
 final class UnchangedMultiForPart(getItems: ()=>List[Product]) extends MultiForPart {
-  def isChanged: Boolean = true
+  def isChanged: Boolean = false
   lazy val items: List[Product] = getItems()
 }
 
