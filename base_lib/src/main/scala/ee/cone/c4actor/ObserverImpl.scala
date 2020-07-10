@@ -29,21 +29,33 @@ trait TxTransforms {
     val startLatency = enqueueTimer.ms
     if(startLatency > 200)
       logger.debug(s"tx $key start latency $startLatency ms")
-    val res = if( //todo implement skip for outdated world
+    if( //todo implement skip for outdated world
       global.offset < InnerReadAfterWriteOffsetKey.of(prev) ||
       Instant.now.isBefore(InnerSleepUntilKey.of(prev))
-    ) prev else catchNonFatal {
+    ) prev else localizeThreadName(setName=>doHandle(global,key,setName,prev))
+  }
+
+  private def localizeThreadName[T](f: (String=>Unit)=>T): T = {
+    val thread = Thread.currentThread
+    val was = thread.getName
+    try f(thread.setName) finally thread.setName(was)
+  }
+
+  private def doHandle(global: RichContext, key: SrcId, setName: String=>Unit, prev: TransientMap): TransientMap =
+    catchNonFatal {
         getTxTransform.ofA(global).get(key) match {
           case None => prev
           case Some(tr) =>
             val workTimer = NanoTimer()
+            val name = s"${tr.getClass.getName}-$key"
+            setName(s"tx-from-${System.currentTimeMillis}-$name")
             val prepLocal = new Context(global.injected, global.assembled, global.executionContext, prev)
             val transformedLocal = TxTransformOrigMeta(tr.getClass.getName).andThen(tr.transform)(prepLocal)
             val transformPeriod = workTimer.ms
             val nextLocal = qMessages.send(transformedLocal)
             val period = workTimer.ms
             if(period > warnPeriod.value)
-              logger.warn(s"tx ${tr.getClass.getName} $key worked for $period ms (transform $transformPeriod ms)")
+              logger.warn(s"tx $name worked for $period ms (transform $transformPeriod ms)")
             nextLocal.transient
         }
     }(s"Tx failed [$key][${Thread.currentThread.getName}]"){ e =>
@@ -57,8 +69,6 @@ trait TxTransforms {
           InnerSleepUntilKey.set(Instant.now.plusSeconds(was.size))
         ))(Map.empty)
     }
-    res
-  }
 }
 
 case object InnerErrorKey extends InnerTransientLens(ErrorKey)
