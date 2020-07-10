@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4assemble.Single
-import ee.cone.c4di.c4
+import ee.cone.c4di.{c4, provide}
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.Try
@@ -74,7 +74,16 @@ class RUncaughtExceptionHandler(inner: UncaughtExceptionHandler) extends Uncaugh
     try inner.uncaughtException(thread,throwable) finally System.exit(1)
 }
 
-@c4("VMExecutionApp") final class DefExecutionFilter extends ExecutionFilter(_=>true)
+@c4("VMExecutionApp") final class DefExecutionFilterProvider(
+  excluding: Excluding[ExecutionFilter]
+) {
+  @provide def get: Seq[ProbablyExcluded[ExecutionFilter]] =
+    excluding.of(DefExecutionFilter)
+}
+object DefExecutionFilter extends ExecutionFilter {
+  def check(executable: Executable): Boolean = true
+}
+
 
 @c4("VMExecutionApp") final class VMExecution(getToStart: DeferredSeq[Executable], executionFilter: ExecutionFilter)(
   threadPool: ExecutorService = VMExecution.newExecutorService("tx-",Option(Runtime.getRuntime.availableProcessors)) // None?

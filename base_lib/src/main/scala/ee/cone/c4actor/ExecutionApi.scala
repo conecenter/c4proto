@@ -36,7 +36,9 @@ trait Executable extends Runnable
 // Early Executable SHOULD NOT write to anything (kafka,db,jms)
 //   because another instance of the same app may be still alive;
 trait Early
-abstract class ExecutionFilter(val check: Executable=>Boolean)
+trait ExecutionFilter {
+  def check(executable: Executable): Boolean
+}
 
 trait Config {
   def get(key: String): String

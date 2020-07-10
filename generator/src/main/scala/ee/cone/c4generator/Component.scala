@@ -37,21 +37,22 @@ object ComponentsGenerator extends Generator {
     }
   }
   def paramsToInDepList(paramsS: List[List[Term.Param]], replace: Option[String]): (List[InDep],String) = {
-    val list = for{
+    val list: List[List[(InDep, String)]] = for{
       params <- paramsS.toList
     } yield for {
       param"..$mods ${Name(name)}: ${Some(tpe)} = $expropt" <- params.toList
       r <- if(expropt.nonEmpty) None
       else {
         val key = getTypeKey(tpe,replace)
-        Option((InDep(key.key,name,key.wasReplaced),s"$name=$name.asInstanceOf[$tpe]"))
+        Option((InDep(key.typeKey,name,key.isTemplate),s"$name=$name.asInstanceOf[$tpe]"))
       }
     } yield r
     val inSeq = for((o,_) <- list.flatten) yield o
-    val args = (for {
-      args <- list
-    } yield s"(${(for { (_,a) <- args } yield a).mkString(",")})").mkString
-    (inSeq,args)
+    val args = for {
+      args: List[(InDep,String)] <- list
+      nArgs = for((_,a) <- args) yield a
+    } yield nArgs.mkString("(",",",")")
+    (inSeq,args.mkString)
   }
 
   def getComponent(cl: ParsedClass, parseContext: ParseContext): List[GeneratedComponent] = {
@@ -77,15 +78,10 @@ object ComponentsGenerator extends Generator {
       case t@Type.Apply(Type.Name(n),_) => List(t,Type.Name(s"General$n"))
       case t: Type.Name => List(t)
     }
-    val extOuts: List[GeneratedComponent] = abstractTypes.zipWithIndex.map{ case (t,i) =>
-      val creatorName = s"${tp}_E$i"
-      val outType = checkLoop(getTypeKey(t))
-      val creatorContent = toContent(s"object $creatorName",outType,mainAsDepList,s"Seq($mainAsArg)")
-      GeneratedComponent(creatorName, creatorContent)
-    }
+
     def unSeq(typeOpt: Option[Type]): Type = typeOpt match {
       case Some(t"Seq[$tpe]") => tpe
-      case Some(t) => Utils.parseError(t, parseContext, "provive needs out Seq")
+      case Some(t) => Utils.parseError(t, parseContext, "provide needs out Seq")
     }
     val defOuts: List[GeneratedComponent] = cl.stats.flatMap{
       case q"..$cMods def ${Term.Name(defName)}[..$tParams](...$params): $tpeopt = $expr" =>
@@ -97,35 +93,32 @@ object ComponentsGenerator extends Generator {
               val creatorName = s"${tp}_D$defName"
               val creatorContent = toContent(s"object $creatorName",outType,mainAsDepList,s"$mainAsArg.$defName")
               List(GeneratedComponent(creatorName, creatorContent))
-            case Seq(Type.Name(tParam)) =>
+            case Seq(tParamWithBound@tparam"${Type.Name(tParam)} <: $_") =>
               val (pInSeq,pArgs) = paramsToInDepList(params,Option(tParam))
               val outTypeR = getTypeKey(unSeq(tpeopt),Option(tParam))
-              val isFromOutput = outTypeR.wasReplaced && outTypeR.key != tParam
-              val keyTemplates = if(isFromOutput) List(outTypeR.key) else pInSeq.filter(_.isTemplate).map(_.key)
-
-
-
-//              val provideForType = cMods.collect{ case mod"@provideFor[$t[_]]" => t } match {
-//                case Seq(t) => getTypeKey(t, None)
-//              }
-
-
-              val outType = outTypeR.key
+              // println(s"AAA: $tParam : $outTypeR")
+              val templateArgName = s"keyFor$tParam"
+              val isFromOutput = outTypeR.isTemplate && outTypeR.typeKey != templateArgName
+              val keyTemplate = if(isFromOutput) outTypeR.typeKey
+                else pInSeq.find(_.isTemplate).get.typeKey
+              val templateArgs = s"($templateArgName: TypeKey)"
+              val outType = outTypeR.typeKey
               val creatorName = s"${tp}_D$defName"
+              val typeKeyTemplate =
+                if(isFromOutput) "FromOutputTypeKeyTemplate" else "FromInputTypeKeyTemplate"
               val creatorContent =
-                "\nobject $creatorName extends ComponentCreatorTemplate {" +
-                  "\n  def create(varTypeKey: TypeKey): $creatorName = new $creatorName(varTypeKey)" +
-                  "\n}" +
-                  toContent(s"class $creatorName(keyFor$tParam: TypeKey)", outType, mainAsDepList ::: pInSeq, s"$mainAsArg.$defName$pArgs")
+                s"\nobject $creatorName extends ComponentCreatorTemplate {" +
+                s"\n  def getKey$templateArgs: TypeKeyTemplate = $typeKeyTemplate($keyTemplate)" +
+                s"\n  def create(varTypeKey: TypeKey): $creatorName[_] = $creatorName(varTypeKey)" +
+                "\n}" +
+                toContent(
+                  s"case class $creatorName[$tParamWithBound]$templateArgs",
+                  outType, mainAsDepList ::: pInSeq,
+                  s"$mainAsArg.$defName[$tParam]$pArgs"
+                )
               List(GeneratedComponent(creatorName, creatorContent))
-
+            case p => throw new Exception(s"Can't parse structure at ${parseContext.path} -- ${p.toString()} -- ${p.structure}")
           }
-
-
-
-
-        //} else if(cMods.collectFirst{ case mod"@provideFor[$t]" => true }.nonEmpty){
-
         } else {
           Nil
         }
@@ -133,6 +126,14 @@ object ComponentsGenerator extends Generator {
         //println(s"not def: $")
         Nil
     }
+    val extOuts: List[GeneratedComponent] = if(defOuts.nonEmpty) Nil
+      else abstractTypes.zipWithIndex.map{ case (t,i) =>
+        val creatorName = s"${tp}_E$i"
+        val outType = checkLoop(getTypeKey(t))
+        val creatorContent = toContent(s"object $creatorName",outType,mainAsDepList,s"Seq($mainAsArg)")
+        GeneratedComponent(creatorName, creatorContent)
+      }
+    // todo check: if(defOuts.nonEmpty && extOuts.nonEmpty) println(s"extOuts -- $tp -- $abstractTypes")
     val creatorName = s"${tp}Creator"
     val creatorContent = toContent(s"object $creatorName",mainOut,inSeq,s"Seq(new $tp$concrete)")
     val mOut: GeneratedComponent = GeneratedComponent(creatorName, creatorContent)
@@ -155,7 +156,7 @@ object ComponentsGenerator extends Generator {
     val connects: List[Generated] = components.collect{ case c: GeneratedComponentAppLink => c }.groupMap(_.app)(_.link).toList.sortBy(_._1).flatMap{
       case (app,links) => List(
         GeneratedCode(
-          s"\n  def forThe$app: List[ComponentCreator] = " +
+          s"\n  def forThe$app: List[Component] = " +
             links.map(c => s"\n    $c ::").mkString +
             "\n    Nil"
         ),
@@ -167,18 +168,25 @@ object ComponentsGenerator extends Generator {
     components.collect{ case c: GeneratedComponent => GeneratedCode(c.content) } :::
     GeneratedCode(s"\nobject $componentsId {") :: connects ::: List(GeneratedCode("\n}"))
   }
-  case class ResTypeKey(key: String, wasReplaced: Boolean)
-  def getTypeKey(t: Type, replace: Option[String]): ResTypeKey = t match {
-    case t"_" => throw new Exception(s"$t wildcard type disabled")
-    case Type.Name(tp) if replace.contains(tp) => ResTypeKey(s"keyFor$tp",true)
-    case Type.Name(tp) =>
-      ResTypeKey(s"""CreateTypeKey(classOf[$tp], "$tp", Nil)""",false)
-    case t"$tpe[..$tpesnel]" =>
-      val tArgs = tpesnel.map(_ => "_").mkString(", ")
-      val inner = tpesnel.map(getTypeKey(_,replace))
-      val wasReplaced = inner.exists(_.wasReplaced)
-      val args = (inner.map(_.key) ++ List("Nil")).mkString(" :: ")
-      ResTypeKey(s"""CreateTypeKey(classOf[$tpe[$tArgs]], "$tpe", $args)""", wasReplaced)
+  case class ResTypeKey(typeKey: String, isTemplate: Boolean)
+  def getTypeKey(tt: Type, replace: Option[String]): ResTypeKey = {
+    def trav(t: Type): ResTypeKey = t match {
+      case t"_" => throw new Exception(s"$tt wildcard type disabled")
+      case Type.Name(tp) if replace.contains(tp) => ResTypeKey(s"keyFor$tp",true)
+      case Type.Name(_) | Type.Select(Term.Name(_), Type.Name(_)) =>
+        ResTypeKey(s"""CreateTypeKey(classOf[$t], "$t", Nil)""",false)
+      case t"$tpe[..$tpesnel]" =>
+        val tArgs = tpesnel.map(_ => "_").mkString(", ")
+        val inner = tpesnel.map(trav(_))
+        val wasReplaced = inner.exists(_.isTemplate)
+        val args = (inner.map(_.typeKey) ++ List("Nil")).mkString(" :: ")
+        ResTypeKey(s"""CreateTypeKey(classOf[$tpe[$tArgs]], "$tpe", $args)""", wasReplaced)
+      case t =>
+        //println(s"trash type -- $tt -- ${tt.structure}")
+        //ResTypeKey(s"""CreateTypeKey(classOf[$t], "$t", Nil)""",false)
+        throw new Exception(s"$tt -- ${tt.structure}")
+    }
+    trav(tt)
   }
-  def getTypeKey(t: Type): String = getTypeKey(t, None).key
+  def getTypeKey(t: Type): String = getTypeKey(t, None).typeKey
 }

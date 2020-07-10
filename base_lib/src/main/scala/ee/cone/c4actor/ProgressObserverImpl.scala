@@ -98,8 +98,12 @@ case class BuildVerTx(srcId: SrcId, path: Path, value: String)(execution: Execut
 
 ////
 
-@c4("ServerCompApp") final class ServerExecutionFilter(inner: ExecutionFilter)
-  extends ExecutionFilter(e=>inner.check(e) && e.isInstanceOf[Early])
+@c4("ServerCompApp") final class ExcludeExecutionFilter extends Exclude[ExecutionFilter]
+@c4("ServerCompApp") final class ServerExecutionFilter(
+  inner: ProbablyExcluded[ExecutionFilter]
+) extends ExecutionFilter {
+  def check(e: Executable): Boolean = inner.value.check(e) && e.isInstanceOf[Early]
+}
 
 class LateExecutionObserver(
   execution: Execution, toStart: Seq[Executable], inner: Observer[RichContext]

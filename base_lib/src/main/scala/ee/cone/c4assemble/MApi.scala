@@ -62,6 +62,7 @@ trait AggrDOut
 trait DOut
 
 object Types {
+  type Transform[T] = T=>T
   type DiffIndexRawSeq = Seq[Index]
   type Outs = Seq[DOut]
   type Values[V] = Seq[V]

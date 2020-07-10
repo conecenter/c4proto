@@ -33,7 +33,17 @@ abstract class ComponentCreator extends Component {
   def in: Seq[TypeKey]
   def create(args: Seq[Object]): Seq[Object]
 }
-class ComponentCreatorTemplate(from: TypeKey, create: TypeKey=>ComponentCreator) extends Component
+trait TypeKeyTemplate extends Product {
+  def typeKey: TypeKey
+}
+case class FromOutputTypeKeyTemplate(typeKey: TypeKey) extends TypeKeyTemplate
+case class FromInputTypeKeyTemplate(typeKey: TypeKey) extends TypeKeyTemplate
+abstract class ComponentCreatorTemplate extends Component {
+  def getKey(varTypeKey: TypeKey): TypeKeyTemplate
+  def create(varTypeKey: TypeKey): ComponentCreator
+}
+
+
 
 /*Component extends AbstractComponents {
   def components: Seq[Component] = Seq(this)

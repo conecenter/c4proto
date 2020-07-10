@@ -60,14 +60,17 @@ case class WorldProviderTx(srcId: SrcId="WorldProviderTx")(receiverF: Future[Sta
   txAdd: LTxAdd,
 )(
   receiverPromise: Promise[StatefulReceiver[WorldMessage]] = Promise()
-) extends Executable {
+) {
   def receiverFuture: Future[StatefulReceiver[WorldMessage]] = receiverPromise.future
   @provide def getWorldProvider: Seq[WorldProvider] =
     List(new WorldProviderImpl(qMessages,receiverFuture,None,txAdd))
-  def run(): Unit = execution.fatal { implicit ec =>
-    val receiverF = statefulReceiverFactory.create(List(new WorldProviderReceiverImpl(None,Nil)(getOffset,execution)))
-    ignorePromise(receiverPromise.completeWith(receiverF))
-    receiverF
+  @provide def getExecutable: Seq[Executable] = Seq(Run)
+  object Run extends Executable {
+    def run(): Unit = execution.fatal { implicit ec =>
+      val receiverF = statefulReceiverFactory.create(List(new WorldProviderReceiverImpl(None,Nil)(getOffset,execution)))
+      ignorePromise(receiverPromise.completeWith(receiverF))
+      receiverF
+    }
   }
   private def ignorePromise[T](value: Promise[T]): Unit = ()
 }

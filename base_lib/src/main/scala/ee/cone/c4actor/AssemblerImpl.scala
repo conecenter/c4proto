@@ -5,7 +5,7 @@ import ee.cone.c4actor.QProtocol._
 import ee.cone.c4actor.Types._
 import ee.cone.c4assemble.{ReadModel, _}
 import ee.cone.c4assemble.Types._
-import ee.cone.c4di.{c4, c4multi, provide}
+import ee.cone.c4di.{ComponentCreator, c4, c4multi, provide}
 
 import scala.collection.immutable
 import scala.collection.immutable.{Map, Seq}
@@ -267,19 +267,19 @@ case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K
 @c4("RichDataCompApp") final class GetByPKProvider(
   getByPKImplFactory: GetByPKImplFactory
 ) {
-  @provide def get[T](typeKey: StrictTypeKey[T]): Seq[GetByPK[T]] =
+  @provide def get[T <: Product](typeKey: StrictTypeKey[T]): Seq[GetByPK[T]] =
     List(getByPKImplFactory.create[T](typeKey.value))
 }
 
 @c4("RichDataCompApp") final class NeedAssembledKeyRegistry(
-  util: GetByPKUtil, componentRegistry: ComponentRegistry, config: ListConfig,
+  util: GetByPKUtil, componentCreators: List[ComponentCreator], config: ListConfig,
 )(
   disableCheck: Boolean = config.get("C4NO_INDEX_CHECK").nonEmpty
 )(
   classNames: Set[String] = if(disableCheck) Set() else Set(classOf[GetByPK[_]].getName) // can be extended later
 )(
   val getRules: List[NeedWorldPartRule] = for{
-    component <- componentRegistry.components.toList
+    component <- componentCreators
     inKey <- component.in if classNames(inKey.clName)
   } yield new NeedWorldPartRule(List(util.toAssembleKey(Single(inKey.args))), component.out.clName)
 )(

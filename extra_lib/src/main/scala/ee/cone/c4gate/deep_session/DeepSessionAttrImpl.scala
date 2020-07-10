@@ -9,12 +9,13 @@ import ee.cone.c4gate.deep_session.DeepSessionDataProtocol.{U_RawRoleData, U_Raw
 import ee.cone.c4proto.ToByteString
 import okio.ByteString
 
+@c4("DeepSessionAttrFactoryImplApp") final class ExcludeSessionAttrAccessFactory extends Exclude[SessionAttrAccessFactory]
 @c4("DeepSessionAttrFactoryImplApp") final class DeepSessionAttrAccessFactoryImpl(
   registry: QAdapterRegistry,
   modelFactory: ModelFactory,
   modelAccessFactory: RModelAccessFactory,
   val idGenUtil: IdGenUtil,
-  sessionAttrAccessFactory: SessionAttrAccessFactory,
+  sessionAttrAccessFactory: ProbablyExcluded[SessionAttrAccessFactory],
   txDeepRawDataLensFactory: TxDeepRawDataLensFactory,
   roleByPK: GetByPK[U_RawRoleData],
   dataByPK: GetByPK[U_RawSessionData],
@@ -26,7 +27,7 @@ import okio.ByteString
 
   def to[P <: Product](attr: SessionAttr[P]): Context => Option[Access[P]] =
     if (attr.metaList.collectFirst { case UserLevelAttr => "" }.isEmpty) {
-      sessionAttrAccessFactory.to(attr)
+      sessionAttrAccessFactory.value.to(attr)
     } else {
       toUser(attr)
     }

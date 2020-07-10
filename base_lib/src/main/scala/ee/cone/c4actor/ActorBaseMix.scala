@@ -29,6 +29,7 @@ trait TestVMRichDataCompAppBase extends RichDataCompApp with VMExecutionApp with
 trait CatchNonFatalAppBase
 
 trait VMExecutionAppBase extends AbstractComponents {
-  lazy val componentRegistry = ComponentRegistry(this)
-  lazy val execution: Execution = Single(componentRegistry.resolve(classOf[Execution],Nil).value)
+  lazy val componentRegistry: ComponentRegistry =
+    ComponentRegistryInit.setup(components.toList)
+  lazy val execution: Execution = Single(componentRegistry.resolve(classOf[Execution]))
 }

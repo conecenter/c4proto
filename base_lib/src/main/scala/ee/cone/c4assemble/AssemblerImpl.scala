@@ -518,7 +518,7 @@ class FailedRule(val message: List[String]) extends WorldPartRule
 
 @c4multi("AssembleApp") final class ReplaceImpl(
   val active: List[WorldPartRule],
-  transformAllOnce: WorldTransition=>WorldTransition
+  transformAllOnce: Transform[WorldTransition]
 )(
   composes: IndexUtil, readModelUtil: ReadModelUtil,
 ) extends Replace {

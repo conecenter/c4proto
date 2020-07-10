@@ -22,13 +22,13 @@ import scala.collection.immutable.Seq
     }
     new NoWrapArgAdapter[T](defaultValue.value, protoAdapter)
   }
-  @provide def get[T](protoAdapter: ProtoAdapter[T]): Seq[ArgAdapter[List[T]]] =
+  @provide def getList[T](protoAdapter: ProtoAdapter[T]): Seq[ArgAdapter[List[T]]] =
     Seq(new ListArgAdapter[T](()=>protoAdapter))
-  @provide def get[T](protoAdapter: ProtoAdapter[T]): Seq[ArgAdapter[Option[T]]] =
+  @provide def getOption[T](protoAdapter: ProtoAdapter[T]): Seq[ArgAdapter[Option[T]]] =
     Seq(new OptionArgAdapter[T](()=>protoAdapter))
-  @provide def get[T](protoAdapters: DeferredSeq[ProtoAdapter[T]]): Seq[ArgAdapter[LazyList[T]]] =
+  @provide def getLazyList[T](protoAdapters: DeferredSeq[ProtoAdapter[T]]): Seq[ArgAdapter[LazyList[T]]] =
     Seq(new ListArgAdapter[T](()=>Single(protoAdapters.value)))
-  @provide def get[T](protoAdapters: DeferredSeq[ProtoAdapter[T]]): Seq[ArgAdapter[LazyOption[T]]] =
+  @provide def getLazyOption[T](protoAdapters: DeferredSeq[ProtoAdapter[T]]): Seq[ArgAdapter[LazyOption[T]]] =
     Seq(new OptionArgAdapter[T](()=>Single(protoAdapters.value)))
 }
 

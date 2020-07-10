@@ -26,6 +26,8 @@ import okio.ByteString
   getU_RawSessionData: GetByPK[U_RawSessionData],
   getU_RawRoleData: GetByPK[U_RawRoleData],
 ) extends SessionAttrAskFactory with KeyGenerator {
+  @provide def asSessionAttrAskFactory: Seq[SessionAttrAskFactory] = Seq(this)
+
   private lazy val rawDataAsk: AskByPK[U_RawSessionData] = askByPKFactory.forClass(classOf[U_RawSessionData])
   private lazy val rawUserDataAsk: AskByPK[U_RawUserData] = askByPKFactory.forClass(classOf[U_RawUserData])
   private lazy val rawRoleDataAsk: AskByPK[U_RawRoleData] = askByPKFactory.forClass(classOf[U_RawRoleData])

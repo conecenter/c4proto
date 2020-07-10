@@ -97,10 +97,13 @@ trait FinTest {
   def get: String
 }
 @c4("ProtoAdapterTestApp") final 
-class NonFinalFinTest extends FinTest {
+class NonFinalFinTest(excluding: Excluding[FinTest]) extends FinTest {
+  @provide def asDef: Seq[ProbablyExcluded[FinTest]] = excluding.of(this)
   def get: String = "{NonFinal}"
 }
+
+@c4("ProtoAdapterTestApp") final class ExcludeFinTest extends Exclude[FinTest]
 @c4("ProtoAdapterTestApp") final 
-class FinalFinTest(inner: FinTest) extends FinTest {
-  def get: String = s"<Final>${inner.get}</Final>"
+class FinalFinTest(inner: ProbablyExcluded[FinTest]) extends FinTest {
+  def get: String = s"<Final>${inner.value.get}</Final>"
 }

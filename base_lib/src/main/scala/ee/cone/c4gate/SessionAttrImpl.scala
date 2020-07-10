@@ -53,7 +53,9 @@ import ee.cone.c4di.{c4, provide}
   modelAccessFactory: RModelAccessFactory,
   val idGenUtil: IdGenUtil,
   getU_RawSessionData: GetByPK[U_RawSessionData],
-) extends SessionAttrAccessFactory with KeyGenerator{
+  excluding: Excluding[SessionAttrAccessFactory],
+) extends SessionAttrAccessFactory with KeyGenerator {
+  @provide def asDefault: Seq[ProbablyExcluded[SessionAttrAccessFactory]] = excluding.of(this)
   def to[P<:Product](attr: SessionAttr[P]): Context=>Option[Access[P]] = {
     val adapter = registry.byName(classOf[U_RawSessionData].getName)
     val lens = ProdLensNonstrict[U_RawSessionData,P](attr.metaList)(
