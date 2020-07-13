@@ -54,6 +54,7 @@ object ComponentRegistryInit {
     templatesWithKeys.groupMap(_._1)(_._2)
   }
   private def getCreatorsFromTemplates(staticSimpleCreators: List[ComponentCreator], templateReg: TemplateReg): List[ComponentCreator] = {
+    val normalize = normalizeIn
     def get(key: TypeKey, wrap: TypeKey=>TypeKeyTemplate): List[ComponentCreator] = {
       val ownCreators = for {
         template <- templateReg.getOrElse(wrap(TemplateTypeKey), Nil)
@@ -73,7 +74,7 @@ object ComponentRegistryInit {
     def getIOKeys(creators: List[ComponentCreator]): List[TypeKeyTemplate] =
       creators.flatMap { c =>
         FromInputTypeKeyTemplate(c.out) ::
-          c.in.map(FromOutputTypeKeyTemplate).toList
+          normalize(c).map(FromOutputTypeKeyTemplate).toList
       }
     @tailrec def iter(currentCreators: List[ComponentCreator], wasKeys: Set[TypeKeyTemplate], resCreators: List[ComponentCreator]): List[ComponentCreator] = {
       val willKeys = getIOKeys(currentCreators).filterNot(wasKeys)
@@ -87,6 +88,15 @@ object ComponentRegistryInit {
     def simple(key: TypeKey): T
     def list(key: TypeKey): T
     def key(key: TypeKey): T
+  }
+
+  private def normalizeIn: ComponentCreator => List[TypeKey] = {
+    val decode: TypeKey => List[TypeKey] = decodeTypeKey(new Decoder[List[TypeKey]] {
+      def simple(key: TypeKey): List[TypeKey] = key :: Nil
+      def list(key: TypeKey): List[TypeKey] = key :: Nil
+      def key(key: TypeKey): List[TypeKey] = Nil
+    })
+    creator => creator.in.toList.flatMap(k=>decode(k))
   }
 
   private def decodeTypeKey[T](decoder: Decoder[T]): TypeKey=>T = {
@@ -110,9 +120,21 @@ object ComponentRegistryInit {
   }
 
   private def sortCreators(creators: List[ComponentCreator]): List[ComponentCreator] = {
-    val creatorByOut = creators.groupBy(_.out)
+    val normalize: ComponentCreator => List[TypeKey] = normalizeIn
+    val creatorByOut: Map[TypeKey, List[ComponentCreator]] = creators.groupBy(_.out)
+    val creatorKey = toTypeKey(classOf[ComponentCreator])
     byPriority.byPriority[ComponentCreator,ComponentCreator](
-      creator=>(creator.in.toList.flatMap(creatorByOut.getOrElse(_,Nil)), _ => creator)
+      creator=>{
+        val needCreators = for {
+          inKey <- normalize(creator)
+          creator <- creatorByOut.getOrElse(inKey,{
+            if(inKey != creatorKey)
+              println(s"not provided: $inKey")
+            Nil
+          })
+        } yield creator
+        (needCreators, _ => creator)
+      }
     )(creators).reverse
   }
 
@@ -149,11 +171,12 @@ object ComponentRegistryInit {
     checkOutKeys(transformedCreators.map(_.out))
     val orderedCreators = sortCreators(transformedCreators)
     if(debug){
-      println(s"staticSimpleCreators: ${staticSimpleCreators.size}")
-      println(s"templates: ${templates.size}")
-      println(s"transformedCreators: ${transformedCreators.size}")
-      println(s"orderedCreators: ${orderedCreators.size}")
-      orderedCreators.foreach(c=>println(s"component (out: ${c.out}) (in: ${c.in})"))
+      println(s"## staticSimpleCreators: ${staticSimpleCreators.size}")
+      println(s"## templates: ${templates.size}")
+      templateReg.keys.foreach(k=>println(s"key $k"))
+      println(s"## transformedCreators: ${transformedCreators.size}")
+      println(s"## orderedCreators: ${orderedCreators.size}")
+      orderedCreators.foreach(c=>println(s"component $c (out: ${c.out}) (in: ${c.in})"))
     }
     val reg = createComponents(orderedCreators)
     val registry = new ComponentRegistryImpl(reg)

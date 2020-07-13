@@ -11,16 +11,25 @@ import okio.ByteString
 import scala.collection.immutable.Seq
 
 @c4("ProtoApp") final class SimpleArgAdapterProvider {
+  @provide def emptyDefaultList[T](): Seq[DefaultArgument[List[T]]] = Nil
+  @provide def emptyAdapterList[T](): Seq[ProtoAdapter[List[T]]] = Nil
+  @provide def emptyDefaultOption[T](): Seq[DefaultArgument[Option[T]]] = Nil
+  @provide def emptyAdapterOption[T](): Seq[ProtoAdapter[Option[T]]] = Nil
+
   @provide def get[T](
     typeKey: StrictTypeKey[T],
     defaultArguments: List[DefaultArgument[T]],
     protoAdapters: List[ProtoAdapter[T]],
-  ): Seq[ArgAdapter[T]] = protoAdapters.map { protoAdapter =>
-    val defaultValue = Single.option(defaultArguments) match {
-      case Some(defaultValue) => defaultValue
-      case None => throw new Exception(s"Couldn't find DefaultArgument[$typeKey]")
+  ): Seq[ArgAdapter[T]] = {
+    // println(s"NoWrapArgAdapter $typeKey ${protoAdapters.size}")
+    protoAdapters.map { protoAdapter =>
+      val defaultValue = Single.option(defaultArguments) match {
+        case Some(defaultValue) => defaultValue
+        case None => throw new Exception(s"Couldn't find DefaultArgument[$typeKey]")
+      }
+      // println(s"NoWrapArgAdapter $typeKey")
+      new NoWrapArgAdapter[T](defaultValue.value, protoAdapter)
     }
-    new NoWrapArgAdapter[T](defaultValue.value, protoAdapter)
   }
   @provide def getList[T](protoAdapter: ProtoAdapter[T]): Seq[ArgAdapter[List[T]]] =
     Seq(new ListArgAdapter[T](()=>protoAdapter))

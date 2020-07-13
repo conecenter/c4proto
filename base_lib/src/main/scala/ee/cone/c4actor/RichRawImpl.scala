@@ -13,7 +13,7 @@ import java.lang.Math.toIntExact
 
 import ee.cone.c4actor.QProtocol._
 import ee.cone.c4actor.Types._
-import ee.cone.c4di.c4
+import ee.cone.c4di.{c4, provide}
 
 @c4("RichDataCompApp") final class GetOffsetImpl(
   actorName: ActorName,
@@ -25,6 +25,10 @@ import ee.cone.c4di.c4
 }
 
 object EmptyInjected extends Injected
+
+@c4("RichDataCompApp") final class EmptyInjectedProvider {
+  @provide def injected: Seq[Injected] = Nil
+}
 
 @c4("RichDataCompApp") final class RichRawWorldReducerImpl(
   injected: List[Injected],

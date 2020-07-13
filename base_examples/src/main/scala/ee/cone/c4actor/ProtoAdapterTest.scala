@@ -107,3 +107,11 @@ class NonFinalFinTest(excluding: Excluding[FinTest]) extends FinTest {
 class FinalFinTest(inner: ProbablyExcluded[FinTest]) extends FinTest {
   def get: String = s"<Final>${inner.value.get}</Final>"
 }
+
+/*
+@c4 @optional final class NNFinalFinTest extends FinTest with View
+
+@c4 final class NoNNFinalFinTest extends Exclude[NNFinalFinTest] // -3
+@c4 final class NoNNFinalFinTest extends Exclude[FinTest]  // -1
+@c4 final class NoNNFinalFinTest extends Exclude[View]  // -1
+*/

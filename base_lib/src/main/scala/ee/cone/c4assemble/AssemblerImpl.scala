@@ -6,7 +6,7 @@ package ee.cone.c4assemble
 import Types._
 import ee.cone.c4assemble.IndexTypes.{DMultiSet, InnerIndex, InnerKey, Products}
 import ee.cone.c4assemble.Merge.Compose
-import ee.cone.c4di.{c4, c4multi}
+import ee.cone.c4di.{c4, c4multi, provide}
 
 import scala.collection.{immutable, mutable}
 import scala.collection.immutable.{Map, Seq, TreeMap}
@@ -463,6 +463,10 @@ class DebugJoinMapIndex(
 */
 
 class FailedRule(val message: List[String]) extends WorldPartRule
+
+@c4("AssembleApp") final class EmptyExpressionsDumperProvider {
+  @provide def expressionsDumpers: Seq[ExpressionsDumper[Unit]] = Nil
+}
 
 @c4("AssembleApp") final class TreeAssemblerImpl(
   byPriority: ByPriority, expressionsDumpers: List[ExpressionsDumper[Unit]],

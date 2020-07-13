@@ -1,8 +1,12 @@
 package ee.cone.c4actor
 
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4di.c4
+import ee.cone.c4di.{c4, provide}
 import ee.cone.c4proto._
+
+@c4("RichDataCompApp") final class EmptyGeneralDefaultModelInitializerProvider {
+  @provide def defaultModelInitializers: Seq[GeneralDefaultModelInitializer] = Nil
+}
 
 @c4("RichDataCompApp") final class ModelFactoryImpl(
   defaultModelInitializers: List[GeneralDefaultModelInitializer],

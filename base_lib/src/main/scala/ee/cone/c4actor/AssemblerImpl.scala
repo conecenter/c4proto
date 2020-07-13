@@ -143,6 +143,12 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   }
 }
 
+@c4("RichDataCompApp") final class EmptyUpdateProcessorProvider {
+  @provide def processor: Seq[UpdateProcessor] = Nil
+  @provide def processors: Seq[UpdatesPreprocessor] = Nil
+  @provide def keyFactory: Seq[OrigKeyFactoryProposition] = Nil
+}
+
 @c4("RichDataCompApp") final class RawTxAddImpl(
   utilOpt: DeferredSeq[AssemblerUtil],
   composes: IndexUtil,
@@ -187,12 +193,12 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
 
 @c4("RichDataCompApp") final class AssemblerInit(
   treeAssembler: TreeAssembler,
-  getDependencies: DeferredSeq[DataDependencyProvider],
+  getDependencies: List[DataDependencyProvider],
   isTargetWorldPartRules: List[IsTargetWorldPartRule],
 ) extends LazyLogging {
   private lazy val rules = {
     logger.debug("getDependencies started")
-    val r = getDependencies.value.flatMap(_.getRules).toList
+    val r = getDependencies.flatMap(_.getRules).toList
     logger.debug("getDependencies finished")
     r
   }
