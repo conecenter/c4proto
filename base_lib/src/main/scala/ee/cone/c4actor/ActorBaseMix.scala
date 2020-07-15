@@ -32,3 +32,5 @@ trait VMExecutionAppBase extends AbstractComponents {
   lazy val componentRegistry = ComponentRegistry(this)
   lazy val execution: Execution = Single(componentRegistry.resolve(classOf[Execution],Nil).value)
 }
+
+trait DeadlockDetectAppBase
