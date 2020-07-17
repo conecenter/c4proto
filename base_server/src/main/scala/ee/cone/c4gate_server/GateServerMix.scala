@@ -79,19 +79,17 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
 
 //()//todo secure?
 
-@c4("SnapshotMakingApp") final class DefSnapshotSavers(factory: SnapshotSaverImplFactory)
-  extends SnapshotSavers(factory.create("snapshots"), factory.create("snapshot_txs"))
+@c4("SnapshotMakingApp") final class DefSnapshotSavers(factory: SnapshotSaverFactory, inner: RawSnapshotSaver)
+  extends SnapshotSavers(factory.create("snapshots",inner), factory.create("snapshot_txs",inner))
 
 trait SnapshotMakingAppBase extends TaskSignerApp
   with FileRawSnapshotLoaderApp with FileRawSnapshotSaverApp
   with ConfigDataDirApp with SignedReqUtilImplApp
   with ConfigSimpleSignerApp with SnapshotUtilImplApp
-trait SnapshotPutAppBase extends SignedReqUtilImplApp with SnapshotLoaderFactoryImplApp
+trait SnapshotPutAppBase extends SignedReqUtilImplApp with SnapshotLoaderFactoryImplApp with SeqPostHandlerApp
 trait SignedReqUtilImplAppBase
 
 trait SSEServerAppBase extends AlienProtocolApp
-
-
 
 @c4("SSEServerApp") final class SSEServer(
   config: Config,

@@ -92,7 +92,8 @@ case class RequestedSnapshotMakingTx(
 )(
   snapshotMaking: SnapshotMaker,
   signatureChecker: SnapshotTaskSigner,
-  signedReqUtil: SignedReqUtil
+  signedReqUtil: SignedReqUtil,
+  txAdd: LTxAdd,
 ) extends TxTransform {
   import signedReqUtil._
   def transform(local: Context): Context = catchNonFatal {
@@ -104,10 +105,10 @@ case class RequestedSnapshotMakingTx(
     val goodResp = List(N_Header("x-r-snapshot-keys", res.map(_.relativePath).mkString(",")))
     val authorizedResponses = authorized.map(au => au -> goodResp)
     val nonAuthorizedResponses = nonAuthorized.map(nau => nau -> "Non authorized request")
-    respond(authorizedResponses, nonAuthorizedResponses)(local)
+    txAdd.add(respond(authorizedResponses, nonAuthorizedResponses))(local)
   }("make-snapshot"){ e =>
     val message = e.getMessage
-    respond(Nil,requests.map(_ -> message))(local)
+    txAdd.add(respond(Nil,requests.map(_ -> message)))(local)
   }
 }
 

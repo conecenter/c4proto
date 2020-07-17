@@ -37,6 +37,8 @@ trait PrometheusPostAppBase extends DefaultMetricsApp with HttpUtilApp
 
 trait PublisherAppBase extends HttpProtocolApp
 
+trait SeqPostHandlerAppBase
+
 /*
 *
 * Usage:

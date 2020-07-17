@@ -37,8 +37,15 @@ object SnapshotUtilImpl extends SnapshotUtil {
 
 import SnapshotUtilImpl._
 
+@c4("SnapshotUtilImplApp") final class SnapshotSaverFactoryImpl(
+  factory: SnapshotSaverImplFactory
+) extends SnapshotSaverFactory {
+  def create(subDirStr: String, inner: RawSnapshotSaver): SnapshotSaver =
+    factory.create(subDirStr,inner)
+}
+
 //case class Snapshot(offset: NextOffset, uuid: String, raw: RawSnapshot)
-@c4multi("SnapshotUtilImplApp") final class SnapshotSaverImpl(subDirStr: String)(inner: RawSnapshotSaver) extends SnapshotSaver {
+@c4multi("SnapshotUtilImplApp") final class SnapshotSaverImpl(subDirStr: String, inner: RawSnapshotSaver) extends SnapshotSaver {
   def save(offset: NextOffset, data: Array[Byte], headers: List[RawHeader]): RawSnapshot = {
     val snapshot = RawSnapshot(s"$subDirStr/$offset-${hashFromData(data)}${headers.map(h => s"-${h.key}-${h.value}").mkString}")
     assert(hashFromName(snapshot).nonEmpty, s"Not a valid name ${snapshot.relativePath}")

@@ -17,6 +17,9 @@ trait RawSnapshotLoaderFactory {
   def create(baseURL: String): RawSnapshotLoader
 }
 
+trait SnapshotSaverFactory {
+  def create(subDirStr: String, inner: RawSnapshotSaver): SnapshotSaver
+}
 trait SnapshotSaver {
   def save(offset: NextOffset, data: Array[Byte], headers: List[RawHeader]): RawSnapshot
 }
@@ -50,6 +53,6 @@ trait SnapshotMerger {
 }
 
 trait SnapshotDiffer {
-  def diff(snapshot: RawEvent, targetSnapshot: RawEvent): List[N_Update]
-  def needCurrentSnapshot: Context=>RawEvent
+  def diff(currentUpdates: List[N_Update], targetUpdates: List[N_Update]): List[N_Update]
+  def needCurrentUpdates: Context=>List[N_Update]
 }

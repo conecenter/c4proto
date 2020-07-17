@@ -260,7 +260,9 @@ trait RawEvent extends Product {
 }
 case class SimpleRawEvent(srcId: SrcId, data: ByteString, headers: List[RawHeader]) extends RawEvent
 
-trait GetOffset extends Getter[SharedContext with AssembledContext,NextOffset]
+trait GetOffset extends Getter[SharedContext with AssembledContext,NextOffset] {
+  def empty: NextOffset
+}
 
 trait RichRawWorldReducer {
   def reduce(context: Option[SharedContext with AssembledContext], events: List[RawEvent]): RichContext

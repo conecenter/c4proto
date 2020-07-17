@@ -10,7 +10,8 @@ import ee.cone.c4di.c4
 @c4("IgnoreAllSnapshotsApp") final class IgnoreAllSnapshots(
   toUpdate: ToUpdate,
   consuming: Consuming,
-  factory: SnapshotSaverImplFactory,
+  factory: SnapshotSaverFactory,
+  inner: RawSnapshotSaver,
   baseDir: DataDir,
 ) extends Executable with LazyLogging {
   private def ignoreTheSamePath(path: Path): Unit = ()
@@ -22,7 +23,7 @@ import ee.cone.c4di.c4
       ignoreTheSamePath(Files.move(path,path.resolveSibling(s"$subDir.${UUID.randomUUID()}.bak")))
     val (bytes, headers) = toUpdate.toBytes(Nil)
     // val saver = snapshotSavers.full
-    val saver = factory.create(subDir)
+    val saver = factory.create(subDir,inner)
     val rawSnapshot = saver.save(endOffset, bytes, headers)
     logger.info(s"EMPTY snapshot was saved: ${rawSnapshot.relativePath}")
 

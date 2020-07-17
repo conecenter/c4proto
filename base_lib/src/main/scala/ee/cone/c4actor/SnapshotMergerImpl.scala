@@ -24,10 +24,11 @@ class SnapshotMergerImpl(
     val task = signer.retrieve(check = false)(Option(signed)).get
     val parentProcess = remoteSnapshotUtil.request(baseURL,signed)
     val parentSnapshotLoader = snapshotLoaderFactory.create(rawSnapshotLoaderFactory.create(baseURL))
-    val currentFullSnapshot = differ.needCurrentSnapshot(local)
+    val currentFullUpdates = differ.needCurrentUpdates(local)
     val targetRawSnapshot :: txs = parentProcess()
     val Some(targetFullSnapshot) = parentSnapshotLoader.load(targetRawSnapshot)
-    val diffUpdates = differ.diff(currentFullSnapshot,targetFullSnapshot)
+    val targetFullUpdates = toUpdate.toUpdates(List(targetFullSnapshot))
+    val diffUpdates = differ.diff(currentFullUpdates,targetFullUpdates)
     task match {
       case t:NextSnapshotTask =>
         assert(t.offsetOpt.isEmpty || txs.isEmpty)
@@ -48,17 +49,15 @@ class SnapshotMergerImpl(
   snapshotMaker: SnapshotMaker,
   snapshotLoader: SnapshotLoader
 ) extends SnapshotDiffer {
-  def diff(snapshot: RawEvent, targetSnapshot: RawEvent): List[N_Update] = {
-    val currentUpdates = toUpdate.toUpdates(List(snapshot))
-    val targetUpdates = toUpdate.toUpdates(List(targetSnapshot))
+  def diff(currentUpdates: List[N_Update], targetUpdates: List[N_Update]): List[N_Update] = {
     val state = currentUpdates.map(up=>toUpdate.toKey(up)->up).toMap
     val updates = targetUpdates.filterNot{ up => state.get(toUpdate.toKey(up)).contains(up) }
     val deletes = state.keySet -- targetUpdates.map(toUpdate.toKey)
     (deletes.toList ::: updates).sortBy(toUpdate.by)
   }
-  def needCurrentSnapshot: Context=>RawEvent = local => {
+  def needCurrentUpdates: Context=>List[N_Update] = local => {
     val rawSnapshot = snapshotMaker.make(NextSnapshotTask(Option(getOffset.of(local))))
     val Seq(Some(currentFullSnapshot)) = rawSnapshot.map(snapshotLoader.load)
-    currentFullSnapshot
+    toUpdate.toUpdates(List(currentFullSnapshot))
   }
 }
