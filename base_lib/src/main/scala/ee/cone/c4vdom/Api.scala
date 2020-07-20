@@ -4,7 +4,7 @@ package ee.cone.c4vdom
 //import ee.cone.c4connection_api.EventKey
 import java.text.DecimalFormat
 
-import ee.cone.c4vdom.OnChangeMode.{Defer, Send}
+import ee.cone.c4vdom.OnChangeMode._
 import ee.cone.c4vdom.Types._
 
 trait ToJson {
@@ -111,7 +111,6 @@ trait VDomUntil {
 }
 
 ////
-
 sealed abstract class OnChangeMode(val value: String) extends Product
 object OnChangeMode {
   case object ReadOnly extends OnChangeMode("")
@@ -121,8 +120,11 @@ object OnChangeMode {
 }
 
 trait TagJsonUtils {
-  def appendInputAttributes(builder: MutableJsonBuilder, value: String, mode: OnChangeMode): Unit
   @deprecated def appendInputAttributes(builder: MutableJsonBuilder, value: String, deferSend: Boolean): Unit =
     appendInputAttributes(builder,value,if(deferSend) Defer else Send)
+  def appendValue(builder: MutableJsonBuilder, value: String): Unit
+  @deprecated def appendOnChange(builder: MutableJsonBuilder, value: String, deferSend: Boolean, needStartChanging: Boolean): Unit
+
+  def appendInputAttributes(builder: MutableJsonBuilder, value: String, mode: OnChangeMode): Unit
   def appendStyles(builder: MutableJsonBuilder, styles: List[TagStyle]): Unit
 }

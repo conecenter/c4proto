@@ -52,7 +52,7 @@ trait PreHashingApp {
   def preHashing: PreHashing
 }
 
-trait ServerApp extends ServerCompApp with RichDataApp { //e-only
+trait ServerApp extends ServerCompApp with RichDataApp with DeadlockDetectApp { //e-only
   lazy val snapshotLoader: SnapshotLoader = resolveSingle(classOf[SnapshotLoader])
   lazy val qMessages: QMessages = resolveSingle(classOf[QMessages])
   lazy val consuming: Consuming = resolveSingle(classOf[Consuming])

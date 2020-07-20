@@ -33,3 +33,4 @@ trait AssemblerTestAppBase
 @c4app class ProtoAdapterTestAppBase extends ExecutableApp with VMExecutionApp
   with BaseApp with ProtoApp with BigDecimalApp with GzipRawCompressorApp
 
+@c4app class DeadlockTestAppBase extends DeadlockDetectApp with VMExecutionApp with ExecutableApp with BaseApp

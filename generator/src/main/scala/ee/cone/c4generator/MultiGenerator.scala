@@ -62,7 +62,7 @@ object MultiGenerator extends Generator {
     }
     val arity = params.head.size
     val ext = if(typeParamNames.nonEmpty) ""
-      else if(arity <= 2) s"extends C4Factory$arity[${params.head.map(p=>s"${p.pType},").mkString}${cl.name}]"
+      else if(arity <= 3) s"extends C4Factory$arity[${params.head.map(p=>s"${p.pType},").mkString}${cl.name}]"
       else ""
     GeneratedCode(Seq(
       s"\n$ann final class $name${par(false,true,true)} $ext {",
