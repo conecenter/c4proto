@@ -1,21 +1,24 @@
 package ee.cone.c4vdom_impl
 
-import ee.cone.c4vdom.{MutableJsonBuilder, TagJsonUtils, TagStyle}
+import ee.cone.c4vdom.{MutableJsonBuilder, OnChangeMode, TagJsonUtils, TagStyle}
+import ee.cone.c4vdom.OnChangeMode._
 
 object TagJsonUtilsImpl extends TagJsonUtils {
   def appendValue(builder: MutableJsonBuilder, value: String): Unit =
     builder.append("value").append(value)
 
-  def appendOnChange(builder: MutableJsonBuilder, value: String, deferSend: Boolean, needStartChanging: Boolean): Unit = {
+  @deprecated def appendOnChange(builder: MutableJsonBuilder, value: String, deferSend: Boolean, needStartChanging: Boolean): Unit = {
+    val mode = if(!deferSend) Send else if(needStartChanging) SendFirst else Defer
+    appendInputAttributes(builder, value, mode)
+  }
+
+  def appendInputAttributes(builder: MutableJsonBuilder, value: String, mode: OnChangeMode): Unit = {
     appendValue(builder, value)
-    if (!deferSend)
-      builder.append("onChange").append("send")
-    else if (needStartChanging) {
-      builder.append("onChange").append("send_first")
-      builder.append("onBlur").append("send")
-    } else {
-      builder.append("onChange").append("local")
-      builder.append("onBlur").append("send")
+    val onChange = mode.value
+    if(onChange.nonEmpty) builder.append("onChange").append(onChange)
+    mode match {
+      case ReadOnly | Send => ()
+      case SendFirst | Defer => builder.append("onBlur").append("send")
     }
   }
 

@@ -8,6 +8,8 @@ const localByKey = dictKeys(f=>({local:f}))
 function ctxToPatch(ctx,res){
     return !ctx ? res : ctxToPatch(ctx.parent, ctx.key ? {[ctx.key]:res} : res)
 }
+
+/* rewritten in new state man : */
 const getChange = (ctx,target,changing) => {
     const headers = ({...target.headers, "x-r-changing": changing?"1":""})
     const patch = ctxToPatch(ctx, { value: target.value, changing })
@@ -35,6 +37,7 @@ const sendDeferred = (sender,ctx) => {
     rCtx.modify("CHANGE_SEND",branchByKey.all(localByKey.all(sendOneDeferred(sender))))
 }
 const sendOneDeferred = sender => st => st.sent ? st : {...st, sent: sender.send(st.ctx,st.target)}
+/* end rewritten */
 
 //todo branch LIFE
 
@@ -197,12 +200,12 @@ export function VDomAttributes(react, sender){
 
     const sendThen = ctx => event => sender.send(ctx,{value:""})
     const onClick = ({/*send,*/sendThen}) //react gives some warning on stopPropagation
-    const onChange = {
+    const onChange = { //rewritten
         "local": ctx => event => setDeferred(ctx, event.target, true),
         "send_first": ctx => event => sendChanging(sender, ctx, event.target),
         "send": ctx => event => { setDeferred(ctx, event.target, true); sendDeferred(sender, ctx) } // todo no resize anti-dos
     }
-    const onBlur = {
+    const onBlur = { //rewritten
         "send": ctx => event => { setDeferred(ctx, null, false); sendDeferred(sender, ctx) }
     }
     const seed = ctx => element => {
