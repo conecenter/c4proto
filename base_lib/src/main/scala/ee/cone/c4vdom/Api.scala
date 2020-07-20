@@ -110,8 +110,8 @@ trait VDomUntil {
 }
 
 ////
-
 trait TagJsonUtils {
-  def appendInputAttributes(builder: MutableJsonBuilder, value: String, deferSend: Boolean): Unit
+  def appendValue(builder: MutableJsonBuilder, value: String): Unit
+  def appendOnChange(builder: MutableJsonBuilder, value: String, deferSend: Boolean, needStartChanging: Boolean): Unit
   def appendStyles(builder: MutableJsonBuilder, styles: List[TagStyle]): Unit
 }
