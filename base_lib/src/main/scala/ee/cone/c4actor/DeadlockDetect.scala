@@ -15,7 +15,7 @@ import scala.annotation.tailrec
       val lines = for {
         info <- bean.getThreadInfo(ids,true,true).flatMap(Option(_))
         line <- Array(s"Id: ${info.getThreadId}") ++
-          info.getLockedMonitors.map(s=>s"mon $s at ${s.getLockedStackFrame} depth ${s.getLockedStackDepth}") ++
+          info.getLockedMonitors.map(s=>s"monitor $s locked at depth ${s.getLockedStackDepth} (${s.getLockedStackFrame})") ++
           info.getStackTrace.map(s=>s"call $s")
       } yield line
       println(lines.map(l=>s"\nDD: $l").mkString)
