@@ -26,8 +26,8 @@ import scala.concurrent.{ExecutionContext, Future}
       logger debug s"PUT request received; Storing request body to $tmpFilename"
       val is = income.entity.dataBytes.runWith(StreamConverters.asInputStream(5.minutes))(mat) //todo check throw
       logger debug s"Bytes Stream created"
-      s3FileStorage.uploadByteStream(tmpFilename, is)
-      logger debug s"Uploaded bytestream to $tmpFilename"
+      val isUploaded = s3FileStorage.uploadByteStream(tmpFilename, is)
+      logger debug s"${if (isUploaded) "" else "!!!!Not !!!"}uploaded bytestream to $tmpFilename"
       // ? income.headers
       income.withEntity(tmpFilename)
     }
