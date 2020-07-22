@@ -70,7 +70,13 @@ export function ResizeCanvasSetup(canvas){
         if(!isSimilarSizes(canvas.fromServer().value, sizes))
             canvas.fromServer().onChange({ target: { value: sizes } })
     }
-    return ({processFrame})
+    function restoreZoom(pxPerEMZoom){
+        const fromServerValue = canvas.fromServer().value
+        if(!fromServerValue) return null
+        const [cmdUnitsPerEMZoom] = fromServerValue.split(",")
+        return { value: pxPerEMZoom - cmdUnitsPerEMZoom }
+    }
+    return ({processFrame,restoreZoom})
 }
 
 export function BaseCanvasSetup(log, util, canvas){
@@ -177,7 +183,9 @@ export function BaseCanvasSetup(log, util, canvas){
             maxZoom
         ))
         const minZoom = Math.min(minZooms.x,minZooms.y)
+        const restoredZoom = canvas.restoreZoom && canvas.restoreZoom(pxPerEMZoom)
         const initialZoom =
+            restoredZoom ? restoredZoom.value :
             fromServer.initialFit == "xy" ? minZoom :
             fromServer.initialFit == "x" ? minZooms.x : 0
         //
