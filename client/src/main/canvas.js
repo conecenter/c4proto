@@ -52,6 +52,7 @@ export function ExchangeCanvasSetup(canvas){
 //state.changedSizes && index >= parseInt(state.changedSizes.sent["x-r-index"]) ? {...state, changedSizes: null} : state
 export function ResizeCanvasSetup(canvas){
     function minus(a,b){ return get => get(a)-get(b) }
+    function similarPx(d){ return Math.abs(d) < 8 }
     function isSimilarValue(a,b){
         if(a == b) return true
         if(!a || !b) return false
@@ -60,11 +61,11 @@ export function ResizeCanvasSetup(canvas){
             d(o=>o.cmdUnitsPerEMZoom)===0 &&
             d(o=>o.aspectRatio.x)===0 &&
             d(o=>o.aspectRatio.y)===0 &&
-            Math.abs(d(o=>o.pxMapH)) < 8 &&
-            d(o=>o.viewPos.x)===0 &&
-            d(o=>o.viewPos.y)===0 &&
-            d(o=>o.viewExternalSize.x)===0 &&
-            d(o=>o.viewExternalSize.y)===0
+            similarPx(d(o=>o.pxMapH)) &&
+            similarPx(d(o=>o.viewPos.x)) &&
+            similarPx(d(o=>o.viewPos.y)) &&
+            similarPx(d(o=>o.viewExternalSize.x)) &&
+            similarPx(d(o=>o.viewExternalSize.y))
         )
     }
     function processFrame(frame,prev){
@@ -75,8 +76,6 @@ export function ResizeCanvasSetup(canvas){
         const cmdUnitsPerEMZoom = (pxPerEMZoom - zoom)|0
         const aspectRatio = canvas.calcPos(dir => parentPos.size[dir]|0)
         const pxMapH = ((canvas.fromServer().height||0)*screenScale)|0
-        //const viewportPosM = canvas.calcPos(dir => (viewPos[dir]/screenScale)|0)
-        //const viewportEndM = canvas.calcPos(dir => Math.ceil((viewPos[dir]+viewExternalSize[dir])/screenScale))
         const value = serialize({cmdUnitsPerEMZoom,aspectRatio,pxMapH,zoom,viewPos,viewExternalSize})
         const valueFromServer = canvas.fromServer().value
         if(isSimilarValue(valueFromServer, value)) return;
@@ -563,7 +562,7 @@ export function DragViewPositionCanvasSetup(log,canvas){
             const {viewExternalSize,initialZoom} = viewPositions
             const restored = from && getPos ? null : canvas.restoreViewport()
             const zoom = from ? from.zoom : restored ? restored.zoom : initialZoom
-            const viewIsChanging = from ? time - from.time < 500 : false
+            const viewIsChanging = from ? time - from.time < 2000 : false
             const vPos = getPos ? getPos(time) : restored ? restored.viewPos : canvas.calcPos(dir=>0)
             const viewPos = limitPos(zoom, viewExternalSize, vPos)
             return {...viewPositions,time,limitedTargetZoom:zoom,zoom,tileZoom:zoom,viewIsChanging,viewPos}
