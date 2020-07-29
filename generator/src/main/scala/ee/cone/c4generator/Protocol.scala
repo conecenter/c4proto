@@ -35,6 +35,15 @@ class ProtocolGenerator(statTransformers: List[ProtocolStatsTransformer]) extend
     List(s"ee.cone.c4proto.${cat}_Cat")
   }
 
+  def getUnapply(argName: String, factoryName: String, props: List[ProtoProp]): String =
+    if (props.size <= 22) {
+      val struct = s"""${factoryName}(${props.map(p => s"prep_${p.name}").mkString(",")})"""
+      s"val $struct = $argName"
+    } else {
+      props.zipWithIndex.map{case (p, ind) => s"val prep_${p.name}: ${p.argType} = $argName.productElement($ind).asInstanceOf[${p.argType}]"}.mkString("\n    ")
+    }
+
+
   def get(parseContext: ParseContext): List[Generated] = parseContext.stats.flatMap{
     case q"@protocol(...$exprss) object ${objectNameNode@Term.Name(objectName)} extends ..$ext { ..$stats }" =>
       val c4ann = if (exprss.isEmpty) "@c4" else mod"@c4(...$exprss)".syntax
@@ -69,7 +78,7 @@ class ProtocolGenerator(statTransformers: List[ProtocolStatsTransformer]) extend
       case t: Tree =>
         Utils.parseError(t, parseContext)
     }.toList
-    val struct = s"""${factoryName}(${props.map(p=>s"prep_${p.name}").mkString(",")})"""
+    val struct = getUnapply("value", factoryName, props)
     val traitUsages = cl.ext.map{
       case init"${Type.Name(tn)}(...$_)" => GeneratedTraitUsage(tn)
       case t => throw new Exception(t.structure)
@@ -83,13 +92,13 @@ $c4ann final class ${cl.name}ProtoAdapter(
 ) extends ProtoAdapter[$resultType](FieldEncoding.LENGTH_DELIMITED,classOf[$resultType]) with HasId {
   def redact(value: $resultType): $resultType = value
   def encodedSize(value: $resultType): Int = {
-    val $struct = value
+    $struct
     (0
       ${props.map(p=>s"\n        + adapter_${p.name}.encodedSizeWithTag(${p.id}, prep_${p.name})").mkString}
     )
   }
   def encode(writer: ProtoWriter, value: $resultType) = {
-    val $struct = value
+    $struct
     ${props.map(p=>s"\n      adapter_${p.name}.encodeWithTag(writer,${p.id}, prep_${p.name})").mkString}
   }
   @annotation.tailrec private def decodeMore(
