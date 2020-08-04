@@ -54,4 +54,4 @@ activate(requestAnimationFrame, withState(log,[
     sessionReload.checkActivate,
     vDom.checkActivate,
     canvas.checkActivate
-]))
+],()=>()))
