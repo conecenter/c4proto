@@ -1,5 +1,5 @@
 
-export default function withState(log,handlers,onError){
+export default function withState(log,handlers){
     let toModify = []
     let state = ({})
     function modify(hint,by){
@@ -14,7 +14,10 @@ export default function withState(log,handlers,onError){
                 toModify = toModify.slice(1)
             }
         } finally {
-            if(toModify.length > 0 && onError) onError()
+            if(toModify.length > 0){
+                state = ({ ...state, wasModificationError: true })
+                toModify = []
+            }
         }
     }
     return handlers.map(h => () => h(modify))

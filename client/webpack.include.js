@@ -3,8 +3,7 @@
 
 const path = require('path')
 
-const config = (HtmlWebpackPlugin,kind,outDir,loaderRules) =>{
-    return name=>env=>({
+const config = (HtmlWebpackPlugin,kind,outDir,loaderRules) => name => env => ({
       entry: "./src/"+kind+"/"+name+".js",
       output: {        
         path: outDir+"/build/"+kind,
@@ -47,7 +46,6 @@ const config = (HtmlWebpackPlugin,kind,outDir,loaderRules) =>{
           c4p: path.resolve(__dirname, "src")
         }
       }
-    })    
-}
+})
 
 module.exports.config = config

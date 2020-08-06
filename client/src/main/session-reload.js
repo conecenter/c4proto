@@ -1,6 +1,16 @@
 
 export default function SessionReload(localStorage,sessionStorage,location,random){
-    const checkActivate = modify => modify("SESSION_RELOAD",state=>{
+    const reload = location => state => {
+        location.reload()
+        return ({...state,stopped:true})
+    }
+    const checkErrorReload = state => (
+        !state.skipErrorReloadUntil ? { ...state, skipErrorReloadUntil: Date.now()+5000 } :
+        !state.wasModificationError ? state :
+        Date.now() < state.skipErrorReloadUntil ? state :
+        reload(location)(state)
+    )
+    const checkSessionReload = state => {
         const sessionKey = sessionStorage.getItem("sessionKey")
         if(!sessionKey || state.stopped) return state;
         const loadKeyForSession = "loadKeyForSession-" + sessionKey
@@ -12,11 +22,13 @@ export default function SessionReload(localStorage,sessionStorage,location,rando
         const was = localStorage.getItem(loadKeyForSession)
         if(was !== state.loadKey){ //duplicated or session-set
             if(was) sessionStorage.clear() //duplicated
-            location.reload()
-            return ({...state,stopped:true})
+            return reload(location)(state)
         }
         return state
-    })
+    }
+    const checkActivate = modify => modify("CHECK_RELOAD", state => (
+        state.stopped ? state : checkSessionReload(checkErrorReload(state))
+    ))
     return ({checkActivate})
 }
 //#location.hash
