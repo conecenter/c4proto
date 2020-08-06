@@ -188,8 +188,13 @@ push @tasks, ["stack_list"," ",sub{
     sy(&$ssh_add());
     my $width = 6;
     my $composes = &$get_deploy_conf() || die;
-    print join '', map{"$_\n"}
-        (map{"  $_".(" "x($width-length))." -- ".(($$composes{$_}||die)->{description}||'?')} sort keys %$composes);
+    print join '', map{"$_\n"} (map{
+        my $conf = $$composes{$_} || die;
+        my $description = $$conf{description} ? $$conf{description} :
+            $$conf{deployer} ? "$$conf{type} at $$conf{deployer}" : $$conf{type};
+        "  $_".(" "x($width-length))." -- $description"
+    } sort keys %$composes);
+
 }];
 
 push @tasks, ["agent","<command-with-args>",sub{
