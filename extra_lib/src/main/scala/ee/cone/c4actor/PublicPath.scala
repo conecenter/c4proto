@@ -3,6 +3,7 @@ package ee.cone.c4actor
 import scala.util.matching.{Regex, UnanchoredRegex}
 
 trait ImageSize
+trait RotationAngle
 
 trait PublicPath extends Product {
   def isEmpty: Boolean = path.trim.isEmpty
@@ -21,8 +22,11 @@ trait PublicPath extends Product {
 
 trait ImagePublicPath extends PublicPath {
   def size: Option[ImageSize]
+  def angle:Option[RotationAngle]
   def withSize(newSize: ImageSize): ImagePublicPath
   def withNoSize: ImagePublicPath
+  def withRotation(a:RotationAngle): ImagePublicPath
+  def noRotate:ImagePublicPath
 }
 
 case class DefaultPublicPath(path: String) extends PublicPath {
@@ -30,16 +34,22 @@ case class DefaultPublicPath(path: String) extends PublicPath {
 }
 
 
-case class NonSVGPublicPath(path: String, size: Option[ImageSize] = None) extends ImagePublicPath {
+case class NonSVGPublicPath(path: String, size: Option[ImageSize] = None, angle: Option[RotationAngle] = None) extends ImagePublicPath {
   def withSize(newSize: ImageSize): NonSVGPublicPath = copy(size = Some(newSize))
   def withNoSize: NonSVGPublicPath = copy(size = None)
+
+  def withRotation(a: RotationAngle): NonSVGPublicPath = copy(angle = Option(a))
+  def noRotate: NonSVGPublicPath = copy(size = None)
 
   def pathType: String = NonSVGPublicPath.curPathType
 }
 
-case class SVGPublicPath(path: String, viewPort: String, size: Option[ImageSize] = None, color: String = "") extends ImagePublicPath {
+case class SVGPublicPath(path: String, viewPort: String, size: Option[ImageSize] = None, angle: Option[RotationAngle] = None, color: String = "") extends ImagePublicPath {
   def withSize(newSize: ImageSize): SVGPublicPath = copy(size = Some(newSize))
   def withNoSize: SVGPublicPath = copy(size = None)
+
+  def withRotation(a: RotationAngle): SVGPublicPath = copy(angle = Option(a))
+  def noRotate: SVGPublicPath = copy(size = None)
 
   def withColor(newColor: String): SVGPublicPath = copy(color = newColor)
   def withAdaptiveColor: SVGPublicPath = copy(color = SVGPublicPath.adaptiveColor)
