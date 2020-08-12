@@ -1,9 +1,10 @@
 package ee.cone.c4actor
 
+import ee.cone.c4actor.PublicImage.RotationAngle
+
 import scala.util.matching.{Regex, UnanchoredRegex}
 
 trait ImageSize
-trait RotationAngle
 
 trait PublicPath extends Product {
   def isEmpty: Boolean = path.trim.isEmpty
@@ -18,6 +19,10 @@ trait PublicPath extends Product {
   def convert: String = {
     s"${format(ImagePublicPath.pathType, pathType)} ${format(ImagePublicPath.path, path)}"
   }
+}
+
+object PublicImage{
+  type RotationAngle = Long
 }
 
 trait ImagePublicPath extends PublicPath {
