@@ -53,7 +53,7 @@ case class SVGPublicPath(path: String, viewPort: String, size: Option[ImageSize]
   def withSize(newSize: ImageSize): SVGPublicPath = copy(size = Some(newSize))
   def withNoSize: SVGPublicPath = copy(size = None)
 
-  def withRotation(a: RotationAngle): SVGPublicPath = copy(angle = Option(a))
+  def withRotation(a: RotationAngle): SVGPublicPath = if(a == 0) withNoRotation else copy(angle = Option(a))
   def withNoRotation: SVGPublicPath = copy(size = None)
 
   def withColor(newColor: String): SVGPublicPath = copy(color = newColor)
