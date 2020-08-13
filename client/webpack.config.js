@@ -1,4 +1,19 @@
 
 const HtmlWebpackPlugin = require('html-webpack-plugin')
-const config = require("./webpack.include.js").config(HtmlWebpackPlugin,"test",__dirname,[])
-module.exports = env=>[config("react-app")(env), config("sse")(env)]
+const config = require("./webpack.include.js").config("test",__dirname,[])
+module.exports = env=>{
+    const names = ["react-app","sse"]
+    const conf = config(names,env)
+    return ({
+        ...conf,
+        plugins: [
+            ...conf.plugins,
+            ...names.map(name=>new HtmlWebpackPlugin({
+              filename: name + ".html",
+              title: name,
+              hash: true,
+              favicon: "./src/test/favicon.png",
+            }))
+        ],
+    })
+}
