@@ -31,7 +31,7 @@ trait ImagePublicPath extends PublicPath {
   def withSize(newSize: ImageSize): ImagePublicPath
   def withNoSize: ImagePublicPath
   def withRotation(a:RotationAngle): ImagePublicPath
-  def noRotate:ImagePublicPath
+  def withNoRotation:ImagePublicPath
 }
 
 case class DefaultPublicPath(path: String) extends PublicPath {
@@ -43,8 +43,8 @@ case class NonSVGPublicPath(path: String, size: Option[ImageSize] = None, angle:
   def withSize(newSize: ImageSize): NonSVGPublicPath = copy(size = Some(newSize))
   def withNoSize: NonSVGPublicPath = copy(size = None)
 
-  def withRotation(a: RotationAngle): NonSVGPublicPath = copy(angle = Option(a))
-  def noRotate: NonSVGPublicPath = copy(size = None)
+  def withRotation(a: RotationAngle): NonSVGPublicPath = if(a == 0) withNoRotation else copy(angle = Option(a))
+  def withNoRotation: NonSVGPublicPath = copy(size = None)
 
   def pathType: String = NonSVGPublicPath.curPathType
 }
@@ -54,7 +54,7 @@ case class SVGPublicPath(path: String, viewPort: String, size: Option[ImageSize]
   def withNoSize: SVGPublicPath = copy(size = None)
 
   def withRotation(a: RotationAngle): SVGPublicPath = copy(angle = Option(a))
-  def noRotate: SVGPublicPath = copy(size = None)
+  def withNoRotation: SVGPublicPath = copy(size = None)
 
   def withColor(newColor: String): SVGPublicPath = copy(color = newColor)
   def withAdaptiveColor: SVGPublicPath = copy(color = SVGPublicPath.adaptiveColor)
