@@ -26,6 +26,7 @@ object Main {
       MultiGenerator,
       FieldAccessGenerator,
       AppGenerator,
+      TagGenerator,
     ) //,UnBaseGenerator
   }
   def main(args: Array[String]): Unit = new RootGenerator(defaultGenerators(Nil) ::: List(
