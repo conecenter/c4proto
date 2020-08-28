@@ -415,8 +415,8 @@ my $make_kc_yml = sub{
     my($name,$tmp_path,$spec,$options) = @_;
     my %all = map{%$_} @$options;
     my @unknown = &$map(\%all,sub{ my($k,$v)=@_;
-        $k=~/^([A-Z]|host:|port:|ingress:)/ ||
-        $k=~/^(tty|image|name|rolling)$/ ? () : $k
+        $k=~/^([A-Z]|host:|port:|ingress:|path:)/ ||
+        $k=~/^(tty|image|name|rolling|noderole)$/ ? () : $k
     });
     @unknown and warn "unknown conf keys: ".join(" ",@unknown);
     my $rolling = $all{rolling};
@@ -461,6 +461,30 @@ my $make_kc_yml = sub{
         }
     );
     #
+    my @node_role = grep{$_} map{$$_{noderole}} @$options;
+    my %affinity = !@node_role ? () : (affinity=>{ nodeAffinity=>{
+        preferredDuringSchedulingIgnoredDuringExecution=> [{
+            weight=> 1,
+            preference=> { matchExpressions=> [
+                { key=> "noderole", operator=> "In", values=> [&$single(@node_role)] }
+            ]},
+        }]
+    }});
+    #
+    my %host_path_to_name = &$map(\%all,sub{ my($k,$v)=@_;
+        $k=~m{^path:} ? ($v=>"host-vol-".md5_hex($v)) : ()
+    });
+    my @host_volumes = &$map(\%host_path_to_name, sub{ my($k,$v)=@_;
+        +{ name=>$v, hostPath=>{ path=>$k } }
+    });
+    my %host_mounts = map{
+        my $opt = $_;
+        my $nm = &$mandatory_of(name=>$opt);
+        &$map($opt,sub{ my($k,$v)=@_; $k=~m{path:(.*)$} ? {
+            mountPath=>$1, name=>&$mandatory_of($v=>\%host_path_to_name)
+        } : () });
+    } @$options;
+    #
     my @containers = map{
         my $opt = $_;
         my $nm = &$mandatory_of(name=>$opt);
@@ -471,6 +495,7 @@ my $make_kc_yml = sub{
         my @volume_mounts = (
             @{$secret_mounts{$nm}||[]},
             $data_dir ? { name => "db4", mountPath => $data_dir } : (),
+            @{$host_mounts{$nm}||[]},
         );
         +{
             name => $nm, args=>[$nm], image => &$mandatory_of(image=>$opt),
@@ -533,7 +558,7 @@ my $make_kc_yml = sub{
                 },
                 spec => {
                     containers => \@containers,
-                    volumes => [@secret_volumes, @db4_volumes],
+                    volumes => [@secret_volumes, @db4_volumes, @host_volumes],
                     hostAliases => \@host_aliases,
                     imagePullSecrets => [{ name => "regcred" }],
                     securityContext => {
@@ -543,6 +568,7 @@ my $make_kc_yml = sub{
                         runAsNonRoot => "true",
                     },
                     $all{is_deployer} ? (serviceAccountName => "deployer") : (),
+                    %affinity,
                 },
             },
             @volume_claim_templates,
@@ -565,7 +591,7 @@ my $make_kc_yml = sub{
             spec => {
                 selector => { app => $name },
                 ports => \@ports,
-                $all{is_deployer} ? (type => "NodePort") : ()
+                $all{is_deployer} ? (type => "NodePort") : (),
             },
         }) : ();
     };
@@ -1416,6 +1442,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile");
     &$put_text("$ctx_dir/Dockerfile", join "\n",
         &$prod_image_steps(),
+        (grep{$_} syf("cat $gen_dir/.bloop/c4/tag.$base.steps")),
         "ENV JAVA_HOME=/tools/jdk",
         'ENV PATH=${PATH}:/tools/jdk/bin:/tools/kafka/bin',
         "RUN chown -R c4:c4 /c4",
