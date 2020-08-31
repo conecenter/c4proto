@@ -480,10 +480,14 @@ my $make_kc_yml = sub{
     my %host_mounts = map{
         my $opt = $_;
         my $nm = &$mandatory_of(name=>$opt);
-        &$map($opt,sub{ my($k,$v)=@_; $k=~m{path:(.*)$} ? {
-            mountPath=>$1, name=>&$mandatory_of($v=>\%host_path_to_name)
-        } : () });
+        my @mounts = &$map($opt,sub{ my($k,$v)=@_;
+            my $path = $k=~m{^path:(.*)$} ? $1 : undef;
+            $path ? { mountPath=>$path, name=> &$mandatory_of($v=>\%host_path_to_name) } : ();
+        });
+        ($nm => \@mounts);
     } @$options;
+    print join("|", map{@$_} values %host_mounts)."host_path_to_name0\n";
+
     #
     my @containers = map{
         my $opt = $_;
