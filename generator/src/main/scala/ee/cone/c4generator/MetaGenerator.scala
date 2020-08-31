@@ -5,6 +5,8 @@ import scala.meta.Term.Name
 import scala.meta._
 
 case class OrigMetaAnnotations(
+  master: Boolean = false,
+  masterComment: Option[String] = None,
   id: Option[String] = None,
   cats: List[String] = Nil,
   replaceBy: Option[String] = None,
@@ -60,6 +62,14 @@ class MetaGenerator(statTransformers: List[ProtocolStatsTransformer]) extends Ge
     List(s"ee.cone.c4proto.${cat}_Cat")
   }
 
+  def getString(terms: Seq[Term]): String =
+    terms.collectFirst {
+      case Lit.String(value) => value
+    } match {
+      case Some(value) => s"""Option("$value")"""
+      case None => "None"
+    }
+
   def getMeta(parseContext: ParseContext, objectName: String, stats: List[Stat], c4ann: String): Seq[Generated] = {
     val classes = Util.matchClass(stats)
     GeneratedImport(s"import $objectName._") ::
@@ -78,6 +88,8 @@ class MetaGenerator(statTransformers: List[ProtocolStatsTransformer]) extends Ge
           else Utils.parseError(classDef.nameNode, parseContext, "Orig has multiple @ShortName")
         case mod"@Meta(...${exprss: Seq[Seq[Term]]})" =>
           curr.copy(metaAttrs = parseArgsWithApply(exprss) ::: curr.metaAttrs)
+        case mod"@master(...$exprss)" =>
+          curr.copy(master = true, masterComment = Some(getString(exprss.flatten.asInstanceOf[Seq[Term]])))
         case mod"@$annot" =>
           curr.copy(anns = wrapAsString(annot.init.syntax) :: curr.anns)
       }
@@ -120,6 +132,8 @@ class MetaGenerator(statTransformers: List[ProtocolStatsTransformer]) extends Ge
       import annotations._
         GeneratedCode(
           s"""$c4ann final class ${classDef.name}OrigMeta extends OrigMeta[${classDef.name}] {
+             |  val isMaster: Boolean = ${annotations.master}
+             |  val masterComment: Option[String] = ${annotations.masterComment.getOrElse("None")}
              |  val id: Option[Long] = $id
              |  val categories: List[DataCategory] = ${getCat(classDef.name,id) ::: cats}.distinct
              |  val fieldsMeta: List[FieldMeta] = List(

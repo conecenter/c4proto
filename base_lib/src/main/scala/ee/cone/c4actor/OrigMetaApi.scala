@@ -23,6 +23,8 @@ trait FieldMeta extends MetaInformation {
 }
 
 trait GeneralOrigMeta extends MetaInformation with ProtoOrigMeta {
+  def isMaster: Boolean
+  def masterComment: Option[String]
   def id: Option[TypeId]
   def categories: List[DataCategory]
   def cl: Class[_]

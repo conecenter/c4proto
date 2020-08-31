@@ -9,6 +9,7 @@ import ee.cone.c4proto._
 
   trait TestTrait
 
+  @master("123")
   @ShortName("KEK")
   @GenLens
   @Id(1)
