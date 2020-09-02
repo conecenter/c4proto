@@ -31,6 +31,8 @@ class ChildPairFactoryImpl(createMapValue: List[VPair]=>MapVDomValue) extends Ch
     if(elements.isEmpty || elements.head.isInstanceOf[ChildOrderPair[_]]) elements
     else ChildOrderPair(groupKey, ChildOrderValue(elements.map(_.key), hint)) :: elements
   )
+  def addGroup(groupKey: String, elements: Seq[ChildPair[_]] , res: ViewRes): ViewRes = ???
+  def addGroup(groupKey: String, element: ChildPair[_] , res: ViewRes): ViewRes = ???
 }
 
 object LongJsonKey { def apply(key: VDomKey) = s":$key" }

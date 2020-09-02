@@ -29,7 +29,8 @@ object TagGenerator extends Generator {
             case TagParam("key","String") :: attrArgs => attrArgs
             case p => throw new Exception(s"need key param for $defName")
           }
-          TagStatements(defDef.syntax, defName.value, attrArgs, childArgs, outTypeName, mod, modMulti)
+          val tagTypeName = Util.pkgNameToId(s"$traitName.$defName")
+          TagStatements(defDef.syntax, defName.value, attrArgs, childArgs, outTypeName, mod, modMulti, tagTypeName)
       }
       val tagClasses = res.map(_.getTagClass)
       MultiGenerator.getForStats(tagClasses.map(_.parse[Stat].get)) ++
@@ -50,33 +51,33 @@ object TagGenerator extends Generator {
 case class TagStatements(
   defDef: String, defName: String,
   attrArgs: List[TagParam], childArgs: List[TagParam], outTypeName: String,
-  mod: String, modMulti: String,
+  mod: String, modMulti: String, tagTypeName: String
 ){
-  def getArg: String = s"\n  ${defName}Factory:  ${outTypeName}TagFactory, "
+  def getArg: String = s"\n  ${defName}Factory:  ${tagTypeName}Factory, "
   def getDef: String = {
     val childArgsStr = childArgs.foldRight("Nil")((param,res)=>
       s"""child.addGroup("${param.paramName}",${param.paramName},$res)"""
     )
     val attrArgsStr = attrArgs.map(_.paramName).mkString(",")
-    s"\n  $defDef = child[$outTypeName](key, ${defName}Factory.create($attrArgsStr), $childArgsStr)"
+    s"\n  $defDef = child[$outTypeName](key,\n      ${defName}Factory.create($attrArgsStr),\n      $childArgsStr\n  )"
   }
   def getTagClass: String =
-    s"\n$modMulti final case class ${outTypeName}Tag(" +
+    s"\n$modMulti final case class ${tagTypeName}(" +
     attrArgs.map(param=>s"\n  ${param.paramName}: ${param.paramTypeName}, ").mkString +
-    s"\n)(adapter: JsonAdapter[${outTypeName}Tag]) extends ToJson {" +
+    s"\n)(adapter: JsonAdapter[${tagTypeName}]) extends VDomValue {" +
     s"\n  def appendJson(builder: MutableJsonBuilder): Unit = adapter.appendJson(this, builder)" +
     "\n}"
   def getAdapterClass: String =
-    s"\n$mod final class ${outTypeName}TagJsonAdapter(" +
+    s"\n$mod final class ${tagTypeName}JsonAdapter(" +
     attrArgs.map(param=>s"\n  ${param.paramName}JsonAdapter: JsonAdapter[${param.paramTypeName}], ").mkString +
-    s"\n) extends JsonAdapter[${outTypeName}Tag] {" +
-    s"\n  def appendJson(key: String, value: ${outTypeName}Tag, builder: MutableJsonBuilder): Unit = {" +
-    s"\n    builder.append(key)" +
+    s"\n) extends JsonAdapter[${tagTypeName}] {" +
+    s"\n  def appendJson(key: String, value: ${tagTypeName}, builder: MutableJsonBuilder): Unit = {" +
+    s"\n    builder.just.append(key)" +
     s"\n    appendJson(value,builder)" +
     s"\n  }" +
-    s"\n  def appendJson(value: ${outTypeName}Tag, builder: MutableJsonBuilder): Unit = {" +
+    s"\n  def appendJson(value: ${tagTypeName}, builder: MutableJsonBuilder): Unit = {" +
     s"\n    builder.startObject()" +
-    "\n" + s"""    builder.append("tp").append("$outTypeName")""" +
+    "\n" + s"""    builder.append("tp").append("$tagTypeName")""" +
     attrArgs.map(param =>
       "\n" + s"""    ${param.paramName}JsonAdapter.appendJson("${param.paramName}", value.${param.paramName}, builder)"""
     ).mkString +

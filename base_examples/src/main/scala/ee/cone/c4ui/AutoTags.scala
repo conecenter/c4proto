@@ -1,9 +1,12 @@
 package ee.cone.c4ui
 
+import ee.cone.c4actor.MetaAttr
 import ee.cone.c4di._
-import ee.cone.c4vdom.{ChildPairFactory,MutableJsonBuilder,ToJson}
+import ee.cone.c4vdom.{ChildPair, ChildPairFactory, MutableJsonBuilder, ToJson, VDomValue}
 
-class c4tags(a: String*)
+trait AAABase
+
+class c4tags(a: String*) extends annotation.Annotation
 
 trait VDomItem extends Product
 trait LReceiver
@@ -14,13 +17,20 @@ object SVGPublicPath {
   def empty: ImagePublicPath = ???
 }
 trait FieldValue
-trait MetaAttrList
 trait CanEl
 
-trait JsonAdapter[T] {
+trait GeneralJsonAdapter
+trait JsonAdapter[T] extends GeneralJsonAdapter {
   def appendJson(key: String, value: T, builder: MutableJsonBuilder): Unit
   def appendJson(value: T, builder: MutableJsonBuilder): Unit
 }
+
+// union-types emulated by contra-variance
+object AutoTagTest {
+  type VDom[C] = ChildPair[C]
+  type MetaAttrList = List[MetaAttr]
+}
+import AutoTagTest._
 
 // ========================== //
 
@@ -69,9 +79,6 @@ trait CustomColor extends Color // background by user data (not code), text by c
 trait GroupBoxStyle // only 2 for this moment
 object DefaultGroupBoxStyle extends GroupBoxStyle
 object StandOutGroupBoxStyle extends GroupBoxStyle
-
-// union-types emulated by contra-variance
-trait VDom[-C]
 
 trait OfFlex extends VFlexCol with VFlexRow with VRow with VMenu with VFilterExtra1 with VFilterExtra2 with VFlexCell with VIFrame with VCanvas with VAccordion
 trait OfFieldFrame extends OfFlex with VField

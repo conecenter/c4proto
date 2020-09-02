@@ -5,7 +5,7 @@ package ee.cone.c4vdom
 import java.text.DecimalFormat
 
 import ee.cone.c4vdom.OnChangeMode._
-import ee.cone.c4vdom.Types._
+import ee.cone.c4vdom.Types.{ViewRes, _}
 
 trait ToJson {
   def appendJson(builder: MutableJsonBuilder): Unit
@@ -43,6 +43,8 @@ trait ChildPair[-C] {
 trait ChildPairFactory {
   def apply[C](key: VDomKey, theElement: VDomValue, elements: ViewRes): ChildPair[C]
   def group(groupKey: String, hint: String, elements: ViewRes): ViewRes
+  def addGroup(groupKey: String, elements: Seq[ChildPair[_]] , res: ViewRes): ViewRes
+  def addGroup(groupKey: String, element: ChildPair[_] , res: ViewRes): ViewRes
 }
 // do not mix grouped and ungrouped elements: cf(cf.group(...) ::: badUngroupedElements)
 
