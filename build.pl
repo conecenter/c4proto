@@ -136,13 +136,16 @@ my $calc_bloop_conf = sub{
             +{ fn=>"$tmp/mod.$_.classpath.sh", content=>$sh },
         )
     } @mod_names;
+    my ($step_by_project) = &$group(&$dep_conf("C4STEP"));
     my @tag2mod = map{
         my($from,$to)=@$_;
         my($mod,$cl) = $to=~/^(\w+\.)(.*)(\.\w+)$/ ? ("$1$2","$2$3") : die;
+        my $steps = join "\n", &$step_by_project($from);
         (
             +{ fn=>"$tmp/tag.$from.compile", content=>"exec perl $tmp/compile.pl $mod" },
             +{ fn=>"$tmp/tag.$from.mod", content=>$mod },
             +{ fn=>"$tmp/tag.$from.main", content=>$cl },
+            +{ fn=>"$tmp/tag.$from.steps", content=>$steps },
         )
     } &$dep_conf("C4TAG");
     my $src_dirs_by_name = &$lazy_dict(sub{
