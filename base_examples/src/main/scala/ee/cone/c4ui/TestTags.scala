@@ -60,7 +60,8 @@ case class ContainerLeftRight() extends ElementValue {
 }
 
 @c4multi("TestTagsApp") final class TestTags[State]()(
-  child: ChildPairFactory, inputAttributes: TagJsonUtils, tags: Tags
+  child: ChildPairFactory, inputAttributes: TagJsonUtils, tags: Tags,
+  vDomFactory: VDomFactory
 ) {
   def messageStrBody(o: VDomMessage): String =
     o.body match { case bs: okio.ByteString => bs.utf8() }
@@ -92,9 +93,12 @@ case class ContainerLeftRight() extends ElementValue {
     child[OfDiv]("changePassword", ChangePassword[State]()(inputAttributes, change), Nil)
 
   def containerLeftRight(key: VDomKey, left: List[ChildPair[OfDiv]], right: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
-    child[OfDiv](key, ContainerLeftRight(),
-      child.group("leftChildList","?",left) :::
-      child.group("rightChildList","?",right)
+    vDomFactory.create[OfDiv](key, ContainerLeftRight(),
+      vDomFactory.addGroup(key,"leftChildList",left,
+        vDomFactory.addGroup(key,"rightChildList",right,
+          Nil
+        )
+      )
     )
 
   def table(key: VDomKey, items: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =

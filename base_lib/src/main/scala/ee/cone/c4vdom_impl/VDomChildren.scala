@@ -1,7 +1,7 @@
 package ee.cone.c4vdom_impl
 
-import ee.cone.c4vdom.{ChildPair, ChildPairFactory, MutableJsonBuilder, VDomValue}
-import ee.cone.c4vdom.Types.{VDomKey, ViewRes}
+import ee.cone.c4vdom.{ChildPair, ChildPairFactory, MutableJsonBuilder, VDomFactory, VDomValue}
+import ee.cone.c4vdom.Types.{VDom, VDomKey, ViewRes}
 
 case class ChildOrderPair[C](jsonKey: String, value: VDomValue) extends ChildPair[C] with VPair { //priv
   def key: VDomKey = throw new Exception
@@ -11,7 +11,7 @@ case class ChildOrderPair[C](jsonKey: String, value: VDomValue) extends ChildPai
   }
   def withValue(value: VDomValue) = copy(value=value)
 }
-case class ChildOrderValue(value: List[VDomKey], hint: String) extends VDomValue { //priv
+case class ChildOrderValue(value: Seq[VDomKey], hint: String) extends VDomValue { //priv
   def appendJson(builder: MutableJsonBuilder) = {
     if(value.size != value.distinct.size)
       throw new Exception(s"duplicate keys: $value under $hint")
@@ -22,17 +22,18 @@ case class ChildOrderValue(value: List[VDomKey], hint: String) extends VDomValue
   }
 }
 case class ChildGroup(key: String, elements: ViewRes)
-class ChildPairFactoryImpl(createMapValue: List[VPair]=>MapVDomValue) extends ChildPairFactory {
-  def apply[C](key: VDomKey, theElement: VDomValue, elements: ViewRes): ChildPair[C] = {
-    val children = group("chl",key,elements).asInstanceOf[List[VPair]]
-    ChildPairImpl[C](key, createMapValue(TheElementPair(theElement) :: children))
-  }
-  def group(groupKey: String, hint: String, elements: ViewRes): ViewRes = (
-    if(elements.isEmpty || elements.head.isInstanceOf[ChildOrderPair[_]]) elements
-    else ChildOrderPair(groupKey, ChildOrderValue(elements.map(_.key), hint)) :: elements
-  )
-  def addGroup(groupKey: String, elements: Seq[ChildPair[_]] , res: ViewRes): ViewRes = ???
-  def addGroup(groupKey: String, element: ChildPair[_] , res: ViewRes): ViewRes = ???
+class ChildPairFactoryImpl(inner: VDomFactory) extends ChildPairFactory {
+  def apply[C](key: VDomKey, theElement: VDomValue, elements: ViewRes): ChildPair[C] =
+    inner.create(key,theElement,inner.addGroup(key,"chl",elements,Nil))
+}
+
+class VDomFactoryImpl(createMapValue: List[VPair]=>MapVDomValue) extends VDomFactory {
+  def create[C](key: VDomKey, theElement: VDomValue, elements: ViewRes): VDom[C] =
+    ChildPairImpl[C](key, createMapValue(TheElementPair(theElement) :: elements.asInstanceOf[List[VPair]]))
+  def addGroup(key: String, groupKey: String, elements: Seq[VDom[_]], res: ViewRes): ViewRes =
+    ChildOrderPair(groupKey, ChildOrderValue(elements.map(_.key), key)) :: elements ++: res //elements.foldLeft(res)((res,el)=>)
+  def addGroup(key: String, groupKey: String, element: VDom[_], res: ViewRes): ViewRes =
+    ChildOrderPair(groupKey, ChildOrderValue(Seq(element.key), key)) :: element :: res
 }
 
 object LongJsonKey { def apply(key: VDomKey) = s":$key" }

@@ -38,7 +38,7 @@ object TagGenerator extends Generator {
       res.map(_.getAdapterClass).map(GeneratedCode) ++
       List(GeneratedCode(
         s"\n$mod final class ${traitName}Impl(" +
-        "\n  child: ChildPairFactory, " +
+        "\n  child: VDomFactory, " +
         res.map(_.getArg).mkString +
         s"\n) extends ${traitName} {" +
         res.map(_.getDef).mkString +
@@ -56,10 +56,10 @@ case class TagStatements(
   def getArg: String = s"\n  ${defName}Factory:  ${tagTypeName}Factory, "
   def getDef: String = {
     val childArgsStr = childArgs.foldRight("Nil")((param,res)=>
-      s"""child.addGroup("${param.paramName}",${param.paramName},$res)"""
+      s"""child.addGroup(key,"${param.paramName}",${param.paramName},$res)"""
     )
     val attrArgsStr = attrArgs.map(_.paramName).mkString(",")
-    s"\n  $defDef = child[$outTypeName](key,\n      ${defName}Factory.create($attrArgsStr),\n      $childArgsStr\n  )"
+    s"\n  $defDef = child.create[$outTypeName](key,\n      ${defName}Factory.create($attrArgsStr),\n      $childArgsStr\n  )"
   }
   def getTagClass: String =
     s"\n$modMulti final case class ${tagTypeName}(" +

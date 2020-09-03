@@ -34,6 +34,7 @@ trait AbstractMutableJsonBuilder {
 object Types {
   type VDomKey = String
   type ViewRes = List[ChildPair[_]]
+  type VDom[C] = ChildPair[C]
 }
 
 trait ChildPair[-C] {
@@ -42,11 +43,15 @@ trait ChildPair[-C] {
 
 trait ChildPairFactory {
   def apply[C](key: VDomKey, theElement: VDomValue, elements: ViewRes): ChildPair[C]
-  def group(groupKey: String, hint: String, elements: ViewRes): ViewRes
-  def addGroup(groupKey: String, elements: Seq[ChildPair[_]] , res: ViewRes): ViewRes
-  def addGroup(groupKey: String, element: ChildPair[_] , res: ViewRes): ViewRes
+  //def group(groupKey: String, hint: String, elements: ViewRes): ViewRes
 }
 // do not mix grouped and ungrouped elements: cf(cf.group(...) ::: badUngroupedElements)
+
+trait VDomFactory {
+  def create[C](key: VDomKey, theElement: VDomValue, elements: ViewRes): VDom[C]
+  def addGroup(key: String, groupKey: String, elements: Seq[ChildPair[_]] , res: ViewRes): ViewRes
+  def addGroup(key: String, groupKey: String, element: ChildPair[_] , res: ViewRes): ViewRes
+}
 
 ////
 

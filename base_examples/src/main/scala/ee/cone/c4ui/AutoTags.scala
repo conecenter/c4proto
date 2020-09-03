@@ -2,7 +2,7 @@ package ee.cone.c4ui
 
 import ee.cone.c4actor.MetaAttr
 import ee.cone.c4di._
-import ee.cone.c4vdom.{ChildPair, ChildPairFactory, MutableJsonBuilder, ToJson, VDomValue}
+import ee.cone.c4vdom.{ChildPair, ChildPairFactory, MutableJsonBuilder, ToJson, VDomValue, VDomFactory}
 
 trait AAABase
 
