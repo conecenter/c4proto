@@ -7,12 +7,14 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble._
 import ee.cone.c4di.{c4, c4multi, provide}
-import ee.cone.c4gate._
-import ee.cone.c4ui.CommonFilterProtocol._
-import ee.cone.c4ui.TestTodoProtocol.{B_TodoTask, B_TodoTaskOrder}
+import ee.cone.c4gate.PublishFromStringsProvider
+import ee.cone.c4ui.TestTodoProtocol.{B_TodoTask, B_TodoTaskComments, B_TodoTaskCommentsContains, B_TodoTaskOrder}
 import ee.cone.c4proto._
-import ee.cone.c4vdom.{ChildPair, OfDiv, SortHandler, SortTags, TagStyles, Tags}
-import ee.cone.c4vdom.Types.{VDomKey, ViewRes}
+import ee.cone.c4ui.AutoTagTest.{ClientComponentType, LReceiver, LSortReceiver}
+import ee.cone.c4vdom.{SortHandler, SortTags}
+import ee.cone.c4vdom.Types.{VDom, VDomKey, ViewRes}
+import ee.cone.c4vdom._
+import okio.ByteString
 
 // @c4mod class FooCargoType extends CargoType
 
@@ -49,129 +51,150 @@ import ee.cone.c4vdom.Types.{VDomKey, ViewRes}
 //   def mixFoo(bar: Bar): Foo = new Foo
 //   def mixHoo(bar: Goo): Hoo = new Hoo
 
+abstract class SetField[T](val make: (SrcId,String)=>T) extends Product
+@c4multi("TestTodoApp") final case class OnChangeReceiver[T<:Product](
+  srcId: SrcId, make: SetField[T]
+)(
+  txAdd: LTxAdd
+) extends LReceiver {
+  def receive: Handler = message => local => {
+    val value = message.body match { case b: ByteString => b.utf8() }  //.header("x-r-value")
+    val events = update(make.make(srcId,value))
+    // println(s"$value // $events")
+    txAdd.add(events)(local)
+  }
+}
+@c4multi("TestTodoApp") final case class SimpleReceiver(events: Seq[LEvent[Product]])(
+  txAdd: LTxAdd
+) extends LReceiver {
+  def receive: Handler = message => local => txAdd.add(events)(local)
+}
 
+abstract class SimpleJsonAdapter[T] extends JsonPairAdapter[T] with JsonValueAdapter[T] {
+  def appendJson(key: String, value: T, builder: MutableJsonBuilder): Unit = {
+    builder.just.append(key)
+    appendJson(value, builder)
+  }
+}
+
+@c4("TestTodoApp") final class SimpleJsonAdapterProvider {
+  @provide def clientComponentType: Seq[JsonPairAdapter[ClientComponentType]] = List(new SimpleJsonAdapter[String]{
+    def appendJson(value: String, builder: MutableJsonBuilder): Unit =
+      builder.just.append(value)
+  })
+  @provide def string: Seq[JsonPairAdapter[String]] = List(new SimpleJsonAdapter[String]{
+    def appendJson(value: String, builder: MutableJsonBuilder): Unit =
+      builder.just.append(value)
+  })
+  @provide def int: Seq[JsonPairAdapter[Int]] = List(new SimpleJsonAdapter[Int]{
+    def appendJson(value: Int, builder: MutableJsonBuilder): Unit =
+      builder.just.append(value.toString) //?DecimalFormat
+  })
+  @provide def receiver: Seq[JsonPairAdapter[LReceiver]] = List(new JsonPairAdapter[LReceiver]{
+    def appendJson(key: String, value: LReceiver, builder: MutableJsonBuilder): Unit = {}
+  })
+  @provide def sortReceiver: Seq[JsonPairAdapter[LSortReceiver]] = List(new SimpleJsonAdapter[LSortReceiver]{
+    def appendJson(value: LSortReceiver, builder: MutableJsonBuilder): Unit = {
+      builder.startArray()
+      value.value.foreach(builder.just.append)
+      builder.end()
+    }
+  })
+}
+
+trait VExampleField
+trait VExampleRow
+trait VExampleList
+
+@c4tags("TestTodoApp") trait ExampleTags {
+  def field(key: String, value: String, change: LReceiver, caption: String): VDom[VExampleField]
+  def row(key: String, remove: LReceiver)(cells: VDom[VExampleField]*): VDom[VExampleRow]
+  @c4tag("ExampleList") def list(
+    key: String, add: LReceiver, sort: LSortReceiver
+  )(filters: VDom[VExampleField]*)(rows: VDom[VExampleRow]*): VDom[VExampleList]
+}
 
 @c4("ReactHtmlApp") final class ReactHtmlFromAlienTaskAssembleBase {
   @provide def subAssembles: Seq[Assemble] =
     new FromAlienTaskAssemble("/react-app.html") :: Nil
 }
 
-@protocol("TestTodoApp") object TestTodoProtocol   {
-  @Id(0x0001) case class B_TodoTask(
-    @Id(0x0002) srcId: String,
-    @Id(0x0003) createdAt: Long,
-    @Id(0x0004) comments: String
-  )
-  @Id(0x0002) case class B_TodoTaskOrder(
-    @Id(0x0002) srcId: SrcId,
-    @Id(0x0005) order: List[SrcId]
-  )
+@c4("ReactHtmlApp") final class ReactHtmlProvider extends PublishFromStringsProvider {
+  def get: List[(String, String)] = {
+    val now = System.currentTimeMillis
+    List(
+      "/react-app.html" ->
+        s"""<!DOCTYPE html><meta charset="UTF-8"><body>
+            <script type="text/javascript" src="vendor.js?$now"></script>
+            <script type="text/javascript" src="react-app.js?$now"></script>
+        </body>"""
+    )
+  }
 }
 
-import TestTodoAccess._
-@fieldAccess object TestTodoAccessBase {
-  lazy val comments: ProdLensStrict[B_TodoTask,String] =
-    ProdLens.of(_.comments, UserLabel en "(comments)")
-  lazy val createdAt: ProdLensStrict[B_TodoTask,Long] =
-    ProdLens.of(_.createdAt, UserLabel en "(created at)")
-  lazy val createdAtFlt =
-    SessionAttr(Id(0x0006), classOf[B_DateBefore], UserLabel en "(created before)")
-  lazy val commentsFlt =
-    SessionAttr(Id(0x0007), classOf[B_Contains], IsDeep, UserLabel en "(comments contain)")
+////////////////////////////////////////////////////////////////////////////////
+
+@protocol("TestTodoApp") object TestTodoProtocol {
+  @Id(0x0001) case class B_TodoTask(@Id(0x0002) srcId: String, @Id(0x0003) createdAt: Long)
+  @Id(0x0003) case class B_TodoTaskComments(@Id(0x0002) srcId: String, @Id(0x0003) value: String)
+  @Id(0x0002) case class B_TodoTaskOrder(@Id(0x0002) srcId: SrcId, @Id(0x0005) order: List[SrcId])
+  @Id(0x0004) case class B_TodoTaskCommentsContains(@Id(0x0002) srcId: SrcId, @Id(0x0003) value: String)
 }
 
-/*
-trait TestTodoRootViewApp extends ByLocationHashViewsApp {
-  def testTags: TestTags[Context]
-  def tags: Tags
-  def tagStyles: TagStyles
-  def modelAccessFactory: ModelAccessFactory
-  def filterPredicateBuilder: FilterPredicateBuilder
-  def commonFilterConditionChecks: CommonFilterConditionChecks
-  def sessionAttrAccessFactory: SessionAttrAccessFactory
-  def accessViewRegistry: AccessViewRegistry
-  def untilPolicy: UntilPolicy
-
-  private lazy val testTodoRootView = TestTodoRootView()(
-    testTags,
-    tags,
-    tagStyles,
-    modelAccessFactory,
-    filterPredicateBuilder,
-    commonFilterConditionChecks,
-    accessViewRegistry,
-    untilPolicy
-  )
-
-  override def byLocationHashViews: List[ByLocationHashView] =
-    testTodoRootView :: super.byLocationHashViews
-}*/
+case object TodoTaskComments extends SetField(B_TodoTaskComments)
+case object TodoTaskCommentsContains extends SetField(B_TodoTaskCommentsContains)
 
 @c4("TestTodoApp") final case class TestTodoRootView(locationHash: String = "todo")(
-  tags: TestTags[Context],
-  mTags: Tags,
+  todoTags: ExampleTags,
+  onChangeReceiverFactory: OnChangeReceiverFactory,
+  simpleReceiverFactory: SimpleReceiverFactory,
+  taskListAddReceiver: TaskListAddReceiver,
   sortTags: SortTags,
-  styles: TagStyles,
-  contextAccess: RModelAccessFactory,
-  filterPredicates: FilterPredicateBuilder,
-  commonFilterConditionChecks: CommonFilterConditionChecks,
-  accessViewRegistry: AccessViewRegistry,
   untilPolicy: UntilPolicy,
   getB_TodoTask: GetByPK[B_TodoTask],
-  txAdd: LTxAdd,
+  getB_TodoTaskComments: GetByPK[B_TodoTaskComments],
+  getB_TodoTaskCommentsContains: GetByPK[B_TodoTaskCommentsContains],
   todoSortOrderFactory: TodoSortOrderFactory,
   todoSortHandlerFactory: TodoSortHandlerFactory,
 ) extends ByLocationHashView {
   def view: Context => ViewRes = untilPolicy.wrap{ local =>
-    import mTags._
-    import commonFilterConditionChecks._
-    val filterPredicate = filterPredicates.create[B_TodoTask](local)
-      .add(commentsFlt, comments)
-      .add(createdAtFlt, createdAt)
-
-    val filterList = for {
-      access <- filterPredicate.accesses
-      tag <- accessViewRegistry.view(access)(local)
-    } yield tag
-    // filterPredicate.accesses.flatMap { case a if a.initialValue => List(a to sub1, a to sub2) case a => List(a) }
-
-    val btnList = List(
-      divButton("add")(
-        txAdd.add(update(B_TodoTask(UUID.randomUUID.toString,System.currentTimeMillis,"")))
-      )(List(text("text","+")))
-    )
-
-    def cell(key: VDomKey, content: ChildPair[OfDiv]): ChildPair[OfDiv] =
-      div(key,List(styles.width(100),styles.displayInlineBlock))(List(content))
-
-    val todoSortOrder = todoSortOrderFactory.create("todoSortOrderId")
-    val todoTasks = todoSortOrder.getKeys(local).map(getB_TodoTask.ofA(local))
-      .filter(filterPredicate.condition.check)
-    
+    val listKey = "taskList"
+    val commentsContainsValue = getB_TodoTaskCommentsContains.ofA(local).get(listKey).fold("")(_.value)
+    val comments = getB_TodoTaskComments.ofA(local)
+    val todoSortOrder = todoSortOrderFactory.create(listKey)
+    val allTodoTasks = todoSortOrder.getKeys(local).map(getB_TodoTask.ofA(local))
+    val todoTasks = if(commentsContainsValue.isEmpty) allTodoTasks
+      else allTodoTasks.filter(
+        prod => comments.get(prod.srcId).exists(_.value.contains(commentsContainsValue))
+      )
     val taskLines = for {
       prod <- todoTasks
-      task <- contextAccess.to(getB_TodoTask,prod)
-    } yield tags.row(prod.srcId,List(
-      tags.cell("sortHandle",sortTags.handle("sortHandle",text("caption","o"))),
-      tags.cell("input",tags.input(task to comments)),
-      tags.cell("remove",
-        divButton("remove")(txAdd.add(delete(prod)))(List(text("caption","-")))
+    } yield todoTags.row(prod.srcId, remove = simpleReceiverFactory.create(delete(prod)))(
+      todoTags.field("comments",
+        value = comments.get(prod.srcId).fold("")(_.value),
+        change = onChangeReceiverFactory.create(prod.srcId, TodoTaskComments),
+        caption = "Comments",
       )
-    ))
+    )
+    List(todoTags.list(listKey,
+      add = taskListAddReceiver,
+      sort = sortTags.toReceiver(taskLines.map(_.key),todoSortHandlerFactory.create(todoSortOrder)),
+    )(
+      todoTags.field("comments",
+        value = commentsContainsValue,
+        change = onChangeReceiverFactory.create(listKey, TodoTaskCommentsContains),
+        caption = "Comments contains",
+      )
+    )(taskLines:_*))
+  }
+}
 
-    val todoSortHandler = todoSortHandlerFactory.create(todoSortOrder)
-    val table = tags.table("table",List(
-      tags.tHead(List(
-        tags.row("head",List(
-          tags.cell("sortHandle",text("sortHandle","drag")),
-          tags.cell("input",text("input","comments")),
-          tags.cell("remove",text("remove","remove")),
-        ))
-      )),
-      sortTags.tBodyRoot(todoSortHandler,taskLines)
-    ))
-
-    tags.containerLeftRight("clr",filterList,btnList) :: table :: Nil
+@c4("TestTodoApp") final case class TaskListAddReceiver(
+  txAdd: LTxAdd,
+) extends LReceiver {
+  def receive: Handler = message => local => {
+    val events = update(B_TodoTask(UUID.randomUUID.toString,System.currentTimeMillis))
+    txAdd.add(events)(local)
   }
 }
 

@@ -20,4 +20,8 @@ trait SortHandler[State] extends Product {
 trait SortTags {
   def tBodyRoot[State](handler: SortHandler[State], items: List[ChildPair[OfDiv]]): ChildPair[OfDiv] //todo OfTable
   def handle(key: VDomKey, items: ChildPair[OfDiv]): ChildPair[OfDiv]
+  def toReceiver[State](value: List[VDomKey], handler: SortHandler[State]): SortReceiver[State]
+}
+trait SortReceiver[State] extends Receiver[State] {
+  def value: List[VDomKey]
 }

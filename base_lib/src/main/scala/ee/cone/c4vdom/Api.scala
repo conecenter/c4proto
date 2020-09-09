@@ -10,7 +10,8 @@ import ee.cone.c4vdom.Types.{ViewRes, _}
 trait ToJson {
   def appendJson(builder: MutableJsonBuilder): Unit
 }
-trait VDomValue extends ToJson
+trait Resolvable extends Product
+trait VDomValue extends ToJson with Resolvable
 
 ////
 
@@ -53,6 +54,10 @@ trait VDomFactory {
   def addGroup(key: String, groupKey: String, element: ChildPair[_] , res: ViewRes): ViewRes
 }
 
+trait ResolvingVDomValue extends VDomValue {
+  def resolve(name: String): Option[Resolvable]
+}
+
 ////
 
 abstract class TagName(val name: String)
@@ -89,13 +94,16 @@ trait VDomMessage {
   def body: Object
 }
 
-trait Receiver[State] {
+trait Receiver[State] extends Resolvable {
   type Handler = VDomMessage => State => State
   def receive: Handler
 }
+// if we want to introduce other type of receiver,
+// we can tweak client sender-context to send short path + inner path
+
 
 trait VDomResolver {
-  def resolve(pathStr: String): Option[VDomValue] => Option[VDomValue]
+  def resolve(pathStr: String): Option[Resolvable] => Option[Resolvable]
 }
 
 trait VDomHandler[State] extends Receiver[State] {

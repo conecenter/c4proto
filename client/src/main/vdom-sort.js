@@ -3,7 +3,7 @@ import {useCallback,useMemo,createElement} from 'react'
 import {SortableContainer,SortableElement,SortableHandle} from 'react-sortable-hoc'
 import {useSync} from './vdom-core'
 
-const SortHandle = SortableHandle(({children}) => children)
+export const SortHandle = SortableHandle(({children}) => children)
 
 const SortElement = SortableElement(({children}) => children)
 
@@ -48,7 +48,7 @@ const sortChildren = (patchedValue,children) => {
     return patchedValue.map(k=>childrenByKey[`:${k}`])
 }
 
-function TBodySortRoot({identity,value,children,...props}){
+export function TBodySortRoot({identity,value,children,...props}){
     const [patchedValue,onSortEnd] = useSortRoot(identity,value)
     const sortedChildren = sortChildren(patchedValue,children||[])
     return createElement(SortContainer,{tp:"tbody",useDragHandle:true,onSortEnd,...props},sortedChildren)

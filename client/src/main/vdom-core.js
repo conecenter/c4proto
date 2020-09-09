@@ -149,9 +149,10 @@ const NoContext = createContext()
 const AckContext = createContext()
 const SenderContext = createContext()
 const nonMerged = ack => aPatch => !(aPatch && ack && aPatch.sentIndex <= ack.index)
+export const useSender = () => useContext(SenderContext)
 export const useSync = identity => {
     const [patches,setPatches] = useState([])
-    const sender = useContext(SenderContext)
+    const sender = useSender()
     const enqueuePatch = useCallback(aPatch=>{
         setPatches(aPatches=>[...aPatches,{...aPatch, sentIndex: sender.enqueue(identity,aPatch)}])
     },[sender,identity])
@@ -169,7 +170,7 @@ function createSyncProviders({sender,ack,children}){
 
 /********* sync input *********************************************************/
 
-function useSyncInput(identity,incomingValue,deferSend){
+export function useSyncInput(identity,incomingValue,deferSend){
     const [patches,enqueuePatch] = useSync(identity)
     const [lastPatch,setLastPatch] = useState()
     const defer = deferSend(!!lastPatch)
@@ -202,6 +203,7 @@ const SyncInput = memo(function SyncInput({value,onChange,...props}){
 /********* traverse ***********************************************************/
 
 function TraverseOne(props){
+    if(props.at.identity) return createElement(props.at.tp,props)
     const {tp,...at} = props.at
     const children =
         at.content && at.content[0] === "rawMerge" ? props :

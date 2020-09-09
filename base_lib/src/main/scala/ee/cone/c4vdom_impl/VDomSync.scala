@@ -27,6 +27,6 @@ object TagJsonUtilsImpl extends TagJsonUtils {
     }
 }
 
-object WasNoValueImpl extends WasNoVDomValue {
+case object WasNoValueImpl extends WasNoVDomValue {
   def appendJson(builder: MutableJsonBuilder): Unit = Never()
 }

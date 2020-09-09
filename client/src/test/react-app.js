@@ -17,7 +17,7 @@ import {ExampleRequestState} from "../test/request-state"
 //import CanvasExtraMix from "../extra/canvas-extra-mix"
 import {CanvasBaseMix} from "../main/canvas-mix"
 import {sortTransforms} from "../main/vdom-sort.js"
-
+import {todoTransforms} from "../test/todo"
 
 function fail(data){ alert(data) }
 
@@ -42,7 +42,8 @@ const canvas = CanvasManager(React,Canvas.CanvasFactory(util, canvasMods), sende
 const vDomAttributes = VDomAttributes(exampleRequestState)
 const exampleComponents = ExampleComponents(vDomAttributes.transforms.tp)
 const exampleAuth = ExampleAuth(pairOfInputAttributes)
-const transforms = mergeAll([vDomAttributes.transforms, exampleComponents.transforms, exampleAuth.transforms, canvas.transforms, sortTransforms])
+
+const transforms = mergeAll([vDomAttributes.transforms, exampleComponents.transforms, exampleAuth.transforms, canvas.transforms, sortTransforms, todoTransforms])
 
 const vDom = VDomCore(React,ReactDOM,update,log,transforms,getRootElement)
 

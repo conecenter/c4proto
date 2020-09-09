@@ -1,15 +1,16 @@
 package ee.cone.c4ui
 
-import ee.cone.c4actor.MetaAttr
+import ee.cone.c4actor.{Context, MetaAttr}
 import ee.cone.c4di._
-import ee.cone.c4vdom.{ChildPair, ChildPairFactory, MutableJsonBuilder, ToJson, VDomValue, VDomFactory}
+import ee.cone.c4vdom.Types.VDom
+import ee.cone.c4vdom._
 
 trait AAABase
 
 class c4tags(a: String*) extends annotation.Annotation
+class c4tag(a: String*) extends annotation.Annotation
 
 trait VDomItem extends Product
-trait LReceiver
 
 trait ImagePublicPath
 trait Seed
@@ -19,16 +20,20 @@ object SVGPublicPath {
 trait FieldValue
 trait CanEl
 
-trait GeneralJsonAdapter
-trait JsonAdapter[T] extends GeneralJsonAdapter {
+trait GeneralJsonValueAdapter
+trait JsonPairAdapter[T] /*extends GeneralJsonAdapter*/ {
   def appendJson(key: String, value: T, builder: MutableJsonBuilder): Unit
+}
+trait JsonValueAdapter[T] extends GeneralJsonValueAdapter {
   def appendJson(value: T, builder: MutableJsonBuilder): Unit
 }
 
 // union-types emulated by contra-variance
 object AutoTagTest {
-  type VDom[C] = ChildPair[C]
   type MetaAttrList = List[MetaAttr]
+  type LReceiver = Receiver[Context]
+  type LSortReceiver = SortReceiver[Context]
+  type ClientComponentType = String
 }
 import AutoTagTest._
 
@@ -68,11 +73,11 @@ object DefaultPopupLayout extends LayoutParams {
   def sticky: Sticky = NonSticky
 }
 
-object NoReceiver extends LReceiver {
-  //def receive: NoReceiver.Handler = ??? // never
+case object NoReceiver extends LReceiver {
+  def receive: Handler = ??? // never
 }
 
-trait Color // text + background
+//trait Color // text + background
 trait PaletteColor extends Color // from interface palette, fixed pairs
 trait CustomColor extends Color // background by user data (not code), text by contrast formula
 
