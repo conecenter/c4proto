@@ -3,7 +3,7 @@ package ee.cone.c4ui
 import ee.cone.c4actor._
 import ee.cone.c4di.{c4, c4multi, provide}
 import ee.cone.c4vdom.Types.VDomKey
-import ee.cone.c4vdom.{OnChangeMode, _}
+import ee.cone.c4vdom.{Tags=>_,_}
 
 abstract class ElementValue extends VDomValue {
   def elementType: String
@@ -45,23 +45,12 @@ case class ChangePassword[State]()(
   }
 }
 
-case class ContainerLeftRight() extends ElementValue {
-  def elementType: String = "ContainerLeftRight"
-  def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {
-    builder.append("content").startArray();{
-      builder.just.append("rawMerge")
-      builder.end()
-    }
-  }
-}
-
 @c4("TestTagsApp") final class TestTagsProvider(factory: TestTagsFactory) {
   @provide def testTags: Seq[TestTags[Context]] = List(factory.create[Context]())
 }
 
 @c4multi("TestTagsApp") final class TestTags[State]()(
   child: ChildPairFactory, inputAttributes: TagJsonUtils, tags: Tags,
-  vDomFactory: VDomFactory
 ) {
   def messageStrBody(o: VDomMessage): String =
     o.body match { case bs: okio.ByteString => bs.utf8() }
@@ -79,65 +68,13 @@ case class ContainerLeftRight() extends ElementValue {
     }.getOrElse(tags.text(name, access.initialValue))
   }
 
-  def dateInput(access: Access[Option[Long]]): ChildPair[OfDiv] =
-    input(access to ProdLensNonstrict[Option[Long],String](Nil)(
-      _.map(_.toString).getOrElse(""),
-      s=>_=> for(s<-Option(s) if s.nonEmpty) yield s.toLong
-    ), OnChangeMode.Send)
-
   def signIn(change: String => State => State): ChildPair[OfDiv] =
     child[OfDiv]("signIn", SignIn()(inputAttributes,
       (message:VDomMessage)=>change(messageStrBody(message))
     ), Nil)
   def changePassword(change: VDomMessage => State => State): ChildPair[OfDiv] =
     child[OfDiv]("changePassword", ChangePassword[State]()(inputAttributes, change), Nil)
-
-  def containerLeftRight(key: VDomKey, left: List[ChildPair[OfDiv]], right: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
-    vDomFactory.create[OfDiv](key, ContainerLeftRight(),
-      vDomFactory.addGroup(key,"leftChildList",left,
-        vDomFactory.addGroup(key,"rightChildList",right,
-          Nil
-        )
-      )
-    )
-
-  def table(key: VDomKey, items: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
-    child[OfDiv](key, Table(), items)
-  def tHead(items: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
-    child[OfDiv]("head", TableHead(), items)
-  //def tBody(items: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
-  //  child[OfDiv]("body", TableBody(), items)
-  def row(key: VDomKey, items: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
-    child[OfDiv](key, Row(), items)
-  def cell(key: VDomKey, item: ChildPair[OfDiv]): ChildPair[OfDiv] =
-    child[OfDiv](key, Cell(), item::Nil)
 }
-
-case class Table() extends ElementValue {
-  def elementType: String = "table"
-  def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {}
-}
-case class TableHead() extends ElementValue {
-  def elementType: String = "thead"
-  def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {}
-}
-//case class TableBody() extends ElementValue {
-//  def elementType: String = "tbody"
-//  def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {}
-//}
-case class Row() extends ElementValue {
-  def elementType: String = "tr"
-  def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {}
-}
-case class Cell() extends ElementValue {
-  def elementType: String = "td"
-  def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {}
-}
-
-
-
-
-
 
 object UserLabel {
   def en: String => UserLabel = UserLabel().en

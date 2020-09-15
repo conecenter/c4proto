@@ -10,11 +10,11 @@ import ee.cone.c4di.{c4, c4multi, provide}
 import ee.cone.c4gate.PublishFromStringsProvider
 import ee.cone.c4ui.TestTodoProtocol.{B_TodoTask, B_TodoTaskComments, B_TodoTaskCommentsContains, B_TodoTaskOrder}
 import ee.cone.c4proto._
-import ee.cone.c4ui.AutoTagTest.{ClientComponentType, LReceiver, LSortReceiver}
-import ee.cone.c4vdom.{SortHandler, SortTags}
-import ee.cone.c4vdom.Types.{VDom, VDomKey, ViewRes}
+import ee.cone.c4vdom.Types._
 import ee.cone.c4vdom._
 import okio.ByteString
+
+
 
 // @c4mod class FooCargoType extends CargoType
 
@@ -56,7 +56,7 @@ abstract class SetField[T](val make: (SrcId,String)=>T) extends Product
   srcId: SrcId, make: SetField[T]
 )(
   txAdd: LTxAdd
-) extends LReceiver {
+) extends Receiver[Context] {
   def receive: Handler = message => local => {
     val value = message.body match { case b: ByteString => b.utf8() }  //.header("x-r-value")
     val events = update(make.make(srcId,value))
@@ -66,39 +66,15 @@ abstract class SetField[T](val make: (SrcId,String)=>T) extends Product
 }
 @c4multi("TestTodoApp") final case class SimpleReceiver(events: Seq[LEvent[Product]])(
   txAdd: LTxAdd
-) extends LReceiver {
+) extends Receiver[Context] {
   def receive: Handler = message => local => txAdd.add(events)(local)
 }
 
-abstract class SimpleJsonAdapter[T] extends JsonPairAdapter[T] with JsonValueAdapter[T] {
-  def appendJson(key: String, value: T, builder: MutableJsonBuilder): Unit = {
-    builder.just.append(key)
-    appendJson(value, builder)
-  }
-}
-
-@c4("TestTodoApp") final class SimpleJsonAdapterProvider {
-  @provide def clientComponentType: Seq[JsonPairAdapter[ClientComponentType]] = List(new SimpleJsonAdapter[String]{
-    def appendJson(value: String, builder: MutableJsonBuilder): Unit =
-      builder.just.append(value)
-  })
-  @provide def string: Seq[JsonPairAdapter[String]] = List(new SimpleJsonAdapter[String]{
-    def appendJson(value: String, builder: MutableJsonBuilder): Unit =
-      builder.just.append(value)
-  })
-  @provide def int: Seq[JsonPairAdapter[Int]] = List(new SimpleJsonAdapter[Int]{
-    def appendJson(value: Int, builder: MutableJsonBuilder): Unit =
-      builder.just.append(value.toString) //?DecimalFormat
-  })
-  @provide def receiver: Seq[JsonPairAdapter[LReceiver]] = List(new JsonPairAdapter[LReceiver]{
-    def appendJson(key: String, value: LReceiver, builder: MutableJsonBuilder): Unit = {}
-  })
-  @provide def sortReceiver: Seq[JsonPairAdapter[LSortReceiver]] = List(new SimpleJsonAdapter[LSortReceiver]{
-    def appendJson(value: LSortReceiver, builder: MutableJsonBuilder): Unit = {
-      builder.startArray()
-      value.value.foreach(builder.just.append)
-      builder.end()
-    }
+@c4("TestTodoApp") final class ExampleJsonAdapterProvider(util: TagJsonUtils) {
+  @provide def int: Seq[JsonPairAdapter[Int]] =
+    List(util.jsonPairAdapter((value,builder) => builder.just.append(value.toString)))//?DecimalFormat
+  @provide def receiver: Seq[JsonPairAdapter[Receiver[Context]]] = List(new JsonPairAdapter[Receiver[Context]]{
+    def appendJson(key: String, value: Receiver[Context], builder: MutableJsonBuilder): Unit = {}
   })
 }
 
@@ -107,10 +83,10 @@ trait VExampleRow
 trait VExampleList
 
 @c4tags("TestTodoApp") trait ExampleTags {
-  def field(key: String, value: String, change: LReceiver, caption: String): VDom[VExampleField]
-  def row(key: String, remove: LReceiver)(cells: VDom[VExampleField]*): VDom[VExampleRow]
+  def field(key: String, value: String, change: Receiver[Context], caption: String): VDom[VExampleField]
+  def row(key: String, remove: Receiver[Context])(cells: VDom[VExampleField]*): VDom[VExampleRow]
   @c4tag("ExampleList") def list(
-    key: String, add: LReceiver, sort: LSortReceiver
+    key: String, add: Receiver[Context], sort: SortReceiver
   )(filters: VDom[VExampleField]*)(rows: VDom[VExampleRow]*): VDom[VExampleList]
 }
 
@@ -191,7 +167,7 @@ case object TodoTaskCommentsContains extends SetField(B_TodoTaskCommentsContains
 
 @c4("TestTodoApp") final case class TaskListAddReceiver(
   txAdd: LTxAdd,
-) extends LReceiver {
+) extends Receiver[Context] {
   def receive: Handler = message => local => {
     val events = update(B_TodoTask(UUID.randomUUID.toString,System.currentTimeMillis))
     txAdd.add(events)(local)
@@ -213,7 +189,7 @@ case object TodoTaskCommentsContains extends SetField(B_TodoTaskCommentsContains
 
 @c4multi("TestTodoApp") final case class TodoSortHandler(todoSortOrder: TodoSortOrder)(
   txAdd: LTxAdd
-) extends SortHandler[Context] {
+) extends SortHandler {
   def handle(
     objKey: VDomKey,
     orderKeys: (VDomKey,VDomKey)

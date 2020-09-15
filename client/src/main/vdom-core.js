@@ -202,8 +202,20 @@ const SyncInput = memo(function SyncInput({value,onChange,...props}){
 
 /********* traverse ***********************************************************/
 
+/*
+function reProp(props){
+    Object.assign({},...Object.entries(props).map([k,v]=>
+        k === "at" ? v :
+        k.startsWith(":") ? undefined :
+        { [k]: ()=>v.map(ik=>reProp(props[ik])) }
+    ))
+}*/
+
 function TraverseOne(props){
-    if(props.at.identity) return createElement(props.at.tp,props)
+    if(props.at.identity) {
+        // const prop = reProp(props)
+        return createElement(props.at.tp,props)
+    }
     const {tp,...at} = props.at
     const children =
         at.content && at.content[0] === "rawMerge" ? props :
@@ -217,7 +229,7 @@ function TraverseChildren(props){
 }
 
 const TraverseOneMemo = memo(TraverseOne)
-const traverseOne = props => createElement(TraverseOneMemo,props)
+export const traverseOne = props => createElement(TraverseOneMemo,props)
 const traverseChildren = TraverseChildren
 // const TraverseChildrenMemo = memo(TraverseChildren)
 // const traverseChildren = props => createElement(TraverseChildrenMemo,props)
@@ -262,7 +274,7 @@ export function VDomAttributes(sender){
     const ctx = { ctx: ctx => ctx }
     const identity = { ctx: ctx => ctx }
     const path = { "I": ctxToPath }
-    const tp = ({TraverseChildren,SyncInputRoot})
+    const tp = ({SyncInputRoot})
     const transforms = {onClick,onChange,ref,ctx,tp,path,identity}
     return ({transforms})
 }

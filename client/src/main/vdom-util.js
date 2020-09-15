@@ -71,3 +71,10 @@ export const ifInputsChanged = log => (cacheKey,inpKeysObj,f) => {
         return res
     }
 }
+
+export const valueAt = key => prop => (key in prop) ? prop[key] : prop.at ? prop.at[key] : undefined
+export const childrenAt = key => prop => map(o=>prop[o]||o)(prop[key])
+export const identityOf = valueAt('identity')
+export const identityAt = key => prop => ({ parent: identityOf(prop), key })
+export const never = o => { console.log(o); throw new Error }
+export const map = f => l => l && l.map && l.map(f) || l && never(l)

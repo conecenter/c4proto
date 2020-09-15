@@ -40,7 +40,7 @@ const canvasMods = [CanvasBaseMix(log,util),exchangeMix/*,CanvasExtraMix(log)*/]
 const canvas = CanvasManager(React,Canvas.CanvasFactory(util, canvasMods), sender, log)
 
 const vDomAttributes = VDomAttributes(exampleRequestState)
-const exampleComponents = ExampleComponents(vDomAttributes.transforms.tp)
+const exampleComponents = ExampleComponents()
 const exampleAuth = ExampleAuth(pairOfInputAttributes)
 
 const transforms = mergeAll([vDomAttributes.transforms, exampleComponents.transforms, exampleAuth.transforms, canvas.transforms, sortTransforms, todoTransforms])

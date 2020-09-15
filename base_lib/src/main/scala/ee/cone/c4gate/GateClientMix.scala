@@ -3,8 +3,6 @@ package ee.cone.c4gate
 import ee.cone.c4actor._
 import ee.cone.c4di.c4
 
-trait FilterPredicateBuilderAppBase
-
 trait ActorAccessAppBase
 trait ManagementAppBase extends ActorAccessApp /*with PrometheusApp*/ with SyncTxFactoryImplApp
 // trait PrometheusAppBase extends DefPublishFullCompressorApp

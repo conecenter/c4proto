@@ -1,5 +1,5 @@
 
-import {createElement as $} from 'react'
+import {createElement as $, Children} from 'react'
 
 import Table from '@material-ui/core/Table'
 import TableBody from '@material-ui/core/TableBody'
@@ -14,13 +14,12 @@ import AddIcon from '@material-ui/icons/Add'
 import TextField from '@material-ui/core/TextField'
 import ArrowDownwardIcon from '@material-ui/icons/ArrowDownward'
 import Grid from '@material-ui/core/Grid'
+import {SortableHandle} from 'react-sortable-hoc'
 
 import { useSender, useSyncInput } from "../main/vdom-core.js"
-import { TBodySortRoot, SortHandle } from "../main/vdom-sort.js"
+import { useSortRoot, SortContainer } from "../main/vdom-sort.js"
+import { map, valueAt, childrenAt, identityOf, identityAt } from "../main/vdom-util.js"
 
-const valueAt = key => prop => prop.at && prop.at[key]
-const identityAt = key => prop => ({ parent: prop.at.identity, key })
-const childrenAt = key => prop => map(k=>prop[k])(prop[key])
 /*
 {
     const find = ctx => ctx.key ? ctx : find(ctx.parent)
@@ -33,7 +32,7 @@ const childrenAt = key => prop => map(k=>prop[k])(prop[key])
 }*/
 const notDefer = _=>false
 
-const map = f => l => l && l.map(f)
+
 const head = l => l && l[0]
 
 function SendingIconButton({identity,children}){
@@ -47,74 +46,73 @@ const rowsOf = childrenAt('rows')
 const filtersOf = childrenAt('filters')
 const cellsOf = childrenAt('cells')
 
-const addOf = identityAt('add')
-const removeOf = identityAt('remove')
-const changeOf = identityAt('change')
-const sortOf = identityAt('sort')
+const addIdOf = identityAt('add')
+const removeIdOf = identityAt('remove')
+const changeIdOf = identityAt('change')
+const sortIdOf = identityAt('sort')
 
-const sortValueOf = valueAt('sort')
+const sortOf = valueAt('sort')
 const valueOf = valueAt('value')
 const captionOf = valueAt('caption')
 
-
+export const SortHandle = SortableHandle(({children}) => children)
 
 function ExampleField(prop){
-    const identity = changeOf(prop)
+    const identity = changeIdOf(prop)
     const patch = useSyncInput(identity, valueOf(prop), notDefer)
     return $(TextField,{...patch})
 }
 
 function ExampleRow(prop){
-    const sender = useSender()
     return $(TableRow,{},
-        $(TableCell,{},
+        $(TableCell,{key:"drag"},
             $(SortHandle,{},$(ArrowDownwardIcon))
         ),
-        map(cell=>(
-            $(TableCell,{},
+        map(({key,...cell})=>(
+            $(TableCell,{key},
                 $(ExampleField,{...cell})
             )
         ))(cellsOf(prop)),
-        $(TableCell,{},
-            $(SendingIconButton,{ identity: removeOf(prop) }, $(DeleteIcon))
+        $(TableCell,{key:"remove"},
+            $(SendingIconButton,{ identity: removeIdOf(prop) }, $(DeleteIcon))
         ),
     )
 }
 
 function ExampleList(prop){
-    const sender = useSender()
+    const [patchedSortValue,onSortEnd] = useSortRoot(sortIdOf(prop),sortOf(prop))
+    const sortedRows = patchedSortValue.map(k=>prop[`:${k}`])
     return [
-        $(Grid,{ container: true, spacing: 3 },
-            map(field=>(
-                $(Grid,{ item: true, xs: 3 },
+        $(Grid,{ key: "filters", container: true, spacing: 3 },
+            map(({key,...field})=>(
+                $(Grid,{ key, item: true, xs: 3 },
                     captionOf(field),
                     $(ExampleField,{...field}),
                 )
             ))(filtersOf(prop)),
         ),
-        $(Grid,{ container: true, spacing: 3 },
+        $(Grid,{ key: "table", container: true, spacing: 3 },
             $(Grid,{ item: true, xs: 12 },
                 $(TableContainer,{
                     component: Paper
                 },[
-                    $(Table,{},
+                    $(Table,{ key: "table" },
                         $(TableHead,{},
                             $(TableRow,{},
-                                $(TableCell,{}),
-                                map(caption=>(
-                                    $(TableCell,{},caption)
-                                ))(map(captionOf)(cellsOf(head(rowsOf(prop))))),
-                                $(TableCell,{},
-                                    $(SendingIconButton,{ identity: addOf(prop) }, $(AddIcon))
+                                $(TableCell,{key:"drag"}),
+                                map(cProp=>(
+                                    $(TableCell,{key:cProp.key},captionOf(cProp))
+                                ))(cellsOf(head(rowsOf(prop)))),
+                                $(TableCell,{key:"remove"},
+                                    $(SendingIconButton,{ identity: addIdOf(prop) }, $(AddIcon))
                                 ),
                             )
                         ),
-                        $(TBodySortRoot,{
-                            identity: sortOf(prop),
-                            value: sortValueOf(prop),
+                        $(SortContainer,{
+                            tp: TableBody, useDragHandle: true, onSortEnd,
                             children: map(row=>(
                                 $(ExampleRow,{...row})
-                            ))(rowsOf(prop))
+                            ))(sortedRows)
                         })
                     )
                 ])

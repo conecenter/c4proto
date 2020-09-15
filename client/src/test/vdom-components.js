@@ -1,21 +1,16 @@
 
 import {createElement} from 'react'
 
-export function ExampleComponents({TraverseChildren}){
+
+
+export function ExampleComponents(){
     const ExampleInput = prop => {
         const style = prop.changing ? {...prop.style, backgroundColor: "yellow"} : prop.style
         return createElement("input", {...prop, style}, null)
     }
     //
-    const ContainerLeftRight = prop => {
-        return createElement("table",{},createElement("tbody",{},createElement("tr",{},[
-            createElement("td",{key:"left"},createElement(TraverseChildren, {...prop.children, chl: prop.children.leftChildList})),
-            createElement("td",{key:"right"},createElement(TraverseChildren, {...prop.children, chl: prop.children.rightChildList}))
-        ])))
-    }
-    //
     const transforms= {
-        tp: ({ExampleInput,ContainerLeftRight})
+        tp: ({ExampleInput})
     };
     return ({transforms});
 

@@ -1,5 +1,7 @@
 package ee.cone.c4ui
 
+/*
+
 import ee.cone.c4actor.{Context, MetaAttr}
 import ee.cone.c4di._
 import ee.cone.c4vdom.Types.VDom
@@ -174,3 +176,4 @@ trait VAccordionItem extends VElement
   )(addValue: VDom[InlineItem]*): VDom[VField]
 }
 
+*/

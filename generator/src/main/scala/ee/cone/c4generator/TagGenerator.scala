@@ -24,6 +24,9 @@ object TagGenerator extends Generator {
                   (true,TagParam(paramName, paramTypeName, None))
                 case Type.Name(paramTypeName) =>
                   (false,TagParam(paramName, paramTypeName, defVal.map(_.toString)))
+                case Type.Apply(Type.Name(paramTypeNameOuter), List(Type.Name(paramTypeNameInner))) =>
+                  val paramTypeName = s"$paramTypeNameOuter[$paramTypeNameInner]"
+                  (false,TagParam(paramName, paramTypeName, defVal.map(_.toString)))
                 case p =>
                   throw new Exception(s"unsupported tag param type [$p] ${p.structure} of $defName")
               }
@@ -96,56 +99,3 @@ case class TagStatements(
     s"\n  }" +
     s"\n}"
 }
-
-/*
-
-
-
-
-@c4 final class BbbJsonAdapter(
-  a1JsonAdapter: JsonAdapter[A1],
-  a2JsonAdapter: JsonAdapter[A2],
-) extends JsonAdapter[Bbb] {
-  def appendJson(key: String, value: Bbb, builder: MutableJsonBuilder): Unit = {
-    builder.append(key)
-    appendJson(value,builder)
-  }
-  def appendJson(value: Bbb, builder: MutableJsonBuilder): Unit = {
-    builder.startObject()
-    builder.append("tp").append("Bbb")
-    a1JsonAdapter.appendJson("a1", value.a1, builder)
-    a2JsonAdapter.appendJson("a2", value.a2, builder)
-    builder.end()
-  }
-}
-
-@c4multi final case class Bbb(a1: A1, a2: A2)(adapter: JsonAdapter[Bbb]) extends ToJson {
-  def appendJson(builder: MutableJsonBuilder): Unit = adapter.appendJson(this, builder)
-}
-
-@c4 final class Ddd(
-  child: ChildPairFactory,
-  bbbFactory: BbbFactory,
-) {
-  def bbb(key: String, a1: A1, a2: A2)(c1: VDom[C1]*)(c2: VDom[C2]*): VDom[B] =
-    child[B](key, bbbFactory.create(a1,a2), child.addGroup("c1",c1,child.addGroup("c2",c2,Nil)))
-
-
-Tag
-def
-dep-s
-
-
-def apply[C](key: VDomKey, theElement: VDomValue, elements: ViewRes): ChildPair[C]
-
-addGroup(name,Seq,List)
-
-class SortTagsImpl(
-  child: ChildPairFactory
-) extends SortTags {
-  def tBodyRoot[State](handler: SortHandler[State], items: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
-    child[OfDiv]("body", TBodySortRoot(items.map(_.key), handler), items)
-  def handle(key: VDomKey, item: ChildPair[OfDiv]): ChildPair[OfDiv] =
-    child[OfDiv](key, SortHandle(), item::Nil)
-}
- */

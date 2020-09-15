@@ -7,6 +7,7 @@ module.exports = env=>{
         ...conf,
         plugins: [
             ...conf.plugins,
+            /*
             new AutoDllPlugin({
                 filename: '[name].js',
                 entry: {
@@ -19,8 +20,11 @@ module.exports = env=>{
                     "@material-ui/icons",
                   ]
                 }
-            }),
+            }),*/
             new HardSourceWebpackPlugin(),
         ],
+        optimization: {
+            minimize: false,
+        }
     }
 }

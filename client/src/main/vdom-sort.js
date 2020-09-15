@@ -1,13 +1,19 @@
 
-import {useCallback,useMemo,createElement} from 'react'
+import {useCallback,useMemo,createElement,Children} from 'react'
 import {SortableContainer,SortableElement,SortableHandle} from 'react-sortable-hoc'
-import {useSync} from './vdom-core'
+import {useSync, traverseOne} from './vdom-core'
 
-export const SortHandle = SortableHandle(({children}) => children)
+import { valueAt, childrenAt, identityAt } from "../main/vdom-util.js"
+
+const childrenOf = childrenAt('children')
+const valueOf = valueAt('value')
+const valueIdOf = identityAt('value')
+
+const SortHandle = SortableHandle(prop => Children.map(childrenOf(prop), traverseOne))
 
 const SortElement = SortableElement(({children}) => children)
 
-const SortContainer = SortableContainer(({children,tp,...props}) => {
+export const SortContainer = SortableContainer(({children,tp,...props}) => {
     return createElement(tp, props,
         children.map((child,i)=>createElement(SortElement,{index:i,key:child.key},child))
     )
@@ -34,7 +40,7 @@ const createPatchOpt = (patchedValue, oldIndex, newIndex) => {
     return [{headers,retry:true}]
 }
 
-const useSortRoot = (identity,value) => {
+export const useSortRoot = (identity,value) => {
     const [patches,enqueuePatch] = useSync(identity)
     const patchedValue = useMemo(()=>applyPatches(value,patches),[value,patches])
     const onSortEnd = useCallback(({oldIndex, newIndex}) => {
@@ -48,10 +54,10 @@ const sortChildren = (patchedValue,children) => {
     return patchedValue.map(k=>childrenByKey[`:${k}`])
 }
 
-export function TBodySortRoot({identity,value,children,...props}){
-    const [patchedValue,onSortEnd] = useSortRoot(identity,value)
-    const sortedChildren = sortChildren(patchedValue,children||[])
-    return createElement(SortContainer,{tp:"tbody",useDragHandle:true,onSortEnd,...props},sortedChildren)
+function TBodySortRoot(prop){
+    const [patchedValue,onSortEnd] = useSortRoot(valueIdOf(prop),valueOf(prop))
+    const sortedChildren = sortChildren(patchedValue,Children.toArray(childrenOf(prop)))
+    return createElement(SortContainer,{tp:"tbody",useDragHandle:true,onSortEnd},sortedChildren)
 }
 
 export const sortTransforms = ({tp:{TBodySortRoot,SortHandle}})

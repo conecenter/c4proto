@@ -13,7 +13,6 @@ import ee.cone.c4gate.AuthProtocol.{C_PasswordHashOfUser, S_PasswordChangeReques
 import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
 import ee.cone.c4gate.CurrentSessionKey
 import ee.cone.c4ui._
-import ee.cone.c4vdom.Tags
 import ee.cone.c4vdom.Types.ViewRes
 
 /*

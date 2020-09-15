@@ -7,6 +7,11 @@ import java.text.DecimalFormat
 import ee.cone.c4vdom.OnChangeMode._
 import ee.cone.c4vdom.Types.{ViewRes, _}
 
+import scala.annotation.StaticAnnotation
+
+class c4tags(a: String*) extends StaticAnnotation
+class c4tag(a: String*) extends StaticAnnotation
+
 trait ToJson {
   def appendJson(builder: MutableJsonBuilder): Unit
 }
@@ -30,12 +35,21 @@ trait AbstractMutableJsonBuilder {
   def append(value: Boolean): Unit
 }
 
+trait JsonPairAdapter[T] {
+  def appendJson(key: String, value: T, builder: MutableJsonBuilder): Unit
+}
+trait GeneralJsonValueAdapter
+trait JsonValueAdapter[T] extends GeneralJsonValueAdapter {
+  def appendJson(value: T, builder: MutableJsonBuilder): Unit
+}
+
 ////
 
 object Types {
   type VDomKey = String
   type ViewRes = List[ChildPair[_]]
   type VDom[C] = ChildPair[C]
+  type ClientComponentType = String
 }
 
 trait ChildPair[-C] {
@@ -44,7 +58,6 @@ trait ChildPair[-C] {
 
 trait ChildPairFactory {
   def apply[C](key: VDomKey, theElement: VDomValue, elements: ViewRes): ChildPair[C]
-  //def group(groupKey: String, hint: String, elements: ViewRes): ViewRes
 }
 // do not mix grouped and ungrouped elements: cf(cf.group(...) ::: badUngroupedElements)
 
@@ -60,15 +73,8 @@ trait ResolvingVDomValue extends VDomValue {
 
 ////
 
-abstract class TagName(val name: String)
-
-trait TagAttr
-trait TagStyle extends TagAttr {
+trait TagStyle {
   def appendStyle(builder: MutableJsonBuilder): Unit
-}
-
-trait Color {
-  def value: String
 }
 
 ////
@@ -94,7 +100,8 @@ trait VDomMessage {
   def body: Object
 }
 
-trait Receiver[State] extends Resolvable {
+trait GeneralReceiver extends Resolvable
+trait Receiver[State] extends GeneralReceiver {
   type Handler = VDomMessage => State => State
   def receive: Handler
 }
@@ -141,5 +148,13 @@ trait TagJsonUtils {
   @deprecated def appendOnChange(builder: MutableJsonBuilder, value: String, deferSend: Boolean, needStartChanging: Boolean): Unit
 
   def appendInputAttributes(builder: MutableJsonBuilder, value: String, mode: OnChangeMode): Unit
-  def appendStyles(builder: MutableJsonBuilder, styles: List[TagStyle]): Unit
+
+  def jsonPairAdapter[T](inner: (T,MutableJsonBuilder)=>Unit): JsonPairAdapter[T]
 }
+
+////
+
+trait OfDiv
+
+@deprecated trait Tags
+@deprecated trait TagStyles

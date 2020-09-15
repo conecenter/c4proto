@@ -1,6 +1,6 @@
 package ee.cone.c4vdom_impl
 
-import ee.cone.c4vdom.{MutableJsonBuilder, OnChangeMode, TagJsonUtils, TagStyle}
+import ee.cone.c4vdom.{JsonPairAdapter, MutableJsonBuilder, OnChangeMode, TagJsonUtils}
 import ee.cone.c4vdom.OnChangeMode._
 
 object TagJsonUtilsImpl extends TagJsonUtils {
@@ -18,11 +18,11 @@ object TagJsonUtilsImpl extends TagJsonUtils {
       builder.append("onChange").append(mode.value)
   }
 
-  def appendStyles(builder: MutableJsonBuilder, styles: List[TagStyle]): Unit =
-    if(styles.nonEmpty){
-      builder.append("style").startObject(); {
-        styles.foreach(_.appendStyle(builder))
-        builder.end()
+  def jsonPairAdapter[T](inner: (T, MutableJsonBuilder) => Unit): JsonPairAdapter[T] =
+    new JsonPairAdapter[T] {
+      def appendJson(key: String, value: T, builder: MutableJsonBuilder): Unit = {
+        builder.just.append(key)
+        inner(value, builder)
       }
     }
 }
