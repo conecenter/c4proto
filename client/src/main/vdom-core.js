@@ -1,7 +1,7 @@
 
-import {createContext,createElement,useState,useContext,useCallback,useEffect,memo} from 'react'
-import {splitFirst,spreadAll,oValues}    from "../main/util"
-import {ifInputsChanged,dictKeys,branchByKey,rootCtx,ctxToPath,chain,someKeys} from "../main/vdom-util"
+import {createContext,createElement,useState,useContext,useCallback,useEffect,memo} from "../main/react-prod.js"
+import {splitFirst,spreadAll,oValues}    from "../main/util.js"
+import {ifInputsChanged,dictKeys,branchByKey,rootCtx,ctxToPath,chain,someKeys} from "../main/vdom-util.js"
 
 
 

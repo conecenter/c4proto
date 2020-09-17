@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>List Test</title>
+</head>
+<body>
+<script crossorigin src="https://unpkg.com/react@16/umd/react.development.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@16/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/prop-types@15.6/prop-types.js"><!-- for sortable --></script>
+<script crossorigin src="/react-sortable-hoc.umd.js"></script>
+<script type="module">
+
+import {ListRoot} from "./vdom-list.js"
+
+const exRow = {
+    cells: [
+        { key: ":c0" },
+        { key: ":c1" },
+        { key: ":c2" },
+        { key: ":c3" },
+    ]
+}
+
+function App(){
+    return React.createElement(ListRoot,{
+        React,
+        head: [
+            { key: ":r0", ...exRow },
+            { key: ":r1", ...exRow },
+        ],
+        body: [
+            { key: ":r2", ...exRow },
+            { key: ":r3", ...exRow },
+        ],
+    })
+}
+
+const containerElement = document.createElement("div")
+document.body.appendChild(containerElement)
+ReactDOM.render(React.createElement(App),containerElement)
+</script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 
-import {spreadAll} from "../main/util"
+import {spreadAll} from "../main/util.js"
 
 export function rootCtx(ctx){ return ctx.parent ? rootCtx(ctx.parent) : ctx }
 
