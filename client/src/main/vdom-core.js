@@ -1,7 +1,7 @@
 
 import {createContext,createElement,useState,useContext,useCallback,useEffect,memo} from "../main/react-prod.js"
 import {splitFirst,spreadAll,oValues}    from "../main/util.js"
-import {ifInputsChanged,dictKeys,branchByKey,rootCtx,ctxToPath,chain,someKeys} from "../main/vdom-util.js"
+import {ifInputsChanged,dictKeys,branchByKey,rootCtx,ctxToPath,chain,someKeys,identityOf,valueAt} from "../main/vdom-util.js"
 
 
 
@@ -162,7 +162,7 @@ export const useSync = identity => {
     },[ack])
     return [patches,enqueuePatch]
 }
-function createSyncProviders({sender,ack,children}){
+export function createSyncProviders({sender,ack,children}){
     return createElement(SenderContext.Provider, {value:sender},
         createElement(AckContext.Provider, {value:ack}, children)
     )
@@ -211,10 +211,12 @@ function reProp(props){
     ))
 }*/
 
+const tpOf = valueAt("tp")
+
 function TraverseOne(props){
-    if(props.at.identity) {
+    if(identityOf(props)) {
         // const prop = reProp(props)
-        return createElement(props.at.tp,props)
+        return createElement(tpOf(props),props)
     }
     const {tp,...at} = props.at
     const children =

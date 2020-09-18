@@ -1,7 +1,7 @@
 
-import {useCallback,useMemo,createElement,Children} from 'react'
-import {SortableContainer,SortableElement,SortableHandle} from 'react-sortable-hoc'
-import {useSync, traverseOne} from './vdom-core'
+import {useCallback,useMemo,createElement,Children} from "../main/react-prod.js"
+import {SortableContainer,SortableElement,SortableHandle} from "../main/react-sortable-hoc-prod.js"
+import {useSync, traverseOne} from "../main/vdom-core.js"
 
 import { valueAt, childrenAt, identityAt } from "../main/vdom-util.js"
 
@@ -49,7 +49,7 @@ export const useSortRoot = (identity,value) => {
     return [patchedValue,onSortEnd]
 }
 
-const sortChildren = (patchedValue,children) => {
+export const sortChildren = (patchedValue,children) => {
     const childrenByKey = Object.fromEntries(children.map(c=>[c.key,c]))
     return patchedValue.map(k=>childrenByKey[`:${k}`])
 }

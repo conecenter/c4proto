@@ -11,34 +11,69 @@
 <script crossorigin src="/react-sortable-hoc.umd.js"></script>
 <script type="module">
 
-import {ListRoot} from "./vdom-list.js"
+import {ListRoot} from "../test/vdom-list.js"
+import {createSyncProviders} from "../main/vdom-core.js"
 
-const exRow = {
-    cells: [
-        { key: ":c0" },
-        { key: ":c1" },
-        { key: ":c2" },
-        { key: ":c3" },
-    ]
+const {createElement:$,useState} = React
+
+function Text({value}){
+    return value
 }
 
 function App(){
-    return React.createElement(ListRoot,{
-        React,
-        head: [
-            { key: ":r0", ...exRow },
-            { key: ":r1", ...exRow },
-        ],
-        body: [
-            { key: ":r2", ...exRow },
-            { key: ":r3", ...exRow },
-        ],
+    const [setupMode,setSetupMode] = useState("")
+    const exCol = (rowKey,colKey,colPriority) => ({
+        key: colKey, colPriority,
+        content: [{ tp: Text, identity: 1, value: rowKey+colKey, key: "text"}]
     })
+    const exRow = rowKey => ({
+        key: rowKey,
+        cells: [
+            exCol(rowKey,":c0",2),
+            exCol(rowKey,":c1",2),
+            exCol(rowKey,":c2",1),
+            exCol(rowKey,":c3",1),
+            exCol(rowKey,":c4",0),
+            exCol(rowKey,":c5",0),
+            exCol(rowKey,":c6",1),
+            exCol(rowKey,":c7",1),
+            exCol(rowKey,":c8",2),
+            exCol(rowKey,":c9",2),
+        ]
+    })
+    const rowOrder = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19].map(i=>"r"+i)
+    const listEl = $(ListRoot,{
+        key: "list",
+        setupMode,
+        rowOrder,
+        enableColDrag: true,
+        colOrder: ["c0","c1","c2","c3","c4","c5","c6","c7","c8","c9"],
+        head: [
+            exRow(":hr0"),
+            exRow(":hr1"),
+        ],
+        body: rowOrder.map(k=>exRow(":"+k)),
+    })
+    const children = [
+        $("button",{key:"rowDrag",onClick:ev=>setSetupMode("rowDrag")},"rowDrag"),
+        $("button",{key:"colDrag",onClick:ev=>setSetupMode("colDrag")},"colDrag"),
+        listEl
+    ]
+
+    const sender = { enqueue: ()=>{} }
+    const ack = null
+    return createSyncProviders({ sender, ack, children })
 }
 
 const containerElement = document.createElement("div")
 document.body.appendChild(containerElement)
-ReactDOM.render(React.createElement(App),containerElement)
+ReactDOM.render($(App),containerElement)
 </script>
+<!--
+features:
+    row drag
+    col drag
+    col hide
+-->
 </body>
 </html>

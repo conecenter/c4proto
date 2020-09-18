@@ -18,7 +18,7 @@ import {SortableHandle} from 'react-sortable-hoc'
 
 import { useSender, useSyncInput } from "../main/vdom-core.js"
 import { useSortRoot, SortContainer } from "../main/vdom-sort.js"
-import { map, valueAt, childrenAt, identityOf, identityAt } from "../main/vdom-util.js"
+import { map, head, valueAt, childrenAt, identityOf, identityAt } from "../main/vdom-util.js"
 
 /*
 {
@@ -31,9 +31,6 @@ import { map, valueAt, childrenAt, identityOf, identityAt } from "../main/vdom-u
     })
 }*/
 const notDefer = _=>false
-
-
-const head = l => l && l[0]
 
 function SendingIconButton({identity,children}){
     const sender = useSender()
@@ -55,7 +52,7 @@ const sortOf = valueAt('sort')
 const valueOf = valueAt('value')
 const captionOf = valueAt('caption')
 
-export const SortHandle = SortableHandle(({children}) => children)
+const SortHandle = SortableHandle(({children}) => children)
 
 function ExampleField(prop){
     const identity = changeIdOf(prop)

@@ -78,3 +78,4 @@ export const identityOf = valueAt('identity')
 export const identityAt = key => prop => ({ parent: identityOf(prop), key })
 export const never = o => { console.log(o); throw new Error }
 export const map = f => l => l && l.map && l.map(f) || l && never(l)
+export const head = l => l && l[0]
