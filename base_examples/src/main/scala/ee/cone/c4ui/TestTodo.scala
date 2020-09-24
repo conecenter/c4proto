@@ -86,7 +86,7 @@ trait VExampleList
   def field(key: String, value: String, change: Receiver[Context], caption: String): VDom[VExampleField]
   def row(key: String, remove: Receiver[Context])(cells: VDom[VExampleField]*): VDom[VExampleRow]
   @c4tag("ExampleList") def list(
-    key: String, add: Receiver[Context], sort: SortReceiver
+    key: String, add: Receiver[Context], sort: Receiver[Context]
   )(filters: VDom[VExampleField]*)(rows: VDom[VExampleRow]*): VDom[VExampleList]
 }
 

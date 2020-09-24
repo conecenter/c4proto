@@ -3,23 +3,22 @@ import {useCallback,useMemo,createElement,Children} from "../main/react-prod.js"
 import {SortableContainer,SortableElement,SortableHandle} from "../main/react-sortable-hoc-prod.js"
 import {useSync, traverseOne} from "../main/vdom-core.js"
 
-import { valueAt, childrenAt, identityAt } from "../main/vdom-util.js"
+import { valueAt, childrenAt, identityAt, resolve } from "../main/vdom-util.js"
 
-const childrenOf = childrenAt('children')
-const valueOf = valueAt('value')
-const valueIdOf = identityAt('value')
+const childrenOf = valueAt('children')
+const sortIdOf = identityAt('sort')
 
-const SortHandle = SortableHandle(prop => Children.map(childrenOf(prop), traverseOne))
+const SortHandle = SortableHandle(prop => Children.map(childrenOf(prop).map(resolve(prop)), traverseOne))
 
 const SortElement = SortableElement(({children}) => children)
 
-export const SortContainer = SortableContainer(({children,tp,...props}) => {
-    return createElement(tp, props,
-        children.map((child,i)=>createElement(SortElement,{index:i,key:child.key},child))
-    )
-})
+export const SortContainer = SortableContainer(({children,tp,...prop}) => (
+    createElement(tp, {...prop}, children.map((child,index)=>(
+        createElement(SortElement,{index,key:child.key},child)
+    )))
+))
 
-const applyPatches = (value,patches) => {
+const applyPatches = patches => value => { //memo?
     return patches.reduce((acc,{headers})=>acc.flatMap(key => {
         const obj = headers["x-r-sort-obj-key"]
         const order = [headers["x-r-sort-order-0"],headers["x-r-sort-order-1"]]
@@ -40,24 +39,21 @@ const createPatchOpt = (patchedValue, oldIndex, newIndex) => {
     return [{headers,retry:true}]
 }
 
-export const useSortRoot = (identity,value) => {
+export const useSortRoot = identity => {
     const [patches,enqueuePatch] = useSync(identity)
-    const patchedValue = useMemo(()=>applyPatches(value,patches),[value,patches])
-    const onSortEnd = useCallback(({oldIndex, newIndex}) => {
-        createPatchOpt(patchedValue, oldIndex, newIndex).forEach(p=>enqueuePatch(p))
-    },[patchedValue])
-    return [patchedValue,onSortEnd]
-}
-
-export const sortChildren = (patchedValue,children) => {
-    const childrenByKey = Object.fromEntries(children.map(c=>[c.key,c]))
-    return patchedValue.map(k=>childrenByKey[`:${k}`])
+    const container = ({children,...prop}) => {
+        const onSortEnd = ({oldIndex, newIndex}) => {
+            createPatchOpt(children.map(c=>c.key), oldIndex, newIndex).forEach(enqueuePatch)
+        }
+        return createElement(SortContainer,{children,...prop,onSortEnd})
+    }
+    return [applyPatches(patches),container]
 }
 
 function TBodySortRoot(prop){
-    const [patchedValue,onSortEnd] = useSortRoot(valueIdOf(prop),valueOf(prop))
-    const sortedChildren = sortChildren(patchedValue,Children.toArray(childrenOf(prop)))
-    return createElement(SortContainer,{tp:"tbody",useDragHandle:true,onSortEnd},sortedChildren)
+    const [applyPatches,container] = useSortRoot(sortIdOf(prop))
+    const children = applyPatches(childrenOf(prop)||[]).map(resolve(prop)).map(traverseOne)
+    return container({tp:"tbody",useDragHandle:true,children})
 }
 
 export const sortTransforms = ({tp:{TBodySortRoot,SortHandle}})

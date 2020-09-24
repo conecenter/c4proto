@@ -7,7 +7,7 @@ import ee.cone.c4vdom._
 import ee.cone.c4vdom.Types.VDomKey
 
 @c4tags("UICompApp") trait InnerSortTags {
-  @c4tag("TBodySortRoot") def tBodyRoot(key: String, value: SortReceiver)(children: VDom[OfDiv]*): VDom[OfDiv]
+  @c4tag("TBodySortRoot") def tBodyRoot(key: String, sort: Receiver[Context])(children: VDom[OfDiv]*): VDom[OfDiv]
   @c4tag("SortHandle") def handle(key: String, item: VDom[OfDiv]): VDom[OfDiv]
 }
 
@@ -15,27 +15,18 @@ import ee.cone.c4vdom.Types.VDomKey
   inner: InnerSortTags
 ) extends SortTags {
   def tBodyRoot(handler: SortHandler)(items: VDom[OfDiv]*): VDom[OfDiv] =
-    inner.tBodyRoot("body", toReceiver(items.map(_.key),handler))(items:_*)
+    inner.tBodyRoot("body", toReceiver(handler))(items:_*)
   def handle(key: VDomKey, item: VDom[OfDiv]): VDom[OfDiv] = inner.handle(key,item)
-  def toReceiver(value: Seq[VDomKey], handler: SortHandler): SortReceiver =
-    SortReceiverImpl(value.toList, handler)
+  def toReceiver(handler: SortHandler): Receiver[Context] =
+    SortReceiverImpl(handler)
 }
 
-case class SortReceiverImpl(value: List[VDomKey], handler: SortHandler) extends SortReceiver {
+case class SortReceiverImpl(handler: SortHandler) extends Receiver[Context] {
   def receive: Handler = message =>
     handler.handle(
       message.header("x-r-sort-obj-key"),
       (message.header("x-r-sort-order-0"), message.header("x-r-sort-order-1")),
     )
-}
-
-@c4("UICompApp") final class SortJsonAdapterProvider(util: TagJsonUtils) {
-  @provide def sortReceiver: Seq[JsonPairAdapter[SortReceiver]] =
-    List(util.jsonPairAdapter((value,builder) => {
-      builder.startArray()
-      value.value.foreach(builder.just.append)
-      builder.end()
-    }))
 }
 
 ////

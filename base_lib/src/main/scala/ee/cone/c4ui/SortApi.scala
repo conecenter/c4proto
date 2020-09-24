@@ -10,7 +10,7 @@ trait SortHandler extends Product {
 trait SortTags {
   def tBodyRoot(handler: SortHandler)(items: VDom[OfDiv]*): VDom[OfDiv] //todo OfTable
   def handle(key: VDomKey, item: VDom[OfDiv]): VDom[OfDiv]
-  def toReceiver(value: Seq[VDomKey], handler: SortHandler): SortReceiver
+  def toReceiver(handler: SortHandler): Receiver[Context]
 }
 trait SortReceiver extends Receiver[Context] {
   def value: List[VDomKey]

@@ -20,13 +20,17 @@ function Text({value}){
     return value
 }
 
+
+const node = obj => Object.fromEntries(Object.entries(obj).flatMap(([k,v])=> !Array.isArray(v) ? [[k,v]] : [[k,v.map(c=>c.key)],...v.map(c=>[c.key,c])] ))
+
+
 function App(){
     const [setupMode,setSetupMode] = useState("")
-    const exCol = (rowKey,colKey,colPriority) => ({
+    const exCol = (rowKey,colKey,colPriority) => node({
         key: colKey, colPriority,
         content: [{ tp: Text, identity: 1, value: rowKey+colKey, key: "text"}]
     })
-    const exRow = rowKey => ({
+    const exRow = rowKey => node({
         key: rowKey,
         cells: [
             exCol(rowKey,":c0",2),
@@ -41,19 +45,16 @@ function App(){
             exCol(rowKey,":c9",2),
         ]
     })
-    const rowOrder = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19].map(i=>"r"+i)
-    const listEl = $(ListRoot,{
+    const listEl = $(ListRoot,node({
         key: "list",
         setupMode,
-        rowOrder,
         enableColDrag: true,
-        colOrder: ["c0","c1","c2","c3","c4","c5","c6","c7","c8","c9"],
         head: [
             exRow(":hr0"),
             exRow(":hr1"),
         ],
-        body: rowOrder.map(k=>exRow(":"+k)),
-    })
+        body: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19].map(k=>exRow(":r"+k)),
+    }))
     const children = [
         $("button",{key:"rowDrag",onClick:ev=>setSetupMode("rowDrag")},"rowDrag"),
         $("button",{key:"colDrag",onClick:ev=>setSetupMode("colDrag")},"colDrag"),
@@ -74,6 +75,10 @@ features:
     row drag
     col drag
     col hide
+    col expand
+
+
+todo: resolve tag by key (exists), so remove ':'
 -->
 </body>
 </html>

@@ -17,7 +17,7 @@ import Grid from '@material-ui/core/Grid'
 import {SortableHandle} from 'react-sortable-hoc'
 
 import { useSender, useSyncInput } from "../main/vdom-core.js"
-import { useSortRoot, SortContainer } from "../main/vdom-sort.js"
+import { useSortRoot } from "../main/vdom-sort.js"
 import { map, head, valueAt, childrenAt, identityOf, identityAt } from "../main/vdom-util.js"
 
 /*
@@ -77,8 +77,7 @@ function ExampleRow(prop){
 }
 
 function ExampleList(prop){
-    const [patchedSortValue,onSortEnd] = useSortRoot(sortIdOf(prop),sortOf(prop))
-    const sortedRows = patchedSortValue.map(k=>prop[`:${k}`])
+    const [applySort,container] = useSortRoot(sortIdOf(prop)) // ??? .map(c=>c.key)
     return [
         $(Grid,{ key: "filters", container: true, spacing: 3 },
             map(({key,...field})=>(
@@ -105,11 +104,11 @@ function ExampleList(prop){
                                 ),
                             )
                         ),
-                        $(SortContainer,{
-                            tp: TableBody, useDragHandle: true, onSortEnd,
+                        container({
+                            tp: TableBody, useDragHandle: true,
                             children: map(row=>(
                                 $(ExampleRow,{...row})
-                            ))(sortedRows)
+                            ))(sortedRows/* ??? */)
                         })
                     )
                 ])
