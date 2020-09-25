@@ -18,7 +18,7 @@ import {SortableHandle} from 'react-sortable-hoc'
 
 import { useSender, useSyncInput } from "../main/vdom-core.js"
 import { useSortRoot } from "../main/vdom-sort.js"
-import { map, head, valueAt, childrenAt, identityOf, identityAt } from "../main/vdom-util.js"
+import { map, head, identityAt } from "../main/vdom-util.js"
 
 /*
 {
@@ -39,28 +39,21 @@ function SendingIconButton({identity,children}){
 
 ////
 
-const rowsOf = childrenAt('rows')
-const filtersOf = childrenAt('filters')
-const cellsOf = childrenAt('cells')
-
 const addIdOf = identityAt('add')
 const removeIdOf = identityAt('remove')
 const changeIdOf = identityAt('change')
 const sortIdOf = identityAt('sort')
 
-const sortOf = valueAt('sort')
-const valueOf = valueAt('value')
-const captionOf = valueAt('caption')
-
 const SortHandle = SortableHandle(({children}) => children)
 
-function ExampleField(prop){
-    const identity = changeIdOf(prop)
-    const patch = useSyncInput(identity, valueOf(prop), notDefer)
+function ExampleField({identity,value}){
+    const patch = useSyncInput(changeIdOf(identity), value, notDefer)
     return $(TextField,{...patch})
 }
 
 function ExampleRow(prop){
+    const {identity,cells} = prop
+    const resolve = resolveOne(prop)
     return $(TableRow,{},
         $(TableCell,{key:"drag"},
             $(SortHandle,{},$(ArrowDownwardIcon))
@@ -69,23 +62,25 @@ function ExampleRow(prop){
             $(TableCell,{key},
                 $(ExampleField,{...cell})
             )
-        ))(cellsOf(prop)),
+        ))(map(resolve)(cells)),
         $(TableCell,{key:"remove"},
-            $(SendingIconButton,{ identity: removeIdOf(prop) }, $(DeleteIcon))
+            $(SendingIconButton,{ identity: removeIdOf(identity) }, $(DeleteIcon))
         ),
     )
 }
 
 function ExampleList(prop){
-    const [applySort,container] = useSortRoot(sortIdOf(prop)) // ??? .map(c=>c.key)
+    const {identity,rows,filters} = prop
+    const resolve = resolveOne(prop)
+    const [applySort,container] = useSortRoot(sortIdOf(identity)) // ??? .map(c=>c.key)
     return [
         $(Grid,{ key: "filters", container: true, spacing: 3 },
             map(({key,...field})=>(
                 $(Grid,{ key, item: true, xs: 3 },
-                    captionOf(field),
+                    field.caption,
                     $(ExampleField,{...field}),
                 )
-            ))(filtersOf(prop)),
+            ))(map(resolve)(filters)),
         ),
         $(Grid,{ key: "table", container: true, spacing: 3 },
             $(Grid,{ item: true, xs: 12 },
@@ -97,10 +92,10 @@ function ExampleList(prop){
                             $(TableRow,{},
                                 $(TableCell,{key:"drag"}),
                                 map(cProp=>(
-                                    $(TableCell,{key:cProp.key},captionOf(cProp))
-                                ))(cellsOf(head(rowsOf(prop)))),
+                                    $(TableCell,{key:cProp.key},cProp.caption)
+                                ))(cellsOf(head(map(resolve)(rows)))),
                                 $(TableCell,{key:"remove"},
-                                    $(SendingIconButton,{ identity: addIdOf(prop) }, $(AddIcon))
+                                    $(SendingIconButton,{ identity: addIdOf(identity) }, $(AddIcon))
                                 ),
                             )
                         ),

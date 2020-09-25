@@ -19,42 +19,61 @@ const {createElement:$,useState} = React
 function Text({value}){
     return value
 }
+/*
+const node = arg => {
+    const {key,...obj} = arg
+    const entries = Object.entries({identity:1,...obj})
+    const at = Object.fromEntries(entries.filter(([k,v])=>!Array.isArray(v)))
+    const childAt = Object.fromEntries(entries.flatMap(([k,v])=>!Array.isArray(v)?[]:[[k,v.map(c=>c.key)],...v.map(c=>[c.key,c])]))
+    return {...childAt,at,key}
+}*/
 
-
-const node = obj => Object.fromEntries(Object.entries(obj).flatMap(([k,v])=> !Array.isArray(v) ? [[k,v]] : [[k,v.map(c=>c.key)],...v.map(c=>[c.key,c])] ))
-
+function Row(props){
+    return $("tr",props)
+}
+function Cell(props){
+    return $("td",props)
+}
+function Col(props){
+    return $("col",props)
+}
 
 function App(){
     const [setupMode,setSetupMode] = useState("")
-    const exCol = (rowKey,colKey,colPriority) => node({
-        key: colKey, colPriority,
-        content: [{ tp: Text, identity: 1, value: rowKey+colKey, key: "text"}]
+    const exCol = (key,priority) => $(Col,{
+        key, tp: Col, priority
     })
-    const exRow = rowKey => node({
+    const cols = [
+        exCol(":c0",2),
+        exCol(":c1",2),
+        exCol(":c2",1),
+        exCol(":c3",1),
+        exCol(":c4",0),
+        exCol(":c5",0),
+        exCol(":c6",1),
+        exCol(":c8",2),
+        exCol(":c9",2),
+    ]
+
+    const exCell = rowKey => col => $(Cell,{
+        key: col.key,
+        children: [$(Text,{value: rowKey+col.key, key: "text"})]
+    })
+    const exRow = rowKey => $(Row,{
         key: rowKey,
-        cells: [
-            exCol(rowKey,":c0",2),
-            exCol(rowKey,":c1",2),
-            exCol(rowKey,":c2",1),
-            exCol(rowKey,":c3",1),
-            exCol(rowKey,":c4",0),
-            exCol(rowKey,":c5",0),
-            exCol(rowKey,":c6",1),
-            exCol(rowKey,":c7",1),
-            exCol(rowKey,":c8",2),
-            exCol(rowKey,":c9",2),
-        ]
+        children: cols.map(exCell(rowKey))
     })
-    const listEl = $(ListRoot,node({
+    const listEl = $(ListRoot,{
         key: "list",
         setupMode,
         enableColDrag: true,
+        cols,
         head: [
             exRow(":hr0"),
             exRow(":hr1"),
         ],
         body: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19].map(k=>exRow(":r"+k)),
-    }))
+    })
     const children = [
         $("button",{key:"rowDrag",onClick:ev=>setSetupMode("rowDrag")},"rowDrag"),
         $("button",{key:"colDrag",onClick:ev=>setSetupMode("colDrag")},"colDrag"),

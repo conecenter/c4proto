@@ -1,10 +1,9 @@
 
 
-import {createElement as $, useMemo, useState, useLayoutEffect} from "../main/react-prod.js"
+import {createElement as $, useMemo, useState, useLayoutEffect, cloneElement} from "../main/react-prod.js"
 import {SortableHandle} from "../main/react-sortable-hoc-prod.js"
 
-import {map,head,valueAt,childrenAt,identityAt,deleted,resolve} from "../main/vdom-util.js"
-import {traverseOne} from "../main/vdom-core.js"
+import {map,head as getHead,identityAt,deleted,keysOf,childByKey} from "../main/vdom-util.js"
 import {useSortRoot} from "../main/vdom-sort.js"
 
 const Table = "table"
@@ -13,18 +12,8 @@ const TableHead = "thead"
 const TableRow = "tr"
 const TableCell = "td"
 
-const headOf = childrenAt("head")
-const bodyOf = valueAt("body")
-const cellsOf = valueAt("cells")
-const contentOf = valueAt("content")
-
 const dragRowIdOf = identityAt('dragRow')
-const setupModeOf = valueAt('setupMode')
-
 const dragColIdOf = identityAt('dragCol')
-const enableColDragOf = valueAt('enableColDrag')
-
-const colPriorityOf = valueAt('colPriority')
 
 const SortHandle = SortableHandle(({children}) => children)
 
@@ -65,7 +54,7 @@ const useHiddenCols = ({tableWidth,outerWidth,serverColKeys}) => {
     return hiddenColKeys
 }
 
-const sortedKeysByPriority = resolve => sortedBy((a,b)=>colPriorityOf(resolve(a))-colPriorityOf(resolve(b)))
+const sortedByPriority = sortedBy((a,b)=>a.props.priority-b.props.priority)
 
 const excluding = keys => {
     const set = new Set(keys)
@@ -80,33 +69,26 @@ const useExpanded = () => {
 
 
 
-export function ListRoot(prop){
-    const [applyDragRow,rowContainer] = useSortRoot(dragRowIdOf(prop))
-    const [applyDragCol,colContainer] = useSortRoot(dragColIdOf(prop))
+export function ListRoot({identity,body:wasBody,head,cols,setupMode}){
+    const [applyDragRow,rowContainer] = useSortRoot(dragRowIdOf(identity))
+    const [applyDragCol,colContainer] = useSortRoot(dragColIdOf(identity))
     const { ref: tableRef, width: tableWidth } = useWidth()
     const { ref: outerRef, width: outerWidth } = useWidth()
     const [expanded,toggleExpanded] = useExpanded()
 
-    const rowKeys = applyDragRow(bodyOf(prop))
+    const body = childByKey(wasBody)(applyDragRow(keysOf(wasBody)))
 
-    const enableColDrag = setupModeOf(prop) === "colDrag"
-    const enableRowDrag = setupModeOf(prop) === "rowDrag"
+    const enableColDrag = setupMode === "colDrag"
+    const enableRowDrag = setupMode === "rowDrag"
 
-    const headRow = head(headOf(prop))
-
-    const serverColKeys = cellsOf(headRow)
-    const prColKeys = sortedKeysByPriority(resolve(headRow))(serverColKeys)
-    const hiddenColKeys = useHiddenCols({tableWidth,outerWidth,serverColKeys:prColKeys})
-    const sortedCellKeys = applyDragCol(serverColKeys).filter(excluding(hiddenColKeys))
+    const colByKey = childByKey(cols)
+    const serverColKeys = keysOf(sortedByPriority(cols))
+    const hiddenColKeys = useHiddenCols({tableWidth,outerWidth,serverColKeys})
+    const sortedCellKeys = applyDragCol(keysOf(cols)).filter(excluding(hiddenColKeys))
     const hasHiddenCols = hiddenColKeys.length > 0
 
-    const cellContent = row => cellKey => {
-        const cell = resolve(row)(cellKey)
-        return { key: cellKey, children: map(traverseOne)(map(resolve(cell))(contentOf(cell))) }
-    }
-
     const headElem = $(TableHead,{ key: "head" },
-        map(row=>{
+        map(cols=>{
             return colContainer({
                 key: "colDrag", tp: TableRow,
                 useDragHandle: true, axis: "x",
@@ -114,28 +96,25 @@ export function ListRoot(prop){
                     $(TableCell,{key},$(SortHandle,{},$(SortHandleIcon)))
                 ))(sortedCellKeys)
             })
-        })(enableColDrag ? [headRow]:[]),
-        map(row=>{
-            return $(TableRow,{ key: row.key },
+        })(enableColDrag ? [cols]:[]),
+        map(row=>(
+            cloneElement(row,null,[
                 enableRowDrag && $(TableCell,{key:"drag"}),
-                map(cellKey=>(
-                    $(TableCell,cellContent(row)(cellKey))
-                ))(sortedCellKeys),
+                childByKey(row.props.children)(sortedCellKeys),
                 hasHiddenCols && $(TableCell,{key:"expand"})
-            )
-        })(headOf(prop))
+            ])
+        ))(head)
     )
 
     const bodyElem = rowContainer({
         key: "body", tp: TableBody, useDragHandle: true,
-        children: map(rowKey=>{
-            const row = resolve(prop)(rowKey)
+        children: map(row=>{
+            const rowKey = row.key
             const isExpanded = expanded[rowKey]
+            const cellByKey = childByKey(row.props.children)
             const cellElements = [
                 enableRowDrag && $(TableCell,{key:"drag"},$(SortHandle,{},$(SortHandleIcon))),
-                map(cellKey=>(
-                    $(TableCell,cellContent(row)(cellKey))
-                ))(sortedCellKeys),
+                cellByKey(sortedCellKeys),
                 hasHiddenCols && $(TableCell,{key:"expand"},
                     $(ExpandButton,{isExpanded,toggle:toggleExpanded(rowKey)})
                 )
@@ -147,19 +126,20 @@ export function ListRoot(prop){
                     $(TableRow,{ key: "expanded" },
                         enableRowDrag && $(TableCell,{key:"drag"}),
                         $(TableCell,{ key: "expanded", colSpan: sortedCellKeys.length+1 },
-                            map(cellKey=>{
+                            map(cell=>{
+                                const cellKey = cell.key
                                 return $("div",{key: cellKey},
-                                    $("label",{},"..."),
-                                    $("span",cellContent(row)(cellKey))
+                                    $("label",{},colByKey(cellKey).caption),
+                                    $("span",{},cell.props.children)
                                 )
-                            })(hiddenColKeys)
+                            })(cellByKey(hiddenColKeys))
                         )
                     ),
                 ) :
                 $(TableRow,{key: rowKey}, cellElements)
             )
 
-        })(rowKeys)
+        })(body)
     })
 
     return $("div",{ style: { overflow: "hidden" }, ref: outerRef },

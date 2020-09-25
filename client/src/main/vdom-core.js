@@ -1,7 +1,7 @@
 
 import {createContext,createElement,useState,useContext,useCallback,useEffect,memo} from "../main/react-prod.js"
 import {splitFirst,spreadAll,oValues}    from "../main/util.js"
-import {ifInputsChanged,dictKeys,branchByKey,rootCtx,ctxToPath,chain,someKeys,identityOf,valueAt} from "../main/vdom-util.js"
+import {ifInputsChanged,dictKeys,branchByKey,rootCtx,ctxToPath,chain,someKeys} from "../main/vdom-util.js"
 
 
 
@@ -211,30 +211,36 @@ function reProp(props){
     ))
 }*/
 
-const tpOf = valueAt("tp")
-
-function TraverseOne(props){
-    if(identityOf(props)) {
-        // const prop = reProp(props)
-        return createElement(tpOf(props),props)
+const weakCache = f => {
+    const map = new WeakMap
+    return arg => {
+        if(map.has(arg)) return map.get(arg)
+        const res = f(arg)
+        map.set(arg,res)
+        return res
     }
+}
+
+const resolveChildren = (o,keys) => keys.map(k=>elementWeakCache(o[k]))
+const elementWeakCache = weakCache(props=>{
+    if(props.at.identity) {
+        const {key,at:{tp,...at},...cProps} = props
+        const childAt = Object.fromEntries(
+            Object.entries(cProps)
+            .filter(([k,v])=>Array.isArray(v))
+            .map(([k,v])=>({[k]:resolveChildren(cProps,v)}))
+        )
+        return createElement(tp,{key,...at,...childAt})
+    }
+    //lega:
     const {tp,...at} = props.at
     const children =
         at.content && at.content[0] === "rawMerge" ? props :
-        props.chl ? traverseChildren(props) : at.content
+        props.chl ? resolveChildren(props,props.chl) : at.content
     return at.onChange ?
         createElement(at.onChange.tp, at, uProp=>createElement(tp, uProp, children)) :
         createElement(tp, at, children)
-}
-function TraverseChildren(props){
-    return (props.chl||[]).map(key => traverseOne(props[key]))
-}
-
-const TraverseOneMemo = memo(TraverseOne)
-export const traverseOne = props => createElement(TraverseOneMemo,props)
-const traverseChildren = TraverseChildren
-// const TraverseChildrenMemo = memo(TraverseChildren)
-// const traverseChildren = props => createElement(TraverseChildrenMemo,props)
+})
 
 /******************************************************************************/
 
@@ -248,7 +254,7 @@ export function VDomAttributes(sender){
         },
     }
     function SyncInputRoot({incoming,ack}){
-        return createSyncProviders({ ack, sender: inpSender, children: traverseOne(incoming) })
+        return createSyncProviders({ ack, sender: inpSender, children: elementWeakCache(incoming) })
     }
 
     const sendThen = ctx => event => {

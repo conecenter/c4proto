@@ -1,14 +1,12 @@
 
-import {useCallback,useMemo,createElement,Children} from "../main/react-prod.js"
+import {useCallback,useMemo,createElement} from "../main/react-prod.js"
 import {SortableContainer,SortableElement,SortableHandle} from "../main/react-sortable-hoc-prod.js"
-import {useSync, traverseOne} from "../main/vdom-core.js"
+import {useSync} from "../main/vdom-core.js"
+import {identityAt,keysOf,childByKey} from "../main/vdom-util.js"
 
-import { valueAt, childrenAt, identityAt, resolve } from "../main/vdom-util.js"
-
-const childrenOf = valueAt('children')
 const sortIdOf = identityAt('sort')
 
-const SortHandle = SortableHandle(prop => Children.map(childrenOf(prop).map(resolve(prop)), traverseOne))
+const SortHandle = SortableHandle(prop => prop.item)
 
 const SortElement = SortableElement(({children}) => children)
 
@@ -50,9 +48,10 @@ export const useSortRoot = identity => {
     return [applyPatches(patches),container]
 }
 
-function TBodySortRoot(prop){
-    const [applyPatches,container] = useSortRoot(sortIdOf(prop))
-    const children = applyPatches(childrenOf(prop)||[]).map(resolve(prop)).map(traverseOne)
+function TBodySortRoot({identity,children:wasChildrenOpt}){
+    const wasChildren = Children.toArray(wasChildrenOpt)
+    const [applyPatches,container] = useSortRoot(sortIdOf(identity))
+    const children = childByKey(wasChildren)(applyPatches(keysOf(wasChildren)))
     return container({tp:"tbody",useDragHandle:true,children})
 }
 
