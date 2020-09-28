@@ -41,21 +41,35 @@ const partitionVisibleCols = (cols,outerWidth) => {
 
 const sortedByPriority = sortedBy((a,b)=>b.props.priority-a.props.priority)
 
-const excluding = keys => {
-    const set = new Set(keys)
-    return key => !set.has(key)
-}
+
 
 const useExpanded = () => {
     const [expanded,setExpanded] = useState({})
-    const toggleExpanded = key => () => setExpanded(was => was[key] ? deleted({[key]:1})(was) : {...was, [key]:1} )
-    return [expanded,toggleExpanded]
+    const setExpandedItem = (key,value) => setExpanded(was => value ? {...was, [key]:1} : deleted({[key]:1})(was) )
+    return [expanded,setExpandedItem]
 }
 
-export function GridCell({children,rowKey,colKey,...props}){
-    const isExpanded = colKey === "expanded"
-    const gridRow = isExpanded ? `expanded${rowKey}` : rowKey
-    const gridColumn = isExpanded ? "1 / -1" : colKey
+const getExpandedCells = ({expanded,cols,rowKeys,children}) => {
+    if(cols.length<=0) return []
+    const posStr = (rowKey,colKey) => rowKey+colKey
+    const expandedByPos = Object.fromEntries(
+        children.filter(c=>expanded[c.props.rowKey])
+        .map(c=>[posStr(c.props.rowKey,c.props.colKey),c])
+    )
+    return rowKeys.filter(rowKey=>expanded[rowKey]).map(rowKey=>{
+        const pairs = cols.map(col=>{
+            const cell = expandedByPos[posStr(rowKey,col.props.colKey)]
+            return [col, cell]
+        })
+        return [rowKey, pairs]
+    })
+}
+
+const getGridRow = ({rowKey,rowKeyMod}) => rowKey+(rowKeyMod||'')
+
+export function GridCell({children,rowKey,rowKeyMod,colKey,...props}){
+    const gridRow = getGridRow({rowKey,rowKeyMod})
+    const gridColumn = colKey === "all" ? "1 / -1" : colKey
     const style = { ...props.style, gridRow, gridColumn }
     return $("div",{...props,style},children)
 }
@@ -110,89 +124,109 @@ export function GridRoot(props){
     return k => Array.isArray(k) ? k.map(ck=>res[ck]) : res[k]
 }*/
 
-const GridRootMemo = memo(({identity,children,rowKeys,cols,enableColDrag,enableRowDrag,dragging,applyDragRow,applyDragCol}) => {
-    const {gridStart,onMouseDown,axis} = dragging
-
-
+const useHiddenCols = cols => {
     const { ref: outerRef, width: outerWidth } = useWidth()
-    const [expanded,toggleExpanded] = useExpanded()
+    const [visibleCols,hiddenCols] = partitionVisibleCols(sortedByPriority(cols),outerWidth)
+    const hasHiddenCols = hiddenCols.length > 0
+    const hiddenColSet = hasHiddenCols && new Set(colKeysOf(hiddenCols))
+    const hideElementsForHiddenCols = mode => (
+        hasHiddenCols ? (children => children.filter(c=>mode===hiddenColSet.has(c.props.colKey))) :
+        mode ? (children => []) : (children => children)
+    )
+    const toNarrowCols = cols => !hasHiddenCols ? cols :
+        cols.map(c=>cloneElement(c,{maxWidth:c.props.minWidth}))
+    return {outerRef,hasHiddenCols,hideElementsForHiddenCols,toNarrowCols}
+}
 
+const wrapApplyDragCol = f => cols => {
+    const colByKey = Object.fromEntries(cols.map(c=>[c.props.colKey,c]))
+    return f(colKeysOf(cols)).map(k=>colByKey[k])
+}
+
+const getGridTemplateStyle = ({columns,rows}) => {
+    const gridTemplateRows = map(o=>`[${getGridRow(o)}] auto`)(rows).join(" ")
+    const gridTemplateColumns = map(c=>{
+        const key = c.props.colKey
+        const width = `minmax(${c.props.minWidth}em,${c.props.maxWidth}em)`
+        return `[${key}] ${width}`
+    })(columns).join(" ")
+    return { display: "grid", gridTemplateRows, gridTemplateColumns }
+}
+
+const expandRowKeys = rowKeys => rowKeys.flatMap(rowKey=>[{rowKey},{rowKey,rowKeyMod:"-expanded"}])
+
+
+
+const GridRootMemo = memo(({identity,children,rowKeys,cols,enableColDrag,enableRowDrag,dragging,applyDragRow,applyDragCol}) => {
     console.log("inner render")
 
-    const sortedRowKeys = applyDragRow(rowKeys)
+    const [expanded,setExpandedItem] = useExpanded()
 
+    const rowDragCol = $(GridCol,{colKey:"drag",minWidth:1,maxWidth:1,priority:Infinity})
+    const expandCol = $(GridCol,{colKey:"expand",minWidth:1,maxWidth:1,priority:Infinity})
 
-    const rowDragCol = $(GridCol,{colKey:"drag",minWidth:1,maxWidth:1})
-    const expandCol = $(GridCol,{colKey:"expand",minWidth:1,maxWidth:1})
-
-    const colByKey = Object.fromEntries(cols.map(c=>[c.props.colKey,c]))
-    const byPriorityCols = [expandCol,rowDragCol,...sortedByPriority(cols)]
-    const [visibleCols,hiddenCols] = partitionVisibleCols(byPriorityCols,outerWidth)
-    const excludingColKeys = excluding(colKeysOf(hiddenCols))
-    const sortedCols = applyDragCol(colKeysOf(cols)).filter(excludingColKeys).map(k=>colByKey[k])
-    const hasHiddenCols = hiddenCols.length > 0
-    console.log("hiddenCols.length "+hiddenCols.length)
-
-    const gridTemplateRows = map(k=>`[${k}] auto`)([
-        ...(enableColDrag ? ["drag"]:[]),
-        "head",
-        ...(!hasHiddenCols ? sortedRowKeys : sortedRowKeys.flatMap(k=>[k,`expanded${k}`])),
-    ]).join(" ")
+    const {outerRef,hasHiddenCols,hideElementsForHiddenCols,toNarrowCols} =
+        useHiddenCols([expandCol,rowDragCol,...cols])
 
     const allCols = [
         ...(enableRowDrag ? [rowDragCol]:[]),
-        ...sortedCols,
+        ...hideElementsForHiddenCols(false)(wrapApplyDragCol(applyDragCol)(cols)),
         ...(hasHiddenCols ? [expandCol]:[]),
     ]
 
-    const gridTemplateColumns = map(c=>`[${c.props.colKey}] minmax(${c.props.minWidth}em,${hasHiddenCols?c.props.minWidth:c.props.maxWidth}em)`)(allCols).join(" ")
-
-    const colDragElements = enableColDrag ? map(col=>$(GridCell,{
-        ...pos("drag",col.props.colKey),
-        onMouseDown: onMouseDown("x"),
-        style: {userSelect: "none", cursor: "hand"}
-    }, "o"))(cols) : []
+    const gridTemplateStyle = getGridTemplateStyle({
+        rows: [{rowKey:"drag"}, {rowKey:"head"}, ...expandRowKeys(applyDragRow(rowKeys))],
+        columns: toNarrowCols(allCols),
+    })
 
     const headElements = map(col=>$(GridCell,{...pos("head",col.props.colKey)},col.props.caption))(cols)
 
+    const dragStyle = { style: {userSelect: "none", cursor: "hand"} }
+
+    const colDragElements = enableColDrag ? map(col=>$(GridCell,{
+        ...pos("drag",col.props.colKey), onMouseDown: dragging.onMouseDown("x"), ...dragStyle,
+    }, "o"))(cols) : []
+
     const rowDragElements = enableRowDrag ? map(rowKey=>$(GridCell,{
-        ...pos(rowKey,"drag"),
-        onMouseDown: onMouseDown("y"),
-        style: {userSelect: "none", cursor: "hand"}
+        ...pos(rowKey,"drag"), onMouseDown: dragging.onMouseDown("y"), ...dragStyle,
     }, "o"))(rowKeys) : []
 
-    const expandElements = hasHiddenCols ? rowKeys.map(rowKey=>(
-        $(GridCell,{...pos(rowKey,"expand")},$(ExpandButton,{isExpanded:expanded[rowKey],toggle:toggleExpanded(rowKey)}))
-    )) : []
+    const expandElements = !hasHiddenCols ? [] : rowKeys.map(rowKey=>$(GridCell,{
+        ...pos(rowKey,"expand"), onClick: ev => setExpandedItem(rowKey,!expanded[rowKey])
+    }, expanded[rowKey] ? "V":">" ))
 
-    const expandedElements = /*hasHiddenCols ? rowKeys.filter(k=>expanded[rowKey]).map(rowKey=>(
-        $(GridCell,{ rowKey, colKey: "expanded" },
-
-                                $("div",{key: cellKey},
-                                    $("label",{},colByKey(cellKey).caption),
-                                    $("span",{},cell.props.children)
-                                )
-
+    const expandedElements = getExpandedCells({
+        expanded, rowKeys, children,
+        cols: hideElementsForHiddenCols(true)(cols),
+    }).map(([rowKey,pairs])=>(
+        $(GridCell,{ ...pos(rowKey,"all"), rowKeyMod: "-expanded", style: { display: "flex", flexFlow: "row wrap" } },
+            pairs.map(([col,cell])=>(
+                $("div",{key: col.key, style: { flexBasis: `${col.props.minWidth}em` }}, $("label",{},col.props.caption), cell)
+            ))
         )
-    )) : */ []
+    ))
 
-    const allChildren = [...headElements, ...colDragElements, ...rowDragElements, ...expandElements, ...expandedElements, ...children].filter(cell=>excludingColKeys(cell.props.colKey))
+    const allChildren = toDraggingElements(dragging)(hideElementsForHiddenCols(false)([
+        ...colDragElements, ...rowDragElements, ...headElements, ...children,
+        ...expandElements, ...expandedElements
+    ]))
 
-    const dragKey = axis && switchAxis(c=>c.props.colKey, c=>c.props.rowKey)(axis)
-    const draggingChildren = gridStart ?
-        map(c=>(
-            dragKey(c)===gridStart ? toDraggingElement(axis)(c) : c
-        ))(allChildren) :
-        allChildren
+    useEffect(()=>{
+        const {gridStart,axis} = dragging
+        if(axis==="y" && expanded[gridStart]) setExpandedItem(gridStart,false)
+    },[expanded,dragging])
 
-    const res = $("div",{ style: { display: "grid", gridTemplateColumns, gridTemplateRows }, ref: outerRef }, draggingChildren)
+    const res = $("div",{ style: { ...gridTemplateStyle }, ref: outerRef }, allChildren)
     return res
 })
 
-function ExpandButton({isExpanded,toggle}){
-    return $("div",{ onClick: ev => toggle() }, isExpanded ? "V":">")
+const toDraggingElements = dragging => children => {
+    const {gridStart,axis} = dragging
+    if(!axis) return children
+    const dragKey = switchAxis(c=>c.props.colKey, c=>c.props.rowKey)(axis)
+    const toDrEl = toDraggingElement(axis)
+    return map(c=>dragKey(c)===gridStart ? toDrEl(c) : c)(children)
 }
-
 
 //
 
