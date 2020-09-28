@@ -2,7 +2,13 @@
 import {useCallback,useMemo,createElement} from "../main/react-prod.js"
 import {SortableContainer,SortableElement,SortableHandle} from "../main/react-sortable-hoc-prod.js"
 import {useSync} from "../main/vdom-core.js"
-import {identityAt,keysOf,childByKey} from "../main/vdom-util.js"
+import {identityAt} from "../main/vdom-util.js"
+
+const keysOf = children => children.map(c=>c.key)
+const childByKey = children => {
+    const res = Object.fromEntries(children.map(c=>[c.key,c]))
+    return k => Array.isArray(k) ? k.map(ck=>res[ck]) : res[k]
+}
 
 const sortIdOf = identityAt('sort')
 

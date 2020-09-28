@@ -1,7 +1,7 @@
 
 import {createContext,createElement,useState,useContext,useCallback,useEffect,memo} from "../main/react-prod.js"
 import {splitFirst,spreadAll,oValues}    from "../main/util.js"
-import {ifInputsChanged,dictKeys,branchByKey,rootCtx,ctxToPath,chain,someKeys} from "../main/vdom-util.js"
+import {ifInputsChanged,dictKeys,branchByKey,rootCtx,ctxToPath,chain,someKeys,weakCache} from "../main/vdom-util.js"
 
 
 
@@ -211,15 +211,7 @@ function reProp(props){
     ))
 }*/
 
-const weakCache = f => {
-    const map = new WeakMap
-    return arg => {
-        if(map.has(arg)) return map.get(arg)
-        const res = f(arg)
-        map.set(arg,res)
-        return res
-    }
-}
+
 
 const resolveChildren = (o,keys) => keys.map(k=>elementWeakCache(o[k]))
 const elementWeakCache = weakCache(props=>{

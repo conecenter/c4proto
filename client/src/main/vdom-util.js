@@ -72,12 +72,19 @@ export const ifInputsChanged = log => (cacheKey,inpKeysObj,f) => {
     }
 }
 
-export const identityAt = key => parent => ({ parent, key })
+export const weakCache = f => {
+    const map = new WeakMap
+    return arg => {
+        if(map.has(arg)) return map.get(arg)
+        const res = f(arg)
+        map.set(arg,res)
+        return res
+    }
+}
+
+export const identityAt = key => weakCache(parent => ({ parent, key }))
 export const never = o => { console.log(o); throw new Error }
 export const map = f => l => l && l.map && l.map(f) || l && never(l)
 export const head = l => l && l[0]
-export const keysOf = children => children.map(c=>c.key)
-export const childByKey = children => {
-    const res = Object.fromEntries(children.map(c=>[c.key,c]))
-    return k => Array.isArray(k) ? k.map(ck=>res[ck]) : res[k]
-}
+
+

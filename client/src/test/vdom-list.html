@@ -7,11 +7,9 @@
 <body>
 <script crossorigin src="https://unpkg.com/react@16/umd/react.development.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@16/umd/react-dom.development.js"></script>
-<script src="https://unpkg.com/prop-types@15.6/prop-types.js"><!-- for sortable --></script>
-<script crossorigin src="/react-sortable-hoc.umd.js"></script>
 <script type="module">
 
-import {ListRoot} from "../test/vdom-list.js"
+import {GridRoot,GridCell,GridCol,DocumentContext} from "../test/vdom-list.js"
 import {createSyncProviders} from "../main/vdom-core.js"
 
 const {createElement:$,useState} = React
@@ -19,70 +17,51 @@ const {createElement:$,useState} = React
 function Text({value}){
     return value
 }
-/*
-const node = arg => {
-    const {key,...obj} = arg
-    const entries = Object.entries({identity:1,...obj})
-    const at = Object.fromEntries(entries.filter(([k,v])=>!Array.isArray(v)))
-    const childAt = Object.fromEntries(entries.flatMap(([k,v])=>!Array.isArray(v)?[]:[[k,v.map(c=>c.key)],...v.map(c=>[c.key,c])]))
-    return {...childAt,at,key}
-}*/
-
-function Row(props){
-    return $("tr",props)
-}
-function Cell(props){
-    return $("td",props)
-}
-function Col(props){
-    return $("col",props)
-}
 
 function App(){
-    const [setupMode,setSetupMode] = useState("")
-    const exCol = (key,priority) => $(Col,{
-        key, tp: Col, priority
+    const [state,setState] = useState({enableColDrag: true, enableRowDrag: true})
+    const {enableColDrag,enableRowDrag} = state
+
+
+    const exCol = (colKey,priority,maxWidth) => $(GridCol,{
+        key: ":"+colKey, colKey, priority, caption: "H"+colKey, minWidth: 4, maxWidth
     })
     const cols = [
-        exCol(":c0",2),
-        exCol(":c1",2),
-        exCol(":c2",1),
-        exCol(":c3",1),
-        exCol(":c4",0),
-        exCol(":c5",0),
-        exCol(":c6",1),
-        exCol(":c8",2),
-        exCol(":c9",2),
+        exCol("c0",2, 10),
+        exCol("c1",2, 10),
+        exCol("c2",1, 10),
+        exCol("c3",1, 10),
+        exCol("c4",0, 10),
+        exCol("c5",0, 10),
+        exCol("c6",1, 30),
+        exCol("c7",1, 10),
+        exCol("c8",2, 10),
+        exCol("c9",2, 30),
     ]
-
-    const exCell = rowKey => col => $(Cell,{
-        key: col.key,
-        children: [$(Text,{value: rowKey+col.key, key: "text"})]
+    const exCell = rowKey => col => $(GridCell,{
+        key: ":"+rowKey+col.key, rowKey, colKey: col.props.colKey,
+        children: [$(Text,{value: rowKey+" "+col.props.colKey, key: "text"})]
     })
-    const exRow = rowKey => $(Row,{
-        key: rowKey,
-        children: cols.map(exCell(rowKey))
-    })
-    const listEl = $(ListRoot,{
+    const rowKeys = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19].map(k=>"r"+k)
+    const listEl = $(GridRoot,{
         key: "list",
-        setupMode,
-        enableColDrag: true,
+        identity: {},
+        enableColDrag, enableRowDrag,
         cols,
-        head: [
-            exRow(":hr0"),
-            exRow(":hr1"),
-        ],
-        body: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19].map(k=>exRow(":r"+k)),
+        children: rowKeys.flatMap(rowKey=>cols.map(exCell(rowKey))),
+        rowKeys
     })
     const children = [
-        $("button",{key:"rowDrag",onClick:ev=>setSetupMode("rowDrag")},"rowDrag"),
-        $("button",{key:"colDrag",onClick:ev=>setSetupMode("colDrag")},"colDrag"),
+        $("button",{key:"rowDrag",onClick:ev=>setState(was=>({...was,enableRowDrag:false}))},"rowDrag"),
+        $("button",{key:"colDrag",onClick:ev=>setState(was=>({...was,enableColDrag:false}))},"colDrag"),
         listEl
     ]
 
     const sender = { enqueue: ()=>{} }
     const ack = null
-    return createSyncProviders({ sender, ack, children })
+    return $(DocumentContext.Provider, {value:document},
+        createSyncProviders({ sender, ack, children })
+    )
 }
 
 const containerElement = document.createElement("div")
