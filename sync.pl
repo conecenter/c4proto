@@ -51,9 +51,11 @@ my $filter = sub{
 
 my $get_list_fn = sub{"$_[0]/target/c4sync"};
 my $get_remote = sub{
+    my $ssh_addr = defined $ENV{C4BUILD_ADDR} ? $ENV{C4BUILD_ADDR} : "127.0.0.1";
+    my $ssh_cmd = defined $ENV{C4CONN_CMD} ? $ENV{C4CONN_CMD} : "ssh";
     my($port_str)=@_;
     my $port = $port_str=~/^(\d+)$/ ? $1-0 : die;
-    $port ? ("ssh -p$port","c4\@127.0.0.1:","ssh -p$port c4\@127.0.0.1 "):("","","")
+    $port ? ("$ssh_cmd -p$port","c4\@$ssh_addr:","$ssh_cmd -p$port c4\@$ssh_addr "):("","","")
 };
 my $load_started = sub{
     my($dir)=@_;
