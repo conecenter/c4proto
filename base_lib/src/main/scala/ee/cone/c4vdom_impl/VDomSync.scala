@@ -17,8 +17,8 @@ object TagJsonUtilsImpl extends TagJsonUtils {
     val onChange = mode.value
     if(onChange.nonEmpty) builder.append("onChange").append(onChange)
     mode match {
-      case ReadOnly | Send => ()
-      case SendFirst | Defer => builder.append("onBlur").append("send")
+      case ReadOnly => ()
+      case Send | SendFirst | Defer => builder.append("onBlur").append("send")
     }
   }
 
