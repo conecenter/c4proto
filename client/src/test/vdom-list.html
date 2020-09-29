@@ -3,6 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <title>List Test</title>
+<style>
+div[data-expander='expanded'] {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+}
+div[data-expander='collapsed'] { }
+div[data-expander='passive'] {
+    visibility: hidden;
+}
+
+
+</style>
 </head>
 <body>
 <script crossorigin src="https://unpkg.com/react@16/umd/react.development.js"></script>
@@ -19,40 +31,53 @@ function Text({value}){
 }
 
 function App(){
-    const [state,setState] = useState({enableColDrag: true, enableRowDrag: true})
-    const {enableColDrag,enableRowDrag} = state
+    const [state,setState] = useState({enableColDrag: true})
+    const {enableColDrag} = state
 
-
-    const exCol = (colKey,priority,maxWidth) => $(GridCol,{
-        key: ":"+colKey, colKey, priority, caption: "H"+colKey, minWidth: 4, maxWidth
+    const exCol = (colKey,hideWill,minWidth,maxWidth) => $(GridCol,{
+        key: ":"+colKey, colKey, hideWill, minWidth, maxWidth,
+        ...(
+            colKey === "drag" ? {} : colKey === "expand" ? {} :
+            {caption: "H"+colKey, canDrag: true}
+        )
     })
+
     const cols = [
-        exCol("c0",2, 10),
-        exCol("c1",2, 10),
-        exCol("c2",1, 10),
-        exCol("c3",1, 10),
-        exCol("c4",0, 10),
-        exCol("c5",0, 10),
-        exCol("c6",1, 30),
-        exCol("c7",1, 10),
-        exCol("c8",2, 10),
-        exCol("c9",2, 30),
+        exCol("c0", 1, 5, 10),
+        exCol("expand", 0, 1, 1),
+        exCol("c1", 1, 5, 10),
+        exCol("c2", 2, 5, 10),
+        exCol("c3", 2, 15, 15),
+        exCol("c4", 3, 5, 10),
+        exCol("c5", 3, 5, 10),
+        exCol("c6", 2, 15, 30),
+        exCol("c7", 2, 5, 10),
+        exCol("c8", 1, 5, 10),
+        exCol("c9", 1, 5, 30),
+        exCol("drag", 0, 1, 1),
     ]
     const exCell = rowKey => col => $(GridCell,{
         key: ":"+rowKey+col.key, rowKey, colKey: col.props.colKey,
-        children: [$(Text,{value: rowKey+" "+col.props.colKey, key: "text"})]
+        ...(col.props.colKey === "drag" ? {isRowDragHandle: true} : {}),
+        ...(col.props.colKey === "expand" ? {isExpander: true} : {}),
+        children: [$(Text,{
+            value: (
+                col.props.colKey === "drag" ? "O" :
+                col.props.colKey === "expand" ? ">" :
+                rowKey+" "+col.props.colKey
+            ),
+            key: "text",
+        })]
     })
     const rowKeys = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19].map(k=>"r"+k)
     const listEl = $(GridRoot,{
         key: "list",
         identity: {},
-        enableColDrag, enableRowDrag,
         cols,
         children: rowKeys.flatMap(rowKey=>cols.map(exCell(rowKey))),
         rowKeys
     })
     const children = [
-        $("button",{key:"rowDrag",onClick:ev=>setState(was=>({...was,enableRowDrag:false}))},"rowDrag"),
         $("button",{key:"colDrag",onClick:ev=>setState(was=>({...was,enableColDrag:false}))},"colDrag"),
         listEl
     ]
