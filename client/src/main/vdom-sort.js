@@ -1,6 +1,6 @@
 
 import {useCallback,useMemo,createElement} from "../main/react-prod.js"
-import {SortableContainer,SortableElement,SortableHandle} from "../main/react-sortable-hoc-prod.js"
+import {SortableContainer,SortableElement,SortableHandle} from "react-sortable-hoc"
 import {useSync} from "../main/vdom-core.js"
 import {identityAt} from "../main/vdom-util.js"
 
