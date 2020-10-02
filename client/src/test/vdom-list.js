@@ -311,6 +311,8 @@ const getDragElementData = switchAxis(el => {
     return { gridStart: el.style.gridRowStart, rectFrom: rect.top, rectTo: rect.bottom }
 })
 
+const getGridStart = switchAxis(el=>el.style.gridColumnStart, el=>el.style.gridRowStart)
+
 const toDraggingElement = axis => child => cloneElement(child,{style:{
     ...child.props.style,
     position:"sticky",
@@ -323,7 +325,7 @@ const getDropElements = ({axis,dragKey}) => axis ? [$(GridCell,{...spanAllDir(ax
 
 ////
 
-const distinctBy = f => l => {
+const distinctBy = f => l => { //gives last?
     const entries = l.map(el=>[f(el),el])
     const map = Object.fromEntries(entries)
     return entries.filter(([k,v])=>map[k]===v).map(([k,v])=>v)
@@ -333,6 +335,8 @@ const distinctByStart = switchAxis(
     distinctBy(el => el.style.gridColumnStart),
     distinctBy(el => el.style.gridRowStart)
 )
+
+// const reversed = l => [...l].reverse()
 
 const useGridDrag = ({dragData,setDragData,gridElement,keys,enqueuePatch}) => {
     const {axis,isDown,clientPos,dragKey,patch,inElPos,rootStyle} = dragData
@@ -344,7 +348,7 @@ const useGridDrag = ({dragData,setDragData,gridElement,keys,enqueuePatch}) => {
     },[setDragData])
     const distinctElements = useMemo(
         () => axis && distinctByStart(axis)([...gridElement.children]),
-        [axis,gridElement]
+        [axis,gridElement] // do not rely on finding particular elements
     )
     const move = useCallback(ev=>{
         if(!axis) return
@@ -363,19 +367,23 @@ const useGridDrag = ({dragData,setDragData,gridElement,keys,enqueuePatch}) => {
     useEventListener(doc,"mouseup",isDown && move)
     useLayoutEffect(()=>{
         if(!axis) return
-        const dropPlace = distinctElements.map(getDragElementData(axis)).find(r => r.gridStart === dragKey)
-        if(!dropPlace) return
+        const doGetGridStart = getGridStart(axis)
+        const dropPlaceElement = [...gridElement.children].find(el=>doGetGridStart(el)===dragKey && !el.style.position)
+        if(!dropPlaceElement) return
+        const dropPlace = getDragElementData(axis)(dropPlaceElement)
         const targetPos = clientPos - inElPos
-        //const movedUp = /true to left/ targetPos < dropPlace.rectFrom
-        //const varDragFrom = movedUp ? "" : targetPos+"px"
-        const varDragFrom = targetPos+"px"
+        const movedUp = /*true to left*/ targetPos < dropPlace.rectFrom
+        const varDragFrom = movedUp ? "" : targetPos+"px"
+        console.log(targetPos , dropPlace)
+
+        //const varDragFrom = targetPos+"px"
         const clientSize = getClientSize(axis)(doc.documentElement)
         const fromEnd = v => (clientSize - v)+"px"
         const varDragTo = fromEnd(targetPos+(dropPlace.rectTo-dropPlace.rectFrom))
         const rootStyle = { "--drag-from": varDragFrom, "--drag-to": varDragTo }
         //console.log(rootStyle)
         setDragData(was=>({...was,rootStyle}))
-    },[axis,dragKey,clientPos,inElPos,doc,setDragData])
+    },[axis,dragKey,clientPos,inElPos,doc,setDragData,distinctElements])
     useEffect(()=>{
         if(!isDown) setDragData(was=>{
             const {patch} = was
