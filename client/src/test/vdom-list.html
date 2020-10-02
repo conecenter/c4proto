@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <title>List Test</title>
 <style>
+body {
+    font-family: helvetica;
+}
 div[data-expander='expanded'] {
     writing-mode: vertical-rl;
     text-orientation: mixed;
@@ -12,7 +15,15 @@ div[data-expander='collapsed'] { }
 div[data-expander='passive'] {
     visibility: hidden;
 }
-
+div.grid {
+    /* border-collapse:collapse;*/
+    grid-gap: 1px;
+}
+div.grid > div {
+    /*border: 1px solid green;*/
+    box-shadow: 0 0 0 1px #000;
+    background-color: silver;
+}
 
 </style>
 </head>
@@ -37,8 +48,8 @@ function App(){
     const exCol = (colKey,hideWill,minWidth,maxWidth) => $(GridCol,{
         key: ":"+colKey, colKey, hideWill, minWidth, maxWidth,
         ...(
-            colKey === "drag" ? {} : colKey === "expand" ? {} :
-            {caption: "H"+colKey, canDrag: true}
+            colKey === "drag" ? {} : colKey === "expand" ? {isExpander: true} :
+            {caption: "H"+colKey, canDrag: enableColDrag}
         )
     })
 
