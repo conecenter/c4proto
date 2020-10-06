@@ -611,13 +611,14 @@ my $make_kc_yml = sub{
         }));
         my @hosts = &$map($by_host,sub{ my($host,$v)=@_; $host });
         my $disable_tls = 0; #make option when required
+        my $ingress_secret_name = $all{ingress_secret_name};
         my @annotations = $disable_tls ? () : (annotations=>{
-            "cert-manager.io/cluster-issuer" => "letsencrypt-prod",
+            $ingress_secret_name ? () : ("cert-manager.io/cluster-issuer" => "letsencrypt-prod"),
             "kubernetes.io/ingress.class" => "nginx",
         });
         my @tls = $disable_tls ? () : (tls=>[{
             hosts => \@hosts,
-            secretName => "$name-tls",
+            secretName => $ingress_secret_name || "$name-tls",
         }]);
         my @rules = &$map($by_host,sub{ my($host,$v)=@_; +{
             host => $host,
@@ -990,6 +991,7 @@ my $up_gate = sub{
         })
     } : do{
         my $hostname = &$get_hostname($run_comp) || die "no le_hostname";
+        my ($ingress_secret_name) = &$get_deployer_conf($run_comp,0,qw[ingress_secret_name]);
         ({
             @var_img,
             %consumer_options,
@@ -998,6 +1000,7 @@ my $up_gate = sub{
             "port:$inner_sse_port:$inner_sse_port"=>"",
             "ingress:$hostname/"=>$inner_http_port,
             "ingress:$hostname/sse"=>$inner_sse_port,
+            ingress_secret_name=>$ingress_secret_name,
         })
     };
     ($run_comp, $from_path, \@containers);
