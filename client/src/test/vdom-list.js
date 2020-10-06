@@ -321,7 +321,7 @@ const toDraggingElement = axis => child => cloneElement(child,{style:{
     [stickyTo(axis)]: "var(--drag-to)",
 }})
 
-const getDropElements = ({axis,dragKey}) => axis ? [$(GridCell,{...spanAllDir(axis)(dragKey)})] : []
+const getDropElements = ({axis,dragKey}) => axis ? [$(GridCell,{...spanAllDir(axis)(dragKey), className: "drop"})] : []
 
 ////
 
