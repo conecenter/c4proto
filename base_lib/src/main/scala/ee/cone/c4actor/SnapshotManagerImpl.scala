@@ -1,7 +1,5 @@
 package ee.cone.c4actor
 
-import java.nio.file.attribute.BasicFileAttributes
-import java.nio.file.{Files, Paths}
 import java.util.UUID
 
 import com.typesafe.scalalogging.LazyLogging
@@ -13,20 +11,16 @@ object SnapshotUtilImpl extends SnapshotUtil {
     val R = """(snapshot[a-z_]+)/([0-9a-f]{16})-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})([-0-9a-z]+)?""".r;
     {
       case raw@RawSnapshot(R(subDirStr,offsetHex,uuid,flags)) =>
-        {
-          val path = Paths.get(raw.relativePath)
-          val creationDate = Files.readAttributes(path, classOf[BasicFileAttributes]).creationTime().toMillis
-          Option(flags) match {
-            case None => Option(SnapshotInfo(subDirStr, offsetHex, uuid, Nil, raw, creationDate))
-            case Some(kvs) =>
-              val postParse = kvs.split("-").toList.tail
-              if (postParse.size % 2 == 0) {
-                val headers = postParse.grouped(2).toList.collect { case key :: value :: Nil => RawHeader(key, value) }
-                Option(SnapshotInfo(subDirStr, offsetHex, uuid, headers, raw, creationDate))
-              } else {
-                None
-              }
-          }
+        Option(flags) match {
+          case None => Option(SnapshotInfo(subDirStr,offsetHex,uuid,Nil,raw))
+          case Some(kvs) =>
+            val postParse = kvs.split("-").toList.tail
+            if (postParse.size % 2 == 0) {
+              val headers = postParse.grouped(2).toList.collect { case key :: value :: Nil => RawHeader(key, value) }
+              Option(SnapshotInfo(subDirStr, offsetHex, uuid, headers, raw))
+            } else {
+              None
+            }
         }
       case a =>
         //logger.warn(s"not a snapshot: $a")

@@ -37,19 +37,29 @@ import ee.cone.c4proto.{Id, protocol}
   requestTransformFactory: SnapshotListRequestTransformFactory
 ) {
   type SnapshotRequestAll = AbstractAll
+
+  def allRequests(
+    srcId: SrcId,
+    request: Each[S_ListSnapshotsRequest]
+  ): Values[(SnapshotRequestAll, S_ListSnapshotsRequest)]
+  = All -> request :: Nil
+
   def processRequest(
     srcId: SrcId,
     firstborn: Each[S_Firstborn],
     @byEq[SnapshotRequestAll](All) requests: Values[S_ListSnapshotsRequest]
-  ): Values[(SrcId, TxTransform)] =
-    WithPK(requestTransformFactory.create(requests.toList)) :: Nil
+  ): Values[(SrcId, TxTransform)] = {
+    if (requests.nonEmpty)
+      WithPK(requestTransformFactory.create(requests.toList)) :: Nil
+    else Nil
+  }
 }
 
 @c4multi("FileRawSnapshotLoaderApp") final case class SnapshotListRequestTransform(requests: List[S_ListSnapshotsRequest])(
   snapshotLister: SnapshotLister,
+  val snapshotMTime: SnapshotMTime,
   txAdd: LTxAdd
-) extends TxTransform {
-  import ProtoConversions._
+) extends TxTransform with ProtoConversions {
   def transform(local: Context): Context = {
     if (requests.nonEmpty) {
       if (ErrorKey.of(local).isEmpty) {
@@ -65,7 +75,9 @@ import ee.cone.c4proto.{Id, protocol}
   }
 }
 
-object ProtoConversions {
+trait ProtoConversions {
+  val snapshotMTime: SnapshotMTime
+
   implicit def RawSnapshotDeProto(raw: N_RawSnapshotProto): RawSnapshot =
     RawSnapshot(raw.relativePath)
 
@@ -79,7 +91,7 @@ object ProtoConversions {
     raw.map(r => r: N_RawSnapshotProto)
 
   implicit def SnapshotInfoToProto(info: SnapshotInfo): N_SnapshotInfoProto =
-    N_SnapshotInfoProto(info.subDirStr, info.offset, info.uuid, Option(info.raw), info.creationTime)
+    N_SnapshotInfoProto(info.subDirStr, info.offset, info.uuid, Option(info.raw), snapshotMTime.mTime(info.raw))
 
   implicit def ListSnapshotInfoToResponse(list: List[SnapshotInfo]): S_ListSnapshotsResponse = {
     S_ListSnapshotsResponse("response", list.map { info => info: N_SnapshotInfoProto })

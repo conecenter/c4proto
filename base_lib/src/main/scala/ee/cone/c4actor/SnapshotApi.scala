@@ -23,7 +23,7 @@ trait SnapshotSaver {
 trait SnapshotUtil {
   def hashFromName: RawSnapshot=>Option[SnapshotInfo]
 }
-case class SnapshotInfo(subDirStr: String, offset: NextOffset, uuid: String, headers: List[RawHeader], raw: RawSnapshot, creationTime: Long)
+case class SnapshotInfo(subDirStr: String, offset: NextOffset, uuid: String, headers: List[RawHeader], raw: RawSnapshot)
 trait SnapshotLoader {
   def load(snapshot: RawSnapshot): Option[RawEvent]
 }
