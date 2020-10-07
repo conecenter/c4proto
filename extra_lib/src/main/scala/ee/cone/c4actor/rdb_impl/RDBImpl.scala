@@ -120,7 +120,8 @@ trait  ToExternalDBItemAssembleUtil {
   def join(
     key: SrcId,
     @by[TypeHex] tasks: Values[ToExternalDBTask]
-  ): Values[(SrcId,TxTransform)] = List(WithPK(toExternalDBTxFactory.create(key, tasks.toList)))
+  ): Values[(SrcId,TxTransform)] =
+    List(WithPK(toExternalDBTxFactory.create(key, tasks.toList)))
 }
 
 case class ToExternalDBTask(
@@ -137,8 +138,9 @@ case object RDBSleepUntilKey extends TransientLens[Map[SrcId,(Instant,Option[B_H
   txAdd: LTxAdd,
   registry: QAdapterRegistry,
   externalDBClient: ExternalDBClient,
+  externalIsActive: ExternalIsActive
 ) extends TxTransform with LazyLogging {
-  def transform(local: Context): Context = {
+  def transform(local: Context): Context = if (externalIsActive.isActive) {
     val now = Instant.now()
     tasks.find{ task =>
       val skip = RDBSleepUntilKey.of(local)
@@ -172,7 +174,7 @@ case object RDBSleepUntilKey extends TransientLens[Map[SrcId,(Instant,Option[B_H
         from.toList.flatMap(LEvent.delete) ++ to.toList.flatMap(LEvent.update)
       ))(local)
     }}.getOrElse(local)
-  }
+  } else local
 }
 
 
@@ -201,19 +203,23 @@ case object RDBSleepUntilKey extends TransientLens[Map[SrcId,(Instant,Option[B_H
   getB_DBOffset: GetByPK[B_DBOffset],
   rawTxAdd: RawTxAdd,
   externalDBClient: ExternalDBClient,
+  externalIsActive: ExternalIsActive
 ) extends TxTransform with LazyLogging {
-  def transform(local: Context): Context = externalDBClient.getConnectionPool.doWith { conn =>
-    val offset =
-      getB_DBOffset.ofA(local).getOrElse(srcId, B_DBOffset(srcId, 0L))
-    logger.debug(s"offset $offset")//, By.srcId(classOf[Invoice]).of(world).size)
-    val textEncoded = conn.outText("poll").in(srcId).in(offset.value).call()
-    //val updateOffset = List(B_DBOffset(srcId, nextOffsetValue)).filter(offset!=_)
-    //  .map(n=>LEvent.add(LEvent.update(n)))
-    if(textEncoded.isEmpty) local else {
-      logger.debug(s"textEncoded $textEncoded")
-      rawTxAdd.add(indentedParser.toUpdates(textEncoded))(local)
-    }
-  }
+  def transform(local: Context): Context =
+    if (externalIsActive.isActive)
+      externalDBClient.getConnectionPool.doWith { conn =>
+        val offset =
+          getB_DBOffset.ofA(local).getOrElse(srcId, B_DBOffset(srcId, 0L))
+        logger.debug(s"offset $offset") //, By.srcId(classOf[Invoice]).of(world).size)
+        val textEncoded = conn.outText("poll").in(srcId).in(offset.value).call()
+        //val updateOffset = List(B_DBOffset(srcId, nextOffsetValue)).filter(offset!=_)
+        //  .map(n=>LEvent.add(LEvent.update(n)))
+        if (textEncoded.isEmpty) local else {
+          logger.debug(s"textEncoded $textEncoded")
+          rawTxAdd.add(indentedParser.toUpdates(textEncoded))(local)
+        }
+      }
+    else local
 }
 
 @c4("FromExternalDBSyncApp") final class FromExternalDBUpdateFlag extends UpdateFlag {

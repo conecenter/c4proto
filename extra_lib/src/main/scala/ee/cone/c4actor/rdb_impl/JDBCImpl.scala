@@ -13,25 +13,28 @@ import scala.annotation.tailrec
 
 @c4("RDBSyncApp") final class ExternalDBSyncClient(
   dbFactory: ExternalDBFactory,
+  externalIsActive: ExternalIsActive,
   db: CompletableFuture[RConnectionPool] = new CompletableFuture() //dataSource: javax.sql.DataSource
 ) extends Executable with ExternalDBClient {
   // def toInject: List[Injectable] = WithJDBCKey.set(f=>getConnectionPool.doWith(f))
   def run(): Unit = concurrent.blocking {
-    assert(db.complete(dbFactory.create(
-      createConnection => new RConnectionPool {
-        def doWith[T](f: RConnection => T): T = {
-          FinallyClose(createConnection()) { sqlConn =>
-            FinallyClose[ExecutorService, T](_.shutdown())(Executors.newFixedThreadPool(1)) { pool =>
-              sqlConn.setNetworkTimeout(pool, 1000*60*15)
-              val conn = new RConnectionImpl(sqlConn)
-              f(conn)
+    if (externalIsActive.isActive)
+      assert(db.complete(dbFactory.create(
+        createConnection => new RConnectionPool {
+          def doWith[T](f: RConnection => T): T = {
+            FinallyClose(createConnection()) { sqlConn =>
+              FinallyClose[ExecutorService, T](_.shutdown())(Executors.newFixedThreadPool(1)) { pool =>
+                sqlConn.setNetworkTimeout(pool, 1000 * 60 * 15)
+                val conn = new RConnectionImpl(sqlConn)
+                f(conn)
+              }
             }
           }
         }
-      }
-    )))
+      )))
   }
-  def getConnectionPool: RConnectionPool = concurrent.blocking(db.get)
+  def getConnectionPool: RConnectionPool =
+    if (externalIsActive.isActive) concurrent.blocking(db.get) else FailWith("Nonactive mode")
 }
 
 
