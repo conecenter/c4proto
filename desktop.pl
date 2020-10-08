@@ -90,7 +90,7 @@ push @tasks, [bloop=>sub{
     &$need_home();
     my $dir = "/c4/.bloop";
     $ENV{PATH} = "$ENV{PATH}:/tools/jdk/bin:$dir";
-    -e "$dir/bloop" or sy("curl -L https://github.com/scalacenter/bloop/releases/download/v1.3.4/install.py | python");
+    -e "$dir/bloop" or sy("coursier install bloop --only-prebuilt=true");
     &$exec("bloop","server");
 }];
 
