@@ -11,18 +11,25 @@ body {
     /*border: 1px solid silver*/
 }
 
+.filterExpander {
+    display: flex;
+    flex-basis: 2em;
+    border: 1px solid green;
+    height: 2em;
+}
+
 </style>
 </head>
 <body>
 <script crossorigin src="https://unpkg.com/react@16/umd/react.development.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@16/umd/react-dom.development.js"></script>
 <script type="module">
-const {createElement:$,useState} = React
+const {createElement:$,useState,useMemo} = React
 
-import {FilterArea} from "../test/vdom-filter.js"
+import {FilterArea,FilterExpander,PopupContext} from "../test/vdom-filter.js"
 
-function FilterButton({minWidth,isOptExpander}){
-    return $("div",{style:{display:"flex",flexBasis:minWidth+"em",border:"1px solid blue"}},isOptExpander? "S":"B")
+function FilterButton({minWidth,optButtons}){
+    return $("div",{style:{display:"flex",flexBasis:minWidth+"em",border:"1px solid blue"}},"B")
 }
 function FilterItem({nonEmpty,value}){
     return $("div",{style:{border:"1px solid blue",height:"100%",boxSizing: "border-box",}},value)
@@ -36,9 +43,13 @@ function App(){
     const [state,setState] = useState({})
     const {noFilters,showAll} = state
     const canHide = !showAll
-    return [
+    const [popup,setPopup] = useState(null)
+    const identities = useMemo(()=>({lt:{},rt:{}}),[])
+
+    return $(PopupContext.Provider, {value:[popup,setPopup]},
         $(ModeButton,{ key: "showAll", setState, dataKey: "showAll" }),
         $(ModeButton,{ key: "noFilters", setState, dataKey: "noFilters" }),
+        $("div",{style:{height:"10em"}},"BEFORE"),
         $(FilterArea,{ key: "app",
             filters: noFilters ? [] : [
                 $(FilterItem,{ key: 1, value: "1?", minWidth: 5, maxWidth:10, canHide }),
@@ -48,23 +59,23 @@ function App(){
                 $(FilterItem,{ key: 5, value: "5?", minWidth: 5, maxWidth:10, canHide }),
             ],
             buttons: [
-                $(FilterButton,{ key: 0, minWidth: 2, area: "lt", isOptExpander: true }),
+                $(FilterExpander,{ key: 0, minWidth: 2, area: "lt", identity: identities.lt, optButtons: [
+                    $(FilterButton,{ key: 3, minWidth: 4 }),
+                    $(FilterButton,{ key: 2, minWidth: 4 }),
+                ] }),
                 $(FilterButton,{ key: 1, minWidth: 2, area: "lt" }),
                 $(FilterButton,{ key: 2, minWidth: 2, area: "rt" }),
                 $(FilterButton,{ key: 3, minWidth: 2, area: "rt" }),
-                $(FilterButton,{ key: 4, minWidth: 2, area: "rt", isOptExpander: true }),
-            ],
-            optButtons: [
-                $(FilterButton,{ key: 1, minWidth: 4, area: "lt" }),
-                $(FilterButton,{ key: 2, minWidth: 4, area: "lt" }),
-                $(FilterButton,{ key: 3, minWidth: 4, area: "rt" }),
-                $(FilterButton,{ key: 4, minWidth: 4, area: "rt" }),
-                $(FilterButton,{ key: 5, minWidth: 4, area: "rt" }),
+                $(FilterExpander,{ key: 4, minWidth: 2, area: "rt", identity: identities.rt, optButtons: [
+                    $(FilterButton,{ key: 7, minWidth: 4 }),
+                    $(FilterButton,{ key: 6, minWidth: 4 }),
+                    $(FilterButton,{ key: 5, minWidth: 4 }),
+                ] }),
             ],
             centerButtonText: "of",
         }),
         "AFTER"
-    ]
+    )
 }
 
 const containerElement = document.createElement("div")
