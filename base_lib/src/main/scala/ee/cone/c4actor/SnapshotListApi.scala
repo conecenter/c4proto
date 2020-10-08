@@ -17,11 +17,11 @@ trait SnapshotListProtocolAppBase
     @Id(0x36cf) subDirStr: String,
     @Id(0x36d0) offset: String,
     @Id(0x36d1) uuid: String,
-    @Id(0x36d2) raw: Option[N_RawSnapshotProto],
+    @Id(0x36d2) raw: Option[N_RawSnapshotInfoProto],
     @Id(0x36d5) creationDate: Long
   )
 
-  case class N_RawSnapshotProto(
-    @Id(0x1857) relativePath: String
+  case class N_RawSnapshotInfoProto(
+    @Id(0x36d4) relativePath: String
   )
 }

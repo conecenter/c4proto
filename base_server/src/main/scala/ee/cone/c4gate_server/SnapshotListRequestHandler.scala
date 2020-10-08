@@ -1,7 +1,7 @@
 package ee.cone.c4gate_server
 
 import ee.cone.c4actor.QProtocol.S_Firstborn
-import ee.cone.c4actor.SnapshotListRequestProtocol.{N_RawSnapshotProto, N_SnapshotInfoProto, S_ListSnapshotsRequest, S_ListSnapshotsResponse}
+import ee.cone.c4actor.SnapshotListRequestProtocol.{N_RawSnapshotInfoProto, N_SnapshotInfoProto, S_ListSnapshotsRequest, S_ListSnapshotsResponse}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
@@ -55,17 +55,17 @@ import ee.cone.c4di.c4multi
 trait ProtoConversions {
   val snapshotMTime: SnapshotMTime
 
-  implicit def RawSnapshotDeProto(raw: N_RawSnapshotProto): RawSnapshot =
+  implicit def RawSnapshotDeProto(raw: N_RawSnapshotInfoProto): RawSnapshot =
     RawSnapshot(raw.relativePath)
 
-  implicit def RawSnapshotToProto(raw: RawSnapshot): N_RawSnapshotProto =
-    N_RawSnapshotProto(raw.relativePath)
+  implicit def RawSnapshotToProto(raw: RawSnapshot): N_RawSnapshotInfoProto =
+    N_RawSnapshotInfoProto(raw.relativePath)
 
-  implicit def RawSnapshotDeProtoList(raw: List[N_RawSnapshotProto]): List[RawSnapshot] =
+  implicit def RawSnapshotDeProtoList(raw: List[N_RawSnapshotInfoProto]): List[RawSnapshot] =
     raw.map(r => r: RawSnapshot)
 
-  implicit def RawSnapshotToProtoList(raw: List[RawSnapshot]): List[N_RawSnapshotProto] =
-    raw.map(r => r: N_RawSnapshotProto)
+  implicit def RawSnapshotToProtoList(raw: List[RawSnapshot]): List[N_RawSnapshotInfoProto] =
+    raw.map(r => r: N_RawSnapshotInfoProto)
 
   implicit def SnapshotInfoToProto(info: SnapshotInfo): N_SnapshotInfoProto =
     N_SnapshotInfoProto(info.subDirStr, info.offset, info.uuid, Option(info.raw), snapshotMTime.mTime(info.raw))
