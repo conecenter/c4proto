@@ -1,5 +1,6 @@
 package ee.cone.c4actor
 
+import ee.cone.c4actor.Types.NextOffset
 import ee.cone.c4proto.{Id, protocol}
 
 trait SnapshotListProtocolAppBase
@@ -24,4 +25,8 @@ trait SnapshotListProtocolAppBase
   case class N_RawSnapshotInfoProto(
     @Id(0x36d4) relativePath: String
   )
+}
+
+trait LastSnapshotGetter {
+  def get(): NextOffset
 }
