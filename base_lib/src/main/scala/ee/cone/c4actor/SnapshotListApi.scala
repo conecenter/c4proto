@@ -27,6 +27,6 @@ trait SnapshotListProtocolAppBase
   )
 }
 
-trait LastSnapshotGetter {
+trait ConsumerBeginningOffset {
   def get(): NextOffset
 }
