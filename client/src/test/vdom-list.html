@@ -35,8 +35,8 @@ div.grid > .drop {
 <script crossorigin src="https://unpkg.com/react-dom@16/umd/react-dom.development.js"></script>
 <script type="module">
 
-import {GridRoot,GridCell,GridCol,DocumentContext} from "../test/vdom-list.js"
-import {createSyncProviders} from "../main/vdom-core.js"
+import {GridRoot,GridCell,GridCol} from "../main/vdom-list.js"
+import {createSyncProviders} from "../main/vdom-hooks.js"
 
 const {createElement:$,useState} = React
 
@@ -98,9 +98,8 @@ function App(){
 
     const sender = { enqueue: ()=>{} }
     const ack = null
-    return $(DocumentContext.Provider, {value:document},
-        createSyncProviders({ sender, ack, children })
-    )
+    return createSyncProviders({ sender, ack, children })
+
 }
 
 const containerElement = document.createElement("div")

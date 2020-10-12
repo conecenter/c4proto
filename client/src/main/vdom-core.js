@@ -1,8 +1,8 @@
 
-import {createContext,createElement,useState,useContext,useCallback,useEffect,memo} from "../main/react-prod.js"
+import {createElement,useState,useCallback,useEffect,memo} from "../main/react-prod.js"
 import {splitFirst,spreadAll,oValues}    from "../main/util.js"
 import {ifInputsChanged,dictKeys,branchByKey,rootCtx,ctxToPath,chain,someKeys,weakCache} from "../main/vdom-util.js"
-
+import {useSync,createSyncProviders} from "../main/vdom-hooks.js"
 
 
 //todo branch LIFE
@@ -142,31 +142,6 @@ const checkUpdate = changes => state => (
     Object.keys(changes).every(k=>state && state[k]===changes[k]) ?
         state : {...state,...changes}
 )
-
-/********* sync ***************************************************************/
-
-const NoContext = createContext()
-const AckContext = createContext()
-const SenderContext = createContext()
-const nonMerged = ack => aPatch => !(aPatch && ack && aPatch.sentIndex <= ack.index)
-export const useSender = () => useContext(SenderContext)
-export const useSync = identity => {
-    const [patches,setPatches] = useState([])
-    const sender = useSender()
-    const enqueuePatch = useCallback(aPatch=>{
-        setPatches(aPatches=>[...aPatches,{...aPatch, sentIndex: sender.enqueue(identity,aPatch)}])
-    },[sender,identity])
-    const ack = useContext(patches.length>0 ? AckContext : NoContext)
-    useEffect(()=>{
-        setPatches(aPatches => aPatches.every(nonMerged(ack)) ? aPatches : aPatches.filter(nonMerged(ack)))
-    },[ack])
-    return [patches,enqueuePatch]
-}
-export function createSyncProviders({sender,ack,children}){
-    return createElement(SenderContext.Provider, {value:sender},
-        createElement(AckContext.Provider, {value:ack}, children)
-    )
-}
 
 /********* sync input *********************************************************/
 

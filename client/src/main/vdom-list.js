@@ -1,9 +1,9 @@
 
 
-import {createElement as $, useMemo, useState, useLayoutEffect, cloneElement, createContext, useCallback, useContext, useEffect, memo} from "../main/react-prod.js"
+import {createElement as $, useMemo, useState, useLayoutEffect, cloneElement, useCallback, useEffect, memo} from "../main/react-prod.js"
 
 import {map,head as getHead,identityAt,deleted,weakCache} from "../main/vdom-util.js"
-import {useSync} from "../main/vdom-core.js"
+import {useWidth,useEventListener,useSync} from "../main/vdom-hooks.js"
 
 const dragRowIdOf = identityAt('dragRow')
 const dragColIdOf = identityAt('dragCol')
@@ -13,23 +13,6 @@ const dragColIdOf = identityAt('dragCol')
 const sortedWith = f => l => l && [...l].sort(f)
 
 //
-
-
-const useWidth = element => {
-    const [width,setWidth] = useState(Infinity)
-    const resizeObserver = useMemo(()=>new ResizeObserver(entries => {
-        const entry = entries[0]
-        if(entry) {
-            const {fontSize} = getComputedStyle(entry.target)
-            setWidth(Math.round(entry.contentRect.width / parseFloat(fontSize)))
-        }
-    }))
-    useLayoutEffect(()=>{
-        element && resizeObserver.observe(element)
-        return () => element && resizeObserver.unobserve(element)
-    },[element])
-    return width
-}
 
 const partitionVisibleCols = (cols,outerWidth) => {
     const fit = (count,accWidth) => {
@@ -271,18 +254,6 @@ const GridRootMemo = memo(({
 
 //// dragging
 
-export const DocumentContext = createContext()
-
-const useEventListener = (el,evName,callback) => {
-    useEffect(()=>{
-        if(!callback) return undefined
-        el.addEventListener(evName,callback)
-        return ()=>el.removeEventListener(evName,callback)
-    },[el,evName,callback])
-}
-
-//
-
 const toDraggingElements = draggingStart => wasChildren => {
     const {dragKey,axis} = draggingStart
     const onMouseDown = draggingStart.onMouseDown("y")
@@ -362,7 +333,7 @@ const useGridDrag = ({dragData,setDragData,gridElement,keys,enqueuePatch}) => {
             return {...was,clientPos:willClientPos,isDown,patch:willPatch||was.patch}
         })
     },[setDragData,axis,distinctElements,keys])
-    const doc = useContext(DocumentContext)
+    const doc = gridElement && gridElement.ownerDocument
     useEventListener(doc,"mousemove",isDown && move)
     useEventListener(doc,"mouseup",isDown && move)
     useLayoutEffect(()=>{

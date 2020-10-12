@@ -16,7 +16,8 @@ import ArrowDownwardIcon from '@material-ui/icons/ArrowDownward'
 import Grid from '@material-ui/core/Grid'
 import {SortableHandle} from 'react-sortable-hoc'
 
-import { useSender, useSyncInput } from "../main/vdom-core.js"
+import { useSender } from "../main/vdom-hooks.js"
+import { useSyncInput } from "../main/vdom-core.js"
 import { useSortRoot } from "../main/vdom-sort.js"
 import { map, head, identityAt } from "../main/vdom-util.js"
 

@@ -1,7 +1,7 @@
 
-import {useCallback,useMemo,createElement} from "../main/react-prod.js"
+import {useCallback,useMemo,createElement,Children} from "../main/react-prod.js"
 import {SortableContainer,SortableElement,SortableHandle} from "react-sortable-hoc"
-import {useSync} from "../main/vdom-core.js"
+import {useSync} from "../main/vdom-hooks.js"
 import {identityAt} from "../main/vdom-util.js"
 
 const keysOf = children => children.map(c=>c.key)

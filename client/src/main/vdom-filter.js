@@ -1,45 +1,20 @@
 
-import {createElement as $,useState,useMemo,useLayoutEffect,useContext,createContext,useCallback,useEffect} from "../main/react-prod.js"
+import {createElement as $,useState,useLayoutEffect,useContext,createContext,useCallback,useEffect} from "../main/react-prod.js"
+import {useWidth,useEventListener} from "../main/vdom-hooks.js"
 
 //// move to shared
-
-const useWidth = element => {
-    const [width,setWidth] = useState(Infinity)
-    const resizeObserver = useMemo(()=>new ResizeObserver(entries => {
-        const entry = entries[0]
-        if(entry) {
-            const {fontSize} = getComputedStyle(entry.target)
-            setWidth(entry.contentRect.width / parseFloat(fontSize))
-        }
-    }))
-    useLayoutEffect(()=>{
-        element && resizeObserver.observe(element)
-        return () => element && resizeObserver.unobserve(element)
-    },[element])
-    return width
-}
-
-const useEventListener = (el,evName,callback) => {
-    useEffect(()=>{
-        if(!callback || !el) return undefined
-        el.addEventListener(evName,callback)
-        return ()=>el.removeEventListener(evName,callback)
-    },[el,evName,callback])
-}
 
 //// non-shared
 
 const sum = l => l.reduce((a,b)=>a+b,0)
 
 
-const fitButtonsSide = (allButtons,sideName,expandMode) => { // expandMode: 0 collapse 1 1-row 2 2-row
+const fitButtonsSide = (allButtons,sideName,isExpanded,isMultiline) => {
+    const isInOptLine = c => isMultiline && c.props.optButtons
+    const condExpand = c => isExpanded && c.props.optButtons ? c.props.optButtons : [c]
     const sideButtons = allButtons.filter(c => c.props.area===sideName)
-    const buttons = sideButtons.flatMap(c => (
-        c.props.optButtons && expandMode===1 ? c.props.optButtons :
-        c.props.optButtons && expandMode===2 ? [] :
-        [c]
-    ))
-    const optButtons = expandMode===2 && sideButtons.flatMap(c => c.props.optButtons || []) || []
+    const buttons = sideButtons.filter(c => !isInOptLine(c)).flatMap(condExpand)
+    const optButtons = sideButtons.filter(isInOptLine).flatMap(condExpand)
     const width = Math.max(
         sum(buttons.map(c=>c.props.minWidth)),
         sum(optButtons.map(c=>c.props.minWidth))
@@ -75,12 +50,14 @@ const doFitFilters = (filters,resTemplate) => {
 const centerButtonWidth = 1
 const emPerRow = 2
 
-const fitFilters = (filters,outerWidth,rowCount,isExpanded,lt,rt) => {
+const fitFilters = (filters,outerWidth,rowCount,canReduceButtonWidth,isMultilineButtons,lt,rt) => {
     const allButtonWidth = lt.width + centerButtonWidth + rt.width
-    const fitWidth = outerWidth - allButtonWidth
-    if(isExpanded && fitWidth < 0 ) return null
-    const minOuterWidth = isExpanded ? outerWidth :
+    const fitWidth = isMultilineButtons ? Math.max(0, outerWidth - allButtonWidth) : 0
+    if(canReduceButtonWidth && outerWidth < allButtonWidth ) return null
+
+    const minOuterWidth = //isExpanded ? outerWidth :
         Math.max(outerWidth,allButtonWidth,...getWidthLimits(filters))
+
     const resTemplate = [...Array(rowCount)].map((u,j)=>({
         items: [], leftWidth: j===0 ? fitWidth : minOuterWidth
     }))
@@ -91,9 +68,12 @@ const fitFilters = (filters,outerWidth,rowCount,isExpanded,lt,rt) => {
 const getWidthLimits = filters => getVisibleFilters(filters,0).map(c=>c.props.minWidth)
 
 const fitRows = (filters,buttons,outerWidth,expandMode,rowCount) => (
-    fitFilters(filters, outerWidth, rowCount, true , fitButtonsSide(buttons,"lt",expandMode), fitButtonsSide(buttons,"rt",expandMode)) ||
-    fitFilters(filters, outerWidth, rowCount, true , fitButtonsSide(buttons,"lt",expandMode), fitButtonsSide(buttons,"rt",         0)) ||
-    fitFilters(filters, outerWidth, rowCount, false, fitButtonsSide(buttons,"lt",         0), fitButtonsSide(buttons,"rt",         0)) ||
+    fitFilters(filters, outerWidth, rowCount, true ,false, fitButtonsSide(buttons,"lt",true ,false), fitButtonsSide(buttons,"rt",true ,false)) ||
+    fitFilters(filters, outerWidth, rowCount, true ,false, fitButtonsSide(buttons,"lt",true ,false), fitButtonsSide(buttons,"rt",false,false)) ||
+    fitFilters(filters, outerWidth, rowCount, true ,false, fitButtonsSide(buttons,"lt",false,false), fitButtonsSide(buttons,"rt",false,false)) ||
+    fitFilters(filters, outerWidth, rowCount, true ,true , fitButtonsSide(buttons,"lt",true ,true ), fitButtonsSide(buttons,"rt",true ,true )) ||
+    fitFilters(filters, outerWidth, rowCount, true ,true , fitButtonsSide(buttons,"lt",true ,true ), fitButtonsSide(buttons,"rt",false,true )) ||
+    fitFilters(filters, outerWidth, rowCount, false,true , fitButtonsSide(buttons,"lt",false,true ), fitButtonsSide(buttons,"rt",false,true )) ||
     fitRows(filters,buttons,outerWidth,expandMode,rowCount+1)
 )
 

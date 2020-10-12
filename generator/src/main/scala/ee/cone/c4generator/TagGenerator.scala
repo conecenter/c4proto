@@ -22,6 +22,8 @@ object TagGenerator extends Generator {
                   (true,TagParam(paramName, paramTypeName, None))
                 case t"VDom[${Type.Name(paramTypeName)}]*" =>
                   (true,TagParam(paramName, paramTypeName, None))
+                case t"List[VDom[${Type.Name(paramTypeName)}]]" =>
+                  (true,TagParam(paramName, paramTypeName, None))
                 case Type.Name(paramTypeName) =>
                   (false,TagParam(paramName, paramTypeName, defVal.map(_.toString)))
                 case Type.Apply(Type.Name(paramTypeNameOuter), List(Type.Name(paramTypeNameInner))) =>
@@ -53,7 +55,10 @@ object TagGenerator extends Generator {
       ))
     case _ => Nil
   }
+  val nonResolvable: Set[String] = Set("Int","Boolean","String")
 }
+
+
 
 case class TagStatements(
   defDef: String, defName: String,
@@ -78,7 +83,7 @@ case class TagStatements(
     s"\n  def appendJson(builder: MutableJsonBuilder): Unit = adapter.appendJson(this, builder)" +
     clientType.map(tp => s"\n  def tp = ${quot(tp)} ").mkString +
     s"\n  def resolve(name: String): Option[Resolvable] = (name match { " +
-    attrArgs.filter(param => param.paramTypeName!="Int" && param.paramTypeName!="Boolean")
+    attrArgs.filter(param => !TagGenerator.nonResolvable(param.paramTypeName))
       .map(param=>s"\n    case ${quot(param.paramName)} => Option(${param.paramName})").mkString +
     "\n    case _ => None" +
     "\n  }).collect{ case p: Resolvable => p }" +
