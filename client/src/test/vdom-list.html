@@ -18,15 +18,40 @@ div[data-expander='passive'] {
 div.grid {
     /* border-collapse:collapse;*/
     grid-gap: 1px;
+    border-spacing: 0;
 }
 div.grid > div {
     /*border: 1px solid green;*/
-    box-shadow: 0 0 0 1px #000;
-    background-color: silver;
+    /* box-shadow: 0 0 0 1px #000; */
+    /* background-color: silver; */
 }
+
+.tableCellContainer {
+    border-bottom: none;
+    border-left: none;
+    border-right-width: 1px;
+    border-right-style: solid;
+    border-top-width: 1px;
+    border-top-style: solid;
+    font-weight: normal;
+    padding: 0.1em 0.2em;
+    vertical-align: middle;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    outline: red none 1px;
+    outline-offset: -1px;
+    font-size: 1em;
+}
+
+.headerColor-border {
+    border-color: rgb(199, 199, 199);
+}
+
 div.grid > .drop {
     background-color: white /* !important;*/
 }
+
+
 
 </style>
 </head>

@@ -146,7 +146,7 @@ export function GridCell({children,rowKey,rowKeyMod,colKey,isExpander,expander,i
     const gridColumn = colKey
     const style = { ...props.style, gridRow, gridColumn }
     const expanderProps = isExpander ? {'data-expander':expander||'passive'} : {}
-    return $("div",{...props,...expanderProps,style},children)
+    return $("div",{...props,...expanderProps,style,className:"tableCellContainer headerColor-border"},children)
 }
 
 const pos = (rowKey,colKey)=>({ key: rowKey+colKey, rowKey, colKey })
