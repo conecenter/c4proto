@@ -86,6 +86,7 @@ trait SnapshotMakingAppBase extends TaskSignerApp
   with FileRawSnapshotLoaderApp with FileRawSnapshotSaverApp
   with ConfigDataDirApp with SignedReqUtilImplApp
   with ConfigSimpleSignerApp with SnapshotUtilImplApp
+  with SnapshotListProtocolApp
 trait SnapshotPutAppBase extends SignedReqUtilImplApp with SnapshotLoaderFactoryImplApp
 trait SignedReqUtilImplAppBase
 
