@@ -1,5 +1,7 @@
 package ee.cone.c4actor.rdb_impl
 
-trait RDBSyncAppBase
+import ee.cone.c4actor.rdb.ExternalActivatorApp
+
+trait RDBSyncAppBase extends ExternalActivatorApp
 trait ToExternalDBSyncAppBase extends RDBSyncApp
 trait FromExternalDBSyncAppBase extends RDBSyncApp
