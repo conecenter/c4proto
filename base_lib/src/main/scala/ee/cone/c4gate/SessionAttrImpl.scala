@@ -47,16 +47,28 @@ import ee.cone.c4di.{c4, provide}
   ): Values[(Alive, U_RawSessionData)] = List(WithPK(sessionData))
 }
 
+object SessionAttrLens {
+  def apply[From <: Product, To <: Product](
+    metaList: List[AbstractMetaAttr],
+    fromMeta: OrigMeta[From],
+    toMeta: OrigMeta[To]
+  )(of: From => To, set: To => From => From): ProdLens[From, To] =
+    ProdLensStrict(metaList, fromMeta.cl, toMeta.cl, fromMeta.typeKey, toMeta.typeKey)(of, set)
+}
+
 @c4("SessionAttrCompApp") final class SessionAttrAccessFactoryImpl(
   registry: QAdapterRegistry,
   modelFactory: ModelFactory,
   modelAccessFactory: RModelAccessFactory,
   val idGenUtil: IdGenUtil,
   getU_RawSessionData: GetByPK[U_RawSessionData],
+  rawSessionDataMeta: OrigMeta[U_RawSessionData],
+  origMetaRegistry: OrigMetaRegistry
 ) extends SessionAttrAccessFactory with KeyGenerator{
   def to[P<:Product](attr: SessionAttr[P]): Context=>Option[Access[P]] = {
     val adapter = registry.byName(classOf[U_RawSessionData].getName)
-    val lens = ProdLensNonstrict[U_RawSessionData,P](attr.metaList)(
+    val meta = origMetaRegistry.byName(attr.className).asInstanceOf[OrigMeta[P]]
+    val lens = SessionAttrLens(attr.metaList, rawSessionDataMeta, meta)(
       rawData => registry.byId(rawData.dataNode.get.valueTypeId).decode(rawData.dataNode.get.value).asInstanceOf[P],
       value => rawData => {
         val valueAdapter = registry.byName(attr.className)
