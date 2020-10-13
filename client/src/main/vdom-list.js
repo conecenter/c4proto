@@ -8,6 +8,12 @@ import {useWidth,useEventListener,useSync} from "../main/vdom-hooks.js"
 const dragRowIdOf = identityAt('dragRow')
 const dragColIdOf = identityAt('dragCol')
 
+const CELL_TYPES = {
+    HEAD: "head",
+    DRAG: "drag",
+    EXPAND: "expand"
+}
+
 //// col hiding
 
 const sortedWith = f => l => l && [...l].sort(f)
@@ -141,12 +147,12 @@ const getGridRow = ({rowKey,rowKeyMod}) => rowKey+(rowKeyMod||'')
 
 const spanAll = "1 / -1"
 
-export function GridCell({children,rowKey,rowKeyMod,colKey,isExpander,expander,isRowDragHandle,...props}){
+export function GridCell({children,rowKey,rowKeyMod,colKey,isExpander,expander,isRowDragHandle,className,...props}){
     const gridRow = getGridRow({rowKey,rowKeyMod})
     const gridColumn = colKey
     const style = { ...props.style, gridRow, gridColumn }
     const expanderProps = isExpander ? {'data-expander':expander||'passive'} : {}
-    return $("div",{...props,...expanderProps,style,className:"tableCellContainer headerColor-border"},children)
+    return $("div",{...props,...expanderProps,style,className:`tableCellContainer headerColor-border ${className}`},children)
 }
 
 const pos = (rowKey,colKey)=>({ key: rowKey+colKey, rowKey, colKey })
@@ -186,7 +192,7 @@ export function GridRoot({identity,rowKeys,cols,...props}){
     const [expanded, setExpandedItem] = useExpanded()
 
     const gridTemplateRows = useMemo(()=>getGidTemplateRows([
-        {rowKey:"drag"}, {rowKey:"head"}, ...expandRowKeys(expanded)(patchedRowKeys)
+        {rowKey: CELL_TYPES.DRAG}, {rowKey: CELL_TYPES.HEAD}, ...expandRowKeys(expanded)(patchedRowKeys)
     ]), [expanded,patchedRowKeys])
 
 
@@ -214,12 +220,12 @@ const GridRootMemo = memo(({
 
     const {toExpanderElements,getExpandedCells} = useExpandedElements(expanded,setExpandedItem)
 
-    const headElements = map(col=>$(GridCell,{...pos("head",col.props.colKey)},col.props.caption))(hideExpander(hasHiddenCols)(cols))
+    const headElements = map(col=>$(GridCell,{...pos(CELL_TYPES.HEAD,col.props.colKey), className:"tableHeadContainer headerColor"},col.props.caption))(hideExpander(hasHiddenCols)(cols))
 
     const dragStyle = { style: {userSelect: "none", cursor: "pointer"} }
 
     const colDragElements = cols.filter(c=>c.props.canDrag).map(col=>$(GridCell,{
-        ...pos("drag",col.props.colKey), onMouseDown: draggingStart.onMouseDown("x"), ...dragStyle,
+        ...pos(CELL_TYPES.DRAG,col.props.colKey), onMouseDown: draggingStart.onMouseDown("x"), ...dragStyle,
     }, "o"))
 
     const dropElements = getDropElements(draggingStart)

@@ -17,41 +17,71 @@ div[data-expander='passive'] {
 }
 div.grid {
     /* border-collapse:collapse;*/
-    grid-gap: 1px;
     border-spacing: 0;
 }
-div.grid > div {
-    /*border: 1px solid green;*/
-    /* box-shadow: 0 0 0 1px #000; */
-    /* background-color: silver; */
+
+.tableHeadContainer {
+    font-weight: bold;
+    vertical-align: middle;
+    overflow: visible;
 }
 
 .tableCellContainer {
-    border-bottom: none;
-    border-left: none;
-    border-right-width: 1px;
-    border-right-style: solid;
-    border-top-width: 1px;
-    border-top-style: solid;
-    font-weight: normal;
+    border-width: 1px 1px 0 0;
+    border-style: solid;
     padding: 0.1em 0.2em;
     vertical-align: middle;
-    overflow: hidden;
+    overflow: hidden;           
     text-overflow: ellipsis;
     outline: red none 1px;
     outline-offset: -1px;
-    font-size: 1em;
 }
 
 .headerColor-border {
-    border-color: rgb(199, 199, 199);
+    border-color: rgb(225, 225, 225);
 }
 
-div.grid > .drop {
-    background-color: white /* !important;*/
+.headerColor {
+    background-color: rgb(225, 225, 225);
 }
 
+/* div.grid > .drop {
+    background-color: white !important;
+} */
 
+/* --grid-template-rows:
+[drag] auto 
+[head] auto 
+[r0] auto 
+[r2] auto 
+[r3] auto 
+[r4] auto 
+[r5] auto 
+[r6] auto 
+[r7] auto 
+[r8] auto 
+[r9] auto 
+[r10] auto 
+[r11] auto 
+[r12] auto 
+[r13] auto 
+[r14] auto 
+[r15] auto 
+[r16] auto 
+[r17] auto 
+[r1] auto 
+[r18] auto 
+[r19] auto; 
+
+--grid-template-columns:
+[c0] minmax(5em,5em) 
+[expand] minmax(1em,1em) 
+[c1] minmax(5em,5em) 
+[c2] minmax(5em,5em) 
+[c3] minmax(15em,15em) 
+[c8] minmax(5em,5em) 
+[c9] minmax(5em,5em) 
+[drag] minmax(1em,1em); */
 
 </style>
 </head>
