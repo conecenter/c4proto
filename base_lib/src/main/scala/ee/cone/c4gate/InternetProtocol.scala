@@ -25,6 +25,7 @@ import ee.cone.c4proto._
     @Id(0x002A) srcId: String,
     @Id(0x002F) method: String,
     @Id(0x0021) path: String,
+    @Id(0x36af) rawQueryString: Option[String],
     @Id(0x0022) headers: List[N_Header],
     @Id(0x0023) body: okio.ByteString,
     @Id(0x002D) time: Long
