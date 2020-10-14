@@ -93,7 +93,6 @@ object AuthOperations {
   getC_PasswordRequirements: GetByPK[C_PasswordRequirements],
   getC_PasswordHashOfUser: GetByPK[C_PasswordHashOfUser],
   getU_AuthenticatedSession: GetByPK[U_AuthenticatedSession],
-  externalLoginHandler: List[ExternalLoginHandler],
 ) extends LazyLogging {
 
   private def getSession(request: S_HttpRequest, local: Context): U_AuthenticatedSession = {
