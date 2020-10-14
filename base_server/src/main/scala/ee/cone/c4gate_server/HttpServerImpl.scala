@@ -95,11 +95,6 @@ object AuthOperations {
   getU_AuthenticatedSession: GetByPK[U_AuthenticatedSession],
 ) extends LazyLogging {
 
-  private def getSession(request: S_HttpRequest, local: Context): U_AuthenticatedSession = {
-    val wasSessionKey = ReqGroup.session(request).filter(_.nonEmpty).get
-    getU_AuthenticatedSession.ofA(local)(wasSessionKey)
-  }
-
   def wire: RHttpHandlerCreate = next => (request,local) => {
     if(request.method != "POST") next(request,local)
     else ReqGroup.header(request,"x-r-auth") match {
