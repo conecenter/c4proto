@@ -88,7 +88,7 @@ trait ReadModelUtil {
   def updated(worldKeys: Seq[AssembledKey], values: Future[Seq[Index]])(implicit ec: ExecutionContext): ReadModel=>ReadModel
   def isEmpty(implicit executionContext: ExecutionContext): ReadModel=>Future[Boolean]
   def op(op: (MMap,MMap)=>MMap): (ReadModel,ReadModel)=>ReadModel
-  def ready(implicit executionContext: ExecutionContext): ReadModel=>Future[ReadModel]
+  def changesReady(prev: ReadModel, next: ReadModel)(implicit executionContext: ExecutionContext): Future[Any]
   def toMap: ReadModel=>Map[AssembledKey,Index]
 }
 
@@ -185,7 +185,8 @@ class was extends StaticAnnotation
 class distinct extends StaticAnnotation
 class ns(key: String) extends StaticAnnotation
 
-trait ExpressionsDumper[To] {
+trait GeneralExpressionsDumper
+trait ExpressionsDumper[To] extends GeneralExpressionsDumper {
   def dump(expressions: List[DataDependencyTo[_] with DataDependencyFrom[_]]): To
 }
 
