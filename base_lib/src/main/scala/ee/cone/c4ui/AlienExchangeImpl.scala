@@ -23,7 +23,9 @@ case object ToAlienPriorityKey extends TransientLens[java.lang.Long](0L)
 @c4("AlienExchangeCompApp") final class ToAlienSenderImpl(
   txAdd: LTxAdd,
 ) extends ToAlienSender {
-  def send(sessionKeys: Seq[String], evType: String, data: String): Context => Context = local => if(sessionKeys.isEmpty) local else {
+  def send(sessionKeys: Seq[String], evType: String, data: String): Context => Context = local =>
+    if(sessionKeys.isEmpty) local else doSend(sessionKeys, evType, data, local)
+  private def doSend(sessionKeys: Seq[String], evType: String, data: String, local: Context): Context = {
     val priority = ToAlienPriorityKey.of(local)
     val messages = sessionKeys.zipWithIndex.flatMap{
       case (sessionKey,i) =>
