@@ -106,7 +106,7 @@ function App(){
     const exCol = (colKey,hideWill,minWidth,maxWidth) => $(GridCol,{
         key: ":"+colKey, colKey, hideWill, minWidth, maxWidth,
         ...(
-            colKey === "drag" ? {} : colKey === "expand" ? {isExpander: true} :
+            colKey === "drag" ? {} : colKey === "expand" ? {isExpander: true, canDrag: enableColDrag} :
             {caption: "H"+colKey, canDrag: enableColDrag}
         )
     })

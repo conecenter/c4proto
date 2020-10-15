@@ -4,6 +4,7 @@ import {createElement as $, useMemo, useState, useLayoutEffect, cloneElement, us
 
 import {map,head as getHead,identityAt,deleted,weakCache} from "../main/vdom-util.js"
 import {useWidth,useEventListener,useSync} from "../main/vdom-hooks.js"
+import downarrowsvg from '../test/icons/downarrowrow.svg'
 
 const dragRowIdOf = identityAt('dragRow')
 const dragColIdOf = identityAt('dragCol')
