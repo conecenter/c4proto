@@ -231,7 +231,12 @@ my $get_pod = sub{
     my($comp,$ns)=@_;
     my $stm = qq[kubectl -n $ns get po -l app=$comp -o jsonpath="{.items[*].metadata.name}"];
     my @pods = syf(&$remote($comp,$stm))=~/(\S+)/g;
-    my $pod = &$single_or_undef(@pods) || die "no single pod for $comp";
+    my $pod = &$single_or_undef(@pods) ||
+        &$single_or_undef(grep{
+            my $pod = $_;
+            0 < grep{/^c4is-master\s*$/} syl(&$remote($comp,qq[kubectl -n $ns exec $pod -- ls /c4]))
+        }@pods) ||
+        die "no single pod for $comp";
     ($ns,$pod)
 };
 

@@ -3,16 +3,20 @@ package ee.cone.c4assemble
 
 // see Topological sorting
 
+import java.nio.file.{Files, Path, Paths}
+
 import Types._
 import ee.cone.c4assemble.IndexTypes.{DMultiSet, InnerIndex, InnerKey, Products}
 import ee.cone.c4assemble.Merge.Compose
 import ee.cone.c4di.{c4, c4multi}
 
+import scala.annotation.tailrec
 import scala.collection.{immutable, mutable}
 import scala.collection.immutable.{Map, Seq, TreeMap}
 import scala.util.{Failure, Success}
 //import scala.collection.parallel.immutable.ParVector
 import scala.concurrent.{ExecutionContext, Future}
+import java.nio.charset.StandardCharsets.UTF_8
 
 case class Count(item: Product, count: Int)
 
@@ -510,30 +514,38 @@ class FailedRule(val message: List[String]) extends WorldPartRule
     val expressionsByPriorityWithLoops = optimizer.optimize(expressionsByPriority)
     val backStage =
       backStageFactory.create(expressionsByPriorityWithLoops.collect{ case e: WorldPartExpression with DataDependencyFrom[_] => e })
-    val transforms = expressionsByPriorityWithLoops ::: backStage ::: Nil
-    val transformAllOnce: WorldTransition=>WorldTransition = Function.chain(transforms.map(h=>h.transform(_)))
-    replaceImplFactory.create(rulesByPriority, transformAllOnce)
+    val transforms: List[WorldPartExpression] = expressionsByPriorityWithLoops ::: backStage ::: Nil
+    //val transformAllOnce: WorldTransition=>WorldTransition = Function.chain(transforms.map(h=>h.transform(_)))
+    replaceImplFactory.create(rulesByPriority, transforms)
+  }
+}
+
+@c4("AssembleApp") final class DefExpressionsDumper extends ExpressionsDumper[Unit] {
+  private def ignoreTheSamePath(path: Path): Unit = ()
+  def dump(expressions: List[DataDependencyTo[_] with DataDependencyFrom[_]]): Unit = {
+    val content = expressions.map(expression=>s"${expression.inputWorldKeys.mkString(" ")} ==> ${expression.outputWorldKeys.mkString(" ")}").mkString("\n")
+    ignoreTheSamePath(Files.write(Paths.get("rules.out"),content.getBytes(UTF_8)))
   }
 }
 
 @c4multi("AssembleApp") final class ReplaceImpl(
   val active: List[WorldPartRule],
-  transformAllOnce: WorldTransition=>WorldTransition
+  transforms: List[WorldPartExpression]
 )(
   composes: IndexUtil, readModelUtil: ReadModelUtil,
 ) extends Replace {
+  @tailrec def transformTail(transforms: List[WorldPartExpression], transition: WorldTransition): WorldTransition =
+    if(transforms.isEmpty) transition
+    else transformTail(transforms.tail, transforms.head.transform(transition))
+  def transformAllOnce(transition: WorldTransition): WorldTransition =
+    transformTail(transforms,transition)
   def transformUntilStable(left: Int, transition: WorldTransition): Future[WorldTransition] = {
     implicit val executionContext: ExecutionContext = transition.executionContext.value
     for {
       stable <- readModelUtil.isEmpty(executionContext)(transition.diff) //seq
       res <- {
         if(stable) Future.successful(transition)
-        else if(left > 0) transformUntilStable(left-1, {
-          //val start = System.nanoTime
-          val r = transformAllOnce(transition)
-          //println(s"transformAllOnce ${r.taskLog.size} (${r.taskLog.takeRight(4)})/${transforms.size} rules \n${(System.nanoTime-start)/1000000} ms")
-          r
-        })
+        else if(left > 0) transformUntilStable(left-1, transformAllOnce(transition))
         else Future.failed(new Exception(s"unstable assemble ${transition.diff}"))
       }
     } yield res
@@ -552,7 +564,7 @@ class FailedRule(val message: List[String]) extends WorldPartRule
     val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,profiler,Future.successful(Nil),executionContext,Nil)
     for {
       finalTransition <- transformUntilStable(1000, nextTransition)
-      ready <- readModelUtil.ready(ec)(finalTransition.result) //seq
+      ready <- readModelUtil.changesReady(prevWorld,finalTransition.result) //seq
     } yield finalTransition
   }
 }
