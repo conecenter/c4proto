@@ -3,7 +3,7 @@ package ee.cone.c4assemble
 
 // see Topological sorting
 
-import java.nio.file.{Files, Paths}
+import java.nio.file.{Files, Path, Paths}
 
 import Types._
 import ee.cone.c4assemble.IndexTypes.{DMultiSet, InnerIndex, InnerKey, Products}
@@ -521,9 +521,10 @@ class FailedRule(val message: List[String]) extends WorldPartRule
 }
 
 @c4("AssembleApp") final class DefExpressionsDumper extends ExpressionsDumper[Unit] {
+  private def ignoreTheSamePath(path: Path): Unit = ()
   def dump(expressions: List[DataDependencyTo[_] with DataDependencyFrom[_]]): Unit = {
     val content = expressions.map(expression=>s"${expression.inputWorldKeys.mkString(" ")} ==> ${expression.outputWorldKeys.mkString(" ")}").mkString("\n")
-    Files.write(Paths.get("rules.out"),content.getBytes(UTF_8))
+    ignoreTheSamePath(Files.write(Paths.get("rules.out"),content.getBytes(UTF_8)))
   }
 }
 
