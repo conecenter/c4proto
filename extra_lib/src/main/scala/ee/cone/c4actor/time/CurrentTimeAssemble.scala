@@ -52,6 +52,7 @@ trait CurrTimeConfig[Model <: T_Time] extends GeneralCurrTimeConfig with LazyLog
 }
 
 @c4("GeneralCurrentTimeApp") final class TimeGettersImpl(timeGetters: List[TimeGetter]) extends TimeGetters {
+  def all: List[TimeGetter] = timeGetters
   lazy val gettersMap: Map[SrcId, TimeGetter] = timeGetters.map(getter => getter.currentTime.srcId -> getter).toMap
   def apply(currentTime: CurrentTime): TimeGetter =
     gettersMap(currentTime.srcId)

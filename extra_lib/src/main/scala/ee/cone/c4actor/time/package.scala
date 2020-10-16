@@ -21,6 +21,7 @@ package object time {
 
   trait TimeGetters {
     def apply(currentTime: CurrentTime): TimeGetter
+    def all: List[TimeGetter]
   }
 
 }
