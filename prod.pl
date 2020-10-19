@@ -1385,11 +1385,15 @@ my $get_head_img_tag = sub{
     die $parent;
 };
 
+my $get_head_img = sub{
+    my($req_pre,$repo_dir,$parent) = @_;
+    $repo_dir ? "$req_pre.".&$get_head_img_tag($repo_dir,$parent) : $req_pre;
+};
+
 push @tasks, ["ci_build_head","<builder> <req> <dir|commit> [parent]",sub{
     my($builder_comp,$req_pre,$repo_dir,$parent) = @_;
     sy(&$ssh_add());
-    my $pf = &$get_head_img_tag($repo_dir,$parent);
-    my $img = "$req_pre.$pf";
+    my $img = &$get_head_img($req_pre,$repo_dir,$parent);
     my $req = "build $img\n";
     my $gen_dir = $ENV{C4PROTO_DIR} || die;
     my ($host,$port) = &$get_host_port($builder_comp);
@@ -1403,8 +1407,8 @@ push @tasks, ["ci_build_head","<builder> <req> <dir|commit> [parent]",sub{
 }];
 push @tasks, ["ci_build_head_tcp","",sub{ # <host>:<port> <req> <dir|commit> [parent]
     my($addr,$req_pre,$repo_dir,$parent) = @_;
-    my $pf = &$get_head_img_tag($repo_dir,$parent);
-    my $req = "build $req_pre.$pf\n";
+    my $img = &$get_head_img($req_pre,$repo_dir,$parent);
+    my $req = "build $img\n";
     &$nc($addr,sub{ $req });
 }];
 my $ci_inner_opt = sub{

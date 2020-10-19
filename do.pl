@@ -172,7 +172,7 @@ push @tasks, ["ignore_all_snapshots", sub{
     &$exec_server("base_server.ee.cone.c4gate_server.IgnoreAllSnapshotsApp");
 }];
 push @tasks, ["run", sub{
-    sy("perl $prod_pl build_client_changed . dev");
+    sy("perl $prod_pl build_client_changed . dev"); # ?may be able to redefine "." to absolute path
     &$exec_server($_[0])
 }];
 my %color = qw(bright_red 91 green 32 yellow 33 bright_yellow 93 reset 0);
