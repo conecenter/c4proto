@@ -2,7 +2,8 @@ package ee.cone.c4ui.dep
 
 import ee.cone.c4actor.Access
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.dep.Dep
+import ee.cone.c4actor.dep.{AskByPK, Dep}
+import ee.cone.c4actor.time.{CurrentTime, T_Time}
 import ee.cone.c4gate.SessionAttr
 
 trait SessionAttrAskFactory {
@@ -11,6 +12,14 @@ trait SessionAttrAskFactory {
   def askSessionAttrWithDefault[P <: Product](attr: SessionAttr[P], default: SrcId => P): Dep[Option[Access[P]]]
 }
 
+/**
+ * Needs to be @provide if used
+ */
+trait CurrentTimeRequestFactory {
+  def ask: Dep[Long]
+  def byPkAsk: AskByPK[_ <: T_Time]
+}
+
 trait CurrentTimeAskFactory {
-  def askCurrentTime(eachNSeconds: Long): Dep[Long]
+  def askCurrentTime(time: CurrentTime): CurrentTimeRequestFactory
 }

@@ -1,18 +1,16 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.EqProtocol.{D_ChangingNode, D_IntEq, D_StrStartsWith, D_TestObject, D_TestObject2}
+import ee.cone.c4actor.EqProtocol._
 import ee.cone.c4actor.HashSearch.{Request, Response}
 import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.TestProtocol.D_TestNode
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.dep.request.CurrentTimeApp
 import ee.cone.c4actor.hashsearch.base.HashSearchAssembleApp
 import ee.cone.c4actor.hashsearch.condition.ConditionCheckWithCl
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
-import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{S_IndexByNode, S_IndexNode, S_IndexNodeSettings}
+import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{S_IndexByNode, S_IndexNode}
 import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexAssemble, DynamicIndexModelsProvider, ProductWithId}
-import ee.cone.c4actor.hashsearch.rangers.IndexType.{Default, IndexType}
 import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryMix, RangerWithCl}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
@@ -279,7 +277,6 @@ trait TestCondition extends SerializationUtilsApp {
   with DynamicIndexAssemble
   with LensRegistryMix
   with HashSearchRangerRegistryMix
-  with CurrentTimeApp
   with WithMurMur3HashGenApp
   with ProdLensesApp
   with EqProtocolApp

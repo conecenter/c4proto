@@ -5,14 +5,13 @@ import java.time.Instant
 import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4actor.dep.request.CurrentTimeProtocol.S_CurrentTimeNode
-import ee.cone.c4actor.dep.request.{CurrentTimeConfig, CurrentTimeConfigApp}
 import ee.cone.c4actor.hashsearch.base.InnerLeaf
 import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{S_IndexNodeSettings, _}
 import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistry, HashSearchRangerRegistryApp, IndexType, RangerWithCl}
+import ee.cone.c4actor.time.{CurrentTime, T_Time, c4time, time}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4di.{Component, ComponentsApp, c4, c4multi, provide}
+import ee.cone.c4di.{c4, c4multi, provide}
 
 import scala.collection.immutable
 import scala.collection.immutable.Seq
@@ -22,17 +21,27 @@ case class ProductWithId[Model <: Product](modelCl: Class[Model], modelId: Int)
 case class DynamicIndexModelsProvider(values: List[ProductWithId[_ <: Product]])
 
 trait DynamicIndexAutoStaticNodeCount extends IntValue
+
 trait DynamicIndexAutoStaticLiveSeconds extends IntValue
+
 trait DynamicIndexMaxEvents extends IntValue
+
 trait DynamicIndexAssembleDebugMode extends BooleanValue
+
 trait DynamicIndexDeleteAnywaySeconds extends IntValue
+
 trait HashSearchVersion extends StringValue
 
 @c4("DynamicIndexAssemble") final class DefaultDynamicIndexAutoStaticNodeCount extends IntConstant(1000) with DynamicIndexAutoStaticNodeCount
+
 @c4("DynamicIndexAssemble") final class DefaultDynamicIndexAutoStaticLiveSeconds extends IntConstant(60 * 60) with DynamicIndexAutoStaticLiveSeconds
+
 @c4("DynamicIndexAssemble") final class DefaultDynamicIndexMaxEvents extends IntConstant(100000) with DynamicIndexMaxEvents
+
 @c4("DynamicIndexAssemble") final class DefaultDynamicIndexAssembleDebugMode extends BooleanFalse with DynamicIndexAssembleDebugMode
+
 @c4("DynamicIndexAssemble") final class DefaultDynamicIndexDeleteAnywaySeconds extends IntConstant(60 * 60 * 24 * 1) with DynamicIndexDeleteAnywaySeconds
+
 @c4("DynamicIndexAssemble") final class DefaultHashSearchVersion extends StringConstant("MC5FLkU=") with HashSearchVersion // note equals to base64 http://base64decode.toolur.com/
 
 @c4("DynamicIndexAssemble") final class DynamicIndexModelsRegistry(providers: List[DynamicIndexModelsProvider], thanosTimeFiltersFactory: ThanosTimeFiltersFactory, indexNodeThanosFactory: IndexNodeThanosFactory) {
@@ -42,27 +51,15 @@ trait HashSearchVersion extends StringValue
       models.distinct.map(p => indexNodeThanosFactory.create(p.modelCl, p.modelId))
 }
 
-object DynIndexRefresh {
-  def apply(): String = "DynamicIndexAssembleRefresh"
-}
-
 trait DynamicIndexAssembleBase
   extends AssemblesApp
     with SerializationUtilsApp
-    with CurrentTimeConfigApp
     with HashSearchDynamicIndexApp
     with HashSearchRangerRegistryApp
     with CollectiveTransformApp
     with ComponentProviderApp
-{
 
-  def dynamicIndexRefreshRateSeconds: Long
-
-  override def currentTimeConfig: List[CurrentTimeConfig] =
-    CurrentTimeConfig(DynIndexRefresh(), dynamicIndexRefreshRateSeconds) ::
-      super.currentTimeConfig
-
-}
+@c4time(0x01A0, "DynamicIndexAssemble") case object DynamicIndexTime extends CurrentTime(60L * 60L)
 
 @c4("DynamicIndexAssemble") final class ModelListIntegrityCheck(registry: DynamicIndexModelsRegistry) {
   val map = registry.models.groupBy(_.modelId)
@@ -383,11 +380,11 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
     innerLeafs: Values[ProcessedLeaf[Model]],
     indexByNodesLastSeen: Values[S_IndexByNodeLastSeen],
     indexByNodeSettings: Values[S_IndexByNodeSettings],
-    @byEq[SrcId](DynIndexRefresh()) currentTimes: Each[S_CurrentTimeNode]
+    @time(DynamicIndexTime) currentTimes: Each[T_Time]
   ): Values[(IndexNodeId, IndexByNodeRich[Model])] =
     if (nodes.size == 1) {
       val node = nodes.head
-      val currentTime = currentTimes.currentTimeSeconds
+      val currentTime = currentTimes.millis
       val leafIsPresent = innerLeafs.nonEmpty
       val lastPong = indexByNodesLastSeen.headOption.map(_.lastSeenAtSeconds).getOrElse(0L)
       val setting = indexByNodeSettings.headOption
@@ -477,9 +474,9 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
     indexByNodeId: SrcId,
     indexByNodes: Each[IndexByNodeTyped[Model]],
     indexByNodesLastSeen: Values[S_IndexByNodeLastSeen],
-    @byEq[SrcId](DynIndexRefresh()) currentTimes: Each[S_CurrentTimeNode]
+    @time(DynamicIndexTime) currentTimes: Each[T_Time]
   ): Values[(ThanosLEventsTransformsAll, LEventTransform)] =
-    if (indexByNodesLastSeen.nonEmpty && currentTimes.currentTimeSeconds - indexByNodesLastSeen.head.lastSeenAtSeconds > dynamicIndexDeleteAnywaySeconds.value) {
+    if (indexByNodesLastSeen.nonEmpty && currentTimes.millis - indexByNodesLastSeen.head.lastSeenAtSeconds > dynamicIndexDeleteAnywaySeconds.value) {
       WithAll(PowerTransform(indexByNodes.leafId, s"Anyway-${indexByNodes.leafId}")) :: Nil
     } else {
       Nil
@@ -567,13 +564,13 @@ case class SoulCorrectionTransform(srcId: SrcId, indexNodeList: List[S_IndexNode
     if (version != versionW) {
       val delete = (
         getS_IndexNodesVersion.ofA(local).values ++
-        getS_IndexNode.ofA(local).values ++
-        getS_IndexNodeSettings.ofA(local).values ++
-        getS_IndexByNode.ofA(local).values ++
-        getS_IndexByNodeLastSeen.ofA(local).values ++
-        getS_IndexByNodeSettings.ofA(local).values ++
-        getS_TimeMeasurement.ofA(local).values
-      ).flatMap(LEvent.delete).toList
+          getS_IndexNode.ofA(local).values ++
+          getS_IndexNodeSettings.ofA(local).values ++
+          getS_IndexByNode.ofA(local).values ++
+          getS_IndexByNodeLastSeen.ofA(local).values ++
+          getS_IndexByNodeSettings.ofA(local).values ++
+          getS_TimeMeasurement.ofA(local).values
+        ).flatMap(LEvent.delete).toList
       val add = LEvent.update(S_IndexNodesVersion(fbId, version))
       txAdd.add(delete ++ add)(local)
     }

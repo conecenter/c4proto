@@ -3,7 +3,7 @@
 use strict;
 use Digest::MD5 qw(md5_hex);
 
-my $sys_image_ver = "v70";
+my $sys_image_ver = "v72";
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -1026,7 +1026,7 @@ my $prod_image_steps = sub{(
     "RUN perl install.pl apt haproxy",
     #"RUN perl install.pl curl https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz",
     "RUN perl install.pl curl https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.5%2B10/OpenJDK11U-jdk_x64_linux_hotspot_11.0.5_10.tar.gz",
-    "RUN perl install.pl curl https://www-eu.apache.org/dist/kafka/2.2.0/kafka_2.12-2.2.0.tgz",
+    "RUN perl install.pl curl https://archive.apache.org/dist/kafka/2.2.0/kafka_2.12-2.2.0.tgz",
     "RUN perl install.pl curl http://ompc.oss.aliyuncs.com/greys/release/greys-stable-bin.zip",
     "RUN mkdir /c4db && chown c4:c4 /c4db",
 )};
@@ -1049,7 +1049,7 @@ my $up_desktop = sub{
         my $conf_cert_path = &$get_conf_cert_path().".pub";
         sy("cp $gen_dir/install.pl $gen_dir/desktop.pl $gen_dir/haproxy.pl $conf_cert_path $from_path/");
         &$put("c4p_alias.sh", join "\n",
-            'export PATH=$PATH:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin:/tools/kafka/bin:/tools:/c4/.bloop',
+            'export PATH=$PATH:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin:/tools/kafka/bin:/tools:/c4/.local/share/coursier/bin',
             'export JAVA_HOME=/tools/jdk',
             'export C4DEPLOY_CONF=/c4conf/ssh.tar.gz',
             "export C4DEPLOY_LOCATION=".($ENV{C4DEPLOY_LOCATION}||die),
@@ -1069,7 +1069,7 @@ my $up_desktop = sub{
             " wget nano python",
             "RUN perl install.pl curl $dl_frp_url",
             "RUN perl install.pl curl https://nodejs.org/dist/v8.9.1/node-v8.9.1-linux-x64.tar.xz",
-            "RUN perl install.pl curl https://piccolo.link/sbt-1.3.2.tgz",
+            "RUN perl install.pl curl https://github.com/sbt/sbt/releases/download/v1.4.0/sbt-1.4.0.tgz",
             "RUN perl install.pl curl https://git.io/coursier-cli && chmod +x /tools/coursier",
             "RUN rm -r /etc/dropbear && ln -s /c4/dropbear /etc/dropbear ",
             "COPY desktop.pl haproxy.pl id_rsa.pub c4p_alias.sh /",
