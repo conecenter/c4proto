@@ -1,5 +1,5 @@
 "use strict";
-import { useState, useEffect, createElement, useRef } from '../../main/react-prod.js'
+import { useState, useEffect, createElement, useRef } from '../main/react-prod'
 import { globalRegistry, checkActivateCalls } from './utils.js'
 
 
@@ -25,7 +25,8 @@ const SVGElement = ({ url, ...props }) => {
 
         function getViewBox(str) {
             const reg = /viewBox=["'](.+?)["']/
-            return str.match(reg)[1]
+            const res = str.match(reg)
+            return res ? res[1] : initViewBox
         }
 
         if (url.startsWith("data:")) {
@@ -43,32 +44,15 @@ const SVGElement = ({ url, ...props }) => {
     }, [url])
 
     useEffect(() => {
-        /*ref.current.onload = () => {
-            const {x,y, width, height} = ref.current.getBBox()
-            const viewBox = `${x} ${y} ${width} ${height}`           
-            window.console.log("loaded2")
-            setState({...state,viewBox})
-        }*/
-        savedCallback.current = () => {
-            if (!ref.current) return
-            const win = ref.current.ownerDocument.defaultView
-            const color = !props.color || props.color == "adaptive" ? win.getComputedStyle(ref.current).color : props.color
-            const { x, y, width, height } = ref.current.getBBox()
-            const defViewBox = `${x} ${y} ${width} ${height}`
-            const viewBox = props.viewPort ? props.viewPort : state.viewBox !== initViewBox ? state.viewBox : defViewBox
-            if (state.color != color || state.viewBox != viewBox)
-                setState(was => { return { ...was, viewBox, color } })
-
-        }
+        if (!ref.current) return
+        const win = ref.current.ownerDocument.defaultView
+        const color = !props.color || props.color == "adaptive" ? win.getComputedStyle(ref.current).color : props.color
+        const { x, y, width, height } = ref.current.getBBox()
+        const defViewBox = `${x} ${y} ${width} ${height}`
+        const viewBox = props.viewPort ? props.viewPort : state.viewBox !== initViewBox ? state.viewBox : defViewBox
+        if (state.color != color || state.viewBox != viewBox)
+            setState(was => { return { ...was, viewBox, color } })
     })
-
-    useEffect(() => {
-        const color = () => savedCallback.current()
-        checkActivateCalls.add(color)
-        return () => {
-            checkActivateCalls.remove(color)
-        }
-    }, [])
 
     const size = state.viewBox == initViewBox ? { width: "0px", height: "0px" } : {}
     const htmlObject = { __html: state.content }

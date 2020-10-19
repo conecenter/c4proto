@@ -1,0 +1,77 @@
+body {
+    font-family: helvetica;
+}
+
+div[data-expander="expanded"] {
+    > div > .expanderElement {
+        transform: rotate(180deg);
+    }
+}
+
+div[data-expander="collapsed"] {
+}
+
+div[data-expander="passive"] {
+    visibility: hidden;
+}
+
+div.grid {
+    /* border-collapse:collapse;*/
+    border-spacing: 0;
+}
+
+.tableHeadContainer {
+    font-weight: bold;
+    vertical-align: middle;
+    overflow: visible;
+}
+
+.tableCellContainer {
+    border-width: 1px 1px 0 0;
+    border-style: solid;
+    padding: 0.1em 0.2em;
+    vertical-align: middle;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    outline: red none 1px;
+    outline-offset: -1px;
+}
+
+.headerColor-border {
+    border-color: rgb(225, 225, 225);
+}
+
+.headerColor {
+    background-color: rgb(225, 225, 225);
+}
+
+.expanderElementContainer {
+    margin: 0.2em;
+    align-self: center;
+}
+
+.expanderElement {
+    display: block;
+    min-height: 1.2em;
+    cursor: pointer;
+    margin: 0.2em auto;
+    align-self: center;
+}
+
+.inputLike {
+    padding: 0.2em 0.7em;
+    margin: 0.2em;
+    width: auto;
+    position: relative;
+    align-self: center;
+    > label {
+        font-size: .8em;
+    }
+}
+
+
+
+
+.test {
+    background-color: red;
+}
