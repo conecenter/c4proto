@@ -88,10 +88,9 @@ push @tasks, [le_http=>$haproxy];
 push @tasks, [le_https=>$haproxy];
 push @tasks, [bloop=>sub{
     &$need_home();
-    my $dir = "/c4/.bloop";
-    $ENV{PATH} = "$ENV{PATH}:/tools/jdk/bin:$dir";
-    sy("coursier install bloop --only-prebuilt=true"); # doesnt work inside of bloop docker
-    &$exec("bloop","server");
+    #my $dir = "/c4/.bloop";
+    sy(". /c4p_alias.sh && coursier install bloop --only-prebuilt=true");
+    &$exec(". /c4p_alias.sh && exec bloop server");
 }];
 
 my($cmd,@args)=@ARGV;
