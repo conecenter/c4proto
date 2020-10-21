@@ -3,7 +3,7 @@
 use strict;
 use Digest::MD5 qw(md5_hex);
 
-my $sys_image_ver = "v74";
+my $sys_image_ver = "v75";
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -1047,9 +1047,9 @@ my $up_desktop = sub{
         my $put = &$rel_put_text($from_path);
         my $gen_dir = $ENV{C4PROTO_DIR} || die;
         my $conf_cert_path = &$get_conf_cert_path().".pub";
-        sy("cp $gen_dir/install.pl $gen_dir/desktop.pl $gen_dir/haproxy.pl $conf_cert_path $from_path/");
+        sy("cp $gen_dir/install.pl $gen_dir/desktop.pl $gen_dir/haproxy.pl $gen_dir/bloop_fix.pl $conf_cert_path $from_path/");
         &$put("c4p_alias.sh", join "\n",
-            'export PATH=$PATH:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin:/tools/kafka/bin:/tools',
+            'export PATH=$PATH:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin:/tools/kafka/bin:/tools:/c4/wrap',
             'export JAVA_HOME=/tools/jdk',
             'export C4DEPLOY_CONF=/c4conf/ssh.tar.gz',
             "export C4DEPLOY_LOCATION=".($ENV{C4DEPLOY_LOCATION}||die),
@@ -1072,7 +1072,7 @@ my $up_desktop = sub{
             "RUN perl install.pl curl https://github.com/sbt/sbt/releases/download/v1.4.0/sbt-1.4.0.tgz",
             "RUN perl install.pl curl https://git.io/coursier-cli && chmod +x /tools/coursier",
             "RUN rm -r /etc/dropbear && ln -s /c4/dropbear /etc/dropbear ",
-            "COPY desktop.pl haproxy.pl id_rsa.pub c4p_alias.sh /",
+            "COPY desktop.pl haproxy.pl bloop_fix.pl id_rsa.pub c4p_alias.sh /",
             "RUN C4DATA_DIR=/c4db perl /desktop.pl fix",
             "USER c4",
             'ENTRYPOINT ["perl","/desktop.pl"]',
@@ -1416,6 +1416,7 @@ my $ci_inner_opt = sub{
 };
 push @tasks, ["ci_inner_build","",sub{
     my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
+    sy("perl $proto_dir/bloop_fix.pl");
     sy("bloop server &");
     my $find = sub{ syf("jcmd")=~/^(\d+)\s+\S+\bblp-server\b/ and return "$1" while sleep 1; die };
     my $pid = &$find();
