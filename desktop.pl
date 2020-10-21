@@ -89,7 +89,7 @@ push @tasks, [le_https=>$haproxy];
 push @tasks, [bloop=>sub{
     &$need_home();
     #my $dir = "/c4/.bloop";
-    sy(". /c4p_alias.sh && coursier install bloop --only-prebuilt=true");
+    sy(". /c4p_alias.sh && coursier install bloop:1.4.4 --only-prebuilt=true");
     &$exec(". /c4p_alias.sh && exec bloop server");
 }];
 

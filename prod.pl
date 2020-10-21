@@ -1049,7 +1049,7 @@ my $up_desktop = sub{
         my $conf_cert_path = &$get_conf_cert_path().".pub";
         sy("cp $gen_dir/install.pl $gen_dir/desktop.pl $gen_dir/haproxy.pl $conf_cert_path $from_path/");
         &$put("c4p_alias.sh", join "\n",
-            'export PATH=$PATH:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin:/tools/kafka/bin:/tools:/c4/.local/share/coursier/bin',
+            'export PATH=$PATH:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin:/tools/kafka/bin:/tools',
             'export JAVA_HOME=/tools/jdk',
             'export C4DEPLOY_CONF=/c4conf/ssh.tar.gz',
             "export C4DEPLOY_LOCATION=".($ENV{C4DEPLOY_LOCATION}||die),
