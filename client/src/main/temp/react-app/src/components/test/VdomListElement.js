@@ -72,7 +72,8 @@ export default function VdomListElement() {
     })
     const children = [
         $("button", { key: "colDrag", onClick: ev => setState(was => ({ ...was, enableColDrag: false })) }, "colDrag"),
-        listEl
+        listEl,
+        // <div className="test">test </div>
     ]
 
     const sender = { enqueue: () => { } }

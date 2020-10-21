@@ -84,7 +84,7 @@ const useExpandedElements = (expanded, setExpandedItem) => {
         const expandedByPos = Object.fromEntries(
             children.filter(c => expanded[c.props.rowKey])
                 .map(c => {
-                    const newChild = $(c.type, {...c.props, className: GRID_CLASSNAMES.NONE})
+                    const newChild = $(c.type, { ...c.props, className: GRID_CLASSNAMES.NONE })
                     return [posStr(c.props.rowKey, c.props.colKey), newChild]
                 }
                 )
@@ -169,7 +169,7 @@ export function GridCell({ children, rowKey, rowKeyMod, colKey, isExpander, expa
     const style = { ...props.style, gridRow, gridColumn }
     const expanderProps = isExpander ? { 'data-expander': expander || 'passive' } : {}
     const _className = className ? className === GRID_CLASSNAMES.NONE ? "" : className : GRID_CLASSNAMES.CELL
-    return $("div", { ...props, ...expanderProps, style, className: _className }, children)
+    return $("div", { ...props, ...expanderProps, 'data-row-key': rowKey, style, className: _className }, children)
 }
 
 const pos = (rowKey, colKey) => ({ key: rowKey + colKey, rowKey, colKey })
@@ -237,7 +237,7 @@ const GridRootMemo = memo(({
 
     const { toExpanderElements, getExpandedCells } = useExpandedElements(expanded, setExpandedItem)
 
-    const headElements = map(col => $(GridCell, { ...pos(CELL_TYPES.HEAD, col.props.colKey), className: `${GRID_CLASSNAMES.HEADER} ${GRID_CLASSNAMES.CELL}`}, col.props.caption))(hideExpander(hasHiddenCols)(cols))
+    const headElements = map(col => $(GridCell, { ...pos(CELL_TYPES.HEAD, col.props.colKey), className: `${GRID_CLASSNAMES.HEADER} ${GRID_CLASSNAMES.CELL}` }, col.props.caption))(hideExpander(hasHiddenCols)(cols))
 
     const dragStyle = { style: { userSelect: "none", cursor: "pointer" } }
 
@@ -261,6 +261,20 @@ const GridRootMemo = memo(({
     const allChildren = toExpanderElements(hasHiddenCols)([...dropElements, ...toDraggingElements(draggingStart)(hideElementsForHiddenCols(false)([
         , ...colDragElements, ...headElements, ...children, ...expandedElements
     ]))])
+
+    // const groupedChildren = allChildren.reduce((r, c) => {
+    //     const prev = r ? typeof r.find === 'function' ? r : [r] : []
+    //     const found = prev.find(ck => ck && ck.key == c.props.rowKey)
+    //     if (found) {
+    //         const filteredPrev = prev.filter(p => p.key !== found.key)
+    //         return [...filteredPrev, { key: found.key, children: [...found.children, c] }]
+    //     }
+    //     else return [...prev, { key: c.props.rowKey, children: [c] }]
+    // })
+
+    // const gridRows = groupedChildren.map(({ key, children }) =>
+    //     $("div", { key, className: "gridRow", style: { display: "contents" } }, children)
+    // )
 
     useEffect(() => {
         const { dragKey, axis } = draggingStart

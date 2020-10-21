@@ -1,3 +1,7 @@
+:root {
+    --secondary-color: rgb(225, 225, 225);
+}
+
 body {
     font-family: helvetica;
 }
@@ -38,11 +42,11 @@ div.grid {
 }
 
 .headerColor-border {
-    border-color: rgb(225, 225, 225);
+    border-color: var(--secondary-color);
 }
 
 .headerColor {
-    background-color: rgb(225, 225, 225);
+    background-color: var(--secondary-color);
 }
 
 .expanderElementContainer {
@@ -65,13 +69,13 @@ div.grid {
     position: relative;
     align-self: center;
     > label {
-        font-size: .8em;
+        font-size: 0.8em;
     }
 }
 
-
-
-
 .test {
     background-color: red;
+    &:after {
+        content: " after";
+    }
 }
