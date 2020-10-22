@@ -4,7 +4,7 @@ import { createElement as $, useMemo, useState, useLayoutEffect, cloneElement, u
 
 import { map, head as getHead, identityAt, deleted, weakCache, never } from "./vdom-util.js"
 import { useWidth, useEventListener, useSync } from "./vdom-hooks.js"
-import { createContext, useContext } from "react"
+import { useHighlight } from '../providers/HighlightProvider'
 
 const dragRowIdOf = identityAt('dragRow')
 const dragColIdOf = identityAt('dragCol')
@@ -169,7 +169,9 @@ export function GridCell({ children, rowKey, rowKeyMod, colKey, isExpander, expa
     const style = { ...props.style, gridRow, gridColumn }
     const expanderProps = isExpander ? { 'data-expander': expander || 'passive' } : {}
     const _className = className ? className === GRID_CLASSNAMES.NONE ? "" : className : GRID_CLASSNAMES.CELL
-    return $("div", { ...props, ...expanderProps, 'data-row-key': rowKey, style, className: _className }, children)
+    const onlyColKey = rowKeyMod ? {} : { 'data-col-key': colKey }
+    const rowColKeys = { 'data-row-key': rowKey, ...onlyColKey}
+    return $("div", { ...props, ...expanderProps, ...rowColKeys, style, className: _className }, children)
 }
 
 const pos = (rowKey, colKey) => ({ key: rowKey + colKey, rowKey, colKey })
@@ -262,19 +264,20 @@ const GridRootMemo = memo(({
         , ...colDragElements, ...headElements, ...children, ...expandedElements
     ]))])
 
-    // const groupedChildren = allChildren.reduce((r, c) => {
-    //     const prev = r ? typeof r.find === 'function' ? r : [r] : []
-    //     const found = prev.find(ck => ck && ck.key == c.props.rowKey)
-    //     if (found) {
-    //         const filteredPrev = prev.filter(p => p.key !== found.key)
-    //         return [...filteredPrev, { key: found.key, children: [...found.children, c] }]
-    //     }
-    //     else return [...prev, { key: c.props.rowKey, children: [c] }]
-    // })
+    const childrenWithMouseEvent = allChildren.map(child => {
+        if (child && child.props && child.props.rowKey && child.props.colKey) {
+            const rowKey = child.props.rowKey
+            const colKey = child.props.colKey
+            const highlightRowElement = useHighlight()
+            const onMouseOver = () => highlightRowElement({ rowKey, colKey })
+            const onMouseLeave = () => highlightRowElement({ rowKey: "", colKey: "" })
 
-    // const gridRows = groupedChildren.map(({ key, children }) =>
-    //     $("div", { key, className: "gridRow", style: { display: "contents" } }, children)
-    // )
+            return cloneElement(child, { onMouseOver, onMouseLeave })
+        } else {
+            return child
+        }
+
+    })
 
     useEffect(() => {
         const { dragKey, axis } = draggingStart
@@ -282,7 +285,7 @@ const GridRootMemo = memo(({
     }, [setExpandedItem, draggingStart])
 
     const style = { display: "grid", gridTemplateRows: 'var(--grid-template-rows)', gridTemplateColumns: 'var(--grid-template-columns)' }
-    const res = $("div", { style, className: "grid", ref: setGridElement }, allChildren)
+    const res = $("div", { style, className: "grid", ref: setGridElement }, childrenWithMouseEvent)
     return res
 }/*,(a,b)=>{
     Object.entries(a).filter(([k,v])=>b[k]!==v).forEach(([k,v])=>console.log(k))

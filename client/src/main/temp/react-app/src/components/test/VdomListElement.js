@@ -3,6 +3,7 @@ import { createSyncProviders } from '../../main/vdom-hooks'
 import { ImageElement } from '../image'
 import React from 'react'
 import { ExpanderPropsContext } from '../../main/vdom-list'
+import HighlightProvider from '../../providers/HighlightProvider'
 
 const { createElement: $, useState } = React
 
@@ -11,6 +12,7 @@ function Text({ value }) {
 }
 
 export default function VdomListElement() {
+    console.log("app")
     const [state, setState] = useState({ enableColDrag: true })
 
     const { enableColDrag } = state
@@ -76,10 +78,12 @@ export default function VdomListElement() {
         // <div className="test">test </div>
     ]
 
+    const childrenWithHighlight = <HighlightProvider children={children}/>
+
     const sender = { enqueue: () => { } }
     const ack = null
-    return createSyncProviders({ sender, ack, children })
 
+    return createSyncProviders({ sender, ack, children: childrenWithHighlight })
 }
 
         // const containerElement = document.createElement("div")
