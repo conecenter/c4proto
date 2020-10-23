@@ -15,7 +15,7 @@ object TagJsonUtilsImpl extends TagJsonUtils {
   def appendInputAttributes(builder: MutableJsonBuilder, value: String, mode: OnChangeMode): Unit = {
     appendValue(builder, value)
     if(mode.value.nonEmpty)
-      builder.append("onChange").append(mode.value)
+      builder.append("onChange").append(mode.value) // ?todo: send on blur anyway
   }
 
   def jsonPairAdapter[T](inner: (T, MutableJsonBuilder) => Unit): JsonPairAdapter[T] =

@@ -1,7 +1,8 @@
 package ee.cone.c4ui
 
+import ee.cone.c4actor.Types.TypeKey
 import ee.cone.c4actor._
-import ee.cone.c4di.{c4, c4multi, provide}
+import ee.cone.c4di.{CreateTypeKey, c4, c4multi, provide}
 import ee.cone.c4vdom.Types.VDomKey
 import ee.cone.c4vdom.{Tags=>_,_}
 

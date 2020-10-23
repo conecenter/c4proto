@@ -61,42 +61,34 @@ trait GetterWithMetaList[C, +I] extends Getter[C, I] with Product {
   def +(metaAttrs: AbstractMetaAttr*): GetterWithMetaList[C, I]
 }
 
-trait ProdGetter[C, +I] extends AbstractProdGetter[C, I] with GetterWithMetaList[C, I] {
-  def +(metaAttrs: AbstractMetaAttr*): ProdGetter[C, I]
-  def extraMetaList: List[AbstractMetaAttr]
-  def tkFrom: TypeKey
-  def tkTo: TypeKey
-  def clFrom: Class[C]
-  def clTo: Class[_ <: I]
-}
-
 trait AbstractProdGetter[C,+I] extends Getter[C, I] with Product {
   type OutOfType[J] = C=>J
 }
 
-trait AbstractProdLens[C,I] extends AbstractLens[C, I] with Product {
+abstract class ProdGetter[C, I] extends AbstractProdGetter[C, I] with GetterWithMetaList[C, I] {
+  def +(metaAttrs: AbstractMetaAttr*): ProdGetter[C, I]
+  def to[V](inner: ProdGetter[I, V]): ProdGetter[C, V]
+  def extraMetaList: List[AbstractMetaAttr]
+  def tkFrom: TypeKey
+  def tkTo: TypeKey
+  def clFrom: Class[C]
+  def clTo: Class[I]
+}
+
+trait AbstractProdLens[C,I] extends AbstractLens[C, I] with AbstractProdGetter[C, I] with Product {
   type OfType = C=>I
   type SetType = I=>C=>C
 }
 
-abstract class ProdLens[C, I] extends AbstractProdLens[C, I] with GetterWithMetaList[C, I]{
-  def to[V](inner: ProdLens[I, V]): ProdLens[C, V]
+abstract class ProdLens[C, I] extends ProdGetter[C, I] with AbstractProdLens[C, I] {
   def +(metaAttrs: AbstractMetaAttr*): ProdLens[C, I]
-}
-
-case class ProdLensNonstrict[C, I](metaList: List[AbstractMetaAttr])(val of: C => I, val set: I => C => C) extends ProdLens[C, I] {
-  def +(metaAttrs: AbstractMetaAttr*): ProdLens[C, I] = copy(metaList ::: metaAttrs.toList)(of, set)
-  def to[V](inner: ProdLens[I, V]): ProdLensNonstrict[C, V] =
-    ProdLensNonstrict[C, V](metaList ::: inner.metaList)(
-      container => inner.of(of(container)),
-      item => modify(inner.set(item))
-    )
+  def to[V](inner: ProdLens[I, V]): ProdLens[C, V]
 }
 
 
 case class ProdGetterStrict[C, I](
   extraMetaList: List[AbstractMetaAttr],
-  clFrom: Class[C], clTo: Class[_ <: I], tkFrom: TypeKey, tkTo: TypeKey
+  clFrom: Class[C], clTo: Class[I], tkFrom: TypeKey, tkTo: TypeKey
 )(
   val of: C => I
 ) extends ProdGetter[C, I] {
@@ -111,7 +103,7 @@ case class ProdGetterStrict[C, I](
   lazy val metaList: List[AbstractMetaAttr] = ee.cone.c4actor.TypeKeyAttr(tkFrom, tkTo) ::
     ee.cone.c4actor.ClassesAttr(clFrom.getName, clTo.getName) :: extraMetaList
 
-  def to[V](inner: ProdGetter[I, V]): ProdGetterStrict[C, V] =
+  def to[V](inner: ProdGetter[I, V]): ProdGetter[C, V] =
     ProdGetterStrict[C, V](
       extraMetaList ::: inner.extraMetaList,
       clFrom, inner.clTo, tkFrom, inner.tkTo
@@ -125,7 +117,7 @@ case class ProdLensStrict[C, I](
   clFrom: Class[C], clTo: Class[I], tkFrom: TypeKey, tkTo: TypeKey
 )(
   val of: C => I, val set: I => C => C
-) extends ProdLens[C, I] with ProdGetter[C, I] {
+) extends ProdLens[C, I] {
   def +(metaAttrs: AbstractMetaAttr*): ProdLensStrict[C, I] = copy(extraMetaList = extraMetaList ::: metaAttrs.toList)(of, set)
   lazy val metaList: List[AbstractMetaAttr] = ee.cone.c4actor.TypeKeyAttr(tkFrom, tkTo) ::
     ee.cone.c4actor.ClassesAttr(clFrom.getName, clTo.getName) :: extraMetaList
@@ -139,7 +131,7 @@ case class ProdLensStrict[C, I](
       item => modify(strictInner.set(item))
     )
 
-  def to[V](inner: ProdGetterStrict[I, V]): ProdGetterStrict[C, V] =
+  def to[V](inner: ProdGetter[I, V]): ProdGetter[C, V] =
     ProdGetterStrict[C, V](
       extraMetaList ::: inner.extraMetaList,
       clFrom, inner.clTo, tkFrom, inner.tkTo
@@ -147,12 +139,12 @@ case class ProdLensStrict[C, I](
       container => inner.of(of(container))
     )
 
-  def to[V](inner: ProdLens[I, V]): ProdLens[C, V] = inner match {
-    case strictInner: ProdLensStrict[I, V] => toStrict(strictInner)
-    case _ =>
-      ProdLensNonstrict[C, V](metaList ::: inner.metaList)(
-        container => inner.of(of(container)),
-        item => modify(inner.set(item))
-      )
-  }
+  def to[V](inner: ProdLens[I, V]): ProdLens[C, V] =
+    ProdLensStrict[C, V](
+      metaList ::: inner.metaList,
+      clFrom, inner.clTo, tkFrom, inner.tkTo
+    )(
+      container => inner.of(of(container)),
+      item => modify(inner.set(item))
+    )
 }
