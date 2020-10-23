@@ -15,11 +15,13 @@ package object time {
   }
 
   abstract class TimeGetter(val currentTime: CurrentTime) extends WithCurrentTime {
+    def cl: Class[_ <: T_Time]
     def ofA(context: AssembledContext): Option[T_Time]
   }
 
   trait TimeGetters {
     def apply(currentTime: CurrentTime): TimeGetter
+    def all: List[TimeGetter]
   }
 
 }

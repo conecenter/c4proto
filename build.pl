@@ -57,7 +57,9 @@ my $to = sub{ map{ @$_==2 && $$_[1] || die } @_ };
 my $bloop_conf_to_classpath = sub{
     my($conf)=@_;
     my $project = $$conf{project}||die;
-    (@{$$project{classpath}||die},($$project{classesDir}||die))
+    my $out_dir = $$project{out} || die;
+    my $name = $$project{name} || die;
+    (@{$$project{classpath}||die},"$out_dir/bloop-bsp-clients-classes/mod.$name.classes-bloop-cli")
 };
 my $calc_bloop_conf = sub{
     my($dir,$tmp,$dep_conf,$coursier_out,$src_list) = @_;
@@ -78,7 +80,7 @@ my $calc_bloop_conf = sub{
     my $scala = {
         "organization" => "org.scala-lang",
         "name" => "scala-compiler",
-        "version" => "2.13.1",
+        "version" => "2.13.3",
         "options" => [
             &$distinct(map{"-P:wartremover:traverser:$_"}&$to(&$dep_conf("C4WART"))),
             "-Xplugin:$wartremover",
@@ -160,7 +162,7 @@ my $calc_bloop_conf = sub{
 my $calc_sbt_conf = sub{
     my($src_dirs,$externals)=@_;
     join "\n",
-        'scalaVersion in ThisBuild := "2.13.1"','',
+        'scalaVersion in ThisBuild := "2.13.3"','',
         "libraryDependencies ++= ",
         (map{"  ($_) ::"} map{join " % ",map{qq^"$_"^}/([^:]+)/g} @$externals),
         "  Nil",

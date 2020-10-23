@@ -6,24 +6,25 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4actor.dep.request.CurrentTimeApp
-import ee.cone.c4actor.dep.request.CurrentTimeProtocol.S_CurrentTimeNodeSetting
+import ee.cone.c4actor.time.ProtoCurrentTimeConfig.S_CurrentTimeNodeSetting
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{AbstractAll, All, byEq, c4assemble}
 import ee.cone.c4di.{c4, c4multi}
+import ee.cone.c4proto.{Id, protocol}
 
 trait T_Time extends Product {
   def srcId: SrcId
   def millis: Long
 }
 
-trait GeneralCurrentTimeAppBase extends CurrentTimeApp
+trait GeneralCurrentTimeAppBase
 
 trait WithCurrentTime {
   def currentTime: CurrentTime
 }
 
 trait GeneralCurrTimeConfig extends WithCurrentTime {
+  def cl: Class[_ <: T_Time]
   def process(refreshRate: Option[Long], offset: Long): Context => Seq[LEvent[Product]]
 }
 
@@ -48,13 +49,22 @@ trait CurrTimeConfig[Model <: T_Time] extends GeneralCurrTimeConfig with LazyLog
       }
     }
   }
-
 }
 
 @c4("GeneralCurrentTimeApp") final class TimeGettersImpl(timeGetters: List[TimeGetter]) extends TimeGetters {
+  def all: List[TimeGetter] = timeGetters
   lazy val gettersMap: Map[SrcId, TimeGetter] = timeGetters.map(getter => getter.currentTime.srcId -> getter).toMap
   def apply(currentTime: CurrentTime): TimeGetter =
     gettersMap(currentTime.srcId)
+}
+
+@protocol("GeneralCurrentTimeApp") object ProtoCurrentTimeConfig {
+
+  @Id(0x0127) case class S_CurrentTimeNodeSetting(
+    @Id(0x0128) timeNodeId: String,
+    @Id(0x0129) refreshSeconds: Long
+  )
+
 }
 
 @c4assemble("GeneralCurrentTimeApp") class CurrentTimeGeneralAssembleBase(
