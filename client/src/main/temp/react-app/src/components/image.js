@@ -67,7 +67,7 @@ const SVGElement = ({ url, ...props }) => {
     })
 }
 
-const ImageElement = ({ src, forceSrcWithoutPrefix, title, className, rotate, color, viewPort }) => {
+const ImageElement = ({ src, forceSrcWithoutPrefix, title, className, rotate, color, viewPort, ...props }) => {
     const _className = (className || "") + (rotate ? " transitions" : "")
     const rotateStyles = rotateStyle(rotate)
     const style = { ...rotateStyles }
@@ -78,7 +78,7 @@ const ImageElement = ({ src, forceSrcWithoutPrefix, title, className, rotate, co
         return $(SVGElement, { url: __src, className: _className, style, color, viewPort })
     }
     else {
-        return $("img", { src: _src, title, className: _className, style: style })
+        return $("img", { src: _src, title, className: _className, style: style, ...props })
     }
 }
 

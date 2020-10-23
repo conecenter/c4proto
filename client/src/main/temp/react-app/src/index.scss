@@ -1,6 +1,14 @@
 :root {
-    --secondary-color: rgb(225, 225, 225);
+    --secondary-color: rgb(238, 238, 238);
 }
+
+img {
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -o-user-select: none;
+    user-select: none;
+    }
 
 body {
     font-family: helvetica;
@@ -60,6 +68,17 @@ div.grid {
     cursor: pointer;
     margin: 0.2em auto;
     align-self: center;
+}
+
+.dragElementContainer {
+    height: 1em;
+    margin: 0.2em 0;
+}
+
+.dragElement {
+    height: 100%;
+    display: block;
+    margin: auto;
 }
 
 .inputLike {
