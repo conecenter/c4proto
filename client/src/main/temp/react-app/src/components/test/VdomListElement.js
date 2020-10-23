@@ -2,17 +2,12 @@ import { GridRoot, GridCell, GridCol } from "../../main/vdom-list.js"
 import { createSyncProviders } from '../../main/vdom-hooks'
 import { ImageElement } from '../image'
 import React from 'react'
-import { ExpanderPropsContext } from '../../main/vdom-list'
 import HighlightProvider from '../../providers/HighlightProvider'
+import MockData from "./MockData.js"
 
 const { createElement: $, useState } = React
 
-function Text({ value }) {
-    return value
-}
-
 export default function VdomListElement() {
-    console.log("app")
     const [state, setState] = useState({ enableColDrag: true })
 
     const { enableColDrag } = state
@@ -39,26 +34,22 @@ export default function VdomListElement() {
         exCol("c9", 1, 5, 30),
         exCol("drag", 0, 1.5, 1.5),
     ]
-    const exCell = rowKey => col => $(GridCell, {
+    const exCell = rowKey => col => 
+    $(GridCell, {
         key: ":" + rowKey + col.key, rowKey, colKey: col.props.colKey,
         ...(col.props.colKey === "drag" ? { isRowDragHandle: true, style: { userSelect: "none", cursor: "pointer" } } : {}),
         ...(col.props.colKey === "expand" ? { isExpander: true } : {}),
         children: [
             col.props.colKey === "expand" ? getExpanderElement() :
-            col.props.colKey === "drag" ? getDragElement() :
-                $(Text, {
-                    value: (
-                        "MELEQ 11-Oct ● Vessel load"
-                    ),
-                    key: "text",
-                })
+            col.props.colKey === "drag" ? getDragElement() : MockData()
         ]
     })
+
 
     function getExpanderElement() {
         return $(
             "div",
-            { className: "expanderElementContainer", key: "expanderElem" },
+            { className: "textLineSize absolutelyCentered", key: "expanderElem" },
             $(ImageElement, { color: "#90929F", className: "expanderElement", src: '/icons/downarrowrow.svg' })
         )
     }
@@ -66,12 +57,13 @@ export default function VdomListElement() {
     function getDragElement() {
         return $(
             "div",
-            { className: "dragElementContainer", key: "dragElem" },
+            { className: "textLineSize absolutelyCentered", key: "dragElem" },
             $(ImageElement, { color: "adaptive", className: "dragElement", src: '/icons/drag.svg' })
         )
     }
 
     const rowKeys = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].map(k => "r" + k)
+    const byColumn = []
     const listEl = $(GridRoot, {
         key: "list",
         identity: {},

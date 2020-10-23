@@ -1,11 +1,10 @@
 
 
-import { createElement as $, useMemo, useState, useLayoutEffect, cloneElement, useCallback, useEffect, memo } from "../main/react-prod.js"
+import { createElement as $, useMemo, useState, useLayoutEffect, cloneElement, useCallback, useEffect, memo } from "./react-prod.js"
 
-import { map, head as getHead, identityAt, deleted, weakCache } from "../main/vdom-util.js"
-import { useWidth, useEventListener, useSync } from "../main/vdom-hooks.js"
-import { ImageElement } from './temp/image.js'
-// import downArrowSvg from './temp/icons/downarrowrow.svg'
+import { map, head as getHead, identityAt, deleted, weakCache, never } from "./vdom-util.js"
+import { useWidth, useEventListener, useSync } from "./vdom-hooks.js"
+import { useHighlight } from '../providers/HighlightProvider'
 
 const dragRowIdOf = identityAt('dragRow')
 const dragColIdOf = identityAt('dragCol')
@@ -14,6 +13,12 @@ const CELL_TYPES = {
     HEAD: "head",
     DRAG: "drag",
     EXPAND: "expand"
+}
+
+const GRID_CLASSNAMES = {
+    CELL: "tableCellContainer headerColor-border",
+    HEADER: "tableHeadContainer headerColor",
+    NONE: "none"
 }
 
 //// col hiding
@@ -50,13 +55,18 @@ const calcHiddenCols = (cols, outerWidth) => {
 }
 
 //// expanding
-
 const useExpanded = () => {
     const [expanded, setExpanded] = useState({})
     const setExpandedItem = useCallback((key, f) => setExpanded(was => {
         const wasValue = !!was[key]
         const willValue = !!f(wasValue)
-        return wasValue === willValue ? was : willValue ? { ...was, [key]: 1 } : deleted({ [key]: 1 })(was)
+        if (wasValue === willValue) {
+            return was
+        } else if (willValue) {
+            return { ...was, [key]: 1 }
+        } else {
+            return deleted({ [key]: 1 })(was)
+        }
     }), [setExpanded])
     return [expanded, setExpandedItem]
 }
@@ -73,7 +83,11 @@ const useExpandedElements = (expanded, setExpandedItem) => {
         const posStr = (rowKey, colKey) => rowKey + colKey
         const expandedByPos = Object.fromEntries(
             children.filter(c => expanded[c.props.rowKey])
-                .map(c => [posStr(c.props.rowKey, c.props.colKey), c])
+                .map(c => {
+                    const newChild = $(c.type, { ...c.props, className: GRID_CLASSNAMES.NONE })
+                    return [posStr(c.props.rowKey, c.props.colKey), newChild]
+                }
+                )
         )
         return rowKeys.filter(rowKey => expanded[rowKey]).map(rowKey => {
             const pairs = cols.map(col => {
@@ -154,7 +168,10 @@ export function GridCell({ children, rowKey, rowKeyMod, colKey, isExpander, expa
     const gridColumn = colKey
     const style = { ...props.style, gridRow, gridColumn }
     const expanderProps = isExpander ? { 'data-expander': expander || 'passive' } : {}
-    return $("div", { ...props, ...expanderProps, style, className: `tableCellContainer headerColor-border ${className}` }, children)
+    const _className = className ? className === GRID_CLASSNAMES.NONE ? "" : className : GRID_CLASSNAMES.CELL
+    const onlyColKey = rowKeyMod ? {} : { 'data-col-key': colKey }
+    const rowColKeys = { 'data-row-key': rowKey, ...onlyColKey}
+    return $("div", { ...props, ...expanderProps, ...rowColKeys, style, className: _className }, children)
 }
 
 const pos = (rowKey, colKey) => ({ key: rowKey + colKey, rowKey, colKey })
@@ -222,7 +239,7 @@ const GridRootMemo = memo(({
 
     const { toExpanderElements, getExpandedCells } = useExpandedElements(expanded, setExpandedItem)
 
-    const headElements = map(col => $(GridCell, { ...pos(CELL_TYPES.HEAD, col.props.colKey), className: "tableHeadContainer headerColor" }, col.props.caption))(hideExpander(hasHiddenCols)(cols))
+    const headElements = map(col => $(GridCell, { ...pos(CELL_TYPES.HEAD, col.props.colKey), className: `${GRID_CLASSNAMES.HEADER} ${GRID_CLASSNAMES.CELL}` }, col.props.caption))(hideExpander(hasHiddenCols)(cols))
 
     const dragStyle = { style: { userSelect: "none", cursor: "pointer" } }
 
@@ -234,17 +251,33 @@ const GridRootMemo = memo(({
 
     const expandedElements = getExpandedCells({
         rowKeys, children, cols: hideElementsForHiddenCols(true)(cols),
-    }).map(([rowKey, pairs]) => (
-        $(GridCell, { ...pos(rowKey, spanAll), rowKeyMod: "-expanded", style: { display: "flex", flexFlow: "row wrap" } },
+    }).map(([rowKey, pairs]) => {
+        console.log(pairs)
+        return $(GridCell, { ...pos(rowKey, spanAll), rowKeyMod: "-expanded", style: { display: "flex", flexFlow: "row wrap" } },
             pairs.map(([col, cell]) => (
-                $("div", { key: col.key, style: { flexBasis: `${col.props.minWidth}em` } }, $("label", {}, col.props.caption), cell)
+                $("div", { key: col.key, style: { flexBasis: `${col.props.minWidth}em` }, className: "inputLike" }, $("label", {}, col.props.caption), cell)
             ))
         )
-    ))
+    })
 
     const allChildren = toExpanderElements(hasHiddenCols)([...dropElements, ...toDraggingElements(draggingStart)(hideElementsForHiddenCols(false)([
         , ...colDragElements, ...headElements, ...children, ...expandedElements
     ]))])
+
+    const childrenWithMouseEvent = allChildren.map(child => {
+        if (child && child.props && child.props.rowKey && child.props.colKey) {
+            const rowKey = child.props.rowKey
+            const colKey = child.props.colKey
+            const highlightRowElement = useHighlight()
+            const onMouseOver = () => highlightRowElement({ rowKey, colKey })
+            const onMouseLeave = () => highlightRowElement({ rowKey: "", colKey: "" })
+
+            return cloneElement(child, { onMouseOver, onMouseLeave })
+        } else {
+            return child
+        }
+
+    })
 
     useEffect(() => {
         const { dragKey, axis } = draggingStart
@@ -252,7 +285,7 @@ const GridRootMemo = memo(({
     }, [setExpandedItem, draggingStart])
 
     const style = { display: "grid", gridTemplateRows: 'var(--grid-template-rows)', gridTemplateColumns: 'var(--grid-template-columns)' }
-    const res = $("div", { style, className: "grid", ref: setGridElement }, allChildren)
+    const res = $("div", { style, className: "grid", ref: setGridElement }, childrenWithMouseEvent)
     return res
 }/*,(a,b)=>{
     Object.entries(a).filter(([k,v])=>b[k]!==v).forEach(([k,v])=>console.log(k))

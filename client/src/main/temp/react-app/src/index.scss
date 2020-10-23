@@ -8,7 +8,22 @@ img {
     -moz-user-select: none;
     -o-user-select: none;
     user-select: none;
-    }
+}
+
+.rowIconSize {
+    height: 2em;
+    width: 2em;
+}
+
+.textLineSize {
+    height: 1em;
+}
+
+.descriptionRow {
+    display: inline-block;
+    vertical-align: middle;
+    white-space: nowrap;
+}
 
 body {
     font-family: helvetica;
@@ -47,6 +62,7 @@ div.grid {
     text-overflow: ellipsis;
     outline: red none 1px;
     outline-offset: -1px;
+    position: relative;
 }
 
 .headerColor-border {
@@ -57,28 +73,25 @@ div.grid {
     background-color: var(--secondary-color);
 }
 
-.expanderElementContainer {
-    margin: 0.2em;
-    align-self: center;
-}
-
 .expanderElement {
     display: block;
-    min-height: 1.2em;
+    height: 100%;
     cursor: pointer;
     margin: 0.2em auto;
     align-self: center;
-}
-
-.dragElementContainer {
-    height: 1em;
-    margin: 0.2em 0;
 }
 
 .dragElement {
     height: 100%;
     display: block;
     margin: auto;
+}
+
+.absolutelyCentered {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
 }
 
 .inputLike {
@@ -90,6 +103,10 @@ div.grid {
     > label {
         font-size: 0.8em;
     }
+}
+
+.text {
+    vertical-align: super;
 }
 
 .test {
