@@ -1,0 +1,117 @@
+:root {
+    --secondary-color: rgb(238, 238, 238);
+}
+
+img {
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -o-user-select: none;
+    user-select: none;
+}
+
+.rowIconSize {
+    height: 2em;
+    width: 2em;
+}
+
+.textLineSize {
+    height: 1em;
+}
+
+.descriptionRow {
+    display: inline-block;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+body {
+    font-family: helvetica;
+}
+
+div[data-expander="expanded"] {
+    > div > .expanderElement {
+        transform: rotate(180deg);
+    }
+}
+
+div[data-expander="collapsed"] {
+}
+
+div[data-expander="passive"] {
+    visibility: hidden;
+}
+
+div.grid {
+    /* border-collapse:collapse;*/
+    border-spacing: 0;
+}
+
+.tableHeadContainer {
+    font-weight: bold;
+    vertical-align: middle;
+    overflow: visible;
+}
+
+.tableCellContainer {
+    border-width: 1px 1px 0 0;
+    border-style: solid;
+    padding: 0.1em 0.2em;
+    vertical-align: middle;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    outline: red none 1px;
+    outline-offset: -1px;
+    position: relative;
+}
+
+.headerColor-border {
+    border-color: var(--secondary-color);
+}
+
+.headerColor {
+    background-color: var(--secondary-color);
+}
+
+.expanderElement {
+    display: block;
+    height: 100%;
+    cursor: pointer;
+    margin: 0.2em auto;
+    align-self: center;
+}
+
+.dragElement {
+    height: 100%;
+    display: block;
+    margin: auto;
+}
+
+.absolutelyCentered {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.inputLike {
+    padding: 0.2em 0.7em;
+    margin: 0.2em;
+    width: auto;
+    position: relative;
+    align-self: center;
+    > label {
+        font-size: 0.8em;
+    }
+}
+
+.text {
+    vertical-align: super;
+}
+
+.test {
+    background-color: red;
+    &:after {
+        content: " after";
+    }
+}

@@ -121,7 +121,6 @@
 
         function App() {
             const [state, setState] = useState({ enableColDrag: true })
-
             const { enableColDrag } = state
 
             const exCol = (colKey, hideWill, minWidth, maxWidth) => $(GridCol, {
@@ -144,38 +143,30 @@
                 exCol("c7", 2, 5, 10),
                 exCol("c8", 1, 5, 10),
                 exCol("c9", 1, 5, 30),
-                exCol("drag", 0, 1.5, 1.5),
+                exCol("drag", 0, 1, 1),
             ]
-            const exCell = rowKey => col =>
-                $(GridCell, {
-                    key: ":" + rowKey + col.key, rowKey, colKey: col.props.colKey,
-                    ...(col.props.colKey === "drag" ? { isRowDragHandle: true, style: { userSelect: "none", cursor: "pointer" } } : {}),
-                    ...(col.props.colKey === "expand" ? { isExpander: true } : {}),
-                    children: [
-                        col.props.colKey === "expand" ? getExpanderElement() :
-                            col.props.colKey === "drag" ? getDragElement() : MockData()
-                    ]
-                })
-
-
-            function getExpanderElement() {
-                return $(
-                    "div",
-                    { className: "textLineSize absolutelyCentered", key: "expanderElem" },
-                    $(ImageElement, { color: "#90929F", className: "expanderElement", src: '/icons/downarrowrow.svg' })
-                )
-            }
-
-            function getDragElement() {
-                return $(
-                    "div",
-                    { className: "textLineSize absolutelyCentered", key: "dragElem" },
-                    $(ImageElement, { color: "adaptive", className: "dragElement", src: '/icons/drag.svg' })
-                )
-            }
+            const exCell = rowKey => col => $(GridCell, {
+                key: ":" + rowKey + col.key, rowKey, colKey: col.props.colKey,
+                ...(col.props.colKey === "drag" ? { isRowDragHandle: true, style: { userSelect: "none", cursor: "pointer" } } : {}),
+                ...(col.props.colKey === "expand" ? { isExpander: true } : {}),
+                children: [
+                    col.props.colKey === "expand" ?
+                        $(
+                            "div",
+                            { className: "expanderElementContainer", key: "image" },
+                            $(ImageElement, { color: "red", className: "expanderElement", src: '/test/icons/downarrowrow.svg' })
+                        ) :
+                        $(Text, {
+                            value: (
+                                col.props.colKey === "drag" ? "O" :
+                                    rowKey + " " + col.props.colKey
+                            ),
+                            key: "text",
+                        })
+                ]
+            })
 
             const rowKeys = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].map(k => "r" + k)
-            const byColumn = []
             const listEl = $(GridRoot, {
                 key: "list",
                 identity: {},
@@ -185,16 +176,12 @@
             })
             const children = [
                 $("button", { key: "colDrag", onClick: ev => setState(was => ({ ...was, enableColDrag: false })) }, "colDrag"),
-                listEl,
-                // <div className="test">test </div>
+                listEl
             ]
-
-            const childrenWithHighlight = <HighlightProvider children={children} />
 
             const sender = { enqueue: () => { } }
             const ack = null
-
-            return createSyncProviders({ sender, ack, children: childrenWithHighlight })
+            return createSyncProviders({ sender, ack, children })
 
         }
 
