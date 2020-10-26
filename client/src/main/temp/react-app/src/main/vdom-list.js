@@ -1,5 +1,7 @@
 
 
+import React from 'react'
+
 import { createElement as $, useMemo, useState, useLayoutEffect, cloneElement, useCallback, useEffect, memo } from "./react-prod.js"
 
 import { map, head as getHead, identityAt, deleted, weakCache, never } from "./vdom-util.js"
@@ -239,7 +241,7 @@ const GridRootMemo = memo(({
 
     const { toExpanderElements, getExpandedCells } = useExpandedElements(expanded, setExpandedItem)
 
-    const headElements = map(col => $(GridCell, { ...pos(CELL_TYPES.HEAD, col.props.colKey), className: `${GRID_CLASSNAMES.HEADER} ${GRID_CLASSNAMES.CELL}` }, col.props.caption))(hideExpander(hasHiddenCols)(cols))
+    const headElements = map(col => $(GridCell, { ...pos(CELL_TYPES.HEAD, col.props.colKey), className: `${GRID_CLASSNAMES.HEADER} ${GRID_CLASSNAMES.CELL}` }, <span>{col.props.caption}</span>))(hideExpander(hasHiddenCols)(cols))
 
     const dragStyle = { style: { userSelect: "none", cursor: "pointer" } }
 
@@ -264,11 +266,11 @@ const GridRootMemo = memo(({
         , ...colDragElements, ...headElements, ...children, ...expandedElements
     ]))])
 
+    const highlightRowElement = useHighlight()
     const childrenWithMouseEvent = allChildren.map(child => {
         if (child && child.props && child.props.rowKey && child.props.colKey) {
             const rowKey = child.props.rowKey
             const colKey = child.props.colKey
-            const highlightRowElement = useHighlight()
             const onMouseOver = () => highlightRowElement({ rowKey, colKey })
             const onMouseLeave = () => highlightRowElement({ rowKey: "", colKey: "" })
 

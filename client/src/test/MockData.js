@@ -3,7 +3,9 @@ import { ImageElement } from '../image'
 
 export default function MockData() {
     const srlIcon = <ImageElement src="/icons/servicerequestline.svg" className="rowIconSize" key="image"/>
+    const srIcon = <ImageElement src="/icons/servicerequestline.svg" className="rowIconSize" key="image"/>
     const meleqStr = <Text value="MELEQ 11-Oct ● Vessel load" key="text" />
+    const arkDania = <Text value="ARK DANIA 18-Oct ● Vessel unload" key="text" />
     const row =
         <div className="descriptionRow" key="row">
             {srlIcon}
