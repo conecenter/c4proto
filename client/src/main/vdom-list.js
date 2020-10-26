@@ -47,9 +47,7 @@ const calcHiddenCols = (cols, outerWidth) => {
         hasHiddenCols ? (children => children.filter(c => mode === hiddenColSet.has(c.props.colKey))) :
             mode ? (children => []) : (children => children)
     )
-    const toNarrowCols = cols => !hasHiddenCols ? cols :
-        cols.map(c => cloneElement(c, { maxWidth: c.props.minWidth }))
-    return { hasHiddenCols, hideElementsForHiddenCols, toNarrowCols }
+    return { hasHiddenCols, hideElementsForHiddenCols }
 }
 
 //// expanding
@@ -176,7 +174,7 @@ const getGridTemplateColumns = columns => columns.map(c => {
     return `[${key}] ${width}`
 }).join(" ")
 
-export function GridRoot({ identity, rowKeys, cols, ...props }) {
+export function GridRoot({ identity, rowKeys, cols, children }) {
     const [dragData, setDragData] = useState({})
     const { axis, patch: dropPatch } = dragData
 
@@ -197,35 +195,36 @@ export function GridRoot({ identity, rowKeys, cols, ...props }) {
 
     const [expanded, setExpandedItem] = useExpanded()
 
+    const hasDragRow = useMemo(()=>children.some(c=>c.props.dragHandle==="x"),[children])
     const gridTemplateRows = useMemo(() => getGidTemplateRows([
-        { rowKey: CELL_TYPES.DRAG }, { rowKey: CELL_TYPES.HEAD }, ...expandRowKeys(expanded)(patchedRowKeys)
-    ]), [expanded, patchedRowKeys])
-
+        ...(hasDragRow ? [{ rowKey: CELL_TYPES.DRAG }]:[]),
+        { rowKey: CELL_TYPES.HEAD },
+        ...expandRowKeys(expanded)(patchedRowKeys)
+    ]), [hasDragRow, expanded, patchedRowKeys])
 
     const outerWidth = useWidth(gridElement)
-    const { hasHiddenCols, hideElementsForHiddenCols, toNarrowCols } =
+    const { hasHiddenCols, hideElementsForHiddenCols } =
         useMemo(() => calcHiddenCols(cols, outerWidth), [cols, outerWidth])
     const gridTemplateColumns = useMemo(() => getGridTemplateColumns(
-        hideExpander(hasHiddenCols)(toNarrowCols(hideElementsForHiddenCols(false)(patchedCols)))
-    ), [patchedCols, toNarrowCols, hideElementsForHiddenCols, hasHiddenCols])
-
-    const style = { ...rootDragStyle, '--grid-template-rows': gridTemplateRows, '--grid-template-columns': gridTemplateColumns }
-    return $("div", { onMouseDown, style }, $(GridRootMemo, {
-        ...props, draggingStart, cols, rowKeys, hasHiddenCols, hideElementsForHiddenCols,
-        setGridElement, expanded, setExpandedItem,
-    }))
-}
-
-const GridRootMemo = memo(({
-    children, rowKeys, cols,
-    draggingStart, setGridElement,
-    hasHiddenCols, hideElementsForHiddenCols,
-    expanded, setExpandedItem,
-}) => {
-    console.log("inner render")
+        hideExpander(hasHiddenCols)(hideElementsForHiddenCols(false)(patchedCols))
+    ), [patchedCols, hideElementsForHiddenCols, hasHiddenCols])
 
     const { toExpanderElements, getExpandedCells } = useExpandedElements(expanded, setExpandedItem)
 
+    const allChildren = useMemo(()=>getAllChildren({
+        children,rowKeys,cols,draggingStart,hasHiddenCols,hideElementsForHiddenCols,toExpanderElements,getExpandedCells
+    }),[children,rowKeys,cols,draggingStart,hasHiddenCols,hideElementsForHiddenCols,toExpanderElements,getExpandedCells])
+
+    useEffect(() => {
+        const { dragKey, axis } = draggingStart
+        if (axis === "y") setExpandedItem(dragKey, v => false)
+    }, [setExpandedItem, draggingStart])
+
+    const style = { ...rootDragStyle, display: "grid", gridTemplateRows, gridTemplateColumns }
+    return $("div", { onMouseDown, style, className: "grid", ref: setGridElement }, allChildren)
+}
+
+const getAllChildren = ({children,rowKeys,cols,draggingStart,hasHiddenCols,hideElementsForHiddenCols,toExpanderElements,getExpandedCells}) => {
     const headElements = map(col => $(GridCell, {
         ...pos(CELL_TYPES.HEAD, col.props.colKey),
         className: GRID_CLASS_NAMES.HEADER
@@ -253,20 +252,11 @@ const GridRootMemo = memo(({
     const allChildren = toExpanderElements(hasHiddenCols)([...dropElements, ...toDraggingElements(draggingStart)(hideElementsForHiddenCols(false)([
         ...headElements, ...children, ...expandedElements
     ]))])
+    console.log("inner render")
+    return allChildren
+}
 
-    useEffect(() => {
-        const { dragKey, axis } = draggingStart
-        if (axis === "y") setExpandedItem(dragKey, v => false)
-    }, [setExpandedItem, draggingStart])
-
-    const style = { display: "grid", gridTemplateRows: 'var(--grid-template-rows)', gridTemplateColumns: 'var(--grid-template-columns)' }
-    const res = $("div", { style, className: "grid", ref: setGridElement }, allChildren)
-    return res
-}/*,(a,b)=>{
-    Object.entries(a).filter(([k,v])=>b[k]!==v).forEach(([k,v])=>console.log(k))
-
-    return a===b
-}*/)
+/*,(a,b)=>{    Object.entries(a).filter(([k,v])=>b[k]!==v).forEach(([k,v])=>console.log(k)) */
 
 //// dragging
 

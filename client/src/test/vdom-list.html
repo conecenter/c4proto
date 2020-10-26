@@ -10,18 +10,13 @@
             width: 2em;
         }
 
-        tableColDrag {
-            background-image: url(../temp/drag.svg);
-        }
-
         body {
             font-family: helvetica;
-            --secondary-color: rgb(238, 238, 238);
         }
 
         div[data-expander='expanded'] {
-            writing-mode: vertical-rl;
-            text-orientation: mixed;
+            /*writing-mode: vertical-rl;
+            text-orientation: mixed;*/
         }
 
         div[data-expander='collapsed'] {}
@@ -32,6 +27,7 @@
 
         div.grid {
             /* border-collapse:collapse;*/
+            --secondary-color: rgb(238, 238, 238);
             border-spacing: 0;
         }
 
@@ -121,19 +117,28 @@
 
         import { GridRoot, GridCell, GridCol, Highlighter } from "../main/vdom-list.js"
         import { createSyncProviders } from "../main/vdom-hooks.js"
-        import { ImageElement } from '../temp/image.js'
-        import { MockData } from '../temp/MockData.js'
 
         const { createElement: $, useState } = React
+
+        function ImageElement({src,className}){
+            return $("img",{src,className})
+        }
+
+        function MockData() {
+            const srlIcon = $(ImageElement,{ src: "../temp/servicerequestline.svg", className: "rowIconSize", key: "image" })
+            const meleqStr = $(Text,{ value: "MELEQ 11-Oct ● Vessel load" })
+            const row = $("div",{ className: "descriptionRow", key: "row" }, srlIcon, meleqStr)
+            return row
+        }
 
         function Text({ value }) {
             return value
         }
 
         function App() {
-            const [state, setState] = useState({ enableColDrag: true })
+            const [state, setState] = useState({ enableDrag: true })
 
-            const { enableColDrag } = state
+            const { enableDrag } = state
 
             const exCol = (colKey, hideWill, minWidth, maxWidth) => $(GridCol, {
                 key: ":" + colKey, colKey, hideWill, minWidth, maxWidth,
@@ -155,8 +160,8 @@
                 exCol("c7", 2, 5, 10),
                 exCol("c8", 1, 5, 10),
                 exCol("c9", 1, 5, 30),
-                exCol("drag", 0, 1.5, 1.5),
-            ]
+                enableDrag && exCol("drag", 0, 1.5, 1.5),
+            ].filter(Boolean)
             const exCell = rowKey => col => {
                 const colKey = col.props.colKey
                 return colKey==="drag" && rowKey === "drag" ? null : $(GridCell, {
@@ -165,9 +170,9 @@
                     ...(colKey === "drag" ? { dragHandle: "y", style: { userSelect: "none", cursor: "pointer" } } : {}),
                     ...(colKey === "expand" ? { isExpander: true } : {}),
                     children: [
-                        rowKey === "drag" ? getColDragElement() :
+                        rowKey === "drag" ? enableDrag && getColDragElement() :
                         colKey === "expand" ? getExpanderElement() :
-                        colKey === "drag" ? getRowDragElement() :
+                        colKey === "drag" ? enableDrag && getRowDragElement() :
                         MockData()
                     ]
                 })
@@ -204,13 +209,13 @@
                 identity: {},
                 cols,
                 children: [
-                    ...cols.map(exCell("drag")).filter(Boolean),
+                    ...(enableDrag ? cols.map(exCell("drag")).filter(Boolean) : []),
                     ...rowKeys.flatMap(rowKey => cols.map(exCell(rowKey)).filter(Boolean)),
                 ],
                 rowKeys
             })
             const children = [
-                $("button", { key: "colDrag", onClick: ev => setState(was => ({ ...was, enableColDrag: false })) }, "colDrag"),
+                $("button", { key: "dragOff", onClick: ev => setState(was => ({ ...was, enableDrag: false })) }, "no drag"),
                 listEl,
                 $(Highlighter,{key:"row-highlighter", attrName:"data-row-key"}),
                 $(Highlighter,{key:"col-highlighter", attrName:"data-col-key"}),
