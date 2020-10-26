@@ -1,4 +1,4 @@
-import React, { useContext, createContext, useState, useMemo } from 'react'
+import React, { useContext, createContext, useState } from 'react'
 
 const HighlightContext = createContext()
 
@@ -9,11 +9,13 @@ export default function HighlightProvider({ children }) {
     const [style, setStyle] = useState({})
 
 
-    // setStyle(was=>was.row=== && ? was:)
+    function getStyles(divAttr) {
+        return `div[${divAttr}]{background-color: var(--secondary-color);}`
+    }
 
-    const newRowStyle = style.rowKey ? `div[data-row-key="${style.rowKey}"]{background-color: var(--secondary-color);}` : ''
+    const newRowStyle = style.rowKey ? getStyles(`data-row-key="${style.rowKey}"`) : ''
 
-    const newColStyle = style.colKey ? `div[data-col-key="${style.colKey}"]{background-color: var(--secondary-color);}` : ''
+    const newColStyle = style.colKey ? getStyles(`data-col-key="${style.colKey}"`) : ''
 
     return (
         <HighlightContext.Provider value={setStyle}>

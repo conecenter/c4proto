@@ -55,11 +55,7 @@ export default function VdomListElement() {
 
 
     function getExpanderElement() {
-        return $(
-            "div",
-            { className: "textLineSize", key: "expanderElem" },
-            $(ImageElement, { color: "#90929F", className: "expanderElement", src: '/icons/downarrowrow.svg' })
-        )
+        return <ImageElement color="#90929F" className="expanderElement" src='/icons/downarrowrow.svg' key="expander"/>
     }
 
     function getCargoIconCell() {
@@ -67,15 +63,10 @@ export default function VdomListElement() {
     }
 
     function getDragElement() {
-        return $(
-            "div",
-            { className: "textLineSize", key: "dragElem" },
-            $(ImageElement, { color: "adaptive", className: "dragElement", src: '/icons/drag.svg' })
-        )
+        return <ImageElement color="#90929F" className="dragElement" src='/icons/drag.svg' key="dropElem"/>
     }
 
     const rowKeys = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].map(k => "r" + k)
-    const byColumn = []
     const listEl = $(GridRoot, {
         key: "list",
         identity: {},
