@@ -3,7 +3,7 @@
 use strict;
 use Digest::MD5 qw(md5_hex);
 
-my $sys_image_ver = "v70";
+my $sys_image_ver = "v75";
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -231,7 +231,12 @@ my $get_pod = sub{
     my($comp,$ns)=@_;
     my $stm = qq[kubectl -n $ns get po -l app=$comp -o jsonpath="{.items[*].metadata.name}"];
     my @pods = syf(&$remote($comp,$stm))=~/(\S+)/g;
-    my $pod = &$single_or_undef(@pods) || die "no single pod for $comp";
+    my $pod = &$single_or_undef(@pods) ||
+        &$single_or_undef(grep{
+            my $pod = $_;
+            0 < grep{/^c4is-master\s*$/} syl(&$remote($comp,qq[kubectl -n $ns exec $pod -- ls /c4]))
+        }@pods) ||
+        die "no single pod for $comp";
     ($ns,$pod)
 };
 
@@ -1021,7 +1026,7 @@ my $prod_image_steps = sub{(
     "RUN perl install.pl apt haproxy",
     #"RUN perl install.pl curl https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz",
     "RUN perl install.pl curl https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.5%2B10/OpenJDK11U-jdk_x64_linux_hotspot_11.0.5_10.tar.gz",
-    "RUN perl install.pl curl https://www-eu.apache.org/dist/kafka/2.2.0/kafka_2.12-2.2.0.tgz",
+    "RUN perl install.pl curl https://archive.apache.org/dist/kafka/2.2.0/kafka_2.12-2.2.0.tgz",
     "RUN perl install.pl curl http://ompc.oss.aliyuncs.com/greys/release/greys-stable-bin.zip",
     "RUN mkdir /c4db && chown c4:c4 /c4db",
 )};
@@ -1042,9 +1047,9 @@ my $up_desktop = sub{
         my $put = &$rel_put_text($from_path);
         my $gen_dir = $ENV{C4PROTO_DIR} || die;
         my $conf_cert_path = &$get_conf_cert_path().".pub";
-        sy("cp $gen_dir/install.pl $gen_dir/desktop.pl $gen_dir/haproxy.pl $conf_cert_path $from_path/");
+        sy("cp $gen_dir/install.pl $gen_dir/desktop.pl $gen_dir/haproxy.pl $gen_dir/bloop_fix.pl $conf_cert_path $from_path/");
         &$put("c4p_alias.sh", join "\n",
-            'export PATH=$PATH:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin:/tools/kafka/bin:/tools:/c4/.bloop',
+            'export PATH=$PATH:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin:/tools/kafka/bin:/tools:/c4/wrap',
             'export JAVA_HOME=/tools/jdk',
             'export C4DEPLOY_CONF=/c4conf/ssh.tar.gz',
             "export C4DEPLOY_LOCATION=".($ENV{C4DEPLOY_LOCATION}||die),
@@ -1064,10 +1069,10 @@ my $up_desktop = sub{
             " wget nano python",
             "RUN perl install.pl curl $dl_frp_url",
             "RUN perl install.pl curl https://nodejs.org/dist/v8.9.1/node-v8.9.1-linux-x64.tar.xz",
-            "RUN perl install.pl curl https://piccolo.link/sbt-1.3.2.tgz",
+            "RUN perl install.pl curl https://github.com/sbt/sbt/releases/download/v1.4.0/sbt-1.4.0.tgz",
             "RUN perl install.pl curl https://git.io/coursier-cli && chmod +x /tools/coursier",
             "RUN rm -r /etc/dropbear && ln -s /c4/dropbear /etc/dropbear ",
-            "COPY desktop.pl haproxy.pl id_rsa.pub c4p_alias.sh /",
+            "COPY desktop.pl haproxy.pl bloop_fix.pl id_rsa.pub c4p_alias.sh /",
             "RUN C4DATA_DIR=/c4db perl /desktop.pl fix",
             "USER c4",
             'ENTRYPOINT ["perl","/desktop.pl"]',
@@ -1380,11 +1385,15 @@ my $get_head_img_tag = sub{
     die $parent;
 };
 
+my $get_head_img = sub{
+    my($req_pre,$repo_dir,$parent) = @_;
+    $repo_dir ? "$req_pre.".&$get_head_img_tag($repo_dir,$parent) : $req_pre;
+};
+
 push @tasks, ["ci_build_head","<builder> <req> <dir|commit> [parent]",sub{
     my($builder_comp,$req_pre,$repo_dir,$parent) = @_;
     sy(&$ssh_add());
-    my $pf = &$get_head_img_tag($repo_dir,$parent);
-    my $img = "$req_pre.$pf";
+    my $img = &$get_head_img($req_pre,$repo_dir,$parent);
     my $req = "build $img\n";
     my $gen_dir = $ENV{C4PROTO_DIR} || die;
     my ($host,$port) = &$get_host_port($builder_comp);
@@ -1398,8 +1407,8 @@ push @tasks, ["ci_build_head","<builder> <req> <dir|commit> [parent]",sub{
 }];
 push @tasks, ["ci_build_head_tcp","",sub{ # <host>:<port> <req> <dir|commit> [parent]
     my($addr,$req_pre,$repo_dir,$parent) = @_;
-    my $pf = &$get_head_img_tag($repo_dir,$parent);
-    my $req = "build $req_pre.$pf\n";
+    my $img = &$get_head_img($req_pre,$repo_dir,$parent);
+    my $req = "build $img\n";
     &$nc($addr,sub{ $req });
 }];
 my $ci_inner_opt = sub{
@@ -1407,6 +1416,7 @@ my $ci_inner_opt = sub{
 };
 push @tasks, ["ci_inner_build","",sub{
     my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
+    sy("perl $proto_dir/bloop_fix.pl");
     sy("bloop server &");
     my $find = sub{ syf("jcmd")=~/^(\d+)\s+\S+\bblp-server\b/ and return "$1" while sleep 1; die };
     my $pid = &$find();

@@ -36,6 +36,7 @@ import scala.concurrent.duration.Duration
   activeOrigKeyRegistry: ActiveOrigKeyRegistry,
 ) extends LazyLogging {
   def toTreeReplace(assembled: ReadModel, updates: Seq[N_Update], profiling: JoiningProfiling, executionContext: OuterExecutionContext): Future[WorldTransition] = {
+    val start = System.nanoTime
     val isActiveOrig: Set[AssembledKey] = activeOrigKeyRegistry.values
     val outFactory = composes.createOutFactory(0, +1)
     val mDiff = for {
@@ -60,7 +61,16 @@ import scala.concurrent.duration.Duration
       wKey -> indexF
     }
     val diff = readModelUtil.create(mDiff.toMap)
-    replace.replace(assembled,diff,profiling,executionContext)
+    val res = replace.replace(assembled,diff,profiling,executionContext)
+    if(logger.underlying.isDebugEnabled){
+      val txName = Thread.currentThread.getName
+      res.foreach(transition=>{
+        val period = (System.nanoTime-start)/1000000
+        val ids = updates.map(_.valueTypeId).distinct.map(v=>s"0x${java.lang.Long.toHexString(v)}").mkString(" ")
+        logger.debug(s"checked: ${transition.taskLog.size} rules $period ms by $txName ($ids)")
+      })(executionContext.value)
+    }
+    res
   }
 
   def waitFor[T](res: Future[T], options: AssembleOptions, stage: String): T = concurrent.blocking{
@@ -153,9 +163,10 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   getAssembleOptions: GetAssembleOptions,
 ) extends RawTxAdd {
   // other parts:
-  def add(out: Seq[N_Update]): Context => Context = {
+  def add(out: Seq[N_Update]): Context => Context =
     if (out.isEmpty) identity[Context]
-    else { local =>
+    else doAdd(out,_)
+  private def doAdd(out: Seq[N_Update], local: Context): Context = {
       implicit val executionContext: ExecutionContext = local.executionContext.value
       val options = getAssembleOptions.get(local.assembled)
       val processedOut: List[N_Update] = processors.flatMap(_.process(out)) ++ out
@@ -171,7 +182,6 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
       }
       util.waitFor(res, options, "add")
       //call add here for new mortal?
-    }
   }
 }
 

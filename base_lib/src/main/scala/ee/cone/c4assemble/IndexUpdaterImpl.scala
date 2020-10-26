@@ -40,11 +40,17 @@ import scala.concurrent.{ExecutionContext, Future}
   def toMap: ReadModel=>Map[AssembledKey,Index] = {
     case model: ReadModelImpl => model.inner.transform((k,f) => indexUtil.getInstantly(f)) // .getOrElse(throw new Exception(s"index failure: $k"))
   }
-  def ready(implicit executionContext: ExecutionContext): ReadModel=>Future[ReadModel] = {
-    case model: ReadModelImpl =>
-      for {
-        ready <- Future.sequence(model.inner.values)
-      } yield model
+
+  private def getInner(model: ReadModel): MMap = model match {
+    case a: ReadModelImpl => a.inner
+    case _ => Map.empty
+  }
+  def changesReady(prev: ReadModel, next: ReadModel)(implicit executionContext: ExecutionContext): Future[Any] = {
+    /* val freshFutures = getInner(next).filterNot(getInner(prev).toSet).toSeq */
+    val prevInner = getInner(prev)
+    val freshFutures = getInner(next).collect{ case (k,v) if !prevInner.get(k).contains(v) => v }
+    //println(s"freshFutures ${freshFutures.size}")
+    Future.sequence(freshFutures)
   }
 }
 

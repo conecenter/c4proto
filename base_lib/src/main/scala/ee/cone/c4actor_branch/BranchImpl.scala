@@ -96,7 +96,7 @@ case object EmptyBranchMessage extends BranchMessage {
     )(local)*/
   }
 
-  private def reportAliveBranches: Context => Context = local => {
+  private def reportAliveBranches(local: Context): Context = {
     val wasReport = ReportAliveBranchesKey.of(local)
     if(sessionKeys.isEmpty){
       if(wasReport.isEmpty) local else ReportAliveBranchesKey.set("")(local)
@@ -134,13 +134,13 @@ case object EmptyBranchMessage extends BranchMessage {
   private def incrementErrors: Context => Context =
     ErrorKey.modify(new Exception :: _)
 
-  private def saveErrors: String => Context => Context = text => {
+  private def saveErrors(text: String, local: Context): Context = {
     val now = System.currentTimeMillis
     val failure = U_SessionFailure(UUID.randomUUID.toString,text,now,sessionKeys)
-    txAdd.add(LEvent.update(failure))
+    txAdd.add(LEvent.update(failure))(local)
   }
 
-  private def rmRequestsErrors: Context => Context = local => {
+  private def rmRequestsErrors(local: Context): Context = {
     chain(requests.map{ request =>
       val sessionKey = request.header("x-r-session")
       val index = request.header("x-r-index")
@@ -150,17 +150,25 @@ case object EmptyBranchMessage extends BranchMessage {
     }).andThen(ErrorKey.set(Nil))(local)
   }
 
+  private def doExchange(message: BranchMessage, local: Context): Context =
+    handler.exchange(message)(local)
+
+  private def doNormalTransform(local: Context): Context =
+    chain(getPosts.map(msg=>doExchange(msg,_)))
+    .andThen(saveResult).andThen(reportAliveBranches)(local)
+
   def transform(local: Context): Context = {
+    val end = NanoTimer()
     if(requests.nonEmpty)
       logger.debug(s"branch $branchKey tx begin ${requests.map(r=>r.header("x-r-alien-date")).mkString("(",", ",")")}")
     val errors = ErrorKey.of(local)
     val res = if(errors.nonEmpty && requests.nonEmpty)
-      saveErrors(errorText(local)).andThen(rmRequestsErrors)(local)
+      rmRequestsErrors(saveErrors(errorText(local),local))
     else if(errors.size == 1)
       reportError(errorText(local)).andThen(incrementErrors)(local)
-    else chain(getPosts.map(handler.exchange))
-      .andThen(saveResult).andThen(reportAliveBranches)
-      .andThen(rmRequestsErrors)(local)
+    else rmRequestsErrors(doNormalTransform(local))
+    if(requests.nonEmpty)
+      logger.debug(s"branch $branchKey tx done in ${end.ms} ms")
     res
   }
 }

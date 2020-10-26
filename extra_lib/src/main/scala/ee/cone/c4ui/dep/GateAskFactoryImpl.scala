@@ -4,8 +4,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep.ContextTypes.{ContextId, RoleId, UserId}
 import ee.cone.c4actor.dep._
-import ee.cone.c4actor.dep.request.CurrentTimeRequestProtocol.N_CurrentTimeRequest
-import ee.cone.c4actor.dep_impl.RequestDep
+import ee.cone.c4actor.time.{CurrentTime, T_Time, TimeGetters}
 import ee.cone.c4di.{c4, provide}
 import ee.cone.c4gate.SessionDataProtocol.{N_RawDataNode, U_RawSessionData}
 import ee.cone.c4gate.deep_session.DeepSessionDataProtocol.{U_RawRoleData, U_RawUserData}
@@ -222,6 +221,21 @@ import okio.ByteString
   }
 }
 
-@c4("CurrentTimeAskCompApp") final case class CurrentTimeAskFactoryImpl() extends CurrentTimeAskFactory {
-  def askCurrentTime(eachNSeconds: Long): Dep[Long] = new RequestDep[Long](N_CurrentTimeRequest(eachNSeconds))
+class CurrentTimeRequestFactoryImpl(val byPkAsk: AskByPK[_ <: T_Time], time: CurrentTime) extends CurrentTimeRequestFactory {
+  def ask: Dep[Long] = byPkAsk.option(time.srcId).map(_.map(_.millis).getOrElse(0L))
+}
+
+@c4("CurrentTimeAskCompApp") final class CurrentTimeRequestFactoryProvider(
+  requestFactories: List[CurrentTimeRequestFactory]
+) {
+  @provide def askByPks: Seq[AbstractAskByPK] =
+    requestFactories.map(_.byPkAsk)
+}
+
+@c4("CurrentTimeAskCompApp") final case class CurrentTimeAskFactoryImpl(
+  askByPKFactory: AskByPKFactory,
+  timeGetters: TimeGetters
+) extends CurrentTimeAskFactory {
+  def askCurrentTime(time: CurrentTime): CurrentTimeRequestFactory =
+    new CurrentTimeRequestFactoryImpl(askByPKFactory.forClass(timeGetters(time).cl), time)
 }

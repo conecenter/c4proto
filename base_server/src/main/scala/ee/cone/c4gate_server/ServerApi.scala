@@ -41,7 +41,7 @@ object RHttpTypes {
 }
 
 // outer handler api
-case class FHttpRequest(method: String, path: String, headers: List[N_Header], body: ByteString)
+case class FHttpRequest(method: String, path: String, rawQueryString: Option[String], headers: List[N_Header], body: ByteString)
 trait FHttpHandler {
   def handle(request: FHttpRequest)(implicit executionContext: ExecutionContext): Future[S_HttpResponse]
 }
