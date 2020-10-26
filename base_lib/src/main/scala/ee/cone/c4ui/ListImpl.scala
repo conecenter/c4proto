@@ -43,7 +43,6 @@ case object RightFilterButtonArea extends FilterButtonArea("rt")
     hideWill: Int,
     minWidth: Int,
     maxWidth: Int,
-    canDrag: Boolean,
     caption: String = "",
     isExpander: Boolean = false,
   ): VDom[VGridCol]
@@ -54,7 +53,7 @@ case object RightFilterButtonArea extends FilterButtonArea("rt")
     className: CSSClassName = NoCSSClassName,
     children: List[VDom[VGridCellContent]] = Nil,
     isExpander: Boolean = false,
-    isRowDragHandle: Boolean = false
+    dragHandle: DragHandle = NoDragHandle,
   ): VDom[VGridCell]
 
   @c4tag("FilterArea") def filterArea(
