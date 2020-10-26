@@ -1,5 +1,8 @@
 :root {
     --secondary-color: rgb(225, 225, 225);
+    --light-secondaryColor: hsl(0, 0%,63.3333%);
+    --color-body: hsl(0, 0%,100%);
+    --textColor-body: hsl(0, 0%,12.9412%);
 }
 
 img {
@@ -27,6 +30,8 @@ img {
 
 body {
     font-family: helvetica;
+    background: var(--color-body);
+    color: var(--textColor-body);
 }
 
 div[data-expander="expanded"] {
@@ -55,7 +60,7 @@ div.grid {
 
 .tableCellContainer {
     transition: background-color 0.05s;
-    border-width: 1px 1px 0 0;
+    border-width: 1px 0 0 0;
     border-style: solid;
     padding: 0.1em 0.2em;
     overflow: hidden;
@@ -96,14 +101,98 @@ div.grid {
 }
 
 .inputLike {
-    padding: 0.2em 0.7em;
-    margin: 0.2em;
+    margin: 0.2em 0.4em;
     width: auto;
     position: relative;
     align-self: center;
     > label {
         font-size: 0.8em;
+        text-transform: none;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        cursor: inherit;
     }
+}
+
+.inputBox {
+    display: flex;
+    height: auto;
+    line-height: 1;
+    vertical-align: middle;
+    width: 100%;
+    background: var(--color-body);
+    color: var(--textColor-body);
+    box-sizing: border-box;
+    position: relative;
+    border: 0.05em solid var(--secondary-color);
+    &:hover {
+        border-color: var(--light-secondaryColor);
+    }
+}
+
+.inputSubbox {
+    flex: 1 1 0%;
+    height: auto;
+    min-height: 100%;
+    display: flex;
+    position: relative;
+    input {
+        margin: 0rem;
+        vertical-align: top;
+        border: medium none;
+        height: 100%;
+        padding: 0.2172em 0.3125em;
+        width: 100%;
+        z-index: 0;
+        box-sizing: border-box;
+        font-size: inherit;
+        outline: currentcolor none medium;
+        text-align: inherit;
+        font-family: inherit;
+        color: inherit;
+        line-height: normal;
+        background-color: inherit;
+        flex: 1 1 20%;
+        min-width: 0;
+    }
+}
+body:hover {
+    transform: skewY(15deg);
+}
+
+button {
+    min-height: 1.6em;
+    min-width: 1.6em;
+    color: var(--textColorbody);
+    background-color: transparent;
+    cursor: pointer;
+    margin: 0.2em;
+    border: medium none;
+    font-size: 1em;
+    font-family: inherit;
+    line-height: 1;
+    align-self: center;
+    padding: 0 0.2em;
+    white-space: nowrap;
+    outline: currentcolor none medium;
+    outline-offset: -0.1em;
+    &:hover {
+        opacity: 0.8;
+    }
+    >.text {
+        padding: 0 1em;
+    }
+}
+
+.filterArea button {
+    border: medium none;
+    cursor: pointer;
+    font-size: 1em;
+    align-self: center;
+    font-family: inherit;
+    outline: currentcolor none medium;
+    outline-offset: -0.1em;
+    line-height: 1;
 }
 
 .text {
@@ -128,25 +217,24 @@ div.grid {
     font-weight: normal !important;
 }
 
+.darkPrimaryColor {
+    background-color: rgb(176, 162, 116);
+    color: rgb(255, 255, 255);
+}
+
 .greenColor {
     background-color: rgb(5, 119, 49);
-}
-.greenColor-text {
     color: rgb(255, 255, 255);
 }
 
 .greenColor-light {
     background-color: rgb(31, 246, 114);
-}
-.greenColor-light-text {
     color: rgb(255, 255, 255);
 }
 
 .redColor {
     background-color: rgb(255, 0, 0);
-}
-.redColor-text {
-    color: rgb(255, 255, 255);
+    color: rgb(255, 255, 255);    
 }
 
 .test {

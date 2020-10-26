@@ -7,8 +7,8 @@ import MockData, { Text, ByCell, ProjectCell, StockCell, NumMarkCell, LocationCe
 
 const { createElement: $, useState } = React
 
-export default function VdomListElement() {
-    const [state, setState] = useState({ enableColDrag: true })
+export default function VdomListElement({style}) {
+    const [state, setState] = useState({ enableColDrag: false })
 
     const { enableColDrag } = state
 
@@ -75,7 +75,6 @@ export default function VdomListElement() {
         rowKeys
     })
     const children = [
-        $("button", { key: "colDrag", onClick: ev => setState(was => ({ ...was, enableColDrag: false })) }, "colDrag"),
         listEl,
         // <div className="test">test </div>
     ]
