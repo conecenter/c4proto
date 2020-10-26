@@ -124,7 +124,7 @@ case object EmptyBranchMessage extends BranchMessage {
     toAlienSender.send(sessionKeys,evType,data)
 
   private def errorText: Context => String = local => ErrorKey.of(local).map{
-    case e:BranchError => e.message
+    case e:BranchError => e.message(local)
     case _ => ""
   }.mkString("\n")
 
