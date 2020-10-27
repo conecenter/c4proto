@@ -1418,7 +1418,7 @@ push @tasks, ["ci_inner_build","",sub{
     my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
     sy("perl $proto_dir/bloop_fix.pl");
     sy("bloop server &");
-    my $find = sub{ sub {print(syf("jcmd")); return syf("jcmd")}=~/^(\d+)\s+\S+\bblp-server\b/ and return "$1" while sleep 1; die };
+    my $find = sub{ syf("jcmd")=~/^(\d+)\s+bloop\.Server\b/ and return "$1" while sleep 1; die };
     my $pid = &$find();
     sy("cd $gen_dir && perl $proto_dir/build.pl");
     my $close = &$start("cd $gen_dir && sh .bloop/c4/tag.$base.compile");
