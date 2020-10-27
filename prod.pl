@@ -1070,7 +1070,7 @@ my $up_desktop = sub{
             "RUN perl install.pl curl $dl_frp_url",
             "RUN perl install.pl curl https://nodejs.org/dist/v8.9.1/node-v8.9.1-linux-x64.tar.xz",
             "RUN perl install.pl curl https://github.com/sbt/sbt/releases/download/v1.4.0/sbt-1.4.0.tgz",
-            "RUN perl install.pl curl https://git.io/coursier-cli && chmod +x /tools/coursier",
+            "RUN perl install.pl curl https://git.io/coursier-cli-linux && chmod +x /tools/coursier",
             "RUN rm -r /etc/dropbear && ln -s /c4/dropbear /etc/dropbear ",
             "COPY desktop.pl haproxy.pl bloop_fix.pl id_rsa.pub c4p_alias.sh /",
             "RUN C4DATA_DIR=/c4db perl /desktop.pl fix",
@@ -1418,7 +1418,11 @@ push @tasks, ["ci_inner_build","",sub{
     my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
     sy("perl $proto_dir/bloop_fix.pl");
     sy("bloop server &");
-    my $find = sub{ syf("jcmd")=~/^(\d+)\s+\S+\bblp-server\b/ and return "$1" while sleep 1; die };
+    my $find = sub{
+        my $r = syf("jcmd");
+        print("find", $r);
+        $r=~/^(\d+)\s+\S+\bblp-server\b/ and return "$1" while sleep 1; die
+    };
     my $pid = &$find();
     sy("cd $gen_dir && perl $proto_dir/build.pl");
     my $close = &$start("cd $gen_dir && sh .bloop/c4/tag.$base.compile");
