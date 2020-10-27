@@ -10,7 +10,7 @@ export default function VdomFiltersElement() {
 
 
     function FilterButton({ minWidth, optButtons }) {
-        return <ButtonElement style={{ display: "flex", flexBasis: minWidth + "em" }} caption="Button"/>
+        // return <ButtonElement style={{ display: "flex", flexBasis: minWidth + "em" }} caption="Button"/>
         return $("div", { style: { display: "flex", flexBasis: minWidth + "em", border: "1px solid blue" } }, "B")
     }
     function FilterItem({ nonEmpty, value }) {
