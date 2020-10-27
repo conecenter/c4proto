@@ -88,7 +88,7 @@ class MetaGenerator(statTransformers: List[ProtocolStatsTransformer]) extends Ge
           else Utils.parseError(classDef.nameNode, parseContext, "Orig has multiple @ShortName")
         case mod"@Meta(...${exprss: Seq[Seq[Term]]})" =>
           curr.copy(metaAttrs = parseArgsWithApply(exprss) ::: curr.metaAttrs)
-        case mod"@master(...$exprss)" =>
+        case mod"@Master(...$exprss)" =>
           curr.copy(master = true, masterComment = Some(getString(exprss.flatten.asInstanceOf[Seq[Term]])))
         case mod"@$annot" =>
           curr.copy(anns = wrapAsString(annot.init.syntax) :: curr.anns)
