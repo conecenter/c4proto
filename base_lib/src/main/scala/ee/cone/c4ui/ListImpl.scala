@@ -28,6 +28,20 @@ sealed abstract class FilterButtonArea(val value: String) extends Product
 case object LeftFilterButtonArea extends FilterButtonArea("lt")
 case object RightFilterButtonArea extends FilterButtonArea("rt")
 
+sealed abstract class DragHandle(val value: String) extends Product
+case object NoDragHandle extends DragHandle("")
+case object ColDragHandle extends DragHandle("x")
+case object RowDragHandle extends DragHandle("y")
+
+@c4("UICompApp") final class ListJsonAdapterProvider(util: TagJsonUtils) {
+  @provide def forCSSClassName: Seq[JsonPairAdapter[CSSClassName]] =
+    List(util.jsonPairAdapter((value, builder) => builder.just.append(value.value)))
+  @provide def forFilterButtonArea: Seq[JsonPairAdapter[FilterButtonArea]] =
+    List(util.jsonPairAdapter((value, builder) => builder.just.append(value.value)))
+  @provide def forDragHandle: Seq[JsonPairAdapter[DragHandle]] =
+    List(util.jsonPairAdapter((value, builder) => builder.just.append(value.value)))
+}
+
 @c4tags("UICompApp") trait ListTags {
   @c4tag("GridRoot") def gridRoot(
     key: String,
