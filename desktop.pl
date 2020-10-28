@@ -88,10 +88,10 @@ push @tasks, [le_http=>$haproxy];
 push @tasks, [le_https=>$haproxy];
 push @tasks, [bloop=>sub{
     &$need_home();
-    my $dir = "/c4/.bloop";
-    $ENV{PATH} = "$ENV{PATH}:/tools/jdk/bin:$dir";
-    -e "$dir/bloop" or sy("curl -L https://github.com/scalacenter/bloop/releases/download/v1.3.4/install.py | python");
-    &$exec("bloop","server");
+    #my $dir = "/c4/.bloop";
+    sy("perl /bloop_fix.pl");
+    sy(". /c4p_alias.sh && coursier install bloop:1.4.4 --only-prebuilt=true");
+    &$exec(". /c4p_alias.sh && exec bloop server");
 }];
 
 my($cmd,@args)=@ARGV;

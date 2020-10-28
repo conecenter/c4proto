@@ -43,14 +43,14 @@ trait PublicDirProvider {
   def get: List[(String,Path)]
 }
 
-@c4("PublishingCompApp") final class ModPublicDirProvider(config: ListConfig) extends PublicDirProvider {
+@c4("PublishingCompApp") final class ModPublicDirProvider(config: ListConfig) extends PublicDirProvider with LazyLogging {
   def get: List[(String,Path)] = {
-    val Mod = """.+/mod\.([^/]+)\.(classes|jar)""".r
+    val Mod = """.+/mod\.([^/]+)\.(classes(-bloop-cli)?|jar)""".r
     val hasMod = (for {
       classpath <- config.get("CLASSPATH")
-      Mod(m,_) <- classpath.split(":")
+      Mod(m,_,_) <- classpath.split(":")
     } yield m).toSet
-    // println(s"hasMod: $hasMod")
+    logger.debug(s"hasMod: $hasMod")
     val Line = """(\S+)\s+(\S+)\s+(\S+)""".r
     for {
       mainPublicPath <- "htdocs" :: config.get("C4GENERATOR_MAIN_PUBLIC_PATH")
