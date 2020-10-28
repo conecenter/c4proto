@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Filter Test</title>
+<style>
+body {
+    font-family: helvetica;
+}
+.filterArea > div {
+    /*border: 1px solid silver*/
+}
+
+.filterExpander {
+    display: flex;
+    flex-basis: 2em;
+    border: 1px solid green;
+    height: 2em;
+}
+
+</style>
+</head>
+<body><script type="module" src="vdom-filter-app.js"></script></body>
+</html>
+<!--
+высота -- 3 варианта:
+    без полей -- 1 строка
+    режим hide -- 2+ строки -- (инп+капшн = 2 рядакнопок) -- все заполненные + влезающие
+    режим show -- 2+ строки -- все
+ширина -- приоритет:
+    min-w + fixed-w (of "of")
+    заполненные фильтры
+    "1-of" без бургера
+    "of-2" без бургера
+    остаток на фильтры
+
+-->

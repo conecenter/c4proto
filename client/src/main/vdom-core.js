@@ -1,5 +1,5 @@
 
-import {createElement,useState,useCallback,useEffect,memo} from "../main/react-prod.js"
+import {createElement,useState,useCallback,useEffect,memo} from "react"
 import {splitFirst,spreadAll,oValues}    from "../main/util.js"
 import {ifInputsChanged,dictKeys,branchByKey,rootCtx,ctxToPath,chain,someKeys,weakCache} from "../main/vdom-util.js"
 import {useSync,createSyncProviders} from "../main/vdom-hooks.js"

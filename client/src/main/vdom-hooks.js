@@ -1,5 +1,5 @@
 
-import {createElement,useState,useMemo,useLayoutEffect,useContext,createContext,useCallback,useEffect} from "../main/react-prod.js"
+import {createElement,useState,useMemo,useLayoutEffect,useContext,createContext,useCallback,useEffect} from "react"
 
 /********* sync ***************************************************************/
 

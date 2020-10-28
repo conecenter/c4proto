@@ -1,29 +1,7 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Filter Test</title>
-<style>
-body {
-    font-family: helvetica;
-}
-.filterArea > div {
-    /*border: 1px solid silver*/
-}
 
-.filterExpander {
-    display: flex;
-    flex-basis: 2em;
-    border: 1px solid green;
-    height: 2em;
-}
+import React from "react"
+import ReactDOM from "react-dom"
 
-</style>
-</head>
-<body>
-<script crossorigin src="https://unpkg.com/react@16/umd/react.development.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@16/umd/react-dom.development.js"></script>
-<script type="module">
 const {createElement:$,useState,useMemo} = React
 
 import {FilterArea,FilterExpander,PopupContext} from "../main/vdom-filter.js"
@@ -81,19 +59,3 @@ function App(){
 const containerElement = document.createElement("div")
 document.body.appendChild(containerElement)
 ReactDOM.render($(App),containerElement)
-</script>
-</body>
-</html>
-<!--
-высота -- 3 варианта:
-    без полей -- 1 строка
-    режим hide -- 2+ строки -- (инп+капшн = 2 рядакнопок) -- все заполненные + влезающие
-    режим show -- 2+ строки -- все
-ширина -- приоритет:
-    min-w + fixed-w (of "of")
-    заполненные фильтры
-    "1-of" без бургера
-    "of-2" без бургера
-    остаток на фильтры
-
--->

@@ -1,5 +1,5 @@
-"use strict";
-import { useState, useEffect, createElement } from '../main/react-prod.js'
+
+import { useState, useEffect, createElement } from "react"
 
 const initViewBox = "0 0 0 0"
 const rotateStyle = (rotate) => rotate ? { transform: `rotate(${rotate})` } : {}

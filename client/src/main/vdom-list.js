@@ -1,6 +1,6 @@
 
 
-import { createElement as $, useMemo, useState, useLayoutEffect, cloneElement, useCallback, useEffect, memo } from "./react-prod.js"
+import { createElement as $, useMemo, useState, useLayoutEffect, cloneElement, useCallback, useEffect, memo } from "react"
 
 import { map, head as getHead, identityAt, deleted, weakCache, never } from "./vdom-util.js"
 import { useWidth, useEventListener, useSync } from "./vdom-hooks.js"

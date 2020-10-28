@@ -1,5 +1,5 @@
 
-import {createElement as $,useState,useLayoutEffect,useContext,createContext,useCallback,useEffect} from "../main/react-prod.js"
+import {createElement as $,useState,useLayoutEffect,useContext,createContext,useCallback,useEffect} from "react"
 import {useWidth,useEventListener} from "../main/vdom-hooks.js"
 
 //// move to shared
@@ -189,7 +189,7 @@ export function FilterExpander({identity,optButtons}){
     const width = em(Math.max(...optButtons.map(c=>c.props.minWidth)))
     const [isOpened,open] = usePopupState(identity,popupElement)
 
-    console.log("p-render")
+    console.log("p-render-")
     return $("div",{className:"filterExpander",style:parentStyle,onClick:ev=>open()},
         isOpened && $("div",{style:{...popupStyle,width},ref:setPopupElement},optButtons)
     )
