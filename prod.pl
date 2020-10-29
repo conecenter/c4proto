@@ -1505,7 +1505,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     &$_() for @started;
     &$put_text("$ctx_dir/serve.sh","export C4APP_CLASS=$main\nexec java ee.cone.c4actor.ServerMain");
     #
-    my %has_mod = map{m"/mod\.([^/]+)\.classes$"?($1=>1):()} @classpath;
+    my %has_mod = map{m"/mod\.([^/]+)\.classes(-bloop-cli)?$"?($1=>1):()} @classpath;
     my $main_public_path_path = "$gen_dir/.bloop/c4/main_public_path";
     my @main_public_path = (!-e $main_public_path_path) ? () :
         syf("cat $main_public_path_path")=~/(\S+)/ ? ($1) : die;
