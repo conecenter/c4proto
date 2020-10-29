@@ -73,9 +73,6 @@ abstract class SetField[T](val make: (SrcId,String)=>T) extends Product
 @c4("TestTodoApp") final class ExampleJsonAdapterProvider(util: TagJsonUtils) {
   @provide def int: Seq[JsonPairAdapter[Int]] =
     List(util.jsonPairAdapter((value,builder) => builder.just.append(value.toString)))//?DecimalFormat
-  @provide def receiver: Seq[JsonPairAdapter[Receiver[Context]]] = List(new JsonPairAdapter[Receiver[Context]]{
-    def appendJson(key: String, value: Receiver[Context], builder: MutableJsonBuilder): Unit = {}
-  })
 }
 
 trait VExampleField

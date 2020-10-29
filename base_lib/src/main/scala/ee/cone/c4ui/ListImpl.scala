@@ -40,6 +40,9 @@ case object RowDragHandle extends DragHandle("y")
     List(util.jsonPairAdapter((value, builder) => builder.just.append(value.value)))
   @provide def forDragHandle: Seq[JsonPairAdapter[DragHandle]] =
     List(util.jsonPairAdapter((value, builder) => builder.just.append(value.value)))
+  @provide def forReceiver: Seq[JsonPairAdapter[Receiver[Context]]] = List(new JsonPairAdapter[Receiver[Context]]{
+    def appendJson(key: String, value: Receiver[Context], builder: MutableJsonBuilder): Unit = {}
+  })
 }
 
 @c4tags("UICompApp") trait ListTags {
