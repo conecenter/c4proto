@@ -7,7 +7,8 @@ RUN perl install.pl curl https://git.io/coursier-cli-linux && chmod +x /tools/co
 RUN perl install.pl curl https://nodejs.org/dist/v8.9.1/node-v8.9.1-linux-x64.tar.xz
 USER c4
 ENV PATH=${PATH}:/tools/jdk/bin:/tools:/tools/node/bin:/c4/wrap
-RUN coursier install bloop:1.4.4 --only-prebuilt=true
+RUN curl -L https://github.com/scalacenter/bloop/releases/download/v1.3.4/install.py | python
+#RUN coursier install bloop:1.4.4 --only-prebuilt=true
 ARG C4CI_BASE_TAG
 ENV C4CI_BASE_TAG_ENV=$C4CI_BASE_TAG
 ENV C4CI_PROTO_DIR=/c4/c4proto

@@ -8,15 +8,22 @@ my $put_text = sub{
 my $dir = "/c4/wrap";
 my $path = "$dir/bloop";
 mkdir $dir;
+
 &$put_text($path,q%#!/usr/bin/perl
-for(<.bloop/*>){
-    my ($pre,$nm) = m{^(.+)/([^/]+)\.json$} ? ($1,$2) : next;
-    my $a_dir = "$pre/c4/mod.$nm.classes";
-    my $b_dir = "mod.$nm.out/bloop-bsp-clients-classes/mod.$nm.classes-bloop-cli";
-    next if $b_dir eq readlink $a_dir;
-    unlink $a_dir;
-    symlink $b_dir, $a_dir or die $!, $a_dir, "cleanup may help";
-}
-exec "/c4/.local/share/coursier/bin/bloop",@ARGV; die;
+!readlink $_ or unlink $_ or die $_ for <.bloop/*.classes>;
+exec "/c4/.bloop/bloop",@ARGV; die;
 %);
+
+#&$put_text($path,q%#!/usr/bin/perl
+#for(<.bloop/*>){
+#    my ($pre,$nm) = m{^(.+)/([^/]+)\.json$} ? ($1,$2) : next;
+#    my $a_dir = "$pre/c4/mod.$nm.classes";
+#    my $b_dir = "mod.$nm.out/bloop-bsp-clients-classes/mod.$nm.classes-bloop-cli";
+#    next if $b_dir eq readlink $a_dir;
+#    unlink $a_dir;
+#    symlink $b_dir, $a_dir or die $!, $a_dir, "cleanup may help";
+#}
+#exec "/c4/.local/share/coursier/bin/bloop",@ARGV; die;
+#%);
+
 sy("chmod +x $path");
