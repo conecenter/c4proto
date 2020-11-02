@@ -3,7 +3,7 @@
 use strict;
 use Digest::MD5 qw(md5_hex);
 
-my $sys_image_ver = "v75";
+my $sys_image_ver = "v77";
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -1418,7 +1418,7 @@ push @tasks, ["ci_inner_build","",sub{
     my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
     sy("perl $proto_dir/bloop_fix.pl");
     sy("bloop server &");
-    my $find = sub{ syf("jcmd")=~/^(\d+)\s+bloop\.Server\b/ and return "$1" while sleep 1; die };
+    my $find = sub{ syf("jcmd")=~/^(\d+)\s+(\S+\bblp-server|bloop\.Server)\b/ and return "$1" while sleep 1; die };
     my $pid = &$find();
     sy("cd $gen_dir && perl $proto_dir/build.pl");
     my $close = &$start("cd $gen_dir && sh .bloop/c4/tag.$base.compile");
@@ -1505,7 +1505,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     &$_() for @started;
     &$put_text("$ctx_dir/serve.sh","export C4APP_CLASS=$main\nexec java ee.cone.c4actor.ServerMain");
     #
-    my %has_mod = map{m"/mod\.([^/]+)\.classes$"?($1=>1):()} @classpath;
+    my %has_mod = map{m"/mod\.([^/]+)\.classes(-bloop-cli)?$"?($1=>1):()} @classpath;
     my $main_public_path_path = "$gen_dir/.bloop/c4/main_public_path";
     my @main_public_path = (!-e $main_public_path_path) ? () :
         syf("cat $main_public_path_path")=~/(\S+)/ ? ($1) : die;
