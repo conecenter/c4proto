@@ -72,5 +72,5 @@ trait ToAlienSender {
 }
 
 trait BranchError {
-  def message: String
+  def message(local: Context): String
 }
