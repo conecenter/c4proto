@@ -9,6 +9,7 @@ sub sy{ &so and die $? }
 sub syf{ for(@_){ print "$_\n"; my $r = scalar `$_`; $? && die $?; return $r } }
 my $put_text = sub{
     my($fn,$content)=@_;
+    print "put_text ($fn)\n";
     open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
 };
 my $get_text = sub{

@@ -70,11 +70,6 @@ abstract class SetField[T](val make: (SrcId,String)=>T) extends Product
   def receive: Handler = message => local => txAdd.add(events)(local)
 }
 
-@c4("TestTodoApp") final class ExampleJsonAdapterProvider(util: TagJsonUtils) {
-  @provide def int: Seq[JsonPairAdapter[Int]] =
-    List(util.jsonPairAdapter((value,builder) => builder.just.append(value.toString)))//?DecimalFormat
-}
-
 trait VExampleField
 trait VExampleRow
 trait VExampleList
