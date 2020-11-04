@@ -200,13 +200,13 @@ const elementWeakCache = weakCache(props=>{
         return createElement(tp,{key,...at,...childAt})
     }
     //lega:
-    const {tp,...at} = props.at
+    const {key,at:{tp,...at}} = props
     const children =
         at.content && at.content[0] === "rawMerge" ? props :
         props.chl ? resolveChildren(props,props.chl) : at.content
     return at.onChange ?
-        createElement(at.onChange.tp, at, uProp=>createElement(tp, uProp, children)) :
-        createElement(tp, at, children)
+        createElement(at.onChange.tp, {...at,at,key}, uProp=>createElement(tp, uProp, children)) :
+        createElement(tp, {...at,at,key}, children)
 })
 
 /******************************************************************************/
