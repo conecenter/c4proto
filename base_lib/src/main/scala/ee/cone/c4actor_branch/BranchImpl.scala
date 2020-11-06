@@ -65,6 +65,10 @@ case object EmptyBranchMessage extends BranchMessage {
   def deletes: Seq[LEvent[Product]] = Nil
 }
 
+trait BranchErrorTextGetter {
+  def getText(local: Context, branchKey: SrcId): BranchError => String
+}
+
 @c4multi("BranchApp") final case class BranchTxTransform(
   branchKey: String,
   seed: Option[S_BranchResult],
@@ -75,6 +79,7 @@ case object EmptyBranchMessage extends BranchMessage {
   getS_BranchResult: GetByPK[S_BranchResult],
   txAdd: LTxAdd,
   toAlienSender: ToAlienSender,
+  branchErrorTextGetter: Option[BranchErrorTextGetter]
 ) extends TxTransform with LazyLogging {
   private def saveResult: Context => Context = local => {
     //if(seed.isEmpty && newChildren.nonEmpty) println(s"newChildren: ${handler}")
@@ -124,7 +129,8 @@ case object EmptyBranchMessage extends BranchMessage {
     toAlienSender.send(sessionKeys,evType,data)
 
   private def errorText: Context => String = local => ErrorKey.of(local).map{
-    case e:BranchError => e.message(local)
+    case e:BranchError =>
+      branchErrorTextGetter.fold(e.message(local))(_.getText(local, branchKey)(e))
     case _ => ""
   }.mkString("\n")
 
