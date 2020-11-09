@@ -7,6 +7,7 @@ import ee.cone.c4actor._
 import scala.collection.immutable.Seq
 import ee.cone.c4actor_branch.BranchProtocol.S_BranchResult
 import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor_branch.BranchTypes.BranchKey
 import ee.cone.c4proto._
 
 object BranchTypes {
@@ -24,6 +25,15 @@ trait BranchHandler extends Product {
   def branchKey: SrcId
   def exchange: BranchMessage => Context => Context
   def seeds: Context => List[S_BranchResult]
+}
+
+trait BranchErrorSaver {
+  def saveErrors(
+    local: Context,
+    branchKey: BranchKey,
+    sessionKeys: List[SrcId],
+    exceptions: List[Exception]
+  ): Context
 }
 
 trait BranchTask extends Product {
