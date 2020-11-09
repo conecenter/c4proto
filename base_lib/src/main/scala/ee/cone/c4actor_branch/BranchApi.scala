@@ -53,14 +53,6 @@ case class BranchRel(srcId: SrcId, seed: S_BranchResult, parentSrcId: SrcId, par
     @Id(0x0045) position: String
   )
 
-    @Id(0x0046) case class U_SessionFailure(
-    @Id(0x0047) srcId: String,
-    @Id(0x0048) text: String,
-    @Id(0x0049) time: Long,
-    @Id(0x004A) sessionKeys: List[String]
-    //retry: List[S_HttpRequest]
-  )
-
   @Id(0x004B) case class U_Redraw(
     @Id(0x004C) srcId: String,
     @Id(0x004D) branchKey: String
