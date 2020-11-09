@@ -65,15 +65,6 @@ case object EmptyBranchMessage extends BranchMessage {
   def deletes: Seq[LEvent[Product]] = Nil
 }
 
-trait BranchErrorSaver {
-  def saveErrors(
-    local: Context,
-    branchKey: BranchKey,
-    sessionKeys: List[SrcId],
-    exceptions: List[Exception]
-  ): Context
-}
-
 @c4multi("BranchApp") final case class BranchTxTransform(
   branchKey: String,
   seed: Option[S_BranchResult],
