@@ -1,5 +1,7 @@
 package ee.cone.c4ui
 
+import java.text.{DecimalFormat, NumberFormat}
+
 import ee.cone.c4di._
 import ee.cone.c4actor.Context
 import ee.cone.c4ui.ListTagTypes._
@@ -50,7 +52,10 @@ case object RowDragHandle extends DragHandle("y")
       builder.end()
     }))
   @provide def forInt: Seq[JsonPairAdapter[Int]] =
-    List(util.jsonPairAdapter((value,builder) => builder.just.append(value.toString)))//?DecimalFormat
+    List(util.jsonPairAdapter((value,builder) => {
+      val format = NumberFormat.getIntegerInstance match { case f: DecimalFormat => f } // to do once?
+      builder.just.append(BigDecimal(value),format)
+    }))
   @provide def forBoolean: Seq[JsonPairAdapter[Boolean]] =
     List(util.jsonPairAdapter((value,builder) => builder.just.append(value)))
 
@@ -93,10 +98,8 @@ case object RowDragHandle extends DragHandle("y")
   @c4tag("FilterButton") def filterButton(
     key: String,
     minWidth: Int,
-    activate: Receiver[Context],
     area: FilterButtonArea,
-    className: CSSClassName = NoCSSClassName,
-    caption: String = "",
+    children: List[VDom[OfDiv]] = Nil,
   ): VDom[VFilterButton]
   @c4tag("FilterButtonExpander") def filterButtonExpander(
     key: String,

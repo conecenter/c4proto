@@ -174,7 +174,9 @@ const getGridTemplateColumns = columns => columns.map(c => {
     return `[${key}] ${width}`
 }).join(" ")
 
-export function GridRoot({ identity, rowKeys, cols, children }) {
+const noChildren = []
+export function GridRoot({ identity, rowKeys, cols, children: rawChildren }) {
+    const children = rawChildren || noChildren//Children.toArray(rawChildren)
     const [dragData, setDragData] = useState({})
     const { axis, patch: dropPatch } = dragData
 
@@ -390,3 +392,7 @@ export function Highlighter({attrName}) {
     useEventListener(doc, "mousemove", move)
     return $("style", { ref: setElement, dangerouslySetInnerHTML: { __html: style } })
 }
+
+///
+
+export const components = {GridCell,GridCol,GridRoot,Highlighter}

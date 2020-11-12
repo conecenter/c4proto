@@ -45,7 +45,7 @@ const exampleAuth = ExampleAuth(pairOfInputAttributes)
 
 const transforms = mergeAll([vDomAttributes.transforms, exampleComponents.transforms, exampleAuth.transforms, canvas.transforms, sortTransforms, todoTransforms])
 
-const vDom = VDomCore(React,ReactDOM,update,log,transforms,getRootElement)
+const vDom = VDomCore(log,transforms,getRootElement)
 
 const receiversList = [vDom.receivers,feedback.receivers,{fail},exampleRequestState.receivers]
 const createEventSource = () => new EventSource(location.protocol+"//"+location.host+"/sse")

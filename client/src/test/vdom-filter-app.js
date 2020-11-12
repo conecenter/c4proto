@@ -4,14 +4,7 @@ import ReactDOM from "react-dom"
 
 const {createElement:$,useState,useMemo} = React
 
-import {FilterArea,FilterExpander,PopupContext} from "../main/vdom-filter.js"
-
-function FilterButton({minWidth,optButtons}){
-    return $("div",{style:{display:"flex",flexBasis:minWidth+"em",border:"1px solid blue"}},"B")
-}
-function FilterItem({nonEmpty,value}){
-    return $("div",{style:{border:"1px solid blue",height:"100%",boxSizing: "border-box",}},value)
-}
+import {FilterArea,FilterExpander,FilterItem,FilterButton,PopupContext} from "../main/vdom-filter.js"
 
 function ModeButton({setState,dataKey}){
     return $("button",{ onClick: ev=>setState(was=>({...was,[dataKey]:!was[dataKey]})) }, dataKey)
@@ -30,24 +23,24 @@ function App(){
         $("div",{style:{height:"10em"}},"BEFORE"),
         $(FilterArea,{ key: "app",
             filters: noFilters ? [] : [
-                $(FilterItem,{ key: 1, value: "1?", minWidth: 5, maxWidth:10, canHide }),
-                $(FilterItem,{ key: 2, value: 2, minWidth: 10, maxWidth:10, }),
-                $(FilterItem,{ key: 3, value: 3, minWidth: 5, maxWidth:10, }),
-                $(FilterItem,{ key: 4, value: 4, minWidth: 5, maxWidth:10, }),
-                $(FilterItem,{ key: 5, value: "5?", minWidth: 5, maxWidth:10, canHide }),
+                $(FilterItem,{ key: 1, children: "1?", minWidth: 5, maxWidth:10, canHide, className: "exampleFilterItem" }),
+                $(FilterItem,{ key: 2, children: 2, minWidth: 10, maxWidth:10, className: "exampleFilterItem" }),
+                $(FilterItem,{ key: 3, children: 3, minWidth: 5, maxWidth:10, className: "exampleFilterItem" }),
+                $(FilterItem,{ key: 4, children: 4, minWidth: 5, maxWidth:10, className: "exampleFilterItem" }),
+                $(FilterItem,{ key: 5, children: "5?", minWidth: 5, maxWidth:10, canHide, className: "exampleFilterItem" }),
             ],
             buttons: [
                 $(FilterExpander,{ key: 0, minWidth: 2, area: "lt", identity: identities.lt, optButtons: [
-                    $(FilterButton,{ key: 3, minWidth: 4 }),
-                    $(FilterButton,{ key: 2, minWidth: 4 }),
+                    $(FilterButton,{ key: 3, minWidth: 4, className: "exampleButton", caption: "B" }),
+                    $(FilterButton,{ key: 2, minWidth: 4, className: "exampleButton", caption: "B" }),
                 ] }),
-                $(FilterButton,{ key: 1, minWidth: 2, area: "lt" }),
-                $(FilterButton,{ key: 2, minWidth: 2, area: "rt" }),
-                $(FilterButton,{ key: 3, minWidth: 2, area: "rt" }),
+                $(FilterButton,{ key: 1, minWidth: 2, area: "lt", className: "exampleButton" }),
+                $(FilterButton,{ key: 2, minWidth: 2, area: "rt", className: "exampleButton" }),
+                $(FilterButton,{ key: 3, minWidth: 2, area: "rt", className: "exampleButton" }),
                 $(FilterExpander,{ key: 4, minWidth: 2, area: "rt", identity: identities.rt, optButtons: [
-                    $(FilterButton,{ key: 7, minWidth: 4 }),
-                    $(FilterButton,{ key: 6, minWidth: 4 }),
-                    $(FilterButton,{ key: 5, minWidth: 4 }),
+                    $(FilterButton,{ key: 7, minWidth: 4, className: "exampleButton", caption: "B" }),
+                    $(FilterButton,{ key: 6, minWidth: 4, className: "exampleButton", caption: "B" }),
+                    $(FilterButton,{ key: 5, minWidth: 4, className: "exampleButton", caption: "B" }),
                 ] }),
             ],
             centerButtonText: "of",

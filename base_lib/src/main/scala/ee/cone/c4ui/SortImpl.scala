@@ -12,12 +12,16 @@ import ee.cone.c4vdom.Types.VDomKey
 }
 
 @c4("UICompApp") final class SortTagsImpl(
-  inner: InnerSortTags
+  inner: InnerSortTags,
+  sortReceiverFactory: SortReceiverFactory,
 ) extends SortTags {
   def tBodyRoot(handler: SortHandler)(items: VDom[OfDiv]*): VDom[OfDiv] =
-    inner.tBodyRoot("body", toReceiver(handler))(items:_*)
+    inner.tBodyRoot("body", sortReceiverFactory.create(handler))(items:_*)
   def handle(key: VDomKey, item: VDom[OfDiv]): VDom[OfDiv] = inner.handle(key,item)
-  def toReceiver(handler: SortHandler): Receiver[Context] =
+}
+
+@c4("UICompApp") final class SortReceiverFactoryImpl extends SortReceiverFactory {
+  def create(handler: SortHandler): Receiver[Context] =
     SortReceiverImpl(handler)
 }
 

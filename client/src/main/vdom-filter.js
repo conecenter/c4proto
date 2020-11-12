@@ -44,7 +44,8 @@ const doFitFilters = (filters,resTemplate) => {
         if(!groupedFilters) return fallback
         return inner(hideEmptyFromIndex+1,groupedFilters)
     }
-    return inner(0,null)
+    const res = inner(0,null)
+    return res
 }
 
 const centerButtonWidth = 1
@@ -194,3 +195,13 @@ export function FilterExpander({identity,optButtons}){
         isOpened && $("div",{style:{...popupStyle,width},ref:setPopupElement},optButtons)
     )
 }
+
+export function FilterButton({minWidth,children}){
+    return $("div",{style:{display:"flex",flexBasis:minWidth+"em"}},children)
+}
+
+export function FilterItem({className,children}){
+    return $("div",{className},children)
+}
+
+export const components = {FilterArea,PopupContext,FilterExpander,FilterButton,FilterItem}
