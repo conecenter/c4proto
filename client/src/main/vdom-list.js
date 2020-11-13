@@ -1,8 +1,8 @@
 
 
-import { createElement as $, useMemo, useState, useLayoutEffect, cloneElement, useCallback, useEffect, memo } from "react"
+import { createElement as $, useMemo, useState, useLayoutEffect, cloneElement, useCallback, useEffect } from "react"
 
-import { map, head as getHead, identityAt, deleted, weakCache, never } from "./vdom-util.js"
+import { map, identityAt, deleted, never } from "./vdom-util.js"
 import { useWidth, useEventListener, useSync } from "./vdom-hooks.js"
 
 const dragRowIdOf = identityAt('dragRow')
@@ -224,7 +224,6 @@ export function GridRoot({ identity, rowKeys, cols, children: rawChildren }) {
 }
 
 const getAllChildren = ({children,rowKeys,cols,draggingStart,hasHiddenCols,hideElementsForHiddenCols,toExpanderElements,getExpandedCells}) => {
-    const pos = (rowKey, colKey) => ({ key: rowKey + colKey, rowKey, colKey })
     const headElements = map(col => {
         const rowKey = ROW_KEYS.HEAD
         const colKey = col.props.colKey
