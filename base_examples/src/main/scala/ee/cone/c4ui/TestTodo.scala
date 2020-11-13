@@ -112,7 +112,7 @@ abstract class SetField[T](val make: (SrcId,String)=>T) extends Product
 case object TodoTaskComments extends SetField(B_TodoTaskComments)
 case object TodoTaskCommentsContains extends SetField(B_TodoTaskCommentsContains)
 
-//case object AddButtonCSSClassName extends CSSClassName("addButton")
+case object DragHandleCellCSSClassName extends CSSClassName("dragHandleCell")
 
 @c4("TestTodoApp") final case class TestTodoRootView(locationHash: String = "todo")(
   exampleTags: ExampleTags,
@@ -194,7 +194,8 @@ case object TodoTaskCommentsContains extends SetField(B_TodoTaskCommentsContains
             colKey = "drag",
             rowKey = task.srcId,
             dragHandle = RowDragHandle,
-            children = List(exampleTags.text("text","o"))
+            children = List(exampleTags.text("text","o")),
+            className = DragHandleCellCSSClassName
           ),
           listTags.gridCell(s"comments-${task.srcId}",
             colKey = "comments",

@@ -1,7 +1,5 @@
 
 import React         from 'react'
-import ReactDOM      from 'react-dom'
-import update        from 'immutability-helper'
 import SSEConnection from "../main/sse-connection"
 import Feedback      from "../main/feedback"
 import SessionReload from "../main/session-reload"

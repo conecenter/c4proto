@@ -125,7 +125,7 @@ features:
     col drag
     col hide
     col expand
-to try: remove outer div; useSync for expanded
+to try: useSync for expanded
 
 todo: resolve tag by key (exists), so remove ':'
 ****/

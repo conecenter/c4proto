@@ -8,10 +8,9 @@ import { useWidth, useEventListener, useSync } from "./vdom-hooks.js"
 const dragRowIdOf = identityAt('dragRow')
 const dragColIdOf = identityAt('dragCol')
 
-const CELL_TYPES = {
+const ROW_KEYS = {
     HEAD: "head",
     DRAG: "drag",
-    EXPAND: "expand"
 }
 
 const GRID_CLASS_NAMES = {
@@ -145,21 +144,19 @@ const remapCols = cols => {
 
 //// main
 
-const getGridRow = ({ rowKey, rowKeyMod }) => rowKey + (rowKeyMod || '')
+const getGridRow = ({ rowKey, rowKeyMod }) => CSS.escape(rowKey + (rowKeyMod || ''))
+const getGridCol = ({ colKey }) => CSS.escape(colKey)
 
 const spanAll = "1 / -1"
 
-export function GridCell({ children, rowKey, rowKeyMod, colKey, isExpander, expander, dragHandle, noDefCellClass, className: argClassName, ...props }) {
-    const gridRow = getGridRow({ rowKey, rowKeyMod })
-    const gridColumn = colKey
+export function GridCell({ children, rowKey, rowKeyMod, colKey, isExpander, expander, dragHandle, noDefCellClass, className: argClassName, gridRow: argGridRow, gridColumn: argGridColumn, ...props }) {
+    const gridRow = argGridRow || getGridRow({ rowKey, rowKeyMod })
+    const gridColumn = argGridColumn || getGridCol({ colKey })
     const style = { ...props.style, gridRow, gridColumn }
     const expanderProps = isExpander ? { 'data-expander': expander || 'passive' } : {}
     const className = noDefCellClass ? argClassName : `${argClassName} ${GRID_CLASS_NAMES.CELL}`
-    const colKeyOpt = spanAll === colKey ? {} : { 'data-col-key': colKey }
-    return $("div", { ...props, ...expanderProps, ...colKeyOpt, 'data-row-key': rowKey, "data-drag-handle": dragHandle, style, className }, children)
+    return $("div", { ...props, ...expanderProps, 'data-col-key': colKey, 'data-row-key': rowKey, "data-drag-handle": dragHandle, style, className }, children)
 }
-
-const pos = (rowKey, colKey) => ({ key: rowKey + colKey, rowKey, colKey })
 
 const colKeysOf = children => children.map(c => c.props.colKey)
 
@@ -169,7 +166,7 @@ export function GridCol(props) {
 
 const getGidTemplateRows = rows => rows.map(o => `[${getGridRow(o)}] auto`).join(" ")
 const getGridTemplateColumns = columns => columns.map(c => {
-    const key = c.props.colKey
+    const key = getGridCol(c.props)
     const width = `minmax(${c.props.minWidth}em,${c.props.maxWidth}em)`
     return `[${key}] ${width}`
 }).join(" ")
@@ -199,8 +196,8 @@ export function GridRoot({ identity, rowKeys, cols, children: rawChildren }) {
 
     const hasDragRow = useMemo(()=>children.some(c=>c.props.dragHandle==="x"),[children])
     const gridTemplateRows = useMemo(() => getGidTemplateRows([
-        ...(hasDragRow ? [{ rowKey: CELL_TYPES.DRAG }]:[]),
-        { rowKey: CELL_TYPES.HEAD },
+        ...(hasDragRow ? [{ rowKey: ROW_KEYS.DRAG }]:[]),
+        { rowKey: ROW_KEYS.HEAD },
         ...expandRowKeys(expanded)(patchedRowKeys)
     ]), [hasDragRow, expanded, patchedRowKeys])
 
@@ -227,18 +224,27 @@ export function GridRoot({ identity, rowKeys, cols, children: rawChildren }) {
 }
 
 const getAllChildren = ({children,rowKeys,cols,draggingStart,hasHiddenCols,hideElementsForHiddenCols,toExpanderElements,getExpandedCells}) => {
-    const headElements = map(col => $(GridCell, {
-        ...pos(CELL_TYPES.HEAD, col.props.colKey),
-        className: GRID_CLASS_NAMES.HEADER
-    }, col.props.caption))(hideExpander(hasHiddenCols)(cols))
+    const pos = (rowKey, colKey) => ({ key: rowKey + colKey, rowKey, colKey })
+    const headElements = map(col => {
+        const rowKey = ROW_KEYS.HEAD
+        const colKey = col.props.colKey
+        const key = rowKey + colKey
+        const className = GRID_CLASS_NAMES.HEADER
+        return $(GridCell, { key, rowKey, colKey, className}, col.props.caption)
+    })(hideExpander(hasHiddenCols)(cols))
 
     const dropElements = getDropElements(draggingStart)
 
     const expandedElements = getExpandedCells({
         rowKeys, children, cols: hideElementsForHiddenCols(true)(cols),
     }).map(([rowKey, pairs]) => {
-        return $(GridCell, { ...pos(rowKey, spanAll), rowKeyMod: "-expanded", style: { display: "flex", flexFlow: "row wrap" } },
-            pairs.map(([col, cell]) => (
+        return $(GridCell, {
+            key: `${rowKey}-expanded`,
+            gridColumn: spanAll,
+            rowKey,
+            rowKeyMod: "-expanded",
+            style: { display: "flex", flexFlow: "row wrap" },
+            children: pairs.map(([col, cell]) => (
                 $("div",{
                     key: col.key,
                     style: { flexBasis: `${col.props.minWidth}em` },
@@ -248,7 +254,7 @@ const getAllChildren = ({children,rowKeys,cols,draggingStart,hasHiddenCols,hideE
                     $("div", {}, cell.props.children),
                 ])
             ))
-        )
+        })
     })
 
     const allChildren = toExpanderElements(hasHiddenCols)([...dropElements, ...toDraggingElements(draggingStart)(hideElementsForHiddenCols(false)([
@@ -278,17 +284,23 @@ const getClientPos = switchAxis(ev => ev.clientX, ev => ev.clientY)
 const getClientSize = switchAxis(el => el.clientWidth, el => el.clientHeight)
 const stickyFrom = switchAxis("left", "top")
 const stickyTo = switchAxis("right", "bottom")
-const spanAllDir = switchAxis(k => pos(spanAll, k), k => pos(k, spanAll))
+const spanAllDir = switchAxis(
+    k => ({ gridRow: spanAll, colKey: k }),
+    k => ({ rowKey: k, gridColumn: spanAll })
+)
 
-const getDragElementData = switchAxis(el => {
-    const rect = el.getBoundingClientRect()
-    return { gridStart: el.style.gridColumnStart, rectFrom: rect.left, rectTo: rect.right }
-}, el => {
-    const rect = el.getBoundingClientRect()
-    return { gridStart: el.style.gridRowStart, rectFrom: rect.top, rectTo: rect.bottom }
+const getDragElementData = switchAxis(element => {
+    const rect = element.getBoundingClientRect()
+    return { element, rectFrom: rect.left, rectTo: rect.right }
+}, element => {
+    const rect = element.getBoundingClientRect()
+    return { element, rectFrom: rect.top, rectTo: rect.bottom }
 })
 
-const getGridStart = switchAxis(el => el.style.gridColumnStart, el => el.style.gridRowStart)
+const getKeyFromElement = switchAxis(
+    el => el.getAttribute("data-col-key"),
+    el => el.getAttribute("data-row-key")
+)
 
 const toDraggingElement = axis => child => cloneElement(child, {
     style: {
@@ -300,7 +312,9 @@ const toDraggingElement = axis => child => cloneElement(child, {
     }
 })
 
-const getDropElements = ({ axis, dragKey }) => axis ? [$(GridCell, { ...spanAllDir(axis)(dragKey), className: "drop" })] : []
+const getDropElements = ({ axis, dragKey }) => axis ? [$(GridCell, {
+    key: `drop-${dragKey}`, ...spanAllDir(axis)(dragKey), className: "drop"
+})] : []
 
 ////
 
@@ -310,9 +324,9 @@ const distinctBy = f => l => { //gives last?
     return entries.filter(([k, v]) => map[k] === v).map(([k, v]) => v)
 }
 
-const distinctByStart = switchAxis(
-    distinctBy(el => el.style.gridColumnStart),
-    distinctBy(el => el.style.gridRowStart)
+const distinctByKey = switchAxis(
+    distinctBy(el => el.getAttribute("data-col-key")),
+    distinctBy(el => el.getAttribute("data-row-key"))
 )
 
 // const reversed = l => [...l].reverse()
@@ -323,13 +337,14 @@ const useGridDrag = ({ dragData, setDragData, gridElement, keys, enqueuePatch })
         const axis = findFirstParent(el=>el.getAttribute("data-drag-handle"))(ev.target)
         if(!axis) return null
         const clientPos = getClientPos(axis)(ev)
-        const cellElement = findFirstParent(el=> getGridStart(axis)(el) && el)(ev.target)
-        const { gridStart: dragKey, rectFrom } = getDragElementData(axis)(cellElement)
+        const cellElement = findFirstParent(el=> getKeyFromElement(axis)(el) && el)(ev.target)
+        const { rectFrom } = getDragElementData(axis)(cellElement)
+        const dragKey = getKeyFromElement(axis)(cellElement)
         const inElPos = clientPos - rectFrom
         setDragData({ axis, dragKey, inElPos, clientPos, isDown: true })
     }, [setDragData])
     const distinctElements = useMemo(
-        () => axis && distinctByStart(axis)([...gridElement.children]),
+        () => axis && distinctByKey(axis)([...gridElement.children]),
         [axis, gridElement] // do not rely on finding particular elements
     )
     const move = useCallback(ev => {
@@ -340,7 +355,8 @@ const useGridDrag = ({ dragData, setDragData, gridElement, keys, enqueuePatch })
             .filter(r => r.rectFrom < willClientPos && willClientPos < r.rectTo)
         setDragData(was => {
             const dClientPos = willClientPos - was.clientPos
-            const willPatch = drops.map(drop => createPatch(keys, was.dragKey, drop.gridStart, dClientPos)).find(p => p)
+            const getKey = getKeyFromElement(axis)
+            const willPatch = drops.map(drop => createPatch(keys, was.dragKey, getKey(drop.element), dClientPos)).find(p => p)
             return { ...was, clientPos: willClientPos, isDown, patch: willPatch || was.patch }
         })
     }, [setDragData, axis, distinctElements, keys])
@@ -349,8 +365,8 @@ const useGridDrag = ({ dragData, setDragData, gridElement, keys, enqueuePatch })
     useEventListener(doc, "mouseup", isDown && move)
     useLayoutEffect(() => {
         if (!axis) return
-        const doGetGridStart = getGridStart(axis)
-        const dropPlaceElement = [...gridElement.children].find(el => doGetGridStart(el) === dragKey && !el.style.position)
+        const doGetKey = getKeyFromElement(axis)
+        const dropPlaceElement = [...gridElement.children].find(el => doGetKey(el) === dragKey && !el.style.position)
         if (!dropPlaceElement) return
         const dropPlace = getDragElementData(axis)(dropPlaceElement)
         const targetPos = clientPos - inElPos
