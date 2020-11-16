@@ -7,6 +7,7 @@ import ee.cone.c4actor._
 import scala.collection.immutable.Seq
 import ee.cone.c4actor_branch.BranchProtocol.S_BranchResult
 import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor_branch.BranchTypes.BranchKey
 import ee.cone.c4proto._
 
 object BranchTypes {
@@ -24,6 +25,15 @@ trait BranchHandler extends Product {
   def branchKey: SrcId
   def exchange: BranchMessage => Context => Context
   def seeds: Context => List[S_BranchResult]
+}
+
+trait BranchErrorSaver {
+  def saveErrors(
+    local: Context,
+    branchKey: BranchKey,
+    sessionKeys: List[SrcId],
+    exceptions: List[Exception]
+  ): Context
 }
 
 trait BranchTask extends Product {
@@ -51,14 +61,6 @@ case class BranchRel(srcId: SrcId, seed: S_BranchResult, parentSrcId: SrcId, par
     @Id(0x0043) value: okio.ByteString,
     @Id(0x0044) children: LazyList[S_BranchResult],
     @Id(0x0045) position: String
-  )
-
-    @Id(0x0046) case class U_SessionFailure(
-    @Id(0x0047) srcId: String,
-    @Id(0x0048) text: String,
-    @Id(0x0049) time: Long,
-    @Id(0x004A) sessionKeys: List[String]
-    //retry: List[S_HttpRequest]
   )
 
   @Id(0x004B) case class U_Redraw(
