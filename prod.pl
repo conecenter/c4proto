@@ -3,7 +3,7 @@
 use strict;
 use Digest::MD5 qw(md5_hex);
 
-my $sys_image_ver = "v77";
+my $sys_image_ver = "v78";
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -299,8 +299,6 @@ $YAML::XS::QuoteNumericStrings = 1;
 
 #my $inbox_prefix = '';
 
-my $le_http_port = "2080";
-my $le_https_port = "2443";
 my $vhost_http_port = "80";
 my $vhost_https_port = "443";
 my $ssh_port = "2022";
@@ -841,16 +839,10 @@ my $need_certs = sub{
 };
 
 my $need_deploy_cert = sub{
-    my($comp,$from_path,$has_int_broker)=@_;
-    if($has_int_broker){
-        my($dir,$save) = @{&$get_conf_dir()};
-        my $was_no_ca = &$need_certs("$dir/ca/$comp","main",$from_path,"/c4conf");
-        sy($save) if $was_no_ca;
-    } else {
-        my %auth = &$get_auth($comp);
-        my $put = &$rel_put_text($from_path);
-        &$put($_,&$mandatory_of($_=>\%auth)) for "simple.auth";
-    }
+    my($comp,$from_path)=@_;
+    my %auth = &$get_auth($comp);
+    my $put = &$rel_put_text($from_path);
+    &$put($_,&$mandatory_of($_=>\%auth)) for "simple.auth";
 };
 
 my @var_img = (image=>"<var:image:''>");
@@ -866,12 +858,6 @@ my $make_secrets = sub{
 
 my $inner_http_port = 8067;
 my $inner_sse_port = 8068;
-
-my $get_ingress = sub{
-    my($comp,$http_port)=@_;
-    my $hostname = &$get_hostname($comp);
-    $hostname ? ("ingress:$hostname"=>$http_port) : ();
-};
 
 my $wrap_deploy = sub{
     my ($comp,$from_path,$options) = @_;
@@ -903,24 +889,8 @@ my $get_consumer_options = sub{
     my($comp)=@_;
     my $conf = &$get_compose($comp);
     my $prefix = $$conf{C4INBOX_TOPIC_PREFIX};
-    my ($bootstrap_servers) = &$get_deployer_conf($comp,0,qw[bootstrap_servers]);
-    !$prefix && !$bootstrap_servers ? do{
-        my $host = $$conf{host} || $comp;
-        my $external_broker_port = $$conf{broker_port} || 1093;
-        my $external_http_port = $$conf{http_port} || $http_port;
-        (
-            1,
-            &$all_consumer_options(),
-            C4INBOX_TOPIC_PREFIX => "",
-            C4STORE_PASS_PATH => "/c4conf/simple.auth",
-            C4KEYSTORE_PATH => "/c4conf/main.keystore.jks",
-            C4TRUSTSTORE_PATH => "/c4conf/main.truststore.jks",
-            C4BOOTSTRAP_SERVERS => "$host:$external_broker_port",
-            C4HTTP_SERVER => "http://$host:$external_http_port",
-        )
-    } : do{
-        (
-            0,
+    my ($bootstrap_servers) = &$get_deployer_conf($comp,1,qw[bootstrap_servers]);
+    (
             &$all_consumer_options(),
             C4INBOX_TOPIC_PREFIX => ($prefix||die "no C4INBOX_TOPIC_PREFIX"),
             C4STORE_PASS_PATH => "/c4conf-kafka-auth/kafka.store.auth",
@@ -928,17 +898,27 @@ my $get_consumer_options = sub{
             C4TRUSTSTORE_PATH => "/c4conf-kafka-certs/kafka.truststore.jks",
             C4BOOTSTRAP_SERVERS => ($bootstrap_servers||die "no host bootstrap_servers"),
             C4HTTP_SERVER => "http://$comp:$inner_http_port",
-        )
-    }
+    )
+};
+
+my $get_gate_ingress = sub{
+    my($hostname) = @_;
+    $hostname || die "no hostname";
+    (
+        "port:$inner_http_port:$inner_http_port"=>"",
+        "port:$inner_sse_port:$inner_sse_port"=>"",
+        "ingress:$hostname/"=>$inner_http_port,
+        "ingress:$hostname/sse"=>$inner_sse_port,
+    )
 };
 
 my $up_consumer = sub{
     my($run_comp)=@_;
     my $conf = &$get_compose($run_comp);
     my $gate_comp = $$conf{ca} || die "no ca";
-    my ($has_int_broker,%consumer_options) = &$get_consumer_options($gate_comp);
+    my %consumer_options = &$get_consumer_options($gate_comp);
     my $from_path = &$get_tmp_dir();
-    &$need_deploy_cert($gate_comp,$from_path,$has_int_broker);
+    &$need_deploy_cert($gate_comp,$from_path);
     &$make_secrets($run_comp,$from_path);
     &$need_logback($run_comp,$from_path);
     ($run_comp, $from_path, [{
@@ -950,7 +930,7 @@ my $up_consumer = sub{
 };
 my $up_gate = sub{
     my($run_comp)=@_;
-    my ($has_int_broker,%consumer_options) = &$get_consumer_options($run_comp);
+    my %consumer_options = &$get_consumer_options($run_comp);
     my %gate_options = (
         name => "gate",
         C4DATA_DIR => "/c4db",
@@ -959,55 +939,17 @@ my $up_gate = sub{
         req_mem => "4Gi", req_cpu => "1000m",
     );
     my $from_path = &$get_tmp_dir();
-    &$need_deploy_cert($run_comp,$from_path,$has_int_broker);
+    &$need_deploy_cert($run_comp,$from_path);
     &$need_logback($run_comp,$from_path);
-    my @containers = $has_int_broker ? do{
-        my $external_http_port = $consumer_options{C4HTTP_SERVER}=~/:(\d+)$/ ? $1 : die;
-        my ($broker_server,$external_broker_port) =
-            $consumer_options{C4BOOTSTRAP_SERVERS}=~/^(.+):(\d+)$/ ? ($1,$2) : die;
-        ({
-            @var_img, name => "zookeeper", C4DATA_DIR => "/c4db", #UseContainerSupport?
-            req_mem => "1Gi", req_cpu => "250m",
-        },
-        {
-            @var_img,
-            name => "broker", "port:$external_broker_port:$external_broker_port"=>"",
-            C4DATA_DIR => "/c4db",
-            C4KEYSTORE_PATH => "/c4conf/main.keystore.jks",
-            C4TRUSTSTORE_PATH => "/c4conf/main.truststore.jks",
-            C4SSL_PROPS => "/c4conf/main.properties",
-            C4BOOTSTRAP_EXT_HOST => $broker_server,
-            C4BOOTSTRAP_EXT_PORT => $external_broker_port, #UseContainerSupport?
-            req_mem => "2Gi", req_cpu => "500m",
-        },
-        {
+    my $hostname = &$get_hostname($run_comp) || die "no le_hostname";
+    my ($ingress_secret_name) = &$get_deployer_conf($run_comp,0,qw[ingress_secret_name]);
+    my @containers = ({
             @var_img,
             %consumer_options,
             %gate_options,
-            C4BOOTSTRAP_SERVERS => "", #overriden
-        },
-        {
-            @var_img, name => "haproxy",
-            C4HAPROXY_CONF=>"/c4/haproxy.cfg",
-            C4JOINED_HTTP_PORT => $http_port,
-            "port:$external_http_port:$http_port"=>"",
-            &$get_ingress($run_comp,$external_http_port),
-            @req_small,
-        })
-    } : do{
-        my $hostname = &$get_hostname($run_comp) || die "no le_hostname";
-        my ($ingress_secret_name) = &$get_deployer_conf($run_comp,0,qw[ingress_secret_name]);
-        ({
-            @var_img,
-            %consumer_options,
-            %gate_options,
-            "port:$inner_http_port:$inner_http_port"=>"",
-            "port:$inner_sse_port:$inner_sse_port"=>"",
-            "ingress:$hostname/"=>$inner_http_port,
-            "ingress:$hostname/sse"=>$inner_sse_port,
+            &$get_gate_ingress($hostname),
             ingress_secret_name=>$ingress_secret_name,
-        })
-    };
+    });
     ($run_comp, $from_path, \@containers);
 };
 
@@ -1022,11 +964,7 @@ my $prod_image_steps = sub{(
     "RUN perl install.pl apt".
     " curl unzip software-properties-common".
     " lsof mc iputils-ping netcat-openbsd fontconfig",
-    "RUN add-apt-repository -y ppa:vbernat/haproxy-1.8",
-    "RUN perl install.pl apt haproxy",
-    #"RUN perl install.pl curl https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz",
     "RUN perl install.pl curl https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.5%2B10/OpenJDK11U-jdk_x64_linux_hotspot_11.0.5_10.tar.gz",
-    "RUN perl install.pl curl https://archive.apache.org/dist/kafka/2.2.0/kafka_2.12-2.2.0.tgz",
     "RUN perl install.pl curl http://ompc.oss.aliyuncs.com/greys/release/greys-stable-bin.zip",
     "RUN mkdir /c4db && chown c4:c4 /c4db",
 )};
@@ -1047,7 +985,7 @@ my $up_desktop = sub{
         my $put = &$rel_put_text($from_path);
         my $gen_dir = $ENV{C4PROTO_DIR} || die;
         my $conf_cert_path = &$get_conf_cert_path().".pub";
-        sy("cp $gen_dir/install.pl $gen_dir/desktop.pl $gen_dir/haproxy.pl $gen_dir/bloop_fix.pl $conf_cert_path $from_path/");
+        sy("cp $gen_dir/install.pl $gen_dir/desktop.pl $gen_dir/bloop_fix.pl $conf_cert_path $from_path/");
         &$put("c4p_alias.sh", join "\n",
             'export PATH=$PATH:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin:/tools/kafka/bin:/tools:/c4/wrap',
             'export JAVA_HOME=/tools/jdk',
@@ -1060,19 +998,20 @@ my $up_desktop = sub{
         );
         &$put("Dockerfile", join "\n",
             &$prod_image_steps(),
-            "RUN add-apt-repository -y ppa:certbot/certbot",
+            "RUN add-apt-repository -y ppa:vbernat/haproxy-1.8",
             "RUN perl install.pl apt".
-            " rsync openssh-client dropbear git certbot".
+            " rsync openssh-client dropbear git".
             " xserver-xspice openbox firefox spice-vdagent terminology".
             " libjson-xs-perl libyaml-libyaml-perl libexpect-perl".
             " atop less bash-completion locales tmux uuid-runtime".
-            " wget nano python",
+            " wget nano python haproxy",
+            "RUN perl install.pl curl https://archive.apache.org/dist/kafka/2.2.0/kafka_2.12-2.2.0.tgz",
             "RUN perl install.pl curl $dl_frp_url",
             "RUN perl install.pl curl https://nodejs.org/dist/v8.9.1/node-v8.9.1-linux-x64.tar.xz",
             "RUN perl install.pl curl https://github.com/sbt/sbt/releases/download/v1.4.0/sbt-1.4.0.tgz",
             "RUN perl install.pl curl https://git.io/coursier-cli-linux && chmod +x /tools/coursier",
             "RUN rm -r /etc/dropbear && ln -s /c4/dropbear /etc/dropbear ",
-            "COPY desktop.pl haproxy.pl bloop_fix.pl id_rsa.pub c4p_alias.sh /",
+            "COPY desktop.pl bloop_fix.pl id_rsa.pub c4p_alias.sh /",
             "RUN C4DATA_DIR=/c4db perl /desktop.pl fix",
             "USER c4",
             'ENTRYPOINT ["perl","/desktop.pl"]',
@@ -1085,26 +1024,7 @@ my $up_desktop = sub{
     &$make_secrets($comp,$from_path);
     my $conf = &$get_compose($comp);
     my $hostname = $$conf{le_hostname};
-    my $https_frpc_content = $hostname ? do{
-        &$to_ini_file([
-            "$comp.le_http" => [
-                type => "http",
-                local_ip => "127.0.0.1",
-                local_port => $le_http_port,
-                #subdomain => $comp,
-                custom_domains => $hostname,
-            ],
-            "$comp.le_https" => [
-                type => "https",
-                local_ip => "127.0.0.1",
-                local_port => $le_https_port,
-                #subdomain => $comp,
-                custom_domains => $hostname,
-            ],
-        ]);
-
-    } : "";
-    &$put_frpc_conf($from_path,&$get_frpc_conf($comp).$https_frpc_content);
+    &$put_frpc_conf($from_path,&$get_frpc_conf($comp));
     my $put = &$rel_put_text($from_path);
     &$put("authorized_keys" => join "", map{"$_\n"} @{$$conf{authorized_keys}||[]});
     ($comp, $from_path,[
@@ -1124,34 +1044,9 @@ my $up_desktop = sub{
             C4SSH_PORT => $ssh_port,
             C4DEPLOY_CONF => "/c4conf/ssh.tar.gz",
             C4AUTHORIZED_KEYS => "/c4conf/authorized_keys",
+            &$get_gate_ingress($hostname),
             @req_big,
         },
-        {
-            image => $img, name => "haproxy",
-            C4HAPROXY_CONF=>"/c4/haproxy.cfg",
-            C4JOINED_HTTP_PORT => $http_port,
-            C4DATA_DIR => "/c4db",
-            $$conf{enable_ingress} ? (
-                "port:$http_port:$http_port"=>"",
-                &$get_ingress($comp,$http_port),
-            ) : (),
-            @req_small,
-        },
-        $hostname ? ({
-            image => $img, name => "le_http",
-            C4HAPROXY_CONF=>"/c4/le_http.cfg",
-            C4JOINED_HTTP_PORT => $le_http_port,
-            C4DATA_DIR => "/c4db",
-            C4HTTPS => "redirect",
-            @req_small,
-        }, {
-            image => $img, name => "le_https",
-            C4HAPROXY_CONF=>"/c4/le_https.cfg",
-            C4JOINED_HTTP_PORT => $le_https_port,
-            C4DATA_DIR => "/c4db",
-            C4HTTPS => "https:$hostname",
-            @req_small,
-        }) : (),
         {
             image => $img, name => "bloop",
             C4DATA_DIR => "/c4db",
@@ -1162,7 +1057,7 @@ my $up_desktop = sub{
 };
 my $visit_desktop = sub{
     my($comp)=@_;
-    [[desktop=>5900],[ssh=>$ssh_port],[debug=>5005],[http=>$http_port]]
+    [[desktop=>5900],[ssh=>$ssh_port],[debug=>5005]]
 };
 
 push @tasks, ["visit-desktop", "", $visit_desktop];
@@ -1273,9 +1168,9 @@ my $put_snapshot = sub{
 
 my $need_auth_path = sub{
     my($comp)=@_;
-    my ($has_int_broker,%consumer_options) = &$get_consumer_options($comp);
+    my %consumer_options = &$get_consumer_options($comp);
     my $from_path = &$get_tmp_dir();
-    &$need_deploy_cert($comp,$from_path,$has_int_broker);
+    &$need_deploy_cert($comp,$from_path);
     "$from_path/simple.auth"
 };
 
@@ -1492,7 +1387,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
         "COPY --chown=c4:c4 . /c4",
         'ENTRYPOINT ["perl","run.pl"]',
     );
-    sy("cp $proto_dir/$_ $ctx_dir/$_") for "install.pl", "run.pl", "haproxy.pl";
+    sy("cp $proto_dir/$_ $ctx_dir/$_") for "install.pl", "run.pl";
     #
     mkdir "$ctx_dir/app";
     my $mod  = syf("cat $gen_dir/.bloop/c4/tag.$base.mod" )=~/(\S+)/ ? $1 : die;
@@ -1627,8 +1522,8 @@ push @tasks, ["visit-frp_client", "", sub{
     my $conf = &$get_compose($comp);
     my $gate_comp = $$conf{ca};
     my @http_client = !$gate_comp ? () : do{
-        my ($has_int_broker,%consumer_options) = &$get_consumer_options($gate_comp);
-        $has_int_broker or warn "sse will not be multiplexed";
+        my %consumer_options = &$get_consumer_options($gate_comp);
+        warn "sse will not be multiplexed";
         $consumer_options{C4HTTP_SERVER}=~m{^(http)://(.+):(\d+)$} ? [$1,$3,$2] : die;
     };
     my @connects = &$map($conf,sub{ my($k,$v)=@_;
