@@ -167,8 +167,6 @@ my $main = sub{
     ($cmd||'') eq $$_[0] and $$_[2]->(@args) for @tasks;
 };
 
-my $http_port = "1080";
-
 ####
 
 push @tasks, ["","",sub{
@@ -1188,7 +1186,7 @@ push @tasks, ["put_snapshot_address", "${composes_txt} <to_address> <file_path> 
 push @tasks, ["put_snapshot_local", "<file_path>", sub{
     my($data_path)=@_;
     my $data_dir = $ENV{C4DATA_DIR} || die;
-    &$put_snapshot("$data_dir/simple.auth",$data_path,"http://127.0.0.1:$http_port");
+    &$put_snapshot("$data_dir/simple.auth",$data_path,"http://127.0.0.1:$inner_http_port");
 }];
 
 ###
