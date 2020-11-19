@@ -1,4 +1,4 @@
-import { GridRoot, GridCell, GridCol } from "../../main/vdom-list.js"
+import { GridRoot, GridCell, GridCol, Highlighter } from "../../main/vdom-list.js"
 import { createSyncProviders } from '../../main/vdom-hooks'
 import { ImageElement } from '../image'
 import React from 'react'
@@ -76,6 +76,8 @@ export default function VdomListElement({style}) {
     })
     const children = [
         listEl,
+        <Highlighter key="row-highlighter" attrName="data-row-key" />,
+        <Highlighter key="col-highlighter" attrName="data-col-key" />
         // <div className="test">test </div>
     ]
 
