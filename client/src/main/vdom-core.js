@@ -1,5 +1,6 @@
 
-import {createElement,useState,useCallback,useEffect,memo} from "../main/react-prod.js"
+import {createElement,useState,useCallback,useEffect,memo} from "react"
+import ReactDOM      from 'react-dom'
 import {splitFirst,spreadAll,oValues}    from "../main/util.js"
 import {ifInputsChanged,dictKeys,branchByKey,rootCtx,ctxToPath,chain,someKeys,weakCache} from "../main/vdom-util.js"
 import {useSync,createSyncProviders} from "../main/vdom-hooks.js"
@@ -29,7 +30,20 @@ function setupIncomingDiff(by,content,parent) {
     return changes.length>0 ? spreadAll(content, ...changes) : content
 }
 
-export function VDomCore(react,reactDOM,update,log,activeTransforms,getRootElement){
+function update(object,spec){
+    if("$set" in spec) return spec["$set"] // ? need deep compare
+    let res = object
+    Object.keys(spec).forEach(k=>{
+        const willVal = update(object[k], spec[k])
+        if(res[k] !== willVal){
+            if(res === object) res = {...object}
+            if(willVal === undefined){ delete res[k] }else res[k] = willVal
+        }
+    })
+    return res
+}
+
+export function VDomCore(log,activeTransforms,getRootElement){
         
     const joinSeeds = ifInputsChanged(log)("seedsFrom", {branchByKey:1}, changed => state => {
       const seedByKey = spreadAll(...oValues(state.branchByKey).map(brSt=>
@@ -80,8 +94,8 @@ export function VDomCore(react,reactDOM,update,log,activeTransforms,getRootEleme
     const rendering = ifInputsChanged(log)("renderedFrom", {incoming:1,ack:1,rootNativeElement:1}, changed => state => {
         if(state.incoming && state.rootNativeElement){
             const rootVirtualElement =
-                react.createElement(SyncInputRoot,{ack:state.ack,incoming:state.incoming})
-            reactDOM.render(rootVirtualElement, state.rootNativeElement)
+                createElement(SyncInputRoot,{ack:state.ack,incoming:state.incoming})
+            ReactDOM.render(rootVirtualElement, state.rootNativeElement)
         }
         return changed(state)
     })
@@ -90,7 +104,7 @@ export function VDomCore(react,reactDOM,update,log,activeTransforms,getRootEleme
         if(state.isActive) return changed(state)
         if(Date.now()-state.incomingTime < 100) return state 
         if(state.rootNativeElement) {
-            reactDOM.unmountComponentAtNode(state.rootNativeElement)
+            ReactDOM.unmountComponentAtNode(state.rootNativeElement)
             //parentNode.removeChild(was)
         }
         return null
@@ -195,18 +209,18 @@ const elementWeakCache = weakCache(props=>{
         const childAt = Object.fromEntries(
             Object.entries(cProps)
             .filter(([k,v])=>Array.isArray(v))
-            .map(([k,v])=>({[k]:resolveChildren(cProps,v)}))
+            .map(([k,v])=>[k, resolveChildren(cProps,v)])
         )
         return createElement(tp,{key,...at,...childAt})
     }
     //lega:
-    const {tp,...at} = props.at
+    const {key,at:{tp,...at}} = props
     const children =
         at.content && at.content[0] === "rawMerge" ? props :
         props.chl ? resolveChildren(props,props.chl) : at.content
     return at.onChange ?
-        createElement(at.onChange.tp, at, uProp=>createElement(tp, uProp, children)) :
-        createElement(tp, at, children)
+        createElement(at.onChange.tp, {...at,at,key}, uProp=>createElement(tp, uProp, children)) :
+        createElement(tp, {...at,at,key}, children)
 })
 
 /******************************************************************************/

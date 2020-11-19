@@ -1,7 +1,5 @@
 
 import React         from 'react'
-import ReactDOM      from 'react-dom'
-import update        from 'immutability-helper'
 import SSEConnection from "../main/sse-connection"
 import Feedback      from "../main/feedback"
 import SessionReload from "../main/session-reload"
@@ -45,7 +43,7 @@ const exampleAuth = ExampleAuth(pairOfInputAttributes)
 
 const transforms = mergeAll([vDomAttributes.transforms, exampleComponents.transforms, exampleAuth.transforms, canvas.transforms, sortTransforms, todoTransforms])
 
-const vDom = VDomCore(React,ReactDOM,update,log,transforms,getRootElement)
+const vDom = VDomCore(log,transforms,getRootElement)
 
 const receiversList = [vDom.receivers,feedback.receivers,{fail},exampleRequestState.receivers]
 const createEventSource = () => new EventSource(location.protocol+"//"+location.host+"/sse")

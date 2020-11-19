@@ -1,5 +1,5 @@
 
-import {createElement as $,useState,useLayoutEffect,useContext,createContext,useCallback,useEffect} from "../main/react-prod.js"
+import {createElement as $,useState,useLayoutEffect,useContext,createContext,useCallback,useEffect} from "react"
 import {useWidth,useEventListener} from "../main/vdom-hooks.js"
 
 //// move to shared
@@ -44,7 +44,8 @@ const doFitFilters = (filters,resTemplate) => {
         if(!groupedFilters) return fallback
         return inner(hideEmptyFromIndex+1,groupedFilters)
     }
-    return inner(0,null)
+    const res = inner(0,null)
+    return res
 }
 
 const centerButtonWidth = 1
@@ -189,8 +190,18 @@ export function FilterExpander({identity,optButtons}){
     const width = em(Math.max(...optButtons.map(c=>c.props.minWidth)))
     const [isOpened,open] = usePopupState(identity,popupElement)
 
-    console.log("p-render")
+    console.log("p-render-")
     return $("div",{className:"filterExpander",style:parentStyle,onClick:ev=>open()},
         isOpened && $("div",{style:{...popupStyle,width},ref:setPopupElement},optButtons)
     )
 }
+
+export function FilterButton({minWidth,children}){
+    return $("div",{style:{display:"flex",flexBasis:minWidth+"em"}},children)
+}
+
+export function FilterItem({className,children}){
+    return $("div",{className},children)
+}
+
+export const components = {FilterArea,PopupContext,FilterExpander,FilterButton,FilterItem}

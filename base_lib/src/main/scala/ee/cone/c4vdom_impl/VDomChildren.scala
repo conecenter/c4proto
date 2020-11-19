@@ -31,6 +31,7 @@ class VDomFactoryImpl(createMapValue: List[VPair]=>MapVDomValue) extends VDomFac
   def create[C](key: VDomKey, theElement: VDomValue, elements: ViewRes): VDom[C] =
     ChildPairImpl[C](key, createMapValue(TheElementPair(theElement) :: elements.asInstanceOf[List[VPair]]))
   def addGroup(key: String, groupKey: String, elements: Seq[VDom[_]], res: ViewRes): ViewRes =
+    if(elements.isEmpty) res else
     ChildOrderPair(groupKey, ChildOrderValue(elements.map(_.key), key)) :: elements ++: res //elements.foldLeft(res)((res,el)=>)
   def addGroup(key: String, groupKey: String, element: VDom[_], res: ViewRes): ViewRes =
     ChildOrderPair(groupKey, ChildOrderValue(Seq(element.key), key)) :: element :: res

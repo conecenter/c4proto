@@ -11,8 +11,9 @@ import ee.cone.c4gate.PublishFromStringsProvider
 import ee.cone.c4ui.TestTodoProtocol.{B_TodoTask, B_TodoTaskComments, B_TodoTaskCommentsContains, B_TodoTaskOrder}
 import ee.cone.c4proto._
 import ee.cone.c4vdom.Types._
-import ee.cone.c4vdom._
+import ee.cone.c4vdom.{Tags => _, _}
 import okio.ByteString
+import os.remove
 
 
 
@@ -70,24 +71,10 @@ abstract class SetField[T](val make: (SrcId,String)=>T) extends Product
   def receive: Handler = message => local => txAdd.add(events)(local)
 }
 
-@c4("TestTodoApp") final class ExampleJsonAdapterProvider(util: TagJsonUtils) {
-  @provide def int: Seq[JsonPairAdapter[Int]] =
-    List(util.jsonPairAdapter((value,builder) => builder.just.append(value.toString)))//?DecimalFormat
-  @provide def receiver: Seq[JsonPairAdapter[Receiver[Context]]] = List(new JsonPairAdapter[Receiver[Context]]{
-    def appendJson(key: String, value: Receiver[Context], builder: MutableJsonBuilder): Unit = {}
-  })
-}
-
-trait VExampleField
-trait VExampleRow
-trait VExampleList
-
 @c4tags("TestTodoApp") trait ExampleTags {
-  def field(key: String, value: String, change: Receiver[Context], caption: String): VDom[VExampleField]
-  def row(key: String, remove: Receiver[Context])(cells: VDom[VExampleField]*): VDom[VExampleRow]
-  @c4tag("ExampleList") def list(
-    key: String, add: Receiver[Context], sort: Receiver[Context]
-  )(filters: VDom[VExampleField]*)(rows: VDom[VExampleRow]*): VDom[VExampleList]
+  @c4tag("ExampleText") def text(key: String, value: String): VDom[OfDiv]
+  @c4tag("ExampleInput") def input(key: String, value: String, change: Receiver[Context]): VDom[OfDiv]
+  @c4tag("ExampleButton") def button(key: String, activate: Receiver[Context], caption: String = ""): VDom[OfDiv]
 }
 
 @c4("ReactHtmlApp") final class ReactHtmlFromAlienTaskAssembleBase {
@@ -110,6 +97,11 @@ trait VExampleList
 
 ////////////////////////////////////////////////////////////////////////////////
 
+@c4("TestTodoApp") final class TestTodoUrlProvider {
+  @provide def assembles: Seq[Assemble] =
+    new FromAlienTaskAssemble("/src/test/todo-app.html") :: Nil
+}
+
 @protocol("TestTodoApp") object TestTodoProtocol {
   @Id(0x0001) case class B_TodoTask(@Id(0x0002) srcId: String, @Id(0x0003) createdAt: Long)
   @Id(0x0003) case class B_TodoTaskComments(@Id(0x0002) srcId: String, @Id(0x0003) value: String)
@@ -120,12 +112,15 @@ trait VExampleList
 case object TodoTaskComments extends SetField(B_TodoTaskComments)
 case object TodoTaskCommentsContains extends SetField(B_TodoTaskCommentsContains)
 
+case object DragHandleCellCSSClassName extends CSSClassName("dragHandleCell")
+
 @c4("TestTodoApp") final case class TestTodoRootView(locationHash: String = "todo")(
-  todoTags: ExampleTags,
+  exampleTags: ExampleTags,
+  listTags: ListTags,
   onChangeReceiverFactory: OnChangeReceiverFactory,
   simpleReceiverFactory: SimpleReceiverFactory,
   taskListAddReceiver: TaskListAddReceiver,
-  sortTags: SortTags,
+  sortReceiverFactory: SortReceiverFactory,
   untilPolicy: UntilPolicy,
   getB_TodoTask: GetByPK[B_TodoTask],
   getB_TodoTaskComments: GetByPK[B_TodoTaskComments],
@@ -143,26 +138,91 @@ case object TodoTaskCommentsContains extends SetField(B_TodoTaskCommentsContains
       else allTodoTasks.filter(
         prod => comments.get(prod.srcId).exists(_.value.contains(commentsContainsValue))
       )
-    val taskLines = for {
-      prod <- todoTasks
-    } yield todoTags.row(prod.srcId, remove = simpleReceiverFactory.create(delete(prod)))(
-      todoTags.field("comments",
-        value = comments.get(prod.srcId).fold("")(_.value),
-        change = onChangeReceiverFactory.create(prod.srcId, TodoTaskComments),
-        caption = "Comments",
+    List(
+      listTags.filterArea("todoListFilter",
+        centerButtonText = "",
+        filters = List(
+          listTags.filterItem("comments",
+            minWidth = 5, maxWidth = 20,
+            canHide = false,
+            children = List(
+              exampleTags.text("label","Comments contains"),
+              exampleTags.input("value",
+                value = commentsContainsValue,
+                change = onChangeReceiverFactory.create(listKey, TodoTaskCommentsContains),
+              )
+            )
+          )
+        ),
+        buttons = List(
+          listTags.filterButton("add",
+            minWidth = 1,
+            area = LeftFilterButtonArea,
+            children = List(
+              exampleTags.button("button",
+                activate = taskListAddReceiver,
+                caption = "+",
+              )
+            )
+          )
+        ),
+      ),
+      listTags.gridRoot("todoList",
+        dragCol = NoReceiver,
+        dragRow = sortReceiverFactory.create(todoSortHandlerFactory.create(todoSortOrder)),
+        rowKeys = todoTasks.map(_.srcId),
+        cols = List(
+          listTags.gridCol("drag",
+            colKey = "drag",
+            hideWill = 0,
+            minWidth = 1, maxWidth = 1,
+          ),
+          listTags.gridCol("comments",
+            colKey = "comments",
+            hideWill = 0,
+            minWidth = 10, maxWidth = 20,
+            caption = "Comments",
+          ),
+          listTags.gridCol("remove",
+            colKey = "remove",
+            hideWill = 0,
+            minWidth = 1, maxWidth = 1,
+          ),
+        ),
+        children = todoTasks.flatMap(task=>List(
+          listTags.gridCell(s"drag-${task.srcId}",
+            colKey = "drag",
+            rowKey = task.srcId,
+            dragHandle = RowDragHandle,
+            children = List(exampleTags.text("text","o")),
+            className = DragHandleCellCSSClassName
+          ),
+          listTags.gridCell(s"comments-${task.srcId}",
+            colKey = "comments",
+            rowKey = task.srcId,
+            children = List(
+              exampleTags.input("field",
+                comments.get(task.srcId).fold("")(_.value),
+                onChangeReceiverFactory.create(task.srcId, TodoTaskComments),
+              )
+            )
+          ),
+          listTags.gridCell(s"remove-${task.srcId}",
+            colKey = "remove",
+            rowKey = task.srcId,
+            children = List(exampleTags.button("text",
+              caption = "x",
+              activate = simpleReceiverFactory.create(delete(task))
+            ))
+          ),
+        ))
       )
     )
-    List(todoTags.list(listKey,
-      add = taskListAddReceiver,
-      sort = sortTags.toReceiver(taskLines.map(_.key),todoSortHandlerFactory.create(todoSortOrder)),
-    )(
-      todoTags.field("comments",
-        value = commentsContainsValue,
-        change = onChangeReceiverFactory.create(listKey, TodoTaskCommentsContains),
-        caption = "Comments contains",
-      )
-    )(taskLines:_*))
   }
+}
+
+case object NoReceiver extends Receiver[Context] {
+  def receive: Handler = _ => throw new Exception
 }
 
 @c4("TestTodoApp") final case class TaskListAddReceiver(
