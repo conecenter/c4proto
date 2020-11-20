@@ -1,5 +1,5 @@
 
-import { GridRoot, GridCell, GridCol, Highlighter } from "../main/vdom-list.js"
+import { GridRoot, GridCell, Highlighter } from "../main/vdom-list.js"
 import { createSyncProviders } from "../main/vdom-hooks.js"
 import ReactDOM from "react-dom"
 import React from "react"
@@ -7,10 +7,10 @@ import React from "react"
 const { createElement: $, useState } = React
 
 function ImageElement({src,className}){
-    return $("img",{src,className})
+    return $("img",{src,className,draggable:"false"})
 }
 
-function MockData() {
+function mockData() {
     const srlIcon = $(ImageElement,{ src: "../temp/servicerequestline.svg", className: "rowIconSize", key: "image" })
     const meleqStr = $(Text,{ value: "MELEQ 11-Oct ● Vessel load" })
     const row = $("div",{ className: "descriptionRow", key: "row" }, srlIcon, meleqStr)
@@ -26,11 +26,9 @@ function App() {
 
     const { enableDrag } = state
 
-    const exCol = (colKey, hideWill, minWidth, maxWidth) => $(GridCol, {
-        key: ":" + colKey, colKey, hideWill, minWidth, maxWidth,
-        ...(
-            colKey === "drag" ? {} : colKey === "expand" ? { isExpander: true } :
-                { caption: "H" + colKey }
+    const exCol = (colKey, hideWill, minWidth, maxWidth) => ({
+        colKey, hideWill, minWidth, maxWidth, ...(
+            colKey === "expand" ? { isExpander: true } : {}
         )
     })
 
@@ -48,19 +46,22 @@ function App() {
         exCol("c9", 1, 5, 30),
         enableDrag && exCol("drag", 0, 1.5, 1.5),
     ].filter(Boolean)
-    const exCell = rowKey => col => {
-        const colKey = col.props.colKey
+    const exCell = rowKey => ({colKey}) => {
         return colKey==="drag" && rowKey === "drag" ? null : $(GridCell, {
-            key: ":" + rowKey + col.key, rowKey, colKey,
+            key: ":" + rowKey + colKey, rowKey, colKey,
+            ...(rowKey === "head" ? { className: "tableHeadContainer headerColor" } : {}),
             ...(rowKey === "drag" ? { dragHandle: "x", style: { userSelect: "none", cursor: "pointer" } } : {}),
             ...(colKey === "drag" ? { dragHandle: "y", style: { userSelect: "none", cursor: "pointer" } } : {}),
             ...(colKey === "expand" ? { isExpander: true } : {}),
-            children: [
+            children: (
+                rowKey === "head" ? (
+                    colKey === "drag" || colKey === "expand" ? null : $(Text,{ key: "text", value: "H" + colKey })
+                ):
                 rowKey === "drag" ? enableDrag && getColDragElement() :
                 colKey === "expand" ? getExpanderElement() :
                 colKey === "drag" ? enableDrag && getRowDragElement() :
-                MockData()
-            ]
+                mockData()
+            )
         })
     }
 
@@ -96,6 +97,7 @@ function App() {
         cols,
         children: [
             ...(enableDrag ? cols.map(exCell("drag")).filter(Boolean) : []),
+            ...cols.map(exCell("head")).filter(Boolean),
             ...rowKeys.flatMap(rowKey => cols.map(exCell(rowKey)).filter(Boolean)),
         ],
         rowKeys

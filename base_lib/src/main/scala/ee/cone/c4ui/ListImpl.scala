@@ -9,7 +9,6 @@ import ee.cone.c4vdom.Types._
 import ee.cone.c4vdom._
 
 
-trait VGridCol
 trait VGridCell
 trait VGridCellContent extends OfDiv
 
@@ -35,7 +34,12 @@ case object NoDragHandle extends DragHandle("")
 case object ColDragHandle extends DragHandle("x")
 case object RowDragHandle extends DragHandle("y")
 
-@c4("UICompApp") final class ListJsonAdapterProvider(util: TagJsonUtils) {
+@c4("UICompApp") final class ListJsonAdapterProvider(util: TagJsonUtils)(
+  val intAdapter: JsonPairAdapter[Int] = util.jsonPairAdapter((value,builder) => {
+    val format = NumberFormat.getIntegerInstance match { case f: DecimalFormat => f } // to do once?
+    builder.just.append(BigDecimal(value),format)
+  })
+) {
   @provide def forCSSClassName: Seq[JsonPairAdapter[CSSClassName]] =
     List(util.jsonPairAdapter((value, builder) => builder.just.append(value.value)))
   @provide def forFilterButtonArea: Seq[JsonPairAdapter[FilterButtonArea]] =
@@ -46,20 +50,36 @@ case object RowDragHandle extends DragHandle("y")
     def appendJson(key: String, value: Receiver[Context], builder: MutableJsonBuilder): Unit = {}
   })
   @provide def forStringList: Seq[JsonPairAdapter[List[String]]] =
-    List(util.jsonPairAdapter((value, builder) => {
-      builder.startArray()
-      value.foreach(builder.just.append)
-      builder.end()
-    }))
-  @provide def forInt: Seq[JsonPairAdapter[Int]] =
-    List(util.jsonPairAdapter((value,builder) => {
-      val format = NumberFormat.getIntegerInstance match { case f: DecimalFormat => f } // to do once?
-      builder.just.append(BigDecimal(value),format)
-    }))
+    List(util.jsonPairAdapter(forList((value, builder) => {
+      builder.just.append(value)
+    })))
+  @provide def forInt: Seq[JsonPairAdapter[Int]] =   List(intAdapter)
   @provide def forBoolean: Seq[JsonPairAdapter[Boolean]] =
     List(util.jsonPairAdapter((value,builder) => builder.just.append(value)))
-
+  @provide def forGridColList: Seq[JsonPairAdapter[List[GridCol]]] =
+    List(util.jsonPairAdapter(forList((value, builder) => {
+      builder.startObject()
+      builder.append("colKey").append(value.colKey)
+      intAdapter.appendJson("maxWidth",value.maxWidth,builder)
+      intAdapter.appendJson("minWidth",value.minWidth,builder)
+      intAdapter.appendJson("hideWill",value.hideWill,builder)
+      if(value.isExpander) builder.append("isExpander").append(true)
+      builder.end()
+    })))
+  def forList[T](forItem: (T,MutableJsonBuilder)=>Unit): (List[T],MutableJsonBuilder)=>Unit = (list,builder) => {
+    builder.startArray()
+    list.foreach(forItem(_,builder))
+    builder.end()
+  }
 }
+
+case class GridCol(
+  colKey: String,
+  minWidth: Int,
+  maxWidth: Int,
+  hideWill: Int,
+  isExpander: Boolean = false,
+)
 
 @c4tags("UICompApp") trait ListTags {
   @c4tag("GridRoot") def gridRoot(
@@ -67,18 +87,9 @@ case object RowDragHandle extends DragHandle("y")
     dragCol: Receiver[Context],
     dragRow: Receiver[Context],
     rowKeys: List[String],
-    cols: List[VDom[VGridCol]],
+    cols: List[GridCol],
     children: List[VDom[VGridCell]],
   ): VDom[VGridRoot]
-  @c4tag("GridCol") def gridCol(
-    key: String,
-    colKey: String,
-    hideWill: Int,
-    minWidth: Int,
-    maxWidth: Int,
-    caption: String = "",
-    isExpander: Boolean = false,
-  ): VDom[VGridCol]
   @c4tag("GridCell") def gridCell(
     key: String,
     colKey: String,

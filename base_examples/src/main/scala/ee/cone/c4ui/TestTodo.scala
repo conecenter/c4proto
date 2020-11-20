@@ -114,6 +114,8 @@ case object TodoTaskCommentsContains extends SetField(B_TodoTaskCommentsContains
 
 case object DragHandleCellCSSClassName extends CSSClassName("dragHandleCell")
 
+case object HeaderCSSClassName extends CSSClassName("tableHeadContainer headerColor")
+
 @c4("TestTodoApp") final case class TestTodoRootView(locationHash: String = "todo")(
   exampleTags: ExampleTags,
   listTags: ListTags,
@@ -172,24 +174,29 @@ case object DragHandleCellCSSClassName extends CSSClassName("dragHandleCell")
         dragRow = sortReceiverFactory.create(todoSortHandlerFactory.create(todoSortOrder)),
         rowKeys = todoTasks.map(_.srcId),
         cols = List(
-          listTags.gridCol("drag",
-            colKey = "drag",
+          GridCol(
+            colKey = "drag", minWidth = 1, maxWidth = 1,
             hideWill = 0,
-            minWidth = 1, maxWidth = 1,
           ),
-          listTags.gridCol("comments",
-            colKey = "comments",
+          GridCol(
+            colKey = "comments", minWidth = 10, maxWidth = 20,
             hideWill = 0,
-            minWidth = 10, maxWidth = 20,
-            caption = "Comments",
           ),
-          listTags.gridCol("remove",
-            colKey = "remove",
+          GridCol(
+            colKey = "remove", minWidth = 1, maxWidth = 1,
             hideWill = 0,
-            minWidth = 1, maxWidth = 1,
           ),
         ),
-        children = todoTasks.flatMap(task=>List(
+        children = List(
+          listTags.gridCell(s"comments-head",
+            colKey = "comments",
+            rowKey = "head",
+            className = HeaderCSSClassName,
+            children = List(
+              exampleTags.text("text","Comments")
+            )
+          )
+        ) ::: todoTasks.flatMap(task=>List(
           listTags.gridCell(s"drag-${task.srcId}",
             colKey = "drag",
             rowKey = task.srcId,
