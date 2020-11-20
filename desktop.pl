@@ -76,16 +76,6 @@ push @tasks, [sshd=>sub{
     #sy('test -e /c4/c4proto || git clone https://github.com/conecenter/c4proto.git /c4/c4proto');
     &$exec('dropbear', '-RFEmwgs', '-p', $ENV{C4SSH_PORT}||die 'no C4SSH_PORT');
 }];
-my $haproxy = sub{
-    &$need_home();
-    my $port_prefix = $ENV{C4PORT_PREFIX} || 8000;
-    $ENV{C4HTTP_PORT} = $port_prefix+67;
-    $ENV{C4SSE_PORT} = $port_prefix+68;
-    &$exec("perl", "/haproxy.pl");
-};
-push @tasks, [haproxy=>$haproxy];
-push @tasks, [le_http=>$haproxy];
-push @tasks, [le_https=>$haproxy];
 push @tasks, [bloop=>sub{
     &$need_home();
     sy("perl /bloop_fix.pl");
