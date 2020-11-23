@@ -3,7 +3,7 @@ use strict;
 
 sub so{ print join(" ",@_),"\n"; system @_ }
 sub sy{ &so and die $? }
-
+#my test= {}
 my $sync = sub{
     my $dir = `pwd`=~/^(\S+)\s*$/ ? $1 : die;
     sy("perl $dir/sync.pl start $dir /c4/c4proto '$ENV{C4BUILD_PORT}'");
