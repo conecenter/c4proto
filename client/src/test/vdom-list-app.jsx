@@ -1,10 +1,10 @@
 
 import { GridRoot, GridCell, Highlighter } from "../main/vdom-list.js"
-import { createSyncProviders } from "../main/vdom-hooks.js"
+import { createSyncProviders, NoCaptionContext } from "../main/vdom-hooks.js"
 import ReactDOM from "react-dom"
 import React from "react"
 
-const { createElement: $, useState } = React
+const { createElement: $, useState, useContext } = React
 
 function ImageElement({src,className}){
     return $("img",{src,className,draggable:"false"})
@@ -18,7 +18,8 @@ function mockData() {
 }
 
 function Text({ value }) {
-    return value
+    const noCaption = useContext(NoCaptionContext)
+    return value+(noCaption?"":"*")
 }
 
 function App() {

@@ -51,3 +51,5 @@ export const useEventListener = (el,evName,callback) => {
         return ()=>el.removeEventListener(evName,callback)
     },[el,evName,callback])
 }
+
+export const NoCaptionContext = createContext()

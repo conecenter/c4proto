@@ -3,7 +3,7 @@
 import { createElement as $, useMemo, useState, useLayoutEffect, cloneElement, useCallback, useEffect } from "react"
 
 import { map, identityAt, deleted, never } from "./vdom-util.js"
-import { useWidth, useEventListener, useSync } from "./vdom-hooks.js"
+import { useWidth, useEventListener, useSync, NoCaptionContext } from "./vdom-hooks.js"
 
 const dragRowIdOf = identityAt('dragRow')
 const dragColIdOf = identityAt('dragCol')
@@ -215,7 +215,8 @@ export function GridRoot({ identity, rowKeys, cols, children: rawChildren }) {
     }, [setExpandedItem, draggingStart])
 
     const style = { ...rootDragStyle, display: "grid", gridTemplateRows, gridTemplateColumns }
-    return $("div", { onMouseDown, style, className: "grid", ref: setGridElement }, allChildren)
+    const res = $("div", { onMouseDown, style, className: "grid", ref: setGridElement }, allChildren)
+    return $(NoCaptionContext.Provider,{value:true},res)
 }
 
 const getAllChildren = ({children,rowKeys,cols,draggingStart,hasHiddenCols,hideElementsForHiddenCols,toExpanderElements,getExpandedCells}) => {
@@ -224,7 +225,7 @@ const getAllChildren = ({children,rowKeys,cols,draggingStart,hasHiddenCols,hideE
     const expandedElements = getExpandedCells({
         rowKeys, children, cols: hideElementsForHiddenCols(true,col=>col.colKey)(cols),
     }).map(([rowKey, pairs]) => {
-        return $(GridCell, {
+        const res = $(GridCell, {
             key: `${rowKey}-expanded`,
             gridColumn: spanAll,
             rowKey,
@@ -237,8 +238,8 @@ const getAllChildren = ({children,rowKeys,cols,draggingStart,hasHiddenCols,hideE
                 children: cell.props.children,
             }))
         })
+        return $(NoCaptionContext.Provider,{value:false},res)
     })
-
     const allChildren = toExpanderElements(hasHiddenCols)([...dropElements, ...toDraggingElements(draggingStart)(hideElementsForHiddenCols(false,cell=>cell.props.colKey)([
         ...children, ...expandedElements
     ]))])

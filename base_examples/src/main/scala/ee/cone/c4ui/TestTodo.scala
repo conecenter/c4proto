@@ -112,9 +112,9 @@ abstract class SetField[T](val make: (SrcId,String)=>T) extends Product
 case object TodoTaskComments extends SetField(B_TodoTaskComments)
 case object TodoTaskCommentsContains extends SetField(B_TodoTaskCommentsContains)
 
-case object DragHandleCellCSSClassName extends CSSClassName("dragHandleCell")
+case object DragHandleCellCSSClassName extends CSSClassName{ def name = "dragHandleCell" }
 
-case object HeaderCSSClassName extends CSSClassName("tableHeadContainer headerColor")
+case object HeaderCSSClassName extends CSSClassName{ def name = "tableHeadContainer headerColor" }
 
 @c4("TestTodoApp") final case class TestTodoRootView(locationHash: String = "todo")(
   exampleTags: ExampleTags,
@@ -140,12 +140,36 @@ case object HeaderCSSClassName extends CSSClassName("tableHeadContainer headerCo
       else allTodoTasks.filter(
         prod => comments.get(prod.srcId).exists(_.value.contains(commentsContainsValue))
       )
-    List(
+    val expander = listTags.filterButtonExpander("expander",
+      minWidth = 1,
+      area = RightFilterButtonArea,
+      children = List(
+        exampleTags.text(
+          "button",
+          value = "="
+        )
+      ),
+      optButtons = (1 to 2).map { i =>
+        listTags.filterButtonPlace(s"bt$i",
+          minWidth = 5,
+          area = RightFilterButtonArea,
+          children = List(
+            exampleTags.button(
+              "button",
+              activate = taskListAddReceiver,
+              caption = "+++",
+            )
+          )
+        )
+      }.toList
+    )
+
+    val list = List(
       listTags.filterArea("todoListFilter",
         centerButtonText = "",
         filters = List(
           listTags.filterItem("comments",
-            minWidth = 5, maxWidth = 20,
+            minWidth = 11, maxWidth = 20,
             canHide = false,
             children = List(
               exampleTags.text("label","Comments contains"),
@@ -157,7 +181,7 @@ case object HeaderCSSClassName extends CSSClassName("tableHeadContainer headerCo
           )
         ),
         buttons = List(
-          listTags.filterButton("add",
+          listTags.filterButtonPlace("add",
             minWidth = 1,
             area = LeftFilterButtonArea,
             children = List(
@@ -166,7 +190,8 @@ case object HeaderCSSClassName extends CSSClassName("tableHeadContainer headerCo
                 caption = "+",
               )
             )
-          )
+          ),
+          expander
         ),
       ),
       listTags.gridRoot("todoList",
@@ -225,6 +250,7 @@ case object HeaderCSSClassName extends CSSClassName("tableHeadContainer headerCo
         ))
       )
     )
+    List(listTags.popupManager("pm",list))
   }
 }
 

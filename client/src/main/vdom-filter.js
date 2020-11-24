@@ -170,7 +170,7 @@ const usePopupPos = element => {
     return [position,popupParentStyle]
 }
 
-export const PopupContext = createContext()
+const PopupContext = createContext()
 const usePopupState = (identity,popupElement) => {
     const [popup,setPopup] = useContext(PopupContext)
     const isOpened = useCallback(p => p===identity, [identity])
@@ -182,26 +182,36 @@ const usePopupState = (identity,popupElement) => {
     useEventListener(doc,"click",checkClose)
     return [isOpened(popup),setOpened]
 }
+export function PopupManager({children}){
+    const [popup,setPopup] = useState(null) // todo useSync
+    return $(PopupContext.Provider,{value:[popup,setPopup]},children)
+}
 
 
-export function FilterExpander({identity,optButtons}){
+const getButtonPlaceStyle = minWidth => ({display:"flex",flexBasis:minWidth+"em",height:"2em"})
+
+export function FilterButtonExpander({identity,optButtons,minWidth,popupItemClassName,children}){
     const [popupElement,setPopupElement] = useState(null)
-    const [popupStyle,parentStyle] = usePopupPos(popupElement)
+    const [popupStyle,popupParentStyle] = usePopupPos(popupElement)
     const width = em(Math.max(...optButtons.map(c=>c.props.minWidth)))
     const [isOpened,open] = usePopupState(identity,popupElement)
+    const parentStyle = {...popupParentStyle,...getButtonPlaceStyle(minWidth)}
 
     console.log("p-render-")
-    return $("div",{className:"filterExpander",style:parentStyle,onClick:ev=>open()},
-        isOpened && $("div",{style:{...popupStyle,width},ref:setPopupElement},optButtons)
+    return $("div",{style:parentStyle,onClick:ev=>open()},
+        children,
+        isOpened && $("div",{style:{...popupStyle,width},ref:setPopupElement},optButtons.map(btn=>{
+            return $("div",{ key: btn.key, className: popupItemClassName }, btn.props.children)
+        }))
     )
 }
 
-export function FilterButton({minWidth,children}){
-    return $("div",{style:{display:"flex",flexBasis:minWidth+"em"}},children)
+export function FilterButtonPlace({minWidth,children}){
+    return $("div",{style:getButtonPlaceStyle(minWidth)},children)
 }
 
 export function FilterItem({className,children}){
     return $("div",{className},children)
 }
 
-export const components = {FilterArea,PopupContext,FilterExpander,FilterButton,FilterItem}
+export const components = {FilterArea,FilterButtonExpander,FilterButtonPlace,FilterItem,PopupManager}

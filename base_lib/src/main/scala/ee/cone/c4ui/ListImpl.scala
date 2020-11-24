@@ -10,7 +10,7 @@ import ee.cone.c4vdom._
 
 
 trait VGridCell
-trait VGridCellContent extends OfDiv
+
 
 object ListTagTypes {
   type VGridRoot = OfDiv
@@ -19,11 +19,12 @@ object ListTagTypes {
 
 trait VFilterItem
 trait VFilterButton
-trait VFilterButtonOption
 trait VFilterItemContent extends OfDiv
 
-abstract class CSSClassName(val value: String) extends Product
-case object NoCSSClassName extends CSSClassName("")
+trait CSSClassName extends Product {
+  def name: String
+}
+case object NoCSSClassName extends CSSClassName { def name: String = "" }
 
 sealed abstract class FilterButtonArea(val value: String) extends Product
 case object LeftFilterButtonArea extends FilterButtonArea("lt")
@@ -41,7 +42,7 @@ case object RowDragHandle extends DragHandle("y")
   })
 ) {
   @provide def forCSSClassName: Seq[JsonPairAdapter[CSSClassName]] =
-    List(util.jsonPairAdapter((value, builder) => builder.just.append(value.value)))
+    List(util.jsonPairAdapter((value, builder) => builder.just.append(value.name)))
   @provide def forFilterButtonArea: Seq[JsonPairAdapter[FilterButtonArea]] =
     List(util.jsonPairAdapter((value, builder) => builder.just.append(value.value)))
   @provide def forDragHandle: Seq[JsonPairAdapter[DragHandle]] =
@@ -95,7 +96,7 @@ case class GridCol(
     colKey: String,
     rowKey: String,
     className: CSSClassName = NoCSSClassName,
-    children: List[VDom[VGridCellContent]] = Nil,
+    children: List[VDom[OfDiv]] = Nil,
     isExpander: Boolean = false,
     dragHandle: DragHandle = NoDragHandle,
   ): VDom[VGridCell]
@@ -106,7 +107,7 @@ case class GridCol(
     filters: List[VDom[VFilterItem]] = Nil,
     buttons: List[VDom[VFilterButton]] = Nil,
   ): VDom[VFilterArea]
-  @c4tag("FilterButton") def filterButton(
+  @c4tag("FilterButtonPlace") def filterButtonPlace(
     key: String,
     minWidth: Int,
     area: FilterButtonArea,
@@ -116,16 +117,10 @@ case class GridCol(
     key: String,
     minWidth: Int,
     area: FilterButtonArea,
-    optButtons: List[VDom[VFilterButtonOption]],
-    className: CSSClassName = NoCSSClassName,
+    children: List[VDom[OfDiv]] = Nil,
+    optButtons: List[VDom[VFilterButton]] = Nil,
+    popupItemClassName: CSSClassName = NoCSSClassName,
   ): VDom[VFilterButton]
-  @c4tag("FilterButtonOption") def filterButtonOption(
-    key: String,
-    minWidth: Int,
-    activate: Receiver[Context],
-    className: CSSClassName = NoCSSClassName,
-    caption: String = "",
-  ): VDom[VFilterButtonOption]
   @c4tag("FilterItem") def filterItem(
     key: String,
     minWidth: Int,
@@ -135,4 +130,8 @@ case class GridCol(
     children: List[VDom[VFilterItemContent]] = Nil,
   ): VDom[VFilterItem]
 
+  @c4tag("PopupManager") def popupManager(
+    key: String,
+    children: List[VDom[OfDiv]] = Nil,
+  ): VDom[OfDiv]
 }
