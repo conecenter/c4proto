@@ -35,6 +35,11 @@ case object NoDragHandle extends DragHandle("")
 case object ColDragHandle extends DragHandle("x")
 case object RowDragHandle extends DragHandle("y")
 
+sealed abstract class HighlightByAttr(val value: String) extends Product
+case object RowHighlightByAttr extends HighlightByAttr("data-row-key")
+case object ColHighlightByAttr extends HighlightByAttr("data-col-key")
+
+
 @c4("UICompApp") final class ListJsonAdapterProvider(util: TagJsonUtils)(
   val intAdapter: JsonPairAdapter[Int] = util.jsonPairAdapter((value,builder) => {
     val format = NumberFormat.getIntegerInstance match { case f: DecimalFormat => f } // to do once?
@@ -72,6 +77,9 @@ case object RowDragHandle extends DragHandle("y")
     list.foreach(forItem(_,builder))
     builder.end()
   }
+  @provide def forHighlightByAttr: Seq[JsonPairAdapter[HighlightByAttr]] =
+    List(util.jsonPairAdapter((value, builder) => builder.just.append(value.value)))
+
 }
 
 case class GridCol(
@@ -134,4 +142,10 @@ case class GridCol(
     key: String,
     children: List[VDom[OfDiv]] = Nil,
   ): VDom[OfDiv]
+
+  @c4tag("Highlighter") def highlighter(
+    key: String,
+    attrName: HighlightByAttr
+  ): VDom[OfDiv]
+
 }

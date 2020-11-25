@@ -250,7 +250,11 @@ case object HeaderCSSClassName extends CSSClassName{ def name = "tableHeadContai
         ))
       )
     )
-    List(listTags.popupManager("pm",list))
+    List(listTags.popupManager("pm",
+      listTags.highlighter("col-highlighter",RowHighlightByAttr) ::
+      listTags.highlighter("row-highlighter",ColHighlightByAttr) ::
+      list
+    ))
   }
 }
 

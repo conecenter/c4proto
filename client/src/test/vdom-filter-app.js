@@ -16,23 +16,23 @@ function filterButton({key,minWidth,area,className,caption}){
 
 function App(){
     const [state,setState] = useState({})
-    const {noFilters,showAll} = state
-    const canHide = !showAll
+    const {noFilters,showSome0,showSome1} = state
     const identities = useMemo(()=>({lt:{},rt:{}}),[])
 
     const expander = $("div",{className:"exampleButton"})
 
     return $(PopupManager, {},
-        $(ModeButton,{ key: "showAll", setState, dataKey: "showAll" }),
+        $(ModeButton,{ key: "show all 0", setState, dataKey: "showSome0" }),
+        $(ModeButton,{ key: "show all 1", setState, dataKey: "showSome1" }),
         $(ModeButton,{ key: "noFilters", setState, dataKey: "noFilters" }),
         $("div",{style:{height:"10em"}},"BEFORE"),
         $(FilterArea,{ key: "app",
             filters: noFilters ? [] : [
-                $(FilterItem,{ key: 1, children: "1?", minWidth: 5, maxWidth:10, canHide, className: "exampleFilterItem" }),
-                $(FilterItem,{ key: 2, children: 2, minWidth: 10, maxWidth:10, className: "exampleFilterItem" }),
-                $(FilterItem,{ key: 3, children: 3, minWidth: 5, maxWidth:10, className: "exampleFilterItem" }),
-                $(FilterItem,{ key: 4, children: 4, minWidth: 5, maxWidth:10, className: "exampleFilterItem" }),
-                $(FilterItem,{ key: 5, children: "5?", minWidth: 5, maxWidth:10, canHide, className: "exampleFilterItem" }),
+                $(FilterItem,{ key: 1, children: "1 1", minWidth: 5, maxWidth:10, canHide: !showSome1, className: "exampleFilterItem" }),
+                $(FilterItem,{ key: 2, children: "2 0", minWidth: 10, maxWidth:10, canHide: !showSome0, className: "exampleFilterItem" }),
+                $(FilterItem,{ key: 3, children: "3 0", minWidth: 5, maxWidth:10, canHide: !showSome0, className: "exampleFilterItem" }),
+                $(FilterItem,{ key: 4, children: "4 0", minWidth: 5, maxWidth:10, canHide: !showSome0, className: "exampleFilterItem" }),
+                $(FilterItem,{ key: 5, children: "5 1", minWidth: 5, maxWidth:10, canHide: !showSome1, className: "exampleFilterItem" }),
             ],
             buttons: [
                 $(FilterButtonExpander,{ key: 0, minWidth: 2, area: "lt", identity: identities.lt, children: expander, optButtons: [

@@ -148,7 +148,7 @@ const getGridCol = ({ colKey }) => CSS.escape(colKey)
 
 const spanAll = "1 / -1"
 
-export function GridCell({ children, rowKey, rowKeyMod, colKey, isExpander, expander, dragHandle, noDefCellClass, className: argClassName, gridRow: argGridRow, gridColumn: argGridColumn, ...props }) {
+export function GridCell({ identity, children, rowKey, rowKeyMod, colKey, isExpander, expander, dragHandle, noDefCellClass, className: argClassName, gridRow: argGridRow, gridColumn: argGridColumn, ...props }) {
     const gridRow = argGridRow || getGridRow({ rowKey, rowKeyMod })
     const gridColumn = argGridColumn || getGridCol({ colKey })
     const style = { ...props.style, gridRow, gridColumn }

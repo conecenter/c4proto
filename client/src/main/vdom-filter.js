@@ -52,6 +52,7 @@ const centerButtonWidth = 1
 const emPerRow = 2
 
 const fitFilters = (filters,outerWidth,rowCount,canReduceButtonWidth,isMultilineButtons,lt,rt) => {
+    if(filters.length > 0 && rowCount <= 1 && !isMultilineButtons) return null
     const allButtonWidth = lt.width + centerButtonWidth + rt.width
     const fitWidth = isMultilineButtons ? Math.max(0, outerWidth - allButtonWidth) : 0
     if(canReduceButtonWidth && outerWidth < allButtonWidth ) return null
@@ -68,14 +69,14 @@ const fitFilters = (filters,outerWidth,rowCount,canReduceButtonWidth,isMultiline
 
 const getWidthLimits = filters => getVisibleFilters(filters,0).map(c=>c.props.minWidth)
 
-const fitRows = (filters,buttons,outerWidth,expandMode,rowCount) => (
+const fitRows = (filters,buttons,outerWidth,rowCount) => (
     fitFilters(filters, outerWidth, rowCount, true ,false, fitButtonsSide(buttons,"lt",true ,false), fitButtonsSide(buttons,"rt",true ,false)) ||
     fitFilters(filters, outerWidth, rowCount, true ,false, fitButtonsSide(buttons,"lt",true ,false), fitButtonsSide(buttons,"rt",false,false)) ||
     fitFilters(filters, outerWidth, rowCount, true ,false, fitButtonsSide(buttons,"lt",false,false), fitButtonsSide(buttons,"rt",false,false)) ||
     fitFilters(filters, outerWidth, rowCount, true ,true , fitButtonsSide(buttons,"lt",true ,true ), fitButtonsSide(buttons,"rt",true ,true )) ||
     fitFilters(filters, outerWidth, rowCount, true ,true , fitButtonsSide(buttons,"lt",true ,true ), fitButtonsSide(buttons,"rt",false,true )) ||
     fitFilters(filters, outerWidth, rowCount, false,true , fitButtonsSide(buttons,"lt",false,true ), fitButtonsSide(buttons,"rt",false,true )) ||
-    fitRows(filters,buttons,outerWidth,expandMode,rowCount+1)
+    fitRows(filters,buttons,outerWidth,rowCount+1)
 )
 
 const dMinMax = el => el.props.maxWidth - el.props.minWidth
@@ -85,8 +86,7 @@ const em = v => v+'em'
 export function FilterArea({filters,buttons,centerButtonText}){
     const [gridElement,setGridElement] = useState(null)
     const outerWidth = useWidth(gridElement)
-    const expandMode = filters && filters.length > 0 ? 2:1
-    const {groupedFilters,lt,rt} = fitRows(filters||[],buttons||[],outerWidth,expandMode,1)
+    const {groupedFilters,lt,rt} = fitRows(filters||[],buttons||[],outerWidth,1)
     const dnRowHeight = groupedFilters && groupedFilters[0] && groupedFilters[0].items.length>0 || lt.optButtons.length + rt.optButtons.length > 0 ? emPerRow : 0
     const yRowToEm = h => em(h * emPerRow*2 - emPerRow + dnRowHeight)
 
