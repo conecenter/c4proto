@@ -146,6 +146,7 @@ my $calc_bloop_conf = sub{
         my($mod,$cl) = $to=~/^(\w+\.)(.*)(\.\w+)$/ ? ("$1$2","$2$3") : die;
         my $steps = join "\n", &$step_by_project($from);
         (
+            +{ fn=>"$tmp/tag.$from.to", content=>$to },
             +{ fn=>"$tmp/tag.$from.compile", content=>"exec perl $tmp/compile.pl $mod" },
             +{ fn=>"$tmp/tag.$from.mod", content=>$mod },
             +{ fn=>"$tmp/tag.$from.main", content=>$cl },
