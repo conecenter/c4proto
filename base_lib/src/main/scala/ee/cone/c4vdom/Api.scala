@@ -53,7 +53,7 @@ object Types {
 }
 
 trait ChildPair[-C] {
-  def key: VDomKey
+  @deprecated def key: VDomKey // it should be impl details
 }
 
 trait ChildPairFactory {
