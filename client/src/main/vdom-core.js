@@ -175,9 +175,15 @@ export function useSyncInput(identity,incomingValue,deferSend){
             return undefined
         })
     },[enqueuePatch])
+
+    // this effect is not ok: incomingValue can leave the same;
+    // ? see if wasLastPatch.value in patches
+    // or: send blur w/o value to sub-identity; changing = patch && "1" || props.changing
     useEffect(()=>{
         setLastPatch(wasLastPatch => wasLastPatch && wasLastPatch.value === incomingValue ? wasLastPatch : undefined)
     },[incomingValue])
+    //
+    
     const patch = patches.slice(-1).map(({value})=>({value}))[0]
     const value = patch ? patch.value : incomingValue
     const changing = patch || lastPatch ? "1" : undefined
