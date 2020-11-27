@@ -19,7 +19,10 @@ function App(){
     const {noFilters,showSome0,showSome1} = state
     const identities = useMemo(()=>({lt:{},rt:{}}),[])
 
-    const expander = $("div",{className:"exampleButton"})
+    const expander = {
+        children: [$("div",{key:"closedExpander",className:"exampleButton closedExpander"})],
+        openedChildren: [$("div",{key:"openedExpander",className:"exampleButton openedExpander"})],
+    }
 
     return $(PopupManager, {},
         $(ModeButton,{ key: "show all 0", setState, dataKey: "showSome0" }),
@@ -35,20 +38,21 @@ function App(){
                 $(FilterItem,{ key: 5, children: "5 1", minWidth: 5, maxWidth:10, canHide: !showSome1, className: "exampleFilterItem" }),
             ],
             buttons: [
-                $(FilterButtonExpander,{ key: 0, minWidth: 2, area: "lt", identity: identities.lt, children: expander, optButtons: [
+                $(FilterButtonExpander,{ key: 0, minWidth: 2, area: "lt", identity: identities.lt, ...expander, optButtons: [
                     filterButton({ key: 3, minWidth: 4, className: "exampleButton", caption: "B" }),
                     filterButton({ key: 2, minWidth: 4, className: "exampleButton", caption: "B" }),
                 ] }),
                 filterButton({ key: 1, minWidth: 2, area: "lt", className: "exampleButton" }),
                 filterButton({ key: 2, minWidth: 2, area: "rt", className: "exampleButton" }),
                 filterButton({ key: 3, minWidth: 2, area: "rt", className: "exampleButton" }),
-                $(FilterButtonExpander,{ key: 4, minWidth: 2, area: "rt", identity: identities.rt, children: expander, optButtons: [
+                $(FilterButtonExpander,{ key: 4, minWidth: 2, area: "rt", identity: identities.rt, ...expander, optButtons: [
                     filterButton({ key: 7, minWidth: 4, className: "exampleButton", caption: "B" }),
                     filterButton({ key: 6, minWidth: 3, className: "exampleButton", caption: "B" }),
                     filterButton({ key: 5, minWidth: 4, className: "exampleButton", caption: "B" }),
                 ] }),
             ],
             centerButtonText: "of",
+            className: "filterArea",
         }),
         "AFTER"
     )

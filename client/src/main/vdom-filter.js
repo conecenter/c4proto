@@ -83,7 +83,7 @@ const dMinMax = el => el.props.maxWidth - el.props.minWidth
 
 const em = v => v+'em'
 
-export function FilterArea({filters,buttons,centerButtonText}){
+export function FilterArea({filters,buttons,centerButtonText,className}){
     const [gridElement,setGridElement] = useState(null)
     const outerWidth = useWidth(gridElement)
     const {groupedFilters,lt,rt} = fitRows(filters||[],buttons||[],outerWidth,1)
@@ -106,7 +106,7 @@ export function FilterArea({filters,buttons,centerButtonText}){
     const gridTemplateRows = '[up] '+em(emPerRow)+' [dn] '+em(dnRowHeight)
     const gridTemplateColumns = '[lt-btn] '+em(lt.width)+' [center-btn] '+em(centerButtonWidth)+' [rt-btn] '+em(rt.width)
     const style = { display: "grid", alignContent: "start", justifyContent: "end", gridTemplateRows, gridTemplateColumns, position: "relative", height: yRowToEm(groupedFilters.length) }
-    return $("div",{ style, className:"filterArea", ref: setGridElement },
+    return $("div",{ style, className, ref: setGridElement },
         $("div",{ key: "up-center-btn", style: { gridRow: "up", gridColumn: 'center-btn', display: "flex", alignItems: "center" } },centerButtonText),
         $("div",{ key: "up-lt-btn", style: { gridRow: "up", gridColumn: 'lt-btn', display: "flex", alignItems: "center", justifyContent: "flex-end" } },lt.buttons),
         $("div",{ key: "up-rt-btn", style: { gridRow: "up", gridColumn: 'rt-btn', display: "flex", alignItems: "center", justifyContent: "flex-start" } },rt.buttons),
@@ -190,7 +190,7 @@ export function PopupManager({children}){
 
 const getButtonPlaceStyle = minWidth => ({display:"flex",flexBasis:minWidth+"em",height:"2em"})
 
-export function FilterButtonExpander({identity,optButtons,minWidth,popupItemClassName,children}){
+export function FilterButtonExpander({identity,optButtons,minWidth,className,popupClassName,popupItemClassName,children,openedChildren}){
     const [popupElement,setPopupElement] = useState(null)
     const [popupStyle,popupParentStyle] = usePopupPos(popupElement)
     const width = em(Math.max(...optButtons.map(c=>c.props.minWidth)))
@@ -198,16 +198,18 @@ export function FilterButtonExpander({identity,optButtons,minWidth,popupItemClas
     const parentStyle = {...popupParentStyle,...getButtonPlaceStyle(minWidth)}
 
     console.log("p-render-")
-    return $("div",{style:parentStyle,onClick:ev=>open()},
-        children,
-        isOpened && $("div",{style:{...popupStyle,width},ref:setPopupElement},optButtons.map(btn=>{
-            return $("div",{ key: btn.key, className: popupItemClassName }, btn.props.children)
-        }))
+    return $("div",{className,style:parentStyle,onClick:ev=>open()},
+        isOpened ? [
+            openedChildren,
+            $("div",{key:"popup",className:popupClassName,style:{...popupStyle,width},ref:setPopupElement},optButtons.map(btn=>{
+                return $("div",{ key: btn.key, className: popupItemClassName }, btn.props.children)
+            }))
+        ] : children
     )
 }
 
-export function FilterButtonPlace({minWidth,children}){
-    return $("div",{style:getButtonPlaceStyle(minWidth)},children)
+export function FilterButtonPlace({minWidth,className,children}){
+    return $("div",{className,style:getButtonPlaceStyle(minWidth)},children)
 }
 
 export function FilterItem({className,children}){

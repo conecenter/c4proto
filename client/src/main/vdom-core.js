@@ -183,7 +183,7 @@ export function useSyncInput(identity,incomingValue,deferSend){
         setLastPatch(wasLastPatch => wasLastPatch && wasLastPatch.value === incomingValue ? wasLastPatch : undefined)
     },[incomingValue])
     //
-    
+
     const patch = patches.slice(-1).map(({value})=>({value}))[0]
     const value = patch ? patch.value : incomingValue
     const changing = patch || lastPatch ? "1" : undefined

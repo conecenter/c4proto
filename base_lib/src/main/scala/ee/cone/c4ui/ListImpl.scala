@@ -112,6 +112,7 @@ case class GridCol(
   @c4tag("FilterArea") def filterArea(
     key: String,
     centerButtonText: String,
+    className: CSSClassName = NoCSSClassName,
     filters: List[VDom[VFilterItem]] = Nil,
     buttons: List[VDom[VFilterButton]] = Nil,
   ): VDom[VFilterArea]
@@ -119,15 +120,19 @@ case class GridCol(
     key: String,
     minWidth: Int,
     area: FilterButtonArea,
+    className: CSSClassName = NoCSSClassName,
     children: List[VDom[OfDiv]] = Nil,
   ): VDom[VFilterButton]
   @c4tag("FilterButtonExpander") def filterButtonExpander(
     key: String,
     minWidth: Int,
     area: FilterButtonArea,
-    children: List[VDom[OfDiv]] = Nil,
-    optButtons: List[VDom[VFilterButton]] = Nil,
+    className: CSSClassName = NoCSSClassName,
+    popupClassName: CSSClassName = NoCSSClassName,
     popupItemClassName: CSSClassName = NoCSSClassName,
+    children: List[VDom[OfDiv]] = Nil,
+    openedChildren: List[VDom[OfDiv]] = Nil,
+    optButtons: List[VDom[VFilterButton]] = Nil,
   ): VDom[VFilterButton]
   @c4tag("FilterItem") def filterItem(
     key: String,
