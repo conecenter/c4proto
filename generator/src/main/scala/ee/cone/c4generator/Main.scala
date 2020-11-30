@@ -334,7 +334,6 @@ class PublicPathsGenerator extends WillGenerator {
     val pathByRoot = ctx.fromFiles.groupBy(toModRoot)
     val RefOk = """([\w\-\./]+)""".r
     val ExtRegEx = """.*\.(\w+)""".r
-    val ViewBoxRegEx = """viewBox=["'](.+?)["']""".r.unanchored
     val fullMimeTypesMap: Map[String, String] = (for {
       path <- ctx.fromFiles.filter(_.getFileName.toString == "MimeTypesMap.scala")
       Parsed.Success(source"..$sourceStatements") = Files.readString(path).parse[Source]
@@ -350,6 +349,7 @@ class PublicPathsGenerator extends WillGenerator {
       case (key, value) if value.startsWith("image/") => key
     }.toSet
     Util.toBinFileList(roots.flatMap { (root:PublicPathRoot) =>
+
       val defs = pathByRoot.getOrElse(Option(root.publicPath),Nil)
         .map{ path =>
           val RefOk(r) = root.publicPath.relativize(path).toString
@@ -358,26 +358,46 @@ class PublicPathsGenerator extends WillGenerator {
           val ref = s"/mod/main/$rel"
 
           val publicPath = ext match {
-            case "svg" =>
-              val svg = Files.readString(path)
-              val viewBox = svg match {
-                case ViewBoxRegEx(sizes) => sizes
-                case _ => ""
-              }
-              s"""SVGPublicPath("$ref", "$viewBox")"""
+            case "svg" => s"""SVGPublicPath("$ref")"""
             case e if imageExtensions.contains(e) => s"""NonSVGPublicPath("$ref")"""
             case _ => s"""DefaultPublicPath("$ref")"""
           }
           (
-            s"""    def `/$r` = $publicPath """,
+            (s"`/$r`", publicPath),
+//            s"""    def `/$r` = $publicPath """,
             s"main.${root.pkgName} $ref $rel"
           )
         }
-      val lines = if(defs.isEmpty) Nil else
+      val lines = if(defs.isEmpty) Nil else {
+        val packageName = root.pkgName
+        val packageNameSnake =
+          packageName
+            .replaceAll("^(\\w+\\.){2}", "")
+            .replaceAll("\\.", "_")
+        val objectName = s"${packageNameSnake}_PublicPath"
+
+
         "/** THIS FILE IS GENERATED; CHANGES WILL BE LOST **/" ::
-        s"package ${root.pkgName}" ::
-        "\nimport ee.cone.c4actor.{DefaultPublicPath, SVGPublicPath, NonSVGPublicPath}\n" ::
-        "object PublicPath {" :: defs.map(_._1) ::: "}" :: Nil
+        s"package $packageName" ::
+        """
+            |import ee.cone.c4actor.{DefaultPublicPath, SVGPublicPath, NonSVGPublicPath}
+            |import ee.cone.c4di.c4
+            |""".stripMargin ::
+        s"@c4 final class ${objectName}Collector() {" ::
+        s"""    import $packageName.PublicPath._""" ::
+        s"""    def allPaths = ${
+          defs.foldLeft(""){
+            case ("", ((defName, _), _)) => s"$defName :: Nil"
+            case (acc, ((defName, _), _)) => s"$defName :: $acc"
+          }
+        } """ ::
+        "}" ::
+        s"object PublicPath {" ::
+        defs.map(_._1 match {
+          case (defName, publicPath) => s"""    def $defName = $publicPath """
+        }) :::
+        "}" :: Nil
+      }
       List(root.genPath -> lines, root.mainPublicPath.resolve("c4gen.ht.links") -> defs.map(_._2))
     }.groupMap(_._1)(_._2).transform((k,v)=>v.flatten))
   }
