@@ -367,8 +367,8 @@ class PublicPathsGenerator extends WillGenerator {
       val lines = if(defs.isEmpty) Nil else
         "/** THIS FILE IS GENERATED; CHANGES WILL BE LOST **/" ::
         s"package ${root.pkgName}" ::
-        "\nimport ee.cone.c4actor.{DefaultPublicPath, SVGPublicPath, NonSVGPublicPath}\n" ::
-        "object PublicPath {" :: defs.map(_._1) ::: "}" :: Nil
+        "\nimport ee.cone.c4actor.{DefaultPublicPath, SVGPublicPath, NonSVGPublicPath, PublicPathCollector}\n" ::
+        "object PublicPath extends PublicPathCollector {" :: defs.map(_._1) ::: "}" :: Nil
       List(root.genPath -> lines, root.mainPublicPath.resolve("c4gen.ht.links") -> defs.map(_._2))
     }.groupMap(_._1)(_._2).transform((k,v)=>v.flatten))
   }

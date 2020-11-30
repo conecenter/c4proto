@@ -6,6 +6,8 @@ import scala.util.matching.{Regex, UnanchoredRegex}
 
 trait ImageSize
 
+trait PublicPathCollector
+
 trait PublicPath extends Product {
   def isEmpty: Boolean = path.trim.isEmpty
   def nonEmpty: Boolean = path.trim.nonEmpty
