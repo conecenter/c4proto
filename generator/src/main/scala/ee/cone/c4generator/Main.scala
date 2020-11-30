@@ -381,16 +381,13 @@ class PublicPathsGenerator extends WillGenerator {
             |import ee.cone.c4actor.{DefaultPublicPath, SVGPublicPath, NonSVGPublicPath, PublicPathCollector}
             |import ee.cone.c4di.c4
             |""".stripMargin ::
-        s"@c4 final class ${objectName}Collector() {" ::
-        s"""    import $packageName.PublicPath._""" ::
-        s"""    def allPaths = ${
-          defs.foldLeft(""){
-            case ("", ((defName, _), _)) => s"$defName :: Nil"
-            case (acc, ((defName, _), _)) => s"$defName :: $acc"
-          }
-        } """ ::
-        "}" ::
         s"object PublicPath extends PublicPathCollector {" ::
+          s"""    def allPaths = ${
+            defs.foldLeft(""){
+              case ("", ((defName, _), _)) => s"$defName :: Nil"
+              case (acc, ((defName, _), _)) => s"$defName :: $acc"
+            }
+          } """ ::
         defs.map(_._1 match {
           case (defName, publicPath) => s"""    def $defName = $publicPath """
         }) :::
