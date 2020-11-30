@@ -190,7 +190,8 @@ export function PopupManager({children}){
 
 const getButtonPlaceStyle = minWidth => ({display:"flex",flexBasis:minWidth+"em",height:"2em"})
 
-export function FilterButtonExpander({identity,optButtons,minWidth,className,popupClassName,popupItemClassName,children,openedChildren}){
+export function FilterButtonExpander({identity,optButtons:rawOptButtons,minWidth,className,popupClassName,popupItemClassName,children,openedChildren}){
+    const optButtons = rawOptButtons || []
     const [popupElement,setPopupElement] = useState(null)
     const [popupStyle,popupParentStyle] = usePopupPos(popupElement)
     const width = em(Math.max(...optButtons.map(c=>c.props.minWidth)))
