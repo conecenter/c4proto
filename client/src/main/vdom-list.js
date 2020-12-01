@@ -59,13 +59,15 @@ const useExpanded = () => {
     return [expanded, setExpandedItem]
 }
 const useExpandedElements = (expanded, setExpandedItem) => {
-    const toExpanderElements = useCallback(on => !on ? (c => c) : children => children.map(c => {
+    const toExpanderElements = useCallback((on,cols,children) => on ? children.map(c => {
         const { isExpander, rowKey } = c.props
         return isExpander && rowKey ? cloneElement(c, {
             onClick: ev => setExpandedItem(rowKey, v => !v),
             expander: expanded[rowKey] ? 'expanded' : 'collapsed',
         }) : c
-    }), [expanded, setExpandedItem])
+    }) : colKeysOf(cols.filter(col=>col.isExpander))
+        .reduce((resCells,expanderColKey)=>resCells.filter(cell=>cell.props.colKey!==expanderColKey), children)
+    , [expanded, setExpandedItem])
     const getExpandedCells = useCallback(({ cols, rowKeys, children }) => {
         if (cols.length <= 0) return []
         const posStr = (rowKey, colKey) => rowKey + colKey
@@ -240,7 +242,7 @@ const getAllChildren = ({children,rowKeys,cols,draggingStart,hasHiddenCols,hideE
         })
         return $(NoCaptionContext.Provider,{value:false},res)
     })
-    const allChildren = toExpanderElements(hasHiddenCols)([...dropElements, ...toDraggingElements(draggingStart)(hideElementsForHiddenCols(false,cell=>cell.props.colKey)([
+    const allChildren = toExpanderElements(hasHiddenCols,cols,[...dropElements, ...toDraggingElements(draggingStart)(hideElementsForHiddenCols(false,cell=>cell.props.colKey)([
         ...children, ...expandedElements
     ]))])
     console.log("inner render")
