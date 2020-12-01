@@ -325,6 +325,7 @@ class PublicPathsGenerator extends WillGenerator {
       path <- ctx.fromFiles.filter(_.getFileName.toString == "ht.scala")
       pkgInfo <- Util.pkgInfo(mainScalaPath,path.getParent)
     } yield {
+//      assert()
       val genPath = path.resolveSibling("c4gen.htdocs.scala")
       val publicPath = mainPublicPath.resolve(pkgInfo.pkgPath)
       PublicPathRoot(mainPublicPath,pkgInfo.pkgName,genPath,publicPath)
@@ -368,17 +369,9 @@ class PublicPathsGenerator extends WillGenerator {
             s"main.${root.pkgName} $ref $rel"
           )
         }
-      val lines = if(defs.isEmpty) Nil else {
-        val packageName = root.pkgName
-        val packageNameSnake =
-          packageName
-            .replaceAll("^(\\w+\\.){2}", "")
-            .replaceAll("\\.", "_")
-        val objectName = s"${packageNameSnake}_PublicPath"
-
-
+      val lines = if(defs.isEmpty) Nil else
         "/** THIS FILE IS GENERATED; CHANGES WILL BE LOST **/" ::
-        s"package $packageName" ::
+        s"package ${root.pkgName}" ::
         """
             |import ee.cone.c4actor.{DefaultPublicPath, SVGPublicPath, NonSVGPublicPath, PublicPathCollector}
             |import ee.cone.c4di.c4
@@ -394,7 +387,6 @@ class PublicPathsGenerator extends WillGenerator {
           case (defName, publicPath) => s"""    def $defName = $publicPath """
         }) :::
         "}" :: Nil
-      }
       List(root.genPath -> lines, root.mainPublicPath.resolve("c4gen.ht.links") -> defs.map(_._2))
     }.groupMap(_._1)(_._2).transform((k,v)=>v.flatten))
   }
