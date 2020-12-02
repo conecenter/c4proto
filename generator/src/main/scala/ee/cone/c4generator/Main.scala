@@ -364,28 +364,20 @@ class PublicPathsGenerator extends WillGenerator {
             case _ => s"""DefaultPublicPath("$ref")"""
           }
           (
-            (s"`/$r`", publicPath),
-//            s"""    def `/$r` = $publicPath """,
-            s"main.${root.pkgName} $ref $rel"
+            s"    def `/$r` = $publicPath ",
+            s"main.${root.pkgName} $ref $rel",
+            s"        `/$r` :: "
           )
         }
-      val lines = if(defs.isEmpty) Nil else
+      val lines = /*if(defs.isEmpty) Nil else*/
         "/** THIS FILE IS GENERATED; CHANGES WILL BE LOST **/" ::
         s"package ${root.pkgName}" ::
-        """
-            |import ee.cone.c4actor.{DefaultPublicPath, SVGPublicPath, NonSVGPublicPath, PublicPathCollector}
-            |import ee.cone.c4di.c4
-            |""".stripMargin ::
-        s"object PublicPath extends PublicPathCollector {" ::
-          s"""    def allPaths = ${
-            defs.foldLeft(""){
-              case ("", ((defName, _), _)) => s"$defName :: Nil"
-              case (acc, ((defName, _), _)) => s"$defName :: $acc"
-            }
-          } """ ::
-        defs.map(_._1 match {
-          case (defName, publicPath) => s"""    def $defName = $publicPath """
-        }) :::
+        "import ee.cone.c4actor.{DefaultPublicPath, SVGPublicPath, NonSVGPublicPath, PublicPathCollector}" ::
+        "abstract class PublicPathImpl extends PublicPathCollector {" ::
+        "    def allPaths = " ::
+        defs.map(_._3) :::
+        "        Nil" ::
+        defs.map(_._1) :::
         "}" :: Nil
       List(root.genPath -> lines, root.mainPublicPath.resolve("c4gen.ht.links") -> defs.map(_._2))
     }.groupMap(_._1)(_._2).transform((k,v)=>v.flatten))
