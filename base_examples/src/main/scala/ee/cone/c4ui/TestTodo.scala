@@ -200,15 +200,15 @@ case object HeaderCSSClassName extends CSSClassName{ def name = "tableHeadContai
         rowKeys = todoTasks.map(_.srcId),
         cols = List(
           GridCol(
-            colKey = "drag", minWidth = 1, maxWidth = 1,
+            colKey = "drag", width = BoundGridColWidth(1,1),
             hideWill = 0,
           ),
           GridCol(
-            colKey = "comments", minWidth = 10, maxWidth = 20,
+            colKey = "comments", width = BoundGridColWidth(10,20),
             hideWill = 0,
           ),
           GridCol(
-            colKey = "remove", minWidth = 1, maxWidth = 1,
+            colKey = "remove", width = BoundGridColWidth(1,1),
             hideWill = 0,
           ),
         ),

@@ -27,7 +27,7 @@ const partitionVisibleCols = (cols, outerWidth) => {
     const fit = (count, accWidth) => {
         const col = cols[count]
         if (!col) return count
-        const willWidth = accWidth + col.minWidth
+        const willWidth = accWidth + col.width.min
         if (outerWidth < willWidth) return count
         return fit(count + 1, willWidth)
     }
@@ -164,7 +164,10 @@ const colKeysOf = children => children.map(c => c.colKey)
 const getGidTemplateRows = rows => rows.map(o => `[${getGridRow(o)}] auto`).join(" ")
 const getGridTemplateColumns = columns => columns.map(col => {
     const key = getGridCol(col)
-    const width = `minmax(${col.minWidth}em,${col.maxWidth}em)`
+    const maxStr =
+        col.width.tp === "bound" ? `${col.width.max}em` :
+        col.width.tp === "unbound" ? "auto" : never()
+    const width = `minmax(${col.width.min}em,${maxStr})`
     return `[${key}] ${width}`
 }).join(" ")
 
@@ -235,7 +238,7 @@ const getAllChildren = ({children,rowKeys,cols,draggingStart,hasHiddenCols,hideE
             style: { display: "flex", flexFlow: "row wrap" },
             children: pairs.map(([col, cell]) => $("div",{
                 key: cell.key,
-                style: { flexBasis: `${col.minWidth}em` },
+                style: { flexBasis: `${col.width.min}em` },
                 className: "inputLike",
                 children: cell.props.children,
             }))

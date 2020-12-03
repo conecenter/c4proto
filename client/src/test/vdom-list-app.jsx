@@ -27,8 +27,10 @@ function App() {
 
     const { enableDrag } = state
 
-    const exCol = (colKey, hideWill, minWidth, maxWidth) => ({
-        colKey, hideWill, minWidth, maxWidth, ...(
+    const exCol = (colKey, hideWill, min, max) => ({
+        colKey, hideWill,
+        width: { tp: "bound", min, max },
+        ...(
             colKey === "expand" ? { isExpander: true } : {}
         )
     })

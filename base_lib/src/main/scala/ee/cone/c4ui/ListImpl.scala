@@ -40,12 +40,26 @@ case object RowHighlightByAttr extends HighlightByAttr("data-row-key")
 case object ColHighlightByAttr extends HighlightByAttr("data-col-key")
 
 
-@c4("UICompApp") final class ListJsonAdapterProvider(util: TagJsonUtils)(
-  val intAdapter: JsonPairAdapter[Int] = util.jsonPairAdapter((value,builder) => {
-    val format = NumberFormat.getIntegerInstance match { case f: DecimalFormat => f } // to do once?
-    builder.just.append(BigDecimal(value),format)
-  })
-) {
+@c4("UICompApp") final class IntJsonAdapterProvider(util: TagJsonUtils){
+  @provide def forInt: Seq[JsonPairAdapter[Int]] =
+    List(util.jsonPairAdapter((value,builder) => {
+      val format = NumberFormat.getIntegerInstance match { case f: DecimalFormat => f } // to do once?
+      builder.just.append(BigDecimal(value),format)
+    }))
+}
+
+@c4("UICompApp") final class JsonAdapterUtil {
+  def forList[T](forItem: (T,MutableJsonBuilder)=>Unit): (List[T],MutableJsonBuilder)=>Unit = (list,builder) => {
+    builder.startArray()
+    list.foreach(forItem(_,builder))
+    builder.end()
+  }
+}
+
+@c4("UICompApp") final class ListJsonAdapterProvider(
+  util: TagJsonUtils,
+  jsonAdapterUtil: JsonAdapterUtil,
+){
   @provide def forCSSClassName: Seq[JsonPairAdapter[CSSClassName]] =
     List(util.jsonPairAdapter((value, builder) => builder.just.append(value.name)))
   @provide def forFilterButtonArea: Seq[JsonPairAdapter[FilterButtonArea]] =
@@ -56,36 +70,62 @@ case object ColHighlightByAttr extends HighlightByAttr("data-col-key")
     def appendJson(key: String, value: Receiver[Context], builder: MutableJsonBuilder): Unit = {}
   })
   @provide def forStringList: Seq[JsonPairAdapter[List[String]]] =
-    List(util.jsonPairAdapter(forList((value, builder) => {
+    List(util.jsonPairAdapter(jsonAdapterUtil.forList((value, builder) => {
       builder.just.append(value)
     })))
-  @provide def forInt: Seq[JsonPairAdapter[Int]] =   List(intAdapter)
+
   @provide def forBoolean: Seq[JsonPairAdapter[Boolean]] =
     List(util.jsonPairAdapter((value,builder) => builder.just.append(value)))
-  @provide def forGridColList: Seq[JsonPairAdapter[List[GridCol]]] =
-    List(util.jsonPairAdapter(forList((value, builder) => {
-      builder.startObject()
-      builder.append("colKey").append(value.colKey)
-      intAdapter.appendJson("maxWidth",value.maxWidth,builder)
-      intAdapter.appendJson("minWidth",value.minWidth,builder)
-      intAdapter.appendJson("hideWill",value.hideWill,builder)
-      if(value.isExpander) builder.append("isExpander").append(true)
-      builder.end()
-    })))
-  def forList[T](forItem: (T,MutableJsonBuilder)=>Unit): (List[T],MutableJsonBuilder)=>Unit = (list,builder) => {
-    builder.startArray()
-    list.foreach(forItem(_,builder))
-    builder.end()
-  }
+
   @provide def forHighlightByAttr: Seq[JsonPairAdapter[HighlightByAttr]] =
     List(util.jsonPairAdapter((value, builder) => builder.just.append(value.value)))
 
 }
 
+@c4("UICompApp") final class GridColWidthJsonAdapterProvider(
+  util: TagJsonUtils,
+  intAdapter: JsonPairAdapter[Int],
+){
+  @provide def get: Seq[JsonPairAdapter[GridColWidth]] =
+    List(util.jsonPairAdapter((value,builder) => {
+      builder.startObject()
+      builder.append("tp").append(value.tp)
+      value match {
+        case value: BoundGridColWidth =>
+          intAdapter.appendJson("max",value.max,builder)
+          intAdapter.appendJson("min",value.min,builder)
+        case value: UnboundGridColWidth =>
+          intAdapter.appendJson("min",value.min,builder)
+      }
+      builder.end()
+    }))
+}
+
+@c4("UICompApp") final class GridColJsonAdapterProvider(
+  util: TagJsonUtils,
+  jsonAdapterUtil: JsonAdapterUtil,
+  intAdapter: JsonPairAdapter[Int],
+  gridColWidthAdapter: JsonPairAdapter[GridColWidth],
+){
+  @provide def forGridColList: Seq[JsonPairAdapter[List[GridCol]]] =
+    List(util.jsonPairAdapter(jsonAdapterUtil.forList((value, builder) => {
+      builder.startObject()
+      builder.append("colKey").append(value.colKey)
+      gridColWidthAdapter.appendJson("width", value.width, builder)
+      intAdapter.appendJson("hideWill",value.hideWill,builder)
+      if(value.isExpander) builder.append("isExpander").append(true)
+      builder.end()
+    })))
+}
+
+
+sealed abstract class GridColWidth(val tp: String) extends Product
+case class BoundGridColWidth(min: Int, max: Int) extends GridColWidth("bound")
+case class UnboundGridColWidth(min: Int) extends GridColWidth("unbound")
+
 case class GridCol(
   colKey: String,
-  minWidth: Int,
-  maxWidth: Int,
+  width: GridColWidth,
   hideWill: Int,
   isExpander: Boolean = false,
 )
