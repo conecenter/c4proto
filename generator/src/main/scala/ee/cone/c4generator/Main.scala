@@ -373,7 +373,7 @@ class PublicPathsGenerator extends WillGenerator {
         "/** THIS FILE IS GENERATED; CHANGES WILL BE LOST **/" ::
         s"package ${root.pkgName}" ::
         "import ee.cone.c4actor.{DefaultPublicPath, SVGPublicPath, NonSVGPublicPath, PublicPathCollector}" ::
-        "abstract class PublicPathImpl extends PublicPathCollector {" ::
+        "abstract class PublicPathCollectorImpl extends PublicPathCollector {" ::
         "    def allPaths = " ::
         defs.map(_._3) :::
         "        Nil" ::
