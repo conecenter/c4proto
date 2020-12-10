@@ -12,7 +12,9 @@ case object NoCSSClassName extends CSSClassName { def name: String = "" }
 
 trait VGridCell
 @c4tagSwitch("UICompApp") trait DragHandle extends ToJson
-@c4tagSwitch("UICompApp") trait GridCol extends ToJson
+@c4tagSwitch("UICompApp") trait GridCol extends ToJson {
+  def colKey: String
+}
 @c4tagSwitch("UICompApp") trait GridColWidth extends ToJson
 
 trait VFilterItem
