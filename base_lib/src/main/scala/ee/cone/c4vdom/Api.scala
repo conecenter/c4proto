@@ -11,6 +11,7 @@ import scala.annotation.StaticAnnotation
 
 class c4tags(a: String*) extends StaticAnnotation
 class c4tag(a: String*) extends StaticAnnotation
+class c4tagSwitch(a: String*) extends StaticAnnotation
 
 trait ToJson {
   def appendJson(builder: MutableJsonBuilder): Unit
@@ -35,11 +36,8 @@ trait AbstractMutableJsonBuilder {
   def append(value: Boolean): Unit
 }
 
-trait JsonPairAdapter[T] {
-  def appendJson(key: String, value: T, builder: MutableJsonBuilder): Unit
-}
 trait GeneralJsonValueAdapter
-trait JsonValueAdapter[T] extends GeneralJsonValueAdapter {
+trait JsonValueAdapter[-T] extends GeneralJsonValueAdapter {
   def appendJson(value: T, builder: MutableJsonBuilder): Unit
 }
 
@@ -49,7 +47,6 @@ object Types {
   type VDomKey = String
   type ViewRes = List[ChildPair[_]]
   type VDom[C] = ChildPair[C]
-  type ClientComponentType = String
 }
 
 trait ChildPair[-C] {
@@ -149,7 +146,7 @@ trait TagJsonUtils {
 
   def appendInputAttributes(builder: MutableJsonBuilder, value: String, mode: OnChangeMode): Unit
 
-  def jsonPairAdapter[T](inner: (T,MutableJsonBuilder)=>Unit): JsonPairAdapter[T]
+  def jsonValueAdapter[T](inner: (T,MutableJsonBuilder)=>Unit): JsonValueAdapter[T]
 }
 
 ////
