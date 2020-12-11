@@ -1,5 +1,6 @@
 
 import React from "react"
+import {never} from "./vdom-util.js";
 
 const { createElement: $ } = React
 
