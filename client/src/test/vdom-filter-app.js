@@ -38,17 +38,17 @@ function App(){
                 $(FilterItem,{ key: 5, children: "5 1", minWidth: 5, maxWidth:10, canHide: !showSome1, className: "exampleFilterItem" }),
             ],
             buttons: [
-                $(FilterButtonExpander,{ key: 0, minWidth: 2, area: "lt", identity: identities.lt, ...expander, optButtons: [
-                    filterButton({ key: 3, minWidth: 4, className: "exampleButton", caption: "B" }),
-                    filterButton({ key: 2, minWidth: 4, className: "exampleButton", caption: "B" }),
-                ] }),
-                filterButton({ key: 1, minWidth: 2, area: "lt", className: "exampleButton" }),
-                filterButton({ key: 2, minWidth: 2, area: "rt", className: "exampleButton" }),
-                filterButton({ key: 3, minWidth: 2, area: "rt", className: "exampleButton" }),
-                $(FilterButtonExpander,{ key: 4, minWidth: 2, area: "rt", identity: identities.rt, ...expander, optButtons: [
+                $(FilterButtonExpander,{ key: 6, minWidth: 2, area: "lt", identity: identities.lt, ...expander, optButtons: [
                     filterButton({ key: 7, minWidth: 4, className: "exampleButton", caption: "B" }),
-                    filterButton({ key: 6, minWidth: 3, className: "exampleButton", caption: "B" }),
-                    filterButton({ key: 5, minWidth: 4, className: "exampleButton", caption: "B" }),
+                    filterButton({ key: 8, minWidth: 4, className: "exampleButton", caption: "B" }),
+                ] }),
+                filterButton({ key: 9, minWidth: 2, area: "lt", className: "exampleButton" }),
+                filterButton({ key: 10, minWidth: 2, area: "rt", className: "exampleButton" }),
+                filterButton({ key: 11, minWidth: 2, area: "rt", className: "exampleButton" }),
+                $(FilterButtonExpander,{ key: 12, minWidth: 2, area: "rt", identity: identities.rt, ...expander, optButtons: [
+                    filterButton({ key: 13, minWidth: 4, className: "exampleButton", caption: "B" }),
+                    filterButton({ key: 14, minWidth: 3, className: "exampleButton", caption: "B" }),
+                    filterButton({ key: 15, minWidth: 4, className: "exampleButton", caption: "B" }),
                 ] }),
             ],
             centerButtonText: "of",

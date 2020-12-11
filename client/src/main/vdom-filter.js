@@ -103,6 +103,34 @@ export function FilterArea({filters,buttons,centerButtonText,className}){
         }},item))
     })
 
+    const getBtnWidth = item => item.props.minWidth
+    const getBtnListWidth = items => sum(items.map(getBtnWidth))
+    const getBtnPosElement = (item,top,x/*from "of" end*/) => $("div",{ key:item.key, style:{
+        position: "absolute",
+        height: em(emPerRow),
+        top: em(top*emPerRow),
+        width: em(getBtnWidth(item)),
+        left: em(outerWidth-rt.width+x),
+        boxSizing: "border-box",
+    }},item)
+    const children = [
+        ...filterGroupElements,
+        ...lt.buttons.map((item,itemIndex,items)=>getBtnPosElement(item,0,
+            -centerButtonWidth -getBtnListWidth(items.slice(itemIndex))
+        )),
+        ...lt.optButtons.map((item,itemIndex,items)=>getBtnPosElement(item,1,
+            -centerButtonWidth -getBtnListWidth(items.slice(itemIndex))
+        )),
+        ...rt.buttons.map((item,itemIndex,items)=>getBtnPosElement(item,0,
+            getBtnListWidth(items.slice(0,itemIndex))
+        )),
+        ...rt.optButtons.map((item,itemIndex,items)=>getBtnPosElement(item,1,
+            getBtnListWidth(items.slice(0,itemIndex))
+        )),
+    ]
+    const style = { position: "relative", height: yRowToEm(groupedFilters.length) }
+    return $("div",{ style, className, ref: setGridElement, children })
+    /*
     const gridTemplateRows = '[up] '+em(emPerRow)+' [dn] '+em(dnRowHeight)
     const gridTemplateColumns = '[lt-btn] '+em(lt.width)+' [center-btn] '+em(centerButtonWidth)+' [rt-btn] '+em(rt.width)
     const style = { display: "grid", alignContent: "start", justifyContent: "end", gridTemplateRows, gridTemplateColumns, position: "relative", height: yRowToEm(groupedFilters.length) }
@@ -113,7 +141,7 @@ export function FilterArea({filters,buttons,centerButtonText,className}){
         $("div",{ key: "dn-lt-btn", style: { gridRow: "dn", gridColumn: 'lt-btn', display: "flex", alignItems: "center", justifyContent: "flex-end" } },lt.optButtons),
         $("div",{ key: "dn-rt-btn", style: { gridRow: "dn", gridColumn: 'rt-btn', display: "flex", alignItems: "center", justifyContent: "flex-start" } },rt.optButtons),
         filterGroupElements
-    )
+    )*/
 }
 
 ////
