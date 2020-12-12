@@ -11,11 +11,9 @@ import ee.cone.c4vdom._
     List(util.jsonValueAdapter((value, builder) => builder.just.append(value)))
   @provide def forToJson: Seq[JsonValueAdapter[ToJson]] =
     List(util.jsonValueAdapter((value,builder) => value.appendJson(builder)))
+  private lazy val IntDecimalFormat = new DecimalFormat("#")
   @provide def forInt: Seq[JsonValueAdapter[Int]] =
-    List(util.jsonValueAdapter((value,builder) => {
-      val format = NumberFormat.getIntegerInstance match { case f: DecimalFormat => f } // to do once?
-      builder.just.append(BigDecimal(value),format)
-    }))
+    List(util.jsonValueAdapter((value, builder) => builder.just.append(BigDecimal(value), IntDecimalFormat)))
   @provide def forBoolean: Seq[JsonValueAdapter[Boolean]] =
     List(util.jsonValueAdapter((value,builder) => builder.just.append(value)))
   //
