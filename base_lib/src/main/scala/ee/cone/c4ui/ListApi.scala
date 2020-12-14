@@ -16,6 +16,7 @@ trait VGridCell
   def colKey: String
 }
 @c4tagSwitch("UICompApp") trait GridColWidth extends ToJson
+@c4tagSwitch("UICompApp") trait Expanding extends ToJson
 
 trait VFilterItem
 trait VFilterButton
@@ -43,9 +44,12 @@ trait VPivotCell
     rowKey: String,
     className: CSSClassName = NoCSSClassName,
     children: List[VDom[OfDiv]] = Nil,
-    isExpander: Boolean = false,
+    expanding: Expanding = expandableExpanding,
     dragHandle: DragHandle = noDragHandle,
   ): VDom[VGridCell]
+  @c4tag("") def expandableExpanding: Expanding
+  @c4tag("none") def nonExpandableExpanding: Expanding
+  @c4tag("expander") def expanderExpanding: Expanding
   @c4tag("") def noDragHandle: DragHandle
   @c4tag("x") def colDragHandle: DragHandle
   @c4tag("y") def rowDragHandle: DragHandle

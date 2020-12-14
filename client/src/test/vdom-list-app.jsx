@@ -36,7 +36,7 @@ function App() {
     })
 
     const cols = [
-        exCol("c0", 1, 5, 10),
+        exCol("icon", 2, 5, 10),
         exCol("expand", 0, 2, 2),
         exCol("c1", 1, 5, 10),
         exCol("c2", 2, 5, 10),
@@ -55,7 +55,8 @@ function App() {
             ...(rowKey === "head" ? { className: "tableHeadContainer headerColor" } : {}),
             ...(rowKey === "drag" ? { dragHandle: "x", style: { userSelect: "none", cursor: "pointer" } } : {}),
             ...(colKey === "drag" ? { dragHandle: "y", style: { userSelect: "none", cursor: "pointer" } } : {}),
-            ...(colKey === "expand" ? { isExpander: true } : {}),
+            ...(colKey === "expand" ? { expanding: "expander" } : {}),
+            ...(colKey === "icon" ? { expanding: "none" } : {}),
             children: (
                 rowKey === "head" ? (
                     colKey === "drag" || colKey === "expand" ? null : $(Text,{ key: "text", value: "H" + colKey })
@@ -63,6 +64,7 @@ function App() {
                 rowKey === "drag" ? enableDrag && getColDragElement() :
                 colKey === "expand" ? getExpanderElement() :
                 colKey === "drag" ? enableDrag && getRowDragElement() :
+                colKey === "icon" ? "I" :
                 mockData()
             )
         })

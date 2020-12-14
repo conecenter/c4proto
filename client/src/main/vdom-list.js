@@ -60,8 +60,8 @@ const useExpanded = () => {
 }
 const useExpandedElements = (expanded, setExpandedItem) => {
     const toExpanderElements = useCallback((on,cols,children) => on ? children.map(c => {
-        const { isExpander, rowKey } = c.props
-        return isExpander && rowKey ? cloneElement(c, {
+        const { expanding, rowKey } = c.props
+        return expanding==="expander" && rowKey ? cloneElement(c, {
             onClick: ev => setExpandedItem(rowKey, v => !v),
             expander: expanded[rowKey] ? 'expanded' : 'collapsed',
         }) : c
@@ -72,14 +72,14 @@ const useExpandedElements = (expanded, setExpandedItem) => {
         if (cols.length <= 0) return []
         const posStr = (rowKey, colKey) => rowKey + colKey
         const expandedByPos = Object.fromEntries(
-            children.filter(c => expanded[c.props.rowKey])
+            children.filter(c => expanded[c.props.rowKey] && !c.props.expanding)
                 .map(c => [posStr(c.props.rowKey, c.props.colKey), c])
         )
         return rowKeys.filter(rowKey => expanded[rowKey]).map(rowKey => {
             const pairs = cols.map(col => {
                 const cell = expandedByPos[posStr(rowKey, col.colKey)]
-                return [col, cell]
-            })
+                return cell && [col, cell]
+            }).filter(Boolean)
             return [rowKey, pairs]
         })
     }, [expanded])
@@ -150,11 +150,11 @@ const getGridCol = ({ colKey }) => CSS.escape(colKey)
 
 const spanAll = "1 / -1"
 
-export function GridCell({ identity, children, rowKey, rowKeyMod, colKey, isExpander, expander, dragHandle, noDefCellClass, className: argClassName, gridRow: argGridRow, gridColumn: argGridColumn, ...props }) {
+export function GridCell({ identity, children, rowKey, rowKeyMod, colKey, expanding, expander, dragHandle, noDefCellClass, className: argClassName, gridRow: argGridRow, gridColumn: argGridColumn, ...props }) {
     const gridRow = argGridRow || getGridRow({ rowKey, rowKeyMod })
     const gridColumn = argGridColumn || getGridCol({ colKey })
     const style = { ...props.style, gridRow, gridColumn }
-    const expanderProps = isExpander ? { 'data-expander': expander || 'passive' } : {}
+    const expanderProps = expanding==="expander" ? { 'data-expander': expander || 'passive' } : {}
     const className = noDefCellClass ? argClassName : `${argClassName} ${GRID_CLASS_NAMES.CELL}`
     return $("div", { ...props, ...expanderProps, 'data-col-key': colKey, 'data-row-key': rowKey, "data-drag-handle": dragHandle, style, className }, children)
 }
