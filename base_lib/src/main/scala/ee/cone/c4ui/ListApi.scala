@@ -68,14 +68,12 @@ trait VPivotCell
   ): VDom[OfDiv]
   @c4tag("FilterButtonPlace") def filterButtonPlace(
     key: String,
-    minWidth: Int,
     area: FilterButtonArea,
     className: CSSClassName = NoCSSClassName,
     children: List[VDom[OfDiv]] = Nil,
   ): VDom[VFilterButton]
   @c4tag("FilterButtonExpander") def filterButtonExpander(
     key: String,
-    minWidth: Int,
     area: FilterButtonArea,
     className: CSSClassName = NoCSSClassName,
     popupClassName: CSSClassName = NoCSSClassName,

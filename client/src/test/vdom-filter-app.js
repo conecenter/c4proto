@@ -10,8 +10,9 @@ function ModeButton({setState,dataKey}){
     return $("button",{ onClick: ev=>setState(was=>({...was,[dataKey]:!was[dataKey]})) }, dataKey)
 }
 
-function filterButton({key,minWidth,area,className,caption}){
-    return $(FilterButtonPlace, {key,minWidth,area}, $("div",{className},caption))
+function filterButton({key,area,className,caption}){
+    const res = $(FilterButtonPlace, {key,area}, $("div",{className},caption))
+    return res
 }
 
 function App(){
@@ -20,8 +21,8 @@ function App(){
     const identities = useMemo(()=>({lt:{},rt:{}}),[])
 
     const expander = {
-        children: [$("div",{key:"closedExpander",className:"exampleButton closedExpander"})],
-        openedChildren: [$("div",{key:"openedExpander",className:"exampleButton openedExpander"})],
+        children: [$("div",{key:"closedExpander",className:"exampleButton closedExpander"},"v")],
+        openedChildren: [$("div",{key:"openedExpander",className:"exampleButton openedExpander"},"v")],
     }
 
     return $(PopupManager, {},
@@ -38,17 +39,17 @@ function App(){
                 $(FilterItem,{ key: 5, children: "5 1", minWidth: 5, maxWidth:10, canHide: !showSome1, className: "exampleFilterItem" }),
             ],
             buttons: [
-                $(FilterButtonExpander,{ key: 6, minWidth: 2, area: "lt", identity: identities.lt, ...expander, optButtons: [
-                    filterButton({ key: 7, minWidth: 4, className: "exampleButton", caption: "B" }),
-                    filterButton({ key: 8, minWidth: 4, className: "exampleButton", caption: "B" }),
+                $(FilterButtonExpander,{ key: 6, area: "lt", identity: identities.lt, ...expander, optButtons: [
+                    filterButton({ key: 7, className: "exampleButton", caption: "BigButton" }),
+                    filterButton({ key: 8, className: "exampleButton", caption: "BigButton" }),
                 ] }),
-                filterButton({ key: 9, minWidth: 2, area: "lt", className: "exampleButton" }),
-                filterButton({ key: 10, minWidth: 2, area: "rt", className: "exampleButton" }),
-                filterButton({ key: 11, minWidth: 2, area: "rt", className: "exampleButton" }),
-                $(FilterButtonExpander,{ key: 12, minWidth: 2, area: "rt", identity: identities.rt, ...expander, optButtons: [
-                    filterButton({ key: 13, minWidth: 4, className: "exampleButton", caption: "B" }),
-                    filterButton({ key: 14, minWidth: 3, className: "exampleButton", caption: "B" }),
-                    filterButton({ key: 15, minWidth: 4, className: "exampleButton", caption: "B" }),
+                filterButton({ key: 9, area: "lt", className: "exampleButton", caption: "A1" }),
+                filterButton({ key: 10, area: "rt", className: "exampleButton", caption: "A2" }),
+                filterButton({ key: 11, area: "rt", className: "exampleButton", caption: "A3" }),
+                $(FilterButtonExpander,{ key: 12, area: "rt", identity: identities.rt, ...expander, optButtons: [
+                    filterButton({ key: 13, className: "exampleButton", caption: "BigButton" }),
+                    filterButton({ key: 14, className: "exampleButton", caption: "BigButton" }),
+                    filterButton({ key: 15, className: "exampleButton", caption: "BigButton" }),
                 ] }),
             ],
             centerButtonText: "of",
