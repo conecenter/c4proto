@@ -65,7 +65,6 @@ trait VPivotCell
   //
   @c4tag("FilterArea") def filterArea(
     key: String,
-    centerButtonText: String,
     className: CSSClassName = NoCSSClassName,
     filters: List[VDom[VFilterItem]] = Nil,
     buttons: List[VDom[VFilterButton]] = Nil,

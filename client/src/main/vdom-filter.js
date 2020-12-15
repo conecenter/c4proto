@@ -16,7 +16,8 @@ const fitButtonsSide = (allButtons,sideName,isExpanded,isMultiline) => {
     const sideButtons = list.filter(c => c.props.area===sideName)
     const buttons = sideButtons.filter(c => !isInOptLine(c)).flatMap(condExpand)
     const optButtons = sideButtons.filter(isInOptLine).flatMap(condExpand)
-    const width = Math.max(getWidth(buttons), getWidth(optButtons))
+    const centralWidth = sideName === "rt" ? getWidth(buttons.slice(0,1)) : 0
+    const width = Math.max(getWidth(buttons), centralWidth+getWidth(optButtons))
     return {width,buttons,optButtons}
 }
 
@@ -46,12 +47,11 @@ const doFitFilters = (filters,resTemplate) => {
     return res
 }
 
-const centerButtonWidth = 1
 const emPerRow = 2
 
 const fitFilters = (filters,outerWidth,rowCount,canReduceButtonWidth,isMultilineButtons,lt,rt) => {
     if(filters.length > 0 && rowCount <= 1 && !isMultilineButtons) return null
-    const allButtonWidth = lt.width + centerButtonWidth + rt.width
+    const allButtonWidth = lt.width + rt.width
     const fitWidth = isMultilineButtons ? Math.max(0, outerWidth - allButtonWidth) : 0
     if(canReduceButtonWidth && outerWidth < allButtonWidth ) return null
 
@@ -81,7 +81,7 @@ const dMinMax = el => el.props.maxWidth - el.props.minWidth
 
 const em = v => v+'em'
 
-export function FilterArea({filters,buttons,centerButtonText,className}){
+export function FilterArea({filters,buttons,className}){
     const [gridElement,setGridElement] = useState(null)
     const outerWidth = useWidth(gridElement)
 
@@ -119,11 +119,12 @@ export function FilterArea({filters,buttons,centerButtonText,className}){
                 was : Object.fromEntries(widths)
         ))
     },[gridElement,buttons]) // ? are all child elements ready ; do we miss some due to these deps ?
+    const centerWidth = getButtonsWidth(rt.buttons.slice(0,1))
     const btnPosByKey = Object.fromEntries([
-        ...lt.buttons.map((item,itemIndex,items)=>[   item.key,0       , outerWidth-rt.width-centerButtonWidth-getButtonsWidth(items.slice(itemIndex))]),
-        ...lt.optButtons.map((item,itemIndex,items)=>[item.key,emPerRow, outerWidth-rt.width-centerButtonWidth-getButtonsWidth(items.slice(itemIndex))]),
+        ...lt.buttons.map((item,itemIndex,items)=>[   item.key,0       , outerWidth-rt.width-getButtonsWidth(items.slice(itemIndex))]),
+        ...lt.optButtons.map((item,itemIndex,items)=>[item.key,emPerRow, outerWidth-rt.width-getButtonsWidth(items.slice(itemIndex))]),
         ...rt.buttons.map((item,itemIndex,items)=>[   item.key,0       , outerWidth-rt.width+getButtonsWidth(items.slice(0,itemIndex))]),
-        ...rt.optButtons.map((item,itemIndex,items)=>[item.key,emPerRow, outerWidth-rt.width+getButtonsWidth(items.slice(0,itemIndex))]),
+        ...rt.optButtons.map((item,itemIndex,items)=>[item.key,emPerRow, outerWidth-rt.width+centerWidth+getButtonsWidth(items.slice(0,itemIndex))]),
     ].map((([key,top,left])=>[key,{top,left}])))
     const btnElements = buttons.flatMap(c => [c,...(c.props.optButtons||[])]).map(c=>{
         const pos = btnPosByKey[c.key]

@@ -44,6 +44,7 @@ function App(){
                     filterButton({ key: 8, className: "exampleButton", caption: "BigButton" }),
                 ] }),
                 filterButton({ key: 9, area: "lt", className: "exampleButton", caption: "A1" }),
+                filterButton({ key: 0, area: "rt", className: "exampleButton", caption: "of" }),
                 filterButton({ key: 10, area: "rt", className: "exampleButton", caption: "A2" }),
                 filterButton({ key: 11, area: "rt", className: "exampleButton", caption: "A3" }),
                 $(FilterButtonExpander,{ key: 12, area: "rt", identity: identities.rt, ...expander, optButtons: [
@@ -52,7 +53,6 @@ function App(){
                     filterButton({ key: 15, className: "exampleButton", caption: "BigButton" }),
                 ] }),
             ],
-            centerButtonText: "of",
             className: "filterArea",
         }),
         "AFTER"

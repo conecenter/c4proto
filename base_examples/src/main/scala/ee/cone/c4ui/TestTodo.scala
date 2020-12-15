@@ -145,7 +145,6 @@ case object HeaderCSSClassName extends CSSClassName{ def name = "tableHeadContai
         prod => comments.get(prod.srcId).exists(_.value.contains(commentsContainsValue))
       )
     val expander = filterButtonExpander("expander",
-      minWidth = 1,
       area = rightFilterButtonArea,
       children = List(
         exampleTags.text(
@@ -155,7 +154,6 @@ case object HeaderCSSClassName extends CSSClassName{ def name = "tableHeadContai
       ),
       optButtons = (1 to 2).map { i =>
         filterButtonPlace(s"bt$i",
-          minWidth = 5,
           area = rightFilterButtonArea,
           children = List(
             exampleTags.button(
@@ -170,7 +168,6 @@ case object HeaderCSSClassName extends CSSClassName{ def name = "tableHeadContai
 
     val list = List(
       filterArea("todoListFilter",
-        centerButtonText = "",
         filters = List(
           filterItem("comments",
             minWidth = 11, maxWidth = 20,
@@ -186,13 +183,18 @@ case object HeaderCSSClassName extends CSSClassName{ def name = "tableHeadContai
         ),
         buttons = List(
           filterButtonPlace("add",
-            minWidth = 1,
             area = leftFilterButtonArea,
             children = List(
               exampleTags.button("button",
                 activate = taskListAddReceiver,
                 caption = "+",
               )
+            )
+          ),
+          filterButtonPlace("of",
+            area = rightFilterButtonArea,
+            children = List(
+              exampleTags.text("of","of"),
             )
           ),
           expander
