@@ -2,7 +2,19 @@ package ee.cone.c4generator
 
 import scala.meta._
 
-case class TagParam(paramName: String, paramTypeName: String, paramTypeExpr: String, defaultValue: Option[String], isList: Boolean, isReceiver: Boolean)
+case class ToJsonOptions(
+  paramTypeName: String, paramTypeExpr: String,
+  defaultValue: Option[String],
+  isList: Boolean,
+)
+
+case class TagParam(
+  paramName: String,
+  paramTypeFullExpr: String,
+  toJsonOptions: Option[ToJsonOptions],
+  isReceiver: Boolean,
+  toElement: Option[String],
+)
 
 object TagGenerator extends Generator {
   def get(parseContext: ParseContext): List[Generated] = parseContext.stats.flatMap{
@@ -11,49 +23,39 @@ object TagGenerator extends Generator {
         case Seq() => None
         case Seq(tparam"..$_ ${Type.Name(nm)} <: $_") => Option(nm)
       }
-      val tParamStr = tParamNameOpt.fold("")(v=>s"[$v]")
       val mod = mod"@c4(...$e)".syntax
       val res: List[TagStatements] = code.stats.map{
-        case defDef@q"..$mods def $defName(...$args): $outType" =>
-          val clientType = mods match {
-            case Seq() => None
-            case Seq(mod"@c4tag(${Lit(t: String)})") => Option(t)
+        case defDef@q"..$mods def $defName(...$args): ${Type.Name(outTypeName)}" =>
+          val (clientType,outIsChild) = mods match {
+            case Seq(mod"@c4val") => (None,false)
+            case Seq(mod"@c4val(${Lit(t: String)})") => (Option(t),false)
+            case Seq(mod"@c4el(${Lit(t: String)})") => (Option(t),true)
           }
-          val argByIsChild = args.flatten.map{
+
+          val params = args.flatten.map{
             case p@Term.Param(Nil,Term.Name(paramName),Some(paramType),defVal) =>
+              val defValStr = defVal.map(_.toString)
+              val paramTypeFullExpr = paramType.toString
               paramType match {
-                case t"VDom[${Type.Name(paramTypeName)}]" =>
-                  (true,TagParam(paramName, paramTypeName, paramTypeName, None, isList = false, isReceiver = false))
-                case t"List[VDom[${Type.Name(paramTypeName)}]]" =>
-                  (true,TagParam(paramName, paramTypeName, paramTypeName, None, isList = true, isReceiver = false))
+                case t"ChildPairList[${Type.Name(_)}]" =>
+                  TagParam(paramName, paramTypeFullExpr, None, isReceiver = false, Option(paramName))
+                case t"ElList[${Type.Name(_)}]" =>
+                  TagParam(paramName, paramTypeFullExpr, None, isReceiver = false, Option(s"$paramName.map(_.toChildPair)"))
                 case Type.Name(paramTypeName) =>
-                  (false,TagParam(paramName, paramTypeName, paramTypeName, defVal.map(_.toString), isList = false, isReceiver = false))
+                  TagParam(paramName, paramTypeFullExpr, Option(ToJsonOptions(paramTypeName, paramTypeName, defValStr, isList = false)), isReceiver = false, None)
                 case t"List[${Type.Name(paramTypeName)}]" =>
-                  (false,TagParam(paramName, paramTypeName, paramTypeName, defVal.map(_.toString), isList = true, isReceiver = false))
-                case Type.Apply(Type.Name(paramTypeNameOuter), List(Type.Name(paramTypeNameInner))) =>
-                  val paramTypeExpr = s"$paramTypeNameOuter[$paramTypeNameInner]"
-                  val paramTypeName = s"${paramTypeNameOuter}Of$paramTypeNameInner"
-                  val isReceiver = tParamNameOpt.contains(paramTypeNameInner)
-                  (false,TagParam(paramName, paramTypeName, paramTypeExpr, defVal.map(_.toString), isList = false, isReceiver))
+                  TagParam(paramName, paramTypeFullExpr, Option(ToJsonOptions(paramTypeName, paramTypeName, defValStr, isList = true)), isReceiver = false,None)
+                case Type.Apply(Type.Name(_), List(Type.Name(paramTypeNameInner))) if tParamNameOpt.contains(paramTypeNameInner) =>
+                  TagParam(paramName, paramTypeFullExpr, None, isReceiver = true, None)
                 case p =>
                   throw new Exception(s"unsupported tag param type [$p] ${p.structure} of $defName")
               }
-          }.groupMap(_._1)(_._2)
-          val (outIsChild,outTypeName) = outType match {
-            case t"VDom[${Type.Name(name)}]" => (true,name)
-            case Type.Name(name) => (false,name)
           }
-          val childArgs = argByIsChild.getOrElse(true,Nil).toList
-          if(!outIsChild && childArgs.nonEmpty)
-            throw new Exception(s"VDom in needs VDom out for $defName")
-          val attrArgs = argByIsChild.getOrElse(false,Nil).toList match {
-            case p if !outIsChild => p
-            case TagParam("key","String",_,_,false,_) :: attrArgs => attrArgs
-            case p => throw new Exception(s"need key param for $defName")
-          }
+          if(!outIsChild && params.exists(_.toElement.nonEmpty))
+            throw new Exception(s"$defName takes elements so it should return element")
           val tagTypeName = Util.pkgNameToId(s"$traitName.$defName")
-          val localParamNameOpt = tParamNameOpt.filter(_=>attrArgs.exists(_.isReceiver))
-          TagStatements(defDef.syntax, defName.value, attrArgs, childArgs, outIsChild, outTypeName, mod, tagTypeName, clientType, traitName, localParamNameOpt)
+          val localParamNameOpt = tParamNameOpt.filter(_=>params.exists(_.isReceiver))
+          TagStatements(defDef.syntax, defName.value, params.toList, outIsChild, outTypeName, mod, tagTypeName, clientType, traitName, localParamNameOpt)
       }
       res.map(_.getTagClass).map(GeneratedCode) ++
       tParamNameOpt.fold(List.empty[String])(v=>List(
@@ -64,7 +66,7 @@ object TagGenerator extends Generator {
       )).map(GeneratedCode) ++
       List(GeneratedCode(
         s"\n$mod final class ${traitName}Impl(" +
-        "\n  child: VDomFactory, " +
+        "\n  val child: VDomFactory, " +
         res.flatMap(_.getArg).distinct.mkString +
         s"\n) extends ${tParamNameOpt.fold(traitName)(v=>s"$traitName[Nothing]")} {" +
         tParamNameOpt.fold("")(v=>s"\n  type $v = Nothing") +
@@ -89,61 +91,70 @@ object TagGenerator extends Generator {
 }
 
 case class TagStatements(
-  defDef: String, defName: String,
-  attrArgs: List[TagParam], childArgs: List[TagParam],
+  defDef: String, defName: String, args: List[TagParam],
   outIsChild: Boolean, outTypeName: String,
   mod: String, tagTypeName: String, clientType: Option[String],
   traitName: String, tParamNameOpt: Option[String],
 ){
-  def getArg: List[String] =
-    attrArgs.filterNot(_.isReceiver).map(param =>
-      s"\n  a${param.paramTypeName}JsonValueAdapter: JsonValueAdapter[${param.paramTypeExpr}], "
-    )
+  def getArg: List[String] = for {
+    param <- args
+    opt <- param.toJsonOptions
+  } yield s"\n  a${opt.paramTypeName}JsonValueAdapter: JsonValueAdapter[${opt.paramTypeExpr}], "
+
+
+
   def getCreate: String = {
-    val attrArgsStr = attrArgs.map(_.paramName).mkString(",")
+    val attrArgsStr = args.map(_.paramName).mkString(",")
     s"${tagTypeName}${if(tParamNameOpt.isEmpty) "" else "[Nothing]"}($attrArgsStr)(this)"
   }
   def getDef: String = indentStr(
-    if(outIsChild) {
-      val childArgsStr = childArgs.foldRight("Nil")((param,res)=>
-        s"child.addGroup(key,${quot(param.paramName)},${param.paramName},$res)"
-      )
-      s"$defDef = " :: indent(
-        s"child.create[$outTypeName](key," :: indent(List(s"$getCreate,",childArgsStr)) ::: ")" :: Nil
-      ) ::: getAdapter(s"builder.append(${quot("identity")}).append(${quot("ctx")})" ::Nil)
-    }
-    else if(attrArgs.nonEmpty) s"$defDef = $getCreate" :: getAdapter(Nil)
+    if(args.nonEmpty) s"$defDef = $getCreate" :: getAdapter(
+      if(outIsChild) s"builder.append(${quot("identity")}).append(${quot("ctx")})" :: Nil else Nil
+    )
     else s"$defDef = $tagTypeName" :: Nil
   )
   def quot(v: String): String = '"'+v+'"'
-  def paramTypeFullExpr(param: TagParam) =
-    if(param.isList) s"List[${param.paramTypeExpr}]" else param.paramTypeExpr
   def getTagClassInner(tParams: String, extendsStr: String, body: List[String]): String =
     s"\nfinal case class $tagTypeName$tParams(" +
-    indentStr(attrArgs.map{param =>
-      s"${param.paramName}: ${paramTypeFullExpr(param)}, "
+    indentStr(args.map{param =>
+      s"${param.paramName}: ${param.paramTypeFullExpr}, "
     }) +
-    s"\n)(val factory: ${traitName}Impl) extends $extendsStr {" +
+    s"\n)(val factory: ${traitName}Impl) extends $outTypeName$extendsStr {" +
     indentStr(
       s"def appendJson(builder: MutableJsonBuilder): Unit = factory.${defName}Append(this, builder)" ::
       body
     ) +
     "\n}"
   def getTagClass: String =
-    if(outIsChild)
-      tParamNameOpt.fold(getTagClassInner("","VDomValue", Nil))(tParamName=>
+    if(outIsChild) {
+      val elementArgs = args.filter(_.toElement.nonEmpty)
+      val toChildPairStr: List[String] = if(elementArgs.isEmpty)
+        s"def toChildPair[T]: ChildPair[T] = factory.child.create(key,this,Nil)" :: Nil
+      else {
+        val childArgsStr = elementArgs.foldRight("Nil")((param,res)=>
+          s"factory.child.addGroup(_key,${quot(param.paramName)},${param.toElement.get},$res)"
+        )
+        s"def toChildPair[T]: ChildPair[T] = {" ::
+        indent(List(
+          s"val _key = key",
+          s"val _copy = copy(${elementArgs.map(param=>s"${param.paramName}=Nil").mkString(",")})(factory)",
+          s"factory.child.create(_key,_copy,$childArgsStr)"
+        )) ::: "}" :: Nil
+      }
+      tParamNameOpt.fold(getTagClassInner(""," with VDomValue", toChildPairStr))(tParamName=>
         getTagClassInner(
           s"[$tParamName]",
-          "ResolvingVDomValue",
+          " with ResolvingVDomValue",
           s"def resolve(name: String): Option[Resolvable] = (name match { " ::
             indent(
-              attrArgs.filter(_.isReceiver).map(param=>s"case ${quot(param.paramName)} => Option(${param.paramName})") :::
+              args.filter(_.isReceiver).map(param=>s"case ${quot(param.paramName)} => Option(${param.paramName})") :::
                 "case _ => None" :: Nil
             ) :::
-            "}).collect{ case p: Resolvable => p }" :: Nil
+            "}).collect{ case p: Resolvable => p }" :: toChildPairStr
         )
       )
-    else if(attrArgs.nonEmpty) getTagClassInner("",outTypeName, Nil)
+    }
+    else if(args.nonEmpty) getTagClassInner("","", Nil)
     else
       s"\ncase object ${tagTypeName} extends $outTypeName {" +
       s"\n  def appendJson(builder: MutableJsonBuilder): Unit = " +
@@ -156,22 +167,26 @@ case class TagStatements(
       "builder.startObject()" ::
       addBody :::
       clientType.map(tp => s"builder.append(${quot("tp")}).append(${quot(tp)})").toList :::
-      attrArgs.filterNot(_.isReceiver).flatMap(getAdapterBodyArg) :::
+      (for {
+        param <- args
+        opt <- param.toJsonOptions.toList
+        line <- getAdapterBodyArg(param,opt)
+      } yield line) :::
       "builder.end()" :: Nil
     ) :::
     s"}" :: Nil
 
-  def getAdapterBodyArg(param: TagParam): List[String] = {
+  def getAdapterBodyArg(param: TagParam, opt: ToJsonOptions): List[String] = {
     val value = s"value.${param.paramName}"
-    val appendOne = s"a${param.paramTypeName}JsonValueAdapter.appendJson"
-    val appendValue = if(param.isList) List(
+    val appendOne = s"a${opt.paramTypeName}JsonValueAdapter.appendJson"
+    val appendValue = if(opt.isList) List(
       s"builder.startArray()",
       s"$value.foreach(v=>$appendOne(v,builder))",
       s"builder.end()"
     ) else List(s"$appendOne($value, builder)")
     val appendKeyValue = s"builder.just.append(${quot(param.paramName)})" :: appendValue
-    if(param.defaultValue.isEmpty) appendKeyValue
-    else s"if($value!=${param.defaultValue.get}){" :: indent(appendKeyValue) ::: "}" :: Nil
+    if(opt.defaultValue.isEmpty) appendKeyValue
+    else s"if($value!=${opt.defaultValue.get}){" :: indent(appendKeyValue) ::: "}" :: Nil
   }
   def indent(l: List[String]): List[String] = l.map(v=>s"  $v")
   def indentStr(l: List[String]): String = indent(l).map(v=>s"\n$v").mkString
@@ -181,7 +196,6 @@ case class TagStatements(
 
 /*
 pass notDefault
-name vs obj
 single
 
 2282 1672
