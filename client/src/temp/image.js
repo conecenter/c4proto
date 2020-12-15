@@ -1,5 +1,5 @@
 
-import { useState, useEffect, createElement } from "react"
+import { useState, useEffect, createElement, useRef } from "react"
 
 const initViewBox = "0 0 0 0"
 const rotateStyle = (rotate) => rotate ? { transform: `rotate(${rotate})` } : {}
@@ -10,15 +10,15 @@ const $ = createElement
 
 const clear = (url) => url.replace(/#.*$/, "")
 
-function SVGElement({ url, className, style, color, ...props }){
-    const [element,setElement] = useState(null)
-    const [state, setState] = useState({ viewBox: initViewBox, content: "" })
+const SVGElement = ({ url, ...props }) => {
+    const ref = useRef(null)
+    const [state, setState] = useState({ viewBox: initViewBox, color: "black", content: "" })
 
 
     useEffect(() => {
         function replaceSvgTag(str) {
             return str.replace(/<\/?svg(.|\n)*?>/g, "")
-        }
+    }
 
         function getViewBox(str) {
             const reg = /viewBox=["'](.+?)["']/
@@ -35,26 +35,32 @@ function SVGElement({ url, className, style, color, ...props }){
                 .then(r => r.text())
                 .then(r => {
                     const viewBox = getViewBox(r)
-                    setState(was => { return { ...was, viewBox, content: replaceSvgTag(r) } })
+                    ref.current && setState(was => { return { ...was, viewBox, content: replaceSvgTag(r) } })
                 })
         }
     }, [url])
 
-    const [adaptiveColor,setAdaptiveColor] = useState("black")
     useEffect(() => {
-        if (!element) return
-        const win = element.ownerDocument.defaultView
-        setAdaptiveColor(win.getComputedStyle(element).color)
-    },[element])
-    const fill = color || adaptiveColor
+        if (!ref.current) return
+
+        const win = ref.current.ownerDocument.defaultView
+        const color = !props.color || props.color == "adaptive" ? win.getComputedStyle(ref.current).color : props.color
+        const { x, y, width, height } = ref.current.getBBox()
+        const defViewBox = `${x} ${y} ${width} ${height}`
+        const viewBox = props.viewPort ? props.viewPort : state.viewBox !== initViewBox ? state.viewBox : defViewBox
+        if (state.color != color || state.viewBox != viewBox)
+            setState(was => { return { ...was, viewBox, color } })
+    })
 
     const size = state.viewBox == initViewBox ? { width: "0px", height: "0px" } : {}
-    const dangerouslySetInnerHTML = { __html: state.content }
+    const htmlObject = { __html: state.content }
     return $("svg", {
-        dangerouslySetInnerHTML,
+        dangerouslySetInnerHTML: htmlObject,
         viewBox: state.viewBox,
-        fill, className, style,
-        ref: setElement,
+        fill: state.color,
+        ref: ref,
+        className: props.className,
+        style: props.style,
         ...size
     })
 }

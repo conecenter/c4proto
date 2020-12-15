@@ -16,7 +16,6 @@ import {ExampleRequestState} from "../test/request-state"
 import {CanvasBaseMix} from "../main/canvas-mix"
 import {sortTransforms} from "../main/vdom-sort.js"
 import {todoTransforms} from "../test/todo"
-
 function fail(data){ alert(data) }
 
 const send = fetch

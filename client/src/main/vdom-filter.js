@@ -81,7 +81,7 @@ const fitRows = (filters,buttons,outerWidth,rowCount) => (
 
 const dMinMax = el => el.props.maxWidth - el.props.minWidth
 
-const em = v => v+'em'
+export const em = v => v+'em'
 
 export function FilterArea({filters,buttons,centerButtonText,className}){
     const [gridElement,setGridElement] = useState(null)

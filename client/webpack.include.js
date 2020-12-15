@@ -29,6 +29,23 @@ const config = (kind,outDir,loaderRules) => (names,env) => ({
               cacheDirectory: true,
             }
           },
+          {
+            test: /\.(sass|scss)$/,
+            use: [
+              'style-loader',
+              'css-loader',
+              {
+                loader: 'sass-loader',
+                options: {
+                  sassOptions: {
+                    includePaths: [
+                      outDir+"/node_modules"
+                    ]
+                  }
+                }
+              },
+            ],
+          },
           ...loaderRules
         ] : loaderRules
       },

@@ -221,12 +221,11 @@ export function GridRoot({ identity, rowKeys, cols, children: rawChildren }) {
 
     const style = { ...rootDragStyle, display: "grid", gridTemplateRows, gridTemplateColumns }
     const res = $("div", { onMouseDown, style, className: "grid", ref: setGridElement }, allChildren)
-    return $(NoCaptionContext.Provider,{value:true},res)
+    return $(NoCaptionContext.Provider, {value:true, key: "NoCaptionContext1"},res)
 }
 
 const getAllChildren = ({children,rowKeys,cols,draggingStart,hasHiddenCols,hideElementsForHiddenCols,toExpanderElements,getExpandedCells}) => {
     const dropElements = getDropElements(draggingStart)
-
     const expandedElements = getExpandedCells({
         rowKeys, children, cols: hideElementsForHiddenCols(true,col=>col.colKey)(cols),
     }).map(([rowKey, pairs]) => {
@@ -243,7 +242,7 @@ const getAllChildren = ({children,rowKeys,cols,draggingStart,hasHiddenCols,hideE
                 children: cell.props.children,
             }))
         })
-        return $(NoCaptionContext.Provider,{value:false},res)
+        return $(NoCaptionContext.Provider,{value:false, key: `NoCaptionContext2${rowKey}`},res)
     })
     const allChildren = toExpanderElements(hasHiddenCols,cols,[...dropElements, ...toDraggingElements(draggingStart)(hideElementsForHiddenCols(false,cell=>cell.props.colKey)([
         ...children, ...expandedElements

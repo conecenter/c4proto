@@ -3,23 +3,26 @@ import { GridRoot, GridCell, Highlighter } from "../main/vdom-list.js"
 import { createSyncProviders, NoCaptionContext } from "../main/vdom-hooks.js"
 import ReactDOM from "react-dom"
 import React from "react"
+import './style/style.css'
+/*const importAll = r => r.keys().map(r);
+importAll(require.context(`./style/`, false, /\.(sass|scss|css)$/));*/
 
 const { createElement: $, useState, useContext } = React
 
-function ImageElement({src,className}){
-    return $("img",{src,className,draggable:"false"})
+function ImageElement({ src, className }) {
+    return $("img", { src, className, draggable: "false" })
 }
 
 function mockData() {
-    const srlIcon = $(ImageElement,{ src: "../temp/servicerequestline.svg", className: "rowIconSize", key: "image" })
-    const meleqStr = $(Text,{ value: "MELEQ 11-Oct ● Vessel load" })
-    const row = $("div",{ className: "descriptionRow", key: "row" }, srlIcon, meleqStr)
+    const srlIcon = $(ImageElement, { src: "../temp/servicerequestline.svg", className: "rowIconSize", key: "image" })
+    const meleqStr = $(Text, { value: "MELEQ 11-Oct ● Vessel load" })
+    const row = $("div", { className: "descriptionRow", key: "row" }, srlIcon, meleqStr)
     return row
 }
 
 function Text({ value }) {
     const noCaption = useContext(NoCaptionContext)
-    return value+(noCaption?"":"*")
+    return value + (noCaption ? "" : "*")
 }
 
 function App() {
@@ -47,10 +50,10 @@ function App() {
         exCol("c7", 2, 5, 10),
         exCol("c8", 1, 5, 10),
         exCol("c9", 1, 5, 30),
-        enableDrag && exCol("drag", 0, 1.5, 1.5),
+        enableDrag && exCol("drag", 0, 1.5, 3),
     ].filter(Boolean)
-    const exCell = rowKey => ({colKey}) => {
-        return colKey==="drag" && rowKey === "drag" ? null : $(GridCell, {
+    const exCell = rowKey => ({ colKey }) => {
+        return colKey === "drag" && rowKey === "drag" ? null : $(GridCell, {
             key: ":" + rowKey + colKey, rowKey, colKey,
             ...(rowKey === "head" ? { className: "tableHeadContainer headerColor" } : {}),
             ...(rowKey === "drag" ? { dragHandle: "x", style: { userSelect: "none", cursor: "pointer" } } : {}),
@@ -58,12 +61,12 @@ function App() {
             ...(colKey === "expand" ? { isExpander: true } : {}),
             children: (
                 rowKey === "head" ? (
-                    colKey === "drag" || colKey === "expand" ? null : $(Text,{ key: "text", value: "H" + colKey })
-                ):
-                rowKey === "drag" ? enableDrag && getColDragElement() :
-                colKey === "expand" ? getExpanderElement() :
-                colKey === "drag" ? enableDrag && getRowDragElement() :
-                mockData()
+                    colKey === "drag" || colKey === "expand" ? null : $(Text, { key: "text", value: "H" + colKey })
+                ) :
+                    rowKey === "drag" ? enableDrag && getColDragElement() :
+                        colKey === "expand" ? getExpanderElement() :
+                            colKey === "drag" ? enableDrag && getRowDragElement() :
+                                mockData()
             )
         })
     }
@@ -71,8 +74,8 @@ function App() {
     function getExpanderElement() {
         return $(
             "div",
-            { className: "textLineSize absolutelyCentered", key: "expanderElem" },
-            $(ImageElement, { color: "#90929F", className: "expanderElement", src: '../temp/downarrowrow.svg' })
+            { key: "expanderContainer" },
+            $(ImageElement, { color: "#90929F", className: "expanderElement", src: '../temp/downarrowrow.svg', key: "expander" })
         )
     }
 
@@ -108,8 +111,8 @@ function App() {
     const children = [
         $("button", { key: "dragOff", onClick: ev => setState(was => ({ ...was, enableDrag: false })) }, "no drag"),
         listEl,
-        $(Highlighter,{key:"row-highlighter", attrName:"data-row-key"}),
-        $(Highlighter,{key:"col-highlighter", attrName:"data-col-key"}),
+        $(Highlighter, { key: "row-highlighter", attrName: "data-row-key" }),
+        $(Highlighter, { key: "col-highlighter", attrName: "data-col-key" }),
         // <div className="test">test </div>
     ]
 
@@ -122,7 +125,7 @@ function App() {
 
 const containerElement = document.createElement("div")
 document.body.appendChild(containerElement)
-ReactDOM.render(<App/>, containerElement)
+ReactDOM.render(<App />, containerElement)
 
 /****
 features:
