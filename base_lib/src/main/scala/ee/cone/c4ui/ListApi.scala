@@ -128,7 +128,7 @@ trait PivotCell extends Cell
   @c4el("PivotCell") def pivotCell(
     colKey: String,
     rowKey: String,
-    className: CSSClassName = NoCSSClassName,
+    classNames: List[CSSClassName] = Nil,
     children: ChildPairList[OfDiv] = Nil,
   ): PivotCell
   @c4val("group") def pivotSliceGroup(

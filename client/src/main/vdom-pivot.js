@@ -34,7 +34,8 @@ export function PivotRoot({rows,cols,children}){
     return $("div", { style, children })
 }
 
-export function PivotCell({colKey,rowKey,className,children}){
+export function PivotCell({colKey,rowKey,classNames,children}){
+    const className = classNames ? classNames.join(" ") : ""
     const gridArea = `${fromKey(rowKey)} / ${fromKey(colKey)} / ${toKey(rowKey)} / ${toKey(colKey)}`
     return $("div", { style: {gridArea}, className, children })
 }
