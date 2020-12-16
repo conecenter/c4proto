@@ -1721,11 +1721,12 @@ my $mk_to_http = sub{
 };
 
 my $mk_to_https = sub{
-    my($ts)=@_;
+    my($ts,$internal_src)=@_;
     &$mk_to_cfg().join "\n",
         "frontend fe443",
-        "bind :443 ssl crt-list /etc/letsencrypt/haproxy/list.txt",
-        (map{"  use_backend be_$$_[0] if { ssl_fc_sni -m dom $$_[0] }"}@$ts),
+        "  bind :443 ssl crt-list /etc/letsencrypt/haproxy/list.txt",
+        "  acl internal_src src $internal_src",
+        (map{"  use_backend be_$$_[0] if internal_src { ssl_fc_sni -m dom $$_[0] }"}@$ts),
         (map{("backend be_$$_[0]", "  server s_$$_[0] $$_[1]")}@$ts);
 
 };
@@ -1767,10 +1768,11 @@ volumes:
 };
 };#$to_ssl_host:
 
-push @tasks, ["up-proxy","",sub{
+push @tasks, ["up-proxy2","",sub{
     my($comp,$args)=@_;
     my $conf = &$get_compose($comp);
     my $external_ip  = $$conf{external_ip} || die "no external_ip";
+    my $internal_src = $$conf{internal_src} || die "internal_src";
     my $yml_str = &$mk_to_yml($external_ip);
     my $from_path = &$get_tmp_dir();
     my $put = &$rel_put_text($from_path);
@@ -1779,7 +1781,7 @@ push @tasks, ["up-proxy","",sub{
     });
     &$put("docker-compose.yml",$yml_str);
     &$put("http.cfg",&$mk_to_http($external_ip));
-    &$put("https.cfg",&$mk_to_https(\@pass));
+    &$put("https.cfg",&$mk_to_https(\@pass,$internal_src));
     &$sync_up($comp,$from_path,"#!/bin/bash\ndocker-compose up -d --remove-orphans --force-recreate","");
 }];
 
