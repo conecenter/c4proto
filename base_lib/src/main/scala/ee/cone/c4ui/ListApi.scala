@@ -17,6 +17,9 @@ trait Cell extends ToChildPair {
 
 trait GridCell extends Cell
 @c4tagSwitch("UICompApp") trait DragHandle extends ToJson
+@c4tagSwitch("UICompApp") trait GridRow extends ToJson {
+  def rowKey: String
+}
 @c4tagSwitch("UICompApp") trait GridCol extends ToJson {
   def colKey: String
 }
@@ -38,15 +41,24 @@ trait PivotCell extends Cell
     key: String,
     dragCol: Receiver[C],
     dragRow: Receiver[C],
-    rowKeys: List[String],
+    rows: List[GridRow],
     cols: List[GridCol],
     children: ElList[GridCell],
   ): ToChildPair
-  @c4el("GridCell") def gridCell(
+  @c4val def gridRow(
+    rowKey: String
+  ): GridRow
+  @c4val def gridCol(
     colKey: String,
+    width: GridColWidth,
+    hideWill: Int,
+    isExpander: Boolean = false,
+  ): GridCol
+  @c4el("GridCell") def gridCell(
     rowKey: String,
-    className: CSSClassName = NoCSSClassName,
+    colKey: String,
     children: ChildPairList[OfDiv] = Nil,
+    classNames: List[CSSClassName] = Nil,
     expanding: Expanding = expandableExpanding,
     dragHandle: DragHandle = noDragHandle,
   ): GridCell
@@ -56,12 +68,6 @@ trait PivotCell extends Cell
   @c4val("") def noDragHandle: DragHandle
   @c4val("x") def colDragHandle: DragHandle
   @c4val("y") def rowDragHandle: DragHandle
-  @c4val def gridCol(
-    colKey: String,
-    width: GridColWidth,
-    hideWill: Int,
-    isExpander: Boolean = false,
-  ): GridCol
   @c4val("bound") def boundGridColWidth(min: Int, max: Int): GridColWidth
   @c4val("unbound") def unboundGridColWidth(min: Int): GridColWidth
 

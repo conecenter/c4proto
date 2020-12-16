@@ -203,7 +203,7 @@ case object HeaderCSSClassName extends CSSClassName{ def name = "tableHeadContai
       gridRoot("todoList",
         dragCol = NoReceiver,
         dragRow = sortReceiverFactory.create(todoSortHandlerFactory.create(todoSortOrder)),
-        rowKeys = todoTasks.map(_.srcId),
+        rows = todoTasks.map(_.srcId).map(gridRow),
         cols = List(
           gridCol(
             colKey = "drag", width = boundGridColWidth(1,1),
@@ -222,7 +222,7 @@ case object HeaderCSSClassName extends CSSClassName{ def name = "tableHeadContai
           gridCell(
             colKey = "comments",
             rowKey = "head",
-            className = HeaderCSSClassName,
+            classNames = HeaderCSSClassName :: Nil,
             children = List(
               exampleTags.text("text","Comments").toChildPair[OfDiv]
             )
@@ -233,7 +233,7 @@ case object HeaderCSSClassName extends CSSClassName{ def name = "tableHeadContai
             rowKey = task.srcId,
             dragHandle = rowDragHandle,
             children = List(exampleTags.text("text","o").toChildPair[OfDiv]),
-            className = DragHandleCellCSSClassName
+            classNames = DragHandleCellCSSClassName :: Nil
           ),
           gridCell(
             colKey = "comments",

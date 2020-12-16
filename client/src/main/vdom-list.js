@@ -150,16 +150,18 @@ const getGridCol = ({ colKey }) => CSS.escape(colKey)
 
 const spanAll = "1 / -1"
 
-export function GridCell({ identity, children, rowKey, rowKeyMod, colKey, expanding, expander, dragHandle, noDefCellClass, className: argClassName, gridRow: argGridRow, gridColumn: argGridColumn, ...props }) {
+export function GridCell({ identity, children, rowKey, rowKeyMod, colKey, expanding, expander, dragHandle, noDefCellClass, classNames: argClassNames, gridRow: argGridRow, gridColumn: argGridColumn, ...props }) {
     const gridRow = argGridRow || getGridRow({ rowKey, rowKeyMod })
     const gridColumn = argGridColumn || getGridCol({ colKey })
     const style = { ...props.style, gridRow, gridColumn }
     const expanderProps = expanding==="expander" ? { 'data-expander': expander || 'passive' } : {}
-    const className = noDefCellClass ? argClassName : `${argClassName} ${GRID_CLASS_NAMES.CELL}`
+    const argClassNamesStr = argClassNames ? argClassNames.join(" ") : ""
+    const className = noDefCellClass ? argClassNamesStr : `${argClassNamesStr} ${GRID_CLASS_NAMES.CELL}`
     return $("div", { ...props, ...expanderProps, 'data-col-key': colKey, 'data-row-key': rowKey, "data-drag-handle": dragHandle, style, className }, children)
 }
 
 const colKeysOf = children => children.map(c => c.colKey)
+const rowKeysOf = children => children.map(c => c.rowKey)
 
 const getGidTemplateRows = rows => rows.map(o => `[${getGridRow(o)}] auto`).join(" ")
 const getGridTemplateColumns = columns => columns.map(col => {
@@ -172,11 +174,12 @@ const getGridTemplateColumns = columns => columns.map(col => {
 }).join(" ")
 
 const noChildren = []
-export function GridRoot({ identity, rowKeys, cols, children: rawChildren }) {
+export function GridRoot({ identity, rows, cols, children: rawChildren }) {
     const children = rawChildren || noChildren//Children.toArray(rawChildren)
     const [dragData, setDragData] = useState({})
     const { axis, patch: dropPatch } = dragData
 
+    const rowKeys = useMemo(() => rowKeysOf(rows), [rows])
     const [patchedRowKeys, enqueueRowPatch] = useSortRoot(dragRowIdOf(identity), rowKeys, axis ? switchAxis(null, dropPatch)(axis) : null)
     const colKeys = useMemo(() => colKeysOf(cols), [cols])
     const [patchedColKeys, enqueueColPatch] = useSortRoot(dragColIdOf(identity), colKeys, axis ? switchAxis(dropPatch, null)(axis) : null)
@@ -301,7 +304,7 @@ const toDraggingElement = axis => child => cloneElement(child, {
 })
 
 const getDropElements = ({ axis, dragKey }) => axis ? [$(GridCell, {
-    key: `drop-${dragKey}`, ...spanAllDir(axis)(dragKey), className: "drop"
+    key: `drop-${dragKey}`, ...spanAllDir(axis)(dragKey), classNames: ["drop"]
 })] : []
 
 ////

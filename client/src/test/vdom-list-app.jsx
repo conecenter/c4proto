@@ -52,7 +52,7 @@ function App() {
     const exCell = rowKey => ({colKey}) => {
         return colKey==="drag" && rowKey === "drag" ? null : $(GridCell, {
             key: ":" + rowKey + colKey, rowKey, colKey,
-            ...(rowKey === "head" ? { className: "tableHeadContainer headerColor" } : {}),
+            ...(rowKey === "head" ? { classNames: ["tableHeadContainer","headerColor"] } : {}),
             ...(rowKey === "drag" ? { dragHandle: "x", style: { userSelect: "none", cursor: "pointer" } } : {}),
             ...(colKey === "drag" ? { dragHandle: "y", style: { userSelect: "none", cursor: "pointer" } } : {}),
             ...(colKey === "expand" ? { expanding: "expander" } : {}),
