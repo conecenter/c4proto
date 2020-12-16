@@ -106,7 +106,9 @@ trait PivotCell extends Cell
   //
   @c4el("Highlighter") def highlighter(
     key: String,
-    attrName: HighlightByAttr
+    attrName: HighlightByAttr,
+    highlightClass: CSSClassName = NoCSSClassName,
+    notHighlightClass: CSSClassName = NoCSSClassName,
   ): ToChildPair
   @c4val("data-row-key") def rowHighlightByAttr: HighlightByAttr
   @c4val("data-col-key") def colHighlightByAttr: HighlightByAttr

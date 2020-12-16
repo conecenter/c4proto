@@ -385,13 +385,15 @@ const useGridDrag = ({ dragData, setDragData, gridElement, keys, enqueuePatch })
 
 const findFirstParent = get => el => el && get(el) || el && findFirstParent(get)(el.parentElement)
 
-export function Highlighter({attrName}) {
+export function Highlighter({attrName, highlightClass: argHighlightClass, notHighlightClass: argNotHighlightClass}) {
     const [key,setKey] = useState(null)
     const [element,setElement] = useState(null)
     const move = useCallback(ev => {
         setKey(findFirstParent(el=>el.getAttribute(attrName))(ev.target))
     },[setKey])
-    const style = key ? `div[${attrName}="${key}"]{background-color: var(--secondary-color);}` : ""
+    const highlightClass = argHighlightClass ? `[class~="${argHighlightClass}"]` : ''
+    const notHighlightClass = argNotHighlightClass ? `:not([class~="${argNotHighlightClass}"])` : ''
+    const style = key ? `div[${attrName}="${key}"]${highlightClass}${notHighlightClass}{background-color: var(--highlight-color);}` : ""
     const doc = element && element.ownerDocument
     useEventListener(doc, "mousemove", move)
     return $("style", { ref: setElement, dangerouslySetInnerHTML: { __html: style } })
