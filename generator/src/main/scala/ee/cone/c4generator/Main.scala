@@ -26,6 +26,7 @@ object Main {
       MultiGenerator,
       FieldAccessGenerator,
       AppGenerator,
+      TagGenerator,
     ) //,UnBaseGenerator
   }
   def main(args: Array[String]): Unit = new RootGenerator(defaultGenerators(Nil) ::: List(
@@ -110,8 +111,6 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
 //      toData <- Option(pathToData(path,rootCachePath)) if toData.length > 0
 //    } yield path.getParent.resolve(s"$toPrefix${path.getFileName}") -> toData)
   }
-  def pkgNameToId(pkgName: String): String =
-    """[\._]+([a-z])""".r.replaceAllIn(s".$pkgName",m=>m.group(1).toUpperCase)
   def withIndex(ctx: WillGeneratorContext): List[(Path,Array[Byte])] => List[(Path,Array[Byte])] = args => {
     val pattern = """\((\S+)\s(\S+)\s(\S+)\)""".r
     val indexes = (for {
@@ -127,7 +126,7 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
         val end = modParentPath.removed.map(n=>s".$n").mkString
         assert(pkg.endsWith(end))
         val appPkg = pkg.substring(0,pkg.length-end.length)
-        modParentPath.path -> GeneratedAppLink(appPkg, s"${pkgNameToId(appPkg)}$app", s"$pkg.$expr")
+        modParentPath.path -> GeneratedAppLink(appPkg, s"${Util.pkgNameToId(s".$appPkg")}$app", s"$pkg.$expr")
       } else dir -> GeneratedAppLink(pkg,app,expr)
     }).groupMap(_._1)(_._2).toList.sortBy(_._1).map{ case(parentPath,links) =>
         val Seq(pkg) = links.map(_.pkg).distinct
@@ -292,6 +291,9 @@ object Util {
   }
 
   def ignoreTheSamePath(path: Path): Unit = ()
+
+  def pkgNameToId(pkgName: String): String =
+    """[\._]+([a-z])""".r.replaceAllIn(pkgName,m=>m.group(1).toUpperCase)
 }
 case class PkgInfo(pkgPath: Path, pkgName: String)
 class ParsedClass(

@@ -1,5 +1,5 @@
 
-import {spreadAll} from "../main/util"
+import {spreadAll} from "../main/util.js"
 
 export function rootCtx(ctx){ return ctx.parent ? rootCtx(ctx.parent) : ctx }
 
@@ -19,8 +19,9 @@ export function VDomSender(feedback){ // todo: may be we need a queue to be sure
         return feedback.send({
             url: "/connection",
             options: { headers, body: target.value },
+            defer: target.defer,
             skip: target.skipByPath && skipByPath,
-            retry: target.skipByPath //vdom-changes are more or less idempotent and can be retried
+            retry: target.retry //vdom-changes are more or less idempotent and can be retried
         },rCtx.modify)
     }
     return ({send})
@@ -71,6 +72,19 @@ export const ifInputsChanged = log => (cacheKey,inpKeysObj,f) => {
     }
 }
 
-export const traverse = (props,cKey,createElement) => (
-    props[cKey] && props[cKey].map(key => createElement(props[key]))
-)
+export const weakCache = f => {
+    const map = new WeakMap
+    return arg => {
+        if(map.has(arg)) return map.get(arg)
+        const res = f(arg)
+        map.set(arg,res)
+        return res
+    }
+}
+
+export const identityAt = key => weakCache(parent => ({ parent, key }))
+export const never = o => { console.log(o); throw new Error }
+export const map = f => l => l && l.map && l.map(f) || l && never(l)
+// export const head = l => l && l[0]
+
+

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Filter Test</title>
+<style>
+body {
+    font-family: helvetica;
+}
+.filterArea > div {
+    /*border: 1px solid silver*/
+}
+
+/*
+.exampleButton {
+    border: 1px solid blue;
+    height: calc(100% - 0.4em);
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.2em;
+    margin: 0.2em;
+}*/
+
+.exampleButton {
+    border: 1px solid blue;
+    border-radius: 2px;
+    padding: 0.2em;
+    margin: 0.2em;
+}
+
+.closedExpander{
+    background-color: silver;
+}
+.openedExpander{
+    background-color: grey;
+}
+
+.exampleFilterItem {
+    border: 1px solid blue;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+</style>
+</head>
+<body><script type="module" src="vdom-filter-app.js"></script></body>
+</html>
+<!--
+высота -- 3 варианта:
+    без полей -- 1 строка
+    режим hide -- 2+ строки -- (инп+капшн = 2 рядакнопок) -- все заполненные + влезающие
+    режим show -- 2+ строки -- все
+ширина -- приоритет:
+    min-w + fixed-w (of "of")
+    заполненные фильтры
+    "1-of" без бургера
+    "of-2" без бургера
+    остаток на фильтры
+
+-->

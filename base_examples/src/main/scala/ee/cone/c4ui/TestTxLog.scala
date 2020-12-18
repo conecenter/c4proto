@@ -13,7 +13,7 @@ import ee.cone.c4ui.TestFilterProtocol.B_Content
 import ee.cone.c4di.{c4, provide}
 import ee.cone.c4gate.{SessionAttr, SessionAttrAccessFactory}
 import ee.cone.c4proto._
-import ee.cone.c4vdom.{ChildPair, OfDiv, Tags}
+import ee.cone.c4vdom.{Tags=>_,_}
 import ee.cone.c4vdom.Types.ViewRes
 
 import scala.annotation.tailrec

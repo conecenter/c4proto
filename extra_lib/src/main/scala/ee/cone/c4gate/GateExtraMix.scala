@@ -41,3 +41,5 @@ trait MetricFactoriesApp extends ComponentProviderApp with ComponentsApp {
 trait SessionAttrApp extends SessionAttrCompApp with ComponentProviderApp {
   lazy val sessionAttrAccessFactory: SessionAttrAccessFactory = resolveSingle(classOf[SessionAttrAccessFactory])
 }
+
+trait FilterPredicateBuilderAppBase

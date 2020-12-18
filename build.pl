@@ -9,6 +9,7 @@ sub sy{ &so and die $? }
 sub syf{ for(@_){ print "$_\n"; my $r = scalar `$_`; $? && die $?; return $r } }
 my $put_text = sub{
     my($fn,$content)=@_;
+    print "put_text ($fn)\n";
     open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
 };
 my $get_text = sub{
@@ -145,6 +146,7 @@ my $calc_bloop_conf = sub{
         my($mod,$cl) = $to=~/^(\w+\.)(.*)(\.\w+)$/ ? ("$1$2","$2$3") : die;
         my $steps = join "\n", &$step_by_project($from);
         (
+            +{ fn=>"$tmp/tag.$from.to", content=>$to },
             +{ fn=>"$tmp/tag.$from.compile", content=>"exec perl $tmp/compile.pl $mod" },
             +{ fn=>"$tmp/tag.$from.mod", content=>$mod },
             +{ fn=>"$tmp/tag.$from.main", content=>$cl },

@@ -6,7 +6,7 @@ import ee.cone.c4actor_kafka_impl.{KafkaConsumerApp, KafkaProducerApp}
 import ee.cone.c4actor_logback_impl.BasicLoggingApp
 import ee.cone.c4actor_repl_impl.SSHDebugApp
 import ee.cone.c4di.c4app
-import ee.cone.c4gate.{AuthProtocolApp, AvailabilityApp, FilterPredicateBuilderApp, ManagementApp, MergingSnapshotApp, PublisherApp, PublishingCompApp, RemoteRawSnapshotApp, SessionAttrCompApp}
+import ee.cone.c4gate.{AuthProtocolApp, AvailabilityApp, ManagementApp, MergingSnapshotApp, PublisherApp, PublishingCompApp, RemoteRawSnapshotApp, SessionAttrCompApp}
 
 trait CanvasAppBase
 
@@ -20,8 +20,6 @@ trait CanvasAppBase
   with ManagementApp with PublishingCompApp
   with RemoteRawSnapshotApp
   with BasicLoggingApp
-
-trait CommonFilterAppBase
 
 trait TestTagsAppBase
 
@@ -89,10 +87,7 @@ trait TestTxLogAppBase
   with ManagementApp with PublishingCompApp
   with RemoteRawSnapshotApp
   with PublicViewAssembleApp
-  with CommonFilterApp
-  with FilterPredicateBuilderApp
   with ModelAccessFactoryCompApp
-  with AccessViewApp
   with SessionAttrCompApp
   with MortalFactoryCompApp
   with AvailabilityApp

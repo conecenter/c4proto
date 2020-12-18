@@ -1,7 +1,5 @@
 
 import React         from 'react'
-import ReactDOM      from 'react-dom'
-import update        from 'immutability-helper'
 import SSEConnection from "../main/sse-connection"
 import Feedback      from "../main/feedback"
 import SessionReload from "../main/session-reload"
@@ -16,7 +14,8 @@ import {ExampleAuth,ExampleComponents} from "../test/vdom-components"
 import {ExampleRequestState} from "../test/request-state"
 //import CanvasExtraMix from "../extra/canvas-extra-mix"
 import {CanvasBaseMix} from "../main/canvas-mix"
-
+import {sortTransforms} from "../main/vdom-sort.js"
+import {todoTransforms} from "../test/todo"
 
 function fail(data){ alert(data) }
 
@@ -38,12 +37,13 @@ const canvasMods = [CanvasBaseMix(log,util),exchangeMix/*,CanvasExtraMix(log)*/]
 
 const canvas = CanvasManager(React,Canvas.CanvasFactory(util, canvasMods), sender, log)
 
-const vDomAttributes = VDomAttributes(React,exampleRequestState)
-const exampleComponents = ExampleComponents(vDomAttributes.transforms.tp)
-const exampleAuth = ExampleAuth(pairOfInputAttributes,vDomAttributes.transforms.tp)
-const transforms = mergeAll([vDomAttributes.transforms, exampleComponents.transforms, exampleAuth.transforms, canvas.transforms])
+const vDomAttributes = VDomAttributes(exampleRequestState)
+const exampleComponents = ExampleComponents()
+const exampleAuth = ExampleAuth(pairOfInputAttributes)
 
-const vDom = VDomCore(React,ReactDOM,update,log,transforms,getRootElement)
+const transforms = mergeAll([vDomAttributes.transforms, exampleComponents.transforms, exampleAuth.transforms, canvas.transforms, sortTransforms, todoTransforms])
+
+const vDom = VDomCore(log,transforms,getRootElement)
 
 const receiversList = [vDom.receivers,feedback.receivers,{fail},exampleRequestState.receivers]
 const createEventSource = () => new EventSource(location.protocol+"//"+location.host+"/sse")

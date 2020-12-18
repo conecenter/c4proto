@@ -11,7 +11,6 @@ import ee.cone.c4di.c4
 import ee.cone.c4gate._
 import ee.cone.c4proto.Id
 import ee.cone.c4ui.TestFilterProtocol.B_Content
-import ee.cone.c4vdom.{TagStyles, Tags}
 import ee.cone.c4vdom.Types.ViewRes
 
 
@@ -65,7 +64,7 @@ trait TestCoLeaderViewApp extends ByLocationHashViewsApp {
 
 @c4("TestCoWorkApp") final case class TestCoLeaderView(locationHash: String = "leader")(
   tags: Tags,
-  styles: TagStyles,
+  styles: TestTagStyles,
   branchOperations: BranchOperations,
   untilPolicy: UntilPolicy,
   getU_FromAlienState: GetByPK[U_FromAlienState],
