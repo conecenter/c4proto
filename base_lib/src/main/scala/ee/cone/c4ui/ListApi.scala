@@ -124,6 +124,7 @@ trait PivotCell extends Cell
     rows: List[PivotSlice],
     cols: List[PivotSlice],
     children: ElList[PivotCell],
+    classNames: List[CSSClassName] = Nil,
   ): ToChildPair
   @c4el("PivotCell") def pivotCell(
     colKey: String,
