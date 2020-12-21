@@ -5,12 +5,23 @@ package ee.cone.c4vdom
 import java.text.DecimalFormat
 
 import ee.cone.c4vdom.OnChangeMode._
-import ee.cone.c4vdom.Types._
+import ee.cone.c4vdom.Types.{ViewRes, _}
 
+import scala.annotation.StaticAnnotation
+
+class c4tags(a: String*) extends StaticAnnotation
+class c4val(a: String*) extends StaticAnnotation
+class c4tagSwitch(a: String*) extends StaticAnnotation
+class c4el(a: String*) extends StaticAnnotation
+
+trait ToChildPair {
+  def toChildPair[T]: ChildPair[T]
+}
 trait ToJson {
   def appendJson(builder: MutableJsonBuilder): Unit
 }
-trait VDomValue extends ToJson
+trait Resolvable extends Product
+trait VDomValue extends ToJson with Resolvable
 
 ////
 
@@ -26,7 +37,13 @@ trait AbstractMutableJsonBuilder {
   def startArray(): Unit
   def startObject(): Unit
   def append(value: BigDecimal, decimalFormat: DecimalFormat): Unit
+  def append(value: Int): Unit
   def append(value: Boolean): Unit
+}
+
+trait GeneralJsonValueAdapter
+trait JsonValueAdapter[-T] extends GeneralJsonValueAdapter {
+  def appendJson(value: T, builder: MutableJsonBuilder): Unit
 }
 
 ////
@@ -34,29 +51,33 @@ trait AbstractMutableJsonBuilder {
 object Types {
   type VDomKey = String
   type ViewRes = List[ChildPair[_]]
+  type ElList[T] = List[T]
+  type ChildPairList[T] = List[ChildPair[T]]
 }
 
 trait ChildPair[-C] {
-  def key: VDomKey
+  @deprecated def key: VDomKey // it should be impl details
 }
 
 trait ChildPairFactory {
   def apply[C](key: VDomKey, theElement: VDomValue, elements: ViewRes): ChildPair[C]
-  def group(groupKey: String, hint: String, elements: ViewRes): ViewRes
 }
 // do not mix grouped and ungrouped elements: cf(cf.group(...) ::: badUngroupedElements)
 
-////
-
-abstract class TagName(val name: String)
-
-trait TagAttr
-trait TagStyle extends TagAttr {
-  def appendStyle(builder: MutableJsonBuilder): Unit
+trait VDomFactory {
+  def create[C](key: VDomKey, theElement: VDomValue, elements: ViewRes): ChildPair[C]
+  def addGroup(key: String, groupKey: String, elements: Seq[ChildPair[_]] , res: ViewRes): ViewRes
+  //def addGroup(key: String, groupKey: String, element: ChildPair[_] , res: ViewRes): ViewRes
 }
 
-trait Color {
-  def value: String
+trait ResolvingVDomValue extends VDomValue {
+  def resolve(name: String): Option[Resolvable]
+}
+
+////
+
+trait TagStyle {
+  def appendStyle(builder: MutableJsonBuilder): Unit
 }
 
 ////
@@ -82,13 +103,17 @@ trait VDomMessage {
   def body: Object
 }
 
-trait Receiver[State] {
+trait GeneralReceiver extends Resolvable
+trait Receiver[State] extends GeneralReceiver {
   type Handler = VDomMessage => State => State
   def receive: Handler
 }
+// if we want to introduce other type of receiver,
+// we can tweak client sender-context to send short path + inner path
+
 
 trait VDomResolver {
-  def resolve(pathStr: String): Option[VDomValue] => Option[VDomValue]
+  def resolve(pathStr: String): Option[Resolvable] => Option[Resolvable]
 }
 
 trait VDomHandler[State] extends Receiver[State] {
@@ -126,5 +151,13 @@ trait TagJsonUtils {
   @deprecated def appendOnChange(builder: MutableJsonBuilder, value: String, deferSend: Boolean, needStartChanging: Boolean): Unit
 
   def appendInputAttributes(builder: MutableJsonBuilder, value: String, mode: OnChangeMode): Unit
-  def appendStyles(builder: MutableJsonBuilder, styles: List[TagStyle]): Unit
+
+  def jsonValueAdapter[T](inner: (T,MutableJsonBuilder)=>Unit): JsonValueAdapter[T]
 }
+
+////
+
+trait OfDiv
+
+@deprecated trait Tags
+@deprecated trait TagStyles

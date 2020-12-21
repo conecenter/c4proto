@@ -1,6 +1,6 @@
 package ee.cone.c4vdom_impl
 
-import ee.cone.c4vdom.{MutableJsonBuilder, OnChangeMode, TagJsonUtils, TagStyle}
+import ee.cone.c4vdom.{JsonValueAdapter, MutableJsonBuilder, OnChangeMode, TagJsonUtils}
 import ee.cone.c4vdom.OnChangeMode._
 
 object TagJsonUtilsImpl extends TagJsonUtils {
@@ -14,23 +14,16 @@ object TagJsonUtilsImpl extends TagJsonUtils {
 
   def appendInputAttributes(builder: MutableJsonBuilder, value: String, mode: OnChangeMode): Unit = {
     appendValue(builder, value)
-    val onChange = mode.value
-    if(onChange.nonEmpty) builder.append("onChange").append(onChange)
-    mode match {
-      case ReadOnly => ()
-      case Send | SendFirst | Defer => builder.append("onBlur").append("send")
-    }
+    if(mode.value.nonEmpty)
+      builder.append("onChange").append(mode.value) // ?todo: send on blur anyway
   }
 
-  def appendStyles(builder: MutableJsonBuilder, styles: List[TagStyle]): Unit =
-    if(styles.nonEmpty){
-      builder.append("style").startObject(); {
-        styles.foreach(_.appendStyle(builder))
-        builder.end()
-      }
+  def jsonValueAdapter[T](inner: (T, MutableJsonBuilder) => Unit): JsonValueAdapter[T] =
+    new JsonValueAdapter[T] {
+      def appendJson(value: T, builder: MutableJsonBuilder): Unit = inner(value, builder)
     }
 }
 
-object WasNoValueImpl extends WasNoVDomValue {
+case object WasNoValueImpl extends WasNoVDomValue {
   def appendJson(builder: MutableJsonBuilder): Unit = Never()
 }

@@ -1,4 +1,6 @@
 
+import {oValues}    from "../main/util"
+
 let nextMessageIndex = 0
 const senders = {}
 
@@ -51,9 +53,11 @@ export default function Feedback(sessionStorage,location,fetch,setTimeout){
             }
             return resp.ok
         }
-        sender.send({...message, options, onComplete})
+        sender.enqueue({...message, options, onComplete})
+        if(!message.defer) sender.flush()
         return headers
     }
+    //const flush = () => oValues(senders).forEach(s=>s.flush())
     function relocateHash(data) {
         location.href = "#"+data
     }
@@ -61,7 +65,10 @@ export default function Feedback(sessionStorage,location,fetch,setTimeout){
     return ({receivers,send})
 }
 
+const withNext = f => (item,index,list) => f(item,list[index+1])
+
 function Sender(fetch,setTimeout){
+    let defer = []
     let queue = []
     let busy = null
     /*
@@ -83,9 +90,14 @@ function Sender(fetch,setTimeout){
                 else setTimeout(()=>activate(),1000)
             })
     }
-    function send(message){
-        queue = [...queue.filter(m=>!(m.skip && m.skip(message))), message]
+    function enqueue(message){
+        defer = [...defer,message]
+    }
+    function flush(){
+        if(defer.length===0) return;
+        queue = [...queue,...defer].filter(withNext((a,b)=>!(a.skip && b && a.skip(b))))
+        defer = []
         if(!busy) activate()
     }
-    return ({send})
+    return ({enqueue,flush})
 }

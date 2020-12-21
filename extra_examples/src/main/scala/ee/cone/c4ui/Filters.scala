@@ -1,5 +1,7 @@
 package ee.cone.c4ui
 
+// not used for now
+
 import ee.cone.c4actor._
 import ee.cone.c4assemble.fieldAccess
 import ee.cone.c4ui.CommonFilterProtocol.{B_Contains, B_DateBefore}
@@ -12,7 +14,7 @@ import ee.cone.c4vdom.{ChildPair, OfDiv}
 
 //// api
 
-@protocol("TestTodoApp") object CommonFilterProtocol   {
+@protocol("CommonFilterApp") object CommonFilterProtocol   {
   @Id(0x0006) case class B_DateBefore(
     @Id(0x0001) srcId: String,
     @Id(0x0002) value: Option[Long]
@@ -51,7 +53,7 @@ case object ContainsCheck extends ConditionCheck[B_Contains,String] {
 
 @c4("CommonFilterApp") final class DateBeforeAccessView(testTags: TestTags[Context]) extends AccessView(classOf[B_DateBefore]) {
   def view(access: Access[B_DateBefore]): Context=>List[ChildPair[OfDiv]] =
-    local => List(testTags.dateInput(access to CommonFilterAccess.dateBeforeValue))
+    local => List(/*testTags.dateInput(access to CommonFilterAccess.dateBeforeValue)*/)
 }
 
 @c4("CommonFilterApp") final class ContainsAccessView(testTags: TestTags[Context]) extends AccessView(classOf[B_Contains]) {
@@ -64,4 +66,6 @@ case object ContainsCheck extends ConditionCheck[B_Contains,String] {
   lazy val containsValue: ProdLens[B_Contains,String] = ProdLens.of(_.value)
 }
 
+//// mix
 
+trait CommonFilterAppBase

@@ -9,7 +9,7 @@ import ee.cone.c4proto._
 import ee.cone.c4ui.TestCanvasProtocol.B_TestCanvasState
 import ee.cone.c4ui._
 import ee.cone.c4vdom.Types.{VDomKey, ViewRes}
-import ee.cone.c4vdom.{PathFactory, _}
+import ee.cone.c4vdom.{PathFactory,Tags=>_, _}
 
 @c4("TestCanvasApp") final class TestCanvasPublishFromStringsProvider extends PublishFromStringsProvider {
   def get: List[(String, String)] = List(
@@ -45,7 +45,7 @@ trait TestCanvasViewApp extends ByLocationHashViewsApp {
 @c4("TestCanvasApp") final case class TestCanvasView(locationHash: String = "rectangle")(
   tTags: TestTags[Context],
   tags: Tags,
-  styles: TagStyles,
+  styles: TestTagStyles,
   cTags: TestCanvasTags,
   sessionAttrAccessFactory: SessionAttrAccessFactory,
   untilPolicy: UntilPolicy,
@@ -115,13 +115,14 @@ case class GotoClick(vDomKey: VDomKey) extends ClickPathHandler[Context] {
 
 case class CanvasElement(attr: List[CanvasAttr], styles: List[TagStyle], value: String)(
   utils: TagJsonUtils,
+  tags: Tags,
   toJson: CanvasToJson,
   val receive: VDomMessage => Context => Context
 ) extends VDomValue with Receiver[Context] {
   def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
-    utils.appendInputAttributes(builder, value, deferSend=false)
-    utils.appendStyles(builder, styles)
+    utils.appendInputAttributes(builder, value, OnChangeMode.Send)
+    tags.appendStyles(builder, styles)
     toJson.appendCanvasJson(attr, builder)
     builder.end()
   }
@@ -131,14 +132,14 @@ trait TestCanvasTags {
   def canvas(key: VDomKey, style: List[TagStyle], access: Access[String])(children: List[ChildPair[OfCanvas]]): ChildPair[OfDiv]
 }
 
-@c4("CanvasApp") final class TestCanvasTagsImpl(child: ChildPairFactory, utils: TagJsonUtils, toJson: CanvasToJson) extends TestCanvasTags {
+@c4("CanvasApp") final class TestCanvasTagsImpl(child: ChildPairFactory, utils: TagJsonUtils, tags: Tags, toJson: CanvasToJson) extends TestCanvasTags {
   def messageStrBody(o: VDomMessage): String =
     o.body match { case bs: okio.ByteString => bs.utf8() }
   def canvas(key: VDomKey, style: List[TagStyle], access: Access[String])(children: List[ChildPair[OfCanvas]]): ChildPair[OfDiv] =
     child[OfDiv](
       key,
       CanvasElement(children.collect{ case a: CanvasAttr => a }, style, access.initialValue)(
-        utils, toJson,
+        utils, tags, toJson,
         message => access.updatingLens.get.set(messageStrBody(message))
       ),
       children.filterNot(_.isInstanceOf[CanvasAttr])

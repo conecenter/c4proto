@@ -133,7 +133,8 @@ push @tasks, ["inbox_copy", sub{
 
 my $exec_server = sub{
     my($arg)=@_;
-    my ($nm,$mod,$cl) = $arg=~/^(\w+)\.(.+)\.(\w+)$/ ? ($1,"$1.$2","$2.$3") : die;
+    my $argv = $arg=~/\./ ? $arg : &$get_text(".bloop/c4/tag.$arg.to");
+    my ($nm,$mod,$cl) = $argv=~/^(\w+)\.(.+)\.(\w+)$/ ? ($1,"$1.$2","$2.$3") : die;
     my $tmp = ".bloop/c4";
     sy("perl $tmp/compile.pl $mod");
     my $data_dir = $ENV{C4DATA_DIR} || die "no C4DATA_DIR";
@@ -161,15 +162,15 @@ push @tasks, ["gate_publish", sub{
 push @tasks, ["gate_server_run", sub{
     &$inbox_configure();
     local $ENV{C4STATE_REFRESH_SECONDS} = 100;
-    &$exec_server("base_server.ee.cone.c4gate_akka.SimpleAkkaGatewayApp");
+    &$exec_server("def");
 }];
 push @tasks, ["gate_server_run_s3", sub{
     &$inbox_configure();
     local $ENV{C4STATE_REFRESH_SECONDS} = 100;
-    &$exec_server("base_server.ee.cone.c4gate_akka_s3.AkkaMinioGatewayApp");
+    &$exec_server("s3def");
 }];
 push @tasks, ["ignore_all_snapshots", sub{
-    &$exec_server("base_server.ee.cone.c4gate_server.IgnoreAllSnapshotsApp");
+    &$exec_server("ignore-all");
 }];
 push @tasks, ["run", sub{
     sy("perl $prod_pl build_client_changed . dev"); # ?may be able to redefine "." to absolute path

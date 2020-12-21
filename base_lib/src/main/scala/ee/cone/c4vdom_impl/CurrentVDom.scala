@@ -1,6 +1,6 @@
 package ee.cone.c4vdom_impl
 
-import ee.cone.c4vdom._
+import ee.cone.c4vdom.{VDomValue, _}
 
 import Function.chain
 import scala.annotation.tailrec
@@ -21,12 +21,17 @@ class VDomHandlerFactoryImpl(
 }
 
 object VDomResolverImpl extends VDomResolver {
-  def resolve(pathStr: String): Option[VDomValue] => Option[VDomValue] = from => {
-    val path = pathStr.split("/").toList match {
-      case "" :: parts => parts
-      case _ => Never()
+  def resolve(pathStr: String): Option[Resolvable] => Option[Resolvable] = from => {
+    val "" :: path = pathStr.split("/").toList
+    path.foldLeft(from) { (value, name) =>
+      val res = value.flatMap {
+        case m: ResolvingVDomValue => m.resolve(name)
+        case _ =>
+          None
+      }
+      //println(s"-- $value [$name] $res")
+      res
     }
-    from.flatMap(ResolveValue(_, path))
   }
 }
 
@@ -181,13 +186,4 @@ case class RootElement(branchKey: String) extends VDomValue {
     }*/
     builder.end()
   }
-}
-
-object ResolveValue {
-  def apply(value: VDomValue, path: List[String]): Option[VDomValue] =
-    if(path.isEmpty) Some(value) else Some(value).collect{
-      case m: MapVDomValue => m.pairs.collectFirst{
-        case pair if pair.jsonKey == path.head => apply(pair.value, path.tail)
-      }.flatten
-    }.flatten
 }
