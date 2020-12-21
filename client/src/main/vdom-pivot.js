@@ -1,4 +1,3 @@
-
 import React from "react"
 import {never} from "./vdom-util.js";
 
@@ -27,17 +26,18 @@ const getTemplateInner = slices => slices.map(({tp,sliceKey,...arg}) => (
 const getTemplate = slices => `[${getTemplateInner(slices)}]`
 
 
-export function PivotRoot({rows,cols,children}){
+export function PivotRoot({rows, cols, children, classNames: argClassNames}) {
     const gridTemplateColumns = getTemplate(cols)
     const gridTemplateRows = getTemplate(rows)
-    const style = { display: "grid", gridTemplateRows, gridTemplateColumns }
-    return $("div", { style, children })
+    const className = argClassNames ? argClassNames.join(" ") : ""
+    const style = {display: "grid", gridTemplateRows, gridTemplateColumns}
+    return $("div", {style, className, children})
 }
 
-export function PivotCell({colKey,rowKey,classNames,children}){
+export function PivotCell({colKey, rowKey, classNames, children}) {
     const className = classNames ? classNames.join(" ") : ""
     const gridArea = `${fromKey(rowKey)} / ${fromKey(colKey)} / ${toKey(rowKey)} / ${toKey(colKey)}`
-    return $("div", { style: {gridArea}, className, children })
+    return $("div", {style: {gridArea}, className, children})
 }
 
 export const components = {PivotRoot,PivotCell}
