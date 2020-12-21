@@ -11,7 +11,7 @@ function ImageElement({src,className}){
 }
 
 function mockData() {
-    const srlIcon = $(ImageElement,{ src: "../temp/servicerequestline.svg", className: "rowIconSize", key: "image" })
+    const srlIcon = $(ImageElement,{ src: "./vdom-list-line.svg", className: "rowIconSize", key: "image" })
     const meleqStr = $(Text,{ value: "MELEQ 11-Oct ● Vessel load" })
     const row = $("div",{ className: "descriptionRow", key: "row" }, srlIcon, meleqStr)
     return row
@@ -74,7 +74,7 @@ function App() {
         return $(
             "div",
             { className: "textLineSize absolutelyCentered", key: "expanderElem" },
-            $(ImageElement, { color: "#90929F", className: "expanderElement", src: '../temp/downarrowrow.svg' })
+            $(ImageElement, { color: "#90929F", className: "expanderElement", src: './vdom-list-downarrowrow.svg' })
         )
     }
 
@@ -82,7 +82,7 @@ function App() {
         return $(
             "div",
             { className: "textLineSize absolutelyCentered", key: "dragElem" },
-            $(ImageElement, { color: "adaptive", className: "dragElement", src: '../temp/drag.svg' })
+            $(ImageElement, { color: "adaptive", className: "dragElement", src: './vdom-list-drag.svg' })
         )
     }
 
@@ -90,7 +90,7 @@ function App() {
         return $(
             "div",
             { className: "textLineSize absolutelyCentered", key: "dragElem" },
-            $(ImageElement, { color: "adaptive", className: "dragElement", src: '../temp/drag.svg' })
+            $(ImageElement, { color: "adaptive", className: "dragElement", src: './vdom-list-drag.svg' })
         )
     }
 
@@ -124,7 +124,7 @@ function App() {
 
 const containerElement = document.createElement("div")
 document.body.appendChild(containerElement)
-ReactDOM.render(<App/>, containerElement)
+ReactDOM.render($(App), containerElement)
 
 /****
 features:

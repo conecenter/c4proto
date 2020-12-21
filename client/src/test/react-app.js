@@ -14,7 +14,6 @@ import {ExampleAuth,ExampleComponents} from "../test/vdom-components"
 import {ExampleRequestState} from "../test/request-state"
 //import CanvasExtraMix from "../extra/canvas-extra-mix"
 import {CanvasBaseMix} from "../main/canvas-mix"
-import {sortTransforms} from "../main/vdom-sort.js"
 import {todoTransforms} from "../test/todo"
 
 function fail(data){ alert(data) }
@@ -41,7 +40,7 @@ const vDomAttributes = VDomAttributes(exampleRequestState)
 const exampleComponents = ExampleComponents()
 const exampleAuth = ExampleAuth(pairOfInputAttributes)
 
-const transforms = mergeAll([vDomAttributes.transforms, exampleComponents.transforms, exampleAuth.transforms, canvas.transforms, sortTransforms, todoTransforms])
+const transforms = mergeAll([vDomAttributes.transforms, exampleComponents.transforms, exampleAuth.transforms, canvas.transforms, todoTransforms])
 
 const vDom = VDomCore(log,transforms,getRootElement)
 
