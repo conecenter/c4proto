@@ -56,6 +56,11 @@ export const dictKeys = f => ({
 
 export const branchByKey = dictKeys(f=>({branchByKey:f}))
 
+const sumWidth = arr => arr.reduce((a,col)=>a+col.width.max,0)
+export const getMaxTableWidthWithout = (cols=[], hidedColNames=[]) => {
+    return hidedColNames.length ? sumWidth(cols.filter(col=>!hidedColNames.some(hidedColname=>hidedColname===col.colKey))) : sumWidth(cols)
+}
+
 export const ifInputsChanged = log => (cacheKey,inpKeysObj,f) => {
     const inpKeys = Object.keys(inpKeysObj)
     const changed = state => {
@@ -86,5 +91,3 @@ export const identityAt = key => weakCache(parent => ({ parent, key }))
 export const never = o => { console.log(o); throw new Error }
 export const map = f => l => l && l.map && l.map(f) || l && never(l)
 // export const head = l => l && l[0]
-
-

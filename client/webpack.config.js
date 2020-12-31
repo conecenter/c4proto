@@ -1,15 +1,7 @@
-const HtmlWebpackPlugin = require('html-webpack-plugin')
-const path = require('path');
+const AutoDllPlugin = require('autodll-webpack-plugin')
 const config = require("./webpack.include.js").config("test",__dirname,[])
 module.exports = env=>{
-    const conf = config(["react-app","sse"],env)
-    conf.plugins.HtmlWebpackPlugin = new HtmlWebpackPlugin({
-        filename: path.resolve("index.html"),
-        title: "yess",
-        hash: true,
-        favicon: "./src/test/favicon.png"
-    })
-   // console.log(conf);
+    const conf = config(["react-app","sse","main"],env)
     return {
         ...conf,
         plugins: [

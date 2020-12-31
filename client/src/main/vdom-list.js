@@ -2,7 +2,7 @@
 
 import { createElement as $, useMemo, useState, useLayoutEffect, cloneElement, useCallback, useEffect } from "react"
 
-import { map, identityAt, deleted, never } from "./vdom-util.js"
+import { map, identityAt, deleted, never, getMaxTableWidthWithout } from "./vdom-util.js"
 import { useWidth, useEventListener, useSync, NoCaptionContext } from "./vdom-hooks.js"
 
 const dragRowIdOf = identityAt('dragRow')
@@ -60,8 +60,8 @@ const useExpanded = () => {
 }
 const useExpandedElements = (expanded, setExpandedItem) => {
     const toExpanderElements = useCallback((on,cols,children) => on ? children.map(c => {
-        const { isExpander, rowKey } = c.props
-        return isExpander && rowKey ? cloneElement(c, {
+        const { expanding, rowKey } = c.props
+        return expanding==="expander" && rowKey ? cloneElement(c, {
             onClick: ev => setExpandedItem(rowKey, v => !v),
             expander: expanded[rowKey] ? 'expanded' : 'collapsed',
         }) : c
@@ -72,14 +72,14 @@ const useExpandedElements = (expanded, setExpandedItem) => {
         if (cols.length <= 0) return []
         const posStr = (rowKey, colKey) => rowKey + colKey
         const expandedByPos = Object.fromEntries(
-            children.filter(c => expanded[c.props.rowKey])
+            children.filter(c => expanded[c.props.rowKey] && !c.props.expanding)
                 .map(c => [posStr(c.props.rowKey, c.props.colKey), c])
         )
         return rowKeys.filter(rowKey => expanded[rowKey]).map(rowKey => {
             const pairs = cols.map(col => {
                 const cell = expandedByPos[posStr(rowKey, col.colKey)]
-                return [col, cell]
-            })
+                return cell && [col, cell]
+            }).filter(Boolean)
             return [rowKey, pairs]
         })
     }, [expanded])
@@ -150,16 +150,18 @@ const getGridCol = ({ colKey }) => CSS.escape(colKey)
 
 const spanAll = "1 / -1"
 
-export function GridCell({ identity, children, rowKey, rowKeyMod, colKey, isExpander, expander, dragHandle, noDefCellClass, className: argClassName, gridRow: argGridRow, gridColumn: argGridColumn, ...props }) {
+export function GridCell({ identity, children, rowKey, rowKeyMod, colKey, expanding, expander, dragHandle, noDefCellClass, classNames: argClassNames, gridRow: argGridRow, gridColumn: argGridColumn, ...props }) {
     const gridRow = argGridRow || getGridRow({ rowKey, rowKeyMod })
     const gridColumn = argGridColumn || getGridCol({ colKey })
     const style = { ...props.style, gridRow, gridColumn }
-    const expanderProps = isExpander ? { 'data-expander': expander || 'passive' } : {}
-    const className = noDefCellClass ? argClassName : `${argClassName} ${GRID_CLASS_NAMES.CELL}`
+    const expanderProps = expanding==="expander" ? { 'data-expander': expander || 'passive' } : {}
+    const argClassNamesStr = argClassNames ? argClassNames.join(" ") : ""
+    const className = noDefCellClass ? argClassNamesStr : `${argClassNamesStr} ${GRID_CLASS_NAMES.CELL}`
     return $("div", { ...props, ...expanderProps, 'data-col-key': colKey, 'data-row-key': rowKey, "data-drag-handle": dragHandle, style, className }, children)
 }
 
 const colKeysOf = children => children.map(c => c.colKey)
+const rowKeysOf = children => children.map(c => c.rowKey)
 
 const getGidTemplateRows = rows => rows.map(o => `[${getGridRow(o)}] auto`).join(" ")
 const getGridTemplateColumns = columns => columns.map(col => {
@@ -172,11 +174,11 @@ const getGridTemplateColumns = columns => columns.map(col => {
 }).join(" ")
 
 const noChildren = []
-export function GridRoot({ identity, rowKeys, cols, children: rawChildren }) {
+export function GridRoot({ identity, rowKeys, cols, children: rawChildren, setMaxFilterAreaWidth, maxFilterAreaWidth, enableDrag }) {
     const children = rawChildren || noChildren//Children.toArray(rawChildren)
     const [dragData, setDragData] = useState({})
     const { axis, patch: dropPatch } = dragData
-
+    //const rowKeys = useMemo(() => rowKeysOf(rows), [rows])
     const [patchedRowKeys, enqueueRowPatch] = useSortRoot(dragRowIdOf(identity), rowKeys, axis ? switchAxis(null, dropPatch)(axis) : null)
     const colKeys = useMemo(() => colKeysOf(cols), [cols])
     const [patchedColKeys, enqueueColPatch] = useSortRoot(dragColIdOf(identity), colKeys, axis ? switchAxis(dropPatch, null)(axis) : null)
@@ -219,13 +221,21 @@ export function GridRoot({ identity, rowKeys, cols, children: rawChildren }) {
         if (axis === "y") setExpandedItem(dragKey, v => false)
     }, [setExpandedItem, draggingStart])
 
+    useEffect(() => {
+        const hidedColNames = []
+        !enableDrag && hidedColNames.push("drag")
+        !hasHiddenCols && hidedColNames.push("expand")
+        setMaxFilterAreaWidth(getMaxTableWidthWithout(cols, hidedColNames))
+    }, [enableDrag, maxFilterAreaWidth])
+
     const style = { ...rootDragStyle, display: "grid", gridTemplateRows, gridTemplateColumns }
     const res = $("div", { onMouseDown, style, className: "grid", ref: setGridElement }, allChildren)
-    return $(NoCaptionContext.Provider, {value:true, key: "NoCaptionContext1"},res)
+    return $(NoCaptionContext.Provider,{value:true, key:"NoCaptionContext1"},res)
 }
 
 const getAllChildren = ({children,rowKeys,cols,draggingStart,hasHiddenCols,hideElementsForHiddenCols,toExpanderElements,getExpandedCells}) => {
     const dropElements = getDropElements(draggingStart)
+
     const expandedElements = getExpandedCells({
         rowKeys, children, cols: hideElementsForHiddenCols(true,col=>col.colKey)(cols),
     }).map(([rowKey, pairs]) => {
@@ -242,7 +252,7 @@ const getAllChildren = ({children,rowKeys,cols,draggingStart,hasHiddenCols,hideE
                 children: cell.props.children,
             }))
         })
-        return $(NoCaptionContext.Provider,{value:false, key: `NoCaptionContext2${rowKey}`},res)
+        return $(NoCaptionContext.Provider,{value:false, key:`NoCaptionContextrw${rowKey}`},res)
     })
     const allChildren = toExpanderElements(hasHiddenCols,cols,[...dropElements, ...toDraggingElements(draggingStart)(hideElementsForHiddenCols(false,cell=>cell.props.colKey)([
         ...children, ...expandedElements
@@ -300,7 +310,7 @@ const toDraggingElement = axis => child => cloneElement(child, {
 })
 
 const getDropElements = ({ axis, dragKey }) => axis ? [$(GridCell, {
-    key: `drop-${dragKey}`, ...spanAllDir(axis)(dragKey), className: "drop"
+    key: `drop-${dragKey}`, ...spanAllDir(axis)(dragKey), classNames: ["drop"]
 })] : []
 
 ////
@@ -384,13 +394,15 @@ const useGridDrag = ({ dragData, setDragData, gridElement, keys, enqueuePatch })
 
 const findFirstParent = get => el => el && get(el) || el && findFirstParent(get)(el.parentElement)
 
-export function Highlighter({attrName}) {
+export function Highlighter({attrName, highlightClass: argHighlightClass, notHighlightClass: argNotHighlightClass}) {
     const [key,setKey] = useState(null)
     const [element,setElement] = useState(null)
     const move = useCallback(ev => {
         setKey(findFirstParent(el=>el.getAttribute(attrName))(ev.target))
     },[setKey])
-    const style = key ? `div[${attrName}="${key}"]{background-color: var(--secondary-color);}` : ""
+    const highlightClass = argHighlightClass ? `[class~="${argHighlightClass}"]` : ''
+    const notHighlightClass = argNotHighlightClass ? `:not([class~="${argNotHighlightClass}"])` : ''
+    const style = key ? `div[${attrName}="${key}"]${highlightClass}${notHighlightClass}{background-color: var(--highlight-color);}` : ""
     const doc = element && element.ownerDocument
     useEventListener(doc, "mousemove", move)
     return $("style", { ref: setElement, dangerouslySetInnerHTML: { __html: style } })
