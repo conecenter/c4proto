@@ -234,7 +234,6 @@ const getAllChildren = ({children,rowKeys,cols,draggingStart,hasHiddenCols,hideE
         rowKeys, children, cols: hideElementsForHiddenCols(true,col=>col.colKey)(cols),
     }).map(([rowKey, pairs]) => {
         const res = $(GridCell, {
-            key: `${rowKey}-expanded`,
             gridColumn: spanAll,
             rowKey,
             rowKeyMod: "-expanded",
@@ -246,7 +245,7 @@ const getAllChildren = ({children,rowKeys,cols,draggingStart,hasHiddenCols,hideE
                 children: cell.props.children,
             }))
         })
-        return $(NoCaptionContext.Provider,{value:false},res)
+        return $(NoCaptionContext.Provider,{value:false, key:`${rowKey}-expanded`},res)
     })
     const allChildren = toExpanderElements(hasHiddenCols,cols,[...dropElements, ...toDraggingElements(draggingStart)(hideElementsForHiddenCols(false,cell=>cell.props.colKey)([
         ...children, ...expandedElements

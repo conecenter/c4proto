@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "build": "cross-env NODE_ENV=production webpack --mode production",
+    "watch": "cross-env NODE_ENV=development webpack --mode development --watch"
+  },
   "dependencies": {
     "react": "16.12.0",
     "react-dom": "16.12.0"
@@ -22,7 +26,13 @@
     "hard-source-webpack-plugin": "^0.13.1",
     "html-webpack-plugin": "3.2.0",
     "webpack": "4.41.5",
-    "webpack-cli": "3.3.10"
+    "webpack-cli": "3.3.10",
+
+    "cross-env": "^7.0.3",
+    "mini-css-extract-plugin": "^0.9.0",
+    "sass": "^1.30.0",
+    "sass-loader": "^10.1.0",
+    "css-loader": "^5.0.1"
   },
   "eslintConfig":{
     "parser": "babel-eslint",
@@ -48,7 +58,9 @@
     },
     "rules":{
       "no-unused-vars":["warn",{"args":"none"}],
-      "no-mixed-spaces-and-tabs":["warn", "smart-tabs"]
+      "no-mixed-spaces-and-tabs":["warn", "smart-tabs"],
+
+      "react/prop-types": 0
     },
     "overrides":[{
       "files": ["*/test/*.js"],

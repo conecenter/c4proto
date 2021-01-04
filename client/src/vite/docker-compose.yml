@@ -4,6 +4,7 @@ services:
     image: node:14.3.0
     volumes:
     - ../../src:/app/src
+#    - ../../build:/app/build
     working_dir: /app
     ports:
     - "127.0.0.10:3000:3000"

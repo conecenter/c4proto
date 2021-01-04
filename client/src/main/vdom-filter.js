@@ -81,7 +81,7 @@ const dMinMax = el => el.props.maxWidth - el.props.minWidth
 
 const em = v => v+'em'
 
-export function FilterArea({filters,buttons,className}){
+export function FilterArea({filters,buttons,className/*,maxFilterAreaWidth*/}){
     const [gridElement,setGridElement] = useState(null)
     const outerWidth = useWidth(gridElement)
 
@@ -139,6 +139,7 @@ export function FilterArea({filters,buttons,className}){
     })
 
     const children = [...filterGroupElements,...btnElements]
+    /* maxWidth: maxFilterAreaWidth ? em(maxFilterAreaWidth) : "100vw"*/
     const style = { position: "relative", height: yRowToEm(groupedFilters.length) }
     return $("div",{ style, className, ref: setGridElement, children })
 }

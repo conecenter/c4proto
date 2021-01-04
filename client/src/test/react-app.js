@@ -15,7 +15,6 @@ import {ExampleRequestState} from "../test/request-state"
 //import CanvasExtraMix from "../extra/canvas-extra-mix"
 import {CanvasBaseMix} from "../main/canvas-mix"
 import {todoTransforms} from "../test/todo"
-
 function fail(data){ alert(data) }
 
 const send = fetch
