@@ -6,6 +6,10 @@ import scala.util.matching.{Regex, UnanchoredRegex}
 
 trait ImageSize
 
+trait PublicPathCollector {
+  def allPaths: List[PublicPath]
+}
+
 trait PublicPath extends Product {
   def isEmpty: Boolean = path.trim.isEmpty
   def nonEmpty: Boolean = path.trim.nonEmpty
@@ -49,7 +53,7 @@ case class NonSVGPublicPath(path: String, size: Option[ImageSize] = None, angle:
   def pathType: String = NonSVGPublicPath.curPathType
 }
 
-case class SVGPublicPath(path: String, viewPort: String, size: Option[ImageSize] = None, angle: Option[RotationAngle] = None, color: String = "") extends ImagePublicPath {
+case class SVGPublicPath(path: String, size: Option[ImageSize] = None, angle: Option[RotationAngle] = None, color: String = "") extends ImagePublicPath {
   def withSize(newSize: ImageSize): SVGPublicPath = copy(size = Some(newSize))
   def withNoSize: SVGPublicPath = copy(size = None)
 
@@ -60,8 +64,6 @@ case class SVGPublicPath(path: String, viewPort: String, size: Option[ImageSize]
   def withAdaptiveColor: SVGPublicPath = copy(color = SVGPublicPath.adaptiveColor)
 
   def pathType: String = SVGPublicPath.curPathType
-
-  override def convert: String = s"${format(SVGPublicPath.viewPort, viewPort)} " + super.convert
 }
 
 object ImagePublicPath {
@@ -81,8 +83,7 @@ object ImagePublicPath {
     pathOpt.map{path_ =>
       pathType_.map{
         case SVGPublicPath.curPathType =>
-          val viewPort_ = map.getOrElse(SVGPublicPath.viewPort, "")
-          SVGPublicPath(path_, viewPort_)
+          SVGPublicPath(path_)
         case NonSVGPublicPath.curPathType =>
           NonSVGPublicPath(path_)
         case DefaultPublicPath.curPathType =>
@@ -120,8 +121,7 @@ object NonSVGPublicPath {
 object SVGPublicPath {
   lazy val curPathType = "svg"
 
-  def viewPort = "viewPort"
   def adaptiveColor = "adaptive"
 
-  def empty: SVGPublicPath = SVGPublicPath("", "")
+  def empty: SVGPublicPath = SVGPublicPath("")
 }

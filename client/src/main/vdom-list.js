@@ -156,6 +156,7 @@ export function GridCell({ identity, children, rowKey, rowKeyMod, colKey, expand
     const style = { ...props.style, gridRow, gridColumn }
     const expanderProps = expanding==="expander" ? { 'data-expander': expander || 'passive' } : {}
     const argClassNamesStr = argClassNames ? argClassNames.join(" ") : ""
+    const argClassNamesStr = argClassNames ? argClassNames.join(" ") : ""
     const className = noDefCellClass ? argClassNamesStr : `${argClassNamesStr} ${GRID_CLASS_NAMES.CELL}`
     console.log(colKey);
     return $("div", { ...props, ...expanderProps, 'data-col-key': colKey, 'data-row-key': rowKey, "data-drag-handle": dragHandle, style, className }, children)
@@ -175,11 +176,12 @@ const getGridTemplateColumns = columns => columns.map(col => {
 }).join(" ")
 
 const noChildren = []
-export function GridRoot({ identity, rowKeys, cols, children: rawChildren, setMaxFilterAreaWidth, maxFilterAreaWidth, enableDrag }) {
+export function GridRoot({ identity, rows, cols, children: rawChildren, setMaxFilterAreaWidth, maxFilterAreaWidth, enableDrag }) {
     const children = rawChildren || noChildren//Children.toArray(rawChildren)
     const [dragData, setDragData] = useState({})
     const { axis, patch: dropPatch } = dragData
-    //const rowKeys = useMemo(() => rowKeysOf(rows), [rows])
+
+    const rowKeys = useMemo(() => rowKeysOf(rows), [rows])
     const [patchedRowKeys, enqueueRowPatch] = useSortRoot(dragRowIdOf(identity), rowKeys, axis ? switchAxis(null, dropPatch)(axis) : null)
     const colKeys = useMemo(() => colKeysOf(cols), [cols])
     const [patchedColKeys, enqueueColPatch] = useSortRoot(dragColIdOf(identity), colKeys, axis ? switchAxis(dropPatch, null)(axis) : null)

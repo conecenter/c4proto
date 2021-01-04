@@ -1,6 +1,6 @@
 package ee.cone.c4vdom_impl
 
-import ee.cone.c4vdom.{JsonPairAdapter, MutableJsonBuilder, OnChangeMode, TagJsonUtils}
+import ee.cone.c4vdom.{JsonValueAdapter, MutableJsonBuilder, OnChangeMode, TagJsonUtils}
 import ee.cone.c4vdom.OnChangeMode._
 
 object TagJsonUtilsImpl extends TagJsonUtils {
@@ -18,12 +18,9 @@ object TagJsonUtilsImpl extends TagJsonUtils {
       builder.append("onChange").append(mode.value) // ?todo: send on blur anyway
   }
 
-  def jsonPairAdapter[T](inner: (T, MutableJsonBuilder) => Unit): JsonPairAdapter[T] =
-    new JsonPairAdapter[T] {
-      def appendJson(key: String, value: T, builder: MutableJsonBuilder): Unit = {
-        builder.just.append(key)
-        inner(value, builder)
-      }
+  def jsonValueAdapter[T](inner: (T, MutableJsonBuilder) => Unit): JsonValueAdapter[T] =
+    new JsonValueAdapter[T] {
+      def appendJson(value: T, builder: MutableJsonBuilder): Unit = inner(value, builder)
     }
 }
 

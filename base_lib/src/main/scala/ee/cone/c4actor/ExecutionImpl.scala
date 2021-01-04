@@ -140,7 +140,7 @@ abstract class BaseServerMain(app: ExecutableApp){
   def main(args: Array[String]): Unit = try {
     Trace { // keep Trace here <-- execution construction may silently fail
       //ExecutionRun(app)
-      println("this should be instant")
+      println("this should be instant (actually not)")
       app.execution.run()
       //println("main is about to sleep")
       Thread.sleep(Long.MaxValue) //ctx.serving.get()

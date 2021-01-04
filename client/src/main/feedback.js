@@ -1,6 +1,4 @@
 
-import {oValues}    from "../main/util"
-
 let nextMessageIndex = 0
 const senders = {}
 

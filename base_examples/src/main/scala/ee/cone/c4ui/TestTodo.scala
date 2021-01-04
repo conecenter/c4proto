@@ -71,10 +71,10 @@ abstract class SetField[T](val make: (SrcId,String)=>T) extends Product
   def receive: Handler = message => local => txAdd.add(events)(local)
 }
 
-@c4tags("TestTodoApp") trait ExampleTags {
-  @c4tag("ExampleText") def text(key: String, value: String): VDom[OfDiv]
-  @c4tag("ExampleInput") def input(key: String, value: String, change: Receiver[Context]): VDom[OfDiv]
-  @c4tag("ExampleButton") def button(key: String, activate: Receiver[Context], caption: String = ""): VDom[OfDiv]
+@c4tags("TestTodoApp") trait ExampleTags[C] {
+  @c4el("ExampleText") def text(key: String, value: String): ToChildPair
+  @c4el("ExampleInput") def input(key: String, value: String, change: Receiver[C]): ToChildPair
+  @c4el("ExampleButton") def button(key: String, activate: Receiver[C], caption: String = ""): ToChildPair
 }
 
 @c4("ReactHtmlApp") final class ReactHtmlFromAlienTaskAssembleBase {
@@ -117,8 +117,8 @@ case object DragHandleCellCSSClassName extends CSSClassName{ def name = "dragHan
 case object HeaderCSSClassName extends CSSClassName{ def name = "tableHeadContainer headerColor" }
 
 @c4("TestTodoApp") final case class TestTodoRootView(locationHash: String = "todo")(
-  exampleTags: ExampleTags,
-  listTags: ListTags,
+  exampleTagsProvider: ExampleTagsProvider,
+  listTagsProvider: ListTagsProvider,
   onChangeReceiverFactory: OnChangeReceiverFactory,
   simpleReceiverFactory: SimpleReceiverFactory,
   taskListAddReceiver: TaskListAddReceiver,
@@ -129,7 +129,11 @@ case object HeaderCSSClassName extends CSSClassName{ def name = "tableHeadContai
   getB_TodoTaskCommentsContains: GetByPK[B_TodoTaskCommentsContains],
   todoSortOrderFactory: TodoSortOrderFactory,
   todoSortHandlerFactory: TodoSortHandlerFactory,
+)(
+  val listTags: ListTags[Context] = listTagsProvider.get[Context],
+  exampleTags: ExampleTags[Context] = exampleTagsProvider.get[Context]
 ) extends ByLocationHashView {
+  import listTags._
   def view: Context => ViewRes = untilPolicy.wrap{ local =>
     val listKey = "taskList"
     val commentsContainsValue = getB_TodoTaskCommentsContains.ofA(local).get(listKey).fold("")(_.value)
@@ -140,121 +144,123 @@ case object HeaderCSSClassName extends CSSClassName{ def name = "tableHeadContai
       else allTodoTasks.filter(
         prod => comments.get(prod.srcId).exists(_.value.contains(commentsContainsValue))
       )
-    val expander = listTags.filterButtonExpander("expander",
-      minWidth = 1,
-      area = RightFilterButtonArea,
+    val expander = filterButtonExpander("expander",
+      area = rightFilterButtonArea,
       children = List(
         exampleTags.text(
           "button",
           value = "="
-        )
+        ).toChildPair[OfDiv]
       ),
       optButtons = (1 to 2).map { i =>
-        listTags.filterButtonPlace(s"bt$i",
-          minWidth = 5,
-          area = RightFilterButtonArea,
+        filterButtonPlace(s"bt$i",
+          area = rightFilterButtonArea,
           children = List(
             exampleTags.button(
               "button",
               activate = taskListAddReceiver,
               caption = "+++",
-            )
+            ).toChildPair[OfDiv]
           )
         )
       }.toList
     )
 
     val list = List(
-      listTags.filterArea("todoListFilter",
-        centerButtonText = "",
+      filterArea("todoListFilter",
         filters = List(
-          listTags.filterItem("comments",
+          filterItem("comments",
             minWidth = 11, maxWidth = 20,
             canHide = false,
             children = List(
-              exampleTags.text("label","Comments contains"),
+              exampleTags.text("label","Comments contains").toChildPair[OfDiv],
               exampleTags.input("value",
                 value = commentsContainsValue,
                 change = onChangeReceiverFactory.create(listKey, TodoTaskCommentsContains),
-              )
+              ).toChildPair[OfDiv]
             )
           )
         ),
         buttons = List(
-          listTags.filterButtonPlace("add",
-            minWidth = 1,
-            area = LeftFilterButtonArea,
+          filterButtonPlace("add",
+            area = leftFilterButtonArea,
             children = List(
               exampleTags.button("button",
                 activate = taskListAddReceiver,
                 caption = "+",
-              )
+              ).toChildPair[OfDiv]
+            )
+          ),
+          filterButtonPlace("of",
+            area = rightFilterButtonArea,
+            children = List(
+              exampleTags.text("of","of").toChildPair[OfDiv],
             )
           ),
           expander
         ),
-      ),
-      listTags.gridRoot("todoList",
+      ).toChildPair[OfDiv],
+      gridRoot("todoList",
         dragCol = NoReceiver,
         dragRow = sortReceiverFactory.create(todoSortHandlerFactory.create(todoSortOrder)),
-        rowKeys = todoTasks.map(_.srcId),
+        rows = todoTasks.map(_.srcId).map(gridRow),
         cols = List(
-          GridCol(
-            colKey = "drag", width = BoundGridColWidth(1,1),
+          gridCol(
+            colKey = "drag", width = boundGridColWidth(1,1),
             hideWill = 0,
           ),
-          GridCol(
-            colKey = "comments", width = BoundGridColWidth(10,20),
+          gridCol(
+            colKey = "comments", width = boundGridColWidth(10,20),
             hideWill = 0,
           ),
-          GridCol(
-            colKey = "remove", width = BoundGridColWidth(1,1),
+          gridCol(
+            colKey = "remove", width = boundGridColWidth(1,1),
             hideWill = 0,
           ),
         ),
         children = List(
-          listTags.gridCell(s"comments-head",
+          gridCell(
             colKey = "comments",
             rowKey = "head",
-            className = HeaderCSSClassName,
+            classNames = HeaderCSSClassName :: Nil,
             children = List(
-              exampleTags.text("text","Comments")
+              exampleTags.text("text","Comments").toChildPair[OfDiv]
             )
           )
         ) ::: todoTasks.flatMap(task=>List(
-          listTags.gridCell(s"drag-${task.srcId}",
+          gridCell(
             colKey = "drag",
             rowKey = task.srcId,
-            dragHandle = RowDragHandle,
-            children = List(exampleTags.text("text","o")),
-            className = DragHandleCellCSSClassName
+            dragHandle = rowDragHandle,
+            children = List(exampleTags.text("text","o").toChildPair[OfDiv]),
+            classNames = DragHandleCellCSSClassName :: Nil
           ),
-          listTags.gridCell(s"comments-${task.srcId}",
+          gridCell(
             colKey = "comments",
             rowKey = task.srcId,
             children = List(
               exampleTags.input("field",
                 comments.get(task.srcId).fold("")(_.value),
                 onChangeReceiverFactory.create(task.srcId, TodoTaskComments),
-              )
+              ).toChildPair[OfDiv]
             )
           ),
-          listTags.gridCell(s"remove-${task.srcId}",
+          gridCell(
             colKey = "remove",
             rowKey = task.srcId,
             children = List(exampleTags.button("text",
               caption = "x",
               activate = simpleReceiverFactory.create(delete(task))
-            ))
+            ).toChildPair[OfDiv])
           ),
         ))
-      )
+      ).toChildPair[OfDiv]
     )
-    List(listTags.popupManager("pm",
-      listTags.highlighter("col-highlighter",RowHighlightByAttr) ::
-      listTags.highlighter("row-highlighter",ColHighlightByAttr) ::
+    List(popupManager("pm",
+      highlighter("col-highlighter",rowHighlightByAttr).toChildPair[OfDiv] ::
+      highlighter("row-highlighter",colHighlightByAttr).toChildPair[OfDiv] ::
       list
-    ))
+    ).toChildPair[OfDiv])
   }
 }
 
