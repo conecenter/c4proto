@@ -51,9 +51,9 @@ export default function VdomApp() {
             key: "app",
             maxFilterAreaWidth,
             filters: noFilters ? [] : [
-                $(FilterItem, { key: 1, value: "Number/Marking", children: "1 1", minWidth: 5, maxWidth: 10, canHide: !showSome1 }),
+                $(FilterItem, { key: 1, value: "Number/Marking", children: "1 1", minWidth: 7, maxWidth: 10, canHide: !showSome1 }),
                 $(FilterItem, { key: 2, value: "Location", children: "2 0", minWidth: 10, maxWidth: 10, canHide: !showSome0 }),
-                $(FilterItem, { key: 3, value: "Location Feature", children: "3 0", minWidth: 5, maxWidth: 10, canHide: !showSome0 }),
+                $(FilterItem, { key: 3, value: "Location Feature", children: "3 0", minWidth: 7, maxWidth: 10, canHide: !showSome0 }),
                 $(FilterItem, { key: 4, value: "Mode", children: "4 0", minWidth: 5, maxWidth: 10, canHide: !showSome0 }),
                 $(FilterItem, { key: 5, value: "From", children: "5 1", minWidth: 5, maxWidth: 10, canHide: !showSome1 }),
             ],

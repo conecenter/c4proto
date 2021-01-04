@@ -7,7 +7,6 @@ if webpack is running
 import '../../src/styles/style.scss'
 */
 //start here
-
 const containerElement = document.createElement("div")
 document.body.appendChild(containerElement)
-ReactDOM.render($(VdomApp),containerElement); 
+ReactDOM.render($(VdomApp),containerElement)

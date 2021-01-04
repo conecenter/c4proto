@@ -2,7 +2,7 @@
 import { GridRoot, GridCell, Highlighter } from "../main/vdom-list.js"
 import { createSyncProviders } from "../main/vdom-hooks.js"
 import React, { useEffect } from "react"
-import {Text, LocationCell, StockCell, ProjectCell, NumMarkCell, ByCell } from './MockData.jsx'
+import {Text, LocationCell, StockCell, ProjectCell, NumMarkCell, ByCell, InputElement } from './MockData.jsx'
 import { ImageElement } from "../temp/image.js"
 import { getMaxTableWidthWithout } from "../main/vdom-util.js"
 const { createElement: $ } = React
@@ -24,7 +24,7 @@ export default function VdomListElement({maxFilterAreaWidth, setMaxFilterAreaWid
             exCol("c1", 1, 5, 10, "Project"),
             exCol("c2", 2, 5, 10, "Stock"),
             exCol("c3", 2, 15, 15, "Cargo"),
-            exCol("c4", 3, 5, 10, "By"),
+            exCol("input", 5, 7, 10, "From"),
             exCol("c5", 3, 5, 10, "Out"),
             exCol("c6", 2, 15, 30, "Remains"),
             exCol("c7", 2, 5, 10, "In"),
@@ -50,6 +50,7 @@ export default function VdomListElement({maxFilterAreaWidth, setMaxFilterAreaWid
                 rowKey === "drag" ? enableDrag && getColDragElement() :
                 colKey === "expand" ? getExpanderElement() :
                 colKey === "drag" ? enableDrag && getRowDragElement() :
+                colKey === "input" ? InputCell() :
                 colKey === "icon" ? "I" :
                 colKey === "c0" ? ByCell() :
                 colKey === "c1" ? ProjectCell() :
@@ -84,6 +85,10 @@ export default function VdomListElement({maxFilterAreaWidth, setMaxFilterAreaWid
             { className: "textLineSize absolutelyCentered", key: "dragElem" },
             $(ImageElement, { color: "adaptive", className: "dragElement", src: '../temp/drag.svg' })
         )
+    }
+
+    function InputCell(){
+        return $(InputElement,{value:"", key:"tableInput"})
     }
 
     function getCargoIconCell() {
