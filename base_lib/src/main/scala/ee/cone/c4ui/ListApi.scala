@@ -35,14 +35,13 @@ trait FilterButton extends ToChildPair
 trait PivotCell extends Cell
 @c4tagSwitch("UICompApp") trait PivotSlice extends ToJson {
   def sliceKey: String
-  def children: Option[List[PivotSlice]]
+  def slices: List[PivotSlice]
 }
 trait PivotTerminalSlice extends PivotSlice {
-  def children: Option[List[PivotSlice]] = None
+  def slices: List[PivotSlice] = Nil
 }
 trait PivotGroupSlice extends PivotSlice {
   def slices: List[PivotSlice]
-  def children: Option[List[PivotSlice]] = Some(slices)
 }
 @c4tagSwitch("UICompApp") trait PivotSliceWidth extends ToJson
 
