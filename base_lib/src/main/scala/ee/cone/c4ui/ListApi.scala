@@ -33,7 +33,17 @@ trait FilterButton extends ToChildPair
 @c4tagSwitch("UICompApp") trait HighlightByAttr extends ToJson
 
 trait PivotCell extends Cell
-@c4tagSwitch("UICompApp") trait PivotSlice extends ToJson
+@c4tagSwitch("UICompApp") trait PivotSlice extends ToJson {
+  def sliceKey: String
+  def children: Option[List[PivotSlice]]
+}
+trait PivotTerminalSlice extends PivotSlice {
+  def children: Option[List[PivotSlice]] = None
+}
+trait PivotGroupSlice extends PivotSlice {
+  def slices: List[PivotSlice]
+  def children: Option[List[PivotSlice]] = Some(slices)
+}
 @c4tagSwitch("UICompApp") trait PivotSliceWidth extends ToJson
 
 @c4tags("UICompApp") trait ListTags[C] {
@@ -132,14 +142,14 @@ trait PivotCell extends Cell
     classNames: List[CSSClassName] = Nil,
     children: ChildPairList[OfDiv] = Nil,
   ): PivotCell
-  @c4val("group") def pivotSliceGroup(
+  @c4val("group") def pivotGroupSlice(
     sliceKey: String,
     slices: List[PivotSlice],
-  ): PivotSlice
-  @c4val("terminal") def terminalPivotSlice(
+  ): PivotGroupSlice
+  @c4val("terminal") def pivotTerminalSlice(
     sliceKey: String,
     width: PivotSliceWidth,
-  ): PivotSlice
+  ): PivotTerminalSlice
   @c4val("bound") def boundPivotSliceWidth(min: Int, max: Int): PivotSliceWidth
   @c4val("unbound") def unboundPivotSliceWidth(): PivotSliceWidth
 }
