@@ -15,14 +15,15 @@ case class PreHashingMurMur3() extends PreHashing {
 
   /*
   1 - Boolean,
+  3 - BigInt,
   4 - Int,
-  8 - Long,
-  50 - List,
-  10 - Product,
   5 - String,
   6 - PreHashedMD5,
   7 - BigDecimal,
+  8 - Long,
   9 - okio.ByteString
+  10 - Product,
+  50 - List,
    */
 
   @tailrec private def calculateN(model: Product, messengerInner: Java128HashInterface, counter: Int, arity: Int): Unit =
@@ -48,6 +49,9 @@ case class PreHashingMurMur3() extends PreHashing {
       case e: String =>
         messengerInner.updateLong(5)
         messengerInner.updateString(e)
+      case j: BigInt =>
+        messengerInner.updateLong(3)
+        calculateModelHash(BigDecimalFactory.unapply(BigDecimal(j)).get, messengerInner)
       case j: BigDecimal =>
         calculateModelHash(BigDecimalFactory.unapply(j).get, messengerInner) // TODO this allocates new ByteArray each time
       case a: Int =>
