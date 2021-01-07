@@ -96,7 +96,7 @@ case class TestAntiDosRootView(branchKey: SrcId) extends View {
     if(userName.isEmpty && !freshDB){
       List(tags.signIn(newSessionKey => local => {
         if(newSessionKey.isEmpty) throw new Exception with BranchError {
-          def message: String = "Bad username or password"
+          def message(local: Context): String = "Bad username or password"
         }
         local
       }))

@@ -151,6 +151,8 @@ class RKafkaConsumer(
     }
   def endOffset: NextOffset = // may be extend to endOffset-s
     OffsetHex(Single(consumer.endOffsets(inboxTopicPartition.asJava).asScala.values.toList): java.lang.Long)
+  def beginningOffset: NextOffset =
+    OffsetHex(Single(consumer.beginningOffsets(inboxTopicPartition.asJava).asScala.values.toList): java.lang.Long)
 }
 
 case class KafkaRawEvent(srcId: SrcId, data: ByteString, headers: List[RawHeader], mTime: Long, topicName: String) extends RawEvent with MTime with FromTopicRawEvent

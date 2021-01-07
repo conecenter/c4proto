@@ -76,22 +76,13 @@ push @tasks, [sshd=>sub{
     #sy('test -e /c4/c4proto || git clone https://github.com/conecenter/c4proto.git /c4/c4proto');
     &$exec('dropbear', '-RFEmwgs', '-p', $ENV{C4SSH_PORT}||die 'no C4SSH_PORT');
 }];
-my $haproxy = sub{
-    &$need_home();
-    my $port_prefix = $ENV{C4PORT_PREFIX} || 8000;
-    $ENV{C4HTTP_PORT} = $port_prefix+67;
-    $ENV{C4SSE_PORT} = $port_prefix+68;
-    &$exec("perl", "/haproxy.pl");
-};
-push @tasks, [haproxy=>$haproxy];
-push @tasks, [le_http=>$haproxy];
-push @tasks, [le_https=>$haproxy];
 push @tasks, [bloop=>sub{
     &$need_home();
-    my $dir = "/c4/.bloop";
-    $ENV{PATH} = "$ENV{PATH}:/tools/jdk/bin:$dir";
-    -e "$dir/bloop" or sy("curl -L https://github.com/scalacenter/bloop/releases/download/v1.3.4/install.py | python");
-    &$exec("bloop","server");
+    sy("perl /bloop_fix.pl");
+    $ENV{PATH} = "$ENV{PATH}:/tools/jdk/bin";
+    -e "/c4/.bloop/bloop" or sy("curl -L https://github.com/scalacenter/bloop/releases/download/v1.3.4/install.py | python");
+    #sy(". /c4p_alias.sh && coursier install bloop:1.4.4 --only-prebuilt=true");
+    &$exec(". /c4p_alias.sh && exec bloop server");
 }];
 
 my($cmd,@args)=@ARGV;

@@ -94,6 +94,7 @@ object AuthOperations {
   getC_PasswordHashOfUser: GetByPK[C_PasswordHashOfUser],
   getU_AuthenticatedSession: GetByPK[U_AuthenticatedSession],
 ) extends LazyLogging {
+
   def wire: RHttpHandlerCreate = next => (request,local) => {
     if(request.method != "POST") next(request,local)
     else ReqGroup.header(request,"x-r-auth") match {
@@ -244,7 +245,7 @@ object ReqGroup {
   def handle(request: FHttpRequest)(implicit executionContext: ExecutionContext): Future[S_HttpResponse] = {
     val now = System.currentTimeMillis
     val headers = normalize(request.headers)
-    val requestEv = S_HttpRequest(UUID.randomUUID.toString, request.method, request.path, headers, request.body, now)
+    val requestEv = S_HttpRequest(UUID.randomUUID.toString, request.method, request.path, request.rawQueryString, headers, request.body, now)
     val res = worldProvider.tx{ local =>
       val result = handler(requestEv,local)
       (result.events,result.instantResponse)

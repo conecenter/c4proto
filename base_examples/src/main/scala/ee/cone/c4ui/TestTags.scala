@@ -1,7 +1,8 @@
 package ee.cone.c4ui
 
+import ee.cone.c4actor.Types.TypeKey
 import ee.cone.c4actor._
-import ee.cone.c4di.{c4, c4multi, provide}
+import ee.cone.c4di.{CreateTypeKey, c4, c4multi, provide}
 import ee.cone.c4vdom.Types.VDomKey
 import ee.cone.c4vdom._
 
@@ -62,6 +63,8 @@ case class ContainerLeftRight() extends ElementValue {
 @c4multi("TestTagsApp") final class TestTags[State]()(
   child: ChildPairFactory, inputAttributes: TagJsonUtils, tags: Tags
 ) {
+  def testTypeKey: TypeKey = CreateTypeKey(classOf[String], "String", Nil)
+
   def messageStrBody(o: VDomMessage): String =
     o.body match { case bs: okio.ByteString => bs.utf8() }
 
@@ -79,7 +82,7 @@ case class ContainerLeftRight() extends ElementValue {
   }
 
   def dateInput(access: Access[Option[Long]]): ChildPair[OfDiv] =
-    input(access to ProdLensNonstrict[Option[Long],String](Nil)(
+    input(access to ProdLensStrict[Option[Long],String](Nil, classOf[Option[Long]], classOf[String], testTypeKey, testTypeKey)(
       _.map(_.toString).getOrElse(""),
       s=>_=> for(s<-Option(s) if s.nonEmpty) yield s.toLong
     ), deferSend = false)

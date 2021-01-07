@@ -3,6 +3,8 @@ package ee.cone.c4actor.rdb
 
 import ee.cone.c4assemble.Assemble
 
+trait ExternalActive
+
 trait ExternalDBOption
 trait CommonDBOption extends ExternalDBOption{
   def cl:Class[_]

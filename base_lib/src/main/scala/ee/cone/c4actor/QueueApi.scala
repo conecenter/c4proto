@@ -185,7 +185,7 @@ trait Lens[C,I] extends Getter[C,I] {
   def set: I => C=>C
 }
 
-abstract class AbstractLens[C,I] extends Lens[C,I] {
+trait AbstractLens[C,I] extends Lens[C,I] {
   def modify: (I=>I) => C=>C = f => c => set(f(of(c)))(c)
 }
 

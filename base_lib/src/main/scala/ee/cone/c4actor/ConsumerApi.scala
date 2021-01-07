@@ -9,4 +9,5 @@ trait Consuming {
 trait Consumer {
   def poll(): List[RawEvent]
   def endOffset: NextOffset
+  def beginningOffset: NextOffset
 }

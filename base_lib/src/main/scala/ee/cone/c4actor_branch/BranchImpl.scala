@@ -75,6 +75,7 @@ case object EmptyBranchMessage extends BranchMessage {
   getS_BranchResult: GetByPK[S_BranchResult],
   txAdd: LTxAdd,
   toAlienSender: ToAlienSender,
+  branchErrorSaver: Option[BranchErrorSaver]
 ) extends TxTransform with LazyLogging {
   private def saveResult: Context => Context = local => {
     //if(seed.isEmpty && newChildren.nonEmpty) println(s"newChildren: ${handler}")
@@ -96,7 +97,7 @@ case object EmptyBranchMessage extends BranchMessage {
     )(local)*/
   }
 
-  private def reportAliveBranches: Context => Context = local => {
+  private def reportAliveBranches(local: Context): Context = {
     val wasReport = ReportAliveBranchesKey.of(local)
     if(sessionKeys.isEmpty){
       if(wasReport.isEmpty) local else ReportAliveBranchesKey.set("")(local)
@@ -123,24 +124,16 @@ case object EmptyBranchMessage extends BranchMessage {
   private def sendToAll(evType: String, data: String): Context => Context =
     toAlienSender.send(sessionKeys,evType,data)
 
-  private def errorText: Context => String = local => ErrorKey.of(local).map{
-    case e:BranchError => e.message
-    case _ => ""
-  }.mkString("\n")
-
-  private def reportError: String => Context => Context = text =>
-    sendToAll("fail",s"$branchKey\n$text")
+  private def reportError: Context => Context =
+    sendToAll("fail",s"$branchKey\nInternal Page Error")
 
   private def incrementErrors: Context => Context =
     ErrorKey.modify(new Exception :: _)
 
-  private def saveErrors: String => Context => Context = text => {
-    val now = System.currentTimeMillis
-    val failure = U_SessionFailure(UUID.randomUUID.toString,text,now,sessionKeys)
-    txAdd.add(LEvent.update(failure))
-  }
+  private def saveErrors(local: Context): Context =
+    branchErrorSaver.fold(local)(_.saveErrors(local, branchKey, sessionKeys, ErrorKey.of(local)))
 
-  private def rmRequestsErrors: Context => Context = local => {
+  private def rmRequestsErrors(local: Context): Context = {
     chain(requests.map{ request =>
       val sessionKey = request.header("x-r-session")
       val index = request.header("x-r-index")
@@ -150,17 +143,25 @@ case object EmptyBranchMessage extends BranchMessage {
     }).andThen(ErrorKey.set(Nil))(local)
   }
 
+  private def doExchange(message: BranchMessage, local: Context): Context =
+    handler.exchange(message)(local)
+
+  private def doNormalTransform(local: Context): Context =
+    chain(getPosts.map(msg=>doExchange(msg,_)))
+    .andThen(saveResult).andThen(reportAliveBranches)(local)
+
   def transform(local: Context): Context = {
+    val end = NanoTimer()
     if(requests.nonEmpty)
       logger.debug(s"branch $branchKey tx begin ${requests.map(r=>r.header("x-r-alien-date")).mkString("(",", ",")")}")
     val errors = ErrorKey.of(local)
     val res = if(errors.nonEmpty && requests.nonEmpty)
-      saveErrors(errorText(local)).andThen(rmRequestsErrors)(local)
+      rmRequestsErrors(saveErrors(local))
     else if(errors.size == 1)
-      reportError(errorText(local)).andThen(incrementErrors)(local)
-    else chain(getPosts.map(handler.exchange))
-      .andThen(saveResult).andThen(reportAliveBranches)
-      .andThen(rmRequestsErrors)(local)
+      reportError.andThen(incrementErrors)(local)
+    else rmRequestsErrors(doNormalTransform(local))
+    if(requests.nonEmpty)
+      logger.debug(s"branch $branchKey tx done in ${end.ms} ms")
     res
   }
 }
@@ -218,20 +219,6 @@ case object EmptyBranchMessage extends BranchMessage {
         handler
     ))
 
-  type SessionKey = SrcId
-
-  def failuresBySession(
-    key: SrcId,
-    failure: Each[U_SessionFailure]
-  ): Values[(SessionKey,U_SessionFailure)] =
-    for(k <- failure.sessionKeys) yield k -> failure
-
-  def joinSessionFailures(
-    key: SrcId,
-    @by[SessionKey] failures: Values[U_SessionFailure]
-  ): Values[(SrcId,SessionFailures)] =
-    List(WithPK(SessionFailures(key,failures.sortBy(_.time).toList)))
-
   def redrawByBranch(
     key: SrcId,
     redraw: Each[U_Redraw]
@@ -245,8 +232,6 @@ case class RedrawBranchMessage(redraw: U_Redraw) extends BranchMessage {
   def body: okio.ByteString = okio.ByteString.EMPTY
   def deletes: Seq[LEvent[Product]] = LEvent.delete(redraw)
 }
-
-case class SessionFailures(sessionKey: SrcId, failures: List[U_SessionFailure])
 
 //todo relocate toAlien
 //todo error in view

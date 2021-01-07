@@ -59,7 +59,7 @@ import scala.util.control.NonFatal
       request <- requestPreHandler.handleAsync(req)
       entity <- request.entity.toStrict(Duration(5, MINUTES))(mat)
       body = ToByteString(entity.getData.toArray)
-      rReq = FHttpRequest(method, path, rHeaders, body)
+      rReq = FHttpRequest(method, path, req.uri.rawQueryString, rHeaders, body)
       rResp <- handler.handle(rReq)
       response <- {
         val status = Math.toIntExact(rResp.status)

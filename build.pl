@@ -58,6 +58,9 @@ my $bloop_conf_to_classpath = sub{
     my($conf)=@_;
     my $project = $$conf{project}||die;
     (@{$$project{classpath}||die},($$project{classesDir}||die))
+    #my $out_dir = $$project{out} || die;
+    #my $name = $$project{name} || die;
+    #(@{$$project{classpath}||die},"$out_dir/bloop-bsp-clients-classes/mod.$name.classes-bloop-cli")
 };
 my $calc_bloop_conf = sub{
     my($dir,$tmp,$dep_conf,$coursier_out,$src_list) = @_;
