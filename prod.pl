@@ -3,7 +3,7 @@
 use strict;
 use Digest::MD5 qw(md5_hex);
 
-my $sys_image_ver = "v81";
+my $sys_image_ver = "v82";
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -1048,7 +1048,7 @@ my $up_desktop = sub{
         {
             image => $img, name => "bloop",
             C4DATA_DIR => "/c4db",
-            JAVA_TOOL_OPTIONS => '-Xmx4g -Xss16m -XX:+UseG1GC -Dzipkin.server.url:"10.20.2.216"',
+            JAVA_TOOL_OPTIONS => '-Xmx4g -Xss16m -XX:+UseG1GC -Dzipkin.server.url:"http://10.20.2.216:9411"',
             @req_big,
         },
     ])
