@@ -1048,7 +1048,7 @@ my $up_desktop = sub{
         {
             image => $img, name => "bloop",
             C4DATA_DIR => "/c4db",
-            JAVA_TOOL_OPTIONS => '-Xmx4g -Xss16m -XX:+UseG1GC -Dzipkin.server.url:"http://10.20.2.216:9411"',
+            JAVA_TOOL_OPTIONS => '-Xmx4g -Xss16m -XX:+UseG1GC',
             @req_big,
         },
     ])
