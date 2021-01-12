@@ -176,6 +176,9 @@ push @tasks, ["run", sub{
     sy("perl $prod_pl build_client_changed . dev"); # ?may be able to redefine "." to absolute path
     &$exec_server($_[0])
 }];
+push @tasks, ["run_server", sub{
+    &$exec_server($_[0])
+}];
 my %color = qw(bright_red 91 green 32 yellow 33 bright_yellow 93 reset 0);
 my $color = sub{
     my $v = $color{$_[0]};
@@ -321,6 +324,13 @@ push @tasks, ["test_client post_big_message", sub{
     &$need_tmp();
     sy("dd if=/dev/zero of=tmp/test.bin bs=1M count=4 && $curl_test -v -XPOST -T tmp/test.bin")
 }];
+
+push @tasks, ["init",sub{
+
+
+}];
+
+
 
 push @tasks,["",sub{
     print "usage:\n";

@@ -3,6 +3,8 @@ import {createElement,useState,useCallback,useEffect,memo} from "react"
 import ReactDOM      from 'react-dom'
 import {splitFirst,spreadAll,oValues}    from "../main/util.js"
 import {ifInputsChanged,dictKeys,branchByKey,rootCtx,ctxToPath,chain,someKeys} from "../main/vdom-util.js"
+import {useSync,createSyncProviders} from "../../c4f/main/vdom-hooks.js"
+import {weakCache} from "../../c4f/main/vdom-util.js"
 
 //todo branch LIFE
 
@@ -157,47 +159,45 @@ const checkUpdate = changes => state => (
 
 /********* sync input *********************************************************/
 
-function SyncInputs(useSync){
-    function useSyncInput(identity,incomingValue,deferSend){
-        const [patches,enqueuePatch] = useSync(identity)
-        const [lastPatch,setLastPatch] = useState()
-        const defer = deferSend(!!lastPatch)
-        const onChange = useCallback(event => {
-            const headers = ({...event.target.headers})
-            const value = event.target.value
-            enqueuePatch({ headers: {...headers,"x-r-changing":"1"}, value, skipByPath: true, retry: true, defer})
-            setLastPatch({ headers, value, skipByPath: true, retry: true })
-        },[enqueuePatch,defer])
-        const onBlur = useCallback(event => {
-            setLastPatch(wasLastPatch=>{
-                if(wasLastPatch) enqueuePatch(wasLastPatch)
-                return undefined
-            })
-        },[enqueuePatch])
-        // x-r-changing is not the same as props.changing
-        //   x-r-changing -- not blur (not final patch)
-        //   props.changing -- not sync-ed with server
+export function useSyncInput(identity,incomingValue,deferSend){
+    const [patches,enqueuePatch] = useSync(identity)
+    const [lastPatch,setLastPatch] = useState()
+    const defer = deferSend(!!lastPatch)
+    const onChange = useCallback(event => {
+        const headers = ({...event.target.headers})
+        const value = event.target.value
+        enqueuePatch({ headers: {...headers,"x-r-changing":"1"}, value, skipByPath: true, retry: true, defer})
+        setLastPatch({ headers, value, skipByPath: true, retry: true })
+    },[enqueuePatch,defer])
+    const onBlur = useCallback(event => {
+        setLastPatch(wasLastPatch=>{
+            if(wasLastPatch) enqueuePatch(wasLastPatch)
+            return undefined
+        })
+    },[enqueuePatch])
+    // x-r-changing is not the same as props.changing
+    //   x-r-changing -- not blur (not final patch)
+    //   props.changing -- not sync-ed with server
 
-        // this effect is not ok: incomingValue can leave the same;
-        // ? see if wasLastPatch.value in patches
-        // or: send blur w/o value to sub-identity; changing = patch && "1" || props.changing
-        //    useEffect(()=>{
-        //        setLastPatch(wasLastPatch => wasLastPatch && wasLastPatch.value === incomingValue ? wasLastPatch : undefined)
-        //    },[incomingValue])
-        //
+    // this effect is not ok: incomingValue can leave the same;
+    // ? see if wasLastPatch.value in patches
+    // or: send blur w/o value to sub-identity; changing = patch && "1" || props.changing
+    //    useEffect(()=>{
+    //        setLastPatch(wasLastPatch => wasLastPatch && wasLastPatch.value === incomingValue ? wasLastPatch : undefined)
+    //    },[incomingValue])
+    //
 
-        const patch = patches.slice(-1).map(({value})=>({value}))[0]
-        const value = patch ? patch.value : incomingValue
-        const changing = patch ? "1" : undefined // patch || lastPatch
-        return ({value,changing,onChange,onBlur})
-    }
-    const SyncInput = memo(function SyncInput({value,onChange,...props}){
-        const {identity,deferSend} = onChange
-        const patch = useSyncInput(identity,value,deferSend)
-        return props.children({...props, ...patch})
-    })
-    return SyncInput
+    const patch = patches.slice(-1).map(({value})=>({value}))[0]
+    const value = patch ? patch.value : incomingValue
+    const changing = patch ? "1" : undefined // patch || lastPatch
+    return ({value,changing,onChange,onBlur})
 }
+const SyncInput = memo(function SyncInput({value,onChange,...props}){
+    const {identity,deferSend} = onChange
+    const patch = useSyncInput(identity,value,deferSend)
+    return props.children({...props, ...patch})
+})
+
 /********* traverse ***********************************************************/
 
 /*
@@ -210,7 +210,7 @@ function reProp(props){
 }*/
 
 
-function ElementWeakCache(weakCache){
+function ElementWeakCache(){
     const resolveChildren = (o,keys) => keys.map(k=>elementWeakCache(o[k]))
     const elementWeakCache = weakCache(props=>{
         if(props.at.identity) {
@@ -237,18 +237,17 @@ function ElementWeakCache(weakCache){
 
 // todo no resize anti-dos
 
-export function VDomAttributes(sender,useSync,createSyncProviders,weakCache){
+export function VDomAttributes(sender){
     const inpSender = {
         enqueue: (identityCtx,patch) => {
             const sent = sender.send(identityCtx,patch)
             return parseInt(sent["x-r-index"])
         },
     }
-    const elementWeakCache = ElementWeakCache(weakCache)
+    const elementWeakCache = ElementWeakCache()
     function SyncInputRoot({incoming,ack}){
         return createSyncProviders({ ack, sender: inpSender, children: elementWeakCache(incoming) })
     }
-    const SyncInput = SyncInputs(useSync)
 
     const sendThen = ctx => event => {
         sender.send(ctx,{value:""})

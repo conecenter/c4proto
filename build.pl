@@ -301,8 +301,10 @@ print "generation finished\n";
 do{
     my @dirs = grep{$_} &$to(&$dep_conf("C4CLIENT"));
     for my $path(@dirs){
+        my $conf_path = "$path/package.json";
+        -e $conf_path or next;
         my $sum_key = &$get_sum($path);
-        my $sum_val = &$get_sum(&$get_text("$path/package.json"));
+        my $sum_val = &$get_sum(&$get_text($conf_path));
         &$if_changed("$tmp/client-dep-sum.$sum_key", $sum_val, sub{
             sy("cd $path && npm install");
         });

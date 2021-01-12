@@ -15,7 +15,6 @@ import {ExampleRequestState} from "../test/request-state"
 //import CanvasExtraMix from "../extra/canvas-extra-mix"
 import {CanvasBaseMix} from "../main/canvas-mix"
 import {todoTransforms} from "../test/todo"
-import {useSync,createSyncProviders} from "../main/vdom-hooks.js"
 function fail(data){ alert(data) }
 
 const send = fetch
@@ -36,7 +35,7 @@ const canvasMods = [CanvasBaseMix(log,util),exchangeMix/*,CanvasExtraMix(log)*/]
 
 const canvas = CanvasManager(React,Canvas.CanvasFactory(util, canvasMods), sender, log)
 
-const vDomAttributes = VDomAttributes(exampleRequestState,useSync,createSyncProviders)
+const vDomAttributes = VDomAttributes(exampleRequestState)
 const exampleComponents = ExampleComponents()
 const exampleAuth = ExampleAuth(pairOfInputAttributes)
 

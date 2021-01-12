@@ -8,10 +8,8 @@ import {VDomCore,VDomAttributes} from "../main/vdom-core.js"
 import {VDomSender} from "../main/vdom-util.js"
 import {mergeAll}    from "../main/util.js"
 
-import {components as listComponents} from "../main/vdom-list.js"
-import {components as filterComponents} from "../main/vdom-filter.js"
-import {useSync,createSyncProviders} from "../main/vdom-hooks.js"
-import {weakCache} from "../main/vdom-util"
+import {components as listComponents} from "../../c4f/main/vdom-list.js"
+import {components as filterComponents} from "../../c4f/main/vdom-filter.js"
 
 import {components as todoComponents} from "../test/todo.js"
 
@@ -22,7 +20,7 @@ const sessionReload = SessionReload(localStorage,sessionStorage,location,Math.ra
 const sender = VDomSender(feedback)
 const log = v => console.log(v)
 const getRootElement = () => document.body
-const vDomAttributes = VDomAttributes(sender,useSync,createSyncProviders,weakCache)
+const vDomAttributes = VDomAttributes(sender)
 const components = mergeAll([listComponents,filterComponents,todoComponents])
 const transforms = mergeAll([vDomAttributes.transforms,{tp:components}])
 const vDom = VDomCore(log,transforms,getRootElement)

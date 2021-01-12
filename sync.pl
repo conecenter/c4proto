@@ -64,8 +64,22 @@ my $load_started = sub{
 
 my $prune = [qw(target .git .idea .bloop node_modules build)];
 
+my $clean_local = sub{
+    my($dir)=@_;
+    for(grep{m"\bc4gen\b|/target/|/tmp/|/node_modules/|/.bloop/"} map{"/$_"} &$find("","$dir/",[])){
+        my $path = "$dir$_";
+        print "deleting $path\n";
+        unlink $path or die;
+    }
+};
+
 my @tasks;
 
+push @tasks, ["clean_local","",sub{
+    my($dir)=@_;
+    $dir || die;
+    &$clean_local($dir);
+}];
 push @tasks, ["start","",sub{
     my($dir,$remote_dir,$port)=@_;
     $dir && $remote_dir || die;
@@ -74,11 +88,7 @@ push @tasks, ["start","",sub{
     my($ssh,$remote_pre_d,$remote_pre) = &$get_remote($port);
     my $remote_pre_q = $remote_pre || "sh -c ";
     if($clean){
-        for(grep{m"\bc4gen\b|/target/|/tmp/|/node_modules/|/.bloop/"} map{"/$_"} &$find("","$dir/",[])){
-            my $path = "$dir$_";
-            print "deleting $path\n";
-            unlink $path or die;
-        }
+        &$clean_local($dir);
         sy("$remote_pre_q 'mkdir -p $remote_dir && rm -r $remote_dir'");
     }
     sy("$remote_pre_q 'mkdir -p $remote_dir'");

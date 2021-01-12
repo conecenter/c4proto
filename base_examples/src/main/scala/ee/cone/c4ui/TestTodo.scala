@@ -90,7 +90,13 @@ abstract class SetField[T](val make: (SrcId,String)=>T) extends Product
         s"""<!DOCTYPE html><meta charset="UTF-8"><body>
             <script type="text/javascript" src="vendor.js?$now"></script>
             <script type="text/javascript" src="react-app.js?$now"></script>
-        </body>"""
+        </body>""",
+      "/todo-app.html" ->
+        s"""<!DOCTYPE html><meta charset="UTF-8">
+         <style> @import '/src/c4p/test/todo-app.css'; </style>
+         <body>
+            <script  type="module" src="/src/c4p/test/todo-app.js"></script>
+         </body>""",
     )
   }
 }
@@ -99,7 +105,7 @@ abstract class SetField[T](val make: (SrcId,String)=>T) extends Product
 
 @c4("TestTodoApp") final class TestTodoUrlProvider {
   @provide def assembles: Seq[Assemble] =
-    new FromAlienTaskAssemble("/src/test/todo-app.html") :: Nil
+    new FromAlienTaskAssemble("/todo-app.html") :: Nil
 }
 
 @protocol("TestTodoApp") object TestTodoProtocol {

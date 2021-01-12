@@ -33,7 +33,7 @@ import scala.annotation.tailrec
 ) with Executable with Early
 
 class LoggerConfigurator(paths: List[Path], catchNonFatal: CatchNonFatal, scanPeriod: Long) extends Executable {
-  def run(): Unit = iteration("")
+  def run(): Unit = concurrent.blocking{ iteration("") }
   @tailrec private def iteration(wasContent: String): Unit = {
     val content =
       s"""
