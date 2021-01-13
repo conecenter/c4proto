@@ -1333,6 +1333,13 @@ my $client_mode_to_opt = sub{
     $mode eq "dev" ? "--mode development" :
     "--mode production";
 };
+my $if_changed = sub{
+    my($path,$will,$then)=@_;
+    return if (-e $path) && syf("cat $path") eq $will;
+    my $res = &$then();
+    &$put_text($path,$will);
+    $res;
+};
 my $build_client = sub{
     my($gen_dir, $opt)=@_;
     $gen_dir || die;
@@ -1340,8 +1347,9 @@ my $build_client = sub{
     my $build_dir = "$dir/out";
     unlink or die $! for <$build_dir/*>;
     my $conf_dir = &$single_or_undef(grep{-e} map{"$_/webpack"} <$dir/src/*>) || die;
-    sy("cd $dir && cp $conf_dir/package.json $conf_dir/webpack.config.js . && npm install");
-    sy("cd $dir && node_modules/webpack/bin/webpack.js $opt");# -d
+    &$if_changed("$dir/package.json", syf("cat $conf_dir/package.json"), sub{1})
+        and sy("cd $dir && npm install");
+    sy("cd $dir && cp $conf_dir/webpack.config.js . && node_modules/webpack/bin/webpack.js $opt");# -d
     &$put_text("$build_dir/publish_time",time);
     &$put_text("$build_dir/c4gen.ht.links",join"",
         map{ my $u = m"^/(.+)$"?$1:die; "base_lib.ee.cone.c4gate /$u $u\n" }
@@ -1351,12 +1359,7 @@ my $build_client = sub{
     my $to_dir = "$gen_dir/htdocs";
     $build_dir eq readlink $to_dir or symlink $build_dir, $to_dir or die $!;
 };
-my $if_changed = sub{
-    my($path,$will,$then)=@_;
-    return if (-e $path) && syf("cat $path") eq $will;
-    &$then();
-    &$put_text($path,$will);
-};
+
 push @tasks, ["build_client","<dir> [mode]",sub{
     my($dir,$mode)=@_;
     &$build_client($dir, &$client_mode_to_opt($mode));

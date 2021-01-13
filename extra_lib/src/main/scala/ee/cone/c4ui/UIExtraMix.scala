@@ -13,7 +13,7 @@ trait VDomApp extends ComponentProviderApp {
   lazy val vDomResolver: VDomResolver = resolveSingle(classOf[VDomResolver])
 }
 
-trait UIApp extends UICompApp with VDomApp with AlienExchangeApp {
+trait ExtraUIApp extends UICompApp with VDomApp with AlienExchangeApp {
   lazy val branchOperations: BranchOperations = resolveSingle(classOf[BranchOperations])
   lazy val untilPolicy: UntilPolicy = resolveSingle(classOf[UntilPolicy])
 }

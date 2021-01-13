@@ -95,4 +95,4 @@ trait TestTxLogAppBase
   with ReactHtmlApp
   with PublisherApp
   with SkipWorldPartsApp
-  with EeConeC4uiDefApp
+  with FrontApp
