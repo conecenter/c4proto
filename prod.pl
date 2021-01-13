@@ -1336,9 +1336,11 @@ my $client_mode_to_opt = sub{
 my $build_client = sub{
     my($gen_dir, $opt)=@_;
     $gen_dir || die;
-    my $dir = "$gen_dir/client";
-    my $build_dir = "$dir/build/test";
+    my $dir = "$gen_dir/.bloop/c4/client";
+    my $build_dir = "$dir/out";
     unlink or die $! for <$build_dir/*>;
+    my $conf_dir = &$single_or_undef(grep{-e} map{"$_/webpack"} <$dir/src/*>) || die;
+    sy("cd $dir && cp $conf_dir/package.json $conf_dir/webpack.config.js . && npm install");
     sy("cd $dir && node_modules/webpack/bin/webpack.js $opt");# -d
     &$put_text("$build_dir/publish_time",time);
     &$put_text("$build_dir/c4gen.ht.links",join"",
