@@ -1,6 +1,5 @@
 
 use strict;
-use JSON::XS;
 
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 sub syf{ for(@_){ print "$_\n"; my $r = scalar `$_`; $? && die $?; return $r } }
@@ -14,10 +13,6 @@ my $exec_at = sub{
 my $put_text = sub{
     my($fn,$content)=@_;
     open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
-};
-my $relink = sub{
-    my($f,$l)=@_;
-    if($f ne readlink $l){ unlink $l; symlink $f, $l or die $!, $f, $l }
 };
 my $group = sub{ my %r; push @{$r{$$_[0]}||=[]}, $$_[1] for @_; (sub{@{$r{$_[0]}||[]}},[sort keys %r]) };
 
@@ -81,15 +76,7 @@ my $serve_proxy = sub{
 };
 
 my $serve_node = sub{
-    my $vite_run_dir = "$data_dir/vite";
-    sy("mkdir -p $vite_run_dir/src");
-    for(@{JSON::XS->new->decode(syf("cat $repo_dir/c4dep.main.json"))}){
-        ref $_ or next;
-        my($op,$from,$to)=@$_;
-        $op eq 'C4CLIENT' or next;
-        $from && $to || die;
-        &$relink("$repo_dir/$to/src","$vite_run_dir/src/$from");
-    }
+    my $vite_run_dir = "$repo_dir/.bloop/c4/client";
     my $conf_dir = "$vite_run_dir/src/c4f/vite";
     sy("cd $vite_run_dir && cp $conf_dir/package.json $conf_dir/vite.config.js . && npm install");
     &$exec_at($vite_run_dir,{},"npm","run","dev");
@@ -100,12 +87,12 @@ my $serve_gate = sub{
         C4DATA_DIR=>$data_dir,
         C4STATE_REFRESH_SECONDS=>100,
         # JAVA_TOOL_OPTIONS=>"-XX:ActiveProcessorCount=36", #todo: fix work without many cores
-    }, "$proto_dir/do.pl run_server def");
+    }, "$proto_dir/do.pl run def");
 };
 
 my $serve_main = sub{
     my $main = $ENV{C4DEV_SERVER_MAIN} || die "no C4DEV_SERVER_MAIN";
-    &$exec_at($repo_dir, {C4DATA_DIR=>$data_dir}, "$proto_dir/do.pl run_server $main");
+    &$exec_at($repo_dir, {C4DATA_DIR=>$data_dir}, "$proto_dir/do.pl run $main");
 };
 
 my $serve_build = sub{

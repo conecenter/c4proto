@@ -156,9 +156,6 @@ my $exec_server = sub{
     my $env = join " ", map{"$_=$env{$_}"} sort keys %env;
     &$exec(". $tmp/mod.$mod.classpath.sh && $env exec java ee.cone.c4actor.ServerMain");
 };
-push @tasks, ["gate_publish", sub{
-    sy("perl $prod_pl build_client .");
-}];
 push @tasks, ["gate_server_run", sub{
     &$inbox_configure();
     local $ENV{C4STATE_REFRESH_SECONDS} = 100;
@@ -173,10 +170,6 @@ push @tasks, ["ignore_all_snapshots", sub{
     &$exec_server("ignore-all");
 }];
 push @tasks, ["run", sub{
-    sy("perl $prod_pl build_client_changed . dev"); # ?may be able to redefine "." to absolute path
-    &$exec_server($_[0])
-}];
-push @tasks, ["run_server", sub{
     &$exec_server($_[0])
 }];
 my %color = qw(bright_red 91 green 32 yellow 33 bright_yellow 93 reset 0);
@@ -231,7 +224,7 @@ my $get_debug_ip = sub{
 };
 
 push @tasks, ["loop", sub{
-    my ($arg) = @_;
+    my ($pre,$arg) = @_;
     my $was_ver;
     my @active_pid;
     my $droll = "./target/dev-rolling-";
@@ -270,7 +263,7 @@ push @tasks, ["loop", sub{
                         " -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$debug_int_ip:$debug_port $ENV{JAVA_TOOL_OPTIONS}";
                     };
                     #
-                    sy("perl $prod_pl build_client_changed . dev");
+                    sy($pre);
                     &$exec_server($arg);
                     die;
                 }
