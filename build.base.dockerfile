@@ -14,7 +14,7 @@ ENV C4CI_BASE_TAG_ENV=$C4CI_BASE_TAG
 ENV C4CI_PROTO_DIR=/c4/repo/main
 ENV C4CI_BUILD_DIR=/c4/repo/main
 #
-COPY --chown=c4:c4 . /c4/repo/cause
-RUN perl /c4/repo/cause/sync.pl start /c4/repo/cause $C4CI_BUILD_DIR 0
+COPY --chown=c4:c4 . /c4/cause
+RUN perl /c4/cause/sync.pl start /c4/cause $C4CI_BUILD_DIR 0
 RUN perl $C4CI_PROTO_DIR/prod.pl ci_inner_build
 RUN perl $C4CI_PROTO_DIR/prod.pl ci_inner_cp
