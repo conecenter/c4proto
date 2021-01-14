@@ -18,8 +18,8 @@ my $group = sub{ my %r; push @{$r{$$_[0]}||=[]}, $$_[1] for @_; (sub{@{$r{$_[0]}
 
 my $zoo_port = 8081;
 my $ssl_bootstrap_server = "localhost:8093"; #dup
-my $repo_dir = $ENV{C4CI_BUILD_DIR} || die "no C4CI_BUILD_DIR";
-my $proto_dir = $ENV{C4CI_PROTO_DIR} || die "no C4CI_PROTO_DIR";
+my $repo_dir = $ENV{C4DS_BUILD_DIR} || die "no C4DS_BUILD_DIR";
+my $proto_dir = $ENV{C4DS_PROTO_DIR} || die "no C4DS_PROTO_DIR";
 my $home = $ENV{HOME} || die;
 my $data_dir = $home;
 

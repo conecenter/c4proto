@@ -1327,6 +1327,27 @@ push @tasks, ["ci_inner_build","",sub{
     &$close();
     print "tracking compiler 2\n";
 }];
+push @tasks, ["ci_setup","<builder>",sub{
+    my($comp) = @_;
+    my $from_path = &$get_tmp_dir();
+    my $put = &$rel_put_text($from_path);
+    my $ver = "v2";
+    &$put("Dockerfile", join "\n",
+        "FROM ghcr.io/conecenter/c4replink:$ver",
+        "COPY --chown=c4:c4 .tmp-ssh/* /c4/.ssh/",
+    );
+    sy(&$ssh_add());
+    my $temp = syf("hostname")=~/(\w+)/ ? "c4build_temp/$1/replink" : die;
+    my $tag = "builder:replink-with-keys-$ver";
+    &$rsync_to($from_path,$comp,$temp);
+    my $uid = syf(&$remote($comp,"id -u"))=~/(\d+)/ ? $1 : die;
+    sy(&$remote($comp, join " && ",
+        "mkdir -p $temp/.tmp-ssh",
+        "cp \$HOME/.ssh/known_hosts \$HOME/.ssh/id_rsa $temp/.tmp-ssh",
+        "docker build -t $tag --build-arg C4UID=$uid $temp",
+    ));
+}];
+
 my $client_mode_to_opt = sub{
     my($mode)=@_;
     $mode eq "fast" ? "--env.fast=true --mode development" :
