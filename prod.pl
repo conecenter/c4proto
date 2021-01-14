@@ -1443,7 +1443,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     @public_part and &$put_text("$ctx_dir/htdocs/c4gen.ht.links",join"",map{@{$$_{links}||die}}@public_part);
     #
     print "[purge]\n";
-    for(reverse sort syl("cat $gen_dir/ci.rm")){ chomp $_ or die; unlink $_; rmdir $_; print ":$_\n" }
+    for(reverse sort syl("cat $gen_dir/ci.rm")){ chomp $_ or die "$![$_]"; unlink $_; rmdir $_; print ":$_\n" }
     print "[purge end]\n";
 }];
 push @tasks, ["up-ci","",sub{
