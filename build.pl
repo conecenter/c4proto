@@ -163,7 +163,8 @@ my $calc_bloop_conf = sub{
     ([@tag2mod,@bloop_will,@main_paths_will],$src_dirs_by_name);
 };
 my $calc_sbt_conf = sub{
-    my($src_dirs,$externals)=@_;
+    my($src_dirs,$externals,$resolvers)=@_;
+    my ($resolver_by_name,$resolver_names) = &$group(@$resolvers);
     join "\n",
         'scalaVersion in ThisBuild := "2.13.1"','',
         "libraryDependencies ++= ",
@@ -172,6 +173,13 @@ my $calc_sbt_conf = sub{
         "",
         "unmanagedSourceDirectories in Compile ++= ",
         (map{qq^  (baseDirectory.value / "$_") ::^} sort @$src_dirs),
+        "  Nil",
+        "",
+        "resolvers ++= ",
+        (map{
+            my $u = &$single(&$resolver_by_name($_));
+            qq^  ("$_" at "$u") ::^
+        } sort @$resolver_names),
         "  Nil";
 };
 ### AutoMixer
@@ -269,7 +277,8 @@ my $src_list = join"\n", grep{!m"/c4gen-[^/]+$"} &$find_files(map{"$src_dir/$_"}
 #
 &$if_changed("$tmp/bloop-conf-in-sum",&$get_sum("$dep_content\n$src_list"), sub{
     my $externals = [&$distinct(&$to(&$dep_conf("C4EXT")))];
-    my @repo_args = sort map{"-r $_"} &$distinct(&$to(&$dep_conf("C4REPO")));
+    my @resolvers = &$dep_conf("C4REPO");
+    my @repo_args = sort map{"-r $_"} &$distinct(&$to(@resolvers));
     my $dependencies_args = join " ", @repo_args, sort @$externals;
     my $coursier_out_path = &$need_path("$tmp/coursier-out.json");
     &$if_changed("$tmp/coursier-in-sum",&$get_sum($dependencies_args), sub{
@@ -279,7 +288,7 @@ my $src_list = join"\n", grep{!m"/c4gen-[^/]+$"} &$find_files(map{"$src_dir/$_"}
     my ($bloop_will,$src_dirs_by_name) = &$calc_bloop_conf($src_dir,$tmp,$dep_conf,$coursier_out,$src_list);
     &$put_text(&$need_path($$_{fn}),$$_{content}) for @$bloop_will;
     &$put_text(&$need_path("$tmp/generator-src-dirs"), join " ", &$src_dirs_by_name($gen_mod));
-    &$put_text("$src_dir/c4gen-generator.sbt", &$calc_sbt_conf(\@src_dirs,$externals));
+    &$put_text("$src_dir/c4gen-generator.sbt", &$calc_sbt_conf(\@src_dirs,$externals,\@resolvers));
     &$put_text(&$need_path("$tmp/gen/src"),$src_list);
 });
 #
