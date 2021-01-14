@@ -1441,6 +1441,8 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
         sy("rsync -av --files-from=$files $from_dir/ $ctx_dir/htdocs");
     }
     @public_part and &$put_text("$ctx_dir/htdocs/c4gen.ht.links",join"",map{@{$$_{links}||die}}@public_part);
+    #
+    for(reverse sort syl("cat $gen_dir/ci.rm")){ chomp $_; unlink $_ }
 }];
 push @tasks, ["up-ci","",sub{
     my ($comp,$args) = @_;
