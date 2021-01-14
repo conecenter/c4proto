@@ -15,7 +15,7 @@ ENV C4CI_PROTO_DIR=/c4/repo/main
 ENV C4CI_BUILD_DIR=/c4/repo/main
 ENV C4REPO_MAIN_CONF=$C4CI_BUILD_DIR/c4dep.main.replink
 ENV C4STEP_SYNC="mkdir -p $C4CI_BUILD_DIR && cp /c4/cause/*.replink /c4/cause/*.pl $C4CI_BUILD_DIR/  && /replink.pl && perl $C4CI_PROTO_DIR/sync.pl start /c4/cause $C4CI_BUILD_DIR 0"
-ENV C4STEP_BUILD="JAVA_TOOL_OPTIONS='-Xss32m' perl $C4CI_PROTO_DIR/prod.pl ci_inner_build"
+ENV C4STEP_BUILD="perl $C4CI_PROTO_DIR/prod.pl ci_inner_build"
 ENV C4STEP_BUILD_CLIENT="echo NOOP"
 ENV C4STEP_COPY="perl $C4CI_PROTO_DIR/prod.pl ci_inner_cp"
 #
