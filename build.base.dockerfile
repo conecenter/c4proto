@@ -3,7 +3,7 @@ USER root
 RUN /install.pl apt \
     curl ca-certificates xz-utils \
     libyaml-libyaml-perl libjson-xs-perl python \
-    rsync zip
+    zip
 RUN /install.pl curl https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.5%2B10/OpenJDK11U-jdk_x64_linux_hotspot_11.0.5_10.tar.gz
 RUN /install.pl curl https://git.io/coursier-cli-linux && chmod +x /tools/coursier
 USER c4

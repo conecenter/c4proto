@@ -1,6 +1,5 @@
 
 some dockerfile -> install.pl
-builder dockerfile -> sync.pl
 builder dockerfile -> prod.pl ci_* -> build.pl, bloop_fix.pl
 
 prod.pl bakes install.pl to many images
@@ -14,7 +13,11 @@ prod.pl -> ci.pl
 only manual => app.pl
 app.pl -> sync.pl
 app.pl -> build.pl
-app.pl -> prod.pl build_client
 
-only manual => do.pl
-do.pl -> prod.pl build_client, need_certs
+manual -> do.pl
+do.pl -> prod.pl need_certs
+
+serve.pl:
+    -> prod.pl need_certs
+    -> do.pl run
+    -> build.pl
