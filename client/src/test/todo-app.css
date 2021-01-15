@@ -1,0 +1,6 @@
+
+.dragHandleCell { user-select: none; cursor: pointer }
+
+div.grid {
+    --secondary-color: rgb(238, 238, 238);
+}

@@ -31,3 +31,8 @@ htdocs
 *.auth
 c4gen.*
 c4gen-*
+
+c4front
+.bloop
+
+*.out

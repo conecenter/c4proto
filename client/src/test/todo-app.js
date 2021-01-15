@@ -7,8 +7,10 @@ import withState     from "../main/active-state.js"
 import {VDomCore,VDomAttributes} from "../main/vdom-core.js"
 import {VDomSender} from "../main/vdom-util.js"
 import {mergeAll}    from "../main/util.js"
-import {components as listComponents} from "../main/vdom-list.js"
-import {components as filterComponents} from "../main/vdom-filter.js"
+
+import {components as listComponents} from "../../c4f/main/vdom-list.js"
+import {components as filterComponents} from "../../c4f/main/vdom-filter.js"
+
 import {components as todoComponents} from "../test/todo.js"
 
 function fail(data){ alert(data) }

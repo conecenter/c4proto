@@ -1,7 +1,7 @@
 
 import {createElement as $} from 'react'
-import {identityAt} from "../main/vdom-util.js"
-import {useSender} from "../main/vdom-hooks.js"
+import {identityAt} from "../../c4f/main/vdom-util.js"
+import {useSender} from "../../c4f/main/vdom-hooks.js"
 import {useSyncInput} from "../main/vdom-core.js"
 
 const notDefer = _=>false

@@ -2,9 +2,9 @@
 import {createElement,useState,useCallback,useEffect,memo} from "react"
 import ReactDOM      from 'react-dom'
 import {splitFirst,spreadAll,oValues}    from "../main/util.js"
-import {ifInputsChanged,dictKeys,branchByKey,rootCtx,ctxToPath,chain,someKeys,weakCache} from "../main/vdom-util.js"
-import {useSync,createSyncProviders} from "../main/vdom-hooks.js"
-
+import {ifInputsChanged,dictKeys,branchByKey,rootCtx,ctxToPath,chain,someKeys} from "../main/vdom-util.js"
+import {useSync,createSyncProviders} from "../../c4f/main/vdom-hooks.js"
+import {weakCache} from "../../c4f/main/vdom-util.js"
 
 //todo branch LIFE
 
@@ -208,8 +208,6 @@ function reProp(props){
         { [k]: ()=>v.map(ik=>reProp(props[ik])) }
     ))
 }*/
-
-
 
 const resolveChildren = (o,keys) => keys.map(k=>elementWeakCache(o[k]))
 const elementWeakCache = weakCache(props=>{

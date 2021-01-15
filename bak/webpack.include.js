@@ -1,5 +1,4 @@
 
-// use `npm outdated`
 
 const path = require('path')
 

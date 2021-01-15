@@ -1327,19 +1327,50 @@ push @tasks, ["ci_inner_build","",sub{
     &$close();
     print "tracking compiler 2\n";
 }];
+push @tasks, ["ci_setup","<builder>",sub{
+    my($comp) = @_;
+    my $from_path = &$get_tmp_dir();
+    my $put = &$rel_put_text($from_path);
+    my $ver = "v2";
+    &$put("Dockerfile", join "\n",
+        "FROM ghcr.io/conecenter/c4replink:$ver",
+        "COPY --chown=c4:c4 .tmp-ssh/* /c4/.ssh/",
+    );
+    sy(&$ssh_add());
+    my $temp = syf("hostname")=~/(\w+)/ ? "c4build_temp/$1/replink" : die;
+    my $tag = "builder:replink-with-keys-$ver";
+    &$rsync_to($from_path,$comp,$temp);
+    my $uid = syf(&$remote($comp,"id -u"))=~/(\d+)/ ? $1 : die;
+    sy(&$remote($comp, join " && ",
+        "mkdir -p $temp/.tmp-ssh",
+        "cp \$HOME/.ssh/known_hosts \$HOME/.ssh/id_rsa $temp/.tmp-ssh",
+        "docker build -t $tag --build-arg C4UID=$uid $temp",
+    ));
+}];
+
 my $client_mode_to_opt = sub{
     my($mode)=@_;
     $mode eq "fast" ? "--env.fast=true --mode development" :
     $mode eq "dev" ? "--mode development" :
     "--mode production";
 };
+my $if_changed = sub{
+    my($path,$will,$then)=@_;
+    return if (-e $path) && syf("cat $path") eq $will;
+    my $res = &$then();
+    &$put_text($path,$will);
+    $res;
+};
 my $build_client = sub{
     my($gen_dir, $opt)=@_;
     $gen_dir || die;
-    my $dir = "$gen_dir/client";
-    my $build_dir = "$dir/build/test";
+    my $dir = "$gen_dir/.bloop/c4/client";
+    my $build_dir = "$dir/out";
     unlink or die $! for <$build_dir/*>;
-    sy("cd $dir && node_modules/webpack/bin/webpack.js $opt");# -d
+    my $conf_dir = &$single_or_undef(grep{-e} map{"$_/webpack"} <$dir/src/*>) || die;
+    &$if_changed("$dir/package.json", syf("cat $conf_dir/package.json"), sub{1})
+        and sy("cd $dir && npm install");
+    sy("cd $dir && cp $conf_dir/webpack.config.js . && node_modules/webpack/bin/webpack.js $opt");# -d
     &$put_text("$build_dir/publish_time",time);
     &$put_text("$build_dir/c4gen.ht.links",join"",
         map{ my $u = m"^/(.+)$"?$1:die; "base_lib.ee.cone.c4gate /$u $u\n" }
@@ -1349,12 +1380,7 @@ my $build_client = sub{
     my $to_dir = "$gen_dir/htdocs";
     $build_dir eq readlink $to_dir or symlink $build_dir, $to_dir or die $!;
 };
-my $if_changed = sub{
-    my($path,$will,$then)=@_;
-    return if (-e $path) && syf("cat $path") eq $will;
-    &$then();
-    &$put_text($path,$will);
-};
+
 push @tasks, ["build_client","<dir> [mode]",sub{
     my($dir,$mode)=@_;
     &$build_client($dir, &$client_mode_to_opt($mode));
@@ -1415,6 +1441,9 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
         sy("rsync -av --files-from=$files $from_dir/ $ctx_dir/htdocs");
     }
     @public_part and &$put_text("$ctx_dir/htdocs/c4gen.ht.links",join"",map{@{$$_{links}||die}}@public_part);
+    #
+    print "[purging]\n";
+    for(sort{$b cmp $a} syl("cat $gen_dir/ci.rm")){ chomp $_ or die "[$_]"; unlink $_; rmdir $_ }
 }];
 push @tasks, ["up-ci","",sub{
     my ($comp,$args) = @_;

@@ -1,0 +1,15 @@
+version: '2'
+services:
+  main:
+    image: c4devel
+    restart: unless-stopped
+    volumes:
+    - "../..:/c4repo"
+    ports:
+    - "127.0.0.10:3000:3000"
+    - "127.0.0.10:80:1080"
+    environment:
+    - C4DS_PROTO_DIR=/c4repo/c4proto
+    - C4DS_BUILD_DIR=${C4DS_BUILD_DIR}
+    - C4REPO_MAIN_CONF=${C4REPO_MAIN_CONF}
+    - C4DEV_SERVER_MAIN=${C4DEV_SERVER_MAIN}

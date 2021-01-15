@@ -12,6 +12,7 @@
   ["C4GENERATOR_MAIN", "ee.cone.c4generator.Main", "generator.ee.cone.c4generator" ],
 
   ["C4CLIENT", "c4p", "client" ],
+  ["C4CLIENT", "c4f", "c4front" ],
 
   ["C4SRC", "generator", "generator/src/main/scala" ],
   ["C4SRC", "base_lib", "base_lib/src/main/scala" ],
@@ -21,6 +22,8 @@
   ["C4SRC", "extra_lib", "extra_lib/src/main/scala" ],
   ["C4SRC", "extra_lib", "extra_lib/src/main/java" ],
   ["C4SRC", "extra_examples", "extra_examples/src/main/scala" ],
+
+  ["C4SRC", "front", "c4front/src/sapi"],
 
   ["C4EXT", "base_server.ee.cone.c4gate_akka", "com.typesafe.akka:akka-stream_2.13:2.5.25" ],
   ["C4EXT", "base_server.ee.cone.c4gate_akka", "com.typesafe.akka:akka-http-core_2.13:10.1.10" ],
@@ -41,17 +44,21 @@
   ["C4DEP", "base_server.ee.cone.c4gate_akka_s3", "base_server.ee.cone.c4gate_server" ],
   ["C4DEP", "base_server.ee.cone.c4gate_akka_s3", "base_lib.ee.cone.c4actor_s3_minio" ],
 
+  ["C4DEP", "front.ee.cone.c4ui", "base_lib.ee.cone.c4ui"],
+
   ["C4DEP", "base_examples.ee.cone.c4actor", "base_lib.ee.cone.c4actor_logback_impl" ],
   ["C4DEP", "base_examples.ee.cone.c4gate", "base_lib.ee.cone.c4gate" ],
   ["C4DEP", "base_examples.ee.cone.c4gate", "base_lib.ee.cone.c4actor_kafka_impl" ],
   ["C4DEP", "base_examples.ee.cone.c4gate", "base_lib.ee.cone.c4actor_logback_impl" ],
   ["C4DEP", "base_examples.ee.cone.c4gate_server", "base_server.ee.cone.c4gate_server" ],
+
   ["C4DEP", "base_examples.ee.cone.c4vdom", "base_lib.ee.cone.c4vdom_mix" ],
   ["C4DEP", "base_examples.ee.cone.c4ui", "base_lib.ee.cone.c4ui" ],
   ["C4DEP", "base_examples.ee.cone.c4ui", "base_lib.ee.cone.c4actor_kafka_impl" ],
   ["C4DEP", "base_examples.ee.cone.c4ui", "base_lib.ee.cone.c4actor_logback_impl" ],
   ["C4DEP", "base_examples.ee.cone.c4ui", "base_lib.ee.cone.c4actor_repl_impl" ],
   ["C4DEP", "base_examples.ee.cone.c4ui", "base_examples.ee.cone.c4vdom" ],
+  ["C4DEP", "base_examples.ee.cone.c4ui", "front.ee.cone.c4ui"],
 
   ["C4DEP", "extra_examples.ee.cone.c4actor", "extra_lib.ee.cone.c4actor" ],
   ["C4DEP", "extra_examples.ee.cone.c4actor", "base_lib.ee.cone.c4actor_kafka_impl" ],

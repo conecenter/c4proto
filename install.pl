@@ -12,7 +12,7 @@ my($cmd,@args)=@ARGV;
 if($cmd eq 'apt'){
     $ENV{DEBIAN_FRONTEND} = 'noninteractive';
     sy('apt', 'update');
-    sy('apt-get', 'install', '-y', @args);
+    sy('apt-get', 'install', '-y', "--no-install-recommends", @args);
     sy("rm -rf /var/lib/apt/lists/*");
 } elsif($cmd eq 'curl'){
     for('/download'){ mkdir $_; chdir $_ or die $_ }

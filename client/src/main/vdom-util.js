@@ -39,7 +39,7 @@ export const pairOfInputAttributes = ({value,onChange,salt},headers) => {
 };
 
 export const chain = functions => arg => functions.reduce((res,f)=>f(res), arg)
-export const deleted = ks => st => spreadAll(...Object.keys(st).filter(ck=>!ks[ck]).map(ck=>({[ck]:st[ck]})))
+const deleted = ks => st => spreadAll(...Object.keys(st).filter(ck=>!ks[ck]).map(ck=>({[ck]:st[ck]})))
 
 const oneKey = (k,by) => st => {
     const was = st && st[k]
@@ -71,18 +71,3 @@ export const ifInputsChanged = log => (cacheKey,inpKeysObj,f) => {
         return res
     }
 }
-
-export const weakCache = f => {
-    const map = new WeakMap
-    return arg => {
-        if(map.has(arg)) return map.get(arg)
-        const res = f(arg)
-        map.set(arg,res)
-        return res
-    }
-}
-
-export const identityAt = key => weakCache(parent => ({ parent, key }))
-export const never = o => { console.log(o); throw new Error }
-export const map = f => l => l && l.map && l.map(f) || l && never(l)
-// export const head = l => l && l[0]
