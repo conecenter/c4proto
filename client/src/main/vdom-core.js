@@ -209,30 +209,27 @@ function reProp(props){
     ))
 }*/
 
+const resolveChildren = (o,keys) => keys.map(k=>elementWeakCache(o[k]))
+const elementWeakCache = weakCache(props=>{
+    if(props.at.identity) {
+        const {key,at:{tp,...at},...cProps} = props
+        const childAt = Object.fromEntries(
+            Object.entries(cProps)
+            .filter(([k,v])=>Array.isArray(v))
+            .map(([k,v])=>[k, resolveChildren(cProps,v)])
+        )
+        return createElement(tp,{key,...at,...childAt})
+    }
+    //lega:
+    const {key,at:{tp,...at}} = props
+    const children =
+        at.content && at.content[0] === "rawMerge" ? props :
+        props.chl ? resolveChildren(props,props.chl) : at.content
+    return at.onChange ?
+        createElement(at.onChange.tp, {...at,at,key}, uProp=>createElement(tp, uProp, children)) :
+        createElement(tp, {...at,at,key}, children)
+})
 
-function ElementWeakCache(){
-    const resolveChildren = (o,keys) => keys.map(k=>elementWeakCache(o[k]))
-    const elementWeakCache = weakCache(props=>{
-        if(props.at.identity) {
-            const {key,at:{tp,...at},...cProps} = props
-            const childAt = Object.fromEntries(
-                Object.entries(cProps)
-                .filter(([k,v])=>Array.isArray(v))
-                .map(([k,v])=>[k, resolveChildren(cProps,v)])
-            )
-            return createElement(tp,{key,...at,...childAt})
-        }
-        //lega:
-        const {key,at:{tp,...at}} = props
-        const children =
-            at.content && at.content[0] === "rawMerge" ? props :
-            props.chl ? resolveChildren(props,props.chl) : at.content
-        return at.onChange ?
-            createElement(at.onChange.tp, {...at,at,key}, uProp=>createElement(tp, uProp, children)) :
-            createElement(tp, {...at,at,key}, children)
-    })
-    return elementWeakCache
-}
 /******************************************************************************/
 
 // todo no resize anti-dos
@@ -244,7 +241,6 @@ export function VDomAttributes(sender){
             return parseInt(sent["x-r-index"])
         },
     }
-    const elementWeakCache = ElementWeakCache()
     function SyncInputRoot({incoming,ack}){
         return createSyncProviders({ ack, sender: inpSender, children: elementWeakCache(incoming) })
     }

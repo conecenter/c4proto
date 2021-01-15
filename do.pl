@@ -318,13 +318,6 @@ push @tasks, ["test_client post_big_message", sub{
     sy("dd if=/dev/zero of=tmp/test.bin bs=1M count=4 && $curl_test -v -XPOST -T tmp/test.bin")
 }];
 
-push @tasks, ["init",sub{
-
-
-}];
-
-
-
 push @tasks,["",sub{
     print "usage:\n";
         $$_[0] && $$_[0]!~/\s/ and print "\t$0 $$_[0]\n" for @tasks;
