@@ -1519,7 +1519,7 @@ my $make_frp_image = sub{
     );
     &$put("Dockerfile", join "\n",
         &$base_image_steps(),
-        "RUN perl install.pl apt curl",
+        "RUN perl install.pl apt curl ca-certificates",
         "RUN perl install.pl curl $dl_frp_url",
         "COPY frp.pl /",
         "USER c4",
