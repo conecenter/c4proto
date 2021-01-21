@@ -75,8 +75,11 @@ push @tasks, ["restart_kafka", sub{
     &$stop_kafka();
     &$need_tmp();
     &$put_text("tmp/zookeeper.properties","dataDir=$data_dir/zookeeper\nclientPort=$zoo_port\n");
-    sy("perl $prod_pl need_certs $data_dir/ca cu.broker $data_dir $data_dir");
-    sy("perl $prod_pl need_certs $data_dir/ca cu.def $data_dir");
+
+    die;
+    #sy("perl $prod_pl need_certs $data_dir/ca cu.broker $data_dir $data_dir");
+    #sy("perl $prod_pl need_certs $data_dir/ca cu.def $data_dir");
+
     &$put_text("tmp/server.properties", join '', map{"$_\n"}
         "log.dirs=$data_dir/kafka-logs",
         "zookeeper.connect=127.0.0.1:$zoo_port",
@@ -165,9 +168,6 @@ push @tasks, ["gate_server_run_s3", sub{
     &$inbox_configure();
     local $ENV{C4STATE_REFRESH_SECONDS} = 100;
     &$exec_server("s3def");
-}];
-push @tasks, ["ignore_all_snapshots", sub{
-    &$exec_server("ignore-all");
 }];
 push @tasks, ["run", sub{
     &$exec_server($_[0])

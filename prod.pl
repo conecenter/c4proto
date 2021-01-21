@@ -2,6 +2,7 @@
 
 use strict;
 use Digest::MD5 qw(md5_hex);
+use JSON::XS;
 
 my $sys_image_ver = "v79";
 
@@ -786,56 +787,6 @@ my $all_consumer_options = sub{(
 #                -Dcom.sun.management.jmxremote.rmi.port=9010
 #            )),
 
-my $need_certs = sub{
-    my($dir,$fn_pre,$dir_pre,$cf_pre) = @_;
-    my $ca_auth = "$dir/simple.auth";
-    my $days = "16384";
-    my $ca_key = "$dir/ca-key";
-    my $ca_cert = "$dir/ca-cert";
-    my $ca_ts = "$dir/truststore.jks";
-    my $was_no_ca = !-e $ca_ts;
-    if($was_no_ca){
-        sy("mkdir -p $dir");
-        &$put_text($ca_auth, syf("uuidgen")=~/(\S+)/ ? $1 : die) if !-e $ca_auth;
-        sy("openssl req -new -x509 -keyout $ca_key -out $ca_cert -days $days -subj '/CN=CARoot' -nodes");
-        sy("keytool -keystore $ca_ts -storepass:file $ca_auth -alias CARoot -import -noprompt -file $ca_cert");
-    }
-    #
-    $dir_pre||die;
-    my $auth = "$dir_pre/simple.auth";
-    my $pre = "$dir_pre/$fn_pre";
-    my $ts = "$pre.truststore.jks";
-    my $ks = "$pre.keystore.jks";
-    my $csr = "$pre.unsigned";
-    my $signed = "$pre.signed";
-    my $keytool = "keytool -keystore $ks -storepass:file $auth -alias localhost -noprompt";
-    if(!-e $ts){
-        sy("cp $ca_auth $auth");
-        sy("$keytool -genkey -keyalg RSA -dname 'cn=localhost' -keypass:file $auth -validity $days");
-        sy("$keytool -certreq -file $csr");
-        sy("openssl x509 -req -CA $ca_cert -CAkey $ca_key -in $csr -out $signed -days $days -CAcreateserial");
-        sy("keytool -keystore $ks -storepass:file $auth -alias CARoot -noprompt -import -file $ca_cert -trustcacerts");
-        sy("$keytool -import -file $signed -trustcacerts");
-        sy("cp $ca_ts $ts");
-    }
-    #
-    if($cf_pre){
-        my $auth_data = `cat $auth`=~/^(\S+)\s*$/ ? $1 : die;
-        &$put_text("$pre.properties",join '', map{"$_\n"}
-            "ssl.keystore.location=$cf_pre/$fn_pre.keystore.jks",
-            "ssl.keystore.password=$auth_data",
-            "ssl.key.password=$auth_data",
-            "ssl.truststore.location=$cf_pre/$fn_pre.truststore.jks",
-            "ssl.truststore.password=$auth_data",
-            "ssl.endpoint.identification.algorithm=",
-            "", #broker
-            "ssl.client.auth=required",
-            #"security.inter.broker.protocol=SSL",
-        );
-    }
-    $was_no_ca;
-};
-
 my $need_deploy_cert = sub{
     my($comp,$from_path)=@_;
     my %auth = &$get_auth($comp);
@@ -931,7 +882,8 @@ my $up_gate = sub{
     my %consumer_options = &$get_consumer_options($run_comp);
     my %gate_options = (
         name => "gate",
-        C4DATA_DIR => "/c4db",
+        #C4DATA_DIR => "/c4db",
+        C4S3_CONF_DIR => "/c4conf-ceph-client",
         C4STATE_TOPIC_PREFIX => "gate",
         C4STATE_REFRESH_SECONDS => 1000,
         req_mem => "4Gi", req_cpu => "1000m",
@@ -1718,10 +1670,6 @@ push @tasks, ["visit-kc_host", "", sub{
 
 ###
 
-push @tasks, ["need_certs","",sub{
-    &$need_certs(@_);
-}];
-
 my $mk_to_cfg = sub{qq{
 global
   tune.ssl.default-dh-param 2048
@@ -1991,6 +1939,39 @@ push @tasks, ["up-elector","",sub{
       image => $img, name => "kubectl", is_deployer => 1, @req_small,
     });
     &$sync_up(&$wrap_deploy($comp,$from_path,\@containers),$args);
+}];
+
+
+my $ckh_secret =sub{ $_[0]=~/^([\w\-]+)$/ ? "$1" : die 'bad secret name' };
+push @tasks, ["get_secret","$composes_txt <secret-name>",sub{
+    my($comp,$secret_name_arg)=@_;
+    my $secret_name = &$ckh_secret($secret_name_arg);
+    sy(&$ssh_add());
+    my $ns = &$get_kc_ns($comp);
+    my $json = JSON::XS->new->pretty;
+    my $stm = "kubectl -n $ns get secret/$secret_name -o json";
+    my $data = $json->decode(syf(&$remote($comp,$stm)))->{data} || die;
+    print $json->encode({&$map($data, sub{
+        my($k,$v64)=@_;
+        ($k=>syf("base64 -d < ".&$put_temp("value",$v64)))
+    })});
+}];
+
+push @tasks, ["set_secret","$composes_txt <secret-name> <json-object>",sub{
+    my($comp,$secret_name_arg,$content)=@_;
+    my $secret_name = &$ckh_secret($secret_name_arg);
+    sy(&$ssh_add());
+    my $ns = &$get_kc_ns($comp);
+    my $json = JSON::XS->new;
+    my $data = {&$map($json->decode($content), sub{
+        my($k,$v)=@_;
+        ($k=>syf("base64 -w0 < ".&$put_temp("value",$v)))
+    })};
+    my $secret = $json->encode({
+        apiVersion => "v1", kind => "Secret", type => "Opaque", data => $data,
+        metadata => { name => $secret_name },
+    });
+    syf(&$remote($comp,"kubectl -n $ns apply -f-")." < ".&$put_temp("secret",$secret));
 }];
 
 ####

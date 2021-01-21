@@ -2,7 +2,6 @@ package ee.cone.c4gate_server
 
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path, Paths}
-
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{N_Update, S_Firstborn}
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
@@ -16,10 +15,13 @@ import ee.cone.c4gate._
 import ee.cone.c4gate_server.RHttpTypes.RHttpHandlerCreate
 import okio.ByteString
 
+import java.time.ZonedDateTime
 import scala.annotation.tailrec
 // import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 import scala.concurrent.{ExecutionContext, Future}
 import scala.jdk.CollectionConverters.IterableHasAsScala
+
+import scala.xml.XML
 
 @c4("SnapshotMakingApp") final class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, httpResponseFactory: RHttpResponseFactory) extends LazyLogging {
   def wire: RHttpHandlerCreate = next => (request,local) =>
@@ -118,7 +120,6 @@ class SnapshotSavers(val full: SnapshotSaver, val tx: SnapshotSaver)
   snapshotConfig: SnapshotConfig,
   snapshotLister: SnapshotLister,
   snapshotLoader: SnapshotLoader,
-  snapshotMTime: SnapshotMTime,
   snapshotSavers: SnapshotSavers,
   consuming: Consuming,
   toUpdate: ToUpdate
@@ -213,7 +214,7 @@ class SnapshotSavers(val full: SnapshotSaver, val tx: SnapshotSaver)
   }
 
   def maxTime: Long =
-    snapshotLister.list.headOption.fold(0L)(s=>snapshotMTime.mTime(s.raw))
+    snapshotLister.listWithMTime.headOption.fold(0L)(s=>s.mTime)
 }
 
 trait SnapshotMakerMaxTime {
@@ -240,58 +241,57 @@ trait SnapshotConfig {
 
 ////
 
-@c4("ConfigDataDirApp") final class ConfigDataDir(config: Config) extends DataDir(config.get("C4DATA_DIR"))
-
-@c4("SnapshotMakingApp") final class FileSnapshotConfigImpl(dir: DataDir)(
-  val ignore: Set[Long] =
-    Option(Paths.get(dir.value).resolve(".ignore")).filter(Files.exists(_)).toSet.flatMap{
-      (path:Path) =>
-        val content = new String(Files.readAllBytes(path), UTF_8)
-        val R = """([0-9a-f]+)""".r
-        R.findAllIn(content).map(java.lang.Long.parseLong(_, 16))
-    }
+@c4("SnapshotMakingApp") final class FileSnapshotConfigImpl(config: ListConfig)(
+  val ignore: Set[Long] = (for {
+    content <- config.get("C4IGNORE_IDS")
+    found <- """([0-9a-f]+)""".r.findAllIn(content)
+  } yield java.lang.Long.parseLong(found, 16)).toSet
 ) extends SnapshotConfig
 
-trait SnapshotMTime {
-  def mTime(snapshot: RawSnapshot): Long
+@c4("S3RawSnapshotLoaderApp") final class S3RawPrefix(config: Config)(
+  value: String = s"/${config.get("C4INBOX_TOPIC_PREFIX")}."
+){
+  def ++(that: String): String = s"$value$that"
+  def ++(that: RawSnapshot): String = this ++ that.relativePath
 }
 
-
-
-@c4("FileRawSnapshotLoaderApp") final class FileRawSnapshotLoaderImpl(baseDirConf: DataDir, util: SnapshotUtil)
-  extends SnapshotMTime with RawSnapshotLoader with SnapshotLister
-{
-  private def baseDir = Paths.get(baseDirConf.value)
+@c4("S3RawSnapshotLoaderApp") final class S3RawSnapshotLoaderImpl(
+  s3: S3Manager, util: SnapshotUtil, prefix: S3RawPrefix,
+) extends RawSnapshotLoader with SnapshotLister with LazyLogging {
   def load(snapshot: RawSnapshot): ByteString = {
-    val path = baseDir.resolve(snapshot.relativePath)
-    ToByteString(Files.readAllBytes(path))
+    ToByteString(s3.get(prefix++snapshot).get)
   }
-  def list(subDirStr: String): List[RawSnapshot] = {
-    val subDir = baseDir.resolve(subDirStr)
-    if(!Files.exists(subDir)) Nil
-    else FinallyClose(Files.newDirectoryStream(subDir))(_.asScala.toList)
-      .map(path=>RawSnapshot(baseDir.relativize(path).toString))
-  }
-  def list: List[SnapshotInfo] = {
-    val parseName = util.hashFromName
-    val rawList = list("snapshots")
-    val res = rawList.flatMap(parseName(_)).sortBy(_.offset).reverse
-    res
-  }
-  def mTime(snapshot: RawSnapshot): Long =
-    Files.getLastModifiedTime(baseDir.resolve(snapshot.relativePath)).toMillis
-  //remove Files.delete(path)
+  private def infix = "snapshots"
+  def listInner(): List[(RawSnapshot,String)] = for {
+    xmlBytes <- s3.get(prefix++infix).toList
+    xml = XML.loadString(new String(xmlBytes,UTF_8))
+    _ = logger.debug(s"$xml")
+    item <- xml \ "Contents"
+  } yield (RawSnapshot(s"$infix/${(item \ "Key").text}"), (item \ "LastModified").text)
+  def list: List[SnapshotInfo] = (for{
+    (rawSnapshot,_) <- listInner()
+    _ = logger.debug(s"$rawSnapshot")
+    snapshotInfo <- util.hashFromName(rawSnapshot)
+  } yield snapshotInfo).sortBy(_.offset).reverse
+  def listWithMTime: List[TimedSnapshotInfo] = (for{
+    (rawSnapshot,mTimeStr) <- listInner()
+    snapshotInfo <- util.hashFromName(rawSnapshot)
+  } yield {
+    val mTime = ZonedDateTime.parse(mTimeStr).toInstant.toEpochMilli
+    TimedSnapshotInfo(snapshotInfo,mTime)
+  }).sortBy(_.snapshot.offset).reverse
 }
 
-@c4("FileRawSnapshotSaverApp") final class FileRawSnapshotSaver(baseDir: DataDir) extends RawSnapshotSaver with LazyLogging {
-  private def ignoreTheSamePath(path: Path): Unit = ()
+@c4("S3RawSnapshotSaverApp") final class S3RawSnapshotSaver(
+  s3: S3Manager, util: SnapshotUtil, prefix: S3RawPrefix,
+) extends RawSnapshotSaver with SnapshotRemover with LazyLogging {
   def save(snapshot: RawSnapshot, data: Array[Byte]): Unit = {
-    val path: Path = Paths.get(baseDir.value).resolve(snapshot.relativePath)
-    ignoreTheSamePath(Files.createDirectories(path.getParent))
-    logger.debug(s"Writing snapshot...")
-    ignoreTheSamePath(Files.write(path, data))
-    logger.debug(s"Writing snapshot done")
+    val bucket = prefix ++ util.hashFromName(snapshot).get.subDirStr
+    if(s3.get(bucket).isEmpty) s3.put(bucket,Array.empty)
+    s3.put(prefix++snapshot, data)
   }
+  def deleteIfExists(snapshot: SnapshotInfo): Boolean =
+    s3.delete(prefix++snapshot.raw)
 }
 
 /*
