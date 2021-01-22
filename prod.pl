@@ -4,7 +4,7 @@ use strict;
 use Digest::MD5 qw(md5_hex);
 use JSON::XS;
 
-my $sys_image_ver = "v80f";
+my $sys_image_ver = "v80h";
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -162,6 +162,8 @@ my $sync_up = sub{
     sy(&$remote($comp,"cat >> $conf_dir.args")." < ".&$put_temp("args"," $args\n")) if $args;
     sy(&$remote($comp,"cd $conf_dir && chmod +x up && ./up"));
 };
+
+my $get_proto_dir = sub{ $ENV{C4PROTO_DIR} || $ENV{C4CI_PROTO_DIR} || die 'no C4PROTO_DIR' };
 
 my $main = sub{
     my($cmd,@args)=@_;
@@ -439,7 +441,7 @@ my $make_kc_yml = sub{
         my $opt = $_;
         my $nm = &$mandatory_of(name=>$opt);
         &$map($opt,sub{ my($k,$v)=@_;
-            $k=~/^C4/ && $v=~m{^(/c4conf-([\w\-]+))/} ? {container=>$nm,secret=>"$2",path=>"$1"} : ()
+            $k=~/^C4/ && "$v/"=~m{^(/c4conf-([\w\-]+))/} ? {container=>$nm,secret=>"$2",path=>"$1"} : ()
         });
     } @$options;
     my @all_secrets = (@int_secrets,@ext_secrets);
@@ -902,17 +904,16 @@ push @tasks, ["ci_build_sandbox", "$composes_txt", sub{
     sy(&$ssh_add());
     my $from_path = &$get_tmp_dir();
     my $put = &$rel_put_text($from_path);
-    my $gen_dir = $ENV{C4PROTO_DIR} || die;
+    my $gen_dir = &$get_proto_dir();
     my $conf_cert_path = &$get_conf_cert_path().".pub";
     sy("cp $gen_dir/install.pl $gen_dir/sandbox.pl $conf_cert_path $from_path/");
     &$put("c4p_alias.sh", join "\n",
         'export PATH=$PATH:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin:/tools:/c4/.bloop',
         'export JAVA_HOME=/tools/jdk',
-        'export C4DEPLOY_CONF=/c4conf-deploy/ssh.tar.gz',
         "export C4DEPLOY_LOCATION=".($ENV{C4DEPLOY_LOCATION}||die),
-        'export C4PROTO_DIR=/c4/c4proto',
         'export JAVA_TOOL_OPTIONS="-XX:-UseContainerSupport -Xss16m"',
-        "alias prod='ssh-agent perl /c4/c4proto/prod.pl '",
+        'alias prod="ssh-agent perl $C4PROTO_DIR/prod.pl "',
+        ". /c4/c4env"
     );
     my $sock = "/c4/supervisor.sock";
     &$put("supervisord.conf", join '', map{"$_\n"}
@@ -1008,7 +1009,7 @@ push @tasks, ["restart","$composes_txt",sub{
 
 my $put_snapshot = sub{
     my($auth_path,$data_path,$addr)=@_;
-    my $gen_dir = $ENV{C4PROTO_DIR} || die;
+    my $gen_dir = &$get_proto_dir();
     my $data_fn = $data_path=~m{([^/]+)$} ? $1 : die "bad file path";
     -e $auth_path or die "no gate auth";
     sy("python3","$gen_dir/req.py",$auth_path,$data_path,$addr,"/put-snapshot","/put-snapshot","snapshots/$data_fn");
@@ -1138,7 +1139,7 @@ push @tasks, ["ci_build_head","<builder> <req> <dir|commit> [parent]",sub{
     sy(&$ssh_add());
     my $img = &$get_head_img($req_pre,$repo_dir,$parent);
     my $req = "build $img\n";
-    my $gen_dir = $ENV{C4PROTO_DIR} || die;
+    my $gen_dir = &$get_proto_dir();
     my ($host,$port) = &$get_host_port($builder_comp);
     my $conf = &$get_compose($builder_comp);
     local $ENV{C4CI_HOST} = $host;
@@ -1296,7 +1297,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
 }];
 push @tasks, ["up-ci","",sub{
     my ($comp,$args) = @_;
-    my $gen_dir = $ENV{C4PROTO_DIR} || die;
+    my $gen_dir = &$get_proto_dir();
     my $img = do{
         my $from_path = &$get_tmp_dir();
         my $put = &$rel_put_text($from_path);
@@ -1357,7 +1358,7 @@ push @tasks, ["visit-ci", "", sub{
 
 my $make_frp_image = sub{
     my ($comp) = @_;
-    my $gen_dir = $ENV{C4PROTO_DIR} || die;
+    my $gen_dir = &$get_proto_dir();
     my $from_path = &$get_tmp_dir();
     my $put = &$rel_put_text($from_path);
     sy("cp $gen_dir/install.pl $from_path/");
@@ -1455,7 +1456,7 @@ my $install_kubectl = sub{
 push @tasks, ["up-kc_host", "", sub{
     my ($comp,$args) = @_;
     my $conf = &$get_compose($comp);
-    my $gen_dir = $ENV{C4PROTO_DIR} || die;
+    my $gen_dir = &$get_proto_dir();
     my $dir = $$conf{dir} || die;
     my $conf_cert_path = &$get_conf_cert_path().".pub";
     my $img = do{
@@ -1816,7 +1817,7 @@ push @tasks, ["cat_visitor_conf","$composes_txt",sub{
 
 push @tasks, ["up-elector","",sub{
     my ($comp,$args) = @_;
-    my $gen_dir = $ENV{C4PROTO_DIR} || die;
+    my $gen_dir = &$get_proto_dir();
     my $img = do{
         my $from_path = &$get_tmp_dir();
         my $put = &$rel_put_text($from_path);
