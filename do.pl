@@ -3,25 +3,10 @@
 use strict;
 use POSIX ":sys_wait_h";
 
-
-my $port_prefix = $ENV{C4PORT_PREFIX} || 8000;
-my $http_port = $port_prefix+67;
-my $sse_port = $port_prefix+68;
-my $zoo_port = $port_prefix+81;
-my $plain_kafka_port = $port_prefix+92;
-my $ssl_kafka_port = $port_prefix+93;
-my $inbox_prefix = '';
-my $kafka_version = "2.2.0";
-my $kafka = "kafka_2.12-$kafka_version";
-my $curl_test = "curl http://127.0.0.1:$http_port/abc";
-#my $plain_bootstrap_server = "127.0.0.1:$plain_kafka_port";
-my $ssl_bootstrap_server = "localhost:$ssl_kafka_port";
-my $http_server = "127.0.0.1:$http_port";
+my $http_server = $ENV{C4HTTP_SERVER}||die 'no C4HTTP_SERVER';
+my $curl_test = "curl $http_server/abc";
 my $gen_dir = "."; #"target/c4gen/res";
-$ENV{PATH}.=":tmp/$kafka/bin";
-my $prod_pl = ($ENV{C4PROTO_DIR}||".")."/prod.pl";
 
-sub syn{ print join(" ",@_),"\n"; system @_; }
 sub sy{
     print "$ENV{PATH}\n";
     print join(" ",@_),"\n"; system @_ and die $?;
@@ -49,126 +34,14 @@ my $main = sub{
     ($cmd||'') eq $$_[0] and $$_[1]->(@args) for @tasks;
 };
 
-push @tasks, ["setup_kafka", sub{
-    &$need_tmp();
-    if (!-e $kafka) {
-        sy("cd tmp && curl -LO http://www-eu.apache.org/dist/kafka/$kafka_version/$kafka.tgz");
-        sy("cd tmp && tar -xzf $kafka.tgz")
-    }
-}];
-
-my $inbox_configure = sub{
-    my $kafka_topics = "kafka-topics.sh --zookeeper 127.0.0.1:$zoo_port --topic .inbox";
-    sy("$kafka_topics --create --partitions 1 --replication-factor 1")
-        if 0 > index syf("$kafka_topics --list"), ".inbox";
-};
-
-my $stop_kafka = sub{
-    syn("kafka-server-stop.sh");
-    syn("zookeeper-server-stop.sh");
-};
-
-
-
-push @tasks, ["restart_kafka", sub{
-    my $data_dir = $ENV{C4DATA_DIR} || die "no C4DATA_DIR";
-    &$stop_kafka();
-    &$need_tmp();
-    &$put_text("tmp/zookeeper.properties","dataDir=$data_dir/zookeeper\nclientPort=$zoo_port\n");
-
-    die;
-    #sy("perl $prod_pl need_certs $data_dir/ca cu.broker $data_dir $data_dir");
-    #sy("perl $prod_pl need_certs $data_dir/ca cu.def $data_dir");
-
-    &$put_text("tmp/server.properties", join '', map{"$_\n"}
-        "log.dirs=$data_dir/kafka-logs",
-        "zookeeper.connect=127.0.0.1:$zoo_port",
-        "message.max.bytes=250000000", #seems to be compressed
-        #"listeners=PLAINTEXT://$plain_bootstrap_server,SSL://$ssl_bootstrap_server",
-        "listeners=SSL://$ssl_bootstrap_server",
-        "inter.broker.listener.name=SSL",
-        "socket.request.max.bytes=250000000",
-    );
-    sy("cat $data_dir/cu.broker.properties >> tmp/server.properties");
-    sy("zookeeper-server-start.sh -daemon tmp/zookeeper.properties");
-    sleep 5;
-    sy("kafka-server-start.sh -daemon tmp/server.properties");
-    sy("jps");
-    #&$inbox_configure();
-}];
-push @tasks, ["stop_kafka", sub{&$stop_kafka()}];
-
-#push @tasks, ["inbox_configure", sub{&$inbox_configure()}];
-
-push @tasks, ["inbox_log_tail", sub{
-    sy("kafka-console-consumer.sh --bootstrap-server $ssl_bootstrap_server --topic $inbox_prefix.inbox.log")
-}];
-push @tasks, ["inbox_test", sub{
-    sy("kafka-verifiable-consumer.sh --broker-list $ssl_bootstrap_server --topic $inbox_prefix.inbox --group-id dummy-".rand())
-}];
-
-=sk
-push @tasks, ["inbox_copy", sub{
-    my $from = $ENV{C4COPY_FROM} || die "C4COPY_FROM required";
-    &$need_tmp();
-    &$put_text("tmp/copy.consumer.properties",join "\n",
-        "group.id=dummy-".rand(),
-        "bootstrap.servers=$from",
-        #"enable.auto.commit=false"
-    );
-    &$put_text("tmp/copy.producer.properties",join "\n",
-        "bootstrap.servers=$bootstrap_server",
-        "compression.type=lz4",
-        "max.request.size=10000000",
-        #"linger.ms=1000",
-        "batch.size=1000",
-    );
-    sy("kafka-mirror-maker.sh"
-        ." --consumer.config tmp/copy.consumer.properties"
-        ." --producer.config tmp/copy.producer.properties"
-        .qq[ --whitelist="$inbox_prefix\\.inbox"]
-        ." --num.streams 40"
-        #." --queue.size 2000"
-        #." --whitelist='.*'"
-    );
-}];
-=cut
-
 my $exec_server = sub{
     my($arg)=@_;
     my $argv = $arg=~/\./ ? $arg : &$get_text(".bloop/c4/tag.$arg.to");
     my ($nm,$mod,$cl) = $argv=~/^(\w+)\.(.+)\.(\w+)$/ ? ($1,"$1.$2","$2.$3") : die;
     my $tmp = ".bloop/c4";
     sy("perl $tmp/compile.pl $mod");
-    my $data_dir = $ENV{C4DATA_DIR} || die "no C4DATA_DIR";
-    my %env = (
-        C4BOOTSTRAP_SERVERS => $ssl_bootstrap_server,
-        C4INBOX_TOPIC_PREFIX => "",
-        C4MAX_REQUEST_SIZE => 250000000,
-        C4HTTP_SERVER => "http://$http_server",
-        C4AUTH_KEY_FILE => "$data_dir/simple.auth",
-        C4STORE_PASS_PATH => "$data_dir/simple.auth",
-        C4KEYSTORE_PATH => "$data_dir/cu.def.keystore.jks",
-        C4TRUSTSTORE_PATH => "$data_dir/cu.def.truststore.jks",
-        C4HTTP_PORT => $http_port,
-        C4SSE_PORT => $sse_port,
-        C4LOGBACK_XML => "$data_dir/logback.xml",
-        C4STATE_TOPIC_PREFIX => $nm,
-        C4APP_CLASS => $cl,
-    );
-    my $env = join " ", map{"$_=$env{$_}"} sort keys %env;
-    &$exec(". $tmp/mod.$mod.classpath.sh && $env exec java ee.cone.c4actor.ServerMain");
+    &$exec(". $tmp/mod.$mod.classpath.sh && C4STATE_TOPIC_PREFIX=$nm C4APP_CLASS=$cl exec java ee.cone.c4actor.ServerMain");
 };
-push @tasks, ["gate_server_run", sub{
-    &$inbox_configure();
-    local $ENV{C4STATE_REFRESH_SECONDS} = 100;
-    &$exec_server("def");
-}];
-push @tasks, ["gate_server_run_s3", sub{
-    &$inbox_configure();
-    local $ENV{C4STATE_REFRESH_SECONDS} = 100;
-    &$exec_server("s3def");
-}];
 push @tasks, ["run", sub{
     &$exec_server($_[0])
 }];

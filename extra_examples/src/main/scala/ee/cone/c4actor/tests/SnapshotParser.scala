@@ -34,7 +34,7 @@ class SnapshotParserApp
   lazy val loader = new RawSnapshotLoader {
     def load(snapshot: RawSnapshot): ByteString = {
       ??? //snapshots goes to s3
-      //val path = Paths.get(config.get("C4DATA_DIR")).resolve(snapshot.relativePath)
+      //val path = Paths.get(config.get("C 4 D A T A _ D I R")).resolve(snapshot.relativePath)
       //ToByteString(Files.readAllBytes(path))
     }
   }

@@ -1,6 +1,12 @@
 
 use strict;
 
+#        " rsync openssh-client dropbear git".
+#        " xserver-xspice openbox firefox spice-vdagent terminology".
+#        " libjson-xs-perl libyaml-libyaml-perl libexpect-perl".
+#        " atop less bash-completion locales tmux uuid-runtime".
+#        " wget nano python haproxy supervisor xz-utils",
+
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 my $put_text = sub{
     my($fn,$content)=@_;
