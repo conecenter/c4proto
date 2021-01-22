@@ -910,10 +910,9 @@ push @tasks, ["ci_build_sandbox", "$composes_txt", sub{
     &$put("c4p_alias.sh", join "\n",
         'export PATH=$PATH:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin:/tools:/c4/.bloop',
         'export JAVA_HOME=/tools/jdk',
-        "export C4DEPLOY_LOCATION=".($ENV{C4DEPLOY_LOCATION}||die),
         'export JAVA_TOOL_OPTIONS="-XX:-UseContainerSupport -Xss16m"',
+        ". /c4/c4env",
         'alias prod="ssh-agent perl $C4PROTO_DIR/prod.pl "',
-        ". /c4/c4env"
     );
     my $sock = "/c4/supervisor.sock";
     &$put("supervisord.conf", join '', map{"$_\n"}
