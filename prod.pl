@@ -666,10 +666,9 @@ push @tasks, ["wrap_deploy-kc_host", "", $wrap_kc];
 #networks => { default => { aliases => ["broker","zookeeper"] } },
 
 my $remote_build = sub{
-    my($comp,$dir)=@_;
+    my($type_def,$comp,$dir)=@_;
     my($build_comp,$repo) = &$get_deployer_conf($comp,1,qw[builder sys_image_repo]);
-    my $conf = &$get_compose($comp);
-    my $type = $$conf{type} || die;
+    my $type = $type_def || &$get_compose($comp)->{type} || die;
     my $tag = "$repo:$type.$sys_image_ver";
     my $build_temp = syf("hostname")=~/(\w+)/ ? "c4build_temp/$1" : die;
     my $nm = $dir=~m{([^/]+)$} ? $1 : die;
@@ -963,7 +962,7 @@ push @tasks, ["ci_build_sandbox", "$composes_txt", sub{
         " && ln -s /supervisord.conf /c4/supervisord.conf", #for supervisorctl
         'ENTRYPOINT ["perl","/sandbox.pl"]',
     );
-    &$remote_build($comp,$from_path);
+    &$remote_build(sandbox=>$comp,$from_path);
 }];
 
 # m  h g b z -- m-h m-b  h-g g-b b-z l-h l-g l-b l-z
@@ -1309,7 +1308,7 @@ push @tasks, ["up-ci","",sub{
             "USER c4",
             'ENTRYPOINT ["perl","/ci.pl"]',
         );
-        &$remote_build($comp,$from_path);
+        &$remote_build(''=>$comp,$from_path);
     };
     my $conf = &$get_compose($comp);
     my ($host,$port) = &$get_host_port($comp);
@@ -1374,7 +1373,7 @@ my $make_frp_image = sub{
         "USER c4",
         'ENTRYPOINT ["perl", "/frp.pl"]',
     );
-    return &$remote_build($comp,$from_path);
+    return &$remote_build(''=>$comp,$from_path);
 };
 
 #my
@@ -1477,7 +1476,7 @@ push @tasks, ["up-kc_host", "", sub{
             "ENV C4SSH_PORT=$ssh_port",
             'ENTRYPOINT ["perl", "/cd.pl"]',
         );
-        &$remote_build($comp,$from_path);
+        &$remote_build(''=>$comp,$from_path);
     };
     my @containers = (
         {
@@ -1829,7 +1828,7 @@ push @tasks, ["up-elector","",sub{
             "USER c4",
             'ENTRYPOINT ["perl","/elector.pl"]',
         );
-        &$remote_build($comp,$from_path);
+        &$remote_build(''=>$comp,$from_path);
     };
     my $from_path = &$get_tmp_dir();
     my @containers = ({
