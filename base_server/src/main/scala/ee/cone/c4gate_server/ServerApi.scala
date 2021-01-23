@@ -63,5 +63,3 @@ trait StatefulReceiverFactory {
 trait StatefulReceiver[Message] {
   def send(message: Message): Unit
 }
-
-class DataDir(val value: String)

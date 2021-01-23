@@ -10,7 +10,7 @@ import ee.cone.c4di.c4multi
 
 
 
-@c4assemble("FileRawSnapshotLoaderApp") class SnapshotListRequestAssembleBase(
+@c4assemble("S3RawSnapshotLoaderApp") class SnapshotListRequestAssembleBase(
   requestTransformFactory: SnapshotListRequestTransformFactory
 ) {
   type SnapshotRequestAll = AbstractAll
@@ -32,15 +32,14 @@ import ee.cone.c4di.c4multi
   }
 }
 
-@c4multi("FileRawSnapshotLoaderApp") final case class SnapshotListRequestTransform(requests: List[S_ListSnapshotsRequest])(
+@c4multi("S3RawSnapshotLoaderApp") final case class SnapshotListRequestTransform(requests: List[S_ListSnapshotsRequest])(
   snapshotLister: SnapshotLister,
-  val snapshotMTime: SnapshotMTime,
   txAdd: LTxAdd
-) extends TxTransform with ProtoConversions {
+) extends TxTransform {
   def transform(local: Context): Context = {
     if (requests.nonEmpty) {
       if (ErrorKey.of(local).isEmpty) {
-        val response: S_ListSnapshotsResponse = snapshotLister.list
+        val response: S_ListSnapshotsResponse = toResponse(snapshotLister.listWithMTime)
         //PrintColored("g")(s"ListSnapshotsRequestHandler success with ${response.snapshotsInfo.size}")
         txAdd.add(requests.flatMap(LEvent.delete) ++ LEvent.update(response))(local)
       } else {
@@ -50,27 +49,12 @@ import ee.cone.c4di.c4multi
     } else
       local
   }
-}
-
-trait ProtoConversions {
-  val snapshotMTime: SnapshotMTime
-
-  implicit def RawSnapshotDeProto(raw: N_RawSnapshotInfoProto): RawSnapshot =
-    RawSnapshot(raw.relativePath)
-
-  implicit def RawSnapshotToProto(raw: RawSnapshot): N_RawSnapshotInfoProto =
-    N_RawSnapshotInfoProto(raw.relativePath)
-
-  implicit def RawSnapshotDeProtoList(raw: List[N_RawSnapshotInfoProto]): List[RawSnapshot] =
-    raw.map(r => r: RawSnapshot)
-
-  implicit def RawSnapshotToProtoList(raw: List[RawSnapshot]): List[N_RawSnapshotInfoProto] =
-    raw.map(r => r: N_RawSnapshotInfoProto)
-
-  implicit def SnapshotInfoToProto(info: SnapshotInfo): N_SnapshotInfoProto =
-    N_SnapshotInfoProto(info.subDirStr, info.offset, info.uuid, Option(info.raw), snapshotMTime.mTime(info.raw))
-
-  implicit def ListSnapshotInfoToResponse(list: List[SnapshotInfo]): S_ListSnapshotsResponse = {
-    S_ListSnapshotsResponse("response", list.map { info => info: N_SnapshotInfoProto })
+  def toProto(timed: TimedSnapshotInfo): N_SnapshotInfoProto = {
+    val info = timed.snapshot
+    val raw = N_RawSnapshotInfoProto(info.raw.relativePath)
+    N_SnapshotInfoProto(info.subDirStr, info.offset, info.uuid, Option(raw), timed.mTime)
+  }
+  def toResponse(list: List[TimedSnapshotInfo]): S_ListSnapshotsResponse = {
+    S_ListSnapshotsResponse("response", list.map(toProto))
   }
 }

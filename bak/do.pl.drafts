@@ -84,3 +84,40 @@ push @tasks, ["setup_sbt", &$in_tmp_dir(sub{
     }
     print qq{add to .bashrc or so:\nexport PATH=tmp/sbt-launcher-packaging-0.13.13/bin:\$PATH\n};
 })];
+
+################################################################################
+
+
+#push @tasks, ["inbox_log_tail", sub{
+#    sy("kafka-console-consumer.sh --bootstrap-server $ssl_bootstrap_server --topic $inbox_prefix.inbox.log")
+#}];
+#push @tasks, ["inbox_test", sub{
+#    sy("kafka-verifiable-consumer.sh --broker-list $ssl_bootstrap_server --topic $inbox_prefix.inbox --group-id dummy-".rand())
+#}];
+#
+#push @tasks, ["inbox_copy", sub{
+#    my $from = $ENV{C4COPY_FROM} || die "C4COPY_FROM required";
+#    &$need_tmp();
+#    &$put_text("tmp/copy.consumer.properties",join "\n",
+#        "group.id=dummy-".rand(),
+#        "bootstrap.servers=$from",
+#        #"enable.auto.commit=false"
+#    );
+#    &$put_text("tmp/copy.producer.properties",join "\n",
+#        "bootstrap.servers=$bootstrap_server",
+#        "compression.type=lz4",
+#        "max.request.size=10000000",
+#        #"linger.ms=1000",
+#        "batch.size=1000",
+#    );
+#    sy("kafka-mirror-maker.sh"
+#        ." --consumer.config tmp/copy.consumer.properties"
+#        ." --producer.config tmp/copy.producer.properties"
+#        .qq[ --whitelist="$inbox_prefix\\.inbox"]
+#        ." --num.streams 40"
+#        #." --queue.size 2000"
+#        #." --whitelist='.*'"
+#    );
+#}];
+
+#my $plain_bootstrap_server = "127.0.0.1:$plain_kafka_port";

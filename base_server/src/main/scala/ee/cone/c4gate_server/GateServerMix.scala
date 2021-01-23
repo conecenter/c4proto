@@ -8,24 +8,9 @@ import ee.cone.c4gate._
 
 @c4app class NoOpApp extends VMExecutionApp with ExecutableApp with BaseApp
 
-@c4app class IgnoreAllSnapshotsAppBase extends EnvConfigCompApp with VMExecutionApp with NoAssembleProfilerCompApp
-  with ExecutableApp with RichDataCompApp with KafkaConsumerApp
-  with SnapshotUtilImplApp with FileRawSnapshotSaverApp with ConfigDataDirApp
-
-/*
-@c4app class PublishAppBase extends ServerCompApp
-  with EnvConfigCompApp with VMExecutionApp
-  with KafkaProducerApp with KafkaConsumerApp
-  with PublishingCompApp
-  with NoAssembleProfilerCompApp
-  with RemoteRawSnapshotApp
-  with NoObserversApp*/
-
-////
-
-trait ConfigDataDirAppBase
-trait FileRawSnapshotLoaderAppBase
-trait FileRawSnapshotSaverAppBase
+trait S3ManagerAppBase
+trait S3RawSnapshotLoaderAppBase
+trait S3RawSnapshotSaverAppBase
 trait NoProxySSEConfigAppBase
 trait SafeToRunAppBase
 trait WorldProviderAppBase
@@ -83,8 +68,8 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
   extends SnapshotSavers(factory.create("snapshots"), factory.create("snapshot_txs"))
 
 trait SnapshotMakingAppBase extends TaskSignerApp
-  with FileRawSnapshotLoaderApp with FileRawSnapshotSaverApp
-  with ConfigDataDirApp with SignedReqUtilImplApp
+  with S3RawSnapshotLoaderApp with S3RawSnapshotSaverApp
+  with S3ManagerApp with SignedReqUtilImplApp
   with ConfigSimpleSignerApp with SnapshotUtilImplApp
   with SnapshotListProtocolApp
 trait SnapshotPutAppBase extends SignedReqUtilImplApp with SnapshotLoaderFactoryImplApp
