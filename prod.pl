@@ -4,7 +4,7 @@ use strict;
 use Digest::MD5 qw(md5_hex);
 use JSON::XS;
 
-my $sys_image_ver = "v81";
+my $sys_image_ver = "v82d";
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -599,6 +599,7 @@ my $make_kc_yml = sub{
                 selector => { app => $name },
                 ports => \@ports,
                 $all{is_deployer} ? (type => "NodePort") : (),
+                $all{headless} ? (clusterIP=>"None") : (),
             },
         }) : ();
     };
@@ -897,6 +898,7 @@ my $prod_image_steps = sub{(
 )};
 
 my $dl_frp_url = "https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz";
+my $dl_node_url = "https://nodejs.org/dist/v14.15.4/node-v14.15.4-linux-x64.tar.xz";
 
 push @tasks, ["ci_build_sandbox", "$composes_txt", sub{
     my($comp)=@_;
@@ -946,7 +948,7 @@ push @tasks, ["ci_build_sandbox", "$composes_txt", sub{
         " atop less bash-completion locales tmux wget".
         " make g++", # sass
         "RUN perl install.pl curl $dl_frp_url",
-        "RUN perl install.pl curl https://nodejs.org/dist/v14.15.4/node-v14.15.4-linux-x64.tar.xz",
+        "RUN perl install.pl curl $dl_node_url",
         "RUN perl install.pl curl https://github.com/sbt/sbt/releases/download/v1.4.0/sbt-1.4.0.tgz",
         "RUN perl install.pl curl https://git.io/coursier-cli-linux && chmod +x /tools/coursier",
         "RUN echo en_DK.UTF-8 UTF-8 >> /etc/locale.gen && locale-gen",
@@ -1813,29 +1815,31 @@ push @tasks, ["cat_visitor_conf","$composes_txt",sub{
     sy("cat $from_path/frpc.visitor.ini");
 }];
 
+my $elector_port = 1080;
 push @tasks, ["up-elector","",sub{
     my ($comp,$args) = @_;
     my $gen_dir = &$get_proto_dir();
     my $img = do{
         my $from_path = &$get_tmp_dir();
         my $put = &$rel_put_text($from_path);
-        sy("cp $gen_dir/install.pl $gen_dir/elector.pl $from_path/");
+        sy("cp $gen_dir/install.pl $gen_dir/elector.js $from_path/");
         &$put("Dockerfile", join "\n",
             &$base_image_steps(),
-            "RUN perl install.pl apt curl openssh-client libjson-xs-perl ",
-            &$install_kubectl(),
-            "COPY elector.pl /",
+            "RUN perl install.pl apt curl ca-certificates xz-utils", #xz-utils for node
+            "RUN perl install.pl curl $dl_node_url",
+            "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini && chmod +x /tools/tini",
+            "COPY elector.js /",
             "USER c4",
-            'ENTRYPOINT ["perl","/elector.pl"]',
+            'ENTRYPOINT ["/tools/tini","--","/tools/node/bin/node","/elector.js"]',
         );
         &$remote_build(''=>$comp,$from_path);
     };
     my $from_path = &$get_tmp_dir();
     my @containers = ({
-      image => $img, name => "elector", tty => "true", @req_small,
-    },{
-      image => $img, name => "kubectl", is_deployer => 1, @req_small,
-    });
+        image => $img, name => "main", tty => "true", headless=>1,
+        C4HTTP_PORT => $elector_port, "port:$elector_port:$elector_port"=>"",
+        @req_small
+    }); #todo: affin, replicas 3
     &$sync_up(&$wrap_deploy($comp,$from_path,\@containers),$args);
 }];
 
