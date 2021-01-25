@@ -137,19 +137,19 @@ my $exec_server = sub{
     my ($nm,$mod,$cl) = $argv=~/^(\w+)\.(.+)\.(\w+)$/ ? ($1,"$1.$2","$2.$3") : die;
     my $tmp = ".bloop/c4";
     sy("perl $tmp/compile.pl $mod");
-    my $data_dir = $ENV{C4DATA_DIR} || die "no C4DATA_DIR";
+#    my $data_dir = $ENV{C4DATA_DIR} || die "no C4DATA_DIR";
     my %env = (
-        C4BOOTSTRAP_SERVERS => $ssl_bootstrap_server,
-        C4INBOX_TOPIC_PREFIX => "",
+#        C4BOOTSTRAP_SERVERS => $ssl_bootstrap_server,
+#        C4INBOX_TOPIC_PREFIX => "",
         C4MAX_REQUEST_SIZE => 250000000,
-        C4HTTP_SERVER => "http://$http_server",
-        C4AUTH_KEY_FILE => "$data_dir/simple.auth",
-        C4STORE_PASS_PATH => "$data_dir/simple.auth",
-        C4KEYSTORE_PATH => "$data_dir/cu.def.keystore.jks",
-        C4TRUSTSTORE_PATH => "$data_dir/cu.def.truststore.jks",
-        C4HTTP_PORT => $http_port,
-        C4SSE_PORT => $sse_port,
-        C4LOGBACK_XML => "$data_dir/logback.xml",
+#        C4HTTP_SERVER => "http://$http_server",
+#        C4AUTH_KEY_FILE => "$data_dir/simple.auth",
+#        C4STORE_PASS_PATH => "$data_dir/simple.auth",
+#        C4KEYSTORE_PATH => "$data_dir/cu.def.keystore.jks",
+#        C4TRUSTSTORE_PATH => "$data_dir/cu.def.truststore.jks",
+#        C4HTTP_PORT => $http_port,
+#        C4SSE_PORT => $sse_port,
+#        C4LOGBACK_XML => "$data_dir/logback.xml",
         C4STATE_TOPIC_PREFIX => $nm,
         C4APP_CLASS => $cl,
     );
