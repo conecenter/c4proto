@@ -25,7 +25,7 @@ my $serve_sshd = sub{
         qq[alias prod="ssh-agent perl $ENV{C4CI_PROTO_DIR}/prod.pl "],
     );
     sy("export C4AUTHORIZED_KEYS_CONTENT= ; export -p | grep ' C4' >> /c4p_alias.sh");
-    grep{/c4p_alias/} syl("cat /c4/.profile") or sy("echo '. $C4CI_PROTO_DIR/c4p_alias.sh' >> /c4/.profile");
+    grep{/c4p_alias/} syl("cat /c4/.profile") or sy("echo '. $ENV{C4CI_PROTO_DIR}/c4p_alias.sh' >> /c4/.profile");
     &$exec('dropbear', '-RFEmwgs', '-p', $ENV{C4SSH_PORT}||die 'no C4SSH_PORT');
 };
 my $init = sub{
