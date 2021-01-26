@@ -62,14 +62,6 @@ my $prep_empty_dir = sub{
     !@dir_cont or unlink @dir_cont or die;
     $dir;
 };
-my $keep_only = sub{
-    my($list,$pid) = @_;
-    my @to_kill = grep{ $_ != $pid } @$list;
-    @to_kill or return 0;
-    print &$colored_line(bright_yellow=>"Killing: ".join(", ",@to_kill));
-    kill 'TERM', @to_kill;
-    1;
-};
 
 my $debug_port = 5005;
 my $debug_proxy = sub{
@@ -118,12 +110,10 @@ push @tasks, ["loop", sub{
             $res == 0;
         } @active_pid;
         print "active pid list: @active_pid\n" if @active_pid > 1;
-        my $master = (grep{ -e "$droll$_/c4is-master" } @active_pid)[-1];
         my $last_ready = (grep{ -e "$droll$_/c4is-ready" } @active_pid)[-1];
-        my $curr_ver = &$get_text("./target/gen-ver");
+        my $curr_ver = (map{&$get_text($_)} grep{-e} "./target/gen-ver")[0];
         #
         if($was_ver ne $curr_ver){
-            &$keep_only(\@active_pid,$master) or do {
                 $was_ver = $curr_ver;
                 my $pid = fork();
                 defined $pid or die;
@@ -146,9 +136,11 @@ push @tasks, ["loop", sub{
                     &$debug_proxy($droll,$debug_ext_address,"$debug_int_ip:$debug_port");
                 }
                 push @active_pid, $pid;
-            };
-        } elsif($last_ready && $last_ready != $master){
-            &$keep_only(\@active_pid,$last_ready) or &$put_text("$droll$last_ready/c4is-master","");
+        }
+        my @to_kill = &$kill(grep{ $last_ready ne $_ } @active_pid[0..@active_pid-2]);
+        if(@to_kill){
+            print &$colored_line(bright_yellow=>"Killing: ".join(", ",@to_kill));
+            kill 'TERM', @to_kill;
         }
         sleep 1;
     }
