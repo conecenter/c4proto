@@ -1106,6 +1106,9 @@ my $ci_build_proj_tag = sub{
     };
     my ($target_tag) = (@next_tags,$ideal_tag);
     #
+
+    print join "",map{"## $_\n"} @next_tags,$ideal_tag;
+
     &$ci_build_img($builder_comp,"$repo:$target_tag");
     my @cont = map{
         &$is_builder_repo($_) ? "prod up $comp 'image $_:$target_tag'" : (

@@ -33,12 +33,16 @@ my $forever = sub{
 my $serve_frpc = sub{ &$exec("/tools/frp/frpc", "-c", $ENV{C4FRPC_INI}||die) };
 my $serve_bloop = sub{ &$exec("bloop","server") };
 my $serve_sshd = sub{
+    my $dev_auth_dir = $ENV{C4DEV_AUTH_DIR} || die "no C4DEV_AUTH_DIR";
+    sy("mkdir -p /c4/dropbear && cp $ENV{C4DEV_AUTH_DIR}/dropbear_ecdsa_host_key /c4/dropbear && chmod 0600 /c4/dropbear/dropbear_ecdsa_host_key");
+    #
     my $path = $ENV{C4DEPLOY_CONF} || die "no C4DEPLOY_CONF";
     my $dir = "/tmp/c4deploy-conf";
-    sy("mkdir -p $dir /c4/dropbear /c4/.ssh && cd $dir && tar -xzf $path");
+    sy("mkdir -p $dir  /c4/.ssh && cd $dir && tar -xzf $path");
     my $a_keys = "/c4/.ssh/authorized_keys";
     &$put_text($a_keys, $ENV{C4AUTHORIZED_KEYS_CONTENT} || die);
     sy("cat $dir/id_rsa.pub >> $a_keys && chmod 0700 /c4/.ssh $a_keys");
+    #
     &$put_text("/c4p_alias.sh", join "", map{"$_\n"}
         'export PATH=$PATH:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin:/tools:/c4/.bloop',
         'export JAVA_HOME=/tools/jdk',
@@ -47,6 +51,7 @@ my $serve_sshd = sub{
     );
     sy("export C4AUTHORIZED_KEYS_CONTENT= ; export -p | grep ' C4' >> /c4p_alias.sh");
     &$get_text_or_empty("/c4/.profile")=~/c4p_alias/ or sy("echo '. /c4p_alias.sh' >> /c4/.profile");
+    #
     &$exec('dropbear', '-RFEmwgs', '-p', $ENV{C4SSH_PORT}||die 'no C4SSH_PORT');
 };
 
@@ -123,7 +128,8 @@ my $serve_loop = sub{ &$forever(sub{
     if($was_ver ne $curr_ver){
         $was_ver = $curr_ver;
         #
-        my ($nm,$mod,$cl) = syf("$tmp/tag.$arg.to")=~/^(\w+)\.(.+)\.(\w+)$/ ? ($1,"$1.$2","$2.$3") : die;
+        my $to = &$get_text_or_empty("$tmp/tag.$arg.to");
+        my ($nm,$mod,$cl) = $to=~/^(\w+)\.(.+)\.(\w+)$/ ? ($1,"$1.$2","$2.$3") : die "[$to]";
         sy("cd $build_dir && perl $tmp/compile.pl $mod");
         my $build_client = $ENV{C4STEP_BUILD_CLIENT};
         $build_client and sy("$build_client dev");
@@ -187,7 +193,7 @@ my $init = sub{
             "stderr_logfile_maxbytes=0",
             "stdout_logfile=/dev/stdout",
             "stdout_logfile_maxbytes=0",
-        )} qw[frpc bloop sshd haproxy loop])
+        )} qw[frpc bloop sshd proxy loop])
     );
     &$exec("supervisord","-c","/c4/supervisord.conf")
 };
