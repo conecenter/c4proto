@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 
 use strict;
-use POSIX ":sys_wait_h";
 
 my $http_server = $ENV{C4HTTP_SERVER}||die 'no C4HTTP_SERVER';
 my $curl_test = "curl $http_server/abc";

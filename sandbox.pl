@@ -1,5 +1,6 @@
 
 use strict;
+use POSIX ":sys_wait_h";
 
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 sub syf{ my $res = scalar `$_[0]`; print "$_[0]\n$res"; $res }
@@ -26,7 +27,7 @@ my $forever = sub{
     my ($f) = @_;
     my @state;
     @state = &$f(@state) while 1;
-}
+};
 
 
 my $serve_frpc = sub{ &$exec("/tools/frp/frpc", "-c", $ENV{C4FRPC_INI}||die) };
@@ -117,7 +118,7 @@ my $serve_loop = sub{ &$forever(sub{
     } @active_pid;
     print "active pid list: @active_pid\n" if @active_pid > 1;
     my $last_ready = (grep{ -e "$droll$_/c4is-ready" } @active_pid)[-1];
-    my $curr_ver = &$get_text("$build_dir/target/gen-ver");
+    my $curr_ver = &$get_text_or_empty("$build_dir/target/gen-ver");
     #
     if($was_ver ne $curr_ver){
         $was_ver = $curr_ver;
@@ -153,14 +154,14 @@ my $serve_loop = sub{ &$forever(sub{
         #
         push @active_pid, $pid;
     }
-    my @to_kill = &$kill(grep{ $last_ready ne $_ } @active_pid[0..@active_pid-2]);
+    my @to_kill = grep{ $last_ready ne $_ } @active_pid[0..@active_pid-2];
     if(@to_kill){
         print &$colored_line(bright_yellow=>"Killing: ".join(", ",@to_kill));
         kill 'TERM', @to_kill;
     }
     sleep 1;
     ($curr_ver,@active_pid);
-})}
+})};
 #? say Failed
 
 ####

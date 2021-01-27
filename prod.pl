@@ -1081,12 +1081,13 @@ my $ci_build_img = sub{
     sy("perl", "$gen_dir/ci.pl", "ci_arg", $req);
     print "prod up \$C4CURRENT_STACK 'image $img'\n";
 };
-my $is_builder_repo = sub{ $_[0]=~m{/([^/]+)$} && $1 ne 'builder' };
+my $is_builder_repo = sub{ $_[0]=~m{/([^/]+)$} && $1 eq 'builder' };
 my $ci_build_proj_tag = sub{
     my ($proj_tag_arg,$rebuild_base) = @_;
     my $proj_tag = $proj_tag_arg || $ENV{C4CI_BASE_TAG_ENV} || die 'proj-tag not found';
-    my $comp = $ENV{C4INBOX_TOPIC_PREFIX} || die; #todo: may be its own KEY
-    my($builder_comp) = &$get_deployer_conf($comp,1,qw[builder]);
+    my $comp = $ENV{C4COMPOSITION} || die "no C4COMPOSITION";
+    my $builder_comp = $ENV{C4CI_BUILDER} || die "no C4CI_BUILDER";
+    print "builder: $builder_comp\n";
     #
     my $conf = &$get_compose($builder_comp);
     my @proj_repos = map{ m{(.+):([^:]+)$} && $2 eq $proj_tag ? "$1":() }

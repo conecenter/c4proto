@@ -47,8 +47,8 @@ my $handle_build = sub{
             "git --git-dir=$repo_dir/.git --work-tree=$ctx_dir checkout $checkout -- ."],
         ["-t","docker","build","-t","builder:$tag","-f","$ctx_dir/build.$mode.dockerfile",@args,$ctx_dir],
         $builder_reg ? (
-            ["docker","tag","builder:$tag","${builder_reg}builder:$tag"]
-            ["docker","push","${builder_reg}builder:$tag"]
+            ["docker","tag","builder:$tag","${builder_reg}builder:$tag"],
+            ["docker","push","${builder_reg}builder:$tag"],
         ) : (),
         ["rm","-r",$ctx_dir],
         ["docker","create","--name",$builder,"builder:$tag"],
