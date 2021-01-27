@@ -30,7 +30,7 @@ my $serve_sshd = sub{
 };
 my $init = sub{
     my $sock = "/c4/supervisor.sock";
-    &$put("/c4/supervisord.conf", join '', map{"$_\n"}
+    &$put_text("/c4/supervisord.conf", join '', map{"$_\n"}
         "[supervisord]",
         "nodaemon=true",
         "logfile=/dev/null",
