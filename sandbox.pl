@@ -43,7 +43,7 @@ my $init = sub{
         "supervisor.rpcinterface_factory = supervisor.rpcinterface:make_main_rpcinterface",
         (map{(
             "[program:$_]",
-            "command=perl /sandbox.pl $_",
+            "command=perl $ENV{C4CI_PROTO_DIR}/sandbox.pl $_",
             "autorestart=true",
             "stderr_logfile=/dev/stderr",
             "stderr_logfile_maxbytes=0",
