@@ -11,21 +11,7 @@ sub sy{
     print "$ENV{PATH}\n";
     print join(" ",@_),"\n"; system @_ and die $?;
 }
-sub syf{ my $res = scalar `$_[0]`; print "$_[0]\n$res"; $res }
-
 my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
-
-my $put_text = sub{
-    my($fn,$content)=@_;
-    open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
-};
-my $get_text = sub{
-    my($path)=@_;
-    open FF,"<:encoding(UTF-8)",$path or die "get_text: $path";
-    my $res = join"",<FF>;
-    close FF or die;
-    $res;
-};
 my $need_tmp = sub{ -e $_ or mkdir $_ or die for "tmp" };
 
 my @tasks;
@@ -36,116 +22,13 @@ my $main = sub{
 
 my $exec_server = sub{
     my($arg)=@_;
-    my $argv = $arg=~/\./ ? $arg : &$get_text(".bloop/c4/tag.$arg.to");
-    my ($nm,$mod,$cl) = $argv=~/^(\w+)\.(.+)\.(\w+)$/ ? ($1,"$1.$2","$2.$3") : die;
+    my ($nm,$mod,$cl) = $arg=~/^(\w+)\.(.+)\.(\w+)$/ ? ($1,"$1.$2","$2.$3") : die;
     my $tmp = ".bloop/c4";
     sy("perl $tmp/compile.pl $mod");
     &$exec(". $tmp/mod.$mod.classpath.sh && C4STATE_TOPIC_PREFIX=$nm C4APP_CLASS=$cl exec java ee.cone.c4actor.ServerMain");
 };
-push @tasks, ["run", sub{
-    &$exec_server($_[0])
-}];
-my %color = qw(bright_red 91 green 32 yellow 33 bright_yellow 93 reset 0);
-my $color = sub{
-    my $v = $color{$_[0]};
-    length $v or die $_[0];
-    "\x1b[${v}m"
-};
-my $colored_line = sub{
-    my($color_arg,$content)=@_;
-    "\n".&$color($color_arg).$content.&$color('reset')."\n";
-};
-my $prep_empty_dir = sub{
-    my($dir)=@_;
-    -e $dir or mkdir $dir or die;
-    my @dir_cont = <$dir/*>;
-    !@dir_cont or unlink @dir_cont or die;
-    $dir;
-};
+push @tasks, ["run", $exec_server];
 
-my $debug_port = 5005;
-my $debug_proxy = sub{
-    my($pre,$debug_ext_address,$debug_int_address)=@_;
-    my $ha_cfg_path = "$pre-haproxy.cfg";
-    my $ha_pid_path = "$pre-haproxy.pid";
-    &$put_text($ha_cfg_path, join "\n",
-        "global",
-        "  tune.ssl.default-dh-param 2048",
-        "defaults",
-        "  timeout connect 5s",
-        "  timeout client  3d",
-        "  timeout server  3d",
-        "  mode tcp",
-        "listen listen_def",
-        "  bind $debug_ext_address",
-        "  server s_def $debug_int_address",
-    );
-    my @ha_pids = (-e $ha_pid_path) ? &$get_text($ha_pid_path)=~/(\d+)/g : ();
-    sy("/usr/sbin/haproxy","-D","-f",$ha_cfg_path,"-p",$ha_pid_path,"-sf",@ha_pids);
-};
-my $get_debug_ip = sub{
-    my($pid)=@_;
-    "127.1.".(($pid>>8) & 0xFF).".".($pid & 0xFF);
-};
-
-push @tasks, ["loop", sub{
-    my ($pre,$arg) = @_;
-    my $was_ver;
-    my @active_pid;
-    my $droll = "./target/dev-rolling-";
-    $ENV{C4ELECTOR_PROC_PATH} = "/proc/$$";
-    my ($debug_ext_address,$debug_port) = !$ENV{C4DEBUG_PROXY} ? (undef,undef) :
-        $ENV{C4DEBUG_PROXY}=~/^([\d\.]+:(\d+))$/ ? ($1,$2) : die;
-    while(1){
-        @active_pid = grep{
-            my $res = waitpid($_, WNOHANG);
-            if($res != 0){
-                #my $code = $? >> 8;
-                #my $signal = $? & 127;
-                # 10001111_00000000 for SIGTERM
-                # 00000011_00000000 for exit(3)
-                my $hex = sprintf("%X", $?);
-                print &$colored_line(bright_yellow=>"Child $res ended with status 0x$hex");
-            }
-            $res == 0;
-        } @active_pid;
-        print "active pid list: @active_pid\n" if @active_pid > 1;
-        my $last_ready = (grep{ -e "$droll$_/c4is-ready" } @active_pid)[-1];
-        my $curr_ver = (map{&$get_text($_)} grep{-e} "./target/gen-ver")[0];
-        #
-        if($was_ver ne $curr_ver){
-                $was_ver = $curr_ver;
-                my $pid = fork();
-                defined $pid or die;
-                if(!$pid){
-                    my $dir = "$droll$$";
-                    &$prep_empty_dir($dir);
-                    $ENV{C4ROLLING} = $dir;
-                    $ENV{JAVA_TOOL_OPTIONS} = !$debug_port ? $ENV{JAVA_TOOL_OPTIONS} : do{
-                        my $debug_int_ip = &$get_debug_ip($$);
-                        " -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$debug_int_ip:$debug_port $ENV{JAVA_TOOL_OPTIONS}";
-                    };
-                    #
-                    sy($pre);
-                    &$exec_server($arg);
-                    die;
-                }
-                print &$colored_line(bright_yellow=>"Spawned $pid");
-                if($debug_port){
-                    my $debug_int_ip = &$get_debug_ip($pid);
-                    &$debug_proxy($droll,$debug_ext_address,"$debug_int_ip:$debug_port");
-                }
-                push @active_pid, $pid;
-        }
-        my @to_kill = &$kill(grep{ $last_ready ne $_ } @active_pid[0..@active_pid-2]);
-        if(@to_kill){
-            print &$colored_line(bright_yellow=>"Killing: ".join(", ",@to_kill));
-            kill 'TERM', @to_kill;
-        }
-        sleep 1;
-    }
-#? say Failed
-}];
 push @tasks, ["test", sub{
     my @arg = @_;
     print map{
@@ -155,8 +38,6 @@ push @tasks, ["test", sub{
         map{"\t$0 run $src_mod.$_\n"} map{/(\S+)/g} `cat $src_files`=~/C4APPS:([^\n]+)/g;
     } grep{-e $_} map{"$_/src"} grep{/example/} <$gen_dir/*>;
 }];
-
-
 
 push @tasks, ["test_client",sub{
     my @arg = @_;

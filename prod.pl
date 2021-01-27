@@ -1044,33 +1044,32 @@ push @tasks, ["test_up","",sub{ # <host>:<port> $composes_txt $args
     &$nc_sec($deployer_comp,$addr,"run $comp/up$add\n");
 }];
 push @tasks, ["test_cd","<host>:<port> $composes_txt <pods|registry|'history $composes_txt'>",sub{
+    # ? |'build <img>'
     my($addr,$comp,$args) = @_;
     sy(&$ssh_add());
     &$nc_sec($comp,$addr,"$args\n");
 }];
 
-my $get_head_img_tag = sub{
-    my($repo_dir,$parent)=@_;
-    #my $repo_name = $repo_dir=~/(\w+)$/ ? $1 : die;
-    print "[$repo_dir][$parent]\n";
-    my $commit = (!-e $repo_dir) ?
-        ($repo_dir=~/^(\w+)$/ ? $1 : die) :
-        (syf("git --git-dir=$repo_dir/.git rev-parse --short HEAD")=~/(\w+)/ ? $1 : die);
-    #my $commit = syf("git --git-dir=$repo_dir/.git log -n1")=~/\bcommit\s+(\w{10})/ ? $1 : die;
-    !$parent ? "base.$commit" :
-    $parent=~/^(\w+)$/ ? "base.$1.next.$commit" :
-    die $parent;
-};
+#my $get_head_img_tag = sub{
+#    my($repo_dir,$parent)=@_;
+#    #my $repo_name = $repo_dir=~/(\w+)$/ ? $1 : die;
+#    print "[$repo_dir][$parent]\n";
+#    my $commit = (!-e $repo_dir) ?
+#        ($repo_dir=~/^(\w+)$/ ? $1 : die) :
+#        (syf("git --git-dir=$repo_dir/.git rev-parse --short HEAD")=~/(\w+)/ ? $1 : die);
+#    #my $commit = syf("git --git-dir=$repo_dir/.git log -n1")=~/\bcommit\s+(\w{10})/ ? $1 : die;
+#    !$parent ? "base.$commit" :
+#    $parent=~/^(\w+)$/ ? "base.$1.next.$commit" :
+#    die $parent;
+#};
+#
+#my $get_head_img = sub{
+#    my($req_pre,$repo_dir,$parent) = @_;
+#    $repo_dir ? "$req_pre.".&$get_head_img_tag($repo_dir,$parent) : $req_pre;
+#};
 
-my $get_head_img = sub{
-    my($req_pre,$repo_dir,$parent) = @_;
-    $repo_dir ? "$req_pre.".&$get_head_img_tag($repo_dir,$parent) : $req_pre;
-};
-
-push @tasks, ["ci_build_head","<builder> <req> <dir|commit> [parent]",sub{
-    my($builder_comp,$req_pre,$repo_dir,$parent) = @_;
-    sy(&$ssh_add());
-    my $img = &$get_head_img($req_pre,$repo_dir,$parent);
+my $ci_build_img = sub{
+    my ($builder_comp,$img) = @_;
     my $req = "build $img\n";
     my $gen_dir = &$get_proto_dir();
     my ($host,$port) = &$get_host_port($builder_comp);
@@ -1081,13 +1080,57 @@ push @tasks, ["ci_build_head","<builder> <req> <dir|commit> [parent]",sub{
     local $ENV{C4CI_CTX_DIR} = $$conf{C4CI_CTX_DIR} || die;
     sy("perl", "$gen_dir/ci.pl", "ci_arg", $req);
     print "prod up \$C4CURRENT_STACK 'image $img'\n";
+};
+my $is_builder_repo = sub{ $_[0]=~m{/([^/]+)$} && $1 ne 'builder' };
+my $ci_build_proj_tag = sub{
+    my ($proj_tag_arg,$rebuild_base) = @_;
+    my $proj_tag = $proj_tag_arg || $ENV{C4CI_BASE_TAG_ENV} || die 'proj-tag not found';
+    my $comp = $ENV{C4INBOX_TOPIC_PREFIX} || die; #todo: may be its own KEY
+    my($builder_comp) = &$get_deployer_conf($comp,1,qw[builder]);
+    #
+    my $conf = &$get_compose($builder_comp);
+    my @proj_repos = map{ m{(.+):([^:]+)$} && $2 eq $proj_tag ? "$1":() }
+        ($$conf{C4CI_ALLOW}||die)=~/(\S+)/g;
+    my $repo = (grep{ !&$is_builder_repo($_) } @proj_repos)[0] || die 'proj-tag not allowed';
+    #
+    my ($head,@log) = syf("cat $ENV{C4CI_BUILD_DIR}/target/c4git-log")=~/(\S+)/g;
+    $head || die 'commit not found';
+    my $ideal_tag = "$proj_tag.base.$head";
+    my @next_tags = $rebuild_base ? () : do{
+        my %has_img = map{/^(\S+)\s+(\S+)/?("$1:$2"=>1):()}
+            syl(&$remote($builder_comp,"docker images"));
+        $has_img{"$repo:$ideal_tag"} ? () :
+            map{ $has_img{"builder:$_"} ? "$_.next.$head" : () }
+            map{"$proj_tag.base.$_"} @log
+    };
+    my ($target_tag) = (@next_tags,$ideal_tag);
+    #
+    &$ci_build_img($builder_comp,"$repo:$target_tag");
+    my @cont = map{
+        &$is_builder_repo($_) ? "prod up $comp 'image $_:$target_tag'" : (
+            "prod ssh $builder_comp docker tag $repo:$target_tag $_:$target_tag",
+            "prod ssh $builder_comp docker push $_:$target_tag",
+        )
+    } grep{$_ ne $repo} @proj_repos;
+    @cont and print join "", map{"$_\n"} "### what's next:", @cont;
+};
+
+push @tasks, ["ci_build_img","<builder> <img>",sub{
+    my ($builder_comp,$img) = @_;
+    sy(&$ssh_add());
+    &$ci_build_img($builder_comp,$img);
 }];
-push @tasks, ["ci_build_head_tcp","",sub{ # <host>:<port> <req> <dir|commit> [parent]
-    my($addr,$req_pre,$repo_dir,$parent) = @_;
-    my $img = &$get_head_img($req_pre,$repo_dir,$parent);
-    my $req = "build $img\n";
-    &$nc($addr,sub{ $req });
+push @tasks, ["ci_build_head","[proj-tag]",sub{
+    my ($proj_tag) = @_;
+    sy(&$ssh_add());
+    &$ci_build_proj_tag($proj_tag,0);
 }];
+push @tasks, ["ci_rebuild_head","[proj-tag]",sub{
+    my ($proj_tag) = @_;
+    sy(&$ssh_add());
+    &$ci_build_proj_tag($proj_tag,1);
+}];
+
 my $ci_inner_opt = sub{
     map{$ENV{$_}||die $_} qw[C4CI_BASE_TAG_ENV C4CI_BUILD_DIR C4CI_PROTO_DIR];
 };
