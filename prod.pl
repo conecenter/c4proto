@@ -4,7 +4,7 @@ use strict;
 use Digest::MD5 qw(md5_hex);
 use JSON::XS;
 
-my $sys_image_ver = "v82d";
+my $sys_image_ver = "v83";
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -210,6 +210,13 @@ push @tasks, ["ssh", "$composes_txt [command-with-args]", sub{
     sy(&$ssh_ctl($comp,@args));
 }];
 
+push @tasks, ["pipe", "$composes_txt <from_remote_cmd> <to_local_cmd>", sub{
+    my($comp,$from_remote_cmd,$to_local_cmd)=@_;
+    sy(&$ssh_add());
+    #my $fn = $path=~m{([^/]+)$} ? $1 : die;
+    sy("cat ".&$put_temp(from=>$from_remote_cmd)." | ".&$remote($comp,"sh")." | sh ".&$put_temp(to=>$to_local_cmd));
+}];
+
 my $get_hostname = sub{
     my($comp)=@_;
     &$get_compose($comp)->{le_hostname} || do{
@@ -222,10 +229,14 @@ my $get_kc_ns = sub{
     my($comp)=@_;
     my $ns = syf(&$remote($comp,'cat /var/run/secrets/kubernetes.io/serviceaccount/namespace'))=~/(\w+)/ ? "$1" : die;
 };
-my $get_pod = sub{
+my $get_pods = sub{
     my($comp,$ns)=@_;
     my $stm = qq[kubectl -n $ns get po -l app=$comp -o jsonpath="{.items[*].metadata.name}"];
-    my @pods = syf(&$remote($comp,$stm))=~/(\S+)/g;
+    syf(&$remote($comp,$stm))=~/(\S+)/g;
+};
+my $get_pod = sub{
+    my($comp,$ns)=@_;
+    my @pods = &$get_pods($comp,$ns);
     my $pod = &$single_or_undef(@pods) ||
         &$single_or_undef(grep{
             my $pod = $_;
@@ -940,6 +951,33 @@ push @tasks, ["restart","$composes_txt",sub{
 
 ### snapshot op-s
 
+my $snapshot_name = sub{
+    my($snnm)=@_;
+    my @fn = $snnm=~/^(\w{16})(-\w{8}-\w{4}-\w{4}-\w{4}-\w{12}[-\w]*)$/ ? ($1,$2) : return;
+    my $zero = '0' x length $fn[0];
+    ["$fn[0]$fn[1]","$zero$fn[1]"]
+};
+push @tasks, ["get_snapshot", "$composes_txt [|snapshot|last]", sub{
+    my($gate_comp,$arg)=@_;
+    sy(&$ssh_add());
+    my $prefix = &$get_compose($gate_comp)->{C4INBOX_TOPIC_PREFIX}
+        || die "no C4INBOX_TOPIC_PREFIX for $gate_comp";
+    my ($client_comp) = &$get_deployer_conf($gate_comp,1,qw[s3client]);
+    my $mk_exec = &$find_exec_handler($client_comp);
+    my $stm = sub{
+        my($op,$fn) = @_;
+        &$remote($client_comp,&$mk_exec("","main","/tools/mc $op def/$prefix.snapshots/$fn"))
+    };
+    if(!$arg){
+        sy(&$stm("ls",""));
+    } else {
+        my $snnm = $arg ne "last" ? $arg :
+            (sort{$b cmp $a} grep{ &$snapshot_name($_) } syf(&$stm("ls",""))=~/(\S+)/g)[0];
+        my $fn = &$snapshot_name($snnm) || die "bad or no snapshot name";
+        sy(&$stm("cat",$$fn[0])." > $$fn[1]");
+    }
+}];
+
 my $put_snapshot = sub{
     my($auth_path,$data_path,$addr)=@_;
     my $gen_dir = &$get_proto_dir();
@@ -1426,6 +1464,31 @@ push @tasks, ["up-visitor", "", sub{
     });
     my $from_path = &$get_tmp_dir();
     &$make_visitor_conf($comp,$from_path,[@services,@visits]);
+    &$sync_up(&$wrap_deploy($comp,$from_path,\@containers),$args);
+}];
+
+push @tasks, ["up-s3client", "", sub{
+    my ($comp,$args) = @_;
+    my $img = do{
+        my $from_path = &$get_tmp_dir();
+        my $put = &$rel_put_text($from_path);
+        &$put("Dockerfile", join "\n",
+            "ARG C4UID=1979",
+            "FROM ghcr.io/conecenter/c4replink:v2",
+            "USER root",
+            "RUN perl install.pl apt curl ca-certificates",
+            "RUN /install.pl curl https://dl.min.io/client/mc/release/linux-amd64/mc && chmod +x /tools/mc",
+            q{ENTRYPOINT /tools/mc alias set def $(cat $C4S3_CONF_DIR/address) $(cat $C4S3_CONF_DIR/key) $(cat $C4S3_CONF_DIR/secret) && exec sleep infinity }
+        );
+        &$remote_build(''=>$comp,$from_path);
+    };
+    my @containers = ({
+        image => $img,
+        name => "main",
+        C4S3_CONF_DIR => "/c4conf-ceph-client",
+        @req_small,
+    });
+    my $from_path = &$get_tmp_dir();
     &$sync_up(&$wrap_deploy($comp,$from_path,\@containers),$args);
 }];
 
