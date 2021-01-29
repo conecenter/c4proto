@@ -103,7 +103,7 @@ push @tasks, ["start","",sub{
     &$put_text("$list_fn.local", join "", map{"$_\n"} @local_fns);
     &$put_text("$list_fn.conf", "$remote_dir\n$port");
     #
-    -e "$dir/.git" and sy("cd $dir && git log --pretty=%h | head | $remote_pre_q 'cat > $remote_dir/target/c4git-log'")
+    -e "$dir/.git" and sy("cd $dir && git log --pretty=%h | head | $remote_pre_q 'mkdir -p $remote_dir/target && cat > $remote_dir/target/c4git-log'")
 }];
 push @tasks, ["back","",sub{
     my($dir)=@_;

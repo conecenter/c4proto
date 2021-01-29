@@ -1,30 +1,35 @@
 package ee.cone.c4actor
 
 import java.lang.management.ManagementFactory
-import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path, Paths}
-import java.time.Instant
 import java.util.UUID
-
-import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.S_Firstborn
-import ee.cone.c4actor.Types.{NextOffset, SrcId}
-import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Single, c4assemble}
-import ee.cone.c4di.c4
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpRequest.BodyPublishers
+import java.net.http.HttpResponse.BodyHandlers
 
 import scala.annotation.tailrec
-import scala.concurrent.Future
+import scala.compat.java8.FutureConverters
+import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.util.Random
+import scala.util.control.NonFatal
+
+import com.typesafe.scalalogging.LazyLogging
+
+import ee.cone.c4actor.Types.NextOffset
+import ee.cone.c4assemble.Single
+import ee.cone.c4di.{c4, c4multi}
+
+////
 
 @c4("ServerCompApp") final class ProgressObserverFactoryImpl(
-  inner: TxObserver, config: ListConfig,
-  execution: Execution, getToStart: DeferredSeq[Executable]
+  inner: TxObserver, execution: Execution, getToStart: DeferredSeq[Executable],
+  readyObserverImplFactory: ReadyObserverImplFactory
 ) extends ProgressObserverFactory {
   def create(endOffset: NextOffset): Observer[RichContext] = {
     val lateExObserver: Observer[RichContext]  = new LateExecutionObserver(execution,getToStart.value,inner.value)
-    val readyObserver = Single.option(config.get("C4ROLLING")).fold(lateExObserver)(path=>
-      new ReadyObserverImpl(lateExObserver, Paths.get(path), 0L)
-    )
+    val readyObserver = readyObserverImplFactory.create(lateExObserver, 0L)
     new ProgressObserverImpl(readyObserver,endOffset)
   }
 }
@@ -53,18 +58,22 @@ class ProgressObserverImpl(inner: Observer[RichContext], endOffset: NextOffset, 
     }
 }
 
-class ReadyObserverImpl(inner: Observer[RichContext], path: Path, until: Long=0) extends Observer[RichContext] with LazyLogging {
+@c4multi("ServerCompApp") final class ReadyObserverImpl(
+  inner: Observer[RichContext], until: Long=0
+)(
+  config: Config, isMaster: IsMaster,
+) extends Observer[RichContext] with LazyLogging {
   private def ignoreTheSamePath(path: Path): Unit = ()
   def activate(rawWorld: RichContext): Observer[RichContext] = {
-    if(until == 0) ignoreTheSamePath(Files.write(path.resolve("c4is-ready"),Array.empty[Byte]))
+    if(until == 0) ignoreTheSamePath(Files.write(Paths.get(config.get("C4ROLLING")).resolve("c4is-ready"),Array.empty[Byte]))
     val now = System.currentTimeMillis
     if(now < until) this
-    else if(Files.exists(path.resolve("c4is-master"))) {
+    else if(isMaster.get()) {
       logger.info(s"becoming master")
       inner.activate(rawWorld)
     } else {
       logger.debug(s"ready/waiting")
-      new ReadyObserverImpl(inner, path, now+1000)
+      new ReadyObserverImpl(inner, now+1000)(config,isMaster)
     }
   }
 
@@ -89,11 +98,11 @@ case class BuildVerTx(srcId: SrcId, path: Path, value: String)(execution: Execut
 @c4("ServerCompApp") final class LocalElectorDeath(config: ListConfig, execution: Execution) extends Executable with Early {
   def run(): Unit =
     for(path <- config.get("C4ELECTOR_PROC_PATH")) iteration(Paths.get(path))
-  @tailrec private def iteration(path: Path): Unit = {
-    if(Files.notExists(path)) execution.complete()
-    Thread.sleep(1000)
-    iteration(path)
-  }
+  @tailrec private def iteration(path: Path): Unit =
+    if(Files.notExists(path)) execution.complete() else {
+      Thread.sleep(1000)
+      iteration(path)
+    }
 }
 
 ////
@@ -108,5 +117,94 @@ class LateExecutionObserver(
     logger.info(s"tracking ${toStart.size} late services")
     toStart.filterNot(_.isInstanceOf[Early]).foreach(f => execution.fatal(Future(f.run())(_)))
     inner.activate(world)
+  }
+}
+
+////
+
+trait IsMaster {
+  def get(): Boolean
+}
+
+@c4("ServerCompApp") final class IsMasterImpl(
+  val promise: Promise[Unit] = Promise()
+) extends IsMaster {
+  def get(): Boolean = promise.isCompleted
+}
+
+@c4("ServerCompApp") final class ElectorSystem(
+  config: Config, actorName: ActorName, factory: ElectorWorkerFactory
+) extends Executable with Early {
+  def run(): Unit = concurrent.blocking {
+    val inboxTopicPrefix = config.get("C4INBOX_TOPIC_PREFIX")
+    val addresses = config.get("C4ELECTOR_SERVERS").split(",").toList
+    val owner = s"${UUID.randomUUID()}"
+    def createRequest(address: String, period: String): HttpRequest =
+      HttpRequest.newBuilder
+        .timeout(java.time.Duration.ofSeconds(1))
+        .uri(URI.create(s"$address/lock/$inboxTopicPrefix/${actorName.value}"))
+        .headers("x-r-lock-owner",owner,"x-r-lock-period",period)
+        .POST(BodyPublishers.noBody()).build()
+    val lockRequests = addresses.map(createRequest(_,"10000"))
+    val unlockRequests = addresses.map(createRequest(_,"1"))
+    val client = HttpClient.newHttpClient
+    factory.create(client,lockRequests,unlockRequests).iter(None,Future.successful(None),Nil)
+  }
+}
+
+@c4multi("ServerCompApp") final class ElectorWorker(
+  client: HttpClient, lockRequests: List[HttpRequest], unlockRequests: List[HttpRequest]
+)(
+  isMaster: IsMasterImpl, execution: Execution
+) extends LazyLogging {
+  def msNow: Long = System.nanoTime / 1000000
+
+  def send(requests: List[HttpRequest])(implicit ec: ExecutionContext): Future[Boolean] =
+    Future.sequence(requests.map(req=>
+      FutureConverters.toScala(client.sendAsync(req, BodyHandlers.discarding()))
+        .map(resp=>resp.statusCode==200)
+        .recover{ case NonFatal(e) =>
+          logger.error("elector-post",e)
+          false
+        }
+    )).map{ results =>
+      val (ok,nok) = results.partition(r=>r)
+      ok.size > nok.size
+    }
+
+  def sendMore(last: Future[Option[Long]])(implicit ec: ExecutionContext): Future[Option[Long]] = for {
+    wasUntil <- last
+    started = msNow
+    wasMaster = wasUntil.nonEmpty
+    ok <- send(lockRequests)
+    until = if(ok) Option(started+10000) else wasUntil
+    _ <- if(!ok && !wasMaster) send(unlockRequests) else Future.successful()
+
+  } yield until
+
+  @tailrec def iter(wasUntilOpt: Option[Long], last: Future[Option[Long]], wasUncompleted: List[Future[Option[Long]]]): Unit = {
+    val next = sendMore(last)(execution.mainExecutionContext)
+    execution.fatal(_=>next)
+    Thread.sleep(1000)
+    val (completed,uncompleted) =
+      (next :: wasUncompleted).partition(_.isCompleted)
+    val untilOpt: Option[Long] =
+      (completed.flatMap(_.value).flatMap(_.toOption).flatten ::: wasUntilOpt.toList).maxOption
+    for(until <- untilOpt) {
+      if(wasUntilOpt.isEmpty){
+        logger.info("getting master")
+        isMaster.promise.success()
+      }
+      val left = until - msNow
+      if(left < 4000){
+        logger.error("can not stay master 0")
+        execution.fatal(_=>Future.failed(new Exception("can not stay master")))
+        logger.error("can not stay master 1")
+        Thread.sleep(left)
+        Runtime.getRuntime.halt(2)
+      }
+    }
+    Thread.sleep(1000+Random.nextInt(300))
+    iter(untilOpt,next,uncompleted)
   }
 }

@@ -240,7 +240,7 @@ my $get_pod = sub{
     my $pod = &$single_or_undef(@pods) ||
         &$single_or_undef(grep{
             my $pod = $_;
-            0 < grep{/^c4is-master\s*$/} syl(&$remote($comp,qq[kubectl -n $ns exec $pod -- ls /c4]))
+            0 < grep{/^c4is-master\s*$/} syl(&$remote($comp,qq[kubectl -n $ns exec $pod -- ls /c4])) #todo: with elector2 it'll be pods?
         }@pods) ||
         die "no single pod for $comp";
     ($ns,$pod)
