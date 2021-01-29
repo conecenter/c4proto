@@ -193,7 +193,7 @@ trait IsMaster {
     for(until <- untilOpt) {
       if(wasUntilOpt.isEmpty){
         logger.info("getting master")
-        isMaster.promise.success()
+        execution.success(isMaster.promise,())
       }
       val left = until - msNow
       if(left < 4000){
