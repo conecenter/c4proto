@@ -10,15 +10,15 @@ import java.net.http.HttpRequest.BodyPublishers
 import java.net.http.HttpResponse.BodyHandlers
 
 import scala.annotation.tailrec
-import scala.compat.java8.FutureConverters
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.Random
 import scala.util.control.NonFatal
+import scala.jdk.FutureConverters._
+
 
 import com.typesafe.scalalogging.LazyLogging
 
 import ee.cone.c4actor.Types.NextOffset
-import ee.cone.c4assemble.Single
 import ee.cone.c4di.{c4, c4multi}
 
 ////
@@ -161,7 +161,7 @@ trait IsMaster {
 
   def send(requests: List[HttpRequest])(implicit ec: ExecutionContext): Future[Boolean] =
     Future.sequence(requests.map(req=>
-      FutureConverters.toScala(client.sendAsync(req, BodyHandlers.discarding()))
+      client.sendAsync(req, BodyHandlers.discarding()).asScala
         .map(resp=>resp.statusCode==200)
         .recover{ case NonFatal(e) =>
           logger.error("elector-post",e)

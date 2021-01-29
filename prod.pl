@@ -806,6 +806,7 @@ my $make_secrets = sub{
 
 my $inner_http_port = 8067;
 my $inner_sse_port = 8068;
+my $elector_port = 1080;
 
 my $wrap_deploy = sub{
     my ($comp,$from_path,$options) = @_;
@@ -837,7 +838,7 @@ my $get_consumer_options = sub{
     my($comp)=@_;
     my $conf = &$get_compose($comp);
     my $prefix = $$conf{C4INBOX_TOPIC_PREFIX};
-    my ($bootstrap_servers) = &$get_deployer_conf($comp,1,qw[bootstrap_servers]);
+    my ($bootstrap_servers,$elector) = &$get_deployer_conf($comp,1,qw[bootstrap_servers elector]);
     (
             &$all_consumer_options(),
             C4INBOX_TOPIC_PREFIX => ($prefix||die "no C4INBOX_TOPIC_PREFIX"),
@@ -846,6 +847,7 @@ my $get_consumer_options = sub{
             C4TRUSTSTORE_PATH => "/c4conf-kafka-certs/kafka.truststore.jks",
             C4BOOTSTRAP_SERVERS => ($bootstrap_servers||die "no host bootstrap_servers"),
             C4HTTP_SERVER => "http://$comp:$inner_http_port",
+            C4ELECTOR_SERVERS => join(",",map{"http://$elector-$_.$elector:$elector_port"}0,1,2),
     )
 };
 
@@ -1860,7 +1862,6 @@ push @tasks, ["cat_visitor_conf","$composes_txt",sub{
     sy("cat $from_path/frpc.visitor.ini");
 }];
 
-my $elector_port = 1080;
 push @tasks, ["up-elector","",sub{
     my ($comp,$args) = @_;
     my $gen_dir = &$get_proto_dir();
