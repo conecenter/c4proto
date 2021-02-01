@@ -568,10 +568,10 @@ my $make_kc_yml = sub{
                 metadata => {
                     labels => {
                         app => $name,
-                        $rolling ? (c4rolling=>"v1") : (),
+#                        $rolling ? (c4rolling=>"v1") : (),
                     },
                     annotations => {
-                        $rolling ? (c4rolling=>$rolling) : (),
+#                        $rolling ? (c4rolling=>$rolling) : (),
                     },
                 },
                 spec => {
@@ -848,6 +848,7 @@ my $get_consumer_options = sub{
             C4BOOTSTRAP_SERVERS => ($bootstrap_servers||die "no host bootstrap_servers"),
             C4HTTP_SERVER => "http://$comp:$inner_http_port",
             C4ELECTOR_SERVERS => join(",",map{"http://$elector-$_.$elector:$elector_port"}0,1,2),
+            rolling => "/c4",
     )
 };
 
@@ -864,7 +865,6 @@ my $up_consumer = sub{
     ($run_comp, $from_path, [{
         @var_img, name => "main", %consumer_options,
         @req_big,
-        rolling => "/c4",
         C4FRPC_INI => "/c4conf/frpc.ini",
         %$conf,
     }]);
