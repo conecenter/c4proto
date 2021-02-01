@@ -145,7 +145,7 @@ my $serve_loop = sub{ &$forever(sub{
                 CLASSPATH => &$get_text_or_empty("$tmp/mod.$mod.classpath"),
                 !$ENV{C4DEBUG_PROXY} ? () : (JAVA_TOOL_OPTIONS => " -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$debug_int_ip:$debug_port $ENV{JAVA_TOOL_OPTIONS}"),
                 C4ELECTOR_PROC_PATH => "/proc/$ppid",
-                C4ROLLING => $dir,
+                C4READINESS_PATH => "$dir/c4is-ready",
                 C4STATE_TOPIC_PREFIX => $nm,
                 C4APP_CLASS => $cl,
             };

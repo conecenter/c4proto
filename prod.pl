@@ -426,14 +426,13 @@ push @tasks, ["wrap_deploy-dc_host", "", $wrap_dc];
 my $mandatory_of = sub{ my($k,$h)=@_; (exists $$h{$k}) ? $$h{$k} : die "no $k" };
 
 my $make_kc_yml = sub{
-    my($name,$tmp_path,$spec,$options) = @_;
+    my($name,$tmp_path,$spec_arg,$options) = @_;
     my %all = map{%$_} @$options;
     my @unknown = &$map(\%all,sub{ my($k,$v)=@_;
         $k=~/^([A-Z]|host:|port:|ingress:|path:)/ ||
-        $k=~/^(tty|image|name|rolling|noderole)$/ ? () : $k
+        $k=~/^(tty|image|name|noderole)$/ ? () : $k
     });
     @unknown and warn "unknown conf keys: ".join(" ",@unknown);
-    my $rolling = $all{rolling};
     #
     my @host_aliases = do{
         my $ip2aliases = &$merge_list({},&$map(\%all,sub{ my($k,$v)=@_; $k=~/^host:(.+)/ ? {$v=>["$1"]} : () }));
@@ -517,10 +516,7 @@ my $make_kc_yml = sub{
         );
         +{
             name => $nm, args=>[$nm], image => &$mandatory_of(image=>$opt),
-            env=>[
-                $rolling ? { name=>"C4ROLLING", value=>$rolling } : (),
-                @env
-            ],
+            env=>[@env],
             volumeMounts=>\@volume_mounts,
             $$opt{tty} ? (tty=>$$opt{tty}) : (),
             securityContext => { allowPrivilegeEscalation => "false" },
@@ -534,10 +530,10 @@ my $make_kc_yml = sub{
                     memory => &$mandatory_of(req_mem=>$opt),
                 },
             },
-            $rolling ? (
+            $ENV{C4READINESS_PATH} ? (
                 readinessProbe => {
                     periodSeconds => 3,
-                    exec => { command => ["cat","$rolling/c4is-ready"] },
+                    exec => { command => ["cat",$ENV{C4READINESS_PATH}] },
                 },
             ):(),
 
@@ -555,24 +551,12 @@ my $make_kc_yml = sub{
     ) : ();
     my @db4_volumes = $all{C4DATA_DIR} ? {name=>"db4"} : ();
     #
-    #$rolling and @volume_claim_templates and die "C4DATA_DIR can not be C4ROLLING";
-    my $stateful_set_yml = &$to_yml_str({
-        apiVersion => "apps/v1",
-        kind => "StatefulSet",
-        metadata => { name => $name },
-        spec => {
-            %$spec,
+    my $spec = {
+            %$spec_arg,
             selector => { matchLabels => { app => $name } },
-            serviceName => $name,
             template => {
                 metadata => {
-                    labels => {
-                        app => $name,
-#                        $rolling ? (c4rolling=>"v1") : (),
-                    },
-                    annotations => {
-#                        $rolling ? (c4rolling=>$rolling) : (),
-                    },
+                    labels => { app => $name },
                 },
                 spec => {
                     containers => \@containers,
@@ -589,9 +573,28 @@ my $make_kc_yml = sub{
                     %affinity,
                 },
             },
-            @volume_claim_templates,
-        },
+    };
+    my $stateful_set_yml = &$to_yml_str($all{C4ELECTOR_SERVERS} ? do{
+        @volume_claim_templates and die "C4DATA_DIR can not be with C4ELECTOR_SERVERS";
+        +{
+            apiVersion => "apps/v1",
+            kind => "Deployment",
+            metadata => { name => $name },
+            spec => $spec,
+        }
+    } : do{
+        +{
+            apiVersion => "apps/v1",
+            kind => "StatefulSet",
+            metadata => { name => $name },
+            spec => {
+                %$spec,
+                serviceName => $name,
+                @volume_claim_templates,
+            },
+        }
     });
+    }
     #
     my @service_yml = do{
         my @ports = &$map(\%all,sub{ my($k,$v)=@_;
@@ -848,7 +851,7 @@ my $get_consumer_options = sub{
             C4BOOTSTRAP_SERVERS => ($bootstrap_servers||die "no host bootstrap_servers"),
             C4HTTP_SERVER => "http://$comp:$inner_http_port",
             C4ELECTOR_SERVERS => join(",",map{"http://$elector-$_.$elector:$elector_port"}0,1,2),
-            rolling => "/c4",
+            C4READINESS_PATH=>"/c4/c4is-ready",
     )
 };
 

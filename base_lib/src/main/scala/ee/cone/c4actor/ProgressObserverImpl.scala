@@ -65,7 +65,11 @@ class ProgressObserverImpl(inner: Observer[RichContext], endOffset: NextOffset, 
 ) extends Observer[RichContext] with LazyLogging {
   private def ignoreTheSamePath(path: Path): Unit = ()
   def activate(rawWorld: RichContext): Observer[RichContext] = {
-    if(until == 0) ignoreTheSamePath(Files.write(Paths.get(config.get("C4ROLLING")).resolve("c4is-ready"),Array.empty[Byte]))
+    if(until == 0) {
+      val path = config.get("C4READINESS_PATH")
+      if(path.nonEmpty)
+        ignoreTheSamePath(Files.write(Paths.get(path),Array.empty[Byte]))
+    }
     val now = System.currentTimeMillis
     if(now < until) this
     else if(isMaster.get()) {
@@ -169,6 +173,7 @@ trait IsMaster {
         }
     )).map{ results =>
       val (ok,nok) = results.partition(r=>r)
+      logger.debug(s"lock ${requests eq lockRequests} -- ${ok.size}/${requests.size}")
       ok.size > nok.size
     }
 
