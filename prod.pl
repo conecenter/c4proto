@@ -594,7 +594,6 @@ my $make_kc_yml = sub{
             },
         }
     });
-    }
     #
     my @service_yml = do{
         my @ports = &$map(\%all,sub{ my($k,$v)=@_;
