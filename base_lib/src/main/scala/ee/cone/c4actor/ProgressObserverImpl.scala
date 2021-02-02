@@ -141,7 +141,9 @@ trait IsMaster {
 ) extends Executable with Early {
   def run(): Unit = concurrent.blocking {
     val inboxTopicPrefix = config.get("C4INBOX_TOPIC_PREFIX")
-    val addresses = config.get("C4ELECTOR_SERVERS").split(",").toList
+    val serversStr = config.get("C4ELECTOR_SERVERS")
+    val addresses = serversStr.split(",").toList
+    val hint = s"$serversStr ${actorName.value}"
     val owner = s"${UUID.randomUUID()}"
     def createRequest(address: String, period: String): HttpRequest =
       HttpRequest.newBuilder
@@ -152,12 +154,15 @@ trait IsMaster {
     val lockRequests = addresses.map(createRequest(_,"10000"))
     val unlockRequests = addresses.map(createRequest(_,"1"))
     val client = HttpClient.newHttpClient
-    factory.create(client,lockRequests,unlockRequests).iter(None,Future.successful(None),Nil)
+    factory.create(client,lockRequests,unlockRequests,hint).iter(None,Future.successful(None),Nil)
   }
 }
 
 @c4multi("ServerCompApp") final class ElectorWorker(
-  client: HttpClient, lockRequests: List[HttpRequest], unlockRequests: List[HttpRequest]
+  client: HttpClient,
+  lockRequests: List[HttpRequest],
+  unlockRequests: List[HttpRequest],
+  hint: String
 )(
   isMaster: IsMasterImpl, execution: Execution
 ) extends LazyLogging {
@@ -173,7 +178,7 @@ trait IsMaster {
         }
     )).map{ results =>
       val (ok,nok) = results.partition(r=>r)
-      logger.debug(s"lock ${requests eq lockRequests} -- ${ok.size}/${requests.size}")
+      logger.debug(s"$hint ${if(requests eq lockRequests)"  lock" else "unlock"} -- ${ok.size}/${requests.size}")
       ok.size > nok.size
     }
 
@@ -190,7 +195,8 @@ trait IsMaster {
   @tailrec def iter(wasUntilOpt: Option[Long], last: Future[Option[Long]], wasUncompleted: List[Future[Option[Long]]]): Unit = {
     val next = sendMore(last)(execution.mainExecutionContext)
     execution.fatal(_=>next)
-    Thread.sleep(1000)
+    Thread.sleep(1000+Random.nextInt(300))
+    logger.trace(s"$hint $wasUntilOpt")
     val (completed,uncompleted) =
       (next :: wasUncompleted).partition(_.isCompleted)
     val untilOpt: Option[Long] =
@@ -209,7 +215,6 @@ trait IsMaster {
         Runtime.getRuntime.halt(2)
       }
     }
-    Thread.sleep(1000+Random.nextInt(300))
     iter(untilOpt,next,uncompleted)
   }
 }

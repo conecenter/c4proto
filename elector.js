@@ -3,17 +3,20 @@
 const http = require('http');
 
 const locks = {}
-const lock = (path,owner,period) => {
+const lock = (url,owner,period) => {
   const now = Date.now()
-  const wasLock = locks[path]
-  if(owner && period && (!wasLock || wasLock.owner === owner || wasLock.until < now))
-    return locks[path] = { owner, until: now+period }
+  const wasLock = locks[url]
+  if(owner && period && (!wasLock || wasLock.owner === owner || wasLock.until < now)){
+    if(!wasLock || wasLock.owner !== owner) console.log(`${url} locked by ${owner}`)
+    locks[url] = { owner, until: now+period }
+    return true
+  }
 }
 
 const server = http.createServer((req, res) => {
   const owner = req.headers["x-r-lock-owner"]
   const period = parseInt(req.headers["x-r-lock-period"])
-  res.statusCode = req.method === "POST" && lock(req.path,owner,period) ? 200 : 400
+  res.statusCode = req.method === "POST" && lock(req.url,owner,period) ? 200 : 400
   res.end()
 })
 
