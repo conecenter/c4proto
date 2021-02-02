@@ -882,7 +882,7 @@ my $up_gate = sub{
     my @containers = ({
         @var_img,
         %consumer_options,
-        name => "gate",
+        name => "main",
         C4S3_CONF_DIR => "/c4conf-ceph-client",
         C4STATE_TOPIC_PREFIX => "gate",
         C4STATE_REFRESH_SECONDS => 1000,
