@@ -33,7 +33,8 @@ my $handle_build = sub{
     my($full_img,$reg,$shrep,$tag,$base,$proj,$mode,$checkout) =
         $arg=~/^build\s+(([\w\-\.\:\/]*?)(\w+)\:((([\w\-]+)[\w\.]*)\.(\w+)\.([\w\-]+)))\s*$/ ?
         ($1,$2,$3,$4,$5,$6,$7,$8) : die "can not [$arg]";
-    index(" $allow ","$reg$shrep:$proj") < 0 and die "prefix not allowed";
+    index(" $allow "," $reg$shrep:$proj ") < 0 and die "prefix not allowed";
+    my $builder_reg = index(" $allow "," ${reg}builder:$proj ") < 0 ? "" : $reg;
     #implement checkout lock?
     my $builder = md5_hex($full_img)."-".time;
     my $ctx_dir = (map{/(\S+)/ ? "$ctx_dirs/$1" : ()} syl("uuidgen"))[0] || die;
@@ -45,12 +46,16 @@ my $handle_build = sub{
         ["cd $repo_dir && git fetch && git fetch --tags && ".
             "git --git-dir=$repo_dir/.git --work-tree=$ctx_dir checkout $checkout -- ."],
         ["-t","docker","build","-t","builder:$tag","-f","$ctx_dir/build.$mode.dockerfile",@args,$ctx_dir],
+        $builder_reg ? (
+            ["docker","tag","builder:$tag","${builder_reg}builder:$tag"],
+            ["docker","push","${builder_reg}builder:$tag"],
+        ) : (),
         ["rm","-r",$ctx_dir],
         ["docker","create","--name",$builder,"builder:$tag"],
         ["docker","cp","$builder:/c4/res",$ctx_dir],
         ["docker","rm","-f",$builder],
         ["-t","docker","build","-t",$full_img,$ctx_dir],
-        $reg ? ["docker","push",$full_img] : ()
+        $reg ? ["docker","push",$full_img] : (),
     );
     sy(@ssh,@$_) for @commands;
 };

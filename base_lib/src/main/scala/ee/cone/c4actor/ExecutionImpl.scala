@@ -84,16 +84,19 @@ class RUncaughtExceptionHandler(inner: UncaughtExceptionHandler) extends Uncaugh
   def run(): Unit = {
     val toStart = getToStart.value.filter(executionFilter.check)
     logger.info(s"tracking ${toStart.size} services")
-    toStart.foreach(f => fatal(Future(f.run())(_)))
+    val ec = ExecutionContext.fromExecutor(VMExecution.newExecutorService("early-",None))
+    toStart.foreach(f => fatal(Future(f.run())(_), ec))
   }
   private def ignoreRootFuture[T](value: Future[T]): Unit = ()
-  def fatal[T](future: ExecutionContext=>Future[T]): Unit = ignoreRootFuture(future(mainExecutionContext).recover{
+  def fatal[T](future: ExecutionContext=>Future[T]): Unit =
+    fatal(future, mainExecutionContext)
+  def fatal[T](future: ExecutionContext=>Future[T], ec: ExecutionContext): Unit = ignoreRootFuture(future(ec).recover{
     case NonFatal(e) =>
       System.err.println(s"FATAL ${e.getMessage}")
       e.printStackTrace()
       System.exit(1)
       throw e
-  }(mainExecutionContext))
+  }(ec))
   def onShutdown(hint: String, f: () => Unit): ()=>Unit =
     VMExecution.onShutdown(hint,f)
   def complete(): Unit = { // exit from pooled thread will block itself

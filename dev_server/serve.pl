@@ -102,6 +102,10 @@ my $serve_broker = sub{
     &$exec("kafka-server-start.sh","$data_dir/server.properties");
 };
 
+my $elector_port_base = 6000;
+my $elector_proxy_port_base = 6010;
+my $elector_replicas = 3;
+
 my $serve_proxy = sub{
     &$put_text("$data_dir/haproxy.cfg", join '', map{"$_\n"}
         "defaults",
@@ -125,6 +129,17 @@ my $serve_proxy = sub{
         "backend be_sse",
         "  mode http",
         "  server se_sse 127.0.0.1:$sse_port",
+        # this is for HA elector test:
+        (map{
+            my $from_port = $elector_proxy_port_base + $_;
+            my $to_port = $elector_port_base + $_;
+            (
+                "listen listen_$from_port",
+                "  bind :$from_port",
+                "  server s_def 127.0.0.1:$to_port",
+            )
+        } 0..$elector_replicas)
+
     );
     &$exec("haproxy","-f","$data_dir/haproxy.cfg");
 };
@@ -137,8 +152,14 @@ my $serve_node = sub{
 };
 
 my $compilable_services = [
-    { name=>"gate", dir=>$proto_dir, main=>"def" },
-    { name=>"main", dir=>$repo_dir, main=>$ENV{C4DEV_SERVER_MAIN} || die "no C4DEV_SERVER_MAIN" },
+    { name=>"gate", dir=>$proto_dir,
+        main => "def",
+        replicas => [''],
+    },
+    { name=>"main", dir=>$repo_dir,
+        main => ($ENV{C4DEV_SERVER_MAIN} || die "no C4DEV_SERVER_MAIN"),
+        replicas => [0,1],
+    },
 ];
 
 my $get_tag_info = sub{
@@ -150,11 +171,16 @@ my $get_tag_info = sub{
 };
 
 my $exec_server = sub{
-    my($add_env,$service_name)=@_;
+    my($add_env,$service_name,$replica)=@_;
     my $compilable_service =
         &$single(grep{$$_{name} eq $service_name} @$compilable_services);
     my ($dir,$nm,$mod,$cl) = &$get_tag_info($compilable_service);
     my $classpath = syf("cat $dir/.bloop/c4/mod.$mod.classpath");
+    my $elector_servers = join ",", map{
+        my $port = ($replica>0?$elector_proxy_port_base:$elector_port_base) + $_;
+        "http://127.0.0.1:$port"
+    } 0..$elector_replicas-1;
+
     my $env = {
         C4BOOTSTRAP_SERVERS => $ssl_bootstrap_server,
         C4INBOX_TOPIC_PREFIX => "def0",
@@ -169,6 +195,8 @@ my $exec_server = sub{
         C4STATE_TOPIC_PREFIX => $nm,
         C4APP_CLASS => $cl,
         CLASSPATH => $classpath,
+        C4ELECTOR_SERVERS => $elector_servers,
+        C4READINESS_PATH => "",
         %$add_env,
     };
 
@@ -179,12 +207,12 @@ my $serve_gate = sub{
     &$exec_server({
         C4S3_CONF_DIR=>$s3conf_dir,
         C4STATE_REFRESH_SECONDS=>100,
-        # JAVA_TOOL_OPTIONS=>"-XX:ActiveProcessorCount=36", #todo: fix work without many cores
-    }, "gate");
+    }, "gate", 0);
 };
 
 my $serve_main = sub{
-    &$exec_server({}, "main");
+    my($replica)=@_;
+    &$exec_server({}, "main", $replica);
 };
 
 my $serve_build = sub{
@@ -194,7 +222,8 @@ my $serve_build = sub{
     for my $compilable_service(@$compilable_services){
         my ($dir,$nm,$mod,$cl) = &$get_tag_info($compilable_service);
         sy("cd $dir && perl $dir/.bloop/c4/compile.pl $mod");
-        sy("supervisorctl restart $$compilable_service{name}");
+        sy("supervisorctl restart $$compilable_service{name}$_")
+            for @{$$compilable_service{replicas} || die};
     }
     sleep 1 while 1; #todo: check some ver here
 };
@@ -211,6 +240,18 @@ my $serve_mcl = sub{
     sleep 1 while 1;
 };
 
+my $serve_elector = sub{
+    my($replica)=@_;
+    &$exec_at($proto_dir,{
+        C4HTTP_PORT => $elector_port_base+$replica
+    }, "node","elector.js");
+};
+
+my $replicas = sub{
+    my($key,$serve,$replicas)=@_;
+    map{my $r=$_;("$key$r"=>sub{&$serve($r,@_)})} 0..$replicas-1
+};
+
 my $service_map = {
     build => $serve_build,
     bloop => $serve_bloop,
@@ -219,9 +260,10 @@ my $service_map = {
     proxy => $serve_proxy,
     node => $serve_node,
     gate => $serve_gate,
-    main => $serve_main,
+    &$replicas(main => $serve_main, 2),
     minio => $serve_minio,
     mcl => $serve_mcl,
+    &$replicas(elector => $serve_elector, $elector_replicas),
 };
 
 my $init_s3 = sub{
@@ -251,10 +293,12 @@ my $init = sub{
         "[program:$$_[0]]",
         "command=perl $0 $$_[1]",
         "autorestart=true",
-#        "stderr_logfile=/dev/stderr",
-#        "stderr_logfile_maxbytes=0",
-#        "stdout_logfile=/dev/stdout",
-#        "stdout_logfile_maxbytes=0",
+        $ENV{C4MERGE_LOGS} ? (
+            "stderr_logfile=/dev/stderr",
+            "stderr_logfile_maxbytes=0",
+            "stdout_logfile=/dev/stdout",
+            "stdout_logfile_maxbytes=0",
+        ):()
     )} map{
         [$_,$_]
     } sort keys %$service_map;

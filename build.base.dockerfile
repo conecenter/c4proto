@@ -1,4 +1,5 @@
-FROM builder:replink-with-keys-v2
+ARG C4UID=1979
+FROM ghcr.io/conecenter/c4replink:v2
 USER root
 RUN /install.pl apt \
     curl ca-certificates xz-utils \
