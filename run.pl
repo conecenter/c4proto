@@ -3,9 +3,6 @@
 
 use strict;
 
-my $http_port = 8067;
-my $sse_port = 8068;
-
 my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
 
 my @tasks;
@@ -20,13 +17,8 @@ my $serve = sub{
     $ENV{CLASSPATH} = join ":", sort <app/*.jar>;
     &$exec("sh", "serve.sh");
 };
-push @tasks, [gate=>sub{
-    $ENV{C4HTTP_PORT} = $http_port;
-    $ENV{C4SSE_PORT} = $sse_port;
-    &$serve();
-}];
 push @tasks, [main=>sub{
-    m{([^/]+)$} and (-e $1 or symlink $_,$1) or die for </c4conf/*>;
+    m{([^/]+)$} and (-e $1 or symlink $_,$1) or die for </c4conf/*>; # gate do not need
     &$serve();
 }];
 

@@ -892,6 +892,8 @@ my $up_gate = sub{
         "ingress:$hostname/"=>$inner_http_port,
         "ingress:$hostname/sse"=>$inner_sse_port,
         ingress_secret_name=>$ingress_secret_name,
+        C4HTTP_PORT => $inner_http_port,
+        C4SSE_PORT => $inner_sse_port,
     });
     ($run_comp, $from_path, \@containers);
 };
