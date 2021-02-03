@@ -1142,8 +1142,9 @@ my $ci_build_proj_tag = sub{
     my @next_tags = $rebuild_base ? () : do{
         my %has_img = map{/^(\S+)\s+(\S+)/?("$1:$2"=>1):()}
             syl(&$remote($builder_comp,"docker images"));
+        my $builder_repo = (grep{ &$is_builder_repo($_) } @proj_repos)[0] || die 'proj-tag builder not allowed';
         $has_img{"$repo:$ideal_tag"} ? () :
-            map{ $has_img{"builder:$_"} ? "$_.next.$head" : () }
+            map{ $has_img{"$builder_repo:$_"} ? "$_.next.$head" : () }
             map{"$proj_tag.base.$_"} @log
     };
     my ($target_tag) = (@next_tags,$ideal_tag);
@@ -1161,10 +1162,15 @@ my $ci_build_proj_tag = sub{
     @cont and print join "", map{"$_\n"} "### what's next:", @cont;
 };
 
-push @tasks, ["ci_build_img","<builder> <img>",sub{
+push @tasks, ["ci_build_img","<builder> [img]",sub{
     my ($builder_comp,$img) = @_;
     sy(&$ssh_add());
-    &$ci_build_img($builder_comp,$img);
+    if($img){
+        &$ci_build_img($builder_comp,$img);
+    } else {
+        my $conf = &$get_compose($builder_comp);
+        print sort map{"$_\n"} ($$conf{C4CI_ALLOW}||die)=~/(\S+)/g;
+    }
 }];
 push @tasks, ["ci_build_head","[proj-tag]",sub{
     my ($proj_tag) = @_;
