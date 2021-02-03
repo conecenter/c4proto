@@ -4,7 +4,7 @@ use strict;
 use Digest::MD5 qw(md5_hex);
 use JSON::XS;
 
-my $sys_image_ver = "v83";
+my $sys_image_ver = "v84";
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -948,11 +948,18 @@ push @tasks, ["up","$composes_txt <args>",sub{
     &$up(@_);
 }];
 
-push @tasks, ["restart","$composes_txt",sub{
+#push @tasks, ["restart","$composes_txt",sub{
+#    my($comp)=@_;
+#    sy(&$ssh_add());
+#    my ($dir) = &$get_deployer_conf($comp,1,qw[dir]);
+#    sy(&$remote($comp,"cd $dir/$comp && C4FORCE_RECREATE=1 ./up"));
+#}];
+push @tasks, ["del_pods","$composes_txt",sub{
     my($comp)=@_;
     sy(&$ssh_add());
-    my ($dir) = &$get_deployer_conf($comp,1,qw[dir]);
-    sy(&$remote($comp,"cd $dir/$comp && C4FORCE_RECREATE=1 ./up"));
+    my $ns = &$get_kc_ns($comp);
+    my $pods = join " ", &$get_pods($comp,$ns);
+    $pods and sy(&$remote($comp,"kubectl -n $ns delete pods $pods"));
 }];
 
 ### snapshot op-s
