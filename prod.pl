@@ -1034,7 +1034,11 @@ push @tasks, ["history","$composes_txt",sub{
     my %vars = $history=~/([\w\-\.\:\/]+)/g;
     print "$history\n".join("",&$map(\%vars,sub{"[$_[0]=$_[1]]\n"}));
 }];
-my $get_comp_from_pod = sub{ $_[0]=~/^(.+)-\d+$/ ? "$1" : die "bad pod name" };
+my $get_comp_from_pod = sub{
+    $_[0]=~/^(.+)-\d$/ ? "$1" :
+    $_[0]=~/^(.+)-\w+-\w+$/ ? "$1" :
+    die "bad pod name"
+};
 push @tasks, ["bash","<pod> [container]",sub{ #<replica>
     my($pod,$service)=@_;
     sy(&$ssh_add());
