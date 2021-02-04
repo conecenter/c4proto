@@ -1305,7 +1305,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     mkdir "$ctx_dir/app";
     my $mod  = syf("cat $gen_dir/.bloop/c4/tag.$base.mod" )=~/(\S+)/ ? $1 : die;
     my $main = syf("cat $gen_dir/.bloop/c4/tag.$base.main")=~/(\S+)/ ? $1 : die;
-    my $paths = JSON::SX->new->decode(syf("cat $gen_dir/.bloop/c4/mod.$mod.classpath.json"));
+    my $paths = JSON::XS->new->decode(syf("cat $gen_dir/.bloop/c4/mod.$mod.classpath.json"));
     my @classpath = $$paths{CLASSPATH}=~/([^\s:]+)/g;
     my @started = map{&$start($_)} map{
         m{([^/]+\.jar)$} ? "cp $_ $ctx_dir/app/$1" :
