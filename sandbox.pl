@@ -207,4 +207,5 @@ my $cmd_map = {
     loop => $serve_loop,
     main => $init,
 };
+$| = 1;
 $$cmd_map{$ARGV[0]}->();
