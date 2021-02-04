@@ -1,5 +1,6 @@
 
 use strict;
+use JSON::XS;
 
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 sub syf{ for(@_){ print "$_\n"; my $r = scalar `$_`; $? && die $?; return $r } }
@@ -175,7 +176,7 @@ my $exec_server = sub{
     my $compilable_service =
         &$single(grep{$$_{name} eq $service_name} @$compilable_services);
     my ($dir,$nm,$mod,$cl) = &$get_tag_info($compilable_service);
-    my $classpath = syf("cat $dir/.bloop/c4/mod.$mod.classpath");
+    my $paths = JSON::XS->new->decode(syf("cat $dir/.bloop/c4/mod.$mod.classpath.json"));
     my $elector_servers = join ",", map{
         my $port = ($replica>0?$elector_proxy_port_base:$elector_port_base) + $_;
         "http://127.0.0.1:$port"
@@ -194,9 +195,9 @@ my $exec_server = sub{
         C4SSE_PORT => $sse_port,
         C4STATE_TOPIC_PREFIX => $nm,
         C4APP_CLASS => $cl,
-        CLASSPATH => $classpath,
         C4ELECTOR_SERVERS => $elector_servers,
         C4READINESS_PATH => "",
+        %$paths,
         %$add_env,
     };
 

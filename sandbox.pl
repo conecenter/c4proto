@@ -1,5 +1,6 @@
 
 use strict;
+use JSON::XS;
 use POSIX ":sys_wait_h";
 
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -141,8 +142,9 @@ my $serve_loop = sub{ &$forever(sub{
             my $dir = "$droll$$";
             &$prep_empty_dir($dir);
             my $debug_int_ip = &$get_debug_ip($$);
+            my $paths = JSON::XS->new->decode(&$get_text_or_empty("$tmp/mod.$mod.classpath.json"));
             my $env = {
-                CLASSPATH => &$get_text_or_empty("$tmp/mod.$mod.classpath"),
+                %$paths,
                 !$ENV{C4DEBUG_PROXY} ? () : (JAVA_TOOL_OPTIONS => " -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$debug_int_ip:$debug_port $ENV{JAVA_TOOL_OPTIONS}"),
                 C4ELECTOR_PROC_PATH => "/proc/$ppid",
                 C4READINESS_PATH => "$dir/c4is-ready",

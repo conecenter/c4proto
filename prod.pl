@@ -1269,8 +1269,6 @@ my $build_client = sub{
         map{ substr $_, length $build_dir }
         sort <$build_dir/*>
     );
-    my $to_dir = "$gen_dir/htdocs";
-    $build_dir eq readlink $to_dir or symlink $build_dir, $to_dir or die $!;
 };
 
 push @tasks, ["build_client","<dir> [mode]",sub{
@@ -1307,7 +1305,8 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     mkdir "$ctx_dir/app";
     my $mod  = syf("cat $gen_dir/.bloop/c4/tag.$base.mod" )=~/(\S+)/ ? $1 : die;
     my $main = syf("cat $gen_dir/.bloop/c4/tag.$base.main")=~/(\S+)/ ? $1 : die;
-    my @classpath = syf("cat $gen_dir/.bloop/c4/mod.$mod.classpath")=~/([^\s:]+)/g;
+    my $paths = JSON::SX->new->decode(syf("cat $gen_dir/.bloop/c4/mod.$mod.classpath.json"));
+    my @classpath = $$paths{CLASSPATH}=~/([^\s:]+)/g;
     my @started = map{&$start($_)} map{
         m{([^/]+\.jar)$} ? "cp $_ $ctx_dir/app/$1" :
         m{([^/]+)\.classes(-bloop-cli)?$} ? "cd $_ && zip -q -r $ctx_dir/app/$1.jar ." : die $_
@@ -1316,16 +1315,13 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     &$put_text("$ctx_dir/serve.sh","export C4APP_CLASS=$main\nexec java ee.cone.c4actor.ServerMain");
     #
     my %has_mod = map{m"/mod\.([^/]+)\.classes(-bloop-cli)?$"?($1=>1):()} @classpath;
-    my $main_public_path_path = "$gen_dir/.bloop/c4/main_public_path";
-    my @main_public_path = (!-e $main_public_path_path) ? () :
-        syf("cat $main_public_path_path")=~/(\S+)/ ? ($1) : die;
     my @public_part = map{ my $dir = $_;
         my @pub = map{ !/^(\S+)\s+\S+\s+(\S+)$/ ? die : $has_mod{$1} ? [$_,"$2"] : () }
             syf("cat $dir/c4gen.ht.links")=~/(.+)/g;
         my $sync = [map{"$$_[1]\n"} @pub];
         my $links = [map{"$$_[0]\n"}@pub];
         @pub ? +{ dir=>$dir, sync=>$sync, links=>$links } : ()
-    } grep{-e $_} "$gen_dir/htdocs", @main_public_path;
+    } grep{-e $_} $$paths{C4PUBLIC_PATH}=~/([^\s:]+)/g;
     for my $part(@public_part){
         my $from_dir = $$part{dir} || die;
         my $files = &$put_temp("sync", join "", @{$$part{sync}||die});
