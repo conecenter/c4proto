@@ -13,8 +13,8 @@ my $serve = sub{
         "-XX:GCTimeRatio=1","-XX:MinHeapFreeRatio=15","-XX:MaxHeapFreeRatio=50";
     # https://www.javacodegeeks.com/2017/11/minimize-java-memory-usage-right-garbage-collector.html
     # with G1 unused RAM is released back to OS
-    
-    $ENV{CLASSPATH} = join ":", sort <app/*.jar>;
+    local $ENV{C4PUBLIC_PATH} = "htdocs";
+    local $ENV{CLASSPATH} = join ":", sort <app/*.jar>;
     &$exec("sh", "serve.sh");
 };
 push @tasks, [main=>sub{

@@ -43,7 +43,15 @@ trait PublicDirProvider {
   def get: List[(String,Path)]
 }
 
-@c4("PublishingCompApp") final class ModPublicDirProvider(config: ListConfig) extends PublicDirProvider with LazyLogging {
+@c4("PublishingCompApp") final class PublicPaths(config: ListConfig)(
+  val value: List[Path] =
+    config.get("C4PUBLIC_PATH")
+      .flatMap(paths=>"""([^\s:]+)""".r.findAllIn(paths)).map(Paths.get(_))
+)
+
+@c4("PublishingCompApp") final class ModPublicDirProvider(
+  config: ListConfig, publicPaths: PublicPaths,
+) extends PublicDirProvider with LazyLogging {
   def get: List[(String,Path)] = {
     val Mod = """.+/mod\.([^/]+)\.(classes(-bloop-cli)?|jar)""".r
     val hasMod = (for {
@@ -53,10 +61,10 @@ trait PublicDirProvider {
     logger.debug(s"hasMod: $hasMod")
     val Line = """(\S+)\s+(\S+)\s+(\S+)""".r
     for {
-      mainPublicPath <- "htdocs" :: config.get("C4GENERATOR_MAIN_PUBLIC_PATH")
-      fName <- Option(Paths.get(mainPublicPath).resolve("c4gen.ht.links")).toList if Files.exists(fName)
+      mainPublicPath <- publicPaths.value
+      fName <- Option(mainPublicPath.resolve("c4gen.ht.links")).toList if Files.exists(fName)
       Line(mod,url,pf) <- Files.readAllLines(fName).asScala.toList if hasMod(mod)
-    } yield (url,Paths.get(s"$mainPublicPath/$pf"))
+    } yield (url,mainPublicPath.resolve(pf))
   }
 }
 
@@ -71,6 +79,7 @@ case object InitialPublishDone extends TransientLens[Boolean](false)
   publishFullCompressor: PublishFullCompressor,
   publisher: Publisher,
   txAdd: LTxAdd,
+  publicPaths: PublicPaths,
 )(
   mimeTypes: String=>Option[String] = mimeTypesProviders.flatMap(_.get).toMap.get,
   compressor: Compressor = publishFullCompressor.value
@@ -87,7 +96,7 @@ case object InitialPublishDone extends TransientLens[Boolean](false)
       txAdd.add(publishFromFiles(local)).andThen(InitialPublishDone.set(true))(local)
     else {
       val timeToPublish =
-        List(Paths.get("htdocs/publish_time")).filter(Files.exists(_))
+        publicPaths.value.map(_.resolve("publish_time")).filter(Files.exists(_))
           .flatMap(path=>publisher.publish("FromFilesTime",List(prepare("/publish_time",ToByteString(Files.readAllBytes(path)))))(local))
       if(timeToPublish.isEmpty)
         SleepUntilKey.set(Instant.ofEpochMilli(System.currentTimeMillis+1000))(local)
