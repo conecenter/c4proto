@@ -180,11 +180,10 @@ push @tasks, ["","",sub{
         (map{!$$_[1] ? () : "  prod $$_[0] $$_[1]"} @tasks);
 }];
 
-push @tasks, ["edit","<main|auth> #todo locking or merging",sub{
-    my($cf)=@_;
+push @tasks, ["edit_auth"," ",sub{ #?todo locking or merging
     sy(&$ssh_add());
     my($dir,$save) = @{&$get_conf_dir()};
-    sy("mcedit","$dir/$cf.pl");
+    sy("mcedit","$dir/auth.pl");
     sy($save);
 }];
 
