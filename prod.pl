@@ -4,7 +4,7 @@ use strict;
 use Digest::MD5 qw(md5_hex);
 use JSON::XS;
 
-my $sys_image_ver = "v84";
+my $sys_image_ver = "v85";
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -66,10 +66,13 @@ my $get_conf_cert_path = lazy{
 
 my $ssh_add  = sub{ "ssh-add ".&$get_conf_cert_path() };
 
+my $parse_deploy_location = sub{
+    $_[0]=~m{^([\w+\.\-]+):(\d+)(/[\w+\.\-/]+)$} ?
+        ("$1","$2","$3") : die "bad C4DEPLOY_LOCATION";
+};
+
 my $get_conf_dir = lazy{
-    my($host,$port,$path) =
-        $ENV{C4DEPLOY_LOCATION}=~m{^([\w+\.\-]+):(\d+)(/[\w+\.\-/]+)$} ?
-        ($1,$2,$3) : die "bad C4DEPLOY_LOCATION";
+    my($host,$port,$path) = &$parse_deploy_location($ENV{C4DEPLOY_LOCATION});
     my $remote_loc = "c4\@$host:$path";
     my $rsync = "rsync -e 'ssh -p $port' -a --del";
     my $local_dir = &$get_tmp_dir();
@@ -611,7 +614,7 @@ my $make_kc_yml = sub{
             spec => {
                 selector => { app => $name },
                 ports => \@ports,
-                $all{is_deployer} ? (type => "NodePort") : (),
+                $all{is_node_port} ? (type => "NodePort") : (),
                 $all{headless} ? (clusterIP=>"None") : (),
             },
         }) : ();
@@ -1334,6 +1337,19 @@ push @tasks, ["ci_rm","",sub{ #to call from Dockerfile
     print "[purging]\n";
     for(sort{$b cmp $a} syl("cat $gen_dir/ci.rm")){ chomp $_ or die "[$_]"; unlink $_; rmdir $_ }
 }];
+
+my $put_reg_ssh_client_conf = sub{
+    my($from_path,$host,$port)=@_;
+    my $key_dir = &$get_tmp_dir();
+    sy(join ' && ',
+        "cd $key_dir",
+        "ssh-keygen -f id_rsa",
+        "ssh-keyscan -H $host > known_hosts",
+        "tar -czf $from_path/ssh.tar.gz .",
+        "ssh-copy-id -i id_rsa.pub -p $port c4\@$host"
+    );
+};
+
 push @tasks, ["up-ci","",sub{
     my ($comp,$args) = @_;
     my $gen_dir = &$get_proto_dir();
@@ -1372,16 +1388,7 @@ push @tasks, ["up-ci","",sub{
     );
     my $from_path = &$get_tmp_dir();
     &$put_frpc_conf($from_path,&$get_frpc_conf($comp));
-    do{
-        my $key_dir = &$get_tmp_dir();
-        sy(join ' && ',
-            "cd $key_dir",
-            "ssh-keygen -f id_rsa",
-            "ssh-keyscan -H $host > known_hosts",
-            "tar -czf $from_path/ssh.tar.gz .",
-            "ssh-copy-id -i id_rsa.pub -p $port c4\@$host"
-        );
-    };
+    &$put_reg_ssh_client_conf($from_path,$host,$port);
     #sy(&$remote($comp,"mkdir -p $repo_dir"));
     #sy(&$remote($comp,"test -e $repo_dir/.git || git clone $repo_url $repo_dir"));
 
@@ -1516,6 +1523,10 @@ my $install_kubectl = sub{
     ."&& chmod +x ./kubectl "
     ."&& mv ./kubectl /usr/bin/kubectl "
 };
+my $install_tini = sub{
+    "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini"
+    ."&& chmod +x /tools/tini"
+};
 
 push @tasks, ["up-kc_host", "", sub{
     my ($comp,$args) = @_;
@@ -1556,6 +1567,7 @@ push @tasks, ["up-kc_host", "", sub{
             image => $img,
             name => "kubectl",
             is_deployer => 1,
+            is_node_port => 1,
             @req_small,
         },
         {
@@ -1881,8 +1893,8 @@ push @tasks, ["cat_visitor_conf","$composes_txt",sub{
 
 push @tasks, ["up-elector","",sub{
     my ($comp,$args) = @_;
-    my $gen_dir = &$get_proto_dir();
     my $img = do{
+        my $gen_dir = &$get_proto_dir();
         my $from_path = &$get_tmp_dir();
         my $put = &$rel_put_text($from_path);
         sy("cp $gen_dir/install.pl $gen_dir/elector.js $from_path/");
@@ -1890,7 +1902,7 @@ push @tasks, ["up-elector","",sub{
             &$base_image_steps(),
             "RUN perl install.pl apt curl ca-certificates xz-utils", #xz-utils for node
             "RUN perl install.pl curl $dl_node_url",
-            "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini && chmod +x /tools/tini",
+            &$install_tini(),
             "COPY elector.js /",
             "USER c4",
             'ENTRYPOINT ["/tools/tini","--","/tools/node/bin/node","/elector.js"]',
@@ -1906,6 +1918,48 @@ push @tasks, ["up-elector","",sub{
     &$sync_up(&$wrap_deploy($comp,$from_path,\@containers),$args);
 }];
 
+push @tasks, ["up-dconf","",sub{
+    my ($comp,$args) = @_;
+    my $img = do{
+        my $gen_dir = &$get_proto_dir();
+        my $from_path = &$get_tmp_dir();
+        my $put = &$rel_put_text($from_path);
+        sy("cp $gen_dir/install.pl $gen_dir/dconf.js $from_path/");
+        &$put("Dockerfile", join "\n",
+            &$base_image_steps(),
+            "RUN perl install.pl apt curl ca-certificates xz-utils openssh-client", #xz-utils for node
+            "RUN perl install.pl curl $dl_node_url",
+            &$install_tini(),
+            "COPY dconf.js /",
+            "USER c4",
+            'ENTRYPOINT ["/tools/tini","--","/tools/node/bin/node","/dconf.js"]',
+        );
+        &$remote_build(''=>$comp,$from_path);
+    };
+    my $from_path = &$get_tmp_dir();
+    my $hostname = &$get_hostname($comp) || die "no le_hostname";
+    #
+    my $cmd = do{
+        my $conf = &$get_compose($comp);
+        my($host,$port,$path) = &$parse_deploy_location($$conf{C4DEPLOY_LOCATION});
+        &$put_reg_ssh_client_conf($from_path,$host,$port);
+        my $dir = "/c4/.ssh";
+        "mkdir -p $dir && cd $dir && chmod 0700 . && tar -xzf \$C4CI_KEY_TGZ && ssh -p $port c4\@$host 'cd $path && git pull'"
+    };
+    #
+    my @containers = ({
+        image => $img,
+        name => "main",
+        tty => "true",
+        "port:$inner_http_port:$inner_http_port"=>"",
+        "ingress:$hostname/"=>$inner_http_port,
+        C4HTTP_PORT => $inner_http_port,
+        C4CI_KEY_TGZ => "/c4conf/ssh.tar.gz",
+        C4CI_CMD => $cmd,
+        @req_small
+    });
+    &$sync_up(&$wrap_deploy($comp,$from_path,\@containers),$args);
+}];
 
 my $ckh_secret =sub{ $_[0]=~/^([\w\-\.]{3,})$/ ? "$1" : die 'bad secret name' };
 push @tasks, ["get_secret","$composes_txt <secret-name>",sub{
