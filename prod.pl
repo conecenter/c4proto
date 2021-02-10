@@ -95,17 +95,21 @@ my $get_deployer_conf = sub{
     my $n_conf = &$get_compose(&$get_deployer($comp));
     map{$$n_conf{$_} || $chk && die "no $_"} @k;
 };
-my $get_host_port = sub{ &$get_deployer_conf($_[0],1,qw(host port)) };
+my $get_host_port = sub{
+    my ($host,$port) = &$get_deployer_conf($_[0],1,qw(host port));
+    my ($user) = &$get_deployer_conf($_[0],0,qw(user));
+    ($host,$port,$user||"c4")
+};
 
 my $ssh_ctl = sub{
     my($comp,@args)=@_;
-    my ($host,$port) = &$get_host_port($comp);
-    ("ssh","c4\@$host","-p$port",@args);
+    my ($host,$port,$user) = &$get_host_port($comp);
+    ("ssh","$user\@$host","-p$port",@args);
 };
 my $remote = sub{
     my($comp,$stm)=@_;
-    my ($host,$port) = &$get_host_port($comp);
-    "ssh c4\@$host -p $port '$stm'"; #'' must be here; ssh joins with ' ' args for the remote sh anyway
+    my ($host,$port,$user) = &$get_host_port($comp);
+    "ssh $user\@$host -p $port '$stm'"; #'' must be here; ssh joins with ' ' args for the remote sh anyway
 };
 
 my $single_or_undef = sub{ @_==1 ? $_[0] : undef };
@@ -137,9 +141,9 @@ my $running_containers_all = sub{
 
 my $rsync_to = sub{
     my($from_path,$comp,$to_path)=@_;
-    my ($host,$port) = &$get_host_port($comp);
+    my ($host,$port,$user) = &$get_host_port($comp);
     sy(&$remote($comp,"mkdir -p $to_path"));
-    sy("rsync -e 'ssh -p $port' -a --del --no-group $from_path/ c4\@$host:$to_path");
+    sy("rsync -e 'ssh -p $port' -a --del --no-group $from_path/ $user\@$host:$to_path");
 };
 
 my $split_app = sub{
@@ -1125,19 +1129,53 @@ push @tasks, ["test_cd","<host>:<port> $composes_txt <pods|registry|'history $co
 #    $repo_dir ? "$req_pre.".&$get_head_img_tag($repo_dir,$parent) : $req_pre;
 #};
 
-my $ci_build_img = sub{
-    my ($builder_comp,$img) = @_;
-    my $req = "build $img\n";
-    my $gen_dir = &$get_proto_dir();
-    my ($host,$port) = &$get_host_port($builder_comp);
+push @tasks, ["ci_cleanup","$composes_txt",sub{
+    my ($builder_comp) = @_;
     my $conf = &$get_compose($builder_comp);
-    local $ENV{C4CI_HOST} = $host;
-    local $ENV{C4CI_SHORT_REPO_DIRS} = $$conf{C4CI_SHORT_REPO_DIRS} || die "$builder_comp C4CI_SHORT_REPO_DIRS";
-    local $ENV{C4CI_ALLOW} = $$conf{C4CI_ALLOW} || die;
-    local $ENV{C4CI_CTX_DIR} = $$conf{C4CI_CTX_DIR} || die;
-    sy("perl", "$gen_dir/ci.pl", "ci_arg", $req);
-    print "prod up \$C4CURRENT_STACK 'image $img'\n";
+    my @ssh = &$ssh_ctl($builder_comp);
+    my @to_kill = map{/^c4\s+(\d+).+\bdocker\s+build\b/?"$1":()} syl(join" ",@ssh,"ps","-ef");
+    @to_kill and sy(@ssh,"kill",@to_kill);
+    sy(@ssh,"test -e $tmp_root && rm -r $tmp_root; true");
+}];
+
+my $ci_build_img = sub{
+    my ($builder_comp,$arg) = @_;
+    my $conf = &$get_compose($builder_comp);
+    my $allow = &$mandatory_of(C4CI_ALLOW=>$conf);
+    my($full_img,$reg,$shrep,$tag,$base,$proj,$mode,$checkout) =
+        $arg=~/^(([\w\-\.\:\/]*?)(\w+)\:((([\w\-]+)[\w\.]*)\.(\w+)\.([\w\-]+)))$/ ?
+        ($1,$2,$3,$4,$5,$6,$7,$8) : die "can not [$arg]";
+    index(" $allow "," $reg$shrep:$proj ") < 0 and die "prefix not allowed";
+    my $builder_reg = index(" $allow "," ${reg}builder:$proj ") < 0 ? "" : $reg;
+    #implement checkout lock?
+    my $builder = md5_hex($full_img)."-".time;
+    my %repo_urls = &$mandatory_of(C4CI_SHORT_REPO_REMOTES=>$conf)=~/(\S+)/g;
+    my $repo_url = $repo_urls{$shrep} || die "no repo url for $shrep";
+    my $repo_dir = &$need_path("/tmp/c4ci/$shrep");
+    -e $repo_dir or sy("mkdir -p /tmp/c4ci && git clone $repo_url $repo_dir");
+    my $local_dir = &$get_tmp_dir();
+    sy("cd $repo_dir && git fetch && git fetch --tags && ".
+      "git --git-dir=$repo_dir/.git --work-tree=$local_dir checkout $checkout -- .");
+    my $ctx_dir = syf("uuidgen")=~/(\S+)/ ? "$tmp_root/$1" : die;
+    &$rsync_to($local_dir,$builder_comp,$ctx_dir);
+    my @args = ("--build-arg","C4CI_BASE_TAG=$base");
+    my @commands = (
+        ["-t","docker","build","-t","builder:$tag","-f","$ctx_dir/build.$mode.dockerfile",@args,$ctx_dir],
+        $builder_reg ? (
+            ["docker","tag","builder:$tag","${builder_reg}builder:$tag"],
+            ["docker","push","${builder_reg}builder:$tag"],
+        ) : (),
+        ["rm","-r",$ctx_dir],
+        ["docker","create","--name",$builder,"builder:$tag"],
+        ["docker","cp","$builder:/c4/res",$ctx_dir],
+        ["docker","rm","-f",$builder],
+        ["-t","docker","build","-t",$full_img,$ctx_dir],
+        $reg ? ["docker","push",$full_img] : (),
+    );
+    sy(&$ssh_ctl($builder_comp,@$_)) for @commands;
+    print "prod up \$C4CURRENT_STACK 'image $arg'\n";
 };
+
 my $is_builder_repo = sub{ $_[0]=~m{/([^/]+)$} && $1 eq 'builder' };
 my $ci_build_proj_tag = sub{
     my ($proj_tag_arg,$rebuild_base) = @_;
@@ -1349,56 +1387,13 @@ my $put_reg_ssh_client_conf = sub{
     );
 };
 
-push @tasks, ["up-ci","",sub{
+push @tasks, ["up-dc_host","",sub{
     my ($comp,$args) = @_;
-    my $gen_dir = &$get_proto_dir();
-    my $img = do{
-        my $from_path = &$get_tmp_dir();
-        my $put = &$rel_put_text($from_path);
-        sy("cp $gen_dir/install.pl $gen_dir/ci.pl $from_path/");
-        &$put("Dockerfile", join "\n",
-            &$base_image_steps(),
-            "RUN perl install.pl apt curl openssh-client socat libdigest-perl-md5-perl uuid-runtime",
-            "RUN perl install.pl curl $dl_frp_url",
-            "COPY ci.pl /",
-            "USER c4",
-            'ENTRYPOINT ["perl","/ci.pl"]',
-        );
-        &$remote_build(''=>$comp,$from_path);
-    };
-    my $conf = &$get_compose($comp);
-    my ($host,$port) = &$get_host_port($comp);
-    #userns_mode => "host" with docker.sock -- bad uid-s
-    my @containers = (
-        {
-            image => $img,
-            name => "ci",
-            C4CI_KEY_TGZ => "/c4conf/ssh.tar.gz",
-            C4CI_PORT => $cicd_port,
-            C4CI_HOST => $host,
-            tty => "true",
-            (map{($_=>$$conf{$_}||die "no $_")} qw[C4CI_SHORT_REPO_DIRS C4CI_ALLOW C4CI_CTX_DIR]),
-        },
-        {
-            image => $img,
-            name => "frpc",
-            C4FRPC_INI => "/c4conf/frpc.ini",
-        },
-    );
-    my $from_path = &$get_tmp_dir();
-    &$put_frpc_conf($from_path,&$get_frpc_conf($comp));
-    &$put_reg_ssh_client_conf($from_path,$host,$port);
-    #sy(&$remote($comp,"mkdir -p $repo_dir"));
-    #sy(&$remote($comp,"test -e $repo_dir/.git || git clone $repo_url $repo_dir"));
-
-    my($yml_str,$up) = &$make_dc_yml($comp,$from_path,\@containers);
-    my $up_content = &$pl_head().&$pl_embed(main=>$yml_str).qq[pp(main=>$up);];
-    &$sync_up($comp,$from_path,$up_content,"");
-}];
-
-push @tasks, ["visit-ci", "", sub{
-    my($comp)=@_;
-    [[main=>$cicd_port]]
+    my ($host,$port,$user) = &$get_host_port($comp);
+    my $conf_cert_path = &$get_conf_cert_path().".pub";
+    sy("ssh-copy-id -i $conf_cert_path $user\@$host -p $port");
+    my $groups = syf(&$remote($comp,"groups"));
+    " $groups "=~/\sdocker\s/ or sy(&$ssh_ctl($comp,"-t","sudo usermod -aG docker $user"));
 }];
 
 my $make_frp_image = sub{

@@ -3,12 +3,11 @@ some dockerfile -> install.pl
 builder dockerfile -> prod.pl ci_* -> build.pl, bloop_fix.pl
 
 prod.pl bakes install.pl to many images
-prod.pl bakes elector.pl,ci.pl,cd.pl to corresponding images
+prod.pl bakes cd.pl to corresponding image
 prod.pl bakes sandbox.pl,prod.pl to developing image
 prod.pl bakes run.pl to prod image
 
 manual -> prod.pl
-prod.pl -> ci.pl
 
 only manual => app.pl
 app.pl -> sync.pl
