@@ -3,7 +3,7 @@ FROM ghcr.io/conecenter/c4replink:v2
 USER root
 RUN /install.pl apt \
     curl ca-certificates xz-utils \
-    libyaml-libyaml-perl libjson-xs-perl python \
+    libjson-xs-perl python \
     zip
 RUN /install.pl curl https://github.com/AdoptOpenJDK/openjdk15-binaries/releases/download/jdk-15.0.1%2B9/OpenJDK15U-jdk_x64_linux_hotspot_15.0.1_9.tar.gz
 RUN /install.pl curl https://git.io/coursier-cli-linux && chmod +x /tools/coursier
