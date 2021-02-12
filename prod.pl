@@ -336,7 +336,7 @@ my $single = sub{ @_==1 ? $_[0] : die };
 my $encode = sub{
     my($generated) = @_;
     my $yml_str = JSON::XS->new->encode($generated);
-    $yml_str=~s/\b("\w+":\s*)"(true|false)"/$1$2/g;
+    $yml_str=~s/("\w+":\s*)"(true|false)"/$1$2/g;
     $yml_str
 };
 
