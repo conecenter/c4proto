@@ -49,7 +49,7 @@ my $serve_sshd = sub{
         'export PATH=$PATH:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin:/tools:/c4/.bloop',
         'export JAVA_HOME=/tools/jdk',
         'export JAVA_TOOL_OPTIONS="-XX:-UseContainerSupport -Xss16m"',
-        'export KUBECONFIG=$ENV{C4KUBECONFIG}',
+        "export KUBECONFIG=$ENV{C4KUBECONFIG}",
         'eval `ssh-agent`',
     );
     sy("export C4AUTHORIZED_KEYS_CONTENT= ; export -p | grep ' C4' >> /c4p_alias.sh");

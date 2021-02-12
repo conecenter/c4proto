@@ -426,10 +426,10 @@ my $make_kc_yml = sub{
                     memory => &$mandatory_of(req_mem=>$opt),
                 },
             },
-            $ENV{C4READINESS_PATH} ? (
+            $$opt{C4READINESS_PATH} ? (
                 readinessProbe => {
                     periodSeconds => 3,
-                    exec => { command => ["cat",$ENV{C4READINESS_PATH}] },
+                    exec => { command => ["cat",$$opt{C4READINESS_PATH}] },
                 },
             ):(),
     };
@@ -666,6 +666,7 @@ my $need_deploy_cert = sub{
 
 my @req_small = (req_mem=>"100Mi",req_cpu=>"250m");
 my @req_big = (req_mem=>"10Gi",req_cpu=>"1000m");
+my $env_img = sub{(image=>$ENV{C4IMAGE})};
 
 my $make_secrets = sub{
     my($comp,$from_path)=@_;
@@ -689,6 +690,7 @@ push @tasks, ["up-client", "", sub{
     my $from_path = &$get_tmp_dir();
     &$make_secrets($run_comp,$from_path);
     my $options = {
+        &$env_img(),
         tty => "true", JAVA_TOOL_OPTIONS => "-XX:-UseContainerSupport",
         @req_small, %$conf,
     };
@@ -708,6 +710,7 @@ my $get_consumer_options = sub{
     my $prefix = $$conf{C4INBOX_TOPIC_PREFIX};
     my ($bootstrap_servers,$elector) = &$get_deployer_conf($comp,1,qw[bootstrap_servers elector]);
     (
+        &$env_img(),
         &$all_consumer_options(),
         C4INBOX_TOPIC_PREFIX => ($prefix || die "no C4INBOX_TOPIC_PREFIX"),
         C4STORE_PASS_PATH    => "/c4conf-kafka-auth/kafka.store.auth",
@@ -717,7 +720,6 @@ my $get_consumer_options = sub{
         C4HTTP_SERVER        => "http://$comp:$inner_http_port",
         C4ELECTOR_SERVERS    => join(",", map {"http://$elector-$_.$elector:$elector_port"} 0, 1, 2),
         C4READINESS_PATH     => "/c4/c4is-ready",
-        image                => ($$conf{image} || die "no image"),
     )
 };
 
@@ -799,8 +801,9 @@ push @tasks, ["up-gate", "", sub{
 # zoo: netty, runit, * custom pod
 
 push @tasks, ["up","$composes_txt",sub{
+    my($comp)=@_;
     &$ssh_add();
-    &$find_handler(up=>$_||die)->($_) for @_;
+    &$find_handler(up=>$comp||die)->($comp);
 }];
 
 ### snapshot op-s
@@ -926,7 +929,7 @@ my $ci_build_img = sub{
         $reg ? ["docker","push",$full_img] : (),
     );
     sy(&$ssh_ctl($builder_comp,@$_)) for @commands;
-    print "prod up \$C4CURRENT_STACK 'image $arg'\n";
+    print "C4IMAGE=$arg prod up \$C4CURRENT_STACK\n";
 };
 
 my $is_builder_repo = sub{ $_[0]=~m{/([^/]+)$} && $1 eq 'builder' };
@@ -960,7 +963,7 @@ my $ci_build_proj_tag = sub{
 
     &$ci_build_img($builder_comp,"$repo:$target_tag");
     my @cont = map{
-        &$is_builder_repo($_) ? "prod up $comp 'image $_:$target_tag'" : (
+        &$is_builder_repo($_) ? "C4IMAGE=$_:$target_tag prod up $comp" : (
             "prod ssh $builder_comp docker tag $repo:$target_tag $_:$target_tag",
             "prod ssh $builder_comp docker push $_:$target_tag",
         )
