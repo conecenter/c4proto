@@ -44,14 +44,17 @@ my $serve_sshd = sub{
     &$put_text($a_keys, $ENV{C4AUTHORIZED_KEYS_CONTENT} || die);
     sy("cat $dir/id_rsa.pub >> $a_keys && chmod 0700 /c4/.ssh $a_keys");
     #
+    my $alias_prod = qq[alias prod="perl $ENV{C4CI_PROTO_DIR}/prod.pl "];
     &$put_text("/c4p_alias.sh", join "", map{"$_\n"}
         'export PATH=$PATH:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin:/tools:/c4/.bloop',
         'export JAVA_HOME=/tools/jdk',
         'export JAVA_TOOL_OPTIONS="-XX:-UseContainerSupport -Xss16m"',
-        qq[alias prod="ssh-agent perl $ENV{C4CI_PROTO_DIR}/prod.pl "],
+        'export KUBECONFIG=$ENV{C4KUBECONFIG}',
+        'eval `ssh-agent`',
     );
     sy("export C4AUTHORIZED_KEYS_CONTENT= ; export -p | grep ' C4' >> /c4p_alias.sh");
     &$get_text_or_empty("/c4/.profile")=~/c4p_alias/ or sy("echo '. /c4p_alias.sh' >> /c4/.profile");
+    &$get_text_or_empty("/c4/.bashrc")=~/alias prod=/ or sy("echo '$alias_prod' >> /c4/.bashrc");
     #
     &$exec('dropbear', '-RFEmwgs', '-p', $ENV{C4SSH_PORT}||die 'no C4SSH_PORT');
 };

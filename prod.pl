@@ -13,6 +13,8 @@ sub syl{ for(@_){ print "$_\n"; my @r = `$_`; $? && die $?; return @r } }
 
 sub lazy(&){ my($calc)=@_; my $res; sub{ ($res||=[scalar &$calc()])->[0] } }
 
+my $ignore = sub{};
+
 my $put_text = sub{
     my($fn,$content)=@_;
     open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
@@ -39,6 +41,7 @@ my $get_tmp_path_inner = sub{ my($fn)=@_; &$need_path("$tmp_root/$$/$fn") };
 my $put_temp = sub{
     my($fn,$text)=@_;
     my $path = &$get_tmp_path_inner($fn);
+    my $path = &$get_tmp_path_inner($fn);
     &$put_text($path,$text);
     print "generated $path\n";
     $path;
@@ -64,7 +67,9 @@ my $get_conf_cert_path = lazy{
     "$dir/id_rsa";
 };
 
-my $ssh_add  = sub{ "ssh-add ".&$get_conf_cert_path() };
+my $ssh_add  = sub{
+    so("ssh-add -l") and sy("ssh-add ".&$get_conf_cert_path());
+};
 
 my $parse_deploy_location = sub{
     $_[0]=~m{^([\w+\.\-]+):(\d+)(/[\w+\.\-/]+)$} ?
@@ -81,6 +86,7 @@ my $get_conf_dir = lazy{
 };
 my $get_deploy_conf = lazy{
     my($dir,$save) = @{&$get_conf_dir()};
+    &$ignore($save);
     require "$dir/main.pl"
 };
 my $get_compose = sub{&$get_deploy_conf()->{$_[0]}||die "composition expected $_[0]"};
@@ -120,35 +126,11 @@ my $find_handler = sub{
     &$single_or_undef(map{$$_[0] eq $nm ? $$_[2] : ()} @tasks) || die "no handler: $nm,$comp";
 };
 
-my $find_exec_handler = sub{
-    my ($comp) = @_;
-    &$find_handler(exec=>&$get_deployer($comp))->($comp);
-};
-
-my $interactive = sub{
-    my($comp,$container,$stm)=@_;
-    my $mk_exec = &$find_exec_handler($comp);
-    &$mk_exec("-i",$container,$stm);
-};
-
-my $running_containers_all = sub{
-    my($comp)=@_;
-    my $ps_stm = &$remote($comp,'docker ps --format "table {{.Names}}"');
-    my ($names,@ps) = syf($ps_stm)=~/([\w\-]+)/g;
-    $names eq "NAMES" or die;
-    @ps;
-};
-
 my $rsync_to = sub{
     my($from_path,$comp,$to_path)=@_;
     my ($host,$port,$user) = &$get_host_port($comp);
     sy(&$remote($comp,"mkdir -p $to_path"));
     sy("rsync -e 'ssh -p $port' -a --del --no-group $from_path/ $user\@$host:$to_path");
-};
-
-my $split_app = sub{
-    my($app)=@_;
-    $app=~/^([\w\-]+)-(\w+)$/ ? ($1,$2) : die "<stack>-<container> expected ($app)"
 };
 
 my $rel_put_text = sub{
@@ -176,48 +158,38 @@ my $main = sub{
     ($cmd||'') eq $$_[0] and $$_[2]->(@args) for @tasks;
 };
 
+my $mandatory_of = sub{ my($k,$h)=@_; (exists $$h{$k}) ? $$h{$k} : die "no $k" };
+
 ####
 
 push @tasks, ["","",sub{
-    print join '', map{"$_\n"} "usage:",
+    print "usage:\n", join '', sort map{"$_\n"}
         (map{!$$_[1] ? () : "  prod $$_[0] $$_[1]"} @tasks);
 }];
 
 push @tasks, ["edit_auth"," ",sub{ #?todo locking or merging
-    sy(&$ssh_add());
+    &$ssh_add();
     my($dir,$save) = @{&$get_conf_dir()};
     sy("mcedit","$dir/auth.pl");
     sy($save);
 }];
 
-push @tasks, ["stack_list"," ",sub{
-    sy(&$ssh_add());
-    my $width = 6;
-    my $composes = &$get_deploy_conf() || die;
-    print join '', map{"$_\n"} (map{
-        my $conf = $$composes{$_} || die;
-        my $description = $$conf{description} ? $$conf{description} :
-            $$conf{deployer} ? "$$conf{type} at $$conf{deployer}" : $$conf{type};
-        "  $_".(" "x($width-length))." -- $description"
-    } sort keys %$composes);
-
-}];
-
-push @tasks, ["agent","<command-with-args>",sub{
+push @tasks, ["agent"," ",sub{
     my(@args)=@_;
-    sy(&$ssh_add());
+    &$ssh_add();
+
     sy(@args);
 }];
 
 push @tasks, ["ssh", "$composes_txt [command-with-args]", sub{
     my($comp,@args)=@_;
-    sy(&$ssh_add());
+    &$ssh_add();
     sy(&$ssh_ctl($comp,@args));
 }];
 
-push @tasks, ["pipe", "$composes_txt <from_remote_cmd> <to_local_cmd>", sub{
+push @tasks, ["ssh_pipe", "$composes_txt <from_remote_cmd> <to_local_cmd>", sub{
     my($comp,$from_remote_cmd,$to_local_cmd)=@_;
-    sy(&$ssh_add());
+    &$ssh_add();
     #my $fn = $path=~m{([^/]+)$} ? $1 : die;
     sy("cat ".&$put_temp(from=>$from_remote_cmd)." | ".&$remote($comp,"sh")." | sh ".&$put_temp(to=>$to_local_cmd));
 }];
@@ -230,100 +202,71 @@ my $get_hostname = sub{
     };
 };
 
-my $get_kc_ns = sub{
+my $get_kubectl = sub{
     my($comp)=@_;
-    my $ns = syf(&$remote($comp,'cat /var/run/secrets/kubernetes.io/serviceaccount/namespace'))=~/(\w+)/ ? "$1" : die;
+    my $deployer_comp = &$mandatory_of(deployer=>&$get_compose($comp));
+    "kubectl --context $deployer_comp"
 };
 my $get_pods = sub{
-    my($comp,$ns)=@_;
-    my $stm = qq[kubectl -n $ns get po -l app=$comp -o jsonpath="{.items[*].metadata.name}"];
-    syf(&$remote($comp,$stm))=~/(\S+)/g;
+    my($comp)=@_;
+    my $kubectl = &$get_kubectl($comp);
+    my $stm = qq[$kubectl get po -l app=$comp -o jsonpath="{.items[*].metadata.name}"];
+    syf($stm)=~/(\S+)/g;
 };
-my $get_pod = sub{
-    my($comp,$ns)=@_;
-    my @pods = &$get_pods($comp,$ns);
-    my $pod = &$single_or_undef(@pods) ||
-        &$single_or_undef(grep{
-            my $pod = $_;
-            0 < grep{/^c4is-master\s*$/} syl(&$remote($comp,qq[kubectl -n $ns exec $pod -- ls /c4])) #todo: with elector2 it'll be pods?
-        }@pods) ||
-        die "no single pod for $comp";
-    ($ns,$pod)
+my $get_comp_pods = sub{
+    my($arg)=@_;
+    $_[0]=~/^(.+)-\d$/ ? ("$1",$arg) :
+        $_[0]=~/^(.+)-\w+-\w+$/ ? ("$1",$arg) :
+            ($arg,&$get_pods($arg))
+};
+my $for_comp_pod = sub{
+    my($arg,$f)=@_;
+    my ($comp,@pods) = &$get_comp_pods($arg);
+    if(@pods==0){ print "no pods found\n" }
+    elsif(@pods==1){ &$f($comp,@pods) }
+    else{ print "multiple pods found: ".join(" ",@pods)."\n" }
 };
 
-my $exec_stm_dc = sub{
-    my($md,$comp,$service,$stm)=@_;
-    qq[docker exec $md $comp\_$service\_1 sh -c "JAVA_TOOL_OPTIONS= $stm"];
-};
-my $exec_stm_kc = sub{
-    my($ns,$md,$pod,$service,$stm) = @_;
-    qq[kubectl -n $ns exec $md $pod -c $service -- sh -c "JAVA_TOOL_OPTIONS= $stm"];
-};
-my $exec_dc = sub{
-    my($comp)=@_;
-    sub{ my($md,$service,$stm)=@_; &$exec_stm_dc($md,$comp,$service,$stm) };
-};
-my $exec_kc = sub{
-    my($comp)=@_;
-    my $ns = &$get_kc_ns($comp);
-    my $pod = &$get_pod($comp,$ns);
-    sub{ my($md,$service,$stm)=@_; &$exec_stm_kc($ns,$md,$pod,$service,$stm) };
-};
-my $lscont_dc = sub{
-    my($comp)=@_;
-    map{ my $c = $_; sub{ my($stm)=@_; &$exec_stm_dc("",$comp,$c,$stm) } }
-    map{ /^(.+)_([a-z]+)_1$/ && $1 eq $comp && $2 ne "pod" ? "$2" : () }
-    &$running_containers_all($comp)
-};
-my $lscont_kc = sub{
-    my($comp)=@_;
-    my $ns = &$get_kc_ns($comp);
-    my $pod = &$get_pod($comp,$ns);
-    my $stm = "kubectl -n $ns get po/$pod -o jsonpath={.spec.containers[*].name}";
-    map{ my $c = $_; sub{ my($stm)=@_; &$exec_stm_kc($ns,"",$pod,$c,$stm) } }
-        syf(&$remote($comp,$stm))=~/(\w+)/g;
+my $kj_exec = sub{
+    my($comp,$pod,$md,$stm)=@_;
+    my $kubectl = &$get_kubectl($comp);
+    qq[$kubectl exec $md $pod -- sh -c "JAVA_TOOL_OPTIONS= $stm"];
 };
 
-push @tasks, ["exec-dc_host","",$exec_dc];
-push @tasks, ["exec-kc_host","",$exec_kc];
-push @tasks, ["lscont-dc_host", "", $lscont_dc];
-push @tasks, ["lscont-kc_host", "", $lscont_kc];
-
-push @tasks, ["gc","$composes_txt",sub{
+push @tasks, ["pods_gc","$composes_txt",sub{
     my($comp)=@_;
-    sy(&$ssh_add());
-    for my $l_exec(&$find_handler(lscont=>&$get_deployer($comp))->($comp)){
-        #print "container: $c\n";
-        my $cmd = &$remote($comp,&$l_exec("jcmd || echo -"));
+    &$ssh_add();
+    for my $pod(&$get_pods($comp)){
+        my $cmd = &$kj_exec($comp,$pod,"","jcmd || echo -");
         for(syl($cmd)){
             my $pid = /^(\d+)/ ? $1 : next;
             /JCmd/ && next;
-            sy(&$remote($comp,&$l_exec("jcmd $pid GC.run")));
+            sy(&$kj_exec($comp,$pod,"","jcmd $pid GC.run"));
         }
     }
+}];
+
+push @tasks, ["pods_del","$composes_txt",sub{
+    my($comp)=@_;
+    &$ssh_add();
+    my $kubectl = &$get_kubectl($comp);
+    my $pods = join " ", &$get_pods($comp);
+    $pods and sy("$kubectl delete pods $pods");
 }];
 
 #### composer
 
 my $vhost_http_port = "80";
 my $vhost_https_port = "443";
-my $ssh_port = "2022";
-#my $parent_http_server = "f r p c:8067";
-
-# pass src commit
-# migrate states
-# >2 >4
-# fix kafka configs
-# move settings to scala
 
 my %merge;
 my $merge = sub{&{$merge{join "-",map{ref}@_}||sub{$_[$#_]}}};
 $merge{"HASH-HASH"} = sub{
-    my($b,$o)=@_;
+    my($p,$o)=@_;
     +{map{
         my $k = $_;
-        ($k=>&$merge(map{(exists $$_{$k})?$$_{$k}:()} $b,$o));
-    } keys %{+{%$b,%$o}}};
+        ($k=>&$merge(map{(exists $$_{$k})?$$_{$k}:()} $p,$o));
+    } keys %{+{%$p,%$o}}};
 };
 $merge{"ARRAY-ARRAY"} = sub{[map{@$_}@_]};
 
@@ -333,12 +276,15 @@ my $map = sub{ my($opt,$f)=@_; map{&$f($_,$$opt{$_})} sort keys %$opt };
 my $merge_list = sub{ reduce{ &$merge($a,$b) } @_ };
 my $single = sub{ @_==1 ? $_[0] : die };
 
+my $decode = sub{ JSON::XS->new->decode(@_) };
 my $encode = sub{
     my($generated) = @_;
     my $yml_str = JSON::XS->new->encode($generated);
     $yml_str=~s/("\w+":\s*)"(true|false)"/$1$2/g;
     $yml_str
 };
+
+my $md5_hex = sub{ md5_hex(@_) };
 
 my $pl_head = sub{
     "#!/usr/bin/perl\n"
@@ -353,7 +299,7 @@ my $pl_embed = sub{
 
 my $make_dc_yml = sub{
     my ($name,$tmp_path,$opt) = @_;
-    my @unknown = &$map($opt,sub{ my($k,$v)=@_;
+    my @unknown = &$map($opt,sub{ my($k)=@_;
         $k=~/^([A-Z]|port:)/ ||
         $k=~/^(volumes|tty|image)$/ ? () : $k
     });
@@ -364,7 +310,7 @@ my $make_dc_yml = sub{
         $k=~/^(volumes|tty)$/ ? {$1=>$v} : (),
         $k=~/^C4/ && $v=~m{^/c4conf/([\w\.]+)$} ? do{ my $fn=$1; +{
             volumes=>["./$fn:/c4conf/$fn"],
-            environment=>{"$k\_MD5"=>md5_hex(syf("cat $tmp_path/$fn"))},
+            environment=>{"$k\_MD5"=>&$md5_hex(syf("cat $tmp_path/$fn"))},
         }} : (),
         $k=~/^port:(.+)/ ? {ports=>["$1"]} : (),
     )}));
@@ -394,14 +340,12 @@ my $wrap_dc = sub{
 };
 push @tasks, ["wrap_deploy-dc_host", "", $wrap_dc];
 
-
-#todo securityContext/runAsUser
-
-my $mandatory_of = sub{ my($k,$h)=@_; (exists $$h{$k}) ? $$h{$k} : die "no $k" };
+#todo: affinity for headless, replicas 3
+#todo securityContext/runAsUser auto?
 
 my $make_kc_yml = sub{
     my($name,$tmp_path,$opt) = @_;
-    my @unknown = &$map($opt,sub{ my($k,$v)=@_;
+    my @unknown = &$map($opt,sub{ my($k)=@_;
         $k=~/^([A-Z]|host:|port:|ingress:|path:)/ ||
         $k=~/^(tty|image|noderole)$/ ? () : $k
     });
@@ -426,7 +370,7 @@ my $make_kc_yml = sub{
     my @all_secrets = (@int_secrets,@ext_secrets);
     my @secret_volumes = &$map(
         +{map{(&$mandatory_of(secret=>$_)=>1)} @all_secrets},
-        sub{ my($secret,$v)=@_;
+        sub{ my($secret)=@_;
             +{ name => "$secret-secret", secret => { secretName => $secret } }
         }
     );
@@ -450,7 +394,7 @@ my $make_kc_yml = sub{
     }});
     #
     my %host_path_to_name = &$map($opt,sub{ my($k,$v)=@_;
-        $k=~m{^path:} ? ($v=>"host-vol-".md5_hex($v)) : ()
+        $k=~m{^path:} ? ($v=>"host-vol-".&$md5_hex($v)) : ()
     });
     my @host_volumes = &$map(\%host_path_to_name, sub{ my($k,$v)=@_;
         +{ name=>$v, hostPath=>{ path=>$k } }
@@ -529,7 +473,7 @@ my $make_kc_yml = sub{
     });
     #
     my @service_yml = do{
-        my @ports = &$map($opt,sub{ my($k,$v)=@_;
+        my @ports = &$map($opt,sub{ my($k)=@_;
             $k=~/^port:(\d+):(\d+)$/ ? {
                 #$all{is_deployer} ? (nodePort => $1-0) : (),
                 port => $1-0,
@@ -553,7 +497,7 @@ my $make_kc_yml = sub{
         my $by_host = &$merge_list({},&$map($opt,sub{ my($k,$v)=@_;
             $k=~m{^ingress:([^/]+)(.*)$} ? {$1=>[{path=>$2,port=>$v-0}]} : ()
         }));
-        my @hosts = &$map($by_host,sub{ my($host,$v)=@_; $host });
+        my @hosts = &$map($by_host,sub{ my($host)=@_; $host });
         my $disable_tls = 0; #make option when required
         my $ingress_secret_name = $$opt{ingress_secret_name};
         my @annotations = $disable_tls ? () : (annotations=>{
@@ -598,16 +542,10 @@ my $make_kc_yml = sub{
 my $wrap_kc = sub{
     my($name,$tmp_path,$options) = @_;
     my $yml_str = &$make_kc_yml($name,$tmp_path,$options);
-    my $up_content = &$pl_head().&$pl_embed(main=>$yml_str)
-        .q[my $ns=`cat /var/run/secrets/kubernetes.io/serviceaccount/namespace`;]
-        .q[pp(main=>"kubectl -n $ns apply -f-");];
-    &$sync_up($name,undef,$up_content);
+    my $kubectl = &$get_kubectl($name);
+    sy("$kubectl apply -f ".&$put_temp("up.yml",$yml_str));
 };
 push @tasks, ["wrap_deploy-kc_host", "", $wrap_kc];
-
-#todo apply -n $ns
-
-#networks => { default => { aliases => ["broker","zookeeper"] } },
 
 my $remote_build = sub{
     my($type_def,$comp,$dir)=@_;
@@ -637,6 +575,7 @@ my $to_ini_file = sub{
 
 my $frp_auth_all = lazy{
     my($dir,$save) = @{&$get_conf_dir()};
+    &$ignore($save);
     require "$dir/auth.pl"
 };
 my $get_auth = sub{
@@ -859,19 +798,9 @@ push @tasks, ["up-gate", "", sub{
 
 # zoo: netty, runit, * custom pod
 
-my $cicd_port = "7079";
-
 push @tasks, ["up","$composes_txt",sub{
-    sy(&$ssh_add());
+    &$ssh_add();
     &$find_handler(up=>$_||die)->($_) for @_;
-}];
-
-push @tasks, ["del_pods","$composes_txt",sub{
-    my($comp)=@_;
-    sy(&$ssh_add());
-    my $ns = &$get_kc_ns($comp);
-    my $pods = join " ", &$get_pods($comp,$ns);
-    $pods and sy(&$remote($comp,"kubectl -n $ns delete pods $pods"));
 }];
 
 ### snapshot op-s
@@ -882,18 +811,18 @@ my $snapshot_name = sub{
     my $zero = '0' x length $fn[0];
     ["$fn[0]$fn[1]","$zero$fn[1]"]
 };
-push @tasks, ["get_snapshot", "$composes_txt [|snapshot|last]", sub{
+push @tasks, ["snapshot_get", "$composes_txt [|snapshot|last]", sub{
     my($gate_comp,$arg)=@_;
-    sy(&$ssh_add());
+    &$ssh_add();
     my $prefix = &$get_compose($gate_comp)->{C4INBOX_TOPIC_PREFIX}
         || die "no C4INBOX_TOPIC_PREFIX for $gate_comp";
     my ($client_comp) = &$get_deployer_conf($gate_comp,1,qw[s3client]);
-    my $mk_exec = &$find_exec_handler($client_comp);
+    my ($pod) = &$get_pods($client_comp); # any is ok
     my $stm = sub{
         my($op,$fn) = @_;
-        &$remote($client_comp,&$mk_exec("","main","/tools/mc $op def/$prefix.snapshots/$fn"))
+        &$kj_exec($client_comp,$pod,"","/tools/mc $op def/$prefix.snapshots/$fn")
     };
-    if(!$arg){
+    if(!defined $arg){
         sy(&$stm("ls",""));
     } else {
         my $snnm = $arg ne "last" ? $arg :
@@ -913,105 +842,49 @@ my $put_snapshot = sub{
 
 my $need_auth_path = sub{
     my($comp)=@_;
-    my %consumer_options = &$get_consumer_options($comp);
+    #my %consumer_options = &$get_consumer_options($comp);
     my $from_path = &$get_tmp_dir();
     &$need_deploy_cert($comp,$from_path);
     "$from_path/simple.auth"
 };
 
-push @tasks, ["put_snapshot", "$composes_txt <file_path>", sub{
-    my($comp,$data_path)=@_;
-    sy(&$ssh_add());
-    my $host = &$get_hostname($comp) || die "need le_hostname or domain_zone";
-    &$put_snapshot(&$need_auth_path($comp),$data_path,"https://$host");
-}];
-push @tasks, ["put_snapshot_address", "${composes_txt} <to_address> <file_path> ", sub{
-    my($comp,$address,$data_path)=@_;
-    sy(&$ssh_add());
+push @tasks, ["snapshot_put", "$composes_txt <file_path> [to_address]", sub{
+    my($comp,$data_path,$address_arg)=@_;
+    &$ssh_add();
+    my $host = &$get_hostname($comp);
+    my $address = $address_arg || $host && "https://$host" ||
+        die "need le_hostname or domain_zone for $comp or address";
     &$put_snapshot(&$need_auth_path($comp),$data_path,$address);
-}];
-push @tasks, ["put_snapshot_local", "<file_path>", sub{
-    my($data_path)=@_;
-    my $auth_file = $ENV{C4AUTH_KEY_FILE} || die;
-    &$put_snapshot($auth_file,$data_path,"http://127.0.0.1:$inner_http_port");
 }];
 
 ###
 
-my $get_comp_from_pod = sub{
-    $_[0]=~/^(.+)-\d$/ ? "$1" :
-    $_[0]=~/^(.+)-\w+-\w+$/ ? "$1" :
-    die "bad pod name"
-};
-push @tasks, ["bash","<pod> [container]",sub{ #<replica>
-    my($pod,$service)=@_;
-    sy(&$ssh_add());
-    my $comp = &$get_comp_from_pod($pod);
-    my $ns = &$get_kc_ns($comp);
-    my $service_str = $service ? "-c $service" : "";
-    my $stm = qq[kubectl -n $ns exec -it $pod $service_str -- bash];
-    sy(&$ssh_ctl($comp,"-t",$stm));
-}];
-push @tasks, ["watch","$composes_txt",sub{ #<replica>
-    my($comp)=@_;
-    sy(&$ssh_add());
-    my $ns = &$get_kc_ns($comp);
-    sy(&$ssh_ctl($comp,"-t",qq[watch kubectl -n $ns get po -l app=$comp]));
-}];
-push @tasks, ["log","<pod> [tail] [add]",sub{ #<replica>
-    my($pod,$tail,$add)=@_;
-    sy(&$ssh_add());
-    my $comp = &$get_comp_from_pod($pod);
-    my $ns = &$get_kc_ns($comp);
-    my $tail_or = ($tail+0) || 100;
-    my $stm = qq[kubectl -n $ns log -f $pod --tail $tail_or $add];
-    sy(&$ssh_ctl($comp,"-t",$stm));
-}];
-
-my $nc = sub{
-    my($addr,$exch)=@_;
-    my($host,$port) = $addr=~/^([\w\-\.]+):(\d+)$/ ? ($1,$2) : die $addr;
-    use IPC::Open2;
-    my($chld_out, $chld_in);
-    print "nc $host $port\n";
-    my $pid = open2($chld_out, $chld_in, 'nc', $host, $port);
-    my $req = &$exch($chld_out);
-    print $req;
-    print $chld_in $req or die;
-    print while <$chld_out>;
-    waitpid($pid, 0);
-    print "FINISHED\n";
-};
-my $nc_sec = sub{
-    my($comp,$addr,$req) = @_;
-    my %auth = &$get_auth($comp);
-    my $auth = $auth{"deploy.auth"} || die "no deploy.auth";
-    &$nc($addr,sub{
-        my($chld_out) = @_;
-        my $uuid = <$chld_out>;
-        my $signature = md5_hex("$auth\n$uuid$req")."\n";
-        "$req$signature"
+push @tasks, ["exec_bash","<pod|$composes_txt>",sub{
+    my($arg)=@_;
+    &$ssh_add();
+    &$for_comp_pod($arg,sub{ my ($comp,$pod) = @_;
+        my $kubectl = &$get_kubectl($comp);
+        sy(qq[$kubectl exec -it $pod -- bash]);
     });
-
-};
-
-push @tasks, ["test_up","",sub{ # <host>:<port> $composes_txt $args
-    my($addr,$comp,$args) = @_;
-    sy(&$ssh_add());
-    my $deployer_comp = &$get_compose($comp)->{deployer} || die;
-    my $add = $args ? " $args" : "";
-    &$nc_sec($deployer_comp,$addr,"run $comp/up$add\n");
 }];
-push @tasks, ["test_cd","<host>:<port> $composes_txt <pods|registry|'history $composes_txt'>",sub{
-    # ? |'build <img>'
-    my($addr,$comp,$args) = @_;
-    sy(&$ssh_add());
-    &$nc_sec($comp,$addr,"$args\n");
+push @tasks, ["watch","$composes_txt",sub{
+    my($comp)=@_;
+    &$ssh_add();
+    my $kubectl = &$get_kubectl($comp);
+    sy(qq[watch $kubectl get po -l app=$comp]);
+}];
+push @tasks, ["log","<pod|$composes_txt> [tail] [add]",sub{
+    my($arg,$tail,$add)=@_;
+    &$ssh_add();
+    &$for_comp_pod($arg,sub{ my ($comp,$pod) = @_;
+        my $kubectl = &$get_kubectl($comp);
+        my $tail_or = ($tail+0) || 100;
+        sy(qq[$kubectl log -f $pod --tail $tail_or $add]);
+    });
 }];
 
-push @tasks, ["ci_cleanup","$composes_txt",sub{
-    my ($builder_comp) = @_;
-    my $conf = &$get_compose($builder_comp);
+push @tasks, ["builder_cleanup"," ",sub{
+    my $builder_comp = $ENV{C4CI_BUILDER} || die "no C4CI_BUILDER";
     my @ssh = &$ssh_ctl($builder_comp);
     my @to_kill = map{/^c4\s+(\d+).+\bdocker\s+build\b/?"$1":()} syl(join" ",@ssh,"ps","-ef");
     @to_kill and sy(@ssh,"kill",@to_kill);
@@ -1028,7 +901,7 @@ my $ci_build_img = sub{
     index(" $allow "," $reg$shrep:$proj ") < 0 and die "prefix not allowed";
     my $builder_reg = index(" $allow "," ${reg}builder:$proj ") < 0 ? "" : $reg;
     #implement checkout lock?
-    my $builder = md5_hex($full_img)."-".time;
+    my $builder = &$md5_hex($full_img)."-".time;
     my %repo_urls = &$mandatory_of(C4CI_SHORT_REPO_REMOTES=>$conf)=~/(\S+)/g;
     my $repo_url = $repo_urls{$shrep} || die "no repo url for $shrep";
     my $repo_dir = &$need_path("/tmp/c4ci/$shrep");
@@ -1083,7 +956,7 @@ my $ci_build_proj_tag = sub{
     my ($target_tag) = (@next_tags,$ideal_tag);
     #
 
-    print join "",map{"## $_\n"} @next_tags,$ideal_tag;
+    #print join "",map{"## $_\n"} @next_tags,$ideal_tag;
 
     &$ci_build_img($builder_comp,"$repo:$target_tag");
     my @cont = map{
@@ -1095,24 +968,24 @@ my $ci_build_proj_tag = sub{
     @cont and print join "", map{"$_\n"} "### what's next:", @cont;
 };
 
-push @tasks, ["ci_build_img","<builder> [img]",sub{
+push @tasks, ["build_img","<builder> [img]",sub{
     my ($builder_comp,$img) = @_;
-    sy(&$ssh_add());
-    if($img){
+    &$ssh_add();
+    if(defined $img){
         &$ci_build_img($builder_comp,$img);
     } else {
         my $conf = &$get_compose($builder_comp);
         print sort map{"$_\n"} ($$conf{C4CI_ALLOW}||die)=~/(\S+)/g;
     }
 }];
-push @tasks, ["ci_build_head","[proj-tag]",sub{
+push @tasks, ["build_img_next","[proj-tag]",sub{
     my ($proj_tag) = @_;
-    sy(&$ssh_add());
+    &$ssh_add();
     &$ci_build_proj_tag($proj_tag,0);
 }];
-push @tasks, ["ci_rebuild_head","[proj-tag]",sub{
+push @tasks, ["build_img_base","[proj-tag]",sub{
     my ($proj_tag) = @_;
-    sy(&$ssh_add());
+    &$ssh_add();
     &$ci_build_proj_tag($proj_tag,1);
 }];
 
@@ -1203,16 +1076,16 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     sy("cp $proto_dir/$_ $ctx_dir/$_") for "install.pl", "run.pl";
     #
     mkdir "$ctx_dir/app";
-    my $mod  = syf("cat $gen_dir/.bloop/c4/tag.$base.mod" )=~/(\S+)/ ? $1 : die;
-    my $main = syf("cat $gen_dir/.bloop/c4/tag.$base.main")=~/(\S+)/ ? $1 : die;
-    my $paths = JSON::XS->new->decode(syf("cat $gen_dir/.bloop/c4/mod.$mod.classpath.json"));
+    my $mod     = syf("cat $gen_dir/.bloop/c4/tag.$base.mod" )=~/(\S+)/ ? $1 : die;
+    my $main_cl = syf("cat $gen_dir/.bloop/c4/tag.$base.main")=~/(\S+)/ ? $1 : die;
+    my $paths = &$decode(syf("cat $gen_dir/.bloop/c4/mod.$mod.classpath.json"));
     my @classpath = $$paths{CLASSPATH}=~/([^\s:]+)/g;
     my @started = map{&$start($_)} map{
         m{([^/]+\.jar)$} ? "cp $_ $ctx_dir/app/$1" :
         m{([^/]+)\.classes(-bloop-cli)?$} ? "cd $_ && zip -q -r $ctx_dir/app/$1.jar ." : die $_
     } @classpath;
     &$_() for @started;
-    &$put_text("$ctx_dir/serve.sh","export C4APP_CLASS=$main\nexec java ee.cone.c4actor.ServerMain");
+    &$put_text("$ctx_dir/serve.sh","export C4APP_CLASS=$main_cl\nexec java ee.cone.c4actor.ServerMain");
     #
     my %has_mod = map{m"/mod\.([^/]+)\.classes(-bloop-cli)?$"?($1=>1):()} @classpath;
     my @public_part = map{ my $dir = $_;
@@ -1231,6 +1104,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
 }];
 push @tasks, ["ci_rm","",sub{ #to call from Dockerfile
     my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
+    &$ignore($base,$proto_dir);
     print "[purging]\n";
     for(sort{$b cmp $a} syl("cat $gen_dir/ci.rm")){ chomp $_ or die "[$_]"; unlink $_; rmdir $_ }
 }];
@@ -1311,7 +1185,7 @@ push @tasks, ["visit-consumer", "", $extendable_visit];
 my $get_visitor_conf = sub{
     my ($comp) = @_;
     my $services = &$find_handler(visit=>$comp)->($comp);
-    map{ my($name,$port,$host) = @$_; [$port=>"$comp.$name"] } @$services;
+    map{ my($name,$port,$host) = @$_; &$ignore($host); [$port=>"$comp.$name"] } @$services;
 };
 
 push @tasks, ["up-visitor", "", sub{
@@ -1326,7 +1200,7 @@ push @tasks, ["up-visitor", "", sub{
     my @visits = &$map($conf,sub{ my($k,$v)=@_;
         $k=~/^visit:(\d+)$/ ? ["$1"=>$v] : ()
     });
-    my @add_ports = map{ my($port,$nm)=@$_; ("port:$port:$port"=>"") } @visits;
+    my @add_ports = map{ my($port,$nm)=@$_; &$ignore($nm); ("port:$port:$port"=>"") } @visits;
     my $options = {
         image => $img, C4FRPC_INI => "/c4conf/frpc.visitor.ini",
         @ports, @add_ports, @req_small,
@@ -1358,10 +1232,10 @@ push @tasks, ["up-s3client", "", sub{
     &$wrap_deploy($comp,$from_path,$options);
 }];
 
-my $install_kubectl = sub{
-    "RUN /install.pl curl https://storage.googleapis.com/kubernetes-release/release/v1.14.0/bin/linux/amd64/kubectl "
-    ."&& chmod +x /tools/kubectl "
-};
+# my $install_kubectl = sub{
+#     "RUN /install.pl curl https://storage.googleapis.com/kubernetes-release/release/v1.14.0/bin/linux/amd64/kubectl "
+#     ."&& chmod +x /tools/kubectl "
+# };
 my $install_tini = sub{
     "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini"
     ."&& chmod +x /tools/tini"
@@ -1417,11 +1291,6 @@ push @tasks, ["up-kc_host", "", sub{ # the last multi container kc
     });
     my $get_secret = qq[$kubectl get secret -o jsonpath='{.data.token}' \$($kubectl get serviceaccount $run_comp -o jsonpath='{.secrets[].name}') | base64 -d];
     print "######## COPY:\ncat <<EOF | $kubectl apply -f- \n$add_yml\nEOF\necho SECRET: && $get_secret && echo\n######## END_COPY\n";
-}];
-
-push @tasks, ["visit-kc_host", "", sub{
-    my($comp)=@_;
-    [[main=>$cicd_port],[ssh=>$ssh_port]]
 }];
 
 ###
@@ -1551,13 +1420,13 @@ push @tasks, ["up-frps","",sub{
     &$wrap_deploy($comp,$from_path,$options);
 }];
 
-push @tasks, ["cert","$composes_txt <hostname>",sub{
+push @tasks, ["cert","$composes_txt [hostname]",sub{
   my($comp,$nm)=@_;
-  sy(&$ssh_add());
+  &$ssh_add();
   my $conf = &$get_compose($comp);
   my $cert_mail = $$conf{cert_mail} || die;
   my $exec = sub{&$remote($comp,"docker exec -i $comp\_certbot_1 sh").' < '.&$put_temp(@_)};
-  sy(&$exec("cert-only.sh","certbot certonly --standalone -n --email '$cert_mail' --agree-tos -d $nm")) if $nm;
+  sy(&$exec("cert-only.sh","certbot certonly --standalone -n --email '$cert_mail' --agree-tos -d $nm")) if defined $nm;
   my $live = "/etc/letsencrypt/live";
   my $ha = "/etc/letsencrypt/haproxy";
   my @hosts = sort{$a cmp $b} syf(&$exec("cert-list.sh","ls $live"))=~/(\S+)/g;
@@ -1608,12 +1477,11 @@ push @tasks, ["thread_print_local_max"," ",sub{
     @pid || return;
     &$prn($pid[0]);
 }];
-push @tasks, ["thread_print","$composes_txt-<service>",sub{
-    my($app)=@_;
-    sy(&$ssh_add());
-    my($comp,$service) = &$split_app($app);
-    my $mk_exec = &$find_exec_handler($comp);
-    my($get_pids,$prn) = &$tp_run(sub{ my($cmd)=@_; &$remote($comp,&$mk_exec("",$service,$cmd)) });#/RUNNABLE/
+push @tasks, ["thread_print","$composes_txt",sub{
+    my($comp)=@_;
+    &$ssh_add();
+    my @pods = &$get_pods($comp);
+    my($get_pids,$prn) = &$tp_run(sub{ my($cmd)=@_; join " && ", map{"($_)"} map{&$kj_exec($comp,$_,"",$cmd)} @pods });#/RUNNABLE/
     my @pid = &$get_pids();
     @pid || return;
     &$prn(@pid);
@@ -1626,7 +1494,7 @@ push @tasks, ["thread_grep_sub","<expression>",sub{
     my($body)=@_;
     my $expr = q^sub{ my $at0=/(.*\bat\b.*)/?$1:''; ^.$body.q^}^;
     my $by = eval $expr;
-    die "$@ -- $expr" if $@;
+    die "$@ -- $expr" if defined $@;
     print grep{&$by} &$tp_split(join '',<STDIN>);
 }];
 push @tasks, ["thread_count"," ",sub{
@@ -1634,12 +1502,12 @@ push @tasks, ["thread_count"," ",sub{
     print scalar(@r)."\n";
 }];
 
-push @tasks, ["repl","$composes_txt-<service>",sub{
-    my($app)=@_;
-    sy(&$ssh_add());
-    my($comp,$service) = &$split_app($app);
-    my $mk_exec = &$find_exec_handler($comp);
-    sy(&$ssh_ctl($comp,'-t',&$mk_exec("-it",$service,"test -e /c4/.ssh/id_rsa || ssh-keygen;ssh localhost -p22222")));
+push @tasks, ["exec_repl","<pod|$composes_txt>",sub{
+    my($arg)=@_;
+    &$ssh_add();
+    &$for_comp_pod($arg, sub{ my ($comp, $pod) = @_;
+        sy(&$kj_exec($comp,$pod,"-it","test -e /c4/.ssh/id_rsa || ssh-keygen;ssh localhost -p22222"));
+    });
 }];
 push @tasks, ["greys_local","<pid>",sub{
     my($pid)=@_;
@@ -1647,23 +1515,23 @@ push @tasks, ["greys_local","<pid>",sub{
     -e "$ENV{HOME}/.greys" or sy("cd /tools/greys && bash ./install-local.sh");
     sy("/tools/greys/greys.sh $pid");
 }];
-push @tasks, ["greys","$composes_txt-<service>",sub{
-    my($app)=@_;
-    sy(&$ssh_add());
-    my($comp,$service) = &$split_app($app);
-    my $mk_exec = &$find_exec_handler($comp);
-    sy(&$ssh_ctl($comp,'-t',&$mk_exec("-it",$service,"/tools/greys/greys.sh 1")));
+push @tasks, ["greys","<pod|$composes_txt>",sub{
+    my($arg)=@_;
+    &$ssh_add();
+    &$for_comp_pod($arg, sub{ my ($comp, $pod) = @_;
+        sy(&$kj_exec($comp,$pod,"-it","/tools/greys/greys.sh 1"));
+    });
 }];
 
-push @tasks, ["install","$composes_txt-<service> <tgz>",sub{
-    my($app,$tgz)=@_;
-    sy(&$ssh_add());
-    my($comp,$service) = &$split_app($app);
-    sy(&$remote($comp,&$interactive($comp, $service, "tar -xz"))." < $tgz");
+push @tasks, ["exec_install","<pod|$composes_txt> <tgz>",sub{
+    my($arg,$tgz)=@_;
+    &$ssh_add();
+    my ($comp,@pods) = &$get_comp_pods($arg);
+    sy(&$kj_exec($comp,$_,"-i","tar -xz")." < $tgz") for @pods;
 }];
 push @tasks, ["cat_visitor_conf","$composes_txt",sub{
     my($comp)=@_;
-    sy(&$ssh_add());
+    &$ssh_add();
     my @services = &$get_visitor_conf($comp);
     my $from_path = &$get_tmp_dir();
     &$make_visitor_conf($comp,$from_path,[@services]);
@@ -1693,7 +1561,7 @@ push @tasks, ["up-elector","",sub{
         image => $img, tty => "true", headless => 1, replicas => 3,
         C4HTTP_PORT => $elector_port, "port:$elector_port:$elector_port"=>"",
         @req_small
-    }; #todo: affin, replicas 3
+    };
     &$wrap_deploy($comp,$from_path,$options);
 }];
 
@@ -1739,38 +1607,38 @@ push @tasks, ["up-dconf","",sub{
     &$wrap_deploy($comp,$from_path,$options);
 }];
 
-my $ckh_secret =sub{ $_[0]=~/^([\w\-\.]{3,})$/ ? "$1" : die 'bad secret name' };
-push @tasks, ["get_secret","$composes_txt <secret-name>",sub{
+my $ckh_secret =sub{ $_[0]=~/^([\w\-\.]{3,})$/ ? ("$1","c4conf-$1") : die 'bad secret name' };
+push @tasks, ["secret_get","$composes_txt <secret-name>",sub{
     my($comp,$secret_name_arg)=@_;
-    my $secret_name = &$ckh_secret($secret_name_arg);
-    sy(&$ssh_add());
-    rename $secret_name, "$secret_name-".time or die if -e $secret_name;
-    my $ns = &$get_kc_ns($comp);
-    my $stm = "kubectl -n $ns get secret/$secret_name -o json";
-    my $data = JSON::XS->new->decode(syf(&$remote($comp,$stm)))->{data} || die;
+    my ($secret_name,$dir) = &$ckh_secret($secret_name_arg);
+    &$ssh_add();
+    rename $dir, "$dir-".time or die if -e $dir;
+    my $kubectl = &$get_kubectl($comp);
+    my $stm = "$kubectl get secret/$secret_name -o json";
+    my $data = &$decode(syf($stm))->{data} || die;
     for(sort keys %$data){
         my $v64 = $$data{$_};
-        my $fn = &$need_path("$secret_name/".&$ckh_secret($_));
+        my $fn = &$need_path("$dir/".&$ckh_secret($_));
         sy("base64 -d > $fn < ".&$put_temp("value",$v64));
     }
 }];
 
-push @tasks, ["set_secret","$composes_txt <secret-name>",sub{
+push @tasks, ["secret_set","$composes_txt <secret-name>",sub{
     my($comp,$secret_name_arg)=@_;
-    my $secret_name = &$ckh_secret($secret_name_arg);
-    sy(&$ssh_add());
-    my $ns = &$get_kc_ns($comp);
-    -e $secret_name or die;
+    my ($secret_name,$dir) = &$ckh_secret($secret_name_arg);
+    &$ssh_add();
+    my $kubectl = &$get_kubectl($comp);
+    -e $dir or die;
     my $data = {map{
-        my $k = substr $_, 1+length $secret_name;
+        my $k = substr $_, 1+length $dir    ;
         my $v = syf("base64 -w0 < $_");
         ($k,$v)
-    } sort <$secret_name/*>};
+    } sort <$dir/*>};
     my $secret = &$encode({
         apiVersion => "v1", kind => "Secret", type => "Opaque", data => $data,
         metadata => { name => $secret_name },
     });
-    syf(&$remote($comp,"kubectl -n $ns apply -f-")." < ".&$put_temp("secret",$secret));
+    syf("$kubectl apply -f ".&$put_temp("secret",$secret));
 }];
 
 ####
