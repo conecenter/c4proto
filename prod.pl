@@ -894,6 +894,38 @@ push @tasks, ["builder_cleanup"," ",sub{
     sy(@ssh,"test -e $tmp_root && rm -r $tmp_root; true");
 }];
 
+push @tasks, ["gitlab_build_builder","",sub{
+    my($mode,$proj_tag)=@_;
+    my $builder_comp = $ENV{C4CI_BUILDER} || die "no C4CI_BUILDER";
+    my $commit = $ENV{CI_COMMIT_SHORT_SHA} || "no CI_COMMIT_SHORT_SHA";
+    my $local_dir = $ENV{C4CI_BUILD_DIR} || die "no C4CI_BUILD_DIR";
+    my $ctx_dir = syf("uuidgen")=~/(\S+)/ ? "$tmp_root/$1" : die;
+    #
+    my $conf = &$get_compose($builder_comp);
+    my @allow = &$mandatory_of(C4CI_ALLOW=>$conf)=~/(\S+)/g;
+    my $repo = (map{ m{(.+/builder):([^:]+)$} && $2 eq $proj_tag ? "$1":() } @allow)[0] ||
+        die "no repo for $proj_tag in $builder_comp";
+    #
+    my $ideal_tag = "$proj_tag.base.$commit";
+    my $full_steps = syf("cat $local_dir/build.base.dockerfile");
+    my ($steps,@args) = @{sub{
+        return if $mode ne "next";
+        my %has_tag = map{/^(\S+)\s+(\S+)/ && $1 eq $repo?("$2"=>1):()}
+            syl(&$remote($builder_comp,"docker images"));
+        return if $has_tag{$ideal_tag};
+        my @found_tags = grep{$has_tag{$_}} map{"$proj_tag.base.$_"}
+            syf("git log --pretty=%h | head")=~/(\S+)/g;
+        return if !@found_tags;
+        my $next_steps = $full_steps=~/\n#!C4NEXT\s(.*)/s ? $1 : die "no #!C4NEXT";
+        return ("FROM $repo:$found_tags[0]\n$next_steps","-t","$repo:$found_tags[0].next.$commit");
+    }->()||[$full_steps,"-t","$repo:$ideal_tag","--build-arg","C4CI_BASE_TAG=$proj_tag"]};
+    #
+    &$put_text("$local_dir/Dockerfile",$steps);
+    &$rsync_to($local_dir,$builder_comp,$ctx_dir);
+    sy(&$ssh_ctl($builder_comp,"-t","docker","build",@args,$ctx_dir));
+    sy(&$ssh_ctl($builder_comp,"rm","-r",$ctx_dir));
+}];
+
 my $ci_build_img = sub{
     my ($builder_comp,$arg) = @_;
     my $conf = &$get_compose($builder_comp);

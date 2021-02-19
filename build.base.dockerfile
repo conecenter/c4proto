@@ -19,7 +19,7 @@ ENV C4STEP_SYNC="find $C4CI_BUILD_DIR >$C4CI_BUILD_DIR/ci.rm && /replink.pl"
 ENV C4STEP_BUILD="perl $C4CI_PROTO_DIR/prod.pl ci_inner_build"
 ENV C4STEP_BUILD_CLIENT="echo NOOP"
 ENV C4STEP_COPY="perl $C4CI_PROTO_DIR/prod.pl ci_inner_cp"
-#
+#!C4NEXT
 COPY --chown=c4:c4 . /c4/main
 RUN eval $C4STEP_SYNC
 RUN $C4STEP_BUILD
