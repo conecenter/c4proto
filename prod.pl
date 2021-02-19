@@ -71,10 +71,10 @@ my $ssh_add  = sub{
     so("ssh-add -l") or return;
     sy("ssh-add ".($ENV{C4DEPLOY_CONF_PLAIN}||&$get_conf_cert_path()));
     my $from_path = $ENV{C4DEPLOY_CONF_KNOWN};
-    if($from_path && !-e $to_path) {
+    if($from_path) {
         my $dir = "$ENV{HOME}/.ssh";
         my $to_path = &$need_path("$dir/known_hosts");
-        sy("cp $from_path $to_path && chmod 0700 $dir");
+        -e $to_path or sy("cp $from_path $to_path && chmod 0700 $dir");
         sy("ls -la $dir");
     }
 };
