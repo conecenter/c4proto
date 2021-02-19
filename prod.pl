@@ -68,7 +68,12 @@ my $get_conf_cert_path = lazy{
 };
 
 my $ssh_add  = sub{
-    so("ssh-add -l") and sy("ssh-add ".($ENV{C4DEPLOY_CONF_PLAIN}||&$get_conf_cert_path()));
+    so("ssh-add -l") or return;
+    sy("ssh-add ".($ENV{C4DEPLOY_CONF_PLAIN}||&$get_conf_cert_path()));
+    my $from_path = $ENV{C4DEPLOY_CONF_KNOWN};
+    my $to_path = "$ENV{HOME}/.ssh/known_hosts";
+    $from_path && !-e $to_path and sy("cp $from_path $to_path");
+    sy("ls -la $ENV{HOME}/.ssh");
 };
 
 my $parse_deploy_location = sub{
