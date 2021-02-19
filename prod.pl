@@ -68,7 +68,7 @@ my $get_conf_cert_path = lazy{
 };
 
 my $ssh_add  = sub{
-    so("ssh-add -l") and sy("ssh-add ".&$get_conf_cert_path());
+    so("ssh-add -l") and sy("ssh-add ".($ENV{C4DEPLOY_CONF_PLAIN}||&$get_conf_cert_path()));
 };
 
 my $parse_deploy_location = sub{
@@ -896,6 +896,7 @@ push @tasks, ["builder_cleanup"," ",sub{
 
 push @tasks, ["gitlab_build_builder","",sub{
     my($mode,$proj_tag)=@_;
+    &$ssh_add();
     my $builder_comp = $ENV{C4CI_BUILDER} || die "no C4CI_BUILDER";
     my $commit = $ENV{CI_COMMIT_SHORT_SHA} || "no CI_COMMIT_SHORT_SHA";
     my $local_dir = $ENV{C4CI_BUILD_DIR} || die "no C4CI_BUILD_DIR";
