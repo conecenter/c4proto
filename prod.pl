@@ -3,7 +3,7 @@
 use strict;
 use Digest::MD5 qw(md5_hex);
 
-my $sys_image_ver = "v79";
+my $sys_image_ver = "v80";
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -991,7 +991,7 @@ my $up_desktop = sub{
             "export C4DEPLOY_LOCATION=".($ENV{C4DEPLOY_LOCATION}||die),
             'export C4PROTO_DIR=/c4/c4proto',
             'export C4DATA_DIR=/c4db',
-            'export JAVA_TOOL_OPTIONS=-XX:-UseContainerSupport',
+            'export JAVA_TOOL_OPTIONS="$JAVA_TOOL_OPTIONS -XX:-UseContainerSupport"',
             "alias prod='ssh-agent perl /c4/c4proto/prod.pl '",
         );
         &$put("Dockerfile", join "\n",
@@ -1002,7 +1002,8 @@ my $up_desktop = sub{
             " xserver-xspice openbox firefox spice-vdagent terminology".
             " libjson-xs-perl libyaml-libyaml-perl libexpect-perl".
             " atop less bash-completion locales tmux uuid-runtime".
-            " wget nano python haproxy",
+            " wget nano python haproxy".
+            " xz-utils",
             "RUN perl install.pl curl https://archive.apache.org/dist/kafka/2.2.0/kafka_2.12-2.2.0.tgz",
             "RUN perl install.pl curl $dl_frp_url",
             "RUN perl install.pl curl https://nodejs.org/dist/v8.9.1/node-v8.9.1-linux-x64.tar.xz",
@@ -1048,7 +1049,7 @@ my $up_desktop = sub{
         {
             image => $img, name => "bloop",
             C4DATA_DIR => "/c4db",
-            JAVA_TOOL_OPTIONS => "-Xmx4g -Xss16m",
+            JAVA_TOOL_OPTIONS => "-Xmx4g -Xss16m -XX:+UseG1GC",
             @req_big,
         },
     ])
