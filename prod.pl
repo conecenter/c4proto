@@ -60,32 +60,51 @@ my $get_tmp_dir = sub{
     $path;
 };
 
-my $get_conf_cert_path = lazy{
-    my $path = $ENV{C4DEPLOY_CONF} || die "no C4DEPLOY_CONF";
-    my $dir = &$get_tmp_dir();
-    sy("cd $dir && tar -xzf $path");
-    "$dir/id_rsa";
+my $decode = sub{ JSON::XS->new->decode(@_) };
+my $encode = sub{
+    my($generated) = @_;
+    my $yml_str = JSON::XS->new->encode($generated);
+    $yml_str=~s/("\w+":\s*)"(true|false)"/$1$2/g;
+    $yml_str
 };
 
-my $ssh_add  = sub{
-    so("ssh-add -l") or return;
-    sy("ssh-add ".($ENV{C4DEPLOY_CONF_PLAIN}||&$get_conf_cert_path()));
-    my $from_path = $ENV{C4DEPLOY_CONF_KNOWN};
-    if($from_path) {
-        my $dir = "$ENV{HOME}/.ssh";
-        my $to_path = &$need_path("$dir/known_hosts");
-        -e $to_path or sy("cp $from_path $to_path && chmod 0700 $dir");
-        sy("ls -la $dir");
+my $get_kubectl_raw = sub{"kubectl --context $_[0]"};
+
+my $ckh_secret =sub{ $_[0]=~/^([\w\-\.]{3,})$/ ? "$1" : die 'bad secret name' };
+my $secret_to_dir = sub{
+    my($kubectl,$secret_name,$dir)=@_;
+    my $stm = "$kubectl get secret/$secret_name -o json";
+    my $data = &$decode(syf($stm))->{data} || die;
+    for(sort keys %$data){
+        my $v64 = $$data{$_};
+        my $fn = &$need_path("$dir/".&$ckh_secret($_));
+        sy("base64 -d > $fn < ".&$put_temp("value",$v64));
     }
 };
 
-my $parse_deploy_location = sub{
-    $_[0]=~m{^([\w+\.\-]+):(\d+)(/[\w+\.\-/]+)$} ?
-        ("$1","$2","$3") : die "bad C4DEPLOY_LOCATION";
+my $mandatory_of = sub{ my($k,$h)=@_; (exists $$h{$k}) ? $$h{$k} : die "no $k" };
+
+my $ssh_add  = sub{
+    so("ssh-add -l") or return;
+    my $dir = "$ENV{HOME}/.ssh";
+    my $path = "$dir/id_rsa";
+    if(!-e $path){
+        my $kubectl = &$get_kubectl_raw(&$mandatory_of(C4DEPLOY_CONTEXT=>\%ENV));
+        &$secret_to_dir($kubectl,&$mandatory_of(C4DEPLOY_SECRET_NAME=>\%ENV),$dir);
+        &$secret_to_dir($kubectl,&$mandatory_of(C4KNOWN_HOSTS_SECRET_NAME=>\%ENV),$dir);
+        sy("chmod 0700 $dir && chmod 0600 $dir/*");
+    }
+    sy("ssh-add $path");
+};
+
+my $get_deploy_location = sub{
+    my $path = "$ENV{HOME}/.ssh/c4deploy_location";
+    syf("cat $path")=~m{^([\w+\.\-]+):(\d+)(/[\w+\.\-/]+)\s*$} ?
+        ("$1","$2","$3") : die "bad $path";
 };
 
 my $get_conf_dir = lazy{
-    my($host,$port,$path) = &$parse_deploy_location($ENV{C4DEPLOY_LOCATION});
+    my($host,$port,$path) = &$get_deploy_location();
     my $remote_loc = "c4\@$host:$path";
     my $rsync = "rsync -e 'ssh -p $port' -a --del";
     my $local_dir = &$get_tmp_dir();
@@ -166,8 +185,6 @@ my $main = sub{
     ($cmd||'') eq $$_[0] and $$_[2]->(@args) for @tasks;
 };
 
-my $mandatory_of = sub{ my($k,$h)=@_; (exists $$h{$k}) ? $$h{$k} : die "no $k" };
-
 ####
 
 push @tasks, ["","",sub{
@@ -212,8 +229,7 @@ my $get_hostname = sub{
 
 my $get_kubectl = sub{
     my($comp)=@_;
-    my $deployer_comp = &$mandatory_of(deployer=>&$get_compose($comp));
-    "kubectl --context $deployer_comp"
+    &$get_kubectl_raw(&$mandatory_of(deployer=>&$get_compose($comp)));
 };
 my $get_pods = sub{
     my($comp)=@_;
@@ -283,14 +299,6 @@ use List::Util qw(reduce);
 my $map = sub{ my($opt,$f)=@_; map{&$f($_,$$opt{$_})} sort keys %$opt };
 my $merge_list = sub{ reduce{ &$merge($a,$b) } @_ };
 my $single = sub{ @_==1 ? $_[0] : die };
-
-my $decode = sub{ JSON::XS->new->decode(@_) };
-my $encode = sub{
-    my($generated) = @_;
-    my $yml_str = JSON::XS->new->encode($generated);
-    $yml_str=~s/("\w+":\s*)"(true|false)"/$1$2/g;
-    $yml_str
-};
 
 my $md5_hex = sub{ md5_hex(@_) };
 
@@ -1153,27 +1161,6 @@ push @tasks, ["ci_rm","",sub{ #to call from Dockerfile
     for(sort{$b cmp $a} syl("cat $gen_dir/ci.rm")){ chomp $_ or die "[$_]"; unlink $_; rmdir $_ }
 }];
 
-my $put_reg_ssh_client_conf = sub{
-    my($from_path,$host,$port)=@_;
-    my $key_dir = &$get_tmp_dir();
-    sy(join ' && ',
-        "cd $key_dir",
-        "ssh-keygen -f id_rsa",
-        "ssh-keyscan -H $host > known_hosts",
-        "tar -czf $from_path/ssh.tar.gz .",
-        "ssh-copy-id -i id_rsa.pub -p $port c4\@$host"
-    );
-};
-
-push @tasks, ["up-dc_host","",sub{
-    my ($comp) = @_;
-    my ($host,$port,$user) = &$get_host_port($comp);
-    my $conf_cert_path = &$get_conf_cert_path().".pub";
-    sy("ssh-copy-id -i $conf_cert_path $user\@$host -p $port");
-    my $groups = syf(&$remote($comp,"groups"));
-    " $groups "=~/\sdocker\s/ or sy(&$ssh_ctl($comp,"-t","sudo usermod -aG docker $user"));
-}];
-
 my $make_frp_image = sub{
     my ($comp) = @_;
     my $gen_dir = &$get_proto_dir();
@@ -1609,6 +1596,7 @@ push @tasks, ["up-elector","",sub{
     &$wrap_deploy($comp,$from_path,$options);
 }];
 
+#ssh-keygen -f id_rsa
 push @tasks, ["up-dconf","",sub{
     my ($comp) = @_;
     my $img = do{
@@ -1629,52 +1617,31 @@ push @tasks, ["up-dconf","",sub{
     };
     my $from_path = &$get_tmp_dir();
     my $hostname = &$get_hostname($comp) || die "no le_hostname";
-    #
     my $cmd = do{
-        my $conf = &$get_compose($comp);
-        my($host,$port,$path) = &$parse_deploy_location($$conf{C4DEPLOY_LOCATION});
-        &$put_reg_ssh_client_conf($from_path,$host,$port);
+        my($host,$port,$path) = &$get_deploy_location();
         my $dir = "/c4/.ssh";
-        "mkdir -p $dir && cd $dir && chmod 0700 . && tar -xzf \$C4CI_KEY_TGZ && ssh -p $port c4\@$host 'cd $path && git pull'"
+        "mkdir -p $dir && cp \$C4DEPLOY_DIR/* \$C4KNOWN_HOSTS_DIR/* $dir && chmod 0700 $dir && chmod 0600 $dir/*".
+        " && ssh -p $port c4\@$host 'cd $path && git pull'"
     };
-    #
     my $options = {
         image => $img,
         tty => "true",
         "port:$inner_http_port:$inner_http_port"=>"",
         "ingress:$hostname/"=>$inner_http_port,
         C4HTTP_PORT => $inner_http_port,
-        C4CI_KEY_TGZ => "/c4conf/ssh.tar.gz",
+        C4DEPLOY_DIR=>"/c4conf-".&$mandatory_of(C4DEPLOY_SECRET_NAME=>\%ENV),
+        C4KNOWN_HOSTS_DIR=>"/c4conf-".&$mandatory_of(C4KNOWN_HOSTS_SECRET_NAME=>\%ENV),
         C4CI_CMD => $cmd,
         @req_small
     };
     &$wrap_deploy($comp,$from_path,$options);
 }];
 
-my $ckh_secret =sub{ $_[0]=~/^([\w\-\.]{3,})$/ ? ("$1","c4conf-$1") : die 'bad secret name' };
-push @tasks, ["secret_get","$composes_txt <secret-name>",sub{
-    my($comp,$secret_name_arg)=@_;
-    my ($secret_name,$dir) = &$ckh_secret($secret_name_arg);
-    &$ssh_add();
-    rename $dir, "$dir-".time or die if -e $dir;
-    my $kubectl = &$get_kubectl($comp);
-    my $stm = "$kubectl get secret/$secret_name -o json";
-    my $data = &$decode(syf($stm))->{data} || die;
-    for(sort keys %$data){
-        my $v64 = $$data{$_};
-        my $fn = &$need_path("$dir/".&$ckh_secret($_));
-        sy("base64 -d > $fn < ".&$put_temp("value",$v64));
-    }
-}];
-
-push @tasks, ["secret_set","$composes_txt <secret-name>",sub{
-    my($comp,$secret_name_arg)=@_;
-    my ($secret_name,$dir) = &$ckh_secret($secret_name_arg);
-    &$ssh_add();
-    my $kubectl = &$get_kubectl($comp);
+my $dir_to_secret = sub{
+    my($kubectl,$secret_name,$dir)=@_;
     -e $dir or die;
     my $data = {map{
-        my $k = substr $_, 1+length $dir    ;
+        my $k = substr $_, 1+length $dir;
         my $v = syf("base64 -w0 < $_");
         ($k,$v)
     } sort <$dir/*>};
@@ -1683,6 +1650,49 @@ push @tasks, ["secret_set","$composes_txt <secret-name>",sub{
         metadata => { name => $secret_name },
     });
     syf("$kubectl apply -f ".&$put_temp("secret",$secret));
+};
+
+my $add_known_host = sub{
+    my($host)=@_;
+    my $dir = &$get_tmp_dir();
+    my $kubectl = &$get_kubectl_raw(&$mandatory_of(C4DEPLOY_CONTEXT=>\%ENV));
+    my $secret_name = &$mandatory_of(C4KNOWN_HOSTS_SECRET_NAME=>\%ENV);
+    &$secret_to_dir($kubectl,$secret_name,$dir);
+    my $path = "$dir/known_hosts";
+    my $known = syf("cat $path");
+    my @add_known = grep{index($known,$_)<0} syl("ssh-keyscan -H $host");
+    @add_known or return;
+    &$put_text($path,join"",$known,@add_known);
+    &$dir_to_secret($kubectl,$secret_name,$dir);
+};
+
+push @tasks, ["up-dc_host","",sub{
+    my ($comp) = @_;
+    my ($host,$port,$user) = &$get_host_port($comp);
+    sy("ssh-copy-id $user\@$host -p $port");
+    do{
+        my $groups = syf(&$remote($comp,"groups"));
+        " $groups "=~/\sdocker\s/ or sy(&$ssh_ctl($comp,"-t","sudo usermod -aG docker $user"));
+    };
+    &$add_known_host($host);
+}];
+
+my $ckh_secret_dir =sub{ my $nm = &$ckh_secret($_[0]); ($nm,"c4conf-$nm") };
+push @tasks, ["secret_get","$composes_txt <secret-name>",sub{
+    my($comp,$secret_name_arg)=@_;
+    my ($secret_name,$dir) = &$ckh_secret_dir($secret_name_arg);
+    &$ssh_add();
+    rename $dir, "$dir-".time or die if -e $dir;
+    my $kubectl = &$get_kubectl($comp);
+    &$secret_to_dir($kubectl,$secret_name,$dir);
+}];
+
+push @tasks, ["secret_set","$composes_txt <secret-name>",sub{
+    my($comp,$secret_name_arg)=@_;
+    my ($secret_name,$dir) = &$ckh_secret_dir($secret_name_arg);
+    &$ssh_add();
+    my $kubectl = &$get_kubectl($comp);
+    &$dir_to_secret($kubectl,$secret_name,$dir);
 }];
 
 ####
