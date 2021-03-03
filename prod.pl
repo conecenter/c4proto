@@ -956,6 +956,7 @@ push @tasks, ["gitlab_pipeline","",sub{
     my $client_code = syf("cat $proto_dir/deploy_dialog.js");
     my $content = qq[<!DOCTYPE html><head><meta charset="UTF-8"></head>].
         qq[<body><script type="module">const formOptions=$form_options\n$client_code</script></body>];
+    print $content;
     my $deploy_conf_url = "$deploy_conf_server_url/tmp/$form_auth";
     sy("curl -X PUT $deploy_conf_url/index.html -d\@".&$put_temp("index.html"=>$content));
     my $state = &$decode(syf("curl $deploy_conf_url/state.json")||"{}");
