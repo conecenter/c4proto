@@ -12,9 +12,24 @@ const touch = async () => {
   return code === 0
 }
 
+const read = req => new Promise((resolve, reject) => {
+    let res = ''
+    req.on('data', chunk => { res += chunk })
+    req.on('end', () => resolve(res))
+})
+
+const storage = {}
+const put = (k,v) => storage[k] = v
+
 const server = http.createServer(async (req, res) => {
-  res.statusCode = req.method === "POST" && req.url === "/touch" ? ((await touch()) ? 200:500) : 400
-  res.end()
+    console.log(req)
+    const [status,content] =
+        req.method === "POST" && req.url === "/touch" ? [(await touch()) ? 200:500, ""] :
+        req.method === "PUT" && req.url.startsWith("/tmp/") ? [(put(req.url, await read(req)),200), ""] :
+        req.method === "GET" && req.url.startsWith("/tmp/") && storage[req.url] ? [200,storage[req.url]] :
+        400
+    res.statusCode = status
+    res.end(content)
 })
 
 server.listen(process.env.C4HTTP_PORT, "0.0.0.0", () => {

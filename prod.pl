@@ -4,7 +4,7 @@ use strict;
 use Digest::MD5 qw(md5_hex);
 use JSON::XS;
 
-my $sys_image_ver = "v85";
+my $sys_image_ver = "v85a";
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -910,136 +910,379 @@ push @tasks, ["builder_cleanup"," ",sub{
     sy(@ssh,"test -e $tmp_root && rm -r $tmp_root; true");
 }];
 
-push @tasks, ["gitlab_build_builder","",sub{
-    my($mode,$proj_tag)=@_;
-    &$ssh_add();
-    my $builder_comp = $ENV{C4CI_BUILDER} || die "no C4CI_BUILDER";
-    my $commit = $ENV{CI_COMMIT_SHORT_SHA} || "no CI_COMMIT_SHORT_SHA";
-    my $local_dir = $ENV{C4CI_BUILD_DIR} || die "no C4CI_BUILD_DIR";
+my $gitlab_docker_build = sub{
+    my($local_dir,$builder_comp,@args) = @_;
     my $ctx_dir = syf("uuidgen")=~/(\S+)/ ? "$tmp_root/$1" : die;
-    #
-    my $conf = &$get_compose($builder_comp);
-    my @allow = &$mandatory_of(C4CI_ALLOW=>$conf)=~/(\S+)/g;
-    my $repo = (map{ m{(.+/builder):([^:]+)$} && $2 eq $proj_tag ? "$1":() } @allow)[0] ||
-        die "no repo for $proj_tag in $builder_comp";
-    #
-    my $ideal_tag = "$proj_tag.base.$commit";
-    my $full_steps = syf("cat $local_dir/build.base.dockerfile");
-    my ($steps,@args) = @{sub{
-        return if $mode ne "next";
-        my %has_tag = map{/^(\S+)\s+(\S+)/ && $1 eq $repo?("$2"=>1):()}
-            syl(&$remote($builder_comp,"docker images"));
-        return if $has_tag{$ideal_tag};
-        my @found_tags = grep{$has_tag{$_}} map{"$proj_tag.base.$_"}
-            syf("git log --pretty=%h | head")=~/(\S+)/g;
-        return if !@found_tags;
-        my $next_steps = $full_steps=~/\n#!C4NEXT\s(.*)/s ? $1 : die "no #!C4NEXT";
-        return ("FROM $repo:$found_tags[0]\n$next_steps","-t","$repo:$found_tags[0].next.$commit");
-    }->()||[$full_steps,"-t","$repo:$ideal_tag","--build-arg","C4CI_BASE_TAG=$proj_tag"]};
-    #
-    &$put_text("$local_dir/Dockerfile",$steps);
     &$rsync_to($local_dir,$builder_comp,$ctx_dir);
     sy(&$ssh_ctl($builder_comp,"-t","docker","build",@args,$ctx_dir));
     sy(&$ssh_ctl($builder_comp,"rm","-r",$ctx_dir));
-}];
-
-my $ci_build_img = sub{
-    my ($builder_comp,$arg) = @_;
-    my $conf = &$get_compose($builder_comp);
-    my $allow = &$mandatory_of(C4CI_ALLOW=>$conf);
-    my($full_img,$reg,$shrep,$tag,$base,$proj,$mode,$checkout) =
-        $arg=~/^(([\w\-\.\:\/]*?)(\w+)\:((([\w\-]+)[\w\.]*)\.(\w+)\.([\w\-]+)))$/ ?
-        ($1,$2,$3,$4,$5,$6,$7,$8) : die "can not [$arg]";
-    index(" $allow "," $reg$shrep:$proj ") < 0 and die "prefix not allowed";
-    my $builder_reg = index(" $allow "," ${reg}builder:$proj ") < 0 ? "" : $reg;
-    #implement checkout lock?
-    my $builder = &$md5_hex($full_img)."-".time;
-    my %repo_urls = &$mandatory_of(C4CI_SHORT_REPO_REMOTES=>$conf)=~/(\S+)/g;
-    my $repo_url = $repo_urls{$shrep} || die "no repo url for $shrep";
-    my $repo_dir = &$need_path("/tmp/c4ci/$shrep");
-    -e $repo_dir or sy("mkdir -p /tmp/c4ci && git clone $repo_url $repo_dir");
-    my $local_dir = &$get_tmp_dir();
-    sy("cd $repo_dir && git fetch && git fetch --tags && ".
-      "git --git-dir=$repo_dir/.git --work-tree=$local_dir checkout $checkout -- .");
-    my $ctx_dir = syf("uuidgen")=~/(\S+)/ ? "$tmp_root/$1" : die;
-    &$rsync_to($local_dir,$builder_comp,$ctx_dir);
-    my @args = ("--build-arg","C4CI_BASE_TAG=$base");
-    my @commands = (
-        ["-t","docker","build","-t","builder:$tag","-f","$ctx_dir/build.$mode.dockerfile",@args,$ctx_dir],
-        $builder_reg ? (
-            ["docker","tag","builder:$tag","${builder_reg}builder:$tag"],
-            ["docker","push","${builder_reg}builder:$tag"],
-        ) : (),
-        ["rm","-r",$ctx_dir],
-        ["docker","create","--name",$builder,"builder:$tag"],
-        ["docker","cp","$builder:/c4/res",$ctx_dir],
-        ["docker","rm","-f",$builder],
-        ["-t","docker","build","-t",$full_img,$ctx_dir],
-        $reg ? ["docker","push",$full_img] : (),
-    );
-    sy(&$ssh_ctl($builder_comp,@$_)) for @commands;
-    print "C4IMAGE=$arg prod up \$C4CURRENT_STACK\n";
 };
 
-my $is_builder_repo = sub{ $_[0]=~m{/([^/]+)$} && $1 eq 'builder' };
-my $ci_build_proj_tag = sub{
-    my ($proj_tag_arg,$rebuild_base) = @_;
-    my $proj_tag = $proj_tag_arg || $ENV{C4CI_BASE_TAG_ENV} || die 'proj-tag not found';
-    my $comp = $ENV{C4COMPOSITION} || die "no C4COMPOSITION";
-    my $builder_comp = $ENV{C4CI_BUILDER} || die "no C4CI_BUILDER";
-    print "builder: $builder_comp\n";
-    #
-    my $conf = &$get_compose($builder_comp);
-    my @proj_repos = map{ m{(.+):([^:]+)$} && $2 eq $proj_tag ? "$1":() }
-        ($$conf{C4CI_ALLOW}||die)=~/(\S+)/g;
-    my $repo = (grep{ !&$is_builder_repo($_) } @proj_repos)[0] || die 'proj-tag not allowed';
-    #
-    my ($head,@log) = syf("cat $ENV{C4CI_BUILD_DIR}/target/c4git-log")=~/(\S+)/g;
-    $head || die 'commit not found';
-    my $ideal_tag = "$proj_tag.base.$head";
-    my @next_tags = $rebuild_base ? () : do{
-        my %has_img = map{/^(\S+)\s+(\S+)/?("$1:$2"=>1):()}
-            syl(&$remote($builder_comp,"docker images"));
-        my $builder_repo = (grep{ &$is_builder_repo($_) } @proj_repos)[0] || die 'proj-tag builder not allowed';
-        $has_img{"$repo:$ideal_tag"} ? () :
-            map{ $has_img{"$builder_repo:$_"} ? "$_.next.$head" : () }
-            map{"$proj_tag.base.$_"} @log
-    };
-    my ($target_tag) = (@next_tags,$ideal_tag);
-    #
-
-    #print join "",map{"## $_\n"} @next_tags,$ideal_tag;
-
-    &$ci_build_img($builder_comp,"$repo:$target_tag");
-    my @cont = map{
-        &$is_builder_repo($_) ? "C4IMAGE=$_:$target_tag prod up $comp" : (
-            "prod ssh $builder_comp docker tag $repo:$target_tag $_:$target_tag",
-            "prod ssh $builder_comp docker push $_:$target_tag",
-        )
-    } grep{$_ ne $repo} @proj_repos;
-    @cont and print join "", map{"$_\n"} "### what's next:", @cont;
+my $gitlab_build_prepare = sub{
+    my($local_dir,$builder_comp,$repo,$tag,$proj_tag,$mode)=@_;
+    my $full_steps = syf("cat $local_dir/build.base.dockerfile");
+    my @full = ($full_steps,"--build-arg","C4CI_BASE_TAG=$proj_tag");
+    my %has_tag = map{/^(\S+)\s+(\S+)/ && $1 eq $repo?("$2"=>1):()}
+        syl(&$remote($builder_comp,"docker images"));
+    return ("") if $has_tag{$tag};
+    return @full if $mode ne "next";
+    my @found_tags = grep{$has_tag{$_}} map{"$proj_tag.base.$_"}
+        syf("git log --pretty=%h | head")=~/(\S+)/g;
+    return @full if !@found_tags;
+    my $next_steps = $full_steps=~/\n#!C4NEXT\s(.*)/s ? $1 : die "no #!C4NEXT";
+    return ("FROM $repo:$found_tags[0]\n$next_steps");
 };
 
-push @tasks, ["build_img","<builder> [img]",sub{
-    my ($builder_comp,$img) = @_;
+
+push @tasks, ["gitlab_pipeline","",sub{
     &$ssh_add();
-    if(defined $img){
-        &$ci_build_img($builder_comp,$img);
-    } else {
-        my $conf = &$get_compose($builder_comp);
-        print sort map{"$_\n"} ($$conf{C4CI_ALLOW}||die)=~/(\S+)/g;
+    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR=>\%ENV);
+    my $deploy_conf_url = &$mandatory_of(C4DEPLOY_CONF_URL=>\%ENV);
+    my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
+    my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR=>\%ENV);
+    my $basic_img = &$mandatory_of(CI_JOB_IMAGE=>\%ENV);
+    my $commit = &$mandatory_of(CI_COMMIT_SHORT_SHA=>\%ENV);
+    my $job_token = &$mandatory_of(CI_JOB_TOKEN=>\%ENV);
+    my $git_project_id = &$mandatory_of(CI_PROJECT_ID=>\%ENV);
+    my $server_url = &$mandatory_of(CI_SERVER_URL=>\%ENV);
+    #
+    my $form_auth = syf("cat $local_dir/form.auth");
+    my $conf_lines = &$decode(syf("cat $local_dir/c4dep.main.json"));
+    my @proj_tags = map{$$_[0] eq "C4TAG" ? $$_[1] : ()} @$conf_lines;
+    my @comp_proj = &$map(&$get_deploy_conf(),sub{
+        my($comp,$conf)=@_; $$conf{project} ? [$comp=>$$conf{project}] : ()
+    });
+    my $form_options = &$encode({projectTags=>\@proj_tags,environments=>\@comp_proj});
+    my $client_code = syf("cat $proto_dir/deploy_dialog.js");
+    my $content = qq[<!DOCTYPE html><head><meta charset="UTF-8"></head>].
+        qq[<body><script type="module">const formOptions=$form_options\n$client_code</script></body>];
+    sy("curl -X PUT $deploy_conf_url/$form_auth/index.html -d\@".&$put_temp("index.html"=>$content));
+    my $state = &$decode(syf("curl $deploy_conf_url/$form_auth/state.json")||"{}");
+    my $proj_tag = $$state{project}=~/^([\w\-]*)$/ ? $1 : die;
+    return if $proj_tag eq "";
+    my $md = $$state{mode}=~/^(base|next)$/ ? $1 : die;
+    my $img_tag = "$proj_tag.$md.$commit";
+    my $reg = $basic_img=~m{^(.+)/\w+:[^:]+$} ? $1 : die;
+    my $builder_repo = "$reg/builder";
+    my $builder_img = "$builder_repo:$img_tag";
+    my $runtime_img = "$reg/runtime:$img_tag";
+    my($steps,@args) =
+        &$gitlab_build_prepare($local_dir,$builder_comp,$builder_repo,$img_tag,$proj_tag,$md);
+    if($steps ne ""){
+        &$put_text("$local_dir/Dockerfile",$steps);
+        &$gitlab_docker_build($local_dir,$builder_comp,@args,"-t",$builder_img);
     }
+    my $full_server_url =
+        "$server_url/api/v4/projects/$git_project_id/trigger/pipeline";
+    sy(qq[curl -X POST --form "token=$job_token" --form "variables[C4BUILDER_IMAGE]=$builder_img" $full_server_url]);
 }];
-push @tasks, ["build_img_next","[proj-tag]",sub{
-    my ($proj_tag) = @_;
-    &$ssh_add();
-    &$ci_build_proj_tag($proj_tag,0);
-}];
-push @tasks, ["build_img_base","[proj-tag]",sub{
-    my ($proj_tag) = @_;
-    &$ssh_add();
-    &$ci_build_proj_tag($proj_tag,1);
-}];
+
+    # - curl https://dconf.kdev2.cone.ee/tmp/$(cat form.auth).html -XPUT -d TeSt
+    # - echo https://dconf.kdev2.cone.ee/tmp/$(cat form.auth).html#$CI_JOB_ID
+
+# my $to_artifact = sub{"c4gen-gitlab-$_[0].yml"};
+# my $get_map_tags_modes = sub{
+#     my($local_dir) = @_;
+#     my @tags = map{$$_[0] eq "C4TAG" ? $$_[1] : ()} @{&$decode(syf("cat $local_dir/c4dep.main.json"))};
+#     return sub{
+#         my($f)=@_;
+#         map{ my $tag=$_; map{ &$f($tag,$_) } qw[base next] } @tags
+#     };
+# };
+# my @replink = (
+#     'export C4CI_BUILD_DIR=$CI_PROJECT_DIR',
+#     'C4REPO_MAIN_CONF=$C4CI_BUILD_DIR/c4dep.main.replink /replink.pl',
+#     'export C4CI_PROTO_DIR=$C4CI_BUILD_DIR/c4proto',
+# );
+# push @tasks, ["gitlab_pipeline","",sub{
+#     my $local_dir = &$mandatory_of(C4CI_BUILD_DIR=>\%ENV);
+#     my $basic_img = &$mandatory_of(CI_JOB_IMAGE=>\%ENV);
+#     my $map_tags_modes = &$get_map_tags_modes($local_dir);
+#     my @basic_img = (image=>$basic_img);
+#     my @manual = ("when" => "manual");
+#     my %out = (&$to_artifact("root")=>{
+#         stages   => ["generate","expand"],
+#         generate => {
+#             stage => "generate", @basic_img,
+#             script => [
+#                 @replink,
+#                 "perl ci.pl gitlab_pipeline_inner",
+#             ],
+#             artifacts => {
+#                 paths => [&$map_tags_modes(sub{ my($tag,$md)=@_; &$to_artifact("$md-$tag") })],
+#             },
+#         },
+#         &$map_tags_modes(sub{ my($tag,$md)=@_;
+#             (
+#                 "$md-$tag" => {
+#                     stage => "expand", @manual,
+#                     trigger => {
+#                         include => [{job=>"generate",artifact=>&$to_artifact("$md-$tag")}]
+#                     },
+#                 }
+#             )
+#         }),
+#     });
+#     &$put_text("$local_dir/$_",&$encode($out{$_})) for sort keys %out;
+# }];
+# push @tasks, ["gitlab_pipeline_inner","",sub{
+#     &$ssh_add();
+#     my $local_dir = &$mandatory_of(C4CI_BUILD_DIR=>\%ENV);
+#     my $commit = &$mandatory_of(CI_COMMIT_SHORT_SHA=>\%ENV);
+#     #my $pipeline_id = &$mandatory_of(CI_PIPELINE_ID=>\%ENV);
+#     my $basic_img = &$mandatory_of(CI_JOB_IMAGE=>\%ENV);
+#     my $map_tags_modes = &$get_map_tags_modes($local_dir);
+#     my @basic_img = (image=>$basic_img);
+#     my @manual = ("when" => "manual");
+#     my %out = &$map_tags_modes(sub{ my($proj_tag,$md)=@_;
+#         my $img_tag = "$proj_tag.$md.$commit";
+#         my ($builder_img,$runtime_img) = $basic_img=~m{^(.+)/\w+:[^:]+$} ?
+#             ("$1/builder:$img_tag","$1/runtime:$img_tag") : die;
+#         my @in_sandbox = (
+#             image => $builder_img, variables => {GIT_STRATEGY=>"none"},
+#         );
+#         my @deploy = (stage => "deploy", @manual, @in_sandbox);
+#         my @deploy_list = map{ref ? $_ : /(\S+)/g}
+#             (&$get_compose_opt($proj_tag) || {})->{deploy_list};
+#         my $mk_deployment = sub{
+#             my($comp,$conf)=@_;
+#             return () if $$conf{project} ne $proj_tag;
+#             (
+#                 "up-$comp" => {
+#                     @deploy,
+#                     script => [
+#                         "export C4IMAGE_TAG=$img_tag",
+#                         qq[perl \$C4CI_BUILD_DIR/ci.pl gitlab_up $comp],
+#                     ],
+#                     environment => {
+#                         name => $comp,
+#                         on_stop => "down-$comp",
+#                         $$conf{auto_stop_in} ? (auto_stop_in => $$conf{auto_stop_in}):(), # 1 hour
+#                     },
+#                 },
+#                 "down-$comp" => {
+#                     @deploy,
+#                     script => [
+#                         qq[perl \$C4CI_BUILD_DIR/ci.pl gitlab_down $comp]
+#                     ],
+#                     environment => {
+#                         name => $comp,
+#                         action => "stop",
+#                     },
+#                 },
+#             )
+#         };
+#         (&$to_artifact("$md-$proj_tag")=>{
+#             stages           => [ "build_builder", "build_runtime", "deploy" ],
+#             "bb-$md-$proj_tag"    => {
+#                 stage => "build_builder", @basic_img,
+#                 script => [
+#                     @replink,
+#                     "perl ci.pl gitlab_build_builder $builder_img",
+#                 ],
+#             },
+#             "build_runtime"          => {
+#                 stage => "build", @in_sandbox,
+#                 script => [
+#                     "perl \$C4CI_BUILD_DIR/ci.pl gitlab_build_runtime $runtime_img"
+#                 ]
+#             },
+#             &$map(&$get_deploy_conf(),$mk_deployment)
+#
+#
+#
+#             #(map{&$mk_deployment($_)} @deploy_list),
+#             # &$mk_deployment("dev",'$GITLAB_USER_NAME',$builder_img),
+#             # &$mk_deployment("dynamic",$pipeline_id,$runtime_img),
+#             # &$mk_deployment("stage","",$runtime_img),
+#             # &$mk_deployment("prod","",$runtime_img),
+#         }),
+#     });
+#     &$put_text("$local_dir/$_",&$encode($out{$_})) for sort keys %out;
+# }];
+# # deploy_list, auto_stop_in
+# push @tasks, ["gitlab_up","",sub{
+#     my($comp)=@_;
+#     &$ssh_add();
+#     my $conf = &$get_compose($comp);
+#     my $instances =
+#         $$conf{deploy_by} eq "" ? "" :
+#         $$conf{deploy_by} eq "user" ? do{
+#             my $user = &$mandatory_of(GITLAB_USER_NAME=>\%ENV);
+#             my $count = $$conf{deploy_count} || 1;
+#             join " ",map{"$user-$_"} 0..$count-1;
+#         } :
+#         die; # "dynamic" by $pipeline_id can be implemented here
+#     my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR=>\%ENV);
+#     sy(qq[C4INSTANCES="$instances" perl $proto_dir/prod.pl gitlab_up_inner]);
+# }];
+#
+#
+# push @tasks, ["gitlab_down","",sub{
+#     my($comp)=@_;
+#
+# }];
+
+
+
+
+
+# image_type builder, dynamic user
+
+# static|user count main|gate
+
+#todo: pull-tag-push between reg-s in "up", according to deployer settings
+#my $conf = &$get_compose($builder_comp);
+#my @allow = &$mandatory_of(C4CI_ALLOW=>$conf)=~/(\S+)/g;
+#my $repo = (map{ m{(.+/builder):([^:]+)$} && $2 eq $proj_tag ? "$1":() } @allow)[0] ||
+#    die "no repo for $proj_tag in $builder_comp";
+
+# my $gitlab_docker_build = sub{
+#     my($local_dir,$builder_comp,@args) = @_;
+#     my $ctx_dir = syf("uuidgen")=~/(\S+)/ ? "$tmp_root/$1" : die;
+#     &$rsync_to($local_dir,$builder_comp,$ctx_dir);
+#     sy(&$ssh_ctl($builder_comp,"-t","docker","build",@args,$ctx_dir));
+#     sy(&$ssh_ctl($builder_comp,"rm","-r",$ctx_dir));
+# };
+#
+# push @tasks, ["gitlab_build_builder","",sub{
+#     my($img)=@_;
+#     my($repo,$tag,$proj_tag,$mode) =
+#         $img=~/^(.+):(([^\.:]+)\.([^\.:]+)\.[^\.:]+)$/ ? ($1,$2,$3) : die;
+#     &$ssh_add();
+#     my $builder_comp = $ENV{C4CI_BUILDER} || die "no C4CI_BUILDER";
+#     my $local_dir = $ENV{C4CI_BUILD_DIR} || die "no C4CI_BUILD_DIR";
+#     #
+#     my $full_steps = syf("cat $local_dir/build.base.dockerfile");
+#     my %has_tag = map{/^(\S+)\s+(\S+)/ && $1 eq $repo?("$2"=>1):()}
+#         syl(&$remote($builder_comp,"docker images"));
+#     return if $has_tag{$tag};
+#     my ($steps,@args) = @{sub{
+#         return if $mode ne "next";
+#         my @found_tags = grep{$has_tag{$_}} map{"$proj_tag.base.$_"}
+#             syf("git log --pretty=%h | head")=~/(\S+)/g;
+#         return if !@found_tags;
+#         my $next_steps = $full_steps=~/\n#!C4NEXT\s(.*)/s ? $1 : die "no #!C4NEXT";
+#         return ["FROM $repo:$found_tags[0]\n$next_steps"];
+#     }->()||[$full_steps,"--build-arg","C4CI_BASE_TAG=$proj_tag"]};
+#     &$put_text("$local_dir/Dockerfile",$steps);
+#     &$gitlab_docker_build($local_dir,$builder_comp,@args,"-t",$img);
+# }];
+# push @tasks, ["gitlab_build_runtime","",sub{
+#     my($img)=@_;
+#     my $builder_comp = $ENV{C4CI_BUILDER} || die "no C4CI_BUILDER";
+#     &$gitlab_docker_build("/c4/res",$builder_comp,"-t",$img)
+# }];
+# push @tasks, ["gitlab_dev_sandbox","",sub{
+#     my $img = &$mandatory_of(CI_JOB_IMAGE=>\%ENV);
+#     my $dev = &$mandatory_of(GITLAB_USER_NAME=>\%ENV)=~/^(\w+)$/ ? $1 : die "bad user name";
+#
+#
+# }];
+
+
+
+
+
+
+# my $ci_build_img = sub{
+#     my ($builder_comp,$arg) = @_;
+#     my $conf = &$get_compose($builder_comp);
+#     my $allow = &$mandatory_of(C4CI_ALLOW=>$conf);
+#     my($full_img,$reg,$shrep,$tag,$base,$proj,$mode,$checkout) =
+#         $arg=~/^(([\w\-\.\:\/]*?)(\w+)\:((([\w\-]+)[\w\.]*)\.(\w+)\.([\w\-]+)))$/ ?
+#         ($1,$2,$3,$4,$5,$6,$7,$8) : die "can not [$arg]";
+#     index(" $allow "," $reg$shrep:$proj ") < 0 and die "prefix not allowed";
+#     my $builder_reg = index(" $allow "," ${reg}builder:$proj ") < 0 ? "" : $reg;
+#     #implement checkout lock?
+#     my $builder = &$md5_hex($full_img)."-".time;
+#     my %repo_urls = &$mandatory_of(C4CI_SHORT_REPO_REMOTES=>$conf)=~/(\S+)/g;
+#     my $repo_url = $repo_urls{$shrep} || die "no repo url for $shrep";
+#     my $repo_dir = &$need_path("/tmp/c4ci/$shrep");
+#     -e $repo_dir or sy("mkdir -p /tmp/c4ci && git clone $repo_url $repo_dir");
+#     my $local_dir = &$get_tmp_dir();
+#     sy("cd $repo_dir && git fetch && git fetch --tags && ".
+#       "git --git-dir=$repo_dir/.git --work-tree=$local_dir checkout $checkout -- .");
+#     my $ctx_dir = syf("uuidgen")=~/(\S+)/ ? "$tmp_root/$1" : die;
+#     &$rsync_to($local_dir,$builder_comp,$ctx_dir);
+#     my @args = ("--build-arg","C4CI_BASE_TAG=$base");
+#     my @commands = (
+#         ["-t","docker","build","-t","builder:$tag","-f","$ctx_dir/build.$mode.dockerfile",@args,$ctx_dir],
+#         $builder_reg ? (
+#             ["docker","tag","builder:$tag","${builder_reg}builder:$tag"],
+#             ["docker","push","${builder_reg}builder:$tag"],
+#         ) : (),
+#         ["rm","-r",$ctx_dir],
+#         ["docker","create","--name",$builder,"builder:$tag"],
+#         ["docker","cp","$builder:/c4/res",$ctx_dir],
+#         ["docker","rm","-f",$builder],
+#         ["-t","docker","build","-t",$full_img,$ctx_dir],
+#         $reg ? ["docker","push",$full_img] : (),
+#     );
+#     sy(&$ssh_ctl($builder_comp,@$_)) for @commands;
+#     print "C4IMAGE=$arg prod up \$C4CURRENT_STACK\n";
+# };
+#
+# my $is_builder_repo = sub{ $_[0]=~m{/([^/]+)$} && $1 eq 'builder' };
+# my $ci_build_proj_tag = sub{
+#     my ($proj_tag_arg,$rebuild_base) = @_;
+#     my $proj_tag = $proj_tag_arg || $ENV{C4CI_BASE_TAG_ENV} || die 'proj-tag not found';
+#     my $comp = $ENV{C4COMPOSITION} || die "no C4COMPOSITION";
+#     my $builder_comp = $ENV{C4CI_BUILDER} || die "no C4CI_BUILDER";
+#     print "builder: $builder_comp\n";
+#     #
+#     my $conf = &$get_compose($builder_comp);
+#     my @proj_repos = map{ m{(.+):([^:]+)$} && $2 eq $proj_tag ? "$1":() }
+#         ($$conf{C4CI_ALLOW}||die)=~/(\S+)/g;
+#     my $repo = (grep{ !&$is_builder_repo($_) } @proj_repos)[0] || die 'proj-tag not allowed';
+#     #
+#     my ($head,@log) = syf("cat $ENV{C4CI_BUILD_DIR}/target/c4git-log")=~/(\S+)/g;
+#     $head || die 'commit not found';
+#     my $ideal_tag = "$proj_tag.base.$head";
+#     my @next_tags = $rebuild_base ? () : do{
+#         my %has_img = map{/^(\S+)\s+(\S+)/?("$1:$2"=>1):()}
+#             syl(&$remote($builder_comp,"docker images"));
+#         my $builder_repo = (grep{ &$is_builder_repo($_) } @proj_repos)[0] || die 'proj-tag builder not allowed';
+#         $has_img{"$repo:$ideal_tag"} ? () :
+#             map{ $has_img{"$builder_repo:$_"} ? "$_.next.$head" : () }
+#             map{"$proj_tag.base.$_"} @log
+#     };
+#     my ($target_tag) = (@next_tags,$ideal_tag);
+#     #
+#
+#     #print join "",map{"## $_\n"} @next_tags,$ideal_tag;
+#
+#     &$ci_build_img($builder_comp,"$repo:$target_tag");
+#     my @cont = map{
+#         &$is_builder_repo($_) ? "C4IMAGE=$_:$target_tag prod up $comp" : (
+#             "prod ssh $builder_comp docker tag $repo:$target_tag $_:$target_tag",
+#             "prod ssh $builder_comp docker push $_:$target_tag",
+#         )
+#     } grep{$_ ne $repo} @proj_repos;
+#     @cont and print join "", map{"$_\n"} "### what's next:", @cont;
+# };
+#
+# push @tasks, ["build_img","<builder> [img]",sub{
+#     my ($builder_comp,$img) = @_;
+#     &$ssh_add();
+#     if(defined $img){
+#         &$ci_build_img($builder_comp,$img);
+#     } else {
+#         my $conf = &$get_compose($builder_comp);
+#         print sort map{"$_\n"} ($$conf{C4CI_ALLOW}||die)=~/(\S+)/g;
+#     }
+# }];
+# push @tasks, ["build_img_next","[proj-tag]",sub{
+#     my ($proj_tag) = @_;
+#     &$ssh_add();
+#     &$ci_build_proj_tag($proj_tag,0);
+# }];
+# push @tasks, ["build_img_base","[proj-tag]",sub{
+#     my ($proj_tag) = @_;
+#     &$ssh_add();
+#     &$ci_build_proj_tag($proj_tag,1);
+# }];
+
 
 my $ci_inner_opt = sub{
     map{$ENV{$_}||die $_} qw[C4CI_BASE_TAG_ENV C4CI_BUILD_DIR C4CI_PROTO_DIR];
