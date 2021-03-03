@@ -937,7 +937,7 @@ my $gitlab_build_prepare = sub{
 push @tasks, ["gitlab_pipeline","",sub{
     &$ssh_add();
     my $local_dir = &$mandatory_of(C4CI_BUILD_DIR=>\%ENV);
-    my $deploy_conf_url = &$mandatory_of(C4DEPLOY_CONF_URL=>\%ENV);
+    my $deploy_conf_server_url = &$mandatory_of(C4DEPLOY_CONF_URL=>\%ENV);
     my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
     my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR=>\%ENV);
     my $basic_img = &$mandatory_of(CI_JOB_IMAGE=>\%ENV);
@@ -956,8 +956,9 @@ push @tasks, ["gitlab_pipeline","",sub{
     my $client_code = syf("cat $proto_dir/deploy_dialog.js");
     my $content = qq[<!DOCTYPE html><head><meta charset="UTF-8"></head>].
         qq[<body><script type="module">const formOptions=$form_options\n$client_code</script></body>];
-    sy("curl -X PUT $deploy_conf_url/$form_auth/index.html -d\@".&$put_temp("index.html"=>$content));
-    my $state = &$decode(syf("curl $deploy_conf_url/$form_auth/state.json")||"{}");
+    my $deploy_conf_url = "$deploy_conf_server_url/tmp/$form_auth";
+    sy("curl -X PUT $deploy_conf_url/index.html -d\@".&$put_temp("index.html"=>$content));
+    my $state = &$decode(syf("curl $deploy_conf_url/state.json")||"{}");
     my $proj_tag = $$state{project}=~/^([\w\-]*)$/ ? $1 : die;
     return if $proj_tag eq "";
     my $md = $$state{mode}=~/^(base|next)$/ ? $1 : die;
