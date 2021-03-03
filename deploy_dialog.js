@@ -1,18 +1,30 @@
 
-import { h, /*Component,*/ render, useState } from 'https://unpkg.com/htm/preact/index.mjs?module';
+import { h, render } from 'https://cdn.pika.dev/preact'
+import { useState, useEffect } from 'https://cdn.pika.dev/preact/hooks'
 
 function Select({options,value,setValue}){
-    return h('div', null, options.map(option=>h("span",{
+    return h('div', {
+        style: {
+            padding: "1em",
+        }
+    }, options.map(option=>h("span",{
         key: option,
         onClick: ev=>setValue(option),
-        style: { border: `1px solid $(value===option?"green":"silver")`},
+        style: {
+            margin: "0.2em",
+            padding: "0.2em",
+            display: "inline-block",
+            border: `1px solid ${value===option?"green":"white"}`,
+            borderRadius: "0.2em",
+            cursor: "hand",
+        },
     },option)))
 }
 
 const subState = (value,setValue,key)=>({
     key,
     value: value[key],
-    setValue: v => setValue(st=>({...st,[key]:v,last;key})),
+    setValue: v => setValue(st=>({...st,[key]:v,last:key})),
 })
 
 function App (props) {
