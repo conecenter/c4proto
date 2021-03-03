@@ -4,7 +4,7 @@ use strict;
 use Digest::MD5 qw(md5_hex);
 use JSON::XS;
 
-my $sys_image_ver = "v85a";
+my $sys_image_ver = "v85e";
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -946,7 +946,7 @@ push @tasks, ["gitlab_pipeline","",sub{
     my $git_project_id = &$mandatory_of(CI_PROJECT_ID=>\%ENV);
     my $server_url = &$mandatory_of(CI_SERVER_URL=>\%ENV);
     #
-    my $form_auth = syf("cat $local_dir/form.auth");
+    my $form_auth = syf("cat $local_dir/form.auth")=~/(\S+)/ ? $1 : die;
     my $conf_lines = &$decode(syf("cat $local_dir/c4dep.main.json"));
     my @proj_tags = map{ref($_) && $$_[0] eq "C4TAG" ? $$_[1] : ()} @$conf_lines;
     my @comp_proj = &$map(&$get_deploy_conf(),sub{
