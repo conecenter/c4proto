@@ -6,14 +6,14 @@ function Select({options,value,setValue}){
     return h('div', {
         style: {
             padding: "1em",
+            display: "inline-block",
         }
-    }, options.map(option=>h("span",{
+    }, options.map(option=>h("div",{
         key: option,
         onClick: ev=>setValue(option),
         style: {
             margin: "0.2em",
             padding: "0.2em",
-            display: "inline-block",
             border: `1px solid ${value===option?"green":"white"}`,
             borderRadius: "0.2em",
             cursor: "hand",
