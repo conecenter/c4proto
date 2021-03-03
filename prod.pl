@@ -948,7 +948,7 @@ push @tasks, ["gitlab_pipeline","",sub{
     #
     my $form_auth = syf("cat $local_dir/form.auth");
     my $conf_lines = &$decode(syf("cat $local_dir/c4dep.main.json"));
-    my @proj_tags = map{$$_[0] eq "C4TAG" ? $$_[1] : ()} @$conf_lines;
+    my @proj_tags = map{ref($_) && $$_[0] eq "C4TAG" ? $$_[1] : ()} @$conf_lines;
     my @comp_proj = &$map(&$get_deploy_conf(),sub{
         my($comp,$conf)=@_; $$conf{project} ? [$comp=>$$conf{project}] : ()
     });
