@@ -959,8 +959,7 @@ push @tasks, ["gitlab_pipeline","",sub{
     print $content;
     my $deploy_conf_url = "$deploy_conf_server_url/tmp/$form_auth";
     my $temp = &$put_temp("index.html"=>$content);
-    print syf("cat $temp");
-    sy("curl -X PUT $deploy_conf_url/index.html -d\@$temp");
+    sy("curl -X PUT $deploy_conf_url/index.html --data-binary \@$temp");
     my $state = &$decode(syf("curl $deploy_conf_url/state.json")||"{}");
     my $proj_tag = $$state{project}=~/^([\w\-]*)$/ ? $1 : die;
     return if $proj_tag eq "";
