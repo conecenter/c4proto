@@ -1011,7 +1011,7 @@ push @tasks, ["gitlab_gen","",sub {
     my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
     my $deploy_conf_url = syf("cat $local_dir/form.auth");
     my $state_str = syf("curl $deploy_conf_url/state.json");
-    if($ENV{CI_PIPELINE_TRIGGERED} eq ""){
+    if($ENV{C4CI_STAGE} eq ""){
         my $index_html = "$deploy_conf_url/index.html";
         if($state_str eq ""){
             my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR=>\%ENV);
@@ -1025,19 +1025,19 @@ push @tasks, ["gitlab_gen","",sub {
             my $git_project_id = &$mandatory_of(CI_PROJECT_ID=>\%ENV);
             my $server_url = &$mandatory_of(CI_SERVER_URL=>\%ENV);
             my $branch = &$mandatory_of(CI_COMMIT_REF_NAME=>\%ENV);
-            my $url = "$server_url/api/v4/projects/$git_project_id/trigger/pipeline?token=$job_token&ref=$branch";
+            my $url = "$server_url/api/v4/projects/$git_project_id/trigger/pipeline?token=$job_token&ref=$branch&variables[C4CI_STAGE]=INNER";
             my $temp = &$put_temp("trigger_payload"=>$state_str);
-            sy("curl","-XPOST",$url,"--form","variable[C4CI_STAGE]=INNER");
+            sy("curl","-XPOST",$url);#,"--form","variables[C4CI_STAGE]=1"
             print "\nYou can fill $index_html and retry\n";
         }
         &$put_text($out_path,"");
-    } else {
+    } elsif($ENV{C4CI_STAGE} eq 'INNER') {
         my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
         my $basic_img = &$mandatory_of(CI_JOB_IMAGE => \%ENV);
         my $res = &$gitlab_get_pipeline($state_str,$builder_comp,$basic_img);
         print "\n$res\n";
         &$put_text($out_path,$res);
-    }
+    } else { die }
 }];
 
 push @tasks, ["gitlab_build_builder","",sub{
