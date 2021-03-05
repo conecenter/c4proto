@@ -1025,9 +1025,9 @@ push @tasks, ["gitlab_gen","",sub {
             my $git_project_id = &$mandatory_of(CI_PROJECT_ID=>\%ENV);
             my $server_url = &$mandatory_of(CI_SERVER_URL=>\%ENV);
             my $branch = &$mandatory_of(CI_COMMIT_REF_NAME=>\%ENV);
-            my $url = "$server_url/api/v4/projects/$git_project_id/trigger/pipeline?token=$job_token&ref=$branch&variables[C4CI_STAGE]=INNER";
+            my $url = "$server_url/api/v4/projects/$git_project_id/trigger/pipeline";
             my $temp = &$put_temp("trigger_payload"=>$state_str);
-            sy("curl","-XPOST",$url);#,"--form","variables[C4CI_STAGE]=1"
+            sy("curl","-XPOST",$url,map{('--form',$_)} "token=$job_token","ref=$branch","variables[C4CI_STAGE]=INNER");
             print "\nYou can fill $index_html and retry\n";
         }
         &$put_text($out_path,"");
