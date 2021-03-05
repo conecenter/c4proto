@@ -178,7 +178,7 @@ my $sync_up = sub{
     sy(&$remote($comp,"cd $conf_dir && chmod +x up && ./up"));
 };
 
-my $get_proto_dir = sub{ $ENV{C4PROTO_DIR} || $ENV{C4CI_PROTO_DIR} || die 'no C4PROTO_DIR' };
+my $get_proto_dir = sub{ &$mandatory_of(C4CI_PROTO_DIR=>\%ENV) };
 
 my $main = sub{
     my($cmd,@args)=@_;
@@ -473,7 +473,7 @@ my $make_kc_yml = sub{
                 },
             },
     };
-    my $stateful_set_yml = &$encode(!$$opt{headless} ? {
+    my $stateful_set_yml = !$$opt{headless} ? {
             apiVersion => "apps/v1",
             kind => "Deployment",
             metadata => { name => $name },
@@ -486,7 +486,7 @@ my $make_kc_yml = sub{
                 %$spec,
                 serviceName => $name,
             },
-    });
+    };
     #
     my @service_yml = do{
         my @ports = &$map($opt,sub{ my($k)=@_;
@@ -497,7 +497,7 @@ my $make_kc_yml = sub{
                 name => "c4-$2"
             } : ()
         });
-        @ports ? &$encode({
+        @ports ? {
             apiVersion => "v1",
             kind => "Service",
             metadata => { name => $name },
@@ -506,7 +506,7 @@ my $make_kc_yml = sub{
                 ports => \@ports,
                 $$opt{headless} ? (clusterIP=>"None") : (),
             },
-        }) : ();
+        } : ();
     };
     #
     my @ingress_yml = do{
@@ -536,28 +536,29 @@ my $make_kc_yml = sub{
                 }}@$v],
             },
         }});
-        @rules ? &$encode({
+        @rules ? {
             apiVersion => "extensions/v1beta1",
             kind => "Ingress",
             metadata => { name => $name, @annotations },
             spec => { rules => \@rules, @tls },
-        }) : ();
+        } : ();
     };
     #
-    my @secrets_yml = map{ &$encode({
+    my @secrets_yml = map{+{
         apiVersion => "v1",
         kind => "Secret",
         metadata => { name => &$mandatory_of(secret=>$_) },
         type => "Opaque",
         data => { map{($_=>syf("base64 -w0 < $tmp_path/$_"))} @{$$_{files}||die} },
-    })} @int_secrets;
+    }} @int_secrets;
     #
-    join("\n", @secrets_yml, @service_yml, @ingress_yml, $stateful_set_yml);
+    [@secrets_yml, @service_yml, @ingress_yml, $stateful_set_yml];
 };
 
 my $wrap_kc = sub{
     my($name,$tmp_path,$options) = @_;
-    my $yml_str = &$make_kc_yml($name,$tmp_path,$options);
+    my $yml = &$make_kc_yml($name,$tmp_path,$options);
+    my $yml_str = join "\n", map{&$encode($_)} @$yml;
     my $kubectl = &$get_kubectl($name);
     sy("$kubectl apply -f ".&$put_temp("up.yml",$yml_str));
 };
@@ -700,18 +701,17 @@ my $wrap_deploy = sub{
     return &$find_handler(wrap_deploy=>&$get_deployer($comp))->($comp,$from_path,$options);
 };
 
-push @tasks, ["up-client", "", sub{
+my $up_client = sub{
     my($run_comp)=@_;
     my $conf = &$get_compose($run_comp);
     my $from_path = &$get_tmp_dir();
     &$make_secrets($run_comp,$from_path);
-    my $options = {
+    ($from_path, {
         &$env_img(),
         tty => "true", JAVA_TOOL_OPTIONS => "-XX:-UseContainerSupport",
         @req_small, %$conf,
-    };
-    &$wrap_deploy($run_comp,$from_path,$options);
-}];
+    });
+};
 
 my $need_logback = sub{
     my ($comp,$from_path) = @_;
@@ -749,7 +749,7 @@ my $up_consumer = sub{
     &$make_secrets($run_comp,$from_path);
     &$need_logback($run_comp,$from_path);
     &$put_frpc_conf($from_path,&$get_frpc_conf($run_comp));
-    ($run_comp, $from_path, {
+    ($from_path, {
         %consumer_options, @req_big, C4FRPC_INI => "/c4conf/frpc.ini", %$conf,
     });
 };
@@ -761,7 +761,7 @@ my $up_gate = sub{
     &$need_logback($run_comp,$from_path);
     my $hostname = &$get_hostname($run_comp) || die "no le_hostname";
     my ($ingress_secret_name) = &$get_deployer_conf($run_comp,0,qw[ingress_secret_name]);
-    my $options = {
+    ($from_path, {
         %consumer_options,
         C4S3_CONF_DIR => "/c4conf-ceph-client",
         C4STATE_TOPIC_PREFIX => "gate",
@@ -774,8 +774,7 @@ my $up_gate = sub{
         ingress_secret_name=>$ingress_secret_name,
         C4HTTP_PORT => $inner_http_port,
         C4SSE_PORT => $inner_sse_port,
-    };
-    ($run_comp, $from_path, $options);
+    });
 };
 
 my $base_image_steps = sub{(
@@ -801,14 +800,9 @@ my $dl_node_url = "https://nodejs.org/dist/v14.15.4/node-v14.15.4-linux-x64.tar.
 # dc:
 # kc:
 
-push @tasks, ["up-consumer", "", sub{
-    my($run_comp)=@_;
-    &$wrap_deploy(&$up_consumer($run_comp));
-}];
-push @tasks, ["up-gate", "", sub{
-    my($run_comp)=@_;
-    &$wrap_deploy(&$up_gate($run_comp));
-}];
+push @tasks, ["ci_up-consumer", "", $up_consumer];
+push @tasks, ["ci_up-gate", "", $up_gate];
+push @tasks, ["ci_up-client", "", $up_client];
 
 # deploy-time, conf-arity, easy-conf, restart-fail-independ -- gate|main|exch (or more, try min);
 # dc easy net -- single
@@ -910,46 +904,6 @@ push @tasks, ["builder_cleanup"," ",sub{
     sy(@ssh,"test -e $tmp_root && rm -r $tmp_root; true");
 }];
 
-push @tasks, ["gitlab_pipeline","",sub{
-    &$ssh_add();
-    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR=>\%ENV);
-    my $deploy_conf_server_url = &$mandatory_of(C4DEPLOY_CONF_URL=>\%ENV);
-    my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR=>\%ENV);
-    my $basic_img = &$mandatory_of(CI_JOB_IMAGE=>\%ENV);
-    my $commit = &$mandatory_of(CI_COMMIT_SHORT_SHA=>\%ENV);
-    my $job_token = &$mandatory_of(CI_JOB_TOKEN=>\%ENV);
-    my $git_project_id = &$mandatory_of(CI_PROJECT_ID=>\%ENV);
-    my $server_url = &$mandatory_of(CI_SERVER_URL=>\%ENV);
-    my $branch = &$mandatory_of(CI_COMMIT_REF_NAME=>\%ENV);
-    #
-    my $form_auth = syf("cat $local_dir/form.auth")=~/(\S+)/ ? $1 : die;
-    my $conf_lines = &$decode(syf("cat $local_dir/c4dep.main.json"));
-    my @proj_tags = sort map{ref($_) && $$_[0] eq "C4TAG" ? $$_[1] : ()} @$conf_lines;
-    my @comp_proj = &$map(&$get_deploy_conf(),sub{
-        my($comp,$conf)=@_; $$conf{project} ? [$comp=>$$conf{project}] : ()
-    });
-    my $form_options = &$encode({projectTags=>\@proj_tags,environments=>\@comp_proj});
-    my $client_code = syf("cat $proto_dir/deploy_dialog.js");
-    my $content = qq[<!DOCTYPE html><head><meta charset="UTF-8"></head>].
-        qq[<body><script type="module">const formOptions=$form_options\n$client_code</script></body>];
-    my $deploy_conf_url = "$deploy_conf_server_url/tmp/$form_auth";
-    my $temp = &$put_temp("index.html"=>$content);
-    sy("curl -X PUT $deploy_conf_url/index.html --data-binary \@$temp");
-    my $state = &$decode(syf("curl $deploy_conf_url/state.json")||"{}");
-    my $proj_tag = $$state{project}=~/^([\w\-]*)$/ ? $1 : die;
-    return if $proj_tag eq "";
-    my $md = $$state{mode}=~/^(base|next)$/ ? $1 : die;
-    my $img_tag = "$proj_tag.$md.$commit";
-    my $reg = $basic_img=~m{^(.+)/\w+:[^:]+$} ? $1 : die;
-    my $builder_repo = "$reg/builder";
-    my $builder_img = "$builder_repo:$img_tag";
-    my $full_server_url =
-        "$server_url/api/v4/projects/$git_project_id/trigger/pipeline";
-    my $form = join " ", map{qq[--form "$_"]}
-        "token=$job_token", "ref=$branch", "variables[C4BUILDER_IMAGE]=$builder_img";
-    sy(qq[curl -X POST $form $full_server_url]);
-}];
-
 my $gitlab_docker_build = sub{
     my($local_dir,$builder_comp,@args) = @_;
     my $ctx_dir = syf("uuidgen")=~/(\S+)/ ? "$tmp_root/$1" : die;
@@ -958,38 +912,175 @@ my $gitlab_docker_build = sub{
     sy(&$ssh_ctl($builder_comp,"rm","-r",$ctx_dir));
 };
 
-my $gitlab_build_prepare = sub{
-    my($local_dir,$builder_comp,$repo,$tag,$proj_tag,$mode)=@_;
-    my $full_steps = syf("cat $local_dir/build.base.dockerfile");
-    my @full = ($full_steps,"--build-arg","C4CI_BASE_TAG=$proj_tag");
-    my %has_tag = map{/^(\S+)\s+(\S+)/ && $1 eq $repo?("$2"=>1):()}
-        syl(&$remote($builder_comp,"docker images"));
-    return ("") if $has_tag{$tag};
-    return @full if $mode ne "next";
-    my @found_tags = grep{$has_tag{$_}} map{"$proj_tag.base.$_"}
-        syf("git log --pretty=%h | head")=~/(\S+)/g;
-    return @full if !@found_tags;
-    my $next_steps = $full_steps=~/\n#!C4NEXT\s(.*)/s ? $1 : die "no #!C4NEXT";
-    return ("FROM $repo:$found_tags[0]\n$next_steps");
+my $gitlab_trigger_pipeline = sub{
+    my($vars)=@_;
+    my $job_token = &$mandatory_of(CI_JOB_TOKEN=>\%ENV);
+    my $git_project_id = &$mandatory_of(CI_PROJECT_ID=>\%ENV);
+    my $server_url = &$mandatory_of(CI_SERVER_URL=>\%ENV);
+    my $branch = &$mandatory_of(CI_COMMIT_REF_NAME=>\%ENV);
+    my $full_server_url =
+        "$server_url/api/v4/projects/$git_project_id/trigger/pipeline";
+    my $form = join " ", map{qq[--form "$_"]}
+        "token=$job_token", "ref=$branch",
+        &$map($vars,sub{ my($k,$v)=@_; "variables[$k]=$v" });
+    sy(qq[curl -X POST $form $full_server_url]);
 };
+
+push @tasks, ["gitlab_build_common","",sub{
+    my($img)=@_;
+    &$ssh_add();
+    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR=>\%ENV);
+    my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
+    my $deploy_conf_server_url = &$mandatory_of(C4DEPLOY_CONF_URL=>\%ENV);
+    sy("cp $local_dir/build.base.dockerfile $local_dir/Dockerfile");
+    my $uuid = syf("uuidgen")=~/(\S+)/ ? $1 : die;
+    &$put_text("$local_dir/form.auth","$deploy_conf_server_url/tmp/$uuid");
+    &$gitlab_docker_build($local_dir,$builder_comp,"-t",$img);
+}];
+
+push @tasks, ["gitlab_gen_form","",sub{
+    &$ssh_add();
+    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR=>\%ENV);
+    my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR=>\%ENV);
+    my $instance = &$mandatory_of(C4INSTANCE=>\%ENV);
+    my $deploy_conf_url = syf("cat $local_dir/form.auth")=~/(\S+)/ ? $1 : die;
+    my $conf_lines = &$decode(syf("cat $local_dir/c4dep.main.json"));
+    my @proj_tags = sort map{ref($_) && $$_[0] eq "C4TAG" ? $$_[1] : ()} @$conf_lines;
+    my @comp_proj = &$map(&$get_deploy_conf(),sub{
+        my($comp,$conf)=@_; $$conf{project} ? [$comp=>$$conf{project}] : ()
+    });
+    my $form_options = &$encode({
+        projectTags=>\@proj_tags,
+        environments=>\@comp_proj,
+        instance=>$instance,
+    });
+    my $client_code = syf("cat $proto_dir/deploy_dialog.js");
+    my $content = qq[<!DOCTYPE html><head><meta charset="UTF-8"></head>].
+        qq[<body><script type="module">const formOptions=$form_options\n$client_code</script></body>];
+    my $temp = &$put_temp("index.html"=>$content);
+    sy("curl -X PUT $deploy_conf_url/index.html --data-binary \@$temp");
+}];
+
+push @tasks, ["gitlab_trigger_build","",sub{
+    &$ssh_add();
+    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR=>\%ENV);
+    my $basic_img = &$mandatory_of(CI_JOB_IMAGE=>\%ENV);
+    my $deploy_conf_url = syf("cat $local_dir/form.auth")=~/(\S+)/ ? $1 : die;
+    my $state_str = syf("curl $deploy_conf_url/state.json");
+    return if $state_str eq "";
+    my $state = &$decode($state_str);
+    my $comp = $$state{environment}=~/^(\w[\w\-]+)$/ ? $1 : die;
+    my $proj_tag = $$state{project}=~/^(\w[\w\-]+)$/ ? $1 : die;
+    my $mode = $$state{mode}=~/^(base|next)$/ ? $1 : die;
+    my $expires = $$state{expires}=~/([\w\s]+)/ ? $1 : die;
+    my $environments = $$state{environments}=~/^([\w\s:]+)$/ ? $1 : die;
+    my ($builder_repo,$commit) = $basic_img=~m{^(.+):common\.(\w+)$} ? ($1,$2) : die;
+    my $img_tag = "$proj_tag.$mode.$commit";
+    my $builder_img = "$builder_repo:$img_tag";
+    my $runtime_img = do{
+        my $conf = &$get_compose($comp);
+        my $image_type = $$conf{image_type} || "";
+        my($runtime_repo) = &$get_deployer_conf($comp,1,qw[sys_image_repo]);
+        $image_type eq "builder" ? $builder_img :
+        $image_type eq "" ? "$runtime_repo:$img_tag" : die;
+    };
+
+    &$gitlab_trigger_pipeline({
+        C4CI_STAGE => "build",
+        C4BUILDER_IMAGE => $builder_img, C4DEPLOY_EXPIRES => $expires,
+        C4RUNTIME_IMAGE => $runtime_img, C4DEPLOY_ENVIRONMENTS => $environments,
+    });
+}];
 
 push @tasks, ["gitlab_build_builder","",sub{
     &$ssh_add();
-    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR=>\%ENV);
     my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
     my $builder_img = &$mandatory_of(C4BUILDER_IMAGE=>\%ENV);
     my($repo,$img_tag,$proj_tag,$mode) =
         $builder_img=~/^(.+):(([\w\-]+)\.(base|next)\.\w+)$/ ? ($1,$2,$3,$4) : die;
-    my($steps,@args) =
-        &$gitlab_build_prepare($local_dir,$builder_comp,$repo,$img_tag,$proj_tag,$mode);
-    if($steps ne ""){
-        &$put_text("$local_dir/Dockerfile",$steps);
-        &$gitlab_docker_build($local_dir,$builder_comp,@args,"-t",$builder_img);
-    }
+    my $build = sub{
+        my($dir,$steps)=@_;
+        my $n_steps = join "", map{"RUN \$C4STEP_$_\n"} 0..2;
+        &$put_text("$dir/Dockerfile","$steps\n$n_steps");
+        &$gitlab_docker_build($dir,$builder_comp,"-t",$builder_img);
+    };
+    my $full = sub{
+        my $basic_img = &$mandatory_of(CI_JOB_IMAGE=>\%ENV);
+        &$build(&$get_tmp_dir(), "FROM $basic_img\nENV C4CI_BASE_TAG_ENV=$proj_tag");
+    };
+    my %has_tag = map{/^(\S+)\s+(\S+)/ && $1 eq $repo?("$2"=>1):()}
+        syl(&$remote($builder_comp,"docker images"));
+    return if $has_tag{$img_tag};
+    return &$full() if $mode ne "next";
+    my @found_tags = grep{$has_tag{$_}} map{"$proj_tag.base.$_"}
+        syf("git log --pretty=%h | head")=~/(\S+)/g;
+    return &$full() if !@found_tags;
+    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR=>\%ENV);
+    my $steps = "FROM $repo:$found_tags[0]\nRUN \$C4STEP_RM\nCOPY --chown=c4:c4 . \$C4CI_BUILD_DIR";
+    &$build($local_dir,$steps);
 }];
 
-    # - curl https://dconf.kdev2.cone.ee/tmp/$(cat form.auth).html -XPUT -d TeSt
-    # - echo https://dconf.kdev2.cone.ee/tmp/$(cat form.auth).html#$CI_JOB_ID
+my $get_img_tag = sub{ $_[0]=~m{:([^:]+)$} ? $1 : die };
+
+my $get_gitlab_runtime = sub{
+    my $comp = &$mandatory_of(C4DEPLOY_ENVIRONMENT=>\%ENV);
+    my $basic_img = &$mandatory_of(CI_JOB_IMAGE=>\%ENV);
+    my $repo = &$mandatory_of(C4DEPLOY_REPO=>\%ENV);
+    my $tag = &$get_img_tag($basic_img);
+    "$repo:$tag";
+};
+
+push @tasks, ["gitlab_build_runtime","",sub{
+    my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
+    my $basic_img = &$mandatory_of(CI_JOB_IMAGE=>\%ENV);
+    my $runtime_img = &$mandatory_of(C4RUNTIME_IMAGE=>\%ENV);
+    &$gitlab_docker_build("/c4/res",$builder_comp,"-t",$runtime_img)
+        if $runtime_img ne $basic_img;
+}];
+
+push @tasks, ["gitlab_push_runtime","",sub{
+    my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
+    my $runtime_img = &$mandatory_of(C4RUNTIME_IMAGE=>\%ENV);
+    sy(&$ssh_ctl($builder_comp,"-t","docker","push",$runtime_img));
+}];
+
+push @tasks, ["gitlab_trigger_runtime","",sub{
+    my @pipelines = map{
+        my %add = /^(\w[\w\-]+):([\w\-]*)$/ ?
+            (C4DEPLOY_ENVIRONMENT=>$1, C4INSTANCE=>$2) : die;
+        +{
+            C4CI_STAGE => "runtime",
+            C4RUNTIME_IMAGE => &$mandatory_of(C4RUNTIME_IMAGE=>\%ENV),
+            C4DEPLOY_EXPIRES => &$mandatory_of(C4DEPLOY_EXPIRES=>\%ENV),
+            %add
+        }
+    } &$mandatory_of(C4DEPLOY_ENVIRONMENTS=>\%ENV)=~/(\S+)/g;
+    &$gitlab_trigger_pipeline($_) for @pipelines;
+}];
+
+push @tasks, ["gitlab_up","",sub{
+    &$ssh_add();
+    my $comp = &$mandatory_of(C4DEPLOY_ENVIRONMENT=>\%ENV);
+    my ($tmp_path,$options) = &$find_handler(ci_up=>$comp)->($comp);
+
+
+
+    my $yml = &$make_kc_yml($comp,$tmp_path,$options);
+    my $yml_str = join "\n", map{&$encode($_)} @$yml;
+    my $kubectl = &$get_kubectl($comp);
+    my $del_str = join " ", map{
+        my $kind = lc($$_{kind} || die);
+        my $nm = ($$_{metadata}||die)->{name} || die;
+        "$kind/$nm"
+    } @$yml;
+    &$put_text("$tmp_path/down","$kubectl delete $del_str");
+    sy("$kubectl apply -f ".&$put_temp("up.yml",$yml_str));
+
+
+
+
+
+}];
 
 # my $to_artifact = sub{"c4gen-gitlab-$_[0].yml"};
 # my $get_map_tags_modes = sub{

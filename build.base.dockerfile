@@ -10,18 +10,11 @@ RUN /install.pl curl https://git.io/coursier-cli-linux && chmod +x /tools/coursi
 USER c4
 ENV PATH=${PATH}:/tools/jdk/bin:/tools:/c4/.bloop
 RUN curl -L https://github.com/scalacenter/bloop/releases/download/v1.3.4/install.py | python
-ARG C4CI_BASE_TAG
-ENV C4CI_BASE_TAG_ENV=$C4CI_BASE_TAG
 ENV C4CI_BUILD_DIR=/c4/main
 ENV C4CI_PROTO_DIR=$C4CI_BUILD_DIR
-ENV C4REPO_MAIN_CONF=$C4CI_BUILD_DIR/c4dep.main.replink
-ENV C4STEP_SYNC="find $C4CI_BUILD_DIR >$C4CI_BUILD_DIR/ci.rm && /replink.pl"
-ENV C4STEP_BUILD="perl $C4CI_PROTO_DIR/prod.pl ci_inner_build"
-ENV C4STEP_BUILD_CLIENT="echo NOOP"
-ENV C4STEP_COPY="perl $C4CI_PROTO_DIR/prod.pl ci_inner_cp"
-#!C4NEXT
-COPY --chown=c4:c4 . /c4/main
-RUN eval $C4STEP_SYNC
-RUN $C4STEP_BUILD
-RUN $C4STEP_BUILD_CLIENT
-RUN $C4STEP_COPY
+ENV C4STEP_0="perl $C4CI_PROTO_DIR/prod.pl ci_inner_build"
+ENV C4STEP_1="echo NOOP"
+ENV C4STEP_2="perl $C4CI_PROTO_DIR/prod.pl ci_inner_cp"
+ENV C4STEP_RM="perl $C4CI_PROTO_DIR/prod.pl ci_rm"
+COPY --chown=c4:c4 . $C4CI_BUILD_DIR
+RUN find $C4CI_BUILD_DIR >$C4CI_BUILD_DIR/ci.rm
