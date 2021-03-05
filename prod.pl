@@ -1028,7 +1028,7 @@ push @tasks, ["gitlab_gen","",sub {
             my $branch = &$mandatory_of(CI_COMMIT_REF_NAME=>\%ENV);
             my $url = "$server_url/api/v4/projects/$git_project_id/trigger/pipeline?token=$job_token&ref=$branch";
             my $temp = &$put_temp("trigger_payload"=>$state_str);
-            sy(qq[curl -X POST $url --data-binary \@$temp]);
+            sy("curl","-XPOST",$url,"--data-binary","\@$temp");
             print "You can fill $index_html and retry";
         }
     } else {

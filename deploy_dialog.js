@@ -45,7 +45,7 @@ function App ({projectTags,environments,instance}) {
     })
     const {mode,project,expires,environment} = state
     const options = {
-        mode: ["base","next"]
+        mode: ["base","next"],
         project: projectTags,
         environment: !project ? [] : environments.flatMap(e=>(
             e[1]===project || e[1]==="*" ? [e[0]] : []
@@ -53,7 +53,7 @@ function App ({projectTags,environments,instance}) {
         count: `-${environment}-`.includes(`-${instance}-`) ? ["1","4"] : ["1"],
         expires: ["never","1 hour"],
     }
-    const isFilled = Object.entries(options).every([k,o]=>o.includes(state[k]))
+    const isFilled = Object.entries(options).every(([k,o])=>o.includes(state[k]))
 
     return h('div', {style: {
         fontFamily: "Arial,sans-serif",
