@@ -923,6 +923,7 @@ push @tasks, ["gitlab_build_common","",sub{
     my $uuid = syf("uuidgen")=~/(\S+)/ ? $1 : die;
     &$put_text("$local_dir/form.auth","$deploy_conf_server_url/tmp/$uuid");
     &$gitlab_docker_build($local_dir,$builder_comp,"-t",$img);
+    sy(&$ssh_ctl($builder_comp,"-t","docker","push",$img));
 }];
 
 
