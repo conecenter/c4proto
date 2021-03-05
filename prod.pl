@@ -1011,7 +1011,7 @@ push @tasks, ["gitlab_gen","",sub {
     my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
     my $deploy_conf_url = syf("cat $local_dir/form.auth");
     my $state_str = syf("curl $deploy_conf_url/state.json");
-    if($ENV{C4CI_IS_INNER_PIPELINE} eq ""){
+    if($ENV{CI_PIPELINE_TRIGGERED} eq ""){
         my $index_html = "$deploy_conf_url/index.html";
         if($state_str eq ""){
             my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR=>\%ENV);
