@@ -904,26 +904,13 @@ push @tasks, ["builder_cleanup"," ",sub{
     sy(@ssh,"test -e $tmp_root && rm -r $tmp_root; true");
 }];
 
+
 my $gitlab_docker_build = sub{
     my($local_dir,$builder_comp,@args) = @_;
     my $ctx_dir = syf("uuidgen")=~/(\S+)/ ? "$tmp_root/$1" : die;
     &$rsync_to($local_dir,$builder_comp,$ctx_dir);
     sy(&$ssh_ctl($builder_comp,"-t","docker","build",@args,$ctx_dir));
     sy(&$ssh_ctl($builder_comp,"rm","-r",$ctx_dir));
-};
-
-my $gitlab_trigger_pipeline = sub{
-    my($vars)=@_;
-    my $job_token = &$mandatory_of(CI_JOB_TOKEN=>\%ENV);
-    my $git_project_id = &$mandatory_of(CI_PROJECT_ID=>\%ENV);
-    my $server_url = &$mandatory_of(CI_SERVER_URL=>\%ENV);
-    my $branch = &$mandatory_of(CI_COMMIT_REF_NAME=>\%ENV);
-    my $full_server_url =
-        "$server_url/api/v4/projects/$git_project_id/trigger/pipeline";
-    my $form = join " ", map{qq[--form "$_"]}
-        "token=$job_token", "ref=$branch",
-        &$map($vars,sub{ my($k,$v)=@_; "variables[$k]=$v" });
-    sy(qq[curl -X POST $form $full_server_url]);
 };
 
 push @tasks, ["gitlab_build_common","",sub{
@@ -938,13 +925,10 @@ push @tasks, ["gitlab_build_common","",sub{
     &$gitlab_docker_build($local_dir,$builder_comp,"-t",$img);
 }];
 
-push @tasks, ["gitlab_gen_form","",sub{
-    &$ssh_add();
-    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR=>\%ENV);
-    my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR=>\%ENV);
-    my $instance = &$mandatory_of(C4INSTANCE=>\%ENV);
-    my $deploy_conf_url = syf("cat $local_dir/form.auth")=~/(\S+)/ ? $1 : die;
-    my $conf_lines = &$decode(syf("cat $local_dir/c4dep.main.json"));
+
+my $gitlab_get_form = sub{
+    my($instance,$conf_str,$client_code)=@_;
+    my $conf_lines = &$decode($conf_str);
     my @proj_tags = sort map{ref($_) && $$_[0] eq "C4TAG" ? $$_[1] : ()} @$conf_lines;
     my @comp_proj = &$map(&$get_deploy_conf(),sub{
         my($comp,$conf)=@_; $$conf{project} ? [$comp=>$$conf{project}] : ()
@@ -954,48 +938,111 @@ push @tasks, ["gitlab_gen_form","",sub{
         environments=>\@comp_proj,
         instance=>$instance,
     });
-    my $client_code = syf("cat $proto_dir/deploy_dialog.js");
-    my $content = qq[<!DOCTYPE html><head><meta charset="UTF-8"></head>].
+    return qq[<!DOCTYPE html><head><meta charset="UTF-8"></head>].
         qq[<body><script type="module">const formOptions=$form_options\n$client_code</script></body>];
-    my $temp = &$put_temp("index.html"=>$content);
-    sy("curl -X PUT $deploy_conf_url/index.html --data-binary \@$temp");
-}];
+};
 
-push @tasks, ["gitlab_trigger_build","",sub{
-    &$ssh_add();
-    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR=>\%ENV);
-    my $basic_img = &$mandatory_of(CI_JOB_IMAGE=>\%ENV);
-    my $deploy_conf_url = syf("cat $local_dir/form.auth")=~/(\S+)/ ? $1 : die;
-    my $state_str = syf("curl $deploy_conf_url/state.json");
-    return if $state_str eq "";
+my $gitlab_get_pipeline = sub{
+    my($state_str,$builder_comp,$basic_img)=@_;
     my $state = &$decode($state_str);
     my $comp = $$state{environment}=~/^(\w[\w\-]+)$/ ? $1 : die;
     my $proj_tag = $$state{project}=~/^(\w[\w\-]+)$/ ? $1 : die;
     my $mode = $$state{mode}=~/^(base|next)$/ ? $1 : die;
     my $expires = $$state{expires}=~/([\w\s]+)/ ? $1 : die;
-    my $environments = $$state{environments}=~/^([\w\s:]+)$/ ? $1 : die;
     my ($builder_repo,$commit) = $basic_img=~m{^(.+):common\.(\w+)$} ? ($1,$2) : die;
     my $img_tag = "$proj_tag.$mode.$commit";
     my $builder_img = "$builder_repo:$img_tag";
-    my $runtime_img = do{
-        my $conf = &$get_compose($comp);
-        my $image_type = $$conf{image_type} || "";
+    my $conf = &$get_compose($comp);
+    my $image_type = $$conf{image_type} || "";
+    my $is_sandbox = $image_type eq "builder" ? 1 : $image_type eq "" ? 0 : die;
+    my $runtime_img = $is_sandbox ? $builder_img : do{
         my($runtime_repo) = &$get_deployer_conf($comp,1,qw[sys_image_repo]);
-        $image_type eq "builder" ? $builder_img :
-        $image_type eq "" ? "$runtime_repo:$img_tag" : die;
+        "$runtime_repo:$img_tag"
     };
-
-    &$gitlab_trigger_pipeline({
-        C4CI_STAGE => "build",
-        C4BUILDER_IMAGE => $builder_img, C4DEPLOY_EXPIRES => $expires,
-        C4RUNTIME_IMAGE => $runtime_img, C4DEPLOY_ENVIRONMENTS => $environments,
+    my @vars = (variables => {"GIT_STRATEGY" => "none"});
+    my $prod = "ssh-agent perl \$C4CI_PROTO_DIR/prod.pl";
+    my @in_builder_img = (@vars, image => $builder_img);
+    return &$encode({
+        stages => [ "build", "deploy", "up", "down" ],
+        build  => {
+            stage => "build", @vars, image => $basic_img,
+            script => ["$prod gitlab_build_builder $builder_comp $builder_img"],
+        },
+        deploy => {
+            stage => "deploy", @in_builder_img,
+            script => [
+                $is_sandbox ? () : "$prod gitlab_build_runtime $builder_comp $runtime_img",
+                "$prod gitlab_push_runtime $builder_comp $runtime_img"
+            ],
+        },
+        (map{
+            my $instance = $$_{instance}=~/^(\w[\w\-]+)$/ ? $1 : die;
+            my $environment = $$_{environment}=~/^(\w[\w\-]+)$/ ? $1 : die;
+            (
+                "up-$instance" => {
+                    stage       => "up", @in_builder_img,
+                    script      => [
+                        "C4INSTANCE=$instance $prod gitlab_up $environment down-$instance.sh",
+                    ],
+                    environment => {
+                        name         => $environment,
+                        on_stop      => "down-$instance",
+                        $expires eq "never" ? () : (auto_stop_in => $expires),
+                    },
+                    artifacts => { paths => ["down-$instance.sh"] },
+                },
+                "down-$instance" => {
+                    stage => "down", @in_builder_img,
+                    script => ["down-$instance.sh"],
+                    environment => {
+                        name   => $environment,
+                        action => "stop",
+                    },
+                },
+            )
+        } @{$$state{environments}||die}),
     });
+};
+
+push @tasks, ["gitlab_gen","",sub {
+    my($out_path)=@_;
+    &$ssh_add();
+    my $trigger_payload = $ENV{TRIGGER_PAYLOAD};
+    if($trigger_payload eq ""){
+        my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
+        my $deploy_conf_url = syf("cat $local_dir/form.auth");
+        my $state_str = syf("curl $deploy_conf_url/state.json");
+        my $index_html = "$deploy_conf_url/index.html";
+        if($state_str eq ""){
+            my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR=>\%ENV);
+            my $instance = &$mandatory_of(C4INSTANCE=>\%ENV);
+            my $conf_str = syf("cat $local_dir/c4dep.main.json");
+            my $client_code = syf("cat $proto_dir/deploy_dialog.js");
+            my $form_content = &$gitlab_get_form($instance,$conf_str,$client_code);
+            sy("curl -X PUT $index_html --data-binary \@".&$put_temp("index.html"=>$form_content));
+        } else {
+            my $job_token = &$mandatory_of(CI_JOB_TOKEN=>\%ENV);
+            my $git_project_id = &$mandatory_of(CI_PROJECT_ID=>\%ENV);
+            my $server_url = &$mandatory_of(CI_SERVER_URL=>\%ENV);
+            my $branch = &$mandatory_of(CI_COMMIT_REF_NAME=>\%ENV);
+            my $url = "$server_url/api/v4/projects/$git_project_id/trigger/pipeline?token=$job_token&ref=$branch";
+            my $temp = &$put_temp("trigger_payload"=>$state_str);
+            sy(qq[curl -X POST $url --data-binary \@$temp]);
+            print "You can fill $index_html and retry";
+        }
+    } else {
+        my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
+        my $basic_img = &$mandatory_of(CI_JOB_IMAGE => \%ENV);
+        my $state_str = syf("cat $trigger_payload");
+        my $res = &$gitlab_get_pipeline($state_str,$builder_comp,$basic_img);
+        print "$res\n";
+        &$put_text($out_path,$res);
+    }
 }];
 
 push @tasks, ["gitlab_build_builder","",sub{
+    my($builder_comp,$builder_img) = @_;
     &$ssh_add();
-    my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
-    my $builder_img = &$mandatory_of(C4BUILDER_IMAGE=>\%ENV);
     my($repo,$img_tag,$proj_tag,$mode) =
         $builder_img=~/^(.+):(([\w\-]+)\.(base|next)\.\w+)$/ ? ($1,$2,$3,$4) : die;
     my $build = sub{
@@ -1019,52 +1066,20 @@ push @tasks, ["gitlab_build_builder","",sub{
     my $steps = "FROM $repo:$found_tags[0]\nRUN \$C4STEP_RM\nCOPY --chown=c4:c4 . \$C4CI_BUILD_DIR";
     &$build($local_dir,$steps);
 }];
-
-my $get_img_tag = sub{ $_[0]=~m{:([^:]+)$} ? $1 : die };
-
-my $get_gitlab_runtime = sub{
-    my $comp = &$mandatory_of(C4DEPLOY_ENVIRONMENT=>\%ENV);
-    my $basic_img = &$mandatory_of(CI_JOB_IMAGE=>\%ENV);
-    my $repo = &$mandatory_of(C4DEPLOY_REPO=>\%ENV);
-    my $tag = &$get_img_tag($basic_img);
-    "$repo:$tag";
-};
-
 push @tasks, ["gitlab_build_runtime","",sub{
-    my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
-    my $basic_img = &$mandatory_of(CI_JOB_IMAGE=>\%ENV);
-    my $runtime_img = &$mandatory_of(C4RUNTIME_IMAGE=>\%ENV);
-    &$gitlab_docker_build("/c4/res",$builder_comp,"-t",$runtime_img)
-        if $runtime_img ne $basic_img;
+    my($builder_comp,$runtime_img) = @_;
+    &$ssh_add();
+    &$gitlab_docker_build("/c4/res",$builder_comp,"-t",$runtime_img);
 }];
-
 push @tasks, ["gitlab_push_runtime","",sub{
-    my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
-    my $runtime_img = &$mandatory_of(C4RUNTIME_IMAGE=>\%ENV);
+    my($builder_comp,$runtime_img) = @_;
+    &$ssh_add();
     sy(&$ssh_ctl($builder_comp,"-t","docker","push",$runtime_img));
 }];
-
-push @tasks, ["gitlab_trigger_runtime","",sub{
-    my @pipelines = map{
-        my %add = /^(\w[\w\-]+):([\w\-]*)$/ ?
-            (C4DEPLOY_ENVIRONMENT=>$1, C4INSTANCE=>$2) : die;
-        +{
-            C4CI_STAGE => "runtime",
-            C4RUNTIME_IMAGE => &$mandatory_of(C4RUNTIME_IMAGE=>\%ENV),
-            C4DEPLOY_EXPIRES => &$mandatory_of(C4DEPLOY_EXPIRES=>\%ENV),
-            %add
-        }
-    } &$mandatory_of(C4DEPLOY_ENVIRONMENTS=>\%ENV)=~/(\S+)/g;
-    &$gitlab_trigger_pipeline($_) for @pipelines;
-}];
-
 push @tasks, ["gitlab_up","",sub{
+    my($comp,$out_path)=@_;
     &$ssh_add();
-    my $comp = &$mandatory_of(C4DEPLOY_ENVIRONMENT=>\%ENV);
     my ($tmp_path,$options) = &$find_handler(ci_up=>$comp)->($comp);
-
-
-
     my $yml = &$make_kc_yml($comp,$tmp_path,$options);
     my $yml_str = join "\n", map{&$encode($_)} @$yml;
     my $kubectl = &$get_kubectl($comp);
@@ -1073,13 +1088,8 @@ push @tasks, ["gitlab_up","",sub{
         my $nm = ($$_{metadata}||die)->{name} || die;
         "$kind/$nm"
     } @$yml;
-    &$put_text("$tmp_path/down","$kubectl delete $del_str");
+    &$put_text($out_path,"$kubectl delete $del_str");
     sy("$kubectl apply -f ".&$put_temp("up.yml",$yml_str));
-
-
-
-
-
 }];
 
 # my $to_artifact = sub{"c4gen-gitlab-$_[0].yml"};

@@ -86,8 +86,10 @@ function App ({projectTags,environments,instance}) {
                 const environments =
                     (count > 1 ? range(count).map(n=>`${-n}`) : [""]).map(n=>{
                         const instanceN = `${instance}${n}`
-                        return `${environment}:${instance}`.replace(/\w+/g,m=>m===instance?instanceN:m)
-                    }).join(" ")
+                        const environmentN =
+                            environment.replace(/\w+/g,m=>m===instance?instanceN:m)
+                        return { environment: environmentN, instance: instanceN }
+                    })
                 const body = JSON.stringify({mode,project,expires,environment,environments})
                 fetch("state.json",{method:"PUT",body})
             }},"OK")
