@@ -1047,7 +1047,7 @@ push @tasks, ["gitlab_build_builder","",sub{
         $builder_img=~/^(.+):(([\w\-]+)\.(base|next)\.\w+)$/ ? ($1,$2,$3,$4) : die;
     my $build = sub{
         my($dir,$steps)=@_;
-        my $n_steps = join "", map{"RUN \$C4STEP_$_\n"} 0..2;
+        my $n_steps = join "", map{"RUN eval \$C4STEP_$_\n"} 0..2;
         &$put_text("$dir/Dockerfile","$steps\n$n_steps");
         &$gitlab_docker_build($dir,$builder_comp,"-t",$builder_img);
     };
