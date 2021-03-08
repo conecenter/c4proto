@@ -896,6 +896,8 @@ push @tasks, ["log","<pod|$composes_txt> [tail] [add]",sub{
     });
 }];
 
+#################
+
 push @tasks, ["builder_cleanup"," ",sub{
     my $builder_comp = $ENV{C4CI_BUILDER} || die "no C4CI_BUILDER";
     my @ssh = &$ssh_ctl($builder_comp);
@@ -906,11 +908,12 @@ push @tasks, ["builder_cleanup"," ",sub{
 
 
 my $gitlab_docker_build = sub{
-    my($local_dir,$builder_comp,@args) = @_;
+    my($local_dir,$builder_comp,$img) = @_;
     my $ctx_dir = syf("uuidgen")=~/(\S+)/ ? "$tmp_root/$1" : die;
     &$rsync_to($local_dir,$builder_comp,$ctx_dir);
-    sy(&$ssh_ctl($builder_comp,"-t","docker","build",@args,$ctx_dir));
+    sy(&$ssh_ctl($builder_comp,"-t","docker","build","-t",$img,$ctx_dir));
     sy(&$ssh_ctl($builder_comp,"rm","-r",$ctx_dir));
+    sy(&$ssh_ctl($builder_comp,"-t","docker","push",$img));
 };
 
 push @tasks, ["gitlab_build_common","",sub{
@@ -922,8 +925,7 @@ push @tasks, ["gitlab_build_common","",sub{
     sy("cp $local_dir/build.base.dockerfile $local_dir/Dockerfile");
     my $uuid = syf("uuidgen")=~/(\S+)/ ? $1 : die;
     &$put_text("$local_dir/form.auth","$deploy_conf_server_url/tmp/$uuid");
-    &$gitlab_docker_build($local_dir,$builder_comp,"-t",$img);
-    sy(&$ssh_ctl($builder_comp,"-t","docker","push",$img));
+    &$gitlab_docker_build($local_dir,$builder_comp,$img);
 }];
 
 
@@ -964,18 +966,15 @@ my $gitlab_get_pipeline = sub{
     my $prod = "ssh-agent perl \$C4CI_PROTO_DIR/prod.pl";
     my @in_builder_img = (@vars, image => $builder_img);
     return &$encode({
-        stages => [ "build", "deploy", "up", "down" ],
-        build  => {
-            stage => "build", @vars, image => $basic_img,
+        stages => [ "build_builder", "build_runtime", "up", "down" ],
+        build_builder => {
+            stage => "build_builder", @vars, image => $basic_img,
             script => ["$prod gitlab_build_builder $builder_comp $builder_img"],
         },
-        deploy => {
-            stage => "deploy", @in_builder_img,
-            script => [
-                $is_sandbox ? () : "$prod gitlab_build_runtime $builder_comp $runtime_img",
-                "$prod gitlab_push_runtime $builder_comp $runtime_img"
-            ],
-        },
+        $is_sandbox ? () : (build_runtime => {
+            stage => "build_runtime", @in_builder_img,
+            script => ["$prod gitlab_build_runtime $builder_comp $runtime_img"],
+        }),
         (map{
             my $instance = $$_{instance}=~/^(\w[\w\-]+)$/ ? $1 : die;
             my $environment = $$_{environment}=~/^(\w[\w\-]+)$/ ? $1 : die;
@@ -983,7 +982,7 @@ my $gitlab_get_pipeline = sub{
                 "up-$instance" => {
                     stage       => "up", @in_builder_img,
                     script      => [
-                        "C4INSTANCE=$instance $prod gitlab_up $environment down-$instance.sh",
+                        "C4INSTANCE=$instance C4IMAGE=$runtime_img $prod gitlab_up $environment down-$instance.sh",
                     ],
                     environment => {
                         name         => $environment,
@@ -1049,7 +1048,7 @@ push @tasks, ["gitlab_build_builder","",sub{
         my($dir,$steps)=@_;
         my $n_steps = join "", map{"RUN eval \$C4STEP_$_\n"} 0..2;
         &$put_text("$dir/Dockerfile","$steps\n$n_steps");
-        &$gitlab_docker_build($dir,$builder_comp,"-t",$builder_img);
+        &$gitlab_docker_build($dir,$builder_comp,$builder_img);
     };
     my $full = sub{
         my $basic_img = &$mandatory_of(CI_JOB_IMAGE=>\%ENV);
@@ -1069,12 +1068,7 @@ push @tasks, ["gitlab_build_builder","",sub{
 push @tasks, ["gitlab_build_runtime","",sub{
     my($builder_comp,$runtime_img) = @_;
     &$ssh_add();
-    &$gitlab_docker_build("/c4/res",$builder_comp,"-t",$runtime_img);
-}];
-push @tasks, ["gitlab_push_runtime","",sub{
-    my($builder_comp,$runtime_img) = @_;
-    &$ssh_add();
-    sy(&$ssh_ctl($builder_comp,"-t","docker","push",$runtime_img));
+    &$gitlab_docker_build("/c4/res",$builder_comp,$runtime_img);
 }];
 push @tasks, ["gitlab_up","",sub{
     my($comp,$out_path)=@_;
