@@ -1045,10 +1045,10 @@ push @tasks, ["gitlab_build_builder","",sub{
     my @existing_images = map{/^(\S+)\s+(\S+)/?"$1:$2":()} syl(&$remote($builder_comp,"docker images"));
     return if grep{ $_ eq $builder_img } @existing_images;
     my $parse_img_name = sub{
-        $_[0]=~/^(.+):([\w\-]+)\.(base|next)\.(\w+)$/ ? ["$1","$2","$3","$4"] : ()
+        $_[0]=~/^(.+):([\w\-]+)\.(base|next)\.(\w+)$/ ? ["$1","$2","$3","$4"] : undef
     };
-    my ($builder_repo,$builder_proj_tag,$builder_mode,$builder_commit) =
-        @{&$parse_img_name($builder_img)||die};
+    my $builder_img_parsed = &$parse_img_name($builder_img) || die;
+    my ($builder_repo,$builder_proj_tag,$builder_mode,$builder_commit) = @$builder_img_parsed;
     my $build = sub{
         my($dir,$steps)=@_;
         my $n_steps = join "", map{"RUN eval \$C4STEP_$_\n"} 0..2;
@@ -1061,8 +1061,11 @@ push @tasks, ["gitlab_build_builder","",sub{
     };
     return &$full() if $builder_mode ne "next";
     my %existing_img_by_commit = map{
-        my ($repo,$proj_tag,$mode,$commit) = &$parse_img_name($_);
-        $repo eq $builder_repo && $proj_tag eq $builder_proj_tag && $mode eq "base" ? ($commit=>$_):()
+        my $parsed = &$parse_img_name($_);
+        !$parsed ? () : do{
+            my ($repo,$proj_tag,$mode,$commit) = @$parsed;
+            $repo eq $builder_repo && $proj_tag eq $builder_proj_tag && $mode eq "base" ? ($commit=>$_) : ();
+        }
     } @existing_images;
     my @commit_lengths = sort keys %{+{map{(length($_)=>1)} keys %existing_img_by_commit}};
     my $local_dir = &$mandatory_of(C4CI_BUILD_DIR=>\%ENV);
@@ -1070,6 +1073,7 @@ push @tasks, ["gitlab_build_builder","",sub{
     my @found_images = grep{$_} map{$existing_img_by_commit{$_}}
         map{my $c=$_;map{substr $c,0,$_}@commit_lengths} @log_commits;
 
+  print "eim: $_\n" for @existing_images;
   print "eci: $_\n" for sort keys %existing_img_by_commit;
   print "lci: $_\n" for @log_commits;
   print "ft: $_\n" for @found_images;
