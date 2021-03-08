@@ -27,6 +27,14 @@ function Select({options,value,setValue,gridArea}){
     )
 }
 
+const useLocalStorageObject = (key) => {
+    const [ state, setState ] = useState(()=>JSON.parse(localStorage.getItem(key)||"{}"))
+    useEffect(()=>{
+        localStorage.setItem(key, JSON.stringify(state))
+    },[state])
+    return [ state, setState ]
+}
+
 const subState = (options,value,setValue,key)=>({
     key,
     value: value[key],
@@ -38,11 +46,7 @@ const subState = (options,value,setValue,key)=>({
 const range = sz => [...new Array(sz).keys()]
 
 function App ({projectTags,environments,instance}) {
-    const [state,setState] = useState({
-        mode: "base",
-        count: "1",
-        expires: "never",
-    })
+    const [state,setState] = useLocalStorageObject("deployOptions")
     const {mode,project,expires,environment} = state
     const options = {
         mode: ["base","next"],

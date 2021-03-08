@@ -1057,11 +1057,11 @@ push @tasks, ["gitlab_build_builder","",sub{
     my %has_tag = map{/^(\S+)\s+(\S+)/ && $1 eq $repo?("$2"=>1):()}
         syl(&$remote($builder_comp,"docker images"));
     return if $has_tag{$img_tag};
+    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR=>\%ENV);
     return &$full() if $mode ne "next";
     my @found_tags = grep{$has_tag{$_}} map{"$proj_tag.base.$_"}
-        syf("git log --pretty=%h | head")=~/(\S+)/g;
+        syf("cd $local_dir && git log --pretty=%h | head")=~/(\S+)/g;
     return &$full() if !@found_tags;
-    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR=>\%ENV);
     my $steps = "FROM $repo:$found_tags[0]\nRUN \$C4STEP_RM\nCOPY --chown=c4:c4 . \$C4CI_BUILD_DIR";
     &$build($local_dir,$steps);
 }];
