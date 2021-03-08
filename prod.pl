@@ -1054,13 +1054,18 @@ push @tasks, ["gitlab_build_builder","",sub{
         my $basic_img = &$mandatory_of(CI_JOB_IMAGE=>\%ENV);
         &$build(&$get_tmp_dir(), "FROM $basic_img\nENV C4CI_BASE_TAG_ENV=$proj_tag");
     };
-    my %has_tag = map{/^(\S+)\s+(\S+)/ && $1 eq $repo?("$2"=>1):()}
-        syl(&$remote($builder_comp,"docker images"));
+    my @img_lines = syl(&$remote($builder_comp,"docker images"));
+    my %has_tag = map{/^(\S+)\s+(\S+)/ && $1 eq $repo?("$2"=>1):()} @img_lines;
     return if $has_tag{$img_tag};
     my $local_dir = &$mandatory_of(C4CI_BUILD_DIR=>\%ENV);
     return &$full() if $mode ne "next";
-    my @found_tags = grep{$has_tag{$_}} map{"$proj_tag.base.$_"}
-        syf("cd $local_dir && git log --pretty=%h | head")=~/(\S+)/g;
+    my @commits = syf("cd $local_dir && git log --pretty=%h")=~/(\S+)/g;
+    my @found_tags = grep{$has_tag{$_}} map{"$proj_tag.base.$_"} @commits;
+  print "il: $_\n" for @img_lines;
+  print "ht: $_\n" for sort keys %has_tag;
+  print "ci: $_\n" for @commits;
+  print "ft: $_\n" for @found_tags;
+
     return &$full() if !@found_tags;
     my $steps = "FROM $repo:$found_tags[0]\nRUN \$C4STEP_RM\nCOPY --chown=c4:c4 . \$C4CI_BUILD_DIR";
     &$build($local_dir,$steps);
