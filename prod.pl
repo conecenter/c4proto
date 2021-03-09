@@ -677,7 +677,7 @@ my $all_consumer_options = sub{(
 my $need_deploy_cert = sub{
     my($comp,$from_path)=@_;
     my %auth = &$get_auth($comp);
-    print "comp $conp; [".join(',',%auth)."]\n";
+    print "comp $comp; [".join(',',%auth)."]\n";
     my $put = &$rel_put_text($from_path);
     &$put($_,&$mandatory_of($_=>\%auth)) for "simple.auth";
 };
