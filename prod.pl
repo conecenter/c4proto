@@ -229,7 +229,8 @@ my $get_hostname = sub{
 
 my $get_kubectl = sub{
     my($comp)=@_;
-    &$get_kubectl_raw(&$mandatory_of(deployer=>&$get_compose($comp)));
+    my ($context) = &$get_deployer_conf($comp,1,qw[context]);
+    &$get_kubectl_raw($context);
 };
 my $get_pods = sub{
     my($comp)=@_;
@@ -677,7 +678,7 @@ my $all_consumer_options = sub{(
 my $need_deploy_cert = sub{
     my($comp,$from_path)=@_;
     my %auth = &$get_auth($comp);
-    print "comp $comp; [".join(',',%auth)."]\n";
+    #print "comp $comp; [".join(',',%auth)."]\n";
     my $put = &$rel_put_text($from_path);
     &$put($_,&$mandatory_of($_=>\%auth)) for "simple.auth";
 };
