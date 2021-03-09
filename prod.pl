@@ -677,6 +677,7 @@ my $all_consumer_options = sub{(
 my $need_deploy_cert = sub{
     my($comp,$from_path)=@_;
     my %auth = &$get_auth($comp);
+    print "comp $conp; [".join(',',%auth)."]\n";
     my $put = &$rel_put_text($from_path);
     &$put($_,&$mandatory_of($_=>\%auth)) for "simple.auth";
 };
@@ -1072,12 +1073,6 @@ push @tasks, ["gitlab_build_builder","",sub{
     my @log_commits = syf("cd $local_dir && git log --pretty=%H")=~/(\S+)/g;
     my @found_images = grep{$_} map{$existing_img_by_commit{$_}}
         map{my $c=$_;map{substr $c,0,$_}@commit_lengths} @log_commits;
-
-  print "eim: $_\n" for @existing_images;
-  print "eci: $_\n" for sort keys %existing_img_by_commit;
-  print "lci: $_\n" for @log_commits;
-  print "ft: $_\n" for @found_images;
-
     return &$full() if !@found_images;
     my $steps = "FROM $found_images[0]\nRUN \$C4STEP_RM\nCOPY --chown=c4:c4 . \$C4CI_BUILD_DIR";
     &$build($local_dir,$steps);
