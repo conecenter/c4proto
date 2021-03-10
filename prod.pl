@@ -968,7 +968,7 @@ my $gitlab_get_pipeline = sub{
     my $conf = &$get_compose($comp);
     my $image_type = $$conf{image_type} || "";
     my $is_sandbox = $image_type eq "builder" ? 1 : $image_type eq "" ? 0 : die;
-    my $runtime_img = $is_sandbox ? $builder_img : do{
+    my $runtime_img = $is_sandbox ? "$builder_img.sandbox" : do{
         my($runtime_repo) = &$get_deployer_conf($comp,1,qw[sys_image_repo]);
         "$runtime_repo:$img_tag"
     };
@@ -981,10 +981,10 @@ my $gitlab_get_pipeline = sub{
             stage => "build_builder", @vars, image => $basic_img,
             script => ["$prod gitlab_build_builder $builder_comp $builder_img"],
         },
-        $is_sandbox ? () : (build_runtime => {
+        build_runtime => {
             stage => "build_runtime", @in_builder_img,
-            script => ["$prod gitlab_build_runtime $builder_comp $runtime_img"],
-        }),
+            script => ["$prod gitlab_build_runtime $is_sandbox $builder_comp $runtime_img"],
+        },
         (map{
             my $instance = $$_{instance}=~/^(\w[\w\-]+)$/ ? $1 : die;
             my $environment = $$_{environment}=~/^(\w[\w\-]+)$/ ? $1 : die;
@@ -1089,9 +1089,16 @@ push @tasks, ["gitlab_build_builder","",sub{
     &$build($local_dir,$steps);
 }];
 push @tasks, ["gitlab_build_runtime","",sub{
-    my($builder_comp,$runtime_img) = @_;
+    my($is_sandbox,$builder_comp,$runtime_img) = @_;
     &$ssh_add();
-    &$gitlab_docker_build("/c4/res",$builder_comp,$runtime_img);
+    if($is_sandbox eq "0"){
+        &$gitlab_docker_build("/c4/res",$builder_comp,$runtime_img);
+    } elsif($is_sandbox eq "1"){
+        my $basic_img = &$mandatory_of(CI_JOB_IMAGE=>\%ENV);
+        my $dir = &$get_tmp_dir();
+        &$put_text("$dir/Dockerfile","FROM $basic_img\nENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main");
+        &$gitlab_docker_build($dir,$builder_comp,$runtime_img);
+    } else { die }
 }];
 push @tasks, ["gitlab_up","",sub{
     my($comp,$out_path)=@_;
