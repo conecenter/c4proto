@@ -911,11 +911,19 @@ push @tasks, ["builder_cleanup"," ",sub{
 
 my $gitlab_docker_build = sub{
     my($local_dir,$builder_comp,$img) = @_;
-    my $ctx_dir = syf("uuidgen")=~/(\S+)/ ? "$tmp_root/$1" : die;
+    my $remote_dir = syf("uuidgen")=~/(\S+)/ ? "$tmp_root/$1" : die;
+    my $ctx_dir = "$remote_dir/context";
+    my $local_config_dir = &$get_tmp_dir();
+    &$put_text("$local_config_dir/config.json",&$encode({auths=>{&$mandatory_of(CI_REGISTRY=>\%ENV)=>{
+        username=>&$mandatory_of(CI_REGISTRY_USER=>\%ENV),
+        password=>&$mandatory_of(CI_REGISTRY_PASSWORD=>\%ENV),
+    }}}));
+    &$rsync_to($local_config_dir,$builder_comp,"$remote_dir/config");
     &$rsync_to($local_dir,$builder_comp,$ctx_dir);
-    sy(&$ssh_ctl($builder_comp,"-t","docker","build","-t",$img,$ctx_dir));
-    sy(&$ssh_ctl($builder_comp,"rm","-r",$ctx_dir));
-    sy(&$ssh_ctl($builder_comp,"-t","docker","push",$img));
+    my @config_args = ("--config"=>"$remote_dir/config");
+    sy(&$ssh_ctl($builder_comp,"-t","docker",@config_args,"build","-t",$img,$ctx_dir));
+    sy(&$ssh_ctl($builder_comp,"-t","docker",@config_args,"push",$img)); #todo other repos
+    sy(&$ssh_ctl($builder_comp,"rm","-r",$remote_dir));
 };
 
 push @tasks, ["gitlab_build_common","",sub{
