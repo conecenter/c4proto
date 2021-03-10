@@ -1092,7 +1092,7 @@ push @tasks, ["gitlab_build_runtime","",sub{
     my($is_sandbox,$builder_comp,$runtime_img) = @_;
     &$ssh_add();
     if($is_sandbox eq "0"){
-        &$gitlab_docker_build("/c4/res",$builder_comp,$runtime_img); 
+        &$gitlab_docker_build("/c4/res",$builder_comp,$runtime_img);  
     } elsif($is_sandbox eq "1"){
         my $basic_img = &$mandatory_of(CI_JOB_IMAGE=>\%ENV);
         my $dir = &$get_tmp_dir();
