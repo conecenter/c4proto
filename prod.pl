@@ -995,7 +995,7 @@ my $gitlab_get_pipeline = sub{
                 },
                 "down-$instance" => {
                     stage => "down", @in_builder_img,
-                    script => ["sh down-$instance.sh"], 
+                    script => ["sh down-$instance.sh"],
                     environment => {
                         name   => $environment,
                         action => "stop",
