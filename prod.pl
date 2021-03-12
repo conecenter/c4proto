@@ -96,9 +96,6 @@ my $secret_yml_from_files = sub{
     }
 };
 
-my @secrets_yml = map{} @int_secrets;
-
-
 my $mandatory_of = sub{ my($k,$h)=@_; (exists $$h{$k}) ? $$h{$k} : die "no $k" };
 
 my $ssh_add  = sub{
