@@ -102,3 +102,42 @@ function App ({projectTags,environments,instance}) {
 }
 
 render(h(App,{...formOptions}), document.body);
+
+/*
+my $gitlab_get_form = sub{
+    my($instance,$conf_str,$client_code)=@_;
+    my $conf_lines = &$decode($conf_str);
+    my @proj_tags = sort map{ref($_) && $$_[0] eq "C4TAG" ? $$_[1] : ()} @$conf_lines;
+    my @comp_proj = &$map(&$get_deploy_conf(),sub{
+        my($comp,$conf)=@_; $$conf{project} ? [$comp=>$$conf{project}] : ()
+    });
+    my $form_options = &$encode({
+        projectTags=>\@proj_tags,
+        environments=>\@comp_proj,
+        instance=>$instance,
+    });
+    return qq[<!DOCTYPE html><head><meta charset="UTF-8"></head>].
+        qq[<body><script type="module">const formOptions=$form_options\n$client_code</script></body>];
+};
+
+        my $index_html = "$deploy_conf_url/index.html";
+        if($state_str eq ""){
+            my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR=>\%ENV);
+            my $instance = &$mandatory_of(C4INSTANCE=>\%ENV);
+            my $conf_str = syf("cat $local_dir/c4dep.main.json");
+            my $client_code = syf("cat $proto_dir/deploy_dialog.js");
+            my $form_content = &$gitlab_get_form($instance,$conf_str,$client_code);
+            sy("curl -X PUT $index_html --data-binary \@".&$put_temp("index.html"=>$form_content));
+        } else {
+            my $job_token = &$mandatory_of(CI_JOB_TOKEN=>\%ENV);
+            my $git_project_id = &$mandatory_of(CI_PROJECT_ID=>\%ENV);
+            my $server_url = &$mandatory_of(CI_SERVER_URL=>\%ENV);
+            my $branch = &$mandatory_of(CI_COMMIT_REF_NAME=>\%ENV);
+            my $url = "$server_url/api/v4/projects/$git_project_id/trigger/pipeline";
+            my $temp = &$put_temp("trigger_payload"=>$state_str);
+            sy("curl","-XPOST",$url,map{('--form',$_)} "token=$job_token","ref=$branch","variables[C4CI_STAGE]=INNER");
+            print "\nYou can fill $index_html and retry\n";
+        }
+        &$put_text($out_path,"");
+
+*/
