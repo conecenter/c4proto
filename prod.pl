@@ -166,9 +166,7 @@ my $get_deployer = sub{
 };
 my $get_deployer_conf = sub{
     my($comp,$chk,@k)=@_;
-    print "B3($comp)\n";
     my $deployer = &$get_deployer($comp);
-    print "B2($deployer)\n";
     my $n_conf = &$get_compose($deployer);
     map{$$n_conf{$_} || $chk && die "no $_"} @k;
 };
