@@ -158,13 +158,14 @@ my $get_deployer = sub{
 };
 my $get_deployer_conf = sub{
     my($comp,$chk,@k)=@_;
-    my $n_conf = &$get_compose(&$get_deployer($comp));
+    my $deployer = &$get_deployer($comp);
+    print "B2($deployer)\n";
+    my $n_conf = &$get_compose($deployer);
     map{$$n_conf{$_} || $chk && die "no $_"} @k;
 };
 my $get_host_port = sub{
-    print "B0\n";
+    print "B0($_[0])\n";
     my ($host,$port) = &$get_deployer_conf($_[0],1,qw(host port));
-    print "B1\n";
     my ($user) = &$get_deployer_conf($_[0],0,qw(user));
     ($host,$port,$user||"c4")
 };
