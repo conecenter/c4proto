@@ -162,7 +162,9 @@ my $get_deployer_conf = sub{
     map{$$n_conf{$_} || $chk && die "no $_"} @k;
 };
 my $get_host_port = sub{
+    print "B0\n";
     my ($host,$port) = &$get_deployer_conf($_[0],1,qw(host port));
+    print "B1\n";
     my ($user) = &$get_deployer_conf($_[0],0,qw(user));
     ($host,$port,$user||"c4")
 };
