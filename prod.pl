@@ -993,15 +993,18 @@ push @tasks, ["gitlab_gen","",sub {
     my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
     my $comp = &$gitlab_get_comp();
+    print "A0\n";
     #
     my @existing_images =
         map{/^(\S+)\s+(\S+)/?"$1:$2":()} syl(&$remote($builder_comp,"docker images"));
     my %existing_images = map{($_=>1)} @existing_images;
+    print "A1\n";
     if(!$existing_images{$common_img}){
         sy("cp $local_dir/build.base.dockerfile $local_dir/Dockerfile");
         sy("cp $proto_dir/.dockerignore $local_dir/") if $local_dir ne $proto_dir;
         &$gitlab_docker_build($local_dir,$builder_comp,$common_img);
     }
+    print "A2\n";
     return if $comp eq '';
     #
     my $builder_repo = &$mandatory_of(CI_REGISTRY_IMAGE=>\%ENV)."/builder";
