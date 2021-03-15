@@ -144,16 +144,18 @@ my $resolve = cached{
         my $def_configs = &$conf_by_instance("");
         my @parts = $comp=~/([^\-]+)/g;
         $comp eq join "-", @parts or die "bad name ($comp)";
-        my @may_be_instance = grep{$_ && $$_[0]}
-            [$$def_configs{$comp},""],
-            @parts[grep{
+        my @res = map{
+                my($instance,$comp_wo)=@$_;
+                $$def_configs{$comp_wo} ?
+                    [(&$conf_by_instance($instance)->{$comp} || die),$instance] : ()
+            }
+            ["", $comp],
+            map{
                 my $n=$_;
-                my $instance = $parts[$n];
-                $$def_configs{join "-", map{ $n==$_ ? "" : $parts[$_] } 0..$#parts} &&
-                    [&$conf_by_instance($instance)->{$comp}, $instance]
-            } 0..$#parts];
-        print "non-single $comp" if @may_be_instance > 1;
-        &$single_or_undef(@may_be_instance);
+                [$parts[$n], join "-", map{ $n==$_ ? "" : $parts[$_] } 0..$#parts]
+            } 0..$#parts;
+        print "non-single $comp" if @res > 1;
+        &$single_or_undef(@res);
     };
 };
 
