@@ -141,13 +141,19 @@ my $resolve = cached{
     };
     return cached{
         my($comp)=@_;
-        my @res = map{
-            my $configs_for_instance = &$conf_by_instance($_);
-            my $conf = $$configs_for_instance{$comp};
-            print "C [".(scalar keys %$configs_for_instance)."][$_,$comp,$conf]\n";
-            $conf ? [$conf,$_] : ()
-        } '', $comp=~/([^\-]+)/g;
-        &$single_or_undef(@res)
+        my $def_configs = &$conf_by_instance("");
+        my @parts = $comp=~/([^\-]+)/g;
+        $comp eq join "-", @parts or die "bad name ($comp)";
+        my @may_be_instance = grep{$_ && $$_[0]}
+            [$$def_configs{$comp},""],
+            @parts[grep{
+                my $n=$_;
+                my $instance = $parts[$n];
+                $$def_configs{join "-", map{ $n==$_ ? "" : $parts[$_] } 0..$#parts} &&
+                    [&$conf_by_instance($instance)->{$comp}, $instance]
+            } 0..$#parts];
+        print "non-single $comp" if @may_be_instance > 1;
+        &$single_or_undef(@may_be_instance);
     };
 };
 
