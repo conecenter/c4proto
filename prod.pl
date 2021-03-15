@@ -993,7 +993,7 @@ push @tasks, ["gitlab_gen","",sub {
     my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
     my $comp = &$gitlab_get_comp();
-    print "A0\n";
+    print "A0($builder_comp)\n";
     #
     my @existing_images =
         map{/^(\S+)\s+(\S+)/?"$1:$2":()} syl(&$remote($builder_comp,"docker images"));
