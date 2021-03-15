@@ -991,11 +991,8 @@ push @tasks, ["gitlab_gen","",sub {
     my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
     my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR=>\%ENV);
     my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
-    my $builder_repo = &$mandatory_of(CI_REGISTRY_IMAGE=>\%ENV)."/builder";
-    my $commit = &$mandatory_of(CI_COMMIT_SHORT_SHA=>\%ENV);
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
     my $comp = &$gitlab_get_comp();
-    my $runtime_img = &$gitlab_get_runtime_image($comp);
     #
     my @existing_images =
         map{/^(\S+)\s+(\S+)/?"$1:$2":()} syl(&$remote($builder_comp,"docker images"));
@@ -1007,6 +1004,9 @@ push @tasks, ["gitlab_gen","",sub {
     }
     return if $comp eq '';
     #
+    my $builder_repo = &$mandatory_of(CI_REGISTRY_IMAGE=>\%ENV)."/builder";
+    my $commit = &$mandatory_of(CI_COMMIT_SHORT_SHA=>\%ENV);
+    my $runtime_img = &$gitlab_get_runtime_image($comp);
     my $conf = &$get_compose($comp);
     my $builder_img = sub{
         my $proj_tag = $$conf{project}=~/^(\w[\w\-]*\w)$/ ? $1 : die "bad project";
