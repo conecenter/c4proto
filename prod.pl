@@ -1071,7 +1071,7 @@ push @tasks, ["gitlab_gen","",sub {
 my $del_env = sub{
     my($comp,$keep)=@_;
     my $kubectl = &$get_kubectl($comp);
-    my $secret_name = $comp;
+    my $secret_name = "$comp-app";
     my $res = syf("$kubectl get secret/$secret_name -o json --ignore-not-found");
     return if $res eq "";
     my $dir = &$get_tmp_dir();
@@ -1108,11 +1108,12 @@ push @tasks, ["gitlab_up","",sub{
         my ($tmp_path,$options) = &$find_handler(ci_up=>$l_comp)->($l_comp,$img);
         @{&$make_kc_yml($l_comp,$tmp_path,$options)};
     } @comps;
-    my $dummy_env_yml = &$secret_yml_from_files($comp, {});
+    my $secret_name = "$comp-app";
+    my $dummy_env_yml = &$secret_yml_from_files($secret_name, {});
     my @names = map{ &$name_from_yml($_) } $dummy_env_yml, @yml;
-    my $env_yml = &$secret_yml_from_files($comp, {list=>&$put_temp("list",join' ',@names)});
+    my $env_yml = &$secret_yml_from_files($secret_name, {list=>&$put_temp("list",join' ',@names)});
     my $yml_str = join "\n", map{&$encode($_)} $env_yml, @yml;
-
+    #
     &$del_env($comp,{map{($_=>1)} @names});
     my $kubectl = &$get_kubectl($comp);
     sy("$kubectl apply -f ".&$put_temp("up.yml",$yml_str));
