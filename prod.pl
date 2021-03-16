@@ -74,15 +74,20 @@ my $encode = sub{
 my $get_kubectl_raw = sub{"kubectl --context $_[0]"};
 
 my $ckh_secret =sub{ $_[0]=~/^([\w\-\.]{3,})$/ ? "$1" : die 'bad secret name' };
-my $secret_to_dir = sub{
-    my($kubectl,$secret_name,$dir)=@_;
-    my $stm = "$kubectl get secret/$secret_name -o json";
-    my $data = &$decode(syf($stm))->{data} || die;
+
+my $secret_to_dir_decode = sub{
+    my($str,$dir) = @_;
+    my $data = &$decode($str)->{data} || die;
     for(sort keys %$data){
         my $v64 = $$data{$_};
         my $fn = &$need_path("$dir/".&$ckh_secret($_));
         sy("base64 -d > $fn < ".&$put_temp("value",$v64));
     }
+};
+
+my $secret_to_dir = sub{
+    my($kubectl,$secret_name,$dir)=@_;
+    &$secret_to_dir_decode(syf("$kubectl get secret/$secret_name -o json"),$dir);
 };
 
 my $secret_yml_from_files = sub{
@@ -1065,10 +1070,13 @@ push @tasks, ["gitlab_gen","",sub {
 
 my $del_env = sub{
     my($comp,$keep)=@_;
-    my $dir = &$get_tmp_dir();
     my $kubectl = &$get_kubectl($comp);
-    &$secret_to_dir($kubectl,$comp,$dir);
-    my $del_str = join " ",grep{!$$keep{$_}} syf("cat $dir/list")=~/(\S+)/g;
+    my $secret_name = $comp;
+    my $res = syf("$kubectl get secret/$secret_name -o json --ignore-not-found");
+    return if $res eq "";
+    my $dir = &$get_tmp_dir();
+    &$secret_to_dir_decode($res,$dir);
+    my $del_str = join " ", grep{!$$keep{$_}} syf("cat $dir/list")=~/(\S+)/g;
     sy("$kubectl delete $del_str");
 };
 
