@@ -958,10 +958,13 @@ my $gitlab_docker_push = sub{
     my($builder_comp,$img)=@_;
     my $remote_dir = &$gitlab_get_remote_dir("config");
     my $local_dir = &$get_tmp_dir();
-    &$put_text("$local_dir/config.json",&$encode({auths=>{&$mandatory_of(CI_REGISTRY=>\%ENV)=>{
-        username=>&$mandatory_of(CI_REGISTRY_USER=>\%ENV),
-        password=>&$mandatory_of(CI_REGISTRY_PASSWORD=>\%ENV),
-    }}}));
+    my $kubectl = &$get_kubectl($builder_comp);
+    &$secret_to_dir($kubectl,"docker",$local_dir);
+
+    # &$put_text("$local_dir/config.json",&$encode({auths=>{&$mandatory_of(CI_REGISTRY=>\%ENV)=>{
+    #     username=>&$mandatory_of(CI_REGISTRY_USER=>\%ENV),
+    #     password=>&$mandatory_of(CI_REGISTRY_PASSWORD=>\%ENV),
+    # }}}));
     &$rsync_to($local_dir,$builder_comp,$remote_dir);
     my @config_args = ("--config"=>"$remote_dir/config");
     sy(&$ssh_ctl($builder_comp,"-t","docker",@config_args,"push",$img));
