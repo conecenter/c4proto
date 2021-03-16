@@ -965,7 +965,7 @@ my $gitlab_docker_push = sub{
     #     password=>&$mandatory_of(CI_REGISTRY_PASSWORD=>\%ENV),
     # }}}));
     &$rsync_to($local_dir,$builder_comp,$remote_dir);
-    my @config_args = ("--config"=>"$remote_dir/config");
+    my @config_args = ("--config"=>$remote_dir);
     sy(&$ssh_ctl($builder_comp,"-t","docker",@config_args,"push",$img));
     sy(&$ssh_ctl($builder_comp,"rm","-r",$remote_dir));
 };
