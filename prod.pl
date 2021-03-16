@@ -955,7 +955,7 @@ my $gitlab_docker_build = sub {
 #         ["docker","rm","-f",$container_name],
 
 my $gitlab_docker_push = sub{
-    my($kubectl,$builder_comp,$img)=@_;
+    my($kubectl,$builder_comp,$imgages)=@_;
     my $remote_dir = &$gitlab_get_remote_dir("config");
     my $local_dir = &$get_tmp_dir();
     &$secret_to_dir($kubectl,"docker",$local_dir);
@@ -966,7 +966,7 @@ my $gitlab_docker_push = sub{
     # }}}));
     &$rsync_to($local_dir,$builder_comp,$remote_dir);
     my @config_args = ("--config"=>$remote_dir);
-    sy(&$ssh_ctl($builder_comp,"-t","docker",@config_args,"push",$img));
+    sy(&$ssh_ctl($builder_comp,"-t","docker",@config_args,"push",$_)) for @$imgages;
     sy(&$ssh_ctl($builder_comp,"rm","-r",$remote_dir));
 };
 
@@ -1057,7 +1057,7 @@ push @tasks, ["gitlab_gen","",sub {
     } else {
         die;
     }
-    &$gitlab_docker_push($kubectl,$builder_comp,$runtime_img);
+    &$gitlab_docker_push($kubectl,$builder_comp,[$common_img,$runtime_img]);
 }];
 
 my $del_env = sub{
