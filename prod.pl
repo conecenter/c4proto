@@ -170,7 +170,7 @@ my $get_deployer_conf = sub{
     my($comp,$chk,@k)=@_;
     my $deployer = &$get_deployer($comp);
     my $n_conf = &$get_compose($deployer);
-    map{$$n_conf{$_} || $chk && die "no $_"} @k;
+    map{$$n_conf{$_} || $chk && die "$deployer has no $_"} @k;
 };
 my $get_host_port = sub{
     my ($host,$port) = &$get_deployer_conf($_[0],1,qw(host port));
