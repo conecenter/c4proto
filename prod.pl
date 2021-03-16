@@ -955,10 +955,9 @@ my $gitlab_docker_build = sub {
 #         ["docker","rm","-f",$container_name],
 
 my $gitlab_docker_push = sub{
-    my($builder_comp,$img)=@_;
+    my($kubectl,$builder_comp,$img)=@_;
     my $remote_dir = &$gitlab_get_remote_dir("config");
     my $local_dir = &$get_tmp_dir();
-    my $kubectl = &$get_kubectl($builder_comp);
     &$secret_to_dir($kubectl,"docker",$local_dir);
 
     # &$put_text("$local_dir/config.json",&$encode({auths=>{&$mandatory_of(CI_REGISTRY=>\%ENV)=>{
@@ -1007,6 +1006,7 @@ push @tasks, ["gitlab_gen","",sub {
     my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
     my $comp = &$gitlab_get_comp();
+    my $kubectl = &$get_kubectl_raw(&$mandatory_of(C4DEPLOY_CONTEXT=>\%ENV));
     #
     my @existing_images =
         map{/^(\S+)\s+(\S+)/?"$1:$2":()} syl(&$remote($builder_comp,"docker images"));
@@ -1057,7 +1057,7 @@ push @tasks, ["gitlab_gen","",sub {
     } else {
         die;
     }
-    &$gitlab_docker_push($builder_comp,$runtime_img);
+    &$gitlab_docker_push($kubectl,$builder_comp,$runtime_img);
 }];
 
 my $del_env = sub{
