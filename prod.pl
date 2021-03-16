@@ -1120,6 +1120,7 @@ push @tasks, ["gitlab_up","",sub{
 }];
 
 push @tasks, ["gitlab_down","",sub{
+    &$ssh_add();
     my $comp = &$gitlab_get_comp();
     &$del_env($comp,{});
 }];
