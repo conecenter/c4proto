@@ -953,14 +953,22 @@ my $gitlab_docker_build = sub {
     sy(&$ssh_ctl($builder_comp, "rm", "-r", $remote_dir));
 };
 
-
-# sy(&$ssh_ctl($builder_comp,@$_))
-#         ["docker","create","--name",$container_name,$builder_img],
-#         ["docker","cp","$container_name:/c4/res",$remote_dir],
-#         ["docker","rm","-f",$container_name],
+my $gitlab_docker_build_result = sub{
+    my ($builder_comp, $builder_img, $runtime_img) = @_;
+    my $remote_dir = &$gitlab_get_remote_dir("context");
+    my $container_name = "c4cp".&$mandatory_of(CI_JOB_ID=>\%ENV);
+    sy(&$ssh_ctl($builder_comp,@$_)) for (
+        ["mkdir",$remote_dir],
+        ["docker","create","--name",$container_name,$builder_img],
+        ["docker","cp","$container_name:/c4/res",$remote_dir],
+        ["docker","rm","-f",$container_name],
+        ["docker","build","-t",$runtime_img,$remote_dir],
+        ["rm","-r",$remote_dir],
+    );
+};
 
 my $gitlab_docker_push = sub{
-    my($kubectl,$builder_comp,$imgages)=@_;
+    my($kubectl,$builder_comp,$images)=@_;
     my $remote_dir = &$gitlab_get_remote_dir("config");
     my $local_dir = &$get_tmp_dir();
     &$secret_to_dir($kubectl,"docker",$local_dir);
@@ -974,7 +982,7 @@ my $gitlab_docker_push = sub{
     }}));
     &$rsync_to($local_dir,$builder_comp,$remote_dir);
     my @config_args = ("--config"=>$remote_dir);
-    sy(&$ssh_ctl($builder_comp,"-t","docker",@config_args,"push",$_)) for @$imgages;
+    sy(&$ssh_ctl($builder_comp,"-t","docker",@config_args,"push",$_)) for @$images;
     sy(&$ssh_ctl($builder_comp,"rm","-r",$remote_dir));
 };
 
@@ -1041,18 +1049,14 @@ push @tasks, ["gitlab_gen","",sub {
         };
         my $n_steps = join "", map{"RUN eval \$C4STEP_$_\n"} 0..2;
         if($found_image eq ''){
-            &$gitlab_docker_build(
-                &$make_dir_with_dockerfile("FROM $common_img\nENV C4CI_BASE_TAG_ENV=$proj_tag\n$n_steps"),
-                $builder_comp,$builder_base_img
-            );
+            my $steps = "FROM $common_img\nENV C4CI_BASE_TAG_ENV=$proj_tag\n$n_steps";
+            &$gitlab_docker_build(&$make_dir_with_dockerfile($steps), $builder_comp, $builder_base_img);
             return $builder_base_img;
         }
         my $builder_next_img = "$found_image.next.$commit";
         return $builder_next_img if $existing_images{$builder_next_img};
-        &$gitlab_docker_build(
-            &$make_dir_with_dockerfile("FROM $found_image\nRUN \$C4STEP_RM\nCOPY --from=$common_img --chown=c4:c4 \$C4CI_BUILD_DIR \$C4CI_BUILD_DIR\n$n_steps"),
-            $builder_comp,$builder_next_img
-        );
+        my $steps = "FROM $found_image\nRUN \$C4STEP_RM\nCOPY --from=$common_img --chown=c4:c4 \$C4CI_BUILD_DIR \$C4CI_BUILD_DIR\n$n_steps";
+        &$gitlab_docker_build(&$make_dir_with_dockerfile($steps), $builder_comp, $builder_next_img);
         return $builder_next_img;
     }->();
     if(do {
@@ -1061,9 +1065,10 @@ push @tasks, ["gitlab_gen","",sub {
     }){
         my($allow_sandboxes) = &$get_deployer_conf($comp,0,qw[allow_sandboxes]);
         $allow_sandboxes || die;
-        &$gitlab_docker_build(&$make_dir_with_dockerfile("FROM $builder_img\nENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main"),$builder_comp,$runtime_img);
+        my $steps = "FROM $builder_img\nENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main";
+        &$gitlab_docker_build(&$make_dir_with_dockerfile($steps),$builder_comp,$runtime_img);
     } else {
-        die;
+        &$gitlab_docker_build_result($builder_comp,$builder_img,$runtime_img);
     }
     &$gitlab_docker_push($kubectl,$builder_comp,[$common_img,$runtime_img]);
 }];
@@ -1073,11 +1078,12 @@ my $del_env = sub{
     my $kubectl = &$get_kubectl($comp);
     my $secret_name = "$comp-app";
     my $res = syf("$kubectl get secret/$secret_name -o json --ignore-not-found");
-    return if $res eq "";
-    my $dir = &$get_tmp_dir();
-    &$secret_to_dir_decode($res,$dir);
-    my $del_str = join " ", grep{!$$keep{$_}} syf("cat $dir/list")=~/(\S+)/g;
-    sy("$kubectl delete $del_str");
+    my $del_str = $res eq "" ? "" : do{
+        my $dir = &$get_tmp_dir();
+        &$secret_to_dir_decode($res,$dir);
+        join " ", grep{!$$keep{$_}} syf("cat $dir/list")=~/(\S+)/g;
+    };
+    $del_str and sy("$kubectl delete $del_str");
 };
 
 my $name_from_yml = sub{
