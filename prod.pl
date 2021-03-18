@@ -1074,7 +1074,10 @@ push @tasks, ["gitlab_gen", "", sub{
         &$gitlab_docker_build_result($builder_comp,$builder_img,$runtime_img);
     }
     print time," -- gitlab_gen runtime built\n";
-    &$gitlab_docker_push($kubectl,$builder_comp,[$common_img,$runtime_img]);
+    &$gitlab_docker_push($kubectl,$builder_comp,[
+        #$common_img,
+        $runtime_img
+    ]);
     print time," -- gitlab_gen finished\n";
 }];
 
