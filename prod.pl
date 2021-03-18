@@ -1015,7 +1015,8 @@ my $gitlab_get_runtime_image = sub{
     "$runtime_repo:runtime.$id"
 };
 
-push @tasks, ["gitlab_gen","",sub {
+push @tasks, ["gitlab_gen", "", sub{
+    print time," -- gitlab_gen started\n";
     &$ssh_add();
     my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
     my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR=>\%ENV);
@@ -1032,6 +1033,7 @@ push @tasks, ["gitlab_gen","",sub {
         sy("cp $proto_dir/.dockerignore $local_dir/") if $local_dir ne $proto_dir;
         &$gitlab_docker_build($local_dir,$builder_comp,$common_img);
     }
+    print time," -- gitlab_gen common built\n";
     return if $comp eq '';
     #
     my $builder_repo = &$mandatory_of(CI_REGISTRY_IMAGE=>\%ENV)."/builder";
@@ -1059,6 +1061,7 @@ push @tasks, ["gitlab_gen","",sub {
         &$gitlab_docker_build(&$make_dir_with_dockerfile($steps), $builder_comp, $builder_next_img);
         return $builder_next_img;
     }->();
+    print time," -- gitlab_gen builder built\n";
     if(do {
         my $image_type = $$conf{image_type} || "";
         $image_type eq "builder" ? 1 : $image_type eq "" ? 0 : die
@@ -1070,7 +1073,9 @@ push @tasks, ["gitlab_gen","",sub {
     } else {
         &$gitlab_docker_build_result($builder_comp,$builder_img,$runtime_img);
     }
+    print time," -- gitlab_gen runtime built\n";
     &$gitlab_docker_push($kubectl,$builder_comp,[$common_img,$runtime_img]);
+    print time," -- gitlab_gen finished\n";
 }];
 
 my $del_env = sub{
