@@ -1102,6 +1102,7 @@ push @tasks, ["gitlab_gen", "", sub{
         (""=>$build_runtime_for_env,"builder"=>$locate_sandbox_for_env);
     #
     for my $proj_tag(grep{$_} $ENV{C4CI_PREPARE_PROJECT}){
+        print "preparing project ($proj_tag)\n";
         my $n_steps = "RUN eval \$C4STEP_BUILD_OPT\nRUN eval \$C4STEP_BUILD_CLIENT\n";
         &$build_builder($proj_tag,1,"-opt"=>$n_steps);
     }
