@@ -951,6 +951,8 @@ my $gitlab_docker_build = sub {
     &$rsync_to($local_dir, $builder_comp, $remote_dir);
     sy(&$ssh_ctl($builder_comp, "-t", "docker", "build", "-t", $img, $remote_dir));
     sy(&$ssh_ctl($builder_comp, "rm", "-r", $remote_dir));
+    print time," -- gitlab built $img\n";
+    $img;
 };
 
 my $gitlab_docker_build_result = sub{
@@ -984,12 +986,18 @@ my $gitlab_docker_push = sub{
     my @config_args = ("--config"=>$remote_dir);
     sy(&$ssh_ctl($builder_comp,"-t","docker",@config_args,"push",$_)) for @$images;
     sy(&$ssh_ctl($builder_comp,"rm","-r",$remote_dir));
+    print time," -- gitlab pushed\n";
+};
+
+my $gitlab_docker_tag = sub{
+    my ($builder_comp,@args) = @_;
+    sy(&$ssh_ctl($builder_comp,"docker","tag",@args));
 };
 
 my $gitlab_find_base_image = sub{
     my($prefix,$existing_images,$log_commits) = @_;
     my %existing_img_by_commit = map{
-        /^(.+)\.base\.(\w+)$/ && $1 eq $prefix ? ($2=>$_) : ()
+        /^(.+)\.(\w+)$/ && $1 eq $prefix ? ($2=>$_) : ()
     } @$existing_images;
     my @commit_lengths = sort keys %{+{map{(length($_)=>1)} keys %existing_img_by_commit}};
     my @found_images = grep{$_} map{$existing_img_by_commit{$_}}
@@ -1005,7 +1013,10 @@ my $make_dir_with_dockerfile = sub{
 };
 
 my $gitlab_get_comp = sub{
-    &$mandatory_of(CI_COMMIT_REF_NAME=>\%ENV)=~/^t-(\w[\w\-]*\w)$/ ? $1 : ''
+    my $pre = $ENV{C4CI_ENV_PREFIX} || return ();
+    my $len = length $pre;
+    my $ref_name = &$mandatory_of(CI_COMMIT_REF_NAME=>\%ENV);
+    $pre eq substr($ref_name, 0, $len) && substr($ref_name,$len)=~/^(\w[\w\-]*\w)$/ ? ("$1") : die
 };
 
 my $gitlab_get_runtime_image = sub{
@@ -1022,62 +1033,81 @@ push @tasks, ["gitlab_gen", "", sub{
     my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR=>\%ENV);
     my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
-    my $comp = &$gitlab_get_comp();
     my $kubectl = &$get_kubectl_raw(&$mandatory_of(C4DEPLOY_CONTEXT=>\%ENV));
+    my $commit = &$mandatory_of(CI_COMMIT_SHORT_SHA=>\%ENV);
+    my $builder_repo = $common_img=~/^(.+):[^:]+$/ ? $1 : die;
     #
-    my @existing_images =
-        map{/^(\S+)\s+(\S+)/?"$1:$2":()} syl(&$remote($builder_comp,"docker images"));
-    my %existing_images = map{($_=>1)} @existing_images;
-    if(!$existing_images{$common_img}){
+    my $build_common = sub{
         sy("cp $local_dir/build.base.dockerfile $local_dir/Dockerfile");
         sy("cp $proto_dir/.dockerignore $local_dir/") if $local_dir ne $proto_dir;
         &$gitlab_docker_build($local_dir,$builder_comp,$common_img);
-    }
-    print time," -- gitlab_gen common built\n";
-    return if $comp eq '';
-    #
-    my $builder_repo = &$mandatory_of(CI_REGISTRY_IMAGE=>\%ENV)."/builder";
-    my $commit = &$mandatory_of(CI_COMMIT_SHORT_SHA=>\%ENV);
-    my $runtime_img = &$gitlab_get_runtime_image($comp);
-    my $conf = &$get_compose($comp);
-    my $builder_img = sub{
-        my $proj_tag = $$conf{project}=~/^(\w[\w\-]*\w)$/ ? $1 : die "bad project";
-        my $builder_base_img = "$builder_repo:$proj_tag.base.$commit";
-        return $builder_base_img if $existing_images{$builder_base_img};
-        my $is_next = $$conf{image_mode} eq 'next';
-        my $found_image = !$is_next ? '' : do{
-            my $log_commits = [syf("cd $local_dir && git log --pretty=%H")=~/(\S+)/g];
-            &$gitlab_find_base_image("$builder_repo:$proj_tag",\@existing_images,$log_commits);
-        };
-        my $n_steps = join "", map{"RUN eval \$C4STEP_$_\n"} 0..2;
-        if($found_image eq ''){
-            my $steps = "FROM $common_img\nENV C4CI_BASE_TAG_ENV=$proj_tag\n$n_steps";
-            &$gitlab_docker_build(&$make_dir_with_dockerfile($steps), $builder_comp, $builder_base_img);
-            return $builder_base_img;
-        }
-        my $builder_next_img = "$found_image.next.$commit";
-        return $builder_next_img if $existing_images{$builder_next_img};
-        my $steps = "FROM $found_image\nRUN \$C4STEP_RM\nCOPY --from=$common_img --chown=c4:c4 \$C4CI_BUILD_DIR \$C4CI_BUILD_DIR\n$n_steps";
-        &$gitlab_docker_build(&$make_dir_with_dockerfile($steps), $builder_comp, $builder_next_img);
-        return $builder_next_img;
-    }->();
-    print time," -- gitlab_gen builder built\n";
-    if(do {
-        my $image_type = $$conf{image_type} || "";
-        $image_type eq "builder" ? 1 : $image_type eq "" ? 0 : die
-    }){
-        my($allow_sandboxes) = &$get_deployer_conf($comp,0,qw[allow_sandboxes]);
+    };
+    my $build_derived = sub{
+        my ($from,$steps,$img) =@_;
+        my $dir = &$make_dir_with_dockerfile("FROM $from\n$steps");
+        &$gitlab_docker_build($dir, $builder_comp, $img);
+    };
+    my $get_existing_images = sub{
+        map{/^(\S+)\s+(\S+)/ && $1 eq $builder_repo ?"$1:$2":()}
+            syl(&$remote($builder_comp,"docker images"));
+    };
+    my $build_builder = sub{
+        my($proj_tag_arg,$is_next,$opt,$n_steps)=@_;
+        my @existing_images = &$get_existing_images();
+        my %existing_images = map{($_=>1)} @existing_images;
+        &$build_common() if !$existing_images{$common_img};
+        &$gitlab_docker_push($kubectl,$builder_comp,[$common_img]);
+        my $proj_tag = $proj_tag_arg=~/^(\w[\w\-]*\w)$/ ? $1 : die "bad project";
+        my $base_img_prefix = "$builder_repo:$proj_tag.base$opt";
+        my $builder_base_img = "$base_img_prefix.$commit";
+        my @commits =
+            $is_next ? syf("cd $local_dir && git log --pretty=%H")=~/(\S+)/g : ();
+        my $found_image =
+            &$gitlab_find_base_image($base_img_prefix,\@existing_images,\@commits);
+        my $builder_next_img = $found_image && "$found_image.next$opt.$commit";
+        $existing_images{$builder_base_img} ? $builder_base_img :
+        $existing_images{$builder_next_img} ? $builder_next_img :
+        $found_image eq '' ?
+            &$build_derived($common_img, "ENV C4CI_BASE_TAG_ENV=$proj_tag\n$n_steps", $builder_base_img) :
+            &$build_derived($found_image, "RUN \$C4STEP_RM\nCOPY --from=$common_img --chown=c4:c4 \$C4CI_BUILD_DIR \$C4CI_BUILD_DIR\n$n_steps", $builder_next_img);
+    };
+    my $locate_sandbox_for_env = sub{
+        my ($comp) = @_;
+        &$get_compose($comp)->{project} eq "" || die;
+        my($allow_sandboxes) =
+            &$get_deployer_conf($comp,0,qw[allow_sandboxes]);
         $allow_sandboxes || die;
-        my $steps = "FROM $builder_img\nENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main";
-        &$gitlab_docker_build(&$make_dir_with_dockerfile($steps),$builder_comp,$runtime_img);
-    } else {
-        &$gitlab_docker_build_result($builder_comp,$builder_img,$runtime_img);
+        my @found =
+            grep{ /-opt\.(\w+)$/ && $1 eq $commit } &$get_existing_images();
+        my $builder_img = &$single_or_undef(@found) ||
+            die "no single builder image for $commit (@found)";
+        my $runtime_img = &$gitlab_get_runtime_image($comp);
+        &$gitlab_docker_tag($builder_comp,$builder_img,$runtime_img);
+        &$gitlab_docker_push($kubectl,$builder_comp,[$runtime_img]);
+    };
+    my $build_runtime_for_env = sub{
+        my ($comp) = @_;
+        my $conf = &$get_compose($comp);
+        my $proj_tag = $$conf{project};
+        my $is_next = $$conf{image_mode} eq 'next';
+        my $n_steps = "RUN eval \$C4STEP_BUILD\nRUN eval \$C4STEP_BUILD_CLIENT\n";
+        my $builder_img = &$build_builder($proj_tag,$is_next,""=>$n_steps);
+        my $cp_img = "$builder_img.cp";
+        &$build_derived($builder_img,"RUN \$C4STEP_CP\n",$cp_img);
+        my $runtime_img = &$gitlab_get_runtime_image($comp);
+        &$gitlab_docker_build_result($builder_comp,$cp_img,$runtime_img);
+        &$gitlab_docker_push($kubectl,$builder_comp,[$runtime_img]);
+    };
+    my %img_type_handler =
+        (""=>$build_runtime_for_env,"builder"=>$locate_sandbox_for_env);
+    #
+    for my $proj_tag(grep{$_} $ENV{C4CI_PREPARE_PROJECT}){
+        my $n_steps = "RUN eval \$C4STEP_BUILD_OPT\nRUN eval \$C4STEP_BUILD_CLIENT\n";
+        &$build_builder($proj_tag,1,"-opt"=>$n_steps);
     }
-    print time," -- gitlab_gen runtime built\n";
-    &$gitlab_docker_push($kubectl,$builder_comp,[
-        #$common_img,
-        $runtime_img
-    ]);
+    for my $comp(&$gitlab_get_comp()){
+        $img_type_handler{&$get_compose($comp)->{image_type}||""}->($comp);
+    }
     print time," -- gitlab_gen finished\n";
 }];
 
@@ -1103,7 +1133,7 @@ my $name_from_yml = sub{
 
 push @tasks, ["gitlab_up","",sub{
     &$ssh_add();
-    my $comp = &$gitlab_get_comp();
+    my $comp = &$single_or_undef(&$gitlab_get_comp())||die;
     my $img = &$gitlab_get_runtime_image($comp);
     my @comps = do{
         my($conf,$instance) = @{&$resolve('main')->($comp)||die "no $comp"};
@@ -1135,7 +1165,7 @@ push @tasks, ["gitlab_up","",sub{
 
 push @tasks, ["gitlab_down","",sub{
     &$ssh_add();
-    my $comp = &$gitlab_get_comp();
+    my $comp = &$single_or_undef(&$gitlab_get_comp())||die;
     &$del_env($comp,{});
 }];
 
