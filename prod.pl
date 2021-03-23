@@ -1013,10 +1013,10 @@ my $make_dir_with_dockerfile = sub{
 };
 
 my $gitlab_get_comp = sub{
-    my $pre = $ENV{C4CI_ENV_PREFIX} || return ();
+    my $pre = $ENV{C4CI_ENV_PREFIX} || return '';
     my $len = length $pre;
     my $ref_name = &$mandatory_of(CI_COMMIT_REF_NAME=>\%ENV);
-    $pre eq substr($ref_name, 0, $len) && substr($ref_name,$len)=~/^(\w[\w\-]*\w)$/ ? ("$1") : die
+    $pre eq substr($ref_name, 0, $len) && substr($ref_name,$len)=~/^(\w[\w\-]*\w)$/ ? "$1" : die
 };
 
 my $gitlab_get_runtime_image = sub{
@@ -1101,13 +1101,13 @@ push @tasks, ["gitlab_gen", "", sub{
     my %img_type_handler =
         (""=>$build_runtime_for_env,"builder"=>$locate_sandbox_for_env);
     #
-    for my $proj_tag(grep{$_} $ENV{C4CI_PREPARE_PROJECT}){
-        print "preparing project ($proj_tag)\n";
+    my $comp = &$gitlab_get_comp();
+    if($comp ne ''){
+        $img_type_handler{&$get_compose($comp)->{image_type}||""}->($comp);
+    } else {
+        my $proj_tag = &$mandatory_of(C4CI_PREPARE_PROJECT=>\%ENV);
         my $n_steps = "RUN eval \$C4STEP_BUILD_OPT\nRUN eval \$C4STEP_BUILD_CLIENT\n";
         &$build_builder($proj_tag,1,"-opt"=>$n_steps);
-    }
-    for my $comp(&$gitlab_get_comp()){
-        $img_type_handler{&$get_compose($comp)->{image_type}||""}->($comp);
     }
     print time," -- gitlab_gen finished\n";
 }];
@@ -1134,7 +1134,7 @@ my $name_from_yml = sub{
 
 push @tasks, ["gitlab_up","",sub{
     &$ssh_add();
-    my $comp = &$single_or_undef(&$gitlab_get_comp())||die;
+    my $comp = &$gitlab_get_comp()||die;
     my $img = &$gitlab_get_runtime_image($comp);
     my @comps = do{
         my($conf,$instance) = @{&$resolve('main')->($comp)||die "no $comp"};
@@ -1166,7 +1166,7 @@ push @tasks, ["gitlab_up","",sub{
 
 push @tasks, ["gitlab_down","",sub{
     &$ssh_add();
-    my $comp = &$single_or_undef(&$gitlab_get_comp())||die;
+    my $comp = &$gitlab_get_comp()||die;
     &$del_env($comp,{});
 }];
 
