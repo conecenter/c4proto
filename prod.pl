@@ -991,10 +991,10 @@ my $ci_docker_push = sub{
     print time," -- ci pushed\n";
 };
 
-my $ci_docker_tag = sub{
-    my ($builder_comp,@args) = @_;
-    sy(&$ssh_ctl($builder_comp,"docker","tag",@args));
-};
+# my $ci_docker_tag = sub{
+#     my ($builder_comp,@args) = @_;
+#     sy(&$ssh_ctl($builder_comp,"docker","tag",@args));
+# };
 
 my $ci_find_base_image = sub{
     my($prefix,$existing_images,$log_commits) = @_;
@@ -1015,9 +1015,11 @@ my $make_dir_with_dockerfile = sub{
 };
 
 my $ci_get_runtime_image = sub{
-    my ($comp,$img) = @_;
+    my ($comp,$img,$require_allow_source_repo) = @_;
     my($prod_repo,$allow_source_repo) = &$get_deployer_conf($comp,0,qw[sys_image_repo allow_source_repo]);
-    $allow_source_repo ? $img : $prod_repo && $img=~/:([^:]+)$/ ? "$prod_repo:$1" : die;
+    $allow_source_repo ? $img :
+        $require_allow_source_repo ? die("source deploy to alien environment was denied") :
+        $prod_repo && $img=~/:([^:]+)$/ ? "$prod_repo:$1" : die;
 };
 
 push @tasks, ["ci_build", "", sub{
@@ -1070,15 +1072,12 @@ push @tasks, ["ci_build", "", sub{
     my $locate_sandbox_for_env = sub{
         my ($comp) = @_;
         &$get_compose($comp)->{project} eq "" || die;
-        my($allow_sandboxes) =
-            &$get_deployer_conf($comp,0,qw[allow_source_repo]);
-        $allow_sandboxes || die;
         my @found =
             grep{ /-opt\.(\w+)$/ && $1 eq $commit } &$get_existing_images();
         my $builder_img = &$single_or_undef(@found) ||
             die "no single builder image for $commit (@found)";
-        my $runtime_img = &$ci_get_runtime_image($comp,$def_runtime_img);
-        &$ci_docker_tag($builder_comp,$builder_img,$runtime_img);
+        my $runtime_img = &$ci_get_runtime_image($comp,$def_runtime_img,1);
+        &$build_derived($builder_img,"ENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main\n",$runtime_img);
         &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$runtime_img]);
     };
     my $build_runtime_for_env = sub{
@@ -1089,7 +1088,7 @@ push @tasks, ["ci_build", "", sub{
         my $builder_img = &$build_builder($proj_tag,$is_next,""=>"");
         my $cp_img = "$builder_img.cp";
         &$build_derived($builder_img,"RUN \$C4STEP_CP\n",$cp_img);
-        my $runtime_img = &$ci_get_runtime_image($comp,$def_runtime_img);
+        my $runtime_img = &$ci_get_runtime_image($comp,$def_runtime_img,0);
         &$ci_docker_build_result($builder_comp,$cp_img,$runtime_img);
         &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$runtime_img]);
     };
@@ -1132,7 +1131,7 @@ push @tasks, ["ci_up","",sub{
     &$ssh_add();
     my $comp = &$mandatory_of(C4CI_ENVIRONMENT=>\%ENV);
     my $def_runtime_img = &$mandatory_of(C4RUNTIME_IMAGE=>\%ENV);
-    my $img = &$ci_get_runtime_image($comp,$def_runtime_img);
+    my $img = &$ci_get_runtime_image($comp,$def_runtime_img,0);
     my @comps = do{
         my($conf,$instance) = @{&$resolve('main')->($comp)||die "no $comp"};
         my $count = $$conf{count};
