@@ -1048,7 +1048,7 @@ push @tasks, ["ci_build", "", sub{
             syl(&$remote($builder_comp,"docker images"));
     };
     my $build_builder = sub{
-        my($proj_tag_arg,$is_next,$opt,$n_steps)=@_;
+        my($proj_tag_arg,$is_next,$opt,$opt_step)=@_;
         my @existing_images = &$get_existing_images();
         my %existing_images = map{($_=>1)} @existing_images;
         &$build_common() if !$existing_images{$common_img};
@@ -1061,11 +1061,12 @@ push @tasks, ["ci_build", "", sub{
         my $found_image =
             &$ci_find_base_image($base_img_prefix,\@existing_images,\@commits);
         my $builder_next_img = $found_image && "$found_image.next$opt.$commit";
+        my $n_steps = "RUN eval \$C4STEP_BUILD\nRUN eval \$C4STEP_BUILD_CLIENT\n";
         $existing_images{$builder_base_img} ? $builder_base_img :
         $existing_images{$builder_next_img} ? $builder_next_img :
         $found_image eq '' ?
-            &$build_derived($common_img, "ENV C4CI_BASE_TAG_ENV=$proj_tag\n$n_steps", $builder_base_img) :
-            &$build_derived($found_image, "RUN \$C4STEP_RM\nCOPY --from=$common_img --chown=c4:c4 \$C4CI_BUILD_DIR \$C4CI_BUILD_DIR\n$n_steps", $builder_next_img);
+            &$build_derived($common_img, "ENV C4CI_BASE_TAG_ENV=$proj_tag\n$opt_step$n_steps", $builder_base_img) :
+            &$build_derived($found_image, "RUN \$C4STEP_RM\nCOPY --from=$common_img --chown=c4:c4 \$C4CI_BUILD_DIR \$C4CI_BUILD_DIR\n$opt_step$n_steps", $builder_next_img);
     };
     my $locate_sandbox_for_env = sub{
         my ($comp) = @_;
@@ -1086,8 +1087,7 @@ push @tasks, ["ci_build", "", sub{
         my $conf = &$get_compose($comp);
         my $proj_tag = $$conf{project};
         my $is_next = $$conf{image_mode} eq 'next';
-        my $n_steps = "RUN eval \$C4STEP_BUILD\nRUN eval \$C4STEP_BUILD_CLIENT\n";
-        my $builder_img = &$build_builder($proj_tag,$is_next,""=>$n_steps);
+        my $builder_img = &$build_builder($proj_tag,$is_next,""=>"");
         my $cp_img = "$builder_img.cp";
         &$build_derived($builder_img,"RUN \$C4STEP_CP\n",$cp_img);
         my $runtime_img = &$ci_get_runtime_image($comp,$def_runtime_img);
@@ -1104,8 +1104,7 @@ push @tasks, ["ci_build", "", sub{
         $img_type_handler{&$get_compose($comp)->{image_type}||""}->($comp);
     } else {
         my $proj_tag = &$mandatory_of(C4CI_PREPARE_PROJECT=>\%ENV);
-        my $n_steps = "RUN eval \$C4STEP_BUILD_OPT\nRUN eval \$C4STEP_BUILD_CLIENT\n";
-        &$build_builder($proj_tag,1,"-opt"=>$n_steps);
+        &$build_builder($proj_tag,1,"-opt"=>"ENV C4CI_CAN_FAIL=1\n");
     }
     print time," -- ci_build finished\n";
 }];
