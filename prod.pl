@@ -85,9 +85,15 @@ my $secret_to_dir_decode = sub{
     }
 };
 
+my $get_secret_str = sub{
+    my($kubectl,$secret_name,$required)=@_;
+    my $arg = $required ? "" : "--ignore-not-found";
+    syf("$kubectl get secret/$secret_name -o json $arg");
+};
+
 my $secret_to_dir = sub{
     my($kubectl,$secret_name,$dir)=@_;
-    &$secret_to_dir_decode(syf("$kubectl get secret/$secret_name -o json"),$dir);
+    &$secret_to_dir_decode(&$get_secret_str($kubectl,$secret_name,1),$dir);
 };
 
 my $secret_yml_from_files = sub{
@@ -1111,7 +1117,7 @@ my $del_env = sub{
     my($comp,$keep)=@_;
     my $kubectl = &$get_kubectl($comp);
     my $secret_name = "$comp-app";
-    my $res = syf("$kubectl get secret/$secret_name -o json --ignore-not-found");
+    my $res = &$get_secret_str($kubectl,$secret_name,0);
     my $del_str = $res eq "" ? "" : do{
         my $dir = &$get_tmp_dir();
         &$secret_to_dir_decode($res,$dir);
