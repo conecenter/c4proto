@@ -971,7 +971,7 @@ my $ci_docker_build_result = sub{
     sy(&$ssh_ctl($builder_comp,@$_)) for (
         ["mkdir",$remote_dir],
         ["docker","create","--name",$container_name,$builder_img],
-        ["docker","cp","$container_name:/c4/res",$remote_dir],
+        ["docker","cp","$container_name:/c4/res/",$remote_dir],
         ["docker","rm","-f",$container_name],
         ["docker","build","-t",$runtime_img,$remote_dir],
         ["rm","-r",$remote_dir],
