@@ -969,9 +969,8 @@ my $ci_docker_build_result = sub{
     my $remote_dir = &$ci_get_remote_dir("context");
     my $container_name = "c4cp-".&$get_rand_uuid();
     sy(&$ssh_ctl($builder_comp,@$_)) for (
-        ["mkdir",$remote_dir],
         ["docker","create","--name",$container_name,$builder_img],
-        ["docker","cp","$container_name:/c4/res/",$remote_dir],
+        ["docker","cp","$container_name:/c4/res",$remote_dir], #do not mkdir before
         ["docker","rm","-f",$container_name],
         ["docker","build","-t",$runtime_img,$remote_dir],
         ["rm","-r",$remote_dir],
