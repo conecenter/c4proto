@@ -509,7 +509,10 @@ my $make_kc_yml = sub{
                     containers => [$container],
                     volumes => [@secret_volumes, @host_volumes],
                     hostAliases => \@host_aliases,
-                    imagePullSecrets => [{ name => "regcred" }],
+                    imagePullSecrets => [
+                        map{+{name=>$_}} map{ ref($_) ? @$_ : /(\S+)/g }
+                            &$mandatory_of(image_pull_secrets=>$opt)
+                    ],
                     securityContext => {
                         runAsUser => 1979,
                         runAsGroup => 1979,
@@ -600,9 +603,15 @@ my $make_kc_yml = sub{
     [@secrets_yml, @service_yml, @ingress_yml, $stateful_set_yml];
 };
 
+my $add_image_pull_secrets = sub{
+    my ($name,$options) = @_;
+    my ($image_pull_secrets) = &$get_deployer_conf($name,1,qw[image_pull_secrets]);
+    +{image_pull_secrets=>$image_pull_secrets,%$options}
+};
+
 my $wrap_kc = sub{
     my($name,$tmp_path,$options) = @_;
-    my $yml = &$make_kc_yml($name,$tmp_path,$options);
+    my $yml = &$make_kc_yml($name,$tmp_path,&$add_image_pull_secrets($name,$options));
     my $yml_str = join "\n", map{&$encode($_)} @$yml;
     my $kubectl = &$get_kubectl($name);
     sy("$kubectl apply -f ".&$put_temp("up.yml",$yml_str));
@@ -970,12 +979,11 @@ my $ci_docker_build_result = sub{
 };
 
 my $ci_docker_push = sub{
-    my($kubectl,$builder_comp,$images)=@_;
+    my($kubectl,$builder_comp,$add_path,$images)=@_;
     my $remote_dir = &$ci_get_remote_dir("config");
     my $local_dir = &$get_tmp_dir();
     &$secret_to_dir($kubectl,"docker",$local_dir);
     my $path = "$local_dir/config.json";
-    my $add_path = &$mandatory_of(C4CI_DOCKER_CONFIG=>\%ENV);
     &$put_text($path,&$encode(&$merge(map{&$decode(syf("cat $_"))} $path, $add_path)));
     &$rsync_to($local_dir,$builder_comp,$remote_dir);
     my @config_args = ("--config"=>$remote_dir);
@@ -1008,9 +1016,9 @@ my $make_dir_with_dockerfile = sub{
 };
 
 my $ci_get_runtime_image = sub{
-    my ($comp) = @_;
-    my($runtime_repo) = &$get_deployer_conf($comp,1,qw[sys_image_repo]);
-    "$runtime_repo:".&$mandatory_of(C4RUNTIME_IMAGE_TAG=>\%ENV);
+    my ($comp,$img) = @_;
+    my($prod_repo,$allow_source_repo) = &$get_deployer_conf($comp,0,qw[sys_image_repo allow_source_repo]);
+    $allow_source_repo ? $img : $prod_repo && $img=~/:([^:]+)$/ ? "$prod_repo:$1" : die;
 };
 
 push @tasks, ["ci_build", "", sub{
@@ -1020,6 +1028,8 @@ push @tasks, ["ci_build", "", sub{
     my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR=>\%ENV);
     my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
+    my $def_runtime_img = &$mandatory_of(C4RUNTIME_IMAGE=>\%ENV);
+    my $docker_conf_path = &$mandatory_of(C4CI_DOCKER_CONFIG=>\%ENV);
     my $kubectl = &$get_kubectl_raw(&$mandatory_of(C4DEPLOY_CONTEXT=>\%ENV));
     my ($builder_repo,$commit) = $common_img=~/^(.+):[^:]+\.(\w+)$/ ? ($1,$2) : die;
     #
@@ -1042,7 +1052,7 @@ push @tasks, ["ci_build", "", sub{
         my @existing_images = &$get_existing_images();
         my %existing_images = map{($_=>1)} @existing_images;
         &$build_common() if !$existing_images{$common_img};
-        &$ci_docker_push($kubectl,$builder_comp,[$common_img]);
+        &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$common_img]);
         my $proj_tag = $proj_tag_arg=~/^(\w[\w\-]*\w)$/ ? $1 : die "bad project";
         my $base_img_prefix = "$builder_repo:$proj_tag.base$opt";
         my $builder_base_img = "$base_img_prefix.$commit";
@@ -1061,15 +1071,15 @@ push @tasks, ["ci_build", "", sub{
         my ($comp) = @_;
         &$get_compose($comp)->{project} eq "" || die;
         my($allow_sandboxes) =
-            &$get_deployer_conf($comp,0,qw[allow_sandboxes]);
+            &$get_deployer_conf($comp,0,qw[allow_source_repo]);
         $allow_sandboxes || die;
         my @found =
             grep{ /-opt\.(\w+)$/ && $1 eq $commit } &$get_existing_images();
         my $builder_img = &$single_or_undef(@found) ||
             die "no single builder image for $commit (@found)";
-        my $runtime_img = &$ci_get_runtime_image($comp);
+        my $runtime_img = &$ci_get_runtime_image($comp,$def_runtime_img);
         &$ci_docker_tag($builder_comp,$builder_img,$runtime_img);
-        &$ci_docker_push($kubectl,$builder_comp,[$runtime_img]);
+        &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$runtime_img]);
     };
     my $build_runtime_for_env = sub{
         my ($comp) = @_;
@@ -1080,9 +1090,9 @@ push @tasks, ["ci_build", "", sub{
         my $builder_img = &$build_builder($proj_tag,$is_next,""=>$n_steps);
         my $cp_img = "$builder_img.cp";
         &$build_derived($builder_img,"RUN \$C4STEP_CP\n",$cp_img);
-        my $runtime_img = &$ci_get_runtime_image($comp);
+        my $runtime_img = &$ci_get_runtime_image($comp,$def_runtime_img);
         &$ci_docker_build_result($builder_comp,$cp_img,$runtime_img);
-        &$ci_docker_push($kubectl,$builder_comp,[$runtime_img]);
+        &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$runtime_img]);
     };
     my %img_type_handler =
         (""=>$build_runtime_for_env,"builder"=>$locate_sandbox_for_env);
@@ -1123,7 +1133,8 @@ my $name_from_yml = sub{
 push @tasks, ["ci_up","",sub{
     &$ssh_add();
     my $comp = &$mandatory_of(C4CI_ENVIRONMENT=>\%ENV);
-    my $img = &$ci_get_runtime_image($comp);
+    my $def_runtime_img = &$mandatory_of(C4RUNTIME_IMAGE=>\%ENV);
+    my $img = &$ci_get_runtime_image($comp,$def_runtime_img);
     my @comps = do{
         my($conf,$instance) = @{&$resolve('main')->($comp)||die "no $comp"};
         my $count = $$conf{count};
@@ -1139,7 +1150,7 @@ push @tasks, ["ci_up","",sub{
     my @yml = map{
         my $l_comp = $_;
         my ($tmp_path,$options) = &$find_handler(ci_up=>$l_comp)->($l_comp,$img);
-        @{&$make_kc_yml($l_comp,$tmp_path,$options)};
+        @{&$make_kc_yml($l_comp,$tmp_path,&$add_image_pull_secrets($l_comp,$options))};
     } @comps;
     my $secret_name = "$comp-app";
     my $dummy_env_yml = &$secret_yml_from_files($secret_name, {});
