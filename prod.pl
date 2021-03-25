@@ -1417,9 +1417,9 @@ push @tasks, ["up-kc_host", "", sub{ # the last multi container kc
         metadata => { name => $run_comp },
         rules => [
             {
-                apiGroups => ["","apps"],
-                resources => ["statefulsets","secrets","services","deployments"],
-                verbs => ["get","create","patch"],
+                apiGroups => ["","apps","extensions"],
+                resources => ["statefulsets","secrets","services","deployments","ingresses"],
+                verbs => ["get","create","patch","delete"],
             },
             {
                 apiGroups => [""],
@@ -1435,11 +1435,6 @@ push @tasks, ["up-kc_host", "", sub{ # the last multi container kc
                 apiGroups => [""],
                 resources => ["pods"],
                 verbs => ["get","list","delete"],
-            },
-            {
-                apiGroups => ["extensions"],
-                resources => ["ingresses","deployments"],
-                verbs => ["get","create","patch"],
             },
         ],
     }, {
