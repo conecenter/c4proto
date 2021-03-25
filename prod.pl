@@ -1003,12 +1003,9 @@ my $ci_docker_push = sub{
 # };
 
 my $ci_find_base_image = sub{
-    my($prefix,$existing_images,$log_commits) = @_;
-    my %existing_img_by_commit = map{
-        /^(.+)\.(\w+)$/ && $1 eq $prefix ? ($2=>$_) : ()
-    } @$existing_images;
-    my @commit_lengths = sort keys %{+{map{(length($_)=>1)} keys %existing_img_by_commit}};
-    my @found_images = grep{$_} map{$existing_img_by_commit{$_}}
+    my($img_by_commit,$log_commits) = @_;
+    my @commit_lengths = sort keys %{+{map{(length($_)=>1)} keys %$img_by_commit}};
+    my @found_images = grep{$_} map{$$img_by_commit{$_}}
         map{my $c=$_;map{substr $c,0,$_}@commit_lengths} @$log_commits;
     return $found_images[0] || ''
 };
@@ -1054,6 +1051,9 @@ push @tasks, ["ci_build", "", sub{
         map{/^(\S+)\s+(\S+)/ && $1 eq $builder_repo ?"$1:$2":()}
             syl(&$remote($builder_comp,"docker images"));
     };
+    my $get_log_commits = sub{
+        syf("cd $local_dir && git log --pretty=%H")=~/(\S+)/g
+    };
     my $build_builder = sub{
         my($proj_tag_arg,$is_next,$opt,$opt_step)=@_;
         my @existing_images = &$get_existing_images();
@@ -1063,10 +1063,11 @@ push @tasks, ["ci_build", "", sub{
         my $proj_tag = $proj_tag_arg=~/^(\w[\w\-]*\w)$/ ? $1 : die "bad project";
         my $base_img_prefix = "$builder_repo:$proj_tag.base$opt";
         my $builder_base_img = "$base_img_prefix.$commit";
-        my @commits =
-            $is_next ? syf("cd $local_dir && git log --pretty=%H")=~/(\S+)/g : ();
-        my $found_image =
-            &$ci_find_base_image($base_img_prefix,\@existing_images,\@commits);
+        my @commits = $is_next ? &$get_log_commits() : ();
+        my %img_by_commit = map{
+            /^(.+)\.(\w+)$/ && $1 eq $base_img_prefix ? ($2=>$_) : ()
+        } @existing_images;
+        my $found_image = &$ci_find_base_image(\%img_by_commit,\@commits);
         my $builder_next_img = $found_image && "$found_image.next$opt.$commit";
         my $n_steps = "RUN eval \$C4STEP_BUILD\nRUN eval \$C4STEP_BUILD_CLIENT\n";
         $existing_images{$builder_base_img} ? $builder_base_img :
@@ -1078,10 +1079,11 @@ push @tasks, ["ci_build", "", sub{
     my $locate_sandbox_for_env = sub{
         my ($comp) = @_;
         &$get_compose($comp)->{project} eq "" || die;
-        my @found =
-            grep{ /-opt\.(\w+)$/ && $1 eq $commit } &$get_existing_images();
-        my $builder_img = &$single_or_undef(@found) ||
-            die "no single builder image for $commit (@found)";
+        my @existing_images = &$get_existing_images();
+        my %img_by_commit = map{ /-opt\.(\w+)$/ ? ("$1"=>$_):() } sort @existing_images;
+        my @commits = ($commit, &$get_log_commits());
+        my $builder_img = &$ci_find_base_image(\%img_by_commit,\@commits) ||
+            die "no image found ($commit)";
         my $runtime_img = &$ci_get_runtime_image($comp,$def_runtime_img,1);
         &$build_derived($builder_img,"ENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main\n",$runtime_img);
         &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$runtime_img]);
