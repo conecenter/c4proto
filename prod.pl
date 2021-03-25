@@ -1083,6 +1083,7 @@ push @tasks, ["ci_build", "", sub{
         my @existing_images = &$get_existing_images();
         my %existing_images = map{($_=>1)} @existing_images;
         &$build_common() if !$existing_images{$common_img};
+        &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$common_img]);
         my %img_by_commit = map{ /-opt\.(\w+)$/ ? ("$1"=>$_):() } sort @existing_images;
         my @commits = ($commit, &$get_log_commits());
         my $builder_img = &$ci_find_base_image(\%img_by_commit,\@commits) ||
@@ -1090,6 +1091,7 @@ push @tasks, ["ci_build", "", sub{
         my $runtime_img = &$ci_get_runtime_image($comp,$def_runtime_img,1);
         &$build_derived($builder_img,"ENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main\n",$runtime_img);
         &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$runtime_img]);
+        # NOTE: ci_up'll be from current commit, but image will be from found one
     };
     my $build_runtime_for_env = sub{
         my ($comp) = @_;
