@@ -944,11 +944,20 @@ push @tasks, ["log","<pod|$composes_txt> [tail] [add]",sub{
 #################
 
 push @tasks, ["builder_cleanup"," ",sub{
+    &$ssh_add();
     my $builder_comp = $ENV{C4CI_BUILDER} || die "no C4CI_BUILDER";
     my @ssh = &$ssh_ctl($builder_comp);
-    my @to_kill = map{/^c4\s+(\d+).+\bdocker\s+build\b/?"$1":()} syl(join" ",@ssh,"ps","-ef");
-    @to_kill and sy(@ssh,"kill",@to_kill);
+    do {
+        my @to_kill = map {/^c4\s+(\d+).+\bdocker\s+build\b/ ? "$1" : ()}
+            syl(join " ", @ssh, "ps", "-ef");
+        @to_kill and sy(@ssh, "kill", @to_kill);
+    };
     sy(@ssh,"test -e $tmp_root && rm -r $tmp_root; true");
+    do{
+        my @to_rm = map{/^(\S+)\s+(\S+\.base-opt\.\w+)\s/ ?"$1:$2":()}
+            syl(&$remote($builder_comp,"docker images"));
+        @to_rm and sy(@ssh,"docker","rmi",@to_rm);
+    };
 }];
 
 my $get_rand_uuid = sub{ syf("uuidgen")=~/(\S+)/ ? "$1" : die };
