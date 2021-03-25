@@ -1037,6 +1037,7 @@ push @tasks, ["ci_build", "", sub{
     my $kubectl = &$get_kubectl_raw(&$mandatory_of(C4DEPLOY_CONTEXT=>\%ENV));
     my ($builder_repo,$commit) = $common_img=~/^(.+):[^:]+\.(\w+)$/ ? ($1,$2) : die;
     #
+
     my $build_common = sub{
         sy("cp $local_dir/build.base.dockerfile $local_dir/Dockerfile");
         sy("cp $proto_dir/.dockerignore $local_dir/") if $local_dir ne $proto_dir;
@@ -1080,6 +1081,8 @@ push @tasks, ["ci_build", "", sub{
         my ($comp) = @_;
         &$get_compose($comp)->{project} eq "" || die;
         my @existing_images = &$get_existing_images();
+        my %existing_images = map{($_=>1)} @existing_images;
+        &$build_common() if !$existing_images{$common_img};
         my %img_by_commit = map{ /-opt\.(\w+)$/ ? ("$1"=>$_):() } sort @existing_images;
         my @commits = ($commit, &$get_log_commits());
         my $builder_img = &$ci_find_base_image(\%img_by_commit,\@commits) ||
