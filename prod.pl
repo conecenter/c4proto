@@ -252,13 +252,6 @@ push @tasks, ["edit_auth"," ",sub{ #?todo locking or merging
     sy($save);
 }];
 
-push @tasks, ["agent"," ",sub{
-    my(@args)=@_;
-    &$ssh_add();
-
-    sy(@args);
-}];
-
 push @tasks, ["ssh", "$composes_txt [command-with-args]", sub{
     my($comp,@args)=@_;
     &$ssh_add();
@@ -293,9 +286,9 @@ my $get_pods = sub{
 };
 my $get_comp_pods = sub{
     my($arg)=@_;
-    $_[0]=~/^(.+)-\d$/ ? ("$1",$arg) :
-        $_[0]=~/^(.+)-\w+-\w+$/ ? ("$1",$arg) :
-            ($arg,&$get_pods($arg))
+    &$resolve('main')->($arg) ? ($arg,&$get_pods($arg)) :
+        $_[0]=~/^(.+)-\d$/ ? ("$1",$arg) : $_[0]=~/^(.+)-\w+-\w+$/ ? ("$1",$arg) :
+            die "bad composition or pod"
 };
 my $for_comp_pod = sub{
     my($arg,$f)=@_;
@@ -1236,11 +1229,11 @@ my $build_client = sub{
     );
 };
 
-push @tasks, ["build_client","<dir> [mode]",sub{
-    my($dir,$mode)=@_;
+push @tasks, ["build_client","",sub{
+    my($dir,$mode)=@_;#abs dir
     &$build_client($dir, &$client_mode_to_opt($mode));
 }];
-push @tasks, ["build_client_changed","<dir> [mode]",sub{
+push @tasks, ["build_client_changed","",sub{
     my($dir,$mode)=@_;
     $dir || die;
     &$if_changed("$dir/.bloop/c4/client-sums-compiled",syf("cat $dir/.bloop/c4/client-sums"),sub{
