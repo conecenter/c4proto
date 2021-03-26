@@ -32,26 +32,33 @@ my $forever = sub{
 
 
 my $serve_frpc = sub{ &$exec("/tools/frp/frpc", "-c", $ENV{C4FRPC_INI}||die) };
-my $serve_bloop = sub{ &$exec("bloop","server") };
+my $serve_bloop = sub{ &$exec("bloop","server") }; #may be add: $exec_at JAVA_TOOL_OPTIONS => "-Xmx4g -Xss16m -XX:+UseG1GC",
 my $serve_sshd = sub{
-    my $dev_auth_dir = $ENV{C4DEV_AUTH_DIR} || die "no C4DEV_AUTH_DIR";
-    sy("mkdir -p /c4/dropbear && cp $ENV{C4DEV_AUTH_DIR}/dropbear_ecdsa_host_key /c4/dropbear && chmod 0600 /c4/dropbear/dropbear_ecdsa_host_key");
+    do{
+        my $dev_auth_dir = $ENV{C4DEV_AUTH_DIR} || die "no C4DEV_AUTH_DIR";
+        my $dir = "/c4/dropbear";
+        my $fn = "dropbear_ecdsa_host_key";
+        sy("mkdir -p $dir && cp $dev_auth_dir/$fn $dir/ && chmod 0600 $dir/$fn");
+    };
+    do{
+        my $dir = "/c4/.ssh";
+        my $a_keys = "$dir/authorized_keys";
+        sy("mkdir -p $dir && chmod 0700 $dir");
+        &$put_text($a_keys, $ENV{C4AUTHORIZED_KEYS_CONTENT} || die);
+        sy("chmod 0600 $a_keys");
+    };
     #
-    my $path = $ENV{C4DEPLOY_CONF} || die "no C4DEPLOY_CONF";
-    my $dir = "/tmp/c4deploy-conf";
-    sy("mkdir -p $dir  /c4/.ssh && cd $dir && tar -xzf $path");
-    my $a_keys = "/c4/.ssh/authorized_keys";
-    &$put_text($a_keys, $ENV{C4AUTHORIZED_KEYS_CONTENT} || die);
-    sy("cat $dir/id_rsa.pub >> $a_keys && chmod 0700 /c4/.ssh $a_keys");
-    #
+    my $alias_prod = qq[alias prod="perl $ENV{C4CI_PROTO_DIR}/prod.pl "];
     &$put_text("/c4p_alias.sh", join "", map{"$_\n"}
         'export PATH=$PATH:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin:/tools:/c4/.bloop',
         'export JAVA_HOME=/tools/jdk',
-        'export JAVA_TOOL_OPTIONS="-XX:-UseContainerSupport -Xss16m"',
-        qq[alias prod="ssh-agent perl $ENV{C4CI_PROTO_DIR}/prod.pl "],
+        'export JAVA_TOOL_OPTIONS="$JAVA_TOOL_OPTIONS -XX:-UseContainerSupport"', #-Xss16m
+        'export KUBECONFIG=$C4KUBECONFIG',
+        'eval `ssh-agent`',
     );
     sy("export C4AUTHORIZED_KEYS_CONTENT= ; export -p | grep ' C4' >> /c4p_alias.sh");
     &$get_text_or_empty("/c4/.profile")=~/c4p_alias/ or sy("echo '. /c4p_alias.sh' >> /c4/.profile");
+    &$get_text_or_empty("/c4/.bashrc")=~/alias prod=/ or sy("echo '$alias_prod' >> /c4/.bashrc");
     #
     &$exec('dropbear', '-RFEmwgs', '-p', $ENV{C4SSH_PORT}||die 'no C4SSH_PORT');
 };

@@ -445,3 +445,174 @@
 #    my $snnm = (reverse sort &$list_snapshots($comp,""))[0];
 #    sy(&$get_snapshot($comp,$snnm,sub{$_[0]}));
 #}];
+
+#push @tasks, ["restart","$composes_txt",sub{
+#    my($comp)=@_;
+#    sy(&$ssh_add());
+#    my ($dir) = &$get_deployer_conf($comp,1,qw[dir]);
+#    sy(&$remote($comp,"cd $dir/$comp && C4FORCE_RECREATE=1 ./up"));
+#}];
+
+#my $get_head_img_tag = sub{
+#    my($repo_dir,$parent)=@_;
+#    #my $repo_name = $repo_dir=~/(\w+)$/ ? $1 : die;
+#    print "[$repo_dir][$parent]\n";
+#    my $commit = (!-e $repo_dir) ?
+#        ($repo_dir=~/^(\w+)$/ ? $1 : die) :
+#        (syf("git --git-dir=$repo_dir/.git rev-parse --short HEAD")=~/(\w+)/ ? $1 : die);
+#    #my $commit = syf("git --git-dir=$repo_dir/.git log -n1")=~/\bcommit\s+(\w{10})/ ? $1 : die;
+#    !$parent ? "base.$commit" :
+#    $parent=~/^(\w+)$/ ? "base.$1.next.$commit" :
+#    die $parent;
+#};
+#
+#my $get_head_img = sub{
+#    my($req_pre,$repo_dir,$parent) = @_;
+#    $repo_dir ? "$req_pre.".&$get_head_img_tag($repo_dir,$parent) : $req_pre;
+#};
+
+#push @tasks, ["ci_setup","<builder>",sub{
+#    my($comp) = @_;
+#    my $from_path = &$get_tmp_dir();
+#    my $put = &$rel_put_text($from_path);
+#    my $ver = "v2";
+#    &$put("Dockerfile", join "\n",
+#        "FROM ghcr.io/conecenter/c4replink:$ver",
+#        "COPY --chown=c4:c4 .tmp-ssh/* /c4/.ssh/",
+#    );
+#    sy(&$ssh_add());
+#    my $temp = syf("hostname")=~/(\w+)/ ? "c4build_temp/$1/replink" : die;
+#    my $tag = "builder:replink-with-keys-$ver";
+#    &$rsync_to($from_path,$comp,$temp);
+#    my $uid = syf(&$remote($comp,"id -u"))=~/(\d+)/ ? $1 : die;
+#    sy(&$remote($comp, join " && ",
+#        "mkdir -p $temp/.tmp-ssh",
+#        "cp \$HOME/.ssh/known_hosts \$HOME/.ssh/id_rsa $temp/.tmp-ssh",
+#        "docker build -t $tag --build-arg C4UID=$uid $temp",
+#    ));
+#}];
+
+#visitor:
+#    map{
+#        my($port,$name) = @$_;
+#        my $ext_port = $port == $ssh_port ? 22 : $port;
+#        ("port:$ext_port:$port" => "")
+#    } @services;
+
+###############
+
+push @tasks, ["up-kc_host", "", sub{ # the last multi container kc
+    my ($comp,$args) = @_;
+    my $conf = &$get_compose($comp);
+    my $gen_dir = &$get_proto_dir();
+    my $dir = $$conf{dir} || die;
+    my $conf_cert_path = &$get_conf_cert_path().".pub";
+    my $img = do{
+        my $from_path = &$get_tmp_dir();
+        my $put = &$rel_put_text($from_path);
+        sy("cp $gen_dir/install.pl $gen_dir/cd.pl $conf_cert_path $from_path/");
+        &$put("Dockerfile", join "\n",
+            &$base_image_steps(),
+            "RUN perl install.pl apt curl rsync dropbear uuid-runtime libdigest-perl-md5-perl socat lsof nano",
+            "RUN perl install.pl curl $dl_frp_url",
+            "RUN rm -r /etc/dropbear && ln -s /c4/dropbear /etc/dropbear ",
+            &$install_kubectl(),
+            "RUN mkdir /c4db && chown c4:c4 /c4db",
+            "COPY id_rsa.pub cd.pl /",
+            "USER c4",
+            "RUN mkdir /c4/.ssh /c4/dropbear".
+            " && cat /id_rsa.pub > /c4/.ssh/authorized_keys".
+            " && chmod 0600 /c4/.ssh/authorized_keys",
+            "ENV C4SSH_PORT=$ssh_port",
+            'ENTRYPOINT ["perl", "/cd.pl"]',
+        );
+        &$remote_build(''=>$comp,$from_path);
+    };
+    my @containers = (
+        {
+            image => $img,
+            name => "sshd",
+            C4DATA_DIR => "/c4db",
+            #$external_ssh_port ? ("port:$external_ssh_port:$ssh_port" => "node") : (),
+            @req_small,
+        },
+        {
+            image => $img,
+            name => "kubectl",
+            is_deployer => 1,
+            is_node_port => 1,
+            @req_small,
+        },
+        {
+            image => $img,
+            name => "cd",
+            tty => "true",
+            C4DATA_DIR => "/c4db",
+            C4CD_PORT => $cicd_port,
+            C4CD_DIR => $dir,
+            C4CD_AUTH_KEY_FILE => "/c4conf/deploy.auth",
+            C4CD_REGISTRY => ($$conf{C4CD_REGISTRY}||die "no C4CD_REGISTRY"),
+            @req_small,
+        },
+        {
+            image => $img,
+            name => "frpc",
+            C4FRPC_INI => "/c4conf/frpc.ini",
+            @req_small,
+        },
+    );
+    my $from_path = &$get_tmp_dir();
+    &$put_frpc_conf($from_path,&$get_frpc_conf($comp));
+    &$make_secrets($comp,$from_path);
+
+    my $run_comp = "deployer";
+    my $yml_str = &$make_kc_yml($run_comp,$from_path,{},\@containers);
+    my $add_yml = join "", map{&$to_yml_str($_)} ({
+        apiVersion => "rbac.authorization.k8s.io/v1",
+        kind => "Role",
+        metadata => { name => $run_comp },
+        rules => [
+            {
+                apiGroups => ["","apps"],
+                resources => ["statefulsets","secrets","services","deployments"],
+                verbs => ["get","create","patch"],
+            },
+            {
+                apiGroups => [""],
+                resources => ["pods/exec"],
+                verbs => ["create"],
+            },
+            {
+                apiGroups => [""],
+                resources => ["pods/log"],
+                verbs => ["get"],
+            },
+            {
+                apiGroups => [""],
+                resources => ["pods"],
+                verbs => ["get","list","delete"],
+            },
+            {
+                apiGroups => ["extensions"],
+                resources => ["ingresses","deployments"],
+                verbs => ["get","create","patch"],
+            },
+        ],
+    }, {
+        apiVersion => "v1",
+        kind => "ServiceAccount",
+        metadata => { name => $run_comp },
+    }, {
+        apiVersion => "rbac.authorization.k8s.io/v1",
+        kind => "RoleBinding",
+        metadata => { name => $run_comp },
+        subjects => [{ kind => "ServiceAccount", name => $run_comp }],
+        roleRef => { kind => "Role", name => $run_comp, apiGroup => "rbac.authorization.k8s.io" },
+    });
+    print "########\n$add_yml$yml_str";
+}];
+
+push @tasks, ["visit-kc_host", "", sub{
+    my($comp)=@_;
+    [[main=>$cicd_port],[ssh=>$ssh_port]]
+}];

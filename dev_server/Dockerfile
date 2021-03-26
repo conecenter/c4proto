@@ -35,7 +35,7 @@ RUN /install.pl curl https://dl.min.io/client/mc/release/linux-amd64/mc \
 
 FROM c4downloader
 RUN perl /install.pl apt \
-  libyaml-libyaml-perl libjson-xs-perl python \
+  libjson-xs-perl python \
   supervisor haproxy \
   uuid-runtime '#kafka cert gen' \
   mc lsof '#debug'
