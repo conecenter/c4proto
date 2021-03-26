@@ -518,7 +518,7 @@ my $make_kc_yml = sub{
                         fsGroup => 1979,
                         runAsNonRoot => "true",
                     },
-                    $$opt{is_deployer} ? (serviceAccountName => "deployer") : (),
+                    #$$opt{is_deployer} ? (serviceAccountName => "deployer") : (),
                     %affinity,
                 },
             },
