@@ -32,7 +32,7 @@ my $forever = sub{
 
 
 my $serve_frpc = sub{ &$exec("/tools/frp/frpc", "-c", $ENV{C4FRPC_INI}||die) };
-my $serve_bloop = sub{ &$exec("bloop","server") };
+my $serve_bloop = sub{ &$exec("bloop","server") }; #may be add: $exec_at JAVA_TOOL_OPTIONS => "-Xmx4g -Xss16m -XX:+UseG1GC",
 my $serve_sshd = sub{
     do{
         my $dev_auth_dir = $ENV{C4DEV_AUTH_DIR} || die "no C4DEV_AUTH_DIR";
@@ -52,7 +52,7 @@ my $serve_sshd = sub{
     &$put_text("/c4p_alias.sh", join "", map{"$_\n"}
         'export PATH=$PATH:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin:/tools:/c4/.bloop',
         'export JAVA_HOME=/tools/jdk',
-        'export JAVA_TOOL_OPTIONS="-XX:-UseContainerSupport -Xss16m"',
+        'export JAVA_TOOL_OPTIONS="$JAVA_TOOL_OPTIONS -XX:-UseContainerSupport"', #-Xss16m
         'export KUBECONFIG=$C4KUBECONFIG',
         'eval `ssh-agent`',
     );
