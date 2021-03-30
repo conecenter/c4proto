@@ -38,7 +38,6 @@ trait AbstractMutableJsonBuilder {
   def startObject(): Unit
   def append(value: BigDecimal, decimalFormat: DecimalFormat): Unit
   def append(value: Int): Unit
-  def append(value: Long): Unit
   def append(value: Boolean): Unit
 }
 
