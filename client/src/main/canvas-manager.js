@@ -1,6 +1,7 @@
 
 import {spreadAll}     from "../main/util"
 import {dictKeys,rootCtx,ctxToPath,chain,someKeys,ifInputsChanged} from "../main/vdom-util"
+import {weakCache} from "../../c4f/main/vdom-util.js"
 
 const replaceArrayTree = replace => root => {
     const traverse = arr => {
@@ -57,11 +58,16 @@ const colorInject = (commands,ctx) => res => {
     return addCommands(nCommands)(nRes)
 }
 
-const gatherDataFromPathTree = root => chainFromTree(
-    node => colorInject(node.at.commands||[], node.at.ctx),
-    node => (node.chl||[]).map(key=>node[key]),
-    node => addCommands(node.at.commandsFinally||[])
-)(root)({ colorIndex: 0 })
+const gatherDataFromPathTree = weakCache(root => {
+    const {commandsBuffer,colorToContextBuffer} = chainFromTree(
+        node => colorInject(node.at.commands||[], node.at.ctx),
+        node => (node.chl||[]).map(key=>node[key]),
+        node => addCommands(node.at.commandsFinally||[])
+    )(root)({ colorIndex: 0 })
+    const commands = bufferToArray(commandsBuffer)
+    const colorToContext = spreadAll(...bufferToArray(colorToContextBuffer))
+    return [commands,colorToContext]
+})
 
 export default function CanvasManager(react, canvasFactory, sender, log){
     //todo: prop.options are considered only once; do we need to rebuild canvas if they change?
@@ -96,9 +102,7 @@ export default function CanvasManager(react, canvasFactory, sender, log){
 
     const setup = ifInputsChanged(log)("commandsFrom", {prop:1}, changed => state => {
         const prop = state.prop || {}
-        const {commandsBuffer,colorToContextBuffer} = gatherDataFromPathTree(prop.children)
-        const commands = bufferToArray(commandsBuffer)
-        const colorToContext = spreadAll(...bufferToArray(colorToContextBuffer))
+        const [commands,colorToContext] = gatherDataFromPathTree(prop.children)
         const parsed = {...prop,commands}
         const sendToServer = (target,color) => sender.send(colorToContext[color], target) //?move closure
         const canvas = state.canvas || canvasFactory(prop.options||{})

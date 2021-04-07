@@ -71,7 +71,7 @@ export function ResizeCanvasSetup(canvas){
     function processFrame(frame,prev){
         if(!canvas.getSizesSyncEnabled()) return;
         const {zoom,parentPos,viewIsChanging,pxPerEMZoom,viewPos,viewExternalSize} = frame
-        if(viewIsChanging) return;
+        if(viewIsChanging || frame.syncIsChanging) return;
         const screenScale = canvas.zoomToScale(zoom)
         const cmdUnitsPerEMZoom = (pxPerEMZoom - zoom)|0
         const aspectRatio = canvas.calcPos(dir => parentPos.size[dir]|0)
@@ -108,6 +108,7 @@ export function ResizeCanvasSetup(canvas){
 
 export function BaseCanvasSetup(log, util, canvas){
     let lastFrame
+    let syncIsChanging
     let currentState = {}
     let fromServerVersion = 0
     let toRemove = []
@@ -136,6 +137,9 @@ export function BaseCanvasSetup(log, util, canvas){
 
     function fromServer(){ return currentState.parsed }
     function checkActivate(state){
+        //console.log("parsed!=",(currentState.parsed !== state.parsed))
+        syncIsChanging = state.parsed && state.parsed.changing
+        if(syncIsChanging) return state // prevents 3-times rerender
         if(currentState.parsed !== state.parsed) updateFromServerVersion()
         currentState = state
 
@@ -161,7 +165,7 @@ export function BaseCanvasSetup(log, util, canvas){
 
     ////
     function setupFrame(){
-        return {startTime: Date.now(), fromServerVersion}
+        return {startTime: Date.now(), fromServerVersion, syncIsChanging}
     }
     function processFrame(frame, prev){
         const canvasElement = canvas.visibleElement()
@@ -384,6 +388,7 @@ export function TiledCanvasSetup(canvas){
     function forTiles(frame, screenScale, tileScale, compose){
         const {viewPos,viewExternalSize} = frame
         const tileSize = { x: 2000, y: 1400 } // need to be < 2048 side and < 3M all for some devices
+        //const tileSize = { x: 3200, y: 3200 }
         const viewTilePos = canvas.calcPos(dir=> (viewPos[dir]/screenScale*tileScale)|0)
         const viewTileSize = canvas.calcPos(dir=> viewExternalSize[dir]/screenScale*tileScale)
         const viewEnd = canvas.calcPos(dir=> viewTilePos[dir] + viewTileSize[dir])
@@ -511,14 +516,26 @@ export function DragViewPositionCanvasSetup(log,canvas){
     function dragPos(from,mousePos){
         const dPos = canvas.dMousePos(mousePos, mousePos.prev)
         const viewPos = canvas.calcPos(dir=>from.viewPos[dir] - dPos[dir])
-        animation = animateStableZoom(from, time=>viewPos)
+        const viewPosM = { ...viewPos, viewIsChanging: true }
+        animation = animateStableZoom(from, time=>viewPosM)
     }
+    function getLen(pos){ return Math.sqrt(pos.x*pos.x + pos.y*pos.y) }
     function dropPos(from,mousePos){
         const mousePosR = canvas.findMousePos(mousePos, p => mousePos.t-p.t > 50)
         if(!mousePosR) return;
         const d = canvas.dMousePos(mousePos,mousePosR)
-        const k = 300
-        animation = animateStableZoom(from, time => canvas.calcPos(dir => from.viewPos[dir] + d[dir] / d.t * k * (Math.exp((mousePos.t-time)/k)-1)))
+        const k = 300 //200
+        const edge = 15 //50
+        const dLen = getLen(d)
+        animation = animateStableZoom(from, time => {
+            const signedLeft =
+                ( Math.exp((mousePos.t-time)/k) * (dLen+edge) - edge )/dLen
+            const viewIsChanging = signedLeft > 0
+            const progress = viewIsChanging ? 1 - signedLeft : 1
+            const viewPos =
+                canvas.calcPos(dir => from.viewPos[dir] - d[dir]/(d.t/k)*progress)
+            return {...viewPos,viewIsChanging}
+        })
     }
     function drag(dragEvent){
         if(canvas.extraDragIsActive && canvas.extraDragIsActive()) return;
@@ -552,8 +569,8 @@ export function DragViewPositionCanvasSetup(log,canvas){
             const {viewExternalSize,initialZoom} = viewPositions
             const restored = from && getPos ? null : canvas.restoreViewport()
             const zoom = from ? from.zoom : restored ? restored.zoom : initialZoom
-            const viewIsChanging = from ? time - from.time < 2000 : false
             const vPos = getPos ? getPos(time) : restored ? restored.viewPos : canvas.calcPos(dir=>0)
+            const {viewIsChanging} = vPos
             const viewPos = limitPos(zoom, viewExternalSize, vPos)
             return {...viewPositions,time,limitedTargetZoom:zoom,zoom,tileZoom:zoom,viewIsChanging,viewPos}
         }
@@ -589,6 +606,30 @@ export function DragViewPositionCanvasSetup(log,canvas){
     return {drag,setupFrame,processFrame,handleWheel}
 }
 
+/*
+speed problems:
+    getImageData
+        OverlayCanvasSetup     same(p=>p.color)
+        dragEndColor
+        ? make color lazy
+    ? cache gatherDataFromPathTree
+    too much .draw() calls
+        * 1..4 filledElement panels
+        * 2 preparingCtx/reactiveCtx
+        + overlay
+        * 4 fromServerVersion-s <- parsed changed <- Canvas rerender
+            ? other
+            ? viewPos.x,viewPos.y are not stored on server, though should -- restoreViewport CanvasValue.parse
+                RootSizeArg
+*/
+
+/*react.memo(...,areEqual)
+    function areEqual(prevProps, nextProps) {
+        const diff = Object.keys({...nextProps,...prevProps}).sort().filter(k=>prevProps[k]!==nextProps[k]).map(k=>[k,prevProps[k],nextProps[k]])
+        console.log("CanvasD",diff)
+        return diff.length <= 0
+    }*/
+//println(s"InputElement"+productIterator.toList.map(_.hashCode()))
 
 
 
