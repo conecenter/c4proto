@@ -3,7 +3,7 @@
 use strict;
 use Digest::MD5 qw(md5_hex);
 
-my $sys_image_ver = "v79";
+my $sys_image_ver = "v79.emde";
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -952,7 +952,7 @@ my $up_gate = sub{
 };
 
 my $base_image_steps = sub{(
-    "FROM ubuntu:18.04",
+    "FROM ubuntu:20.04",
     "COPY install.pl /",
     "RUN perl install.pl useradd",
 )};
@@ -996,7 +996,7 @@ my $up_desktop = sub{
         );
         &$put("Dockerfile", join "\n",
             &$prod_image_steps(),
-            "RUN add-apt-repository -y ppa:vbernat/haproxy-1.8",
+            #"RUN add-apt-repository -y ppa:vbernat/haproxy-1.8",
             "RUN perl install.pl apt".
             " rsync openssh-client dropbear git".
             " xserver-xspice openbox firefox spice-vdagent terminology".
@@ -1011,6 +1011,9 @@ my $up_desktop = sub{
             "RUN rm -r /etc/dropbear && ln -s /c4/dropbear /etc/dropbear ",
             "COPY desktop.pl bloop_fix.pl id_rsa.pub c4p_alias.sh /",
             "RUN C4DATA_DIR=/c4db perl /desktop.pl fix",
+            "RUN perl install.pl apt libgtk2.0-0 opensc libpcsclite1",
+            "RUN cd /download && curl -LO https://bitbucket.org/tutelka/c4proj_lib/raw/72eb4794ab62e7765e0ba47937490454289cd3b5/safenetauthenticationclient_10.7.77_amd64.deb",
+            "RUN dpkg -i /download/safenetauthenticationclient_10.7.77_amd64.deb",
             "USER c4",
             'ENTRYPOINT ["perl","/desktop.pl"]',
         );
