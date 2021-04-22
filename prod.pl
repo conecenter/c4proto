@@ -1042,7 +1042,7 @@ push @tasks, ["ci_build", "", sub{
     #
 
     my $build_common = sub{
-        sy("cp $local_dir/build.base.dockerfile $local_dir/Dockerfile");
+        sy("cp $local_dir/build.def.dockerfile $local_dir/Dockerfile");
         sy("cp $proto_dir/.dockerignore $local_dir/") if $local_dir ne $proto_dir;
         &$ci_docker_build($local_dir,$builder_comp,$common_img);
     };
