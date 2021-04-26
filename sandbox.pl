@@ -158,7 +158,7 @@ my $serve_loop = sub{ &$forever(sub{
                 C4STATE_TOPIC_PREFIX => $nm,
                 C4APP_CLASS => $cl,
             };
-            &$exec_at($dir,$env,"perl","$build_dir/pcr");
+            &$exec_at($dir,$env,"perl","$build_dir/run_env.pl");
             die;
         }
         print &$colored_line(bright_yellow=>"Spawned $pid");
