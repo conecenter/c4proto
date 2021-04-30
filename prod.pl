@@ -66,7 +66,7 @@ my $get_tmp_dir = sub{
 my $decode = sub{ JSON::XS->new->decode(@_) };
 my $encode = sub{
     my($generated) = @_;
-    my $yml_str = JSON::XS->new->encode($generated);
+    my $yml_str = JSON::XS->new->canonical(1)->encode($generated);
     $yml_str=~s/("\w+":\s*)"(true|false)"/$1$2/g;
     $yml_str
 };
@@ -406,6 +406,8 @@ push @tasks, ["wrap_deploy-dc_host", "", $wrap_dc];
 #todo: affinity for headless, replicas 3
 #todo securityContext/runAsUser auto?
 
+my $spaced_list = sub{ map{ ref($_) ? @$_ : /(\S+)/g } @_ };
+
 my $make_kc_yml = sub{
     my($name,$tmp_path,$opt) = @_;
     my @unknown = &$map($opt,sub{ my($k)=@_;
@@ -509,8 +511,8 @@ my $make_kc_yml = sub{
                     volumes => [@secret_volumes, @host_volumes],
                     hostAliases => \@host_aliases,
                     imagePullSecrets => [
-                        map{+{name=>$_}} map{ ref($_) ? @$_ : /(\S+)/g }
-                            &$mandatory_of(image_pull_secrets=>$opt)
+                        map{+{name=>$_}}
+                            &$spaced_list(&$mandatory_of(image_pull_secrets=>$opt))
                     ],
                     securityContext => {
                         runAsUser => 1979,
@@ -986,6 +988,89 @@ my $ci_docker_build_result = sub{
     );
 };
 
+my $make_dir_with_dockerfile = sub{
+    my($steps)=@_;
+    my $dir = &$get_tmp_dir();
+    &$put_text("$dir/Dockerfile",$steps);
+    $dir;
+};
+
+push @tasks, ["ci_build", "", sub{
+    print time," -- ci_build started\n";
+    &$ssh_add();
+    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
+    my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR=>\%ENV);
+    my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
+    my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
+    my @build_sb = grep{$_} $ENV{C4BUILD_SB};
+    my @build_rt = &$spaced_list($ENV{C4BUILD_RT});
+    #
+    my $build_derived = sub{
+        my ($from,$steps,$img) =@_;
+        my $dir = &$make_dir_with_dockerfile(join"\n","FROM $from",@$steps);
+        &$ci_docker_build($dir, $builder_comp, $img);
+    };
+    my $get_build_steps = sub{
+        my($can_fail,$proj_tag)=@_;
+        (
+            "ENV C4CI_CAN_FAIL=$can_fail",
+            "ENV C4CI_BASE_TAG_ENV=$proj_tag",
+            "RUN eval \$C4STEP_BUILD",
+            "RUN eval \$C4STEP_BUILD_CLIENT"
+        )
+    };
+    my $chk_names = sub{ map{ /^(\w[\w\-]*\w)$/ ? "$1" : die } @_ };
+    print time," -- ci_build common started\n";
+    sy("cp $local_dir/build.def.dockerfile $local_dir/Dockerfile");
+    sy("cp $proto_dir/.dockerignore $local_dir/") if $local_dir ne $proto_dir;
+    &$ci_docker_build($local_dir,$builder_comp,$common_img);
+    print time," -- ci_build sb started\n";
+    for my $proj_tag(&$chk_names(@build_sb)){
+        my $entry_step = "ENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main";
+        my $steps = [&$get_build_steps("1",$proj_tag), $entry_step];
+        &$build_derived($common_img,$steps,"$common_img.$proj_tag.sb");
+    }
+    print time," -- ci_build rt started\n";
+    my $tag_aggr_rules = &$merge_list({},
+        map{ my($k,$from,$to)=@$_; $k eq 'C4TAG_AGGR' ? {$from=>[$to]} : () }
+            grep{ref} map{@$_} &$decode(syf("cat $local_dir/c4dep.main.json"))
+    );
+    for my $proj_tag(&$chk_names(@build_rt)) {
+        my $aggr_tag = &$single(@{$$tag_aggr_rules{$proj_tag}||[$proj_tag]});
+        my $steps = [
+            &$get_build_steps("1",$aggr_tag), &$get_build_steps("",$proj_tag),
+            "RUN \$C4STEP_CP"
+        ];
+        my $img = "$common_img.$proj_tag.rt";
+        my $cp_img = "$common_img.$proj_tag.cp";
+        &$build_derived($common_img,$steps,$cp_img);
+        &$ci_docker_build_result($builder_comp,$cp_img,$img);
+    }
+    print time," -- ci_build finished\n";
+}];
+
+my $distinct_sorted = sub{ sort keys %{+{map{($_=>1)} @_}} };
+
+my $get_existing_images = sub{
+    my($builder_comp,$builder_repo)=@_;
+    map{/^(\S+)\s+(\S+)/ && $1 eq $builder_repo ?"$1:$2":()}
+        syl(&$remote($builder_comp,"docker images"));
+};
+
+my $ci_get_runtime_image = sub{
+    my ($comp,$img) = @_;
+    my($prod_repo,$allow_source_repo) =
+        &$get_deployer_conf($comp,0,qw[sys_image_repo allow_source_repo]);
+    $allow_source_repo ? ($img,$img) :
+        $prod_repo && $img=~/:([^:]+)$/ ? ($img,"$prod_repo:$1") :
+            die "source deploy to alien environment was denied";
+};
+
+my $ci_docker_tag = sub{
+    my ($builder_comp,@args) = @_;
+    sy(&$ssh_ctl($builder_comp,"docker","tag",@args));
+};
+
 my $ci_docker_push = sub{
     my($kubectl,$builder_comp,$add_path,$images)=@_;
     my $remote_dir = &$ci_get_remote_dir("config");
@@ -1000,142 +1085,6 @@ my $ci_docker_push = sub{
     print time," -- ci pushed\n";
 };
 
-# my $ci_docker_tag = sub{
-#     my ($builder_comp,@args) = @_;
-#     sy(&$ssh_ctl($builder_comp,"docker","tag",@args));
-# };
-
-my $ci_find_base_image = sub{
-    my($img_by_commit,$log_commits) = @_;
-    my @commit_lengths = sort keys %{+{map{(length($_)=>1)} keys %$img_by_commit}};
-    my @found_images = grep{$_} map{$$img_by_commit{$_}}
-        map{my $c=$_;map{substr $c,0,$_}@commit_lengths} @$log_commits;
-    return $found_images[0] || ''
-};
-
-my $make_dir_with_dockerfile = sub{
-    my($steps)=@_;
-    my $dir = &$get_tmp_dir();
-    &$put_text("$dir/Dockerfile",$steps);
-    $dir;
-};
-
-my $ci_get_runtime_image = sub{
-    my ($comp,$img,$require_allow_source_repo) = @_;
-    my($prod_repo,$allow_source_repo) = &$get_deployer_conf($comp,0,qw[sys_image_repo allow_source_repo]);
-    $allow_source_repo ? $img :
-        $require_allow_source_repo ? die("source deploy to alien environment was denied") :
-        $prod_repo && $img=~/:([^:]+)$/ ? "$prod_repo:$1" : die;
-};
-
-push @tasks, ["ci_build", "", sub{
-    print time," -- ci_build started\n";
-    &$ssh_add();
-    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
-    my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR=>\%ENV);
-    my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
-    my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
-    my $def_runtime_img = &$mandatory_of(C4RUNTIME_IMAGE=>\%ENV);
-    my $docker_conf_path = &$mandatory_of(C4CI_DOCKER_CONFIG=>\%ENV);
-    my $kubectl = &$get_kubectl_raw(&$mandatory_of(C4DEPLOY_CONTEXT=>\%ENV));
-    my ($builder_repo,$commit) = $common_img=~/^(.+):[^:]+\.(\w+)$/ ? ($1,$2) : die;
-    #
-
-    my $build_common = sub{
-        sy("cp $local_dir/build.def.dockerfile $local_dir/Dockerfile");
-        sy("cp $proto_dir/.dockerignore $local_dir/") if $local_dir ne $proto_dir;
-        &$ci_docker_build($local_dir,$builder_comp,$common_img);
-    };
-    my $build_derived = sub{
-        my ($from,$steps,$img) =@_;
-        my $dir = &$make_dir_with_dockerfile("FROM $from\n$steps");
-        &$ci_docker_build($dir, $builder_comp, $img);
-    };
-    my $get_existing_images = sub{
-        map{/^(\S+)\s+(\S+)/ && $1 eq $builder_repo ?"$1:$2":()}
-            syl(&$remote($builder_comp,"docker images"));
-    };
-    my $get_log_commits = sub{
-        syf("cd $local_dir && git log --pretty=%H")=~/(\S+)/g
-    };
-    my $build_builder = sub{
-        my($proj_tag_arg,$is_next,$opt,$opt_step)=@_;
-        my @existing_images = &$get_existing_images();
-        my %existing_images = map{($_=>1)} @existing_images;
-        &$build_common() if !$existing_images{$common_img};
-        &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$common_img]);
-        my $proj_tag = $proj_tag_arg=~/^(\w[\w\-]*\w)$/ ? $1 : die "bad project";
-        my $base_img_prefix = "$builder_repo:$proj_tag.base$opt";
-        my $builder_base_img = "$base_img_prefix.$commit";
-        my @commits = $is_next ? &$get_log_commits() : ();
-        my %img_by_commit = map{
-            /^(.+)\.(\w+)$/ && $1 eq $base_img_prefix ? ($2=>$_) : ()
-        } @existing_images;
-        my $found_image = &$ci_find_base_image(\%img_by_commit,\@commits);
-        my $builder_next_img = $found_image && "$found_image.next$opt.$commit";
-        my $n_steps = "RUN eval \$C4STEP_BUILD\nRUN eval \$C4STEP_BUILD_CLIENT\n";
-        $existing_images{$builder_base_img} ? $builder_base_img :
-        $existing_images{$builder_next_img} ? $builder_next_img :
-        $found_image eq '' ?
-            &$build_derived($common_img, "ENV C4CI_BASE_TAG_ENV=$proj_tag\n$opt_step$n_steps", $builder_base_img) :
-            &$build_derived($found_image, "RUN \$C4STEP_RM\nCOPY --from=$common_img --chown=c4:c4 \$C4CI_BUILD_DIR \$C4CI_BUILD_DIR\n$opt_step$n_steps", $builder_next_img);
-    };
-    my $locate_sandbox_for_env = sub{
-        my ($comp) = @_;
-        &$get_compose($comp)->{project} eq "" || die;
-        my @existing_images = &$get_existing_images();
-        my %existing_images = map{($_=>1)} @existing_images;
-        &$build_common() if !$existing_images{$common_img};
-        &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$common_img]);
-        my %img_by_commit = map{ /-opt\.(\w+)$/ ? ("$1"=>$_):() } sort @existing_images;
-        my @commits = ($commit, &$get_log_commits());
-        my $builder_img = &$ci_find_base_image(\%img_by_commit,\@commits) ||
-            die "no image found ($commit)";
-        my $runtime_img = &$ci_get_runtime_image($comp,$def_runtime_img,1);
-        &$build_derived($builder_img,"ENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main\n",$runtime_img);
-        &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$runtime_img]);
-        # NOTE: ci_up'll be from current commit, but image will be from found one
-    };
-    my $build_runtime_for_env = sub{
-        my ($comp) = @_;
-        my $conf = &$get_compose($comp);
-        my $proj_tag = $$conf{project};
-        my $is_next = $$conf{image_mode} eq 'next';
-        my $builder_img = &$build_builder($proj_tag,$is_next,""=>"");
-        my $cp_img = "$builder_img.cp";
-        &$build_derived($builder_img,"RUN \$C4STEP_CP\n",$cp_img);
-        my $runtime_img = &$ci_get_runtime_image($comp,$def_runtime_img,0);
-        &$ci_docker_build_result($builder_comp,$cp_img,$runtime_img);
-        &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$runtime_img]);
-    };
-    my %img_type_handler =
-        (""=>$build_runtime_for_env,"builder"=>$locate_sandbox_for_env);
-    #
-    my $uuid = syf("uuidgen")=~/(\S+)/ ? $1 : die;
-
-    my $comp = $ENV{C4CI_ENVIRONMENT};
-    if($comp ne ""){
-        $img_type_handler{&$get_compose($comp)->{image_type}||""}->($comp);
-    } else {
-        my $proj_tag = &$mandatory_of(C4CI_PREPARE_PROJECT=>\%ENV);
-        &$build_builder($proj_tag,1,"-opt"=>"ENV C4CI_CAN_FAIL=1\n");
-    }
-    print time," -- ci_build finished\n";
-}];
-
-my $del_env = sub{
-    my($comp,$keep)=@_;
-    my $kubectl = &$get_kubectl($comp);
-    my $secret_name = "$comp-app";
-    my $res = &$get_secret_str($kubectl,$secret_name,0);
-    my $del_str = $res eq "" ? "" : do{
-        my $dir = &$get_tmp_dir();
-        &$secret_to_dir_decode($res,$dir);
-        join " ", grep{!$$keep{$_}} syf("cat $dir/list")=~/(\S+)/g;
-    };
-    $del_str and sy("$kubectl delete $del_str");
-};
-
 my $name_from_yml = sub{
     my($yml)=@_;
     my $kind = lc($$yml{kind} || die);
@@ -1143,43 +1092,74 @@ my $name_from_yml = sub{
     "$kind/$nm"
 };
 
-push @tasks, ["ci_up","",sub{
-    &$ssh_add();
-    my $comp = &$mandatory_of(C4CI_ENVIRONMENT=>\%ENV);
-    my $def_runtime_img = &$mandatory_of(C4RUNTIME_IMAGE=>\%ENV);
-    my $img = &$ci_get_runtime_image($comp,$def_runtime_img,0);
-    my @comps = do{
-        my($conf,$instance) = @{&$resolve('main')->($comp)||die "no $comp"};
-        my $count = $$conf{count};
-        $count>1 && $instance ? do{
-            my @comp = $comp=~/([^\-]+)/g;
-            join('-',@comp) eq $comp or die;
-            map{
-                my $n = $_;
-                join('-', map{$_ eq $instance ? "$_$n": $_ } @comp)
-            } 0..$count-1;
-        } : ($comp);
+my $ci_env = sub{ my($comp)=@_; ("$comp-env",&$get_kubectl($comp)) };
+
+my $ci_env_del = sub{
+    my($kubectl,$secret_name,$list)=@_;
+    my %keep = map {(&$name_from_yml($_) => $_)} @$list;
+    my $res = &$get_secret_str($kubectl, $secret_name, 0);
+    my $del_str = $res eq "" ? "" : do {
+        my $dir = &$get_tmp_dir();
+        &$secret_to_dir_decode($res, $dir);
+        join " ", grep {!$keep{$_}} map {&$name_from_yml($_)}
+            &$decode(syf("cat $dir/list"));
     };
+    $del_str and sy("$kubectl delete $del_str");
+};
+
+push @tasks, ["ci_up", "", sub{
+    &$ssh_add();
+    my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
+    my $env_comp = &$mandatory_of(C4CI_ENVIRONMENT=>\%ENV);
+    my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
+    my $docker_conf_path = &$mandatory_of(C4CI_DOCKER_CONFIG=>\%ENV);
+    my $deploy_context = &$mandatory_of(C4DEPLOY_CONTEXT=>\%ENV);
+    my @build_sb = grep{$_} $ENV{C4BUILD_SB};
+    my $builder_repo = $common_img=~/^(.+):[^:]+$/ ? $1 : die;
+    #
+    my $get_image = sub{
+        my ($comp) = @_;
+        my $conf = &$get_compose($comp);
+        my $image_type = $$conf{image_type} || "rt";
+        my $proj_tag =
+            $image_type eq "sb" ? &$single(@build_sb) :
+            $image_type eq "rt" ? &$mandatory_of(project=>$conf) :
+            die "bad image_type";
+        &$ci_get_runtime_image($comp,"$common_img.$proj_tag.$image_type");
+    };
+    #
+    my @comps = &$spaced_list(&$get_compose($env_comp)->{parts}||[$env_comp]);
+    #
+    my @existing_images = &$get_existing_images($builder_comp,$builder_repo);
+    my %existing_images = map{($_=>1)} @existing_images;
+    for my $part_comp(@comps){
+        my($from_img,$to_img) = &$get_image($part_comp);
+        $existing_images{$from_img} || next;
+        &$ci_docker_tag($builder_comp,$from_img,$to_img) if $from_img ne $to_img;
+        my $kubectl = &$get_kubectl_raw($deploy_context);
+        &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$to_img]);
+    }
+    #
     my @yml = map{
         my $l_comp = $_;
-        my ($tmp_path,$options) = &$find_handler(ci_up=>$l_comp)->($l_comp,$img);
+        my($from_img,$to_img) = &$get_image($l_comp);
+        &$ignore($from_img);
+        my ($tmp_path,$options) = &$find_handler(ci_up=>$l_comp)->($l_comp,$to_img);
         @{&$make_kc_yml($l_comp,$tmp_path,&$add_image_pull_secrets($l_comp,$options))};
     } @comps;
-    my $secret_name = "$comp-app";
-    my $dummy_env_yml = &$secret_yml_from_files($secret_name, {});
-    my @names = map{ &$name_from_yml($_) } $dummy_env_yml, @yml;
-    my $env_yml = &$secret_yml_from_files($secret_name, {list=>&$put_temp("list",join' ',@names)});
-    my $yml_str = join "\n", map{&$encode($_)} $env_yml, @yml;
+    my ($secret_name,$kubectl) = &$ci_env($env_comp);
+    my $env_yml = &$secret_yml_from_files($secret_name, {list=>&$put_temp("list",&$encode(\@yml))});
     #
-    &$del_env($comp,{map{($_=>1)} @names});
-    my $kubectl = &$get_kubectl($comp);
+    &$ci_env_del($kubectl,$secret_name,[$env_yml,@yml]);
+    my $yml_str = join "\n", map{&$encode($_)} $env_yml, @yml;
     sy("$kubectl apply -f ".&$put_temp("up.yml",$yml_str));
 }];
 
 push @tasks, ["ci_down","",sub{
     &$ssh_add();
     my $comp = &$mandatory_of(C4CI_ENVIRONMENT=>\%ENV);
-    &$del_env($comp,{});
+    my ($secret_name,$kubectl) = &$ci_env($comp);
+    &$ci_env_del($kubectl,$secret_name,[]);
 }];
 
 ########
@@ -1297,12 +1277,12 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     }
     @public_part and &$put_text("$ctx_dir/htdocs/c4gen.ht.links",join"",map{@{$$_{links}||die}}@public_part);
 }];
-push @tasks, ["ci_rm","",sub{ #to call from Dockerfile
-    my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
-    &$ignore($base,$proto_dir);
-    print "[purging]\n";
-    for(sort{$b cmp $a} syl("cat $gen_dir/ci.rm")){ chomp $_ or die "[$_]"; unlink $_; rmdir $_ }
-}];
+# push @tasks, ["ci_rm","",sub{ #to call from Dockerfile
+#     my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
+#     &$ignore($base,$proto_dir);
+#     print "[purging]\n";
+#     for(sort{$b cmp $a} syl("cat $gen_dir/ci.rm")){ chomp $_ or die "[$_]"; unlink $_; rmdir $_ }
+# }];
 
 my $make_frp_image = sub{
     my ($comp) = @_;
