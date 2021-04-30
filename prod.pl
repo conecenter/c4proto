@@ -986,6 +986,7 @@ my $ci_docker_build_result = sub{
         ["docker","build","-t",$runtime_img,$remote_dir],
         ["rm","-r",$remote_dir],
     );
+    print time," -- ci built $runtime_img\n";
 };
 
 my $make_dir_with_dockerfile = sub{
@@ -1024,13 +1025,13 @@ push @tasks, ["ci_build", "", sub{
     sy("cp $local_dir/build.def.dockerfile $local_dir/Dockerfile");
     sy("cp $proto_dir/.dockerignore $local_dir/") if $local_dir ne $proto_dir;
     &$ci_docker_build($local_dir,$builder_comp,$common_img);
-    print time," -- ci_build sb started\n";
+    #
     for my $proj_tag(&$chk_names(@build_sb)){
         my $entry_step = "ENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main";
         my $steps = [&$get_build_steps("1",$proj_tag), $entry_step];
         &$build_derived($common_img,$steps,"$common_img.$proj_tag.sb");
     }
-    print time," -- ci_build rt started\n";
+    #
     my $tag_aggr_rules = &$merge_list({},
         map{ my($k,$from,$to)=@$_; $k eq 'C4TAG_AGGR' ? {$from=>[$to]} : () }
             grep{ref} map{@$_} &$decode(syf("cat $local_dir/c4dep.main.json"))
