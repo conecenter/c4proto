@@ -996,6 +996,20 @@ my $make_dir_with_dockerfile = sub{
     $dir;
 };
 
+my $ci_docker_push = sub{
+    my($kubectl,$builder_comp,$add_path,$images)=@_;
+    my $remote_dir = &$ci_get_remote_dir("config");
+    my $local_dir = &$get_tmp_dir();
+    &$secret_to_dir($kubectl,"docker",$local_dir);
+    my $path = "$local_dir/config.json";
+    &$put_text($path,&$encode(&$merge(map{&$decode(syf("cat $_"))} $path, $add_path)));
+    &$rsync_to($local_dir,$builder_comp,$remote_dir);
+    my @config_args = ("--config"=>$remote_dir);
+    sy(&$ssh_ctl($builder_comp,"-t","docker",@config_args,"push",$_)) for @$images;
+    sy(&$ssh_ctl($builder_comp,"rm","-r",$remote_dir));
+    print time," -- ci pushed\n";
+};
+
 push @tasks, ["ci_build", "", sub{
     print time," -- ci_build started\n";
     &$ssh_add();
@@ -1005,6 +1019,8 @@ push @tasks, ["ci_build", "", sub{
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
     my @build_sb = grep{$_} $ENV{C4BUILD_SB};
     my @build_rt = &$spaced_list($ENV{C4BUILD_RT});
+    my $deploy_context = &$mandatory_of(C4DEPLOY_CONTEXT=>\%ENV);
+    my $docker_conf_path = &$mandatory_of(C4CI_DOCKER_CONFIG=>\%ENV);
     #
     my $build_derived = sub{
         my ($from,$steps,$img) =@_;
@@ -1025,6 +1041,8 @@ push @tasks, ["ci_build", "", sub{
     sy("cp $local_dir/build.def.dockerfile $local_dir/Dockerfile");
     sy("cp $proto_dir/.dockerignore $local_dir/") if $local_dir ne $proto_dir;
     &$ci_docker_build($local_dir,$builder_comp,$common_img);
+    my $kubectl = &$get_kubectl_raw($deploy_context);
+    &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$common_img]);
     #
     for my $proj_tag(&$chk_names(@build_sb)){
         my $entry_step = "ENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main";
@@ -1050,8 +1068,6 @@ push @tasks, ["ci_build", "", sub{
     print time," -- ci_build finished\n";
 }];
 
-my $distinct_sorted = sub{ sort keys %{+{map{($_=>1)} @_}} };
-
 my $get_existing_images = sub{
     my($builder_comp,$builder_repo)=@_;
     map{/^(\S+)\s+(\S+)/ && $1 eq $builder_repo ?"$1:$2":()}
@@ -1070,20 +1086,6 @@ my $ci_get_runtime_image = sub{
 my $ci_docker_tag = sub{
     my ($builder_comp,@args) = @_;
     sy(&$ssh_ctl($builder_comp,"docker","tag",@args));
-};
-
-my $ci_docker_push = sub{
-    my($kubectl,$builder_comp,$add_path,$images)=@_;
-    my $remote_dir = &$ci_get_remote_dir("config");
-    my $local_dir = &$get_tmp_dir();
-    &$secret_to_dir($kubectl,"docker",$local_dir);
-    my $path = "$local_dir/config.json";
-    &$put_text($path,&$encode(&$merge(map{&$decode(syf("cat $_"))} $path, $add_path)));
-    &$rsync_to($local_dir,$builder_comp,$remote_dir);
-    my @config_args = ("--config"=>$remote_dir);
-    sy(&$ssh_ctl($builder_comp,"-t","docker",@config_args,"push",$_)) for @$images;
-    sy(&$ssh_ctl($builder_comp,"rm","-r",$remote_dir));
-    print time," -- ci pushed\n";
 };
 
 my $name_from_yml = sub{
