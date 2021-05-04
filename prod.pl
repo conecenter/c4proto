@@ -798,6 +798,7 @@ my $need_ceph = sub{
     &$secret_to_dir($kubectl,"ceph-client",$tmp_dir);
     my $get = sub{ syf("cat $tmp_dir/$_[0]") };
     my $put = &$rel_put_text($from_path);
+    my $conf = &$get_compose($comp);
     &$put("ceph.auth", join "&", map{"$$_[0]=$$_[1]"}
         [url=>&$get("address")],
         [id=>&$get("key")],
