@@ -814,7 +814,7 @@ my $up_consumer = sub{
     my %consumer_options = &$get_consumer_options($gate_comp);
     my $from_path = &$get_tmp_dir();
     &$need_deploy_cert($gate_comp,$from_path);
-    &$need_ceph($run_comp,$from_path);
+    &$need_ceph($gate_comp,$from_path);
     &$make_secrets($run_comp,$from_path);
     &$need_logback($run_comp,$from_path);
     &$put_frpc_conf($from_path,&$get_frpc_conf($run_comp));
