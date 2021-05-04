@@ -223,7 +223,7 @@ my $get_hostname = sub{
 
 my $get_kc_ns = sub{
     my($comp)=@_;
-    my $ns = syf(&$remote($comp,'cat /var/run/secrets/kubernetes.io/serviceaccount/namespace'))=~/(\w+)/ ? "$1" : die;
+    my $ns = syf(&$remote($comp,'cat /var/run/secrets/kubernetes.io/serviceaccount/namespace'))=~/([\w\-]+)/ ? "$1" : die;
 };
 my $get_pod = sub{
     my($comp,$ns)=@_;
@@ -1519,7 +1519,7 @@ my $make_frp_image = sub{
     );
     &$put("Dockerfile", join "\n",
         &$base_image_steps(),
-        "RUN perl install.pl apt curl",
+        "RUN perl install.pl apt curl ca-certificates",
         "RUN perl install.pl curl $dl_frp_url",
         "COPY frp.pl /",
         "USER c4",
@@ -1613,7 +1613,7 @@ push @tasks, ["up-kc_host", "", sub{
         sy("cp $gen_dir/install.pl $gen_dir/cd.pl $conf_cert_path $from_path/");
         &$put("Dockerfile", join "\n",
             &$base_image_steps(),
-            "RUN perl install.pl apt curl rsync dropbear uuid-runtime libdigest-perl-md5-perl socat lsof nano",
+            "RUN perl install.pl apt curl ca-certificates rsync dropbear uuid-runtime libdigest-perl-md5-perl socat lsof nano",
             "RUN perl install.pl curl $dl_frp_url",
             "RUN rm -r /etc/dropbear && ln -s /c4/dropbear /etc/dropbear ",
             &$install_kubectl(),
