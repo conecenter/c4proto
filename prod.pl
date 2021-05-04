@@ -665,12 +665,21 @@ my $get_frp_common = sub{
     );
 };
 
+my $get_simple_auth = sub{
+    my($comp) = @_;
+    my %auth = &$get_auth($comp);
+    my $sk = $auth{"simple.auth"};
+    return $sk if $sk ne '';
+    my %d_auth = &$get_auth(&$get_deployer($comp));
+    my $seed = &$mandatory_of("simple.seed"=>\%d_auth);
+    return &$md5_hex("$seed$comp");
+};
+
 my $get_frpc_conf = sub{
     my($comp) = @_;
     my $services = &$find_handler(visit=>$comp)->($comp);
     return "" if !@$services;
-    my %auth = &$get_auth($comp);
-    my $sk = $auth{"simple.auth"} || die "no simple.auth";
+    my $sk = &$get_simple_auth($comp);
     my @common = (common => [&$get_frp_common($comp)]);
     my @add = map{
         my($service_name,$port,$host) = @$_;
@@ -695,8 +704,7 @@ my $make_visitor_conf = sub{
     my @add = map{
         my($port,$full_service_name) = @$_;
         my $d_comp = $full_service_name=~/^(.*)\.\w+$/ ? $1 : die;
-        my %auth = &$get_auth($d_comp);
-        my $sk = $auth{"simple.auth"} || die "no simple.auth";
+        my $sk = &$get_simple_auth($d_comp);
         ("$full_service_name.visitor" => [
             type => "stcp",
             role => "visitor",
@@ -723,10 +731,8 @@ my $all_consumer_options = sub{(
 
 my $need_deploy_cert = sub{
     my($comp,$from_path)=@_;
-    my %auth = &$get_auth($comp);
-    #print "comp $comp; [".join(',',%auth)."]\n";
     my $put = &$rel_put_text($from_path);
-    &$put($_,&$mandatory_of($_=>\%auth)) for "simple.auth";
+    &$put("simple.auth",&$get_simple_auth($comp));
 };
 
 my @req_small = (req_mem=>"100Mi",req_cpu=>"250m");
