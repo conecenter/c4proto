@@ -791,6 +791,21 @@ my $get_consumer_options = sub{
     )
 };
 
+my $need_ceph = sub{
+    my ($comp,$from_path) = @_;
+    my $kubectl = &$get_kubectl($comp);
+    my $tmp_dir = &$get_tmp_dir();
+    &$secret_to_dir($kubectl,"ceph-client",$tmp_dir);
+    my $get = sub{ syf("cat $tmp_dir/$_[0]") };
+    my $put = &$rel_put_text($from_path);
+    &$put("ceph.auth", join "&", map{"$$_[0]=$$_[1]"}
+        [url=>&$get("address")],
+        [id=>&$get("key")],
+        [pass=>&$get("secret")],
+        [bucket=>&$mandatory_of("C4INBOX_TOPIC_PREFIX"=>$conf)]
+    );
+};
+
 my $up_consumer = sub{
     my($run_comp,$img)=@_;
     my $conf = &$get_compose($run_comp);
@@ -798,6 +813,7 @@ my $up_consumer = sub{
     my %consumer_options = &$get_consumer_options($gate_comp);
     my $from_path = &$get_tmp_dir();
     &$need_deploy_cert($gate_comp,$from_path);
+    &$need_ceph($run_comp,$from_path);
     &$make_secrets($run_comp,$from_path);
     &$need_logback($run_comp,$from_path);
     &$put_frpc_conf($from_path,&$get_frpc_conf($run_comp));
