@@ -1197,7 +1197,9 @@ push @tasks, ["gitlab_publish_branches","",sub{
     my $kubectl = &$get_kubectl_raw($deploy_context);
     my $url = "$api_url/projects/$git_project_id/repository/branches";
     my $branches_str = syf(qq[curl --header "PRIVATE-TOKEN: $token" $url]);
+    print "AAA---$branches_str---AAA\n";
     my $yml_str = &$secret_yml_from_files("branches", {list=>&$put_temp("list",$branches_str)});
+    print "BBB---$yml_str---BBB\n";
     sy("$kubectl apply -f ".&$put_temp("up.yml",$yml_str));
 }];
 
