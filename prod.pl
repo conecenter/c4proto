@@ -1155,6 +1155,7 @@ push @tasks, ["ci_up", "", sub{
     };
     #
     my @comps = &$spaced_list(&$get_compose($env_comp)->{parts}||[$env_comp]);
+    &$get_deployer($env_comp) eq &$get_deployer($_) || die "deployers do not match" for @comps;
     #
     my @existing_images = &$get_existing_images($builder_comp,$builder_repo);
     my %existing_images = map{($_=>1)} @existing_images;
