@@ -1113,6 +1113,9 @@ my $ci_docker_tag = sub{
 
 my $name_from_yml = sub{
     my($yml)=@_;
+    print "CCC".ref($yml)."CCC\n";
+    print "DDD$$yml{metadata}DDD\n";
+    print "EEE".&$encode($yml)."EEE\n";
     my $kind = lc($$yml{kind} || die);
     my $nm = ($$yml{metadata}||die)->{name} || die;
     "$kind/$nm"
