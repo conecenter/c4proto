@@ -1189,6 +1189,18 @@ push @tasks, ["ci_down","",sub{
     &$ci_env_del($kubectl,$secret_name,[]);
 }];
 
+push @tasks, ["gitlab_publish_branches","",sub{
+    my $deploy_context = &$mandatory_of(C4DEPLOY_CONTEXT=>\%ENV);
+    my $token = &$mandatory_of(CI_JOB_TOKEN=>\%ENV);
+    my $api_url = &$mandatory_of(CI_API_V4_URL=>\%ENV);
+    my $git_project_id = &$mandatory_of(CI_PROJECT_ID=>\%ENV);
+    my $kubectl = &$get_kubectl_raw($deploy_context);
+    my $url = "$api_url/projects/$git_project_id/repository/branches";
+    my $branches_str = syf(qq[curl --header "PRIVATE-TOKEN: $token" $url]);
+    my $yml_str = &$secret_yml_from_files("branches", {list=>&$put_temp("list",$branches_str)});
+    sy("$kubectl apply -f ".&$put_temp("up.yml",$yml_str));
+}];
+
 ########
 
 my $ci_inner_opt = sub{
