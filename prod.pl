@@ -1122,13 +1122,15 @@ my $ci_env = sub{ my($comp)=@_; ("$comp-env",&$get_kubectl($comp)) };
 
 my $ci_env_del = sub{
     my($kubectl,$secret_name,$list)=@_;
+    print "AAA[".&$encode($list)."]AAA>\n";
     my %keep = map {(&$name_from_yml($_) => $_)} @$list;
     my $res = &$get_secret_str($kubectl, $secret_name, 0);
     my $del_str = $res eq "" ? "" : do {
         my $dir = &$get_tmp_dir();
         &$secret_to_dir_decode($res, $dir);
-        join " ", grep {!$keep{$_}} map {&$name_from_yml($_)}
-            &$decode(syf("cat $dir/list"));
+        my $was_str = syf("cat $dir/list");
+        print "BBB[$was_str]BBB\n";
+        join " ", grep {!$keep{$_}} map {&$name_from_yml($_)} &$decode($was_str);
     };
     $del_str and sy("$kubectl delete $del_str");
 };
