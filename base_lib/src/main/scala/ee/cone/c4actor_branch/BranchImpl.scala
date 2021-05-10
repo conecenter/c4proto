@@ -1,20 +1,18 @@
 
 package ee.cone.c4actor_branch
 
-import java.util.UUID
-
 import com.typesafe.scalalogging.LazyLogging
+import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble._
 import ee.cone.c4actor_branch.BranchProtocol._
 import ee.cone.c4actor_branch.BranchTypes.BranchKey
-import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4assemble.Types.{Each, Values}
+import ee.cone.c4assemble._
 import ee.cone.c4di.{c4, c4multi}
 import ee.cone.c4proto.ToByteString
 import okio.ByteString
 
-import Function.chain
+import scala.Function.chain
 import scala.collection.immutable.Seq
 
 case object SessionKeysKey extends TransientLens[Set[BranchRel]](Set.empty)
@@ -24,7 +22,7 @@ case object SessionKeysKey extends TransientLens[Set[BranchRel]](Set.empty)
   toAlienSender: ToAlienSender,
 ) extends BranchTask with LazyLogging {
   def sending: Context => (Send,Send) = local => {
-    val newSessionKeys = sessionKeys(local)
+    val newSessionKeys = sessionKeys()(local)
     val(keepTo,freshTo) = newSessionKeys.partition(SessionKeysKey.of(local))
     def sendingPart(to: Set[BranchRel]): Send =
       if(to.isEmpty) None
@@ -35,13 +33,18 @@ case object SessionKeysKey extends TransientLens[Set[BranchRel]](Set.empty)
     (sendingPart(keepTo), sendingPart(freshTo))
   }
 
-  def sessionKeys: Context => Set[BranchRel] = local => seeds.flatMap(rel=>
-    if(rel.parentIsSession) rel :: Nil
-    else {
-      val index = getBranchTask.ofA(local)
-      index.get(rel.parentSrcId).toList.flatMap(_.sessionKeys(local))
-    }
-  ).toSet
+  def sessionKeys(visited: Set[SrcId]): Context => Set[BranchRel] = local =>
+    if (!visited(branchKey))
+      seeds.flatMap(rel =>
+        if (rel.parentIsSession) rel :: Nil
+        else {
+          val index = getBranchTask.ofA(local)
+          val newVisited = visited + branchKey
+          index.get(rel.parentSrcId).toList.flatMap(_.sessionKeys(newVisited)(local))
+        }
+      ).toSet
+    else Set.empty
+
   def relocate(to: String): Context => Context = local => {
     val(toSessions, toNested) = seeds.partition(_.parentIsSession)
     val sessionKeys = toSessions.map(_.parentSrcId)
@@ -104,11 +107,13 @@ case object EmptyBranchMessage extends BranchMessage {
     }
     else {
       val index = getS_BranchResult.ofA(local)
-      def gather(branchKey: SrcId): List[String] = {
-        val children = index.get(branchKey).toList.flatMap(_.children).map(_.hash)
-        (branchKey :: children).mkString(",") :: children.flatMap(gather)
-      }
-      val newReport = gather(branchKey).mkString(";")
+      def gather(branchKey: SrcId, seen: Set[SrcId]): List[String] =
+        if (!seen(branchKey)) {
+          val children = index.get(branchKey).toList.flatMap(_.children).map(_.hash)
+          val newSeen = seen + branchKey
+          (branchKey :: children).mkString(",") :: children.flatMap(gather(_, newSeen))
+        } else Nil
+      val newReport = gather(branchKey, Set.empty).mkString(";")
       if(newReport == wasReport) local
       else ReportAliveBranchesKey.set(newReport)
         .andThen(sendToAll("branches",newReport))(local)
