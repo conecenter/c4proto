@@ -1034,6 +1034,8 @@ my $ci_docker_push = sub{
 };
 
 push @tasks, ["ci_build_common", "", sub{
+    print time," -- ci_build_common started\n";
+    &$ssh_add();
     my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
     my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR=>\%ENV);
     my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
@@ -1072,7 +1074,6 @@ push @tasks, ["ci_build", "", sub{
     };
     my $chk_names = sub{ map{ /^(\w[\w\-]*\w)$/ ? "$1" : die } @_ };
     #
-    print time," -- ci_build started\n";
     for my $proj_tag(&$chk_names(@build_sb)){
         my $entry_step = "ENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main";
         my $steps = [&$get_build_steps("1",$proj_tag), $entry_step];
