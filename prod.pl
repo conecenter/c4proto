@@ -1033,17 +1033,28 @@ my $ci_docker_push = sub{
     print time," -- ci pushed\n";
 };
 
-push @tasks, ["ci_build", "", sub{
-    print time," -- ci_build started\n";
-    &$ssh_add();
+push @tasks, ["ci_build_common", "", sub{
     my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
     my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR=>\%ENV);
     my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
-    my @build_sb = grep{$_} $ENV{C4BUILD_SB};
-    my @build_rt = &$spaced_list($ENV{C4BUILD_RT});
     my $deploy_context = &$mandatory_of(C4DEPLOY_CONTEXT=>\%ENV);
     my $docker_conf_path = &$mandatory_of(C4CI_DOCKER_CONFIG=>\%ENV);
+    sy("cp $local_dir/build.def.dockerfile $local_dir/Dockerfile");
+    sy("cp $proto_dir/.dockerignore $local_dir/") if $local_dir ne $proto_dir;
+    &$ci_docker_build($local_dir,$builder_comp,$common_img);
+    my $kubectl = &$get_kubectl_raw($deploy_context);
+    &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$common_img]);
+}];
+
+push @tasks, ["ci_build", "", sub{
+    print time," -- ci_build started\n";
+    &$ssh_add();
+    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
+    my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
+    my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
+    my @build_sb = grep{$_} $ENV{C4BUILD_SB};
+    my @build_rt = &$spaced_list($ENV{C4BUILD_RT});
     #
     my $build_derived = sub{
         my ($from,$steps,$img) =@_;
@@ -1060,13 +1071,8 @@ push @tasks, ["ci_build", "", sub{
         )
     };
     my $chk_names = sub{ map{ /^(\w[\w\-]*\w)$/ ? "$1" : die } @_ };
-    print time," -- ci_build common started\n";
-    sy("cp $local_dir/build.def.dockerfile $local_dir/Dockerfile");
-    sy("cp $proto_dir/.dockerignore $local_dir/") if $local_dir ne $proto_dir;
-    &$ci_docker_build($local_dir,$builder_comp,$common_img);
-    my $kubectl = &$get_kubectl_raw($deploy_context);
-    &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$common_img]);
     #
+    print time," -- ci_build started\n";
     for my $proj_tag(&$chk_names(@build_sb)){
         my $entry_step = "ENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main";
         my $steps = [&$get_build_steps("1",$proj_tag), $entry_step];
