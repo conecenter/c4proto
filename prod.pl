@@ -1097,15 +1097,6 @@ my $get_existing_images = sub{
         syl(&$remote($builder_comp,"docker images"));
 };
 
-my $ci_get_runtime_image = sub{
-    my ($comp,$img) = @_;
-    my($prod_repo,$allow_source_repo) =
-        &$get_deployer_conf($comp,0,qw[sys_image_repo allow_source_repo]);
-    $allow_source_repo ? ($img,$img) :
-        $prod_repo && $img=~/:([^:]+)$/ ? ($img,"$prod_repo:$1") :
-            die "source deploy to alien environment was denied";
-};
-
 my $ci_docker_tag = sub{
     my ($builder_comp,@args) = @_;
     sy(&$ssh_ctl($builder_comp,"docker","tag",@args));
@@ -1118,7 +1109,11 @@ my $name_from_yml = sub{
     "$kind/$nm"
 };
 
-my $ci_env = sub{ my($comp)=@_; ("$comp-env",&$get_kubectl($comp)) };
+my $ci_env = sub{
+    my($comp)=@_;
+    my $pre = &$get_compose($comp)->{single}||$comp;
+    ("$pre-env",&$get_kubectl($comp))
+};
 
 my $ci_env_del = sub{
     my($kubectl,$secret_name,$list)=@_;
@@ -1133,43 +1128,60 @@ my $ci_env_del = sub{
     $del_str and sy("$kubectl delete $del_str");
 };
 
-push @tasks, ["ci_up", "", sub{
+my $ci_get_image = sub{
+    my($common_img,$build_sb,$comp) = @_;
+    my $conf = &$get_compose($comp);
+    my $image_type = $$conf{image_type} || "rt";
+    my $proj_tag =
+        $image_type eq "sb" ? $build_sb :
+        $image_type eq "rt" ? &$mandatory_of(project=>$conf) :
+        die "bad image_type";
+    my $img = "$common_img.$proj_tag.$image_type";
+    my($prod_repo,$allow_source_repo) =
+        &$get_deployer_conf($comp,0,qw[sys_image_repo allow_source_repo]);
+    $allow_source_repo ? ($img,$img) :
+        $prod_repo && $img=~/:([^:]+)$/ ? ($img,"$prod_repo:$1") :
+            die "source deploy to alien environment was denied";
+};
+
+my $ci_get_compositions = sub{
+    my($env_comp) = @_;
+    my @comps = &$spaced_list(&$get_compose($env_comp)->{parts}||[$env_comp]);
+    &$get_deployer($env_comp) eq &$get_deployer($_) || die "deployers do not match" for @comps;
+    @comps
+};
+
+
+push @tasks, ["ci_push", "", sub{
     &$ssh_add();
+    my $env_comp = &$mandatory_of(C4CI_NAME=>\%ENV);
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
-    my $env_comp = &$mandatory_of(C4CI_ENVIRONMENT=>\%ENV);
+    my $build_sb = &$mandatory_of(C4BUILD_SB=>\%ENV);
     my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
     my $docker_conf_path = &$mandatory_of(C4CI_DOCKER_CONFIG=>\%ENV);
     my $deploy_context = &$mandatory_of(C4DEPLOY_CONTEXT=>\%ENV);
-    my @build_sb = grep{$_} $ENV{C4BUILD_SB};
     my $builder_repo = $common_img=~/^(.+):[^:]+$/ ? $1 : die;
-    #
-    my $get_image = sub{
-        my ($comp) = @_;
-        my $conf = &$get_compose($comp);
-        my $image_type = $$conf{image_type} || "rt";
-        my $proj_tag =
-            $image_type eq "sb" ? &$single(@build_sb) :
-            $image_type eq "rt" ? &$mandatory_of(project=>$conf) :
-            die "bad image_type";
-        &$ci_get_runtime_image($comp,"$common_img.$proj_tag.$image_type");
-    };
-    #
-    my @comps = &$spaced_list(&$get_compose($env_comp)->{parts}||[$env_comp]);
-    &$get_deployer($env_comp) eq &$get_deployer($_) || die "deployers do not match" for @comps;
-    #
+    my @comps = &$ci_get_compositions($env_comp);
     my @existing_images = &$get_existing_images($builder_comp,$builder_repo);
     my %existing_images = map{($_=>1)} @existing_images;
     for my $part_comp(@comps){
-        my($from_img,$to_img) = &$get_image($part_comp);
+        my($from_img,$to_img) = &$ci_get_image($common_img,$build_sb,$part_comp);
         $existing_images{$from_img} || next;
         &$ci_docker_tag($builder_comp,$from_img,$to_img) if $from_img ne $to_img;
         my $kubectl = &$get_kubectl_raw($deploy_context);
         &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$to_img]);
     }
-    #
+}];
+
+push @tasks, ["ci_up", "", sub{
+    &$ssh_add();
+    my $env_comp = &$mandatory_of(C4CI_NAME=>\%ENV);
+    my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
+    my $build_sb = &$mandatory_of(C4BUILD_SB=>\%ENV);
+    my @comps = &$ci_get_compositions($env_comp);
     my @yml = map{
         my $l_comp = $_;
-        my($from_img,$to_img) = &$get_image($l_comp);
+        my($from_img,$to_img) = &$ci_get_image($common_img,$build_sb,$l_comp);
         &$ignore($from_img);
         my ($tmp_path,$options) = &$find_handler(ci_up=>$l_comp)->($l_comp,$to_img);
         @{&$make_kc_yml($l_comp,$tmp_path,&$add_image_pull_secrets($l_comp,$options))};
@@ -1184,23 +1196,9 @@ push @tasks, ["ci_up", "", sub{
 
 push @tasks, ["ci_down","",sub{
     &$ssh_add();
-    my $comp = &$mandatory_of(C4CI_ENVIRONMENT=>\%ENV);
+    my $comp = &$mandatory_of(C4CI_NAME=>\%ENV);
     my ($secret_name,$kubectl) = &$ci_env($comp);
     &$ci_env_del($kubectl,$secret_name,[]);
-}];
-
-push @tasks, ["gitlab_publish_branches","",sub{
-    my $deploy_context = &$mandatory_of(C4DEPLOY_CONTEXT=>\%ENV);
-    my $token = &$mandatory_of(CI_JOB_TOKEN=>\%ENV);
-    my $api_url = &$mandatory_of(CI_API_V4_URL=>\%ENV);
-    my $git_project_id = &$mandatory_of(CI_PROJECT_ID=>\%ENV);
-    my $kubectl = &$get_kubectl_raw($deploy_context);
-    my $url = "$api_url/projects/$git_project_id/repository/branches";
-    my $branches_str = syf(qq[curl --header "PRIVATE-TOKEN: $token" $url]);
-    print "AAA---$branches_str---AAA\n";
-    my $yml_str = &$secret_yml_from_files("branches", {list=>&$put_temp("list",$branches_str)});
-    print "BBB---$yml_str---BBB\n";
-    sy("$kubectl apply -f ".&$put_temp("up.yml",$yml_str));
 }];
 
 ########
