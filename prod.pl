@@ -145,32 +145,18 @@ my $resolve = cached{
     &$ignore($save);
     my $content = syf("cat $dir/$key.pl");
     my $maker =  eval("sub{$content}") || die $@;
-    my $conf_by_instance = cached{
-        my($k)=@_;
-        local $ENV{C4INSTANCE} = $k;
-        &$maker()
+    my $conf_by_instance = cached{ &$maker(@_) };
+    my $def_configs = &$conf_by_instance("");
+    my $f; $f = sub{
+        my($comp_wo,$instance)=@_;
+        $$def_configs{$comp_wo} ?
+            (&$conf_by_instance($instance)->{"$comp_wo$instance"} || die) :
+            $comp_wo=~/^(.*-)(.+)$/ ? &$f("$1","$2$instance") : undef
     };
-    return cached{
-        my($comp)=@_;
-        my $def_configs = &$conf_by_instance("");
-        my @parts = $comp=~/([^\-]+)/g;
-        $comp eq join "-", @parts or die "bad name ($comp)";
-        my @res = map{
-                my($instance,$comp_wo)=@$_;
-                $$def_configs{$comp_wo} ?
-                    [(&$conf_by_instance($instance)->{$comp} || die),$instance] : ()
-            }
-            ["", $comp],
-            map{
-                my $n=$_;
-                [$parts[$n], join "-", map{ $n==$_ ? "" : $parts[$_] } 0..$#parts]
-            } 0..$#parts;
-        print "non-single $comp" if @res > 1;
-        &$single_or_undef(@res);
-    };
+    return cached{ my($comp)=@_; &$f($comp,"") };
 };
 
-my $get_compose = sub{ (&$resolve('main')->($_[0]) || die "composition expected $_[0]")->[0] };
+my $get_compose = sub{ &$resolve('main')->($_[0]) || die "composition expected $_[0]" };
 
 my $get_deployer = sub{
     my($comp)=@_;
@@ -645,7 +631,7 @@ my $to_ini_file = sub{
         &$to_pairs(@$c);
 };
 
-my $get_auth = sub{ @{(&$resolve("auth")->($_[0])||[[]])->[0]} };
+my $get_auth = sub{ @{&$resolve("auth")->($_[0])||[]} };
 
 my $split_port = sub{ $_[0]=~/^(\S+):(\d+)$/ ? ($1,$2) : die };
 
@@ -1050,13 +1036,12 @@ push @tasks, ["ci_build_common", "", sub{
 }];
 
 push @tasks, ["ci_build", "", sub{
+    my($img_pf) = @_;
     print time," -- ci_build started\n";
     &$ssh_add();
     my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
     my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
-    my @build_sb = grep{$_} $ENV{C4BUILD_SB};
-    my @build_rt = &$spaced_list($ENV{C4BUILD_RT});
     #
     my $build_derived = sub{
         my ($from,$steps,$img) =@_;
@@ -1072,29 +1057,31 @@ push @tasks, ["ci_build", "", sub{
             "RUN eval \$C4STEP_BUILD_CLIENT"
         )
     };
-    my $chk_names = sub{ map{ /^(\w[\w\-]*\w)$/ ? "$1" : die } @_ };
-    #
-    for my $proj_tag(&$chk_names(@build_sb)){
+    my $handle_sb = sub{
+        my($proj_tag)=@_;
         my $entry_step = "ENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main";
         my $steps = [&$get_build_steps("1",$proj_tag), $entry_step];
-        &$build_derived($common_img,$steps,"$common_img.$proj_tag.sb");
-    }
-    #
+        &$build_derived($common_img,$steps,"$common_img.$img_pf");
+    };
     my $tag_aggr_rules = &$merge_list({},
         map{ my($k,$from,$to)=@$_; $k eq 'C4TAG_AGGR' ? {$from=>[$to]} : () }
             grep{ref} map{@$_} &$decode(syf("cat $local_dir/c4dep.main.json"))
     );
-    for my $proj_tag(&$chk_names(@build_rt)) {
+    my $handle_rt = sub{
+        my($proj_tag)=@_;
         my $aggr_tag = &$single(@{$$tag_aggr_rules{$proj_tag}||[$proj_tag]});
         my $steps = [
             &$get_build_steps("1",$aggr_tag), &$get_build_steps("",$proj_tag),
             "RUN \$C4STEP_CP"
         ];
-        my $img = "$common_img.$proj_tag.rt";
+        my $img = "$common_img.$img_pf";
         my $cp_img = "$common_img.$proj_tag.cp";
         &$build_derived($common_img,$steps,$cp_img);
         &$ci_docker_build_result($builder_comp,$cp_img,$img);
-    }
+    };
+    my %handle = (sb=>$handle_sb,rt=>$handle_rt);
+    my ($proj_tag,$img_type) = $img_pf=~/^(\w[\w\-]*\w)\.(rt|sb)$/ ? ($1,$2) : die "bad image postfix ($img_pf)";
+    &{$handle{$img_type}}($proj_tag);
     print time," -- ci_build finished\n";
 }];
 
@@ -1136,13 +1123,10 @@ my $ci_env_del = sub{
 };
 
 my $ci_get_image = sub{
-    my($common_img,$build_sb,$comp) = @_;
+    my($common_img,$comp) = @_;
     my $conf = &$get_compose($comp);
     my $image_type = $$conf{image_type} || "rt";
-    my $proj_tag =
-        $image_type eq "sb" ? $build_sb :
-        $image_type eq "rt" ? &$mandatory_of(project=>$conf) :
-        die "bad image_type";
+    my $proj_tag = &$mandatory_of(project=>$conf);
     my $img = "$common_img.$proj_tag.$image_type";
     my($prod_repo,$allow_source_repo) =
         &$get_deployer_conf($comp,0,qw[sys_image_repo allow_source_repo]);
@@ -1160,10 +1144,9 @@ my $ci_get_compositions = sub{
 
 
 push @tasks, ["ci_push", "", sub{
+    my($env_comp)=@_;
     &$ssh_add();
-    my $env_comp = &$mandatory_of(C4CI_NAME=>\%ENV);
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
-    my $build_sb = &$mandatory_of(C4BUILD_SB=>\%ENV);
     my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
     my $docker_conf_path = &$mandatory_of(C4CI_DOCKER_CONFIG=>\%ENV);
     my $deploy_context = &$mandatory_of(C4DEPLOY_CONTEXT=>\%ENV);
@@ -1172,7 +1155,7 @@ push @tasks, ["ci_push", "", sub{
     my @existing_images = &$get_existing_images($builder_comp,$builder_repo);
     my %existing_images = map{($_=>1)} @existing_images;
     for my $part_comp(@comps){
-        my($from_img,$to_img) = &$ci_get_image($common_img,$build_sb,$part_comp);
+        my($from_img,$to_img) = &$ci_get_image($common_img,$part_comp);
         $existing_images{$from_img} || next;
         &$ci_docker_tag($builder_comp,$from_img,$to_img) if $from_img ne $to_img;
         my $kubectl = &$get_kubectl_raw($deploy_context);
@@ -1181,14 +1164,13 @@ push @tasks, ["ci_push", "", sub{
 }];
 
 push @tasks, ["ci_up", "", sub{
+    my($env_comp)=@_;
     &$ssh_add();
-    my $env_comp = &$mandatory_of(C4CI_NAME=>\%ENV);
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
-    my $build_sb = &$mandatory_of(C4BUILD_SB=>\%ENV);
     my @comps = &$ci_get_compositions($env_comp);
     my @yml = map{
         my $l_comp = $_;
-        my($from_img,$to_img) = &$ci_get_image($common_img,$build_sb,$l_comp);
+        my($from_img,$to_img) = &$ci_get_image($common_img,$l_comp);
         &$ignore($from_img);
         my ($tmp_path,$options) = &$find_handler(ci_up=>$l_comp)->($l_comp,$to_img);
         @{&$make_kc_yml($l_comp,$tmp_path,&$add_image_pull_secrets($l_comp,$options))};
@@ -1202,8 +1184,8 @@ push @tasks, ["ci_up", "", sub{
 }];
 
 push @tasks, ["ci_down","",sub{
+    my($comp)=@_;
     &$ssh_add();
-    my $comp = &$mandatory_of(C4CI_NAME=>\%ENV);
     my ($secret_name,$kubectl) = &$ci_env($comp);
     &$ci_env_del($kubectl,$secret_name,[]);
 }];
