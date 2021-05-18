@@ -146,14 +146,14 @@ my $resolve = cached{
     my $content = syf("cat $dir/$key.pl");
     my $maker =  eval("sub{$content}") || die $@;
     my $conf_by_instance = cached{ &$maker(@_) };
-    my $def_configs = &$conf_by_instance("");
-    my $f; $f = sub{
-        my($comp_wo,$instance)=@_;
-        $$def_configs{$comp_wo} ?
-            (&$conf_by_instance($instance)->{"$comp_wo$instance"} || die) :
-            $comp_wo=~/^(.*-)(.+)$/ ? &$f("$1","$2$instance") : undef
+    my $find_instance = do{
+        my $tmpl_configs = &$conf_by_instance('$');
+        my $re = join "|",
+            map{ /^([a-z\-]*)\$([a-z\-]*)$/ ? "$1(?<i>.+)$2" : () }
+            sort keys %$tmpl_configs;
+        eval 'sub{$_[0]=~/^('.$re.')$/?"$+{i}":""}' || die $@;
     };
-    return cached{ my($comp)=@_; &$f($comp,"") };
+    return cached{ my($comp)=@_; &$conf_by_instance(&$find_instance($comp))->{$comp} };
 };
 
 my $get_compose = sub{ &$resolve('main')->($_[0]) || die "composition expected $_[0]" };
@@ -1105,8 +1105,9 @@ my $name_from_yml = sub{
 
 my $ci_env = sub{
     my($comp)=@_;
-    my $pre = &$get_compose($comp)->{single}||$comp;
-    ("$pre-env",&$get_kubectl($comp))
+    #my $pre = &$get_compose($comp)->{single}||$comp;
+    #("$pre-env",&$get_kubectl($comp))
+    ($comp,&$get_kubectl($comp))
 };
 
 my $ci_env_del = sub{
