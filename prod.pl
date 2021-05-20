@@ -148,7 +148,8 @@ my $resolve = cached{
     my $find_options = do{
         my $tmpl_configs = &$maker(sub{ my($name,$pattern)=@_; "(?<$name>$pattern)" });
         my $re = join "|", grep{/\(\?</} sort keys %$tmpl_configs;
-        eval 'sub{$_[0]=~m{^('.$re.')$}?{%+}:{}}' || die $@;
+        my $stm = 'sub{$_[0]=~m{^('.$re.')$}?{%+}:{}}'
+        eval $stm || die "!$stm!$@!";
     };
     my $conf_by_options = cached{
         my($json) = @_;
