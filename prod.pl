@@ -1099,29 +1099,14 @@ my $ci_docker_tag = sub{
     sy(&$ssh_ctl($builder_comp,"docker","tag",@args));
 };
 
-my $name_from_yml = sub{
-    my($yml)=@_;
-    my $kind = lc($$yml{kind} || die);
-    my $nm = ($$yml{metadata}||die)->{name} || die;
-    "$kind/$nm"
-};
-
-my $ci_env = sub{
-    my($comp)=@_;
-    (&$mandatory_of(slug=>&$get_compose($comp))."-env", &$get_kubectl($comp))
-};
-
-my $ci_env_del = sub{
-    my($kubectl,$secret_name,$list)=@_;
-    my %keep = map {(&$name_from_yml($_) => $_)} @$list;
-    my $res = &$get_secret_str($kubectl, $secret_name, 0);
-    my $del_str = $res eq "" ? "" : do {
-        my $dir = &$get_tmp_dir();
-        &$secret_to_dir_decode($res, $dir);
-        my $was_list = &$decode(syf("cat $dir/list"));
-        join " ", grep {!$keep{$_}} map {&$name_from_yml($_)} @$was_list;
-    };
-    $del_str and sy("$kubectl delete $del_str");
+my $ci_env_up = sub{
+    my($comp,$yml)=@_;
+    my $env_name = &$mandatory_of(c4env=>&$get_compose($comp));
+    my $kubectl = &$get_kubectl($comp);
+    my $labeled = {metadata=>{labels=>{c4env=>$env_name}}};
+    my $yml_str = join "\n", map{ &$encode(&$merge_list($_,$labeled)) } @$yml;
+    my $tmp = &$put_temp("up.yml",$yml_str);
+    sy("$kubectl apply -f $tmp --prune -l c4env=$env_name");
 };
 
 my $ci_get_image = sub{
@@ -1147,8 +1132,8 @@ my $ci_get_compositions = sub{
 push @tasks, ["ci_info", "", sub{
     my($env_comp,$out_path)=@_;
     &$ssh_add();
-    my $slug = &$mandatory_of(slug=>&$get_compose($env_comp));
-    &$put_text(($out_path||die), &$encode({slug=>$slug}));
+    my $c4env = &$mandatory_of(c4env=>&$get_compose($env_comp));
+    &$put_text(($out_path||die), &$encode({c4env=>$c4env}));
 }];
 
 push @tasks, ["ci_push", "", sub{
@@ -1183,19 +1168,13 @@ push @tasks, ["ci_up", "", sub{
         my ($tmp_path,$options) = &$find_handler(ci_up=>$l_comp)->($l_comp,$to_img);
         @{&$make_kc_yml($l_comp,$tmp_path,&$add_image_pull_secrets($l_comp,$options))};
     } @comps;
-    my ($secret_name,$kubectl) = &$ci_env($env_comp);
-    my $env_yml = &$secret_yml_from_files($secret_name, {list=>&$put_temp("list",&$encode(\@yml))});
-    #
-    &$ci_env_del($kubectl,$secret_name,[$env_yml,@yml]);
-    my $yml_str = join "\n", map{&$encode($_)} $env_yml, @yml;
-    sy("$kubectl apply -f ".&$put_temp("up.yml",$yml_str));
+    &$ci_env_up($env_comp,\@yml);
 }];
 
 push @tasks, ["ci_down","",sub{
     my($comp)=@_;
     &$ssh_add();
-    my ($secret_name,$kubectl) = &$ci_env($comp);
-    &$ci_env_del($kubectl,$secret_name,[]);
+    &$ci_env_up($comp,[]);
 }];
 
 ########
