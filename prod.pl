@@ -147,7 +147,8 @@ my $resolve = cached{
     my $maker =  eval("sub{$content}") || die $@;
     my $find_options = do{
         my $tmpl_configs = &$maker(sub{ my($name,$pattern)=@_; "(?<$name>$pattern)" });
-        my $re = join "|", grep{/\(/} sort keys %$tmpl_configs;
+        my $re = join "|", grep{/\(\?</} sort keys %$tmpl_configs;
+        print "!!!$re!!!\n";
         eval 'sub{$_[0]=~/^('.$re.')$/?{%+}:{}}' || die $@;
     };
     my $conf_by_options = cached{
