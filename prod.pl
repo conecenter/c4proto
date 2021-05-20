@@ -145,15 +145,17 @@ my $resolve = cached{
     &$ignore($save);
     my $content = syf("cat $dir/$key.pl");
     my $maker =  eval("sub{$content}") || die $@;
-    my $conf_by_instance = cached{ &$maker(@_) };
-    my $find_instance = do{
-        my $tmpl_configs = &$conf_by_instance('$');
-        my $re = join "|",
-            map{ /^([a-z\-]*)\$([a-z\-]*)$/ ? "$1(?<i>.+)$2" : () }
-            sort keys %$tmpl_configs;
-        eval 'sub{$_[0]=~/^('.$re.')$/?"$+{i}":""}' || die $@;
+    my $find_options = do{
+        my $tmpl_configs = &$maker(sub{ my($name,$pattern)=@_; "(?<$name>$pattern)" });
+        my $re = join "|", grep{/\(/} sort keys %$tmpl_configs;
+        eval 'sub{$_[0]=~/^('.$re.')$/?{%+}:{}}' || die $@;
     };
-    return cached{ my($comp)=@_; &$conf_by_instance(&$find_instance($comp))->{$comp} };
+    my $conf_by_options = cached{
+        my($json) = @_;
+        my $options = &$decode($json);
+        &$maker(sub{ my($name,$pattern)=@_; &$ignore($pattern); $$options{$name}//"" })
+    };
+    return cached{ my($comp)=@_; &$conf_by_options(&$encode(&$find_options($comp)))->{$comp} };
 };
 
 my $get_compose = sub{ &$resolve('main')->($_[0]) || die "composition expected $_[0]" };
@@ -1105,9 +1107,7 @@ my $name_from_yml = sub{
 
 my $ci_env = sub{
     my($comp)=@_;
-    #my $pre = &$get_compose($comp)->{single}||$comp;
-    #("$pre-env",&$get_kubectl($comp))
-    ($comp,&$get_kubectl($comp))
+    (&$mandatory_of(slug=>&$get_compose($comp))."-env", &$get_kubectl($comp))
 };
 
 my $ci_env_del = sub{
@@ -1143,6 +1143,12 @@ my $ci_get_compositions = sub{
     @comps
 };
 
+push @tasks, ["ci_info", "", sub{
+    my($env_comp,$out_path)=@_;
+    &$ssh_add();
+    my $slug = &$mandatory_of(slug=>&$get_compose($env_comp));
+    &$put_text(($out_path||die), &$encode({slug=>$slug}));
+}];
 
 push @tasks, ["ci_push", "", sub{
     my($env_comp)=@_;
