@@ -1157,6 +1157,7 @@ push @tasks, ["ci_up", "", sub{
     &$ssh_add();
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
     my @comps = &$ci_get_compositions($env_comp);
+    my $env_name = &$mandatory_of(c4env=>&$get_compose($env_comp));
     my $labeled = {metadata=>{labels=>{c4env=>$env_name}}};
     my $yml_str = join "\n", map{ &$encode(&$merge_list($_,$labeled)) } map{
         my $l_comp = $_;
@@ -1165,7 +1166,6 @@ push @tasks, ["ci_up", "", sub{
         my ($tmp_path,$options) = &$find_handler(ci_up=>$l_comp)->($l_comp,$to_img);
         @{&$make_kc_yml($l_comp,$tmp_path,&$add_image_pull_secrets($l_comp,$options))};
     } @comps;
-    my $env_name = &$mandatory_of(c4env=>&$get_compose($env_comp));
     my $kubectl = &$get_kubectl($env_comp);
     my $tmp = &$put_temp("up.yml",$yml_str);
     my $whitelist = join " ", map{"--prune-whitelist $$_[0]/$$_[1]/$$_[2]"} @kinds;
