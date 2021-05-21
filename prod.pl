@@ -1099,15 +1099,11 @@ my $ci_docker_tag = sub{
     sy(&$ssh_ctl($builder_comp,"docker","tag",@args));
 };
 
-my $ci_env_up = sub{
-    my($comp,$yml)=@_;
-    my $env_name = &$mandatory_of(c4env=>&$get_compose($comp));
-    my $kubectl = &$get_kubectl($comp);
-    my $labeled = {metadata=>{labels=>{c4env=>$env_name}}};
-    my $yml_str = join "\n", map{ &$encode(&$merge_list($_,$labeled)) } @$yml;
-    my $tmp = &$put_temp("up.yml",$yml_str);
-    sy("$kubectl apply -f $tmp --prune -l c4env=$env_name");
-};
+my @kinds = (
+    [qw[core v1 Secret]],[qw[core v1 Service]],
+    [qw[apps v1 Deployment]],[qw[apps v1 StatefulSet]],
+    [qw[extensions v1beta1 Ingress]],
+);
 
 my $ci_get_image = sub{
     my($common_img,$comp) = @_;
@@ -1161,20 +1157,28 @@ push @tasks, ["ci_up", "", sub{
     &$ssh_add();
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
     my @comps = &$ci_get_compositions($env_comp);
-    my @yml = map{
+    my $labeled = {metadata=>{labels=>{c4env=>$env_name}}};
+    my $yml_str = join "\n", map{ &$encode(&$merge_list($_,$labeled)) } map{
         my $l_comp = $_;
         my($from_img,$to_img) = &$ci_get_image($common_img,$l_comp);
         &$ignore($from_img);
         my ($tmp_path,$options) = &$find_handler(ci_up=>$l_comp)->($l_comp,$to_img);
         @{&$make_kc_yml($l_comp,$tmp_path,&$add_image_pull_secrets($l_comp,$options))};
     } @comps;
-    &$ci_env_up($env_comp,\@yml);
+    my $env_name = &$mandatory_of(c4env=>&$get_compose($env_comp));
+    my $kubectl = &$get_kubectl($env_comp);
+    my $tmp = &$put_temp("up.yml",$yml_str);
+    my $whitelist = join " ", map{"--prune-whitelist $$_[0]/$$_[1]/$$_[2]"} @kinds;
+    sy("$kubectl apply -f $tmp --prune -l c4env=$env_name $whitelist");
 }];
 
 push @tasks, ["ci_down","",sub{
     my($comp)=@_;
     &$ssh_add();
-    &$ci_env_up($comp,[]);
+    my $env_name = &$mandatory_of(c4env=>&$get_compose($comp));
+    my $kubectl = &$get_kubectl($comp);
+    my $kinds = join ",",map{$$_[2]}@kinds;
+    sy("$kubectl delete -l c4env=$env_name $kinds");
 }];
 
 ########
@@ -1424,7 +1428,7 @@ push @tasks, ["up-kc_host", "", sub{ # the last multi container kc
             {
                 apiGroups => ["","apps","extensions"],
                 resources => ["statefulsets","secrets","services","deployments","ingresses"],
-                verbs => ["get","create","patch","delete"],
+                verbs => ["get","create","patch","delete","list"],
             },
             {
                 apiGroups => [""],
