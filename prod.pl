@@ -1038,8 +1038,8 @@ push @tasks, ["ci_build_common", "", sub{
     &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$common_img]);
 }];
 
-push @tasks, ["ci_build", "", sub{
-    my($img_pf) = @_;
+my $ci_build = sub{
+    my($mode,$proj_tag_arg) = @_;
     print time," -- ci_build started\n";
     &$ssh_add();
     my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
@@ -1060,33 +1060,43 @@ push @tasks, ["ci_build", "", sub{
             "RUN eval \$C4STEP_BUILD_CLIENT"
         )
     };
-    my $handle_sb = sub{
+    my $handle_aggr = sub{
         my($proj_tag)=@_;
-        my $entry_step = "ENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main";
-        my $steps = [&$get_build_steps("1",$proj_tag), $entry_step];
-        &$build_derived($common_img,$steps,"$common_img.$img_pf");
+        my $steps = [&$get_build_steps("1",$proj_tag)];
+        &$build_derived($common_img,$steps,"$common_img.$proj_tag.aggr");
     };
     my $tag_aggr_rules = &$merge_list({},
         map{ my($k,$from,$to)=@$_; $k eq 'C4TAG_AGGR' ? {$from=>[$to]} : () }
             grep{ref} map{@$_} &$decode(syf("cat $local_dir/c4dep.main.json"))
     );
-    my $handle_rt = sub{
+    my $handle_fin = sub{
         my($proj_tag)=@_;
         my $aggr_tag = &$single(@{$$tag_aggr_rules{$proj_tag}||[$proj_tag]});
-        my $steps = [
-            &$get_build_steps("1",$aggr_tag), &$get_build_steps("",$proj_tag),
+        my $img_pre = "$common_img.$proj_tag";
+        my $sb_steps = [
+            &$get_build_steps("1",$aggr_tag),
+            "ENV C4CI_BASE_TAG_ENV=$proj_tag",
+            "ENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main",
+        ];
+        &$build_derived($common_img,$sb_steps,"$img_pre.sb");
+        my $cp_steps = [
+            &$get_build_steps("1",$aggr_tag),
+            &$get_build_steps("",$proj_tag),
             "RUN \$C4STEP_CP"
         ];
-        my $img = "$common_img.$img_pf";
-        my $cp_img = "$common_img.$proj_tag.cp";
-        &$build_derived($common_img,$steps,$cp_img);
-        &$ci_docker_build_result($builder_comp,$cp_img,$img);
+        &$build_derived($common_img,$cp_steps,"$img_pre.cp");
+        &$ci_docker_build_result($builder_comp,"$img_pre.cp","$img_pre.rt");
     };
-    my %handle = (sb=>$handle_sb,rt=>$handle_rt);
-    my ($proj_tag,$img_type) = $img_pf=~/^(\w[\w\-]*\w)\.(rt|sb)$/ ? ($1,$2) : die "bad image postfix ($img_pf)";
-    &{$handle{$img_type}}($proj_tag);
+    my %handle = (aggr=>$handle_aggr,fin=>$handle_fin);
+    my $proj_tag = $proj_tag_arg=~/^(\w[\w\-]*\w)$/ ? $1 : die "bad image postfix ($proj_tag_arg)";
+    &{$handle{$mode}}($proj_tag);
     print time," -- ci_build finished\n";
-}];
+};
+
+push @tasks, ["ci_build_aggr", "", sub{ &$ci_build("aggr",@_) }];
+push @tasks, ["ci_build", "", sub{ &$ci_build("fin",@_) }];
+
+
 
 my $get_existing_images = sub{
     my($builder_comp,$builder_repo)=@_;
