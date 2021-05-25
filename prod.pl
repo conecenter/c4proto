@@ -1139,7 +1139,13 @@ push @tasks, ["ci_info", "", sub{
     my($env_comp,$out_path)=@_;
     &$ssh_add();
     my $c4env = &$mandatory_of(c4env=>&$get_compose($env_comp));
-    &$put_text(($out_path||die), &$encode({c4env=>$c4env}));
+    my @comps = &$ci_get_compositions($env_comp);
+    my @parts = map{
+        my $part_comp = $_;
+        my $hostname = &$get_compose($part_comp)->{le_hostname};
+        $hostname ? { hostname=>$hostname, sk=>&$get_simple_auth($part_comp) } : ()
+    } @comps;
+    &$put_text(($out_path||die), &$encode({c4env=>$c4env,parts=>\@parts}));
 }];
 
 push @tasks, ["ci_push", "", sub{
