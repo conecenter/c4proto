@@ -256,7 +256,8 @@ push @tasks, ["ssh_pipe", "$composes_txt <from_remote_cmd> <to_local_cmd>", sub{
 
 my $get_hostname = sub{
     my($comp)=@_;
-    &$get_compose($comp)->{le_hostname} || do{
+    my $conf = &$get_compose($comp);
+    $$conf{le_hostname} || $$conf{type} eq "gate" && do{
         my ($domain_zone) = &$get_deployer_conf($comp,0,qw[domain_zone]);
         $domain_zone && "$comp.$domain_zone";
     };
