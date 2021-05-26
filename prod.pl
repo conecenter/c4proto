@@ -1269,7 +1269,7 @@ push @tasks, ["ci_setup", "", sub{
         }
     }));
     &$ci_parallel(sort map{$$_[0]} values %{$$tasks{get}||{}});
-    &$ci_wait(@comps);
+    &$ci_wait(map{$$_[1]}@from_to_comps);
     &$ci_parallel(@{$$tasks{put}||[]});
     &$end("ci_setup");
 }];
