@@ -883,9 +883,9 @@ my $snapshot_name = sub{
     my $zero = '0' x length $fn[0];
     ["$fn[0]$fn[1]","$zero$fn[1]"]
 };
-push @tasks, ["snapshot_get", "$composes_txt [|snapshot|last]", sub{
-    my($gate_comp,$arg)=@_;
-    &$ssh_add();
+
+my $snapshot_get_statements = sub{
+    my($gate_comp)=@_;
     my $prefix = &$get_compose($gate_comp)->{C4INBOX_TOPIC_PREFIX}
         || die "no C4INBOX_TOPIC_PREFIX for $gate_comp";
     my ($client_comp) = &$get_deployer_conf($gate_comp,1,qw[s3client]);
@@ -894,22 +894,38 @@ push @tasks, ["snapshot_get", "$composes_txt [|snapshot|last]", sub{
         my($op,$fn) = @_;
         &$kj_exec($client_comp,$pod,"","/tools/mc $op def/$prefix.snapshots/$fn")
     };
+    my $cat = sub{
+        my($from,$to)=@_;
+        $from && $to || die;
+        &$stm("cat",$from)." > $to"
+    };
+    (&$stm("ls",""), $cat)
+};
+
+my $snapshot_parse_last = sub{
+    my($data)=@_;
+    (sort{$b cmp $a} grep{ &$snapshot_name($_) } $data=~/(\S+)/g)[0];
+};
+
+push @tasks, ["snapshot_get", "$composes_txt [|snapshot|last]", sub{
+    my($gate_comp,$arg)=@_;
+    &$ssh_add();
+    my ($ls_stm,$cat) = &$snapshot_get_statements($gate_comp);
     if(!defined $arg){
-        sy(&$stm("ls",""));
+        sy($ls_stm);
     } else {
-        my $snnm = $arg ne "last" ? $arg :
-            (sort{$b cmp $a} grep{ &$snapshot_name($_) } syf(&$stm("ls",""))=~/(\S+)/g)[0];
+        my $snnm = $arg ne "last" ? $arg : &$snapshot_parse_last(syf($ls_stm));
         my $fn = &$snapshot_name($snnm) || die "bad or no snapshot name";
-        sy(&$stm("cat",$$fn[0])." > $$fn[1]");
+        sy(&$cat(@$fn));
     }
 }];
 
-my $put_snapshot = sub{
+my $snapshot_put = sub{
     my($auth_path,$data_path,$addr)=@_;
     my $gen_dir = &$get_proto_dir();
     my $data_fn = $data_path=~m{([^/]+)$} ? $1 : die "bad file path";
     -e $auth_path or die "no gate auth";
-    sy("python3","$gen_dir/req.py",$auth_path,$data_path,$addr,"/put-snapshot","/put-snapshot","snapshots/$data_fn");
+    ("python3","$gen_dir/req.py",$auth_path,$data_path,$addr,"/put-snapshot","/put-snapshot","snapshots/$data_fn");
 };
 
 my $need_auth_path = sub{
@@ -926,7 +942,7 @@ push @tasks, ["snapshot_put", "$composes_txt <file_path> [to_address]", sub{
     my $host = &$get_hostname($comp);
     my $address = $address_arg || $host && "https://$host" ||
         die "need le_hostname or domain_zone for $comp or address";
-    &$put_snapshot(&$need_auth_path($comp),$data_path,$address);
+    sy(&$snapshot_put(&$need_auth_path($comp),$data_path,$address));
 }];
 
 ###
@@ -977,18 +993,25 @@ push @tasks, ["builder_cleanup"," ",sub{
 my $get_rand_uuid = sub{ syf("uuidgen")=~/(\S+)/ ? "$1" : die };
 my $ci_get_remote_dir = sub{ "$tmp_root/job-".&$get_rand_uuid()."-$_[0]" };
 
+my $ci_measure = sub{
+    my $at = time;
+    sub{ print((time-$at)."s =measured= $_[0]\n") }
+};
+
 my $ci_docker_build = sub {
     my ($local_dir, $builder_comp, $img) = @_;
+    my $end = &$ci_measure();
     my $remote_dir = &$ci_get_remote_dir("context");
     &$rsync_to($local_dir, $builder_comp, $remote_dir);
     sy(&$ssh_ctl($builder_comp, "-t", "docker", "build", "-t", $img, $remote_dir));
     sy(&$ssh_ctl($builder_comp, "rm", "-r", $remote_dir));
-    print time," -- ci built $img\n";
+    &$end("ci built $img");
     $img;
 };
 
 my $ci_docker_build_result = sub{
     my ($builder_comp, $builder_img, $runtime_img) = @_;
+    my $end = &$ci_measure();
     my $remote_dir = &$ci_get_remote_dir("context");
     my $container_name = "c4cp-".&$get_rand_uuid();
     sy(&$ssh_ctl($builder_comp,@$_)) for (
@@ -998,7 +1021,7 @@ my $ci_docker_build_result = sub{
         ["docker","build","-t",$runtime_img,$remote_dir],
         ["rm","-r",$remote_dir],
     );
-    print time," -- ci built $runtime_img\n";
+    &$end("ci built $runtime_img");
 };
 
 my $make_dir_with_dockerfile = sub{
@@ -1010,6 +1033,7 @@ my $make_dir_with_dockerfile = sub{
 
 my $ci_docker_push = sub{
     my($kubectl,$builder_comp,$add_path,$images)=@_;
+    my $end = &$ci_measure();
     my $remote_dir = &$ci_get_remote_dir("config");
     my $local_dir = &$get_tmp_dir();
     &$secret_to_dir($kubectl,"docker",$local_dir);
@@ -1019,11 +1043,11 @@ my $ci_docker_push = sub{
     my @config_args = ("--config"=>$remote_dir);
     sy(&$ssh_ctl($builder_comp,"-t","docker",@config_args,"push",$_)) for @$images;
     sy(&$ssh_ctl($builder_comp,"rm","-r",$remote_dir));
-    print time," -- ci pushed\n";
+    &$end("ci pushed");
 };
 
 push @tasks, ["ci_build_common", "", sub{
-    print time," -- ci_build_common started\n";
+    my $end = &$ci_measure();
     &$ssh_add();
     my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
     my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR=>\%ENV);
@@ -1036,11 +1060,12 @@ push @tasks, ["ci_build_common", "", sub{
     &$ci_docker_build($local_dir,$builder_comp,$common_img);
     my $kubectl = &$get_kubectl_raw($deploy_context);
     &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$common_img]);
+    &$end("ci_build_common");
 }];
 
 my $ci_build = sub{
     my($mode,$proj_tag_arg) = @_;
-    print time," -- ci_build started\n";
+    my $end = &$ci_measure();
     &$ssh_add();
     my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
     my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
@@ -1090,7 +1115,7 @@ my $ci_build = sub{
     my %handle = (aggr=>$handle_aggr,fin=>$handle_fin);
     my $proj_tag = $proj_tag_arg=~/^(\w[\w\-]*\w)$/ ? $1 : die "bad image postfix ($proj_tag_arg)";
     &{$handle{$mode}}($proj_tag);
-    print time," -- ci_build finished\n";
+    &$end("ci_build");
 };
 
 push @tasks, ["ci_build_aggr", "", sub{ &$ci_build("aggr",@_) }];
@@ -1138,14 +1163,9 @@ my $ci_get_compositions = sub{
 push @tasks, ["ci_info", "", sub{
     my($env_comp,$out_path)=@_;
     &$ssh_add();
-    my $c4env = &$mandatory_of(c4env=>&$get_compose($env_comp));
-    my @comps = &$ci_get_compositions($env_comp);
-    my @parts = map{
-        my $part_comp = $_;
-        my $hostname = &$get_compose($part_comp)->{le_hostname};
-        $hostname ? { hostname=>$hostname, sk=>&$get_simple_auth($part_comp) } : ()
-    } @comps;
-    &$put_text(($out_path||die), &$encode({c4env=>$c4env,parts=>\@parts}));
+    my $conf = &$get_compose($env_comp);
+    my %out = map{$$conf{$_}?($_=>$$conf{$_}):()} qw[c4env hostname_format];
+    &$put_text(($out_path||die), &$encode(\%out));
 }];
 
 push @tasks, ["ci_push", "", sub{
@@ -1170,6 +1190,7 @@ push @tasks, ["ci_push", "", sub{
 
 push @tasks, ["ci_up", "", sub{
     my($env_comp)=@_;
+    my $end = &$ci_measure();
     &$ssh_add();
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
     my @comps = &$ci_get_compositions($env_comp);
@@ -1186,6 +1207,7 @@ push @tasks, ["ci_up", "", sub{
     my $tmp = &$put_temp("up.yml",$yml_str);
     my $whitelist = join " ", map{"--prune-whitelist $$_[0]/$$_[1]/$$_[2]"} @kinds;
     sy("$kubectl apply -f $tmp --prune -l c4env=$env_name $whitelist");
+    &$end("ci_up");
 }];
 
 push @tasks, ["ci_down","",sub{
@@ -1195,6 +1217,60 @@ push @tasks, ["ci_down","",sub{
     my $kubectl = &$get_kubectl($comp);
     my $kinds = join ",",map{$$_[2]}@kinds;
     sy("$kubectl delete -l c4env=$env_name $kinds");
+}];
+
+my $ci_wait = sub{
+    my @comps = @_;
+    my $end = &$ci_measure();
+    for my $comp(@comps){
+        my $host = &$get_hostname($comp) || next;
+        sleep 1 while so("curl -f https://$host/availability");
+    }
+    &$end("ci wait");
+};
+
+my $ci_parallel = sub{
+    my @task_stm_list = @_;
+    my $end = &$ci_measure();
+    my @started = map{&$start($_)} @task_stm_list;
+    &$_() for @started;
+    &$end("ci parallel");
+};
+
+push @tasks, ["ci_setup", "", sub{
+    my($env_comp)=@_;
+    my $end = &$ci_measure();
+    &$ssh_add();
+    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
+    my @comps = &$ci_get_compositions($env_comp);
+    my %branch_conf = map{%{&$decode(syf("cat $_"))}} grep{-e} "$local_dir/branch.conf.json";
+    my $snapshot_from_key = $branch_conf{ci_snapshot_from};
+    my @from_to_comps = map{
+        my $from = $snapshot_from_key && &$get_compose($_)->{"snapshot_from:$snapshot_from_key"};
+        $from ? [$from,$_] : ()
+    } @comps;
+    my $to_by_from_comp = &$merge_list({}, map{
+        my($from,$to) = @$_;
+        +{$from=>[$to]}
+    } @from_to_comps);
+    my $tasks = &$merge_list({},&$map($to_by_from_comp,sub{ my($from_comp,$to_comp_list)=@_;
+        my ($ls_stm,$cat) = &$snapshot_get_statements($from_comp);
+        my $fn = &$snapshot_name(&$snapshot_parse_last(syf($ls_stm))) || die "bad or no snapshot name";
+        my ($from_fn,$to_fn) = @$fn;
+        my @put_tasks = map{ my $to_comp = $_;
+            my $host = &$get_hostname($to_comp) || die;
+            my $address = "https://$host";
+            join " ", &$snapshot_put(&$need_auth_path($to_comp),$to_fn,$address);
+        } @$to_comp_list;
+        +{
+            get => { $to_fn => [&$cat($from_fn,$to_fn)] },
+            put => \@put_tasks,
+        }
+    }));
+    &$ci_parallel(sort map{$$_[0]} values %{$$tasks{get}||{}});
+    &$ci_wait(@comps);
+    &$ci_parallel(@{$$tasks{put}||[]});
+    &$end("ci_setup");
 }];
 
 ########
