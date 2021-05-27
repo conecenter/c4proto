@@ -1165,8 +1165,15 @@ push @tasks, ["ci_info", "", sub{
     my($env_comp,$out_path)=@_;
     &$ssh_add();
     my $conf = &$get_compose($env_comp);
-    my %out = map{$$conf{$_}?($_=>$$conf{$_}):()} qw[c4env hostname_format];
-    &$put_text(($out_path||die), &$encode(\%out));
+    my %out = map{$$conf{$_}?($_=>$$conf{$_}):()} qw[c4env ci_notify_url];
+    my @comps = &$ci_get_compositions($env_comp);
+    my @parts = map{
+        my %res = &$map(&$get_compose($_),sub{ my($k,$v)=@_;
+            $k=~/^ci:(.*)$/ ? ($1=>$v) : ()
+        });
+        %res ? \%res : ()
+    } @comps;
+    &$put_text(($out_path||die), &$encode({%out,ci_parts=>\@parts}));
 }];
 
 push @tasks, ["ci_push", "", sub{
