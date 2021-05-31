@@ -39,7 +39,7 @@ trait BranchErrorSaver {
 trait BranchTask extends Product {
   def branchKey: SrcId
   def product: Product
-  def sessionKeys: Context => Set[BranchRel]
+  def sessionKeys(visited: Set[SrcId] = Set.empty): Context => Set[BranchRel]
   type Send = Option[(String,String) => Context => Context]
   def sending: Context => (Send,Send)
   def relocate(to: String): Context => Context
