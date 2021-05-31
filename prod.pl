@@ -665,21 +665,38 @@ my $get_simple_auth = sub{
     return &$md5_hex("$seed$comp");
 };
 
+my $get_frp_items = sub{
+    my($comp)=@_;
+    &$map(&$get_compose($comp),sub{ my($k,$v)=@_;
+        my $name =
+            $k=~/^frpc:(\w+)$/ ? "$comp.$1" :
+            $k=~/^frpc:(.+\.\w+)$/ ? $1 :
+            return ();
+        my ($host,$port) = $v=~/^(.+):(\d+)$/ ? ($1,$2) : die;
+        [$name,$port,$host]
+    });
+};
+
+my $get_frp_sk = sub{
+    my($name)=@_;
+    my $comp = $name=~/^(.*)\.\w+$/ ? $1 : die;
+    &$get_simple_auth($comp);
+};
+
 my $get_frpc_conf = sub{
     my($comp) = @_;
-    my $services = &$find_handler(visit=>$comp)->($comp);
-    return "" if !@$services;
-    my $sk = &$get_simple_auth($comp);
+    my @services = &$get_frp_items($comp);
+    return "" if !@services;
     my @common = (common => [&$get_frp_common($comp)]);
     my @add = map{
-        my($service_name,$port,$host) = @$_;
-        ("$comp.$service_name" => [
+        my($name,$port,$host) = @$_;
+        ($name => [
             type => "stcp",
-            sk => $sk,
-            local_ip => $host || "127.0.0.1",
+            sk => &$get_frp_sk($name),
+            local_ip => $host,
             local_port => $port,
         ])
-    } @$services;
+    } @services;
     &$to_ini_file([@common,@add]);
 };
 my $put_frpc_conf = sub{
@@ -688,24 +705,21 @@ my $put_frpc_conf = sub{
     &$put("frpc.ini", $content);
 };
 
-my $make_visitor_conf = sub{
-    my($comp,$from_path,$services) = @_;
+my $get_visitor_conf = sub{
+    my($comp,$services) = @_;
     my @common = (common => [&$get_frp_common($comp)]);
     my @add = map{
         my($port,$full_service_name) = @$_;
-        my $d_comp = $full_service_name=~/^(.*)\.\w+$/ ? $1 : die;
-        my $sk = &$get_simple_auth($d_comp);
         ("$full_service_name.visitor" => [
             type => "stcp",
             role => "visitor",
-            sk => $sk,
+            sk => &$get_frp_sk($full_service_name),
             server_name => $full_service_name,
             bind_port => $port,
             bind_addr => "0.0.0.0",
         ])
     } @$services;
-    my $put = &$rel_put_text($from_path);
-    &$put("frpc.visitor.ini", &$to_ini_file([@common,@add]));
+    &$to_ini_file([@common,@add])
 };
 
 #C4INTERNAL_PORTS => "1080,1443",
@@ -1438,35 +1452,10 @@ push @tasks, ["up-frp_client", "", sub{
     &$wrap_deploy($comp,$from_path,$options);
 }];
 
-my $extendable_visit = sub{
-    my($comp)=@_;
-    my $conf = &$get_compose($comp);
-    my $gate_comp = $$conf{ca};
-    my @http_client = !$gate_comp ? () : do{
-        my %consumer_options = &$get_consumer_options($gate_comp);
-        warn "sse will not be multiplexed";
-        $consumer_options{C4HTTP_SERVER}=~m{^(http)://(.+):(\d+)$} ? [$1,$3,$2] : die;
-    };
-    my @connects = &$map($conf,sub{ my($k,$v)=@_;
-        $k=~/^frpc:(\w+)$/ ? ["$1",$v=~/^(.+):(\d+)$/?($2,$1):die] : ()
-    });
-    [@http_client,@connects]
-};
-push @tasks, ["visit-frp_client", "", $extendable_visit];
-push @tasks, ["visit-consumer", "", $extendable_visit];
-
-my $get_visitor_conf = sub{
-    my ($comp) = @_;
-    my $services = &$find_handler(visit=>$comp)->($comp);
-    map{ my($name,$port,$host) = @$_; &$ignore($host); [$port=>"$comp.$name"] } @$services;
-};
-
 push @tasks, ["up-visitor", "", sub{
     my ($comp) = @_;
     my $conf = &$get_compose($comp);
-    my $server_comp = $$conf{peer};
     my $img = &$make_frp_image($comp);
-    my @services = $server_comp ? &$get_visitor_conf($server_comp) : ();
     my @ports = &$map($conf,sub{ my($k,$v)=@_;
         $k=~/^port:/ ? ($k=>$v) : ()
     });
@@ -1478,8 +1467,10 @@ push @tasks, ["up-visitor", "", sub{
         image => $img, C4FRPC_INI => "/c4conf/frpc.visitor.ini",
         @ports, @add_ports, @req_small,
     };
+    my $visitor_conf = &$get_visitor_conf($comp,[@visits]);
     my $from_path = &$get_tmp_dir();
-    &$make_visitor_conf($comp,$from_path,[@services,@visits]);
+    my $put = &$rel_put_text($from_path);
+    &$put("frpc.visitor.ini", $visitor_conf);
     &$wrap_deploy($comp,$from_path,$options);
 }];
 
@@ -1800,10 +1791,10 @@ push @tasks, ["exec_install","<pod|$composes_txt> <tgz>",sub{
 push @tasks, ["cat_visitor_conf","$composes_txt",sub{
     my($comp)=@_;
     &$ssh_add();
-    my @services = &$get_visitor_conf($comp);
-    my $from_path = &$get_tmp_dir();
-    &$make_visitor_conf($comp,$from_path,[@services]);
-    sy("cat $from_path/frpc.visitor.ini");
+    my @services =
+        map{ my($name,$port,$host) = @$_; &$ignore($host); [$port=>$name] }
+            &$get_frp_items($comp);
+    print &$get_visitor_conf($comp,[@services]);
 }];
 
 push @tasks, ["up-elector","",sub{
