@@ -44,7 +44,7 @@ my $serve_sshd = sub{
         my $dir = "/c4/.ssh";
         my $a_keys = "$dir/authorized_keys";
         sy("mkdir -p $dir && chmod 0700 $dir");
-        &$put_text($a_keys, $ENV{C4AUTHORIZED_KEYS_CONTENT} || die);
+        &$put_text($a_keys, $ENV{C4AUTHORIZED_KEYS_CONTENT} || die "no C4AUTHORIZED_KEYS_CONTENT");
         sy("chmod 0600 $a_keys");
     };
     #

@@ -139,24 +139,27 @@ my $get_conf_dir = cached{
 
 my $single_or_undef = sub{ @_==1 ? $_[0] : undef };
 
+my $map = sub{ my($opt,$f)=@_; map{&$f($_,$$opt{$_})} sort keys %$opt };
+
 my $resolve = cached{
     my($key)=@_;
     my($dir,$save) = @{&$get_conf_dir('')};
     &$ignore($save);
-    my $content = syf("cat $dir/$key.pl");
-    my $maker =  eval("sub{$content}") || die $@;
-    my $find_options = do{
-        my $tmpl_configs = &$maker(sub{ my($name,$pattern)=@_; "(?<$name>$pattern)" });
-        my $re = join "|", grep{/\(\?</} sort keys %$tmpl_configs;
-        my $stm = 'sub{$_[0]=~m{^('.$re.')$}?{%+}:{}}';
-        eval $stm || die "!$stm!$@!";
-    };
-    my $conf_by_options = cached{
-        my($json) = @_;
-        my $options = &$decode($json);
-        &$maker(sub{ my($name,$pattern)=@_; &$ignore($pattern); $$options{$name}//"" })
-    };
-    return cached{ my($comp)=@_; &$conf_by_options(&$encode(&$find_options($comp)))->{$comp} };
+    my $conf_all = require "$dir/$key.pl";
+    my @handlers = &$map($conf_all,sub{ my($k,$v)=@_;
+        "CODE" eq ref $v ? [$k,$v] : ()
+    });
+    my $re = join "|",
+        map{ my($k,$v) = @{$handlers[$_]||die}; &$ignore($v); "(?<p$_>$k)" }
+            0..$#handlers;
+    my %handlers = map{ ("p$_"=>$handlers[$_]||die) } 0..$#handlers;
+    return cached {
+        my ($comp) = @_;
+        $$conf_all{$comp} || &$single_or_undef(map{
+            my($k,$v) = @{$handlers{$_}||die};
+            $comp=~/^$k$/ ? {&$v(@{^CAPTURE})} : die
+        } $comp=~/^($re)$/ ? keys %+ : ())
+    }
 };
 
 my $get_compose = sub{ &$resolve('main')->($_[0]) || die "composition expected $_[0]" };
@@ -333,7 +336,6 @@ $merge{"ARRAY-ARRAY"} = sub{[map{@$_}@_]};
 
 use List::Util qw(reduce);
 
-my $map = sub{ my($opt,$f)=@_; map{&$f($_,$$opt{$_})} sort keys %$opt };
 my $merge_list = sub{ reduce{ &$merge($a,$b) } @_ };
 my $single = sub{ @_==1 ? $_[0] : die };
 
