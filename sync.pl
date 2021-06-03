@@ -51,7 +51,7 @@ my $lines = sub{join"",map{"$_\n"}@_};
 
 my $request_remote_dir = sub{
     my $remote_pre = &$get_remote_pre();
-    syf("echo '. /c4p_alias.sh && echo \$C4CI_BUILD_DIR' | $remote_pre sh")=~/^(\S+)\s*$/ ? "$1" : die;
+    syf("echo '. /c4p_alias.sh > /dev/null && echo \$C4CI_BUILD_DIR' | $remote_pre sh")=~/^(\S+)\s*$/ ? "$1" : die;
 };
 
 my $sync0 = sub{
@@ -62,8 +62,8 @@ my $sync0 = sub{
     my($from_pre_d,$from_dir,$to_pre_d,$to_dir,$to_pre) = $is_back ?
         ($remote_pre_d,$remote_dir,"",$dir,"sh -c ") :
         ("",$dir,$remote_pre_d,$remote_dir,$remote_pre);
-    my $changed_fn = "c4sync-changed";
-    my %was = map{($_=>0)} sy("$to_pre 'cd $to_dir && touch $changed_fn && cat $changed_fn'") =~ /(\S+)/g;
+    my $changed_fn = "target/c4sync-changed";
+    my %was = map{($_=>0)} syf("$to_pre 'cd $to_dir && touch $changed_fn && cat $changed_fn'") =~ /(\S+)/g;
     my %all = (%was,%$tasks);
     my @all = sort keys %all;
     my @upd = grep{$all{$_}} @all;
@@ -71,7 +71,18 @@ my $sync0 = sub{
     my $tm = Time::HiRes::time();
     sy("$to_pre 'cd $to_dir && cat > $changed_fn' < ".&$put_temp(changed=>&$lines(@all)));
     sy("rsync -e '$ssh' -avc --files-from=".&$put_temp(upd=>&$lines(@upd))." $from_pre_d$from_dir/ $to_pre_d$to_dir") if @upd;
-    sy("$to_pre 'cd $to_dir && sh' < ".&$put_temp(del=>join" && ", map{"(! test -e '$_' || rm '$_')"}@del)) if @del;
+    if(@del){
+        my $remover_fn = "target/c4sync-rm.pl";
+        sy("$to_pre 'cd $to_dir && cat > $remover_fn' < ".&$put_temp(remover=>&$lines(
+            q[for(<STDIN>){],
+            q[  chomp;],
+            q[  next if -e $_;],
+            q[  print "removing $_\n";],
+            q[  unlink $_ or die "can not remove";],
+            q[}],
+        )));
+        sy("$to_pre 'cd $to_dir && perl $remover_fn' < ".&$put_temp(removed=>&$lines(@del)));
+    }
     print Time::HiRes::time()-$tm," for rsync+\n";
 };
 
@@ -94,7 +105,8 @@ push @tasks, ["start","",sub{
     my %tasks = map{($_=>(-e "$dir/$_")?1:0)} map{
         my ($dir_infix,$commit) = /^(.*):(.*)$/ ? ($1,$2) : die;
         map{"$dir_infix/$_"}
-            syf("cd $dir$dir_infix && git diff --name-only $commit && git ls-files --others --exclude-standard")=~/(\S+)/g;
+            map{ syf("cd $_ && git diff --name-only $commit && git ls-files --others --exclude-standard")=~/(\S+)/g }
+                grep{ -e "$_/.git" } "$dir$dir_infix"
     } syf("$remote_pre 'cat $remote_dir/target/c4repo_commits'")=~/(\S+)/g;
     &$sync0($dir,$remote_dir,0,\%tasks);
 }];
