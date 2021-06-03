@@ -114,4 +114,3 @@ push @tasks, ["run","",sub{
 
 my($cmd,@args)=@ARGV;
 ($cmd||'') eq $$_[0] and $$_[2]->(@args) for @tasks;
-
