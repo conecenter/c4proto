@@ -3,18 +3,27 @@ use strict;
 use Time::HiRes;
 
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
+sub syf{ for(@_){ print "$_\n"; my $r = scalar `$_`; $? && die $?; return $r } }
 
 my $put_text = sub{
     my($fn,$content)=@_;
     open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
 };
 
-my $get_text = sub{
-    my($path)=@_;
-    open FF,"<:encoding(UTF-8)",$path or die "get_text: $path";
-    my $res = join"",<FF>;
-    close FF or die;
-    $res;
+my $need_path = sub{
+    my($dn)=@_;
+    -d $dn or sy("mkdir -p $dn") if $dn=~s{/[^/]*$}{};
+    $_[0];
+};
+
+my $tmp_root = "/tmp/c4sync";
+my $get_tmp_path_inner = sub{ my($fn)=@_; &$need_path("$tmp_root/$$/$fn") };
+my $put_temp = sub{
+    my($fn,$text)=@_;
+    my $path = &$get_tmp_path_inner($fn);
+    &$put_text($path,$text);
+    print "generated $path\n";
+    $path;
 };
 
 my $to_rel = sub{
@@ -32,45 +41,38 @@ my $find = sub{
         sort `$cmd -type f$prune_str`;
 };
 
-my $sync = sub{
-    my ($list_fn,$ssh,$from,$from_fns,$to,$to_fns) = @_;
-    my %keep = map{($_=>1)} @$from_fns;
-    my @to_rm = grep{!$keep{$_}} @$to_fns;
-    &$put_text($list_fn, join "", map{"$_\n"} @$from_fns);
-    &$put_text("$list_fn.rm",join " ", "true", map{$_%10 ? $to_rm[$_] : ("\\\n && rm",$to_rm[$_])} 0..(@to_rm-1));
-    my $tm = Time::HiRes::time();
-    my $ssh_opt = $ssh ? "-e '$ssh'" : "";
-    sy("rsync $ssh_opt -avc --files-from=$list_fn $from/ $to") if @$from_fns; #  | grep -E '^deleting|[^/]\$|^\$'
-    print Time::HiRes::time()-$tm," for rsync\n";
-};
-
-my $filter = sub{
-    my($need_generated,$l)=@_;
-    grep{(m{\bc4gen\b}?1:0)==$need_generated} @$l;
-};
-
-my $get_list_fn = sub{"$_[0]/target/c4sync"};
-my $get_remote = sub{
-    my($port_str)=@_;
-    my $port = $port_str=~/^(\d+)$/ ? $1-0 : die;
-    $port ? ("ssh -p$port","c4\@127.0.0.1:","ssh -p$port c4\@127.0.0.1 "):("","","")
-};
-my $load_started = sub{
-    my($dir)=@_;
-    my $list_fn = &$get_list_fn($dir);
-    my @res = &$get_text("$list_fn.conf")=~/(.+)/g;
-    @res;
-};
+my $get_ssh = sub{ $ENV{C4BUILD_PORT}=~/^(\d+)$/ ? "ssh -p$1" : die "bad C4BUILD_PORT"};
+my $user_host = "c4\@127.0.0.1";
+my $get_remote_pre = sub{ &$get_ssh()." $user_host " };
 
 my $prune = [qw(target .git .idea .bloop node_modules build)];
 
-my $clean_local = sub{
-    my($dir)=@_;
-    for(grep{m"\bc4gen\b|/target/|/tmp/|/node_modules/|/.bloop/"} map{"/$_"} &$find("","$dir/",[])){
-        my $path = "$dir$_";
-        print "deleting $path\n";
-        unlink $path or die;
-    }
+my $lines = sub{join"",map{"$_\n"}@_};
+
+my $request_remote_dir = sub{
+    my $remote_pre = &$get_remote_pre();
+    syf("echo '. /c4p_alias.sh && echo \$C4CI_BUILD_DIR' | $remote_pre sh")=~/^(\S+)\s*$/ ? "$1" : die;
+};
+
+my $sync0 = sub{
+    my($dir,$remote_dir,$is_back,$tasks)=@_;
+    my $remote_pre = &$get_remote_pre();
+    my $ssh = &$get_ssh();
+    my $remote_pre_d = "$user_host:";
+    my($from_pre_d,$from_dir,$to_pre_d,$to_dir,$to_pre) = $is_back ?
+        ($remote_pre_d,$remote_dir,"",$dir,"sh -c ") :
+        ("",$dir,$remote_pre_d,$remote_dir,$remote_pre);
+    my $changed_fn = "c4sync-changed";
+    my %was = map{($_=>0)} sy("$to_pre 'cd $to_dir && touch $changed_fn && cat $changed_fn'") =~ /(\S+)/g;
+    my %all = (%was,%$tasks);
+    my @all = sort keys %all;
+    my @upd = grep{$all{$_}} @all;
+    my @del =  grep{!$all{$_}} @all;
+    my $tm = Time::HiRes::time();
+    sy("$to_pre 'cd $to_dir && cat > $changed_fn' < ".&$put_temp(changed=>&$lines(@all)));
+    sy("rsync -e '$ssh' -avc --files-from=".&$put_temp(upd=>&$lines(@upd))." $from_pre_d$from_dir/ $to_pre_d$to_dir") if @upd;
+    sy("$to_pre 'cd $to_dir && sh' < ".&$put_temp(del=>join" && ", map{"(! test -e '$_' || rm '$_')"}@del)) if @del;
+    print Time::HiRes::time()-$tm," for rsync+\n";
 };
 
 my @tasks;
@@ -78,49 +80,35 @@ my @tasks;
 push @tasks, ["clean_local","",sub{
     my($dir)=@_;
     $dir || die;
-    &$clean_local($dir);
+    for(grep{m"\bc4gen\b|/target/|/tmp/|/node_modules/|/.bloop/"} map{"/$_"} &$find("","$dir/",[])){
+        my $path = "$dir$_";
+        print "deleting $path\n";
+        unlink $path or die;
+    }
 }];
 push @tasks, ["start","",sub{
-    my($dir,$remote_dir,$port)=@_;
-    $dir && $remote_dir || die;
-    $port || $dir ne $remote_dir || die "from and to are the same $dir";
-    my $clean = $ENV{C4BUILD_CLEAN}-0;
-    my($ssh,$remote_pre_d,$remote_pre) = &$get_remote($port);
-    my $remote_pre_q = $remote_pre || "sh -c ";
-    if($clean){
-        &$clean_local($dir);
-        sy("$remote_pre_q 'mkdir -p $remote_dir && rm -r $remote_dir'");
-    }
-    sy("$remote_pre_q 'mkdir -p $remote_dir'");
-    -e $_ or mkdir $_ or die "$! -- $_" for "$dir/target";
-    my @local_fns = &$find("","$dir/",$prune);
-    my $list_fn = &$get_list_fn($dir);
-    &$sync($list_fn,$ssh,
-        $dir,[&$filter(0,\@local_fns)],
-        "$remote_pre_d$remote_dir",[&$filter(0,[&$find($remote_pre,"$remote_dir/",$prune)])]
-    );
-    sy("$remote_pre_q 'cd $remote_dir && sh' < $list_fn.rm");
-    &$put_text("$list_fn.local", join "", map{"$_\n"} @local_fns);
-    &$put_text("$list_fn.conf", "$remote_dir\n$port");
-    #
-    -e "$dir/.git" and sy("cd $dir && git log --pretty=%h | head | $remote_pre_q 'mkdir -p $remote_dir/target && cat > $remote_dir/target/c4git-log'")
+    my($dir)=@_;
+    $dir || die "need dirs";
+    my $remote_dir = &$request_remote_dir();
+    my $remote_pre = &$get_remote_pre();
+    my %tasks = map{($_=>(-e "$dir/$_")?1:0)} map{
+        my ($dir_infix,$commit) = /^(.*):(.*)$/ ? ($1,$2) : die;
+        map{"$dir_infix/$_"}
+            syf("cd $dir$dir_infix && git diff --name-only $commit && git ls-files --others --exclude-standard")=~/(\S+)/g;
+    } syf("$remote_pre 'cat $remote_dir/target/c4repo_commits'")=~/(\S+)/g;
+    &$sync0($dir,$remote_dir,0,\%tasks);
 }];
 push @tasks, ["back","",sub{
     my($dir)=@_;
-    my($remote_dir,$port) = &$load_started($dir);
-    my($ssh,$remote_pre_d,$remote_pre) = &$get_remote($port);
-    my $list_fn = &$get_list_fn($dir);
-    &$sync($list_fn,$ssh,
-        "$remote_pre_d$remote_dir",[&$filter(1,[&$find($remote_pre,"$remote_dir/",$prune)])],
-        $dir,[&$filter(1,[&$get_text("$list_fn.local")=~/(.+)/g])]
-    );
-    sy("cd $dir && sh < $list_fn.rm");
+    my $remote_dir = &$request_remote_dir();
+    my $remote_pre = &$get_remote_pre();
+    my %tasks = map{($_=>1)} grep{/\bc4gen\b/} &$find($remote_pre,"$remote_dir/",$prune);
+    &$sync0($dir,$remote_dir,1,\%tasks);
 }];
 push @tasks, ["run","",sub{
     my($dir,$cmd)=@_;
-    my($remote_dir,$port) = &$load_started($dir);
-    my($ssh,$remote_pre_d,$remote_pre) = &$get_remote($port);
-    $remote_pre || die;
+    my $remote_dir = &$request_remote_dir();
+    my $remote_pre = &$get_remote_pre();
     sy("$remote_pre '. /c4p_alias.sh && cd $remote_dir && $cmd'");
 }];
 

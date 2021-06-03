@@ -1063,6 +1063,17 @@ my $ci_docker_push = sub{
     &$end("ci pushed");
 };
 
+my $mem_repo_commits = sub{
+    my($dir)=@_;
+    my $content = join " ", sort map{
+        my $commit =
+            syf("git --git-dir=$_ rev-parse --short HEAD")=~/(\S+)/ ? $1 : die;
+        my $l_dir = m{^\.(.*)/\.git$} ? $1 : die;
+        "$l_dir:$commit";
+    } syf("cd $dir && find -name .git")=~/(\S+)/g;
+    &$put_text(&$need_path("$dir/target/c4repo_commits"),$content);
+};
+
 push @tasks, ["ci_build_common", "", sub{
     my $end = &$ci_measure();
     &$ssh_add();
@@ -1074,6 +1085,7 @@ push @tasks, ["ci_build_common", "", sub{
     my $docker_conf_path = &$mandatory_of(C4CI_DOCKER_CONFIG=>\%ENV);
     sy("cp $local_dir/build.def.dockerfile $local_dir/Dockerfile");
     sy("cp $proto_dir/.dockerignore $local_dir/") if $local_dir ne $proto_dir;
+    &$mem_repo_commits($local_dir);
     &$ci_docker_build($local_dir,$builder_comp,$common_img);
     my $kubectl = &$get_kubectl_raw($deploy_context);
     &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$common_img]);
