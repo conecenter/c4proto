@@ -26,6 +26,8 @@ my $put_temp = sub{
     $path;
 };
 
+my $mandatory_of = sub{ my($k,$h)=@_; (exists $$h{$k}) ? $$h{$k} : die "no $k" };
+
 my $to_rel = sub{
     my($pre,$fn)=@_;
     $pre eq substr $fn, 0, length $pre or die;
@@ -97,17 +99,23 @@ push @tasks, ["clean_local","",sub{
         unlink $path or die;
     }
 }];
-push @tasks, ["start","",sub{
-    my($dir)=@_;
-    $dir || die "need dirs";
+push @tasks, ["report_changes","",sub{
+    my($dir)=@_; $dir || die "need dir";
+    my $changed_path = &$mandatory_of(C4GIT_CHANGED_PATH=>\%ENV);
     my $remote_dir = &$request_remote_dir();
     my $remote_pre = &$get_remote_pre();
-    my %tasks = map{($_=>(-e "$dir/$_")?1:0)} map{
+    &$put_text($changed_path, &$lines(map{ #... to ENV
         my ($dir_infix,$commit) = /^(.*):(.*)$/ ? ($1,$2) : die;
-        map{"$dir_infix/$_"}
+        map{"$dir_infix$_"}
             map{ syf("cd $_ && git diff --name-only $commit && git ls-files --others --exclude-standard")=~/(\S+)/g }
-                grep{ -e "$_/.git" } "$dir$dir_infix"
-    } syf("$remote_pre 'cat $remote_dir/target/c4repo_commits'")=~/(\S+)/g;
+                grep{ -e "$_.git" } "$dir/$dir_infix"
+    } syf("$remote_pre 'cat $remote_dir/target/c4repo_commits'")=~/(\S+)/g));
+}];
+push @tasks, ["start","",sub{
+    my($dir)=@_; $dir || die "need dir";
+    my $changed_path = &$mandatory_of(C4GIT_CHANGED_PATH=>\%ENV);
+    my $remote_dir = &$request_remote_dir();
+    my %tasks = map{($_=>(-e "$dir/$_")?1:0)} syf("cat $changed_path")=~/(\S+)/g;
     &$sync0($dir,$remote_dir,0,\%tasks);
 }];
 push @tasks, ["back","",sub{
