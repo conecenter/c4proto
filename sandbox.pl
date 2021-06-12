@@ -55,6 +55,7 @@ my $serve_sshd = sub{
         'export JAVA_TOOL_OPTIONS="$JAVA_TOOL_OPTIONS -XX:-UseContainerSupport"', #-Xss16m
         'export KUBECONFIG=$C4KUBECONFIG',
         'eval `ssh-agent`',
+        'history -c && history -r /c4/.bash_history_get && export PROMPT_COMMAND="history -a /c4/.bash_history_put"',
     );
     sy("export C4AUTHORIZED_KEYS_CONTENT= ; export -p | grep ' C4' >> /c4p_alias.sh");
     &$get_text_or_empty("/c4/.profile")=~/c4p_alias/ or sy("echo '. /c4p_alias.sh' >> /c4/.profile");
@@ -181,6 +182,15 @@ my $serve_loop = sub{ &$forever(sub{
 
 ####
 
+my $serve_history = sub{
+    my $env = {
+        CLASSPATH => (syf("coursier fetch --classpath org.apache.kafka:kafka-clients:2.8.0")=~/(\S+)/ ? $1 : die),
+        C4HISTORY_PUT => "/c4/.bash_history_put",
+        C4HISTORY_GET => "/c4/.bash_history_get",
+    };
+    &$exec_at($ENV{C4CI_PROTO_DIR},$env,"java","--source","15","history.java");
+};
+
 my $init = sub{
     my $sock = "/c4/supervisor.sock";
     &$put_text("/c4/supervisord.conf", join '', map{"$_\n"}
@@ -202,7 +212,7 @@ my $init = sub{
             "stderr_logfile_maxbytes=0",
             "stdout_logfile=/dev/stdout",
             "stdout_logfile_maxbytes=0",
-        )} qw[frpc bloop sshd proxy loop])
+        )} qw[frpc bloop sshd proxy loop history])
     );
     &$exec("supervisord","-c","/c4/supervisord.conf")
 };
@@ -212,6 +222,7 @@ my $cmd_map = {
     sshd => $serve_sshd,
     proxy => $serve_proxy,
     loop => $serve_loop,
+    history => $serve_history,
     main => $init,
 };
 $| = 1;
