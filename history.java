@@ -1,4 +1,3 @@
-#!java --source 15 --class-path "$(coursier fetch --classpath org.apache.kafka:kafka-clients:2.8.0)"
 
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
@@ -68,6 +67,7 @@ class History {
         conf.put("enable.auto.commit","false");
         final var deserializer = new StringDeserializer();
         final var dataPath = Paths.get(mandatoryEnv("C4HISTORY_GET"));
+        Files.writeString(dataPath,"");
         try(final var consumer = new KafkaConsumer<String,String>(conf,deserializer,deserializer)){
             Runtime.getRuntime().addShutdownHook(new Thread(consumer::wakeup));
             final var partitions = new ArrayList<TopicPartition>();
@@ -76,16 +76,22 @@ class History {
             consumer.seekToBeginning(partitions);
             while(true){
                 for(final var record: consumer.poll(Duration.ofMillis(200))){
-                    Files.writeString(dataPath, record.value(), StandardOpenOption.APPEND);
+                    if (record != null)
+                        Files.writeString(dataPath, record.value(), StandardOpenOption.APPEND);
                 }
             }
         }
     }
 
-    public static void main(String[] args) throws Exception {
-        switch(args[0]){
-            case "producer" -> new History().runProducer();
-            case "consumer" -> new History().runConsumer();
+    public static void main(String[] args) {
+        try{
+            switch(args[0]){
+                case "producer" -> new History().runProducer();
+                case "consumer" -> new History().runConsumer();
+            }
+        } catch(Exception e){
+            e.printStackTrace();
+            System.exit(1);
         }
     }
 
