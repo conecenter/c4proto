@@ -1204,7 +1204,7 @@ push @tasks, ["ci_info", "", sub{
         my %res = &$ci_get_attributes(&$get_compose($_));
         %res ? \%res : ()
     } @comps;
-    &$put_text(($out_path||die), &$encode({%out,ci_parts=>\@parts}));
+    &$put_text(($out_path||die), &$encode({env=>$$conf{c4env},%out,ci_parts=>\@parts}));
 }];
 
 push @tasks, ["ci_push", "", sub{
