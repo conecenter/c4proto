@@ -66,9 +66,7 @@ my $serve_sshd = sub{
 
 my $debug_port = 5005;
 my $serve_proxy = sub{
-    my($debug_int_address)=@_;
-    my ($debug_ext_address,$debug_port) = !$ENV{C4DEBUG_PROXY} ? (undef,undef) :
-        $ENV{C4DEBUG_PROXY}=~/^([\d\.]+:(\d+))$/ ? ($1,$2) : die;
+    my $debug_ext_address = "127.0.0.1:$debug_port";
     my $debug_int_address = &$get_text_or_empty("/c4/haproxy.to");
     $debug_ext_address && $debug_int_address or &$exec("sleep","infinity");
     my $ha_cfg_path = "/c4/haproxy.cfg";
@@ -153,7 +151,7 @@ my $serve_loop = sub{ &$forever(sub{
             my $paths = JSON::XS->new->decode(&$get_text_or_empty("$tmp/mod.$mod.classpath.json"));
             my $env = {
                 %$paths,
-                !$ENV{C4DEBUG_PROXY} ? () : (JAVA_TOOL_OPTIONS => " -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$debug_int_ip:$debug_port $ENV{JAVA_TOOL_OPTIONS}"),
+                !(-e "/c4/debug-enable") ? () : (JAVA_TOOL_OPTIONS => " -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$debug_int_ip:$debug_port $ENV{JAVA_TOOL_OPTIONS}"),
                 C4ELECTOR_PROC_PATH => "/proc/$ppid",
                 C4READINESS_PATH => "$dir/c4is-ready",
                 C4STATE_TOPIC_PREFIX => $nm,
