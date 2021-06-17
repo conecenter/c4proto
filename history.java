@@ -36,10 +36,12 @@ class History {
             conf.put("ssl.truststore.location",mandatoryEnv("C4TRUSTSTORE_PATH"));
             conf.put("ssl.truststore.password",keyPass);
             conf.put("ssl.endpoint.identification.algorithm","");
+            //
             final var topicName = "bash_history";
             //
             conf.put("enable.auto.commit","false");
             final var deserializer = new StringDeserializer();
+            //
             final var consumerDataPath = Paths.get(mandatoryEnv("C4HISTORY_GET"));
             Files.writeString(consumerDataPath,"");
             //

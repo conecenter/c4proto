@@ -1,6 +1,6 @@
 package ee.cone.c4gate_server
 
-import ee.cone.c4actor_kafka_impl.{KafkaConsumerApp, KafkaProducerApp, LZ4RawCompressorApp}
+import ee.cone.c4actor_kafka_impl.{KafkaConsumerApp, KafkaProducerApp, KafkaPurgerApp, LZ4RawCompressorApp}
 import ee.cone.c4actor_logback_impl.BasicLoggingApp
 import ee.cone.c4actor._
 import ee.cone.c4di.{c4, c4app, provide}
@@ -17,7 +17,7 @@ trait WorldProviderAppBase
 
 abstract class AbstractHttpGatewayAppBase extends ServerCompApp
   with EnvConfigCompApp with VMExecutionApp
-  with KafkaProducerApp with KafkaConsumerApp
+  with KafkaProducerApp with KafkaConsumerApp with KafkaPurgerApp
   with ParallelObserversApp
   with PublisherApp with AuthProtocolApp
   with SSEServerApp
