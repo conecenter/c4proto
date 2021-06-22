@@ -149,15 +149,17 @@ my $serve_loop = sub{ &$forever(sub{
             &$prep_empty_dir($dir);
             my $debug_int_ip = &$get_debug_ip($$);
             my $paths = JSON::XS->new->decode(&$get_text_or_empty("$tmp/mod.$mod.classpath.json"));
+            my $tool_opt = "-XX:+UseG1GC -XX:GCTimeRatio=1 -XX:MinHeapFreeRatio=15 -XX:MaxHeapFreeRatio=50 $ENV{JAVA_TOOL_OPTIONS}";
             my $env = {
                 %$paths,
-                !(-e "/c4/debug-enable") ? () : (JAVA_TOOL_OPTIONS => " -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$debug_int_ip:$debug_port $ENV{JAVA_TOOL_OPTIONS}"),
+                (-e "/c4/debug-components") ? (C4DEBUG_COMPONENTS => "1") : (),
+                JAVA_TOOL_OPTIONS => (-e "/c4/debug-enable") ? " -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$debug_int_ip:$debug_port $tool_opt" : $tool_opt,
                 C4ELECTOR_PROC_PATH => "/proc/$ppid",
                 C4READINESS_PATH => "$dir/c4is-ready",
                 C4STATE_TOPIC_PREFIX => $nm,
                 C4APP_CLASS => $cl,
             };
-            &$exec_at($dir,$env,"perl","$build_dir/run_env.pl");
+            &$exec_at($dir,$env,"java","ee.cone.c4actor.ServerMain");
             die;
         }
         print &$colored_line(bright_yellow=>"Spawned $pid");
