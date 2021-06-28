@@ -53,7 +53,7 @@ my $serve_sshd = sub{
         'export PATH=$PATH:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin:/tools:/c4/.bloop',
         'export JAVA_HOME=/tools/jdk',
         'export JAVA_TOOL_OPTIONS="$JAVA_TOOL_OPTIONS -XX:-UseContainerSupport"', #-Xss16m
-        'export KUBECONFIG=$C4KUBECONFIG',
+        "export KUBECONFIG=$ENV{C4KUBECONFIG}", # $C4KUBECONFIG was empty at this stage
         'eval `ssh-agent`',
         'history -c && history -r /c4/.bash_history_get && export PROMPT_COMMAND="history -a /c4/.bash_history_put"',
     );
