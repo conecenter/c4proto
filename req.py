@@ -27,7 +27,7 @@ def signed_req(salt,responseKey,args,opt):
     header = "=".join([urllib.parse.quote_plus(e) for e in hash + uData])
     headers = { "x-r-signed": header, "x-r-response-key": responseKey }
     postReq =  urllib.request.Request(headers=headers, **opt) #method="POST",
-    postResp = urllib.request.urlopen(postReq)
+    postResp = urllib.request.urlopen(postReq,timeout=60)
     if postResp.status!=200:
         raise Exception("req sending failed")
     resp = None
