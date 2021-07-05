@@ -47,4 +47,7 @@ cmd, salt_path, body_path, host, url, *args = sys.argv
 salt = get_file(salt_path)
 responseKey = str(uuid.uuid4())
 data = get_file(body_path)
-resp = signed_req(salt,responseKey,args,{ "url": host+url, "data": data })
+try:
+    signed_req(salt,responseKey,args,{ "url": host+url, "data": data })
+except Exception as e:
+    raise Exception(f"Signed request error ({host+url})") from e
