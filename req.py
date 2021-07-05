@@ -27,7 +27,9 @@ def signed_req(salt,responseKey,args,opt):
     header = "=".join([urllib.parse.quote_plus(e) for e in hash + uData])
     headers = { "x-r-signed": header, "x-r-response-key": responseKey }
     postReq =  urllib.request.Request(headers=headers, **opt) #method="POST",
+    print(f"req ({opt['url']}) urlopen starting")
     postResp = urllib.request.urlopen(postReq,timeout=60)
+    print(f"req ({opt['url']}) urlopen ok")
     if postResp.status!=200:
         raise Exception("req sending failed")
     resp = None
@@ -42,6 +44,7 @@ def signed_req(salt,responseKey,args,opt):
     err = resp.getheader("x-r-error-message")
     if not (err is None or err == ""):
         raise Exception("post handling failed: "+err)
+    print(f"req ({opt['url']}) ok")
 
 cmd, salt_path, body_path, host, url, *args = sys.argv
 salt = get_file(salt_path)
