@@ -560,7 +560,7 @@ my $make_kc_yml = sub{
         my @hosts = &$map($by_host,sub{ my($host)=@_; $host });
         my $disable_tls = 0; #make option when required
         my $ingress_secret_name = $$opt{ingress_secret_name};
-        my @annotations = $disable_tls ? () : (annotations=>{
+        my @tls_annotations = $disable_tls ? () : (annotations=>{
             $ingress_secret_name ? () : ("cert-manager.io/cluster-issuer" => "letsencrypt-prod"),
             "kubernetes.io/ingress.class" => "nginx",
         });
@@ -583,7 +583,11 @@ my $make_kc_yml = sub{
         @rules ? {
             apiVersion => "extensions/v1beta1",
             kind => "Ingress",
-            metadata => { name => $name, @annotations },
+            metadata => {
+                name => $name,
+                "nginx.ingress.kubernetes.io/proxy-read-timeout" => "150",
+                @tls_annotations,
+            },
             spec => { rules => \@rules, @tls },
         } : ();
     };
