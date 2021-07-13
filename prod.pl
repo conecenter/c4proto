@@ -586,6 +586,7 @@ my $make_kc_yml = sub{
                 annotations=>{
                     "kubernetes.io/ingress.class" => "nginx",
                     "nginx.ingress.kubernetes.io/proxy-read-timeout" => "150",
+                    "nginx.ingress.kubernetes.io/proxy-send-timeout" => "150",
                     @tls_annotations,
                 },
             },
