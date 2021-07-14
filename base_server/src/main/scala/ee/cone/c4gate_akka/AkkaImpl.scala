@@ -32,6 +32,7 @@ import scala.util.control.NonFatal
 
 @c4("AkkaGatewayApp") final class AkkaHttpServerConf extends AkkaConf {
   def content: String = List(
+    "akka.log-config-on-start = on",
     "akka.http.server.parsing.max-content-length = infinite",
     //"akka.http.server.parsing.max-to-strict-bytes = infinite",
     "akka.http.client.parsing.max-content-length = infinite",
