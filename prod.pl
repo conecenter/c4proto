@@ -1059,6 +1059,11 @@ my $ci_docker_push = sub{
     my $end = &$ci_measure();
     my $remote_dir = &$ci_get_remote_dir("config");
     my $local_dir = &$get_tmp_dir();
+
+    #debug
+    sy("kubectl config get-contexts");
+    sy("ls -la $ENV{KUBECONFIG}");
+
     &$secret_to_dir($kubectl,"docker",$local_dir);
     my $path = "$local_dir/config.json";
     &$put_text($path,&$encode(&$merge(map{&$decode(syf("cat $_"))} $path, $add_path)));
