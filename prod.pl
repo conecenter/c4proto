@@ -1307,7 +1307,7 @@ push @tasks, ["ci_setup", "", sub{
         my ($ls_stm,$cat) = &$snapshot_get_statements($from_comp);
         my $fn = &$snapshot_name(&$snapshot_parse_last(syf($ls_stm))) || die "bad or no snapshot name";
         my ($from_fn,$to_fn) = @$fn;
-        my @put_tasks = map{ my $to_comp = $_;
+        my @put_tasks = map{"$_ || $_ || $_"} map{ my $to_comp = $_;
             my $host = &$get_hostname($to_comp) || die;
             my $address = "https://$host";
             join " ", &$snapshot_put(&$need_auth_path($to_comp),$to_fn,$address);
