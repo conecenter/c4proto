@@ -1078,7 +1078,12 @@ my $ci_docker_push = sub{
     &$rsync_to($local_dir,$builder_comp,$remote_dir);
     &$debug_KUBECONFIG(11);
     my @config_args = ("--config"=>$remote_dir);
-    sy(&$ssh_ctl($builder_comp,"-t","docker",@config_args,"push",$_)) for @$images;
+    my @tasks = map{[&$ssh_ctl($builder_comp,"-t","docker",@config_args,"push",$_)]} @$images;
+    for my $task(@tasks){
+        &$debug_KUBECONFIG("E");
+        sy(@$task);
+        &$debug_KUBECONFIG("F");
+    }
     &$debug_KUBECONFIG(12);
     sy(&$ssh_ctl($builder_comp,"rm","-r",$remote_dir));
     &$debug_KUBECONFIG(13);
