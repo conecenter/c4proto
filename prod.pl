@@ -198,11 +198,19 @@ my $find_handler = sub{
     &$single_or_undef(map{$$_[0] eq $nm ? $$_[2] : ()} @tasks) || die "no handler: $nm,$comp";
 };
 
+#sy("kubectl config get-contexts");
+my $debug_KUBECONFIG = sub{
+    print "debug_KUBECONFIG $_[0]";
+    sy("ls -la $ENV{KUBECONFIG}");
+};
+
 my $rsync_to = sub{
     my($from_path,$comp,$to_path)=@_;
     my ($host,$port,$user) = &$get_host_port($comp);
     sy(&$remote($comp,"mkdir -p $to_path"));
+    &$debug_KUBECONFIG("A");
     sy("rsync -e 'ssh -p $port' -a --del --no-group $from_path/ $user\@$host:$to_path");
+    &$debug_KUBECONFIG("B");
 };
 
 my $rel_put_text = sub{
@@ -1052,12 +1060,6 @@ my $make_dir_with_dockerfile = sub{
     my $dir = &$get_tmp_dir();
     &$put_text("$dir/Dockerfile",$steps);
     $dir;
-};
-
-#sy("kubectl config get-contexts");
-my $debug_KUBECONFIG = sub{
-    print "debug_KUBECONFIG $_[0]";
-    sy("ls -la $ENV{KUBECONFIG}");
 };
 
 my $ci_docker_push = sub{
