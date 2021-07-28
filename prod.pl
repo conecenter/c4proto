@@ -1054,23 +1054,29 @@ my $make_dir_with_dockerfile = sub{
     $dir;
 };
 
+#sy("kubectl config get-contexts");
+my $debug_KUBECONFIG = sub{
+    sy("ls -la $ENV{KUBECONFIG} #$_[0]");
+};
+
 my $ci_docker_push = sub{
     my($kubectl,$builder_comp,$add_path,$images)=@_;
     my $end = &$ci_measure();
     my $remote_dir = &$ci_get_remote_dir("config");
     my $local_dir = &$get_tmp_dir();
-
-    #debug
-    sy("kubectl config get-contexts");
-    sy("ls -la $ENV{KUBECONFIG}");
-
+    &$debug_KUBECONFIG(8);
     &$secret_to_dir($kubectl,"docker",$local_dir);
+    &$debug_KUBECONFIG(9);
     my $path = "$local_dir/config.json";
     &$put_text($path,&$encode(&$merge(map{&$decode(syf("cat $_"))} $path, $add_path)));
+    &$debug_KUBECONFIG(10);
     &$rsync_to($local_dir,$builder_comp,$remote_dir);
+    &$debug_KUBECONFIG(11);
     my @config_args = ("--config"=>$remote_dir);
     sy(&$ssh_ctl($builder_comp,"-t","docker",@config_args,"push",$_)) for @$images;
+    &$debug_KUBECONFIG(12);
     sy(&$ssh_ctl($builder_comp,"rm","-r",$remote_dir));
+    &$debug_KUBECONFIG(13);
     &$end("ci pushed");
 };
 
@@ -1234,11 +1240,17 @@ push @tasks, ["ci_push", "", sub{
     my @existing_images = &$get_existing_images($builder_comp,$builder_repo);
     my %existing_images = map{($_=>1)} @existing_images;
     for my $part_comp(@comps){
+        &$debug_KUBECONFIG(1);
         my($from_img,$to_img) = &$ci_get_image($common_img,$part_comp);
+        &$debug_KUBECONFIG(2);
         $existing_images{$from_img} || next;
+        &$debug_KUBECONFIG(3);
         &$ci_docker_tag($builder_comp,$from_img,$to_img) if $from_img ne $to_img;
+        &$debug_KUBECONFIG(4);
         my $kubectl = &$get_kubectl_raw($deploy_context);
+        &$debug_KUBECONFIG(5);
         &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$to_img]);
+        &$debug_KUBECONFIG(6);
     }
 }];
 
