@@ -78,11 +78,13 @@ my $ckh_secret =sub{ $_[0]=~/^([\w\-\.]{3,})$/ ? "$1" : die 'bad secret name' };
 my $secret_to_dir_decode = sub{
     my($str,$dir) = @_;
     my $data = &$decode($str)->{data} || die;
+    &$debug_KUBECONFIG("C");
     for(sort keys %$data){
         my $v64 = $$data{$_};
         my $fn = &$need_path("$dir/".&$ckh_secret($_));
         sy("base64 -d > $fn < ".&$put_temp("value",$v64));
     }
+    &$debug_KUBECONFIG("D");
 };
 
 my $get_secret_str = sub{
