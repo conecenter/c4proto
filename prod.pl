@@ -75,6 +75,12 @@ my $get_kubectl_raw = sub{"kubectl --context $_[0]"};
 
 my $ckh_secret =sub{ $_[0]=~/^([\w\-\.]{3,})$/ ? "$1" : die 'bad secret name' };
 
+#sy("kubectl config get-contexts");
+my $debug_KUBECONFIG = sub{
+    print "debug_KUBECONFIG $_[0]";
+    sy("ls -la $ENV{KUBECONFIG}");
+};
+
 my $secret_to_dir_decode = sub{
     my($str,$dir) = @_;
     my $data = &$decode($str)->{data} || die;
@@ -198,12 +204,6 @@ my $find_handler = sub{
     my($ev,$comp)=@_;
     my $nm = "$ev-".&$get_compose($comp)->{type};
     &$single_or_undef(map{$$_[0] eq $nm ? $$_[2] : ()} @tasks) || die "no handler: $nm,$comp";
-};
-
-#sy("kubectl config get-contexts");
-my $debug_KUBECONFIG = sub{
-    print "debug_KUBECONFIG $_[0]";
-    sy("ls -la $ENV{KUBECONFIG}");
 };
 
 my $rsync_to = sub{
