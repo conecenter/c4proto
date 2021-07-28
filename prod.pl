@@ -1056,7 +1056,8 @@ my $make_dir_with_dockerfile = sub{
 
 #sy("kubectl config get-contexts");
 my $debug_KUBECONFIG = sub{
-    sy("ls -la $ENV{KUBECONFIG} #$_[0]");
+    print "debug_KUBECONFIG $_[0]";
+    sy("ls -la $ENV{KUBECONFIG}");
 };
 
 my $ci_docker_push = sub{
