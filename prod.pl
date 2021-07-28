@@ -1134,14 +1134,14 @@ my $ci_build = sub{
     my $handle_aggr = sub{
         my($aggr_tag)=@_;
         my $steps = [&$get_build_steps("1",$aggr_tag)];
-        &$build_derived($common_img,$steps,"$common_img.$aggr_tag.aggr");
+        my $aggr_img = "$common_img.$aggr_tag.aggr";
+        &$build_derived($common_img,$steps,$aggr_img);
         for my $proj_tag(@{$$tag_aggr_rules{aggr2proj}{$aggr_tag} || [$aggr_tag]}){
             my $sb_steps = [
-                @$steps,
                 "ENV C4CI_BASE_TAG_ENV=$proj_tag",
                 "ENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main",
             ];
-            &$build_derived($common_img,$sb_steps,"$common_img.$proj_tag.sb");
+            &$build_derived($aggr_img,$sb_steps,"$common_img.$proj_tag.sb");
         }
     };
     my $handle_fin = sub{
