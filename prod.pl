@@ -560,10 +560,8 @@ my $make_kc_yml = sub{
         my @hosts = &$map($by_host,sub{ my($host)=@_; $host });
         my $disable_tls = 0; #make option when required
         my $ingress_secret_name = $$opt{ingress_secret_name};
-        my @annotations = $disable_tls ? () : (annotations=>{
-            $ingress_secret_name ? () : ("cert-manager.io/cluster-issuer" => "letsencrypt-prod"),
-            "kubernetes.io/ingress.class" => "nginx",
-        });
+        my @tls_annotations = $disable_tls || $ingress_secret_name ? () :
+            ("cert-manager.io/cluster-issuer" => "letsencrypt-prod");
         my @tls = $disable_tls ? () : (tls=>[{
             hosts => \@hosts,
             secretName => $ingress_secret_name || "$name-tls",
@@ -583,7 +581,15 @@ my $make_kc_yml = sub{
         @rules ? {
             apiVersion => "extensions/v1beta1",
             kind => "Ingress",
-            metadata => { name => $name, @annotations },
+            metadata => {
+                name => $name,
+                annotations=>{
+                    "kubernetes.io/ingress.class" => "nginx",
+                    "nginx.ingress.kubernetes.io/proxy-read-timeout" => "150",
+                    "nginx.ingress.kubernetes.io/proxy-send-timeout" => "150",
+                    @tls_annotations,
+                },
+            },
             spec => { rules => \@rules, @tls },
         } : ();
     };
@@ -1053,6 +1059,11 @@ my $ci_docker_push = sub{
     my $end = &$ci_measure();
     my $remote_dir = &$ci_get_remote_dir("config");
     my $local_dir = &$get_tmp_dir();
+
+    #debug
+    sy("kubectl config get-contexts");
+    sy("ls -la $ENV{KUBECONFIG}");
+
     &$secret_to_dir($kubectl,"docker",$local_dir);
     my $path = "$local_dir/config.json";
     &$put_text($path,&$encode(&$merge(map{&$decode(syf("cat $_"))} $path, $add_path)));
@@ -1300,7 +1311,7 @@ push @tasks, ["ci_setup", "", sub{
         my ($ls_stm,$cat) = &$snapshot_get_statements($from_comp);
         my $fn = &$snapshot_name(&$snapshot_parse_last(syf($ls_stm))) || die "bad or no snapshot name";
         my ($from_fn,$to_fn) = @$fn;
-        my @put_tasks = map{ my $to_comp = $_;
+        my @put_tasks = map{"$_ || $_ || $_"} map{ my $to_comp = $_;
             my $host = &$get_hostname($to_comp) || die;
             my $address = "https://$host";
             join " ", &$snapshot_put(&$need_auth_path($to_comp),$to_fn,$address);
