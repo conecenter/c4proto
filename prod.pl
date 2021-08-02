@@ -75,22 +75,14 @@ my $get_kubectl_raw = sub{"kubectl --context $_[0]"};
 
 my $ckh_secret =sub{ $_[0]=~/^([\w\-\.]{3,})$/ ? "$1" : die 'bad secret name' };
 
-#sy("kubectl config get-contexts");
-my $debug_KUBECONFIG = sub{
-    print "debug_KUBECONFIG $_[0]";
-    sy("ls -la $ENV{KUBECONFIG}");
-};
-
 my $secret_to_dir_decode = sub{
     my($str,$dir) = @_;
     my $data = &$decode($str)->{data} || die;
-    &$debug_KUBECONFIG("C");
     for(sort keys %$data){
         my $v64 = $$data{$_};
         my $fn = &$need_path("$dir/".&$ckh_secret($_));
         sy("base64 -d > $fn < ".&$put_temp("value",$v64));
     }
-    &$debug_KUBECONFIG("D");
 };
 
 my $get_secret_str = sub{
@@ -210,9 +202,7 @@ my $rsync_to = sub{
     my($from_path,$comp,$to_path)=@_;
     my ($host,$port,$user) = &$get_host_port($comp);
     sy(&$remote($comp,"mkdir -p $to_path"));
-    &$debug_KUBECONFIG("A");
     sy("rsync -e 'ssh -p $port' -a --del --no-group $from_path/ $user\@$host:$to_path");
-    &$debug_KUBECONFIG("B");
 };
 
 my $rel_put_text = sub{
@@ -1069,24 +1059,16 @@ my $ci_docker_push = sub{
     my $end = &$ci_measure();
     my $remote_dir = &$ci_get_remote_dir("config");
     my $local_dir = &$get_tmp_dir();
-    &$debug_KUBECONFIG(8);
     &$secret_to_dir($kubectl,"docker",$local_dir);
-    &$debug_KUBECONFIG(9);
     my $path = "$local_dir/config.json";
     &$put_text($path,&$encode(&$merge(map{&$decode(syf("cat $_"))} $path, $add_path)));
-    &$debug_KUBECONFIG(10);
     &$rsync_to($local_dir,$builder_comp,$remote_dir);
-    &$debug_KUBECONFIG(11);
     my @config_args = ("--config"=>$remote_dir);
     my @tasks = map{[&$ssh_ctl($builder_comp,"-t","docker",@config_args,"push",$_)]} @$images;
     for my $task(@tasks){
-        &$debug_KUBECONFIG("E");
         sy(@$task);
-        &$debug_KUBECONFIG("F");
     }
-    &$debug_KUBECONFIG(12);
     sy(&$ssh_ctl($builder_comp,"rm","-r",$remote_dir));
-    &$debug_KUBECONFIG(13);
     &$end("ci pushed");
 };
 
@@ -1250,17 +1232,11 @@ push @tasks, ["ci_push", "", sub{
     my @existing_images = &$get_existing_images($builder_comp,$builder_repo);
     my %existing_images = map{($_=>1)} @existing_images;
     for my $part_comp(@comps){
-        &$debug_KUBECONFIG(1);
         my($from_img,$to_img) = &$ci_get_image($common_img,$part_comp);
-        &$debug_KUBECONFIG(2);
         $existing_images{$from_img} || next;
-        &$debug_KUBECONFIG(3);
         &$ci_docker_tag($builder_comp,$from_img,$to_img) if $from_img ne $to_img;
-        &$debug_KUBECONFIG(4);
         my $kubectl = &$get_kubectl_raw($deploy_context);
-        &$debug_KUBECONFIG(5);
         &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$to_img]);
-        &$debug_KUBECONFIG(6);
     }
 }];
 
