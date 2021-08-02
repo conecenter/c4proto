@@ -109,3 +109,7 @@ push @tasks, ["cert","$composes_txt [hostname]",sub{
   ));
   sy(&$remote($comp,"docker exec $comp\_https_1 kill -s HUP 1 || docker restart $comp\_https_1"));
 }];
+
+frps:
+        vhost_http_port => $local_http_port,
+        vhost_https_port => $local_https_port,

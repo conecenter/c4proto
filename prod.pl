@@ -320,9 +320,6 @@ push @tasks, ["pods_del","$composes_txt",sub{
 
 #### composer
 
-my $vhost_http_port = "80";
-my $vhost_https_port = "443";
-
 my %merge;
 my $merge = sub{&{$merge{join "-",map{ref}@_}||sub{$_[$#_]}}};
 $merge{"HASH-HASH"} = sub{
@@ -1586,29 +1583,21 @@ push @tasks, ["up-kc_host", "", sub{ # the last multi container kc
 
 push @tasks, ["up-frps","",sub{
     my($comp)=@_;
-    my $conf = &$get_compose($comp);
-    my $ext_ip = $$conf{external_ip} || die "no external_ip";
     my $img = &$make_frp_image($comp);
     my %auth = &$get_auth($comp);
     my $token = $auth{frps_token} || die "no frps_token in $comp";
-    my $local_http_port = 1080;
-    my $local_https_port = 1443;
     my $conf_content = &$to_ini_file([common=>[
         token=>$token,
         dashboard_addr => "0.0.0.0",
         dashboard_port => "7500",
         dashboard_user => "cone",
         dashboard_pwd => $token,
-        vhost_http_port => $local_http_port,
-        vhost_https_port => $local_https_port,
     ]]);
     my $options = {
         image => $img,
         C4FRPS_INI => "/c4conf/frps.ini",
         "port:7000:7000" => "",
         "port:7500:7500" => "",
-        "port:$ext_ip:$vhost_https_port:$local_https_port" => "",
-        "port:$ext_ip:$vhost_http_port:$local_http_port" => "",
         @req_small,
     };
     my $from_path = &$get_tmp_dir();
