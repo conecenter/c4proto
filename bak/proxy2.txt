@@ -1,0 +1,111 @@
+
+my $mk_to_cfg = sub{qq{
+global
+  tune.ssl.default-dh-param 2048
+  log "logger:514" local0
+defaults
+  timeout connect 5s
+  timeout client  3d
+  timeout server  3d
+  mode tcp
+  option tcplog
+  log global
+}};
+
+my $mk_to_http = sub{
+    my($external_ip)=@_;
+    &$mk_to_cfg().join "\n",
+        "frontend fe80",
+        "  mode http",
+        "  bind :80",
+        "  acl a_letsencrypt path_beg /.well-known/acme-challenge/",
+        "  use_backend beh_letsencrypt if a_letsencrypt",
+        "  redirect scheme https if !a_letsencrypt",
+        "backend beh_letsencrypt",
+        "  mode http",
+        "  server s_letsencrypt $external_ip:8080";
+};
+
+my $mk_to_https = sub{
+    my($ts,$internal_src)=@_;
+    &$mk_to_cfg().join "\n",
+        "frontend fe443",
+        "  bind :443 ssl crt-list /etc/letsencrypt/haproxy/list.txt",
+        "  acl internal_src src $internal_src",
+        (map{"  use_backend be_$$_[0] if internal_src { ssl_fc_sni -m dom $$_[0] }"}@$ts),
+        (map{("backend be_$$_[0]", "  server s_$$_[0] $$_[1]")}@$ts);
+
+};
+
+my $mk_to_yml = sub{
+my($external_ip)=@_;
+qq{
+services:
+  https:
+    image: "haproxy:1.7"
+    restart: unless-stopped
+    volumes:
+    - "./https.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro"
+    - "certs:/etc/letsencrypt:ro"
+    ports:
+    - "$external_ip:443:443"
+  http:
+    image: "haproxy:1.7"
+    restart: unless-stopped
+    volumes:
+    - "./http.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro"
+    ports:
+    - "$external_ip:80:80"
+  logger:
+    image: c4logger
+    restart: unless-stopped
+    command: /usr/sbin/syslog-ng -F -f /syslog-ng.conf
+  certbot:
+    image: c4certbot
+    restart: unless-stopped
+    command: sh -c 'certbot renew --preferred-challenges http && sleep 1d'
+    volumes:
+    - "certs:/etc/letsencrypt"
+    ports:
+    - "$external_ip:8080:80"
+version: '3.2'
+volumes:
+  certs: {}
+};
+};#$to_ssl_host:
+
+push @tasks, ["up-proxy2","",sub{
+    my($comp)=@_;
+    my $conf = &$get_compose($comp);
+    my $external_ip  = $$conf{external_ip} || die "no external_ip";
+    my $internal_src = $$conf{internal_src} || die "internal_src";
+    my $yml_str = &$mk_to_yml($external_ip);
+    my $from_path = &$get_tmp_dir();
+    my $put = &$rel_put_text($from_path);
+    my @pass = &$map($conf,sub{ my($k,$v)=@_;
+        $k=~/^pass:(.+)$/ ? [$1=>$v] : ()
+    });
+    &$put("docker-compose.yml",$yml_str);
+    &$put("http.cfg",&$mk_to_http($external_ip));
+    &$put("https.cfg",&$mk_to_https(\@pass,$internal_src));
+    &$sync_up($comp,$from_path,"#!/bin/bash\ndocker-compose up -d --remove-orphans --force-recreate");
+}];
+
+push @tasks, ["cert","$composes_txt [hostname]",sub{
+  my($comp,$nm)=@_;
+  &$ssh_add();
+  my $conf = &$get_compose($comp);
+  my $cert_mail = $$conf{cert_mail} || die;
+  my $exec = sub{&$remote($comp,"docker exec -i $comp\_certbot_1 sh").' < '.&$put_temp(@_)};
+  sy(&$exec("cert-only.sh","certbot certonly --standalone -n --email '$cert_mail' --agree-tos -d $nm")) if defined $nm;
+  my $live = "/etc/letsencrypt/live";
+  my $ha = "/etc/letsencrypt/haproxy";
+  my @hosts = sort{$a cmp $b} syf(&$exec("cert-list.sh","ls $live"))=~/(\S+)/g;
+  sy(&$exec("cert-join.sh",join' && ',
+    "mkdir -p $ha",
+    (map{"cat $live/$_/fullchain.pem $live/$_/privkey.pem > $ha/$_.pem"} @hosts),
+    "> $ha/list.txt",
+    (map{"echo $ha/$_.pem >> $ha/list.txt"} @hosts),
+  ));
+  sy(&$remote($comp,"docker exec $comp\_https_1 kill -s HUP 1 || docker restart $comp\_https_1"));
+}];
