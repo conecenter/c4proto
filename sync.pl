@@ -78,7 +78,7 @@ my $sync0 = sub{
         sy("$to_pre 'cd $to_dir && cat > $remover_fn' < ".&$put_temp(remover=>&$lines(
             q[for(<STDIN>){],
             q[  chomp;],
-            q[  next if -e $_;],
+            q[  next if !-e $_;],
             q[  print "removing $_\n";],
             q[  unlink $_ or die "can not remove";],
             q[}],
