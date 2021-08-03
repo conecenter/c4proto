@@ -3,6 +3,7 @@ use strict;
 use JSON::XS;
 use POSIX ":sys_wait_h";
 
+sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 sub syf{ my $res = scalar `$_[0]`; print "$_[0]\n$res"; $res }
 my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
@@ -110,12 +111,50 @@ my $get_debug_ip = sub{
     "127.1.".(($pid>>8) & 0xFF).".".($pid & 0xFF);
 };
 
+my $remake = sub{
+    my($build_dir,$droll) = @_;
+    my $arg = $ENV{C4CI_BASE_TAG_ENV} || die "no C4CI_BASE_TAG_ENV";
+    my $tmp = "$build_dir/.bloop/c4";
+    my $to = &$get_text_or_empty("$tmp/tag.$arg.to");
+    my ($nm,$mod,$cl) = $to=~/^(\w+)\.(.+)\.(\w+)$/ ? ($1,"$1.$2","$2.$3") : die "[$to]";
+    so("cd $build_dir && perl $tmp/compile.pl $mod") and return ();
+    my $build_client = $ENV{C4STEP_BUILD_CLIENT};
+    $build_client and so("$build_client dev") and return ();
+    #
+    my $ppid = $$;
+    my $pid = fork();
+    defined $pid or die;
+    if($pid == 0){
+        my $dir = "$droll$$";
+        &$prep_empty_dir($dir);
+        my $debug_int_ip = &$get_debug_ip($$);
+        my $paths = JSON::XS->new->decode(&$get_text_or_empty("$tmp/mod.$mod.classpath.json"));
+        my $tool_opt = "-XX:+UseG1GC -XX:GCTimeRatio=1 -XX:MinHeapFreeRatio=15 -XX:MaxHeapFreeRatio=50 $ENV{JAVA_TOOL_OPTIONS}";
+        my $env = {
+            %$paths,
+            (-e "/c4/debug-components") ? (C4DEBUG_COMPONENTS => "1") : (),
+            JAVA_TOOL_OPTIONS => (-e "/c4/debug-enable") ? " -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$debug_int_ip:$debug_port $tool_opt" : $tool_opt,
+            C4ELECTOR_PROC_PATH => "/proc/$ppid",
+            C4READINESS_PATH => "$dir/c4is-ready",
+            C4STATE_TOPIC_PREFIX => $nm,
+            C4APP_CLASS => $cl,
+        };
+        &$exec_at($dir,$env,"java","ee.cone.c4actor.ServerMain");
+        die;
+    }
+    print &$colored_line(bright_yellow=>"Spawned $pid");
+    #
+    my $debug_int_ip = &$get_debug_ip($pid);
+    &$put_text("/c4/haproxy.to","$debug_int_ip:$debug_port");
+    sy("cd /c4 && supervisorctl restart proxy");
+    #
+    return ($pid);
+};
+
 my $serve_loop = sub{ &$forever(sub{
     my ($was_ver,@active_pid) = @_;
-    my $arg = $ENV{C4CI_BASE_TAG_ENV} || die "no C4CI_BASE_TAG_ENV";
     my $build_dir = $ENV{C4CI_BUILD_DIR} || die "no C4CI_BUILD_DIR";
     my $droll = "$build_dir/target/dev-rolling-";
-    my $tmp = "$build_dir/.bloop/c4";
     @active_pid = grep{
         my $res = waitpid($_, WNOHANG);
         if($res != 0){
@@ -132,44 +171,7 @@ my $serve_loop = sub{ &$forever(sub{
     my $last_ready = (grep{ -e "$droll$_/c4is-ready" } @active_pid)[-1];
     my $curr_ver = &$get_text_or_empty("$build_dir/target/gen-ver");
     #
-    if($was_ver ne $curr_ver){
-        $was_ver = $curr_ver;
-        #
-        my $to = &$get_text_or_empty("$tmp/tag.$arg.to");
-        my ($nm,$mod,$cl) = $to=~/^(\w+)\.(.+)\.(\w+)$/ ? ($1,"$1.$2","$2.$3") : die "[$to]";
-        sy("cd $build_dir && perl $tmp/compile.pl $mod");
-        my $build_client = $ENV{C4STEP_BUILD_CLIENT};
-        $build_client and sy("$build_client dev");
-        #
-        my $ppid = $$;
-        my $pid = fork();
-        defined $pid or die;
-        if(!$pid){
-            my $dir = "$droll$$";
-            &$prep_empty_dir($dir);
-            my $debug_int_ip = &$get_debug_ip($$);
-            my $paths = JSON::XS->new->decode(&$get_text_or_empty("$tmp/mod.$mod.classpath.json"));
-            my $tool_opt = "-XX:+UseG1GC -XX:GCTimeRatio=1 -XX:MinHeapFreeRatio=15 -XX:MaxHeapFreeRatio=50 $ENV{JAVA_TOOL_OPTIONS}";
-            my $env = {
-                %$paths,
-                (-e "/c4/debug-components") ? (C4DEBUG_COMPONENTS => "1") : (),
-                JAVA_TOOL_OPTIONS => (-e "/c4/debug-enable") ? " -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$debug_int_ip:$debug_port $tool_opt" : $tool_opt,
-                C4ELECTOR_PROC_PATH => "/proc/$ppid",
-                C4READINESS_PATH => "$dir/c4is-ready",
-                C4STATE_TOPIC_PREFIX => $nm,
-                C4APP_CLASS => $cl,
-            };
-            &$exec_at($dir,$env,"java","ee.cone.c4actor.ServerMain");
-            die;
-        }
-        print &$colored_line(bright_yellow=>"Spawned $pid");
-        #
-        my $debug_int_ip = &$get_debug_ip($pid);
-        &$put_text("/c4/haproxy.to","$debug_int_ip:$debug_port");
-        sy("cd /c4 && supervisorctl restart proxy");
-        #
-        push @active_pid, $pid;
-    }
+    @active_pid = (@active_pid, $was_ver eq $curr_ver ? () : &$remake($build_dir,$droll));
     my @to_kill = grep{ $last_ready ne $_ } @active_pid[0..@active_pid-2];
     if(@to_kill){
         print &$colored_line(bright_yellow=>"Killing: ".join(", ",@to_kill));

@@ -987,7 +987,7 @@ push @tasks, ["log","<pod|$composes_txt> [tail] [add]",sub{
     &$for_comp_pod($arg,sub{ my ($comp,$pod) = @_;
         my $kubectl = &$get_kubectl($comp);
         my $tail_or = ($tail+0) || 100;
-        sy(qq[$kubectl log -f $pod --tail $tail_or $add]);
+        sy(qq[$kubectl logs -f $pod --tail $tail_or $add]);
     });
 }];
 
