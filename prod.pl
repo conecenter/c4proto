@@ -1824,6 +1824,18 @@ push @tasks, ["secret_set","$composes_txt <secret-name>",sub{
     &$dir_to_secret($kubectl,$secret_name,$dir);
 }];
 
+push @tasks, ["debug","<on|off>",sub{
+    my($arg)=@_;
+    my $d_path = "/c4/debug-enable";
+    if($arg eq "on"){
+        -e $d_path or &$put_text($d_path,"");
+    }elsif($arg eq "off"){
+        -e $d_path and sy("rm $d_path");
+    }else{ die }
+    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
+    &$put_text(&$need_path("$local_dir/target/gen-ver"),time);
+}];
+
 ####
 
 &$main(@ARGV);
