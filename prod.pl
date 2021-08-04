@@ -1281,8 +1281,8 @@ my $ci_wait = sub{
 my $ci_parallel = sub{
     my @task_stm_list = @_;
     my $end = &$ci_measure();
-    my @started = map{&$start($_)} @task_stm_list;
-    &$_() for @started;
+    my $gen_dir = &$get_proto_dir();
+    sy("python3 $gen_dir/parallel.py 4 < ".&$put_temp("tasks",join "",map{"$_\n"}@task_stm_list));
     &$end("ci parallel");
 };
 
