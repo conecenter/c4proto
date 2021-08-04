@@ -15,7 +15,7 @@ def iteration(was_running, to_run):
     to_run_now   = to_run[:new_start_count]
     to_run_later = to_run[new_start_count:]
     will_running = running + [subprocess.Popen(cmd, shell=True) for cmd in to_run_now]
-    print("running: "+len(will_running)+", waiting: "+len(to_run_later))
+    print("running: "+str(len(will_running))+", waiting: "+str(len(to_run_later)))
     if len(will_running)>0 or len(to_run_later)>0:
         loop.call_later(1,iteration,will_running,to_run_later)
     else:
