@@ -826,10 +826,7 @@ my $up_consumer = sub{
     &$need_ceph($gate_comp,$from_path);
     &$make_secrets($run_comp,$from_path);
     &$need_logback($run_comp,$from_path);
-    &$put_frpc_conf($from_path,&$get_frpc_conf($run_comp));
-    ($from_path, {
-        image => $img, %consumer_options, @req_big, C4FRPC_INI => "/c4conf/frpc.ini", %$conf,
-    });
+    ($from_path, { image => $img, %consumer_options, @req_big, %$conf });
 };
 my $up_gate = sub{
     my($run_comp,$img)=@_;

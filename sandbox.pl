@@ -31,8 +31,6 @@ my $forever = sub{
     @state = &$f(@state) while 1;
 };
 
-
-my $serve_frpc = sub{ &$exec("/tools/frp/frpc", "-c", $ENV{C4FRPC_INI}||die) };
 my $serve_bloop = sub{ &$exec("bloop","server") }; #may be add: $exec_at JAVA_TOOL_OPTIONS => "-Xmx4g -Xss16m -XX:+UseG1GC",
 my $serve_sshd = sub{
     do{
@@ -67,7 +65,7 @@ my $serve_sshd = sub{
 
 my $debug_port = 5005;
 my $serve_proxy = sub{
-    my $debug_ext_address = "127.0.0.1:$debug_port";
+    my $debug_ext_address = "0.0.0.0:".($ENV{C4DEBUG_PORT} || die "no C4DEBUG_PORT");
     my $debug_int_address = &$get_text_or_empty("/c4/haproxy.to");
     $debug_ext_address && $debug_int_address or &$exec("sleep","infinity");
     my $ha_cfg_path = "/c4/haproxy.cfg";
@@ -214,12 +212,11 @@ my $init = sub{
             "stderr_logfile_maxbytes=0",
             "stdout_logfile=/dev/stdout",
             "stdout_logfile_maxbytes=0",
-        )} qw[frpc bloop sshd proxy loop history])
+        )} qw[bloop sshd proxy loop history])
     );
     &$exec("supervisord","-c","/c4/supervisord.conf")
 };
 my $cmd_map = {
-    frpc => $serve_frpc,
     bloop => $serve_bloop,
     sshd => $serve_sshd,
     proxy => $serve_proxy,
