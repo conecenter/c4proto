@@ -48,7 +48,7 @@ def query_ci_info(name):
     return read_json(path)
 
 def get_slug(info):
-    return sha256(info["env"])[0:8]
+    return "c4-"+sha256(info["env"])[0:8]
 
 def handle_deploy(mode,arg_raw,opt):
     commit = get_env("CI_COMMIT_SHA")
