@@ -1211,7 +1211,7 @@ push @tasks, ["ci_info", "", sub{
         my %res = &$ci_get_attributes(&$get_compose($_));
         %res ? \%res : ()
     } @comps;
-    &$put_text(($out_path||die), &$encode({env=>$$conf{c4env},%out,ci_parts=>\@parts}));
+    &$put_text(($out_path||die), &$encode({%out,ci_parts=>\@parts}));
 }];
 
 push @tasks, ["ci_push", "", sub{
@@ -1240,7 +1240,7 @@ push @tasks, ["ci_up", "", sub{
     &$ssh_add();
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
     my @comps = &$ci_get_compositions($env_comp);
-    my $env_name = &$mandatory_of(c4env=>&$get_compose($env_comp));
+    my $env_name = &$mandatory_of("ci:env"=>&$get_compose($env_comp));
     my $labeled = {metadata=>{labels=>{c4env=>$env_name}}};
     my $yml_str = join "\n", map{ &$encode(&$merge_list($_,$labeled)) } map{
         my $l_comp = $_;
@@ -1259,7 +1259,7 @@ push @tasks, ["ci_up", "", sub{
 push @tasks, ["ci_down","",sub{
     my($comp)=@_;
     &$ssh_add();
-    my $env_name = &$mandatory_of(c4env=>&$get_compose($comp));
+    my $env_name = &$mandatory_of("ci:env"=>&$get_compose($comp));
     my $kubectl = &$get_kubectl($comp);
     my $kinds = join ",",map{$$_[2]}@kinds;
     sy("$kubectl delete -l c4env=$env_name $kinds");

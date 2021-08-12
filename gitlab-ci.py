@@ -18,12 +18,6 @@ def get_project():
     server_url = get_env("CI_SERVER_URL")
     return gitlab.Gitlab(server_url, private_token=token).projects.get(project_id)
 
-def get_branch():
-    return get_env("CI_COMMIT_BRANCH")
-
-def get_branch_parts(branch):
-    return re.fullmatch("(\w+)/(.+)",branch).groups()
-
 def set_tag(project,tag_name,commit):
     try:
         project.tags.get(tag_name).delete()
@@ -53,18 +47,28 @@ def query_ci_info(name):
     prod(["ci_info",name,path])
     return read_json(path)
 
-def deploy(tag_name):
+def get_slug(info):
+    return sha256(info["env"])[0:8]
+
+def handle_deploy(mode,arg_raw,opt):
     commit = get_env("CI_COMMIT_SHA")
-    info = query_ci_info(tag_name)
-    slug = info["env"]
+    branch = get_env("CI_COMMIT_BRANCH")
+    project_url = get_env("CI_PROJECT_URL")
+    arg_raw_last = re.findall(r'[^/]+',arg_raw)[-1]
+    arg = re.sub(r'\W+','',arg_raw_last) #last word sha256(v)[0:5]s
+    proj_name, hint = re.fullmatch("(\w+)/(.+)",branch).groups()
+    base = f"{mode}-{arg}-{proj_name}-{opt}"
+    info = query_ci_info(f"{base}-env")
+    slug = get_slug(info)
     project = get_project()
     hostnames = [c["hostname"] for c in info["ci_parts"] if "hostname" in c]
     print("hostnames",hostnames)
+    env_group = info["env_group"]
+    tag_name = f"{env_group}/{base}/{hint}"
     environment = need_environment(project,slug)
     environment.name = tag_name
     if len(hostnames) > 0: environment.external_url = f"https://{min(hostnames)}"
     environment.save()
-    project_url = get_env("CI_PROJECT_URL")
     environment_url = f"{project_url}/-/environments/{environment.get_id()}"
     print(f"deploy environment: {environment_url}")
     set_tag(project,tag_name,commit)
@@ -72,31 +76,23 @@ def deploy(tag_name):
 def sha256(v):
     return hashlib.sha256(v.encode('utf-8')).hexdigest()
 
-def handle_test(mode,active_count):
-    job_id = get_env("CI_JOB_ID")
-    branch = get_branch()
-    proj_name, hint = get_branch_parts(branch)
-    deploy(f"{proj_name}/{mode}-{sha256(branch)[0:5]}-{job_id}-{active_count}/{hint}")
+def get_c4env_from_tag():
+    return re.findall(r'[^/]+',get_env("CI_COMMIT_TAG"))[1] + "-env"
 
-def handle_deploy(arg):
-    branch = get_branch()
-    proj_name, hint = get_branch_parts(branch)
-    deploy(f"{proj_name}/{arg}/{hint}")
+def handle_down():
+    prod(["ci_down",get_c4env_from_tag()])
 
-def handle_deploy_dev(arg):
-    dev_name = re.sub(r'\W+','',get_env("GITLAB_USER_LOGIN"))
-    branch = get_branch()
-    proj_name, hint = get_branch_parts(branch)
-    deploy(f"dev-{dev_name}/{proj_name}-{arg}/{hint}")
-
-def handle_check(name,s_slug):
+def handle_up(s_slug):
+    name = get_c4env_from_tag()
     info = query_ci_info(name)
-    f_slug = info["env"]
+    f_slug = get_slug(info)
     if s_slug != f_slug: raise Exception(f"{s_slug} != {f_slug}")
+    prod(["ci_push",name])
+    prod(["ci_up",name])
 
-
-
-def handle_qa_run(name,dir):
+def handle_qa_run(dir):
+    name = get_c4env_from_tag()
+    prod(["ci_setup",name])
     info = query_ci_info(name)
     subprocess.run(["cat",ci_info_path()]).check_returncode()
     qa_run = info["qa_run"]
@@ -132,11 +128,9 @@ def handle_qa_run(name,dir):
 
 handle = {
     "deploy": handle_deploy,
-    "deploy_dev": handle_deploy_dev,
-    "test": handle_test,
-    "check": handle_check,
+    "up": handle_up,
     "qa_run": handle_qa_run,
-#    "notify_tester": handle_notify_tester
+    "down": handle_down
 }
 
 script, act, *args = sys.argv
