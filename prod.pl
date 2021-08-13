@@ -852,6 +852,15 @@ my $up_gate = sub{
     });
 };
 
+my $up_frp_client = sub{
+    my($comp,$img)=@_;
+    my $from_path = &$get_tmp_dir();
+    &$put_frpc_conf($from_path,&$get_frpc_conf($comp));
+    ($from_path,{
+        image => $img, C4FRPC_INI => "/c4conf/frpc.ini", @req_small,
+    })
+};
+
 my $base_image_steps = sub{(
     "FROM ubuntu:18.04",
     "COPY install.pl /",
@@ -869,8 +878,29 @@ my $prod_image_steps = sub{(
     'ENV PATH=${PATH}:/tools/jdk/bin',
 )};
 
-my $dl_frp_url = "https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz";
 my $dl_node_url = "https://nodejs.org/dist/v14.15.4/node-v14.15.4-linux-x64.tar.xz";
+
+my $dl_frp_url = "https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz";
+my $make_frp_image_inner = sub{
+    my $gen_dir = &$get_proto_dir();
+    my $from_path = &$get_tmp_dir();
+    my $put = &$rel_put_text($from_path);
+    sy("cp $gen_dir/install.pl $from_path/");
+    &$put("frp.pl", join "\n",
+        '$ENV{C4FRPC_INI} and exec "/tools/frp/frpc", "-c", $ENV{C4FRPC_INI};',
+        '$ENV{C4FRPS_INI} and exec "/tools/frp/frps", "-c", $ENV{C4FRPS_INI};',
+        'die;'
+    );
+    &$put("Dockerfile", join "\n",
+        &$base_image_steps(),
+        "RUN perl install.pl apt curl ca-certificates",
+        "RUN perl install.pl curl $dl_frp_url",
+        "COPY frp.pl /",
+        "USER c4",
+        'ENTRYPOINT ["perl", "/frp.pl"]',
+    );
+    return $from_path;
+};
 
 # m  h g b z -- m-h m-b  h-g g-b b-z l-h l-g l-b l-z
 # dc:
@@ -879,6 +909,7 @@ my $dl_node_url = "https://nodejs.org/dist/v14.15.4/node-v14.15.4-linux-x64.tar.
 push @tasks, ["ci_up-consumer", "", $up_consumer];
 push @tasks, ["ci_up-gate", "", $up_gate];
 push @tasks, ["ci_up-client", "", $up_client];
+push @tasks, ["ci_up-frp_client", "", $up_frp_client];
 
 # deploy-time, conf-arity, easy-conf, restart-fail-independ -- gate|main|exch (or more, try min);
 # dc easy net -- single
@@ -1157,7 +1188,14 @@ my $ci_build = sub{
 push @tasks, ["ci_build_aggr", "", sub{ &$ci_build("aggr",@_) }];
 push @tasks, ["ci_build", "", sub{ &$ci_build("fin",@_) }];
 
-
+push @tasks, ["ci_build_frp", "", sub{
+    &$ssh_add();
+    my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
+    my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
+    my $dir = &$make_frp_image_inner();
+    my $img = "$common_img.frp.rt";
+    &$ci_docker_build($dir, $builder_comp, $img);
+}];
 
 my $get_existing_images = sub{
     my($builder_comp,$builder_repo)=@_;
@@ -1443,37 +1481,12 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
 
 my $make_frp_image = sub{
     my ($comp) = @_;
-    my $gen_dir = &$get_proto_dir();
-    my $from_path = &$get_tmp_dir();
-    my $put = &$rel_put_text($from_path);
-    sy("cp $gen_dir/install.pl $from_path/");
-    &$put("frp.pl", join "\n",
-        '$ENV{C4FRPC_INI} and exec "/tools/frp/frpc", "-c", $ENV{C4FRPC_INI};',
-        '$ENV{C4FRPS_INI} and exec "/tools/frp/frps", "-c", $ENV{C4FRPS_INI};',
-        'die;'
-    );
-    &$put("Dockerfile", join "\n",
-        &$base_image_steps(),
-        "RUN perl install.pl apt curl ca-certificates",
-        "RUN perl install.pl curl $dl_frp_url",
-        "COPY frp.pl /",
-        "USER c4",
-        'ENTRYPOINT ["perl", "/frp.pl"]',
-    );
-    return &$remote_build(''=>$comp,$from_path);
+    return &$remote_build(''=>$comp,&$make_frp_image_inner());
 };
-
-#my
 
 push @tasks, ["up-frp_client", "", sub{
     my ($comp) = @_;
-    my $img = &$make_frp_image($comp);
-    my $options = {
-        image => $img, C4FRPC_INI => "/c4conf/frpc.ini", @req_small,
-    };
-    my $from_path = &$get_tmp_dir();
-    &$put_frpc_conf($from_path,&$get_frpc_conf($comp));
-    &$wrap_deploy($comp,$from_path,$options);
+    &$wrap_deploy($comp,&$up_frp_client($comp, &$make_frp_image($comp)));
 }];
 
 push @tasks, ["up-visitor", "", sub{
