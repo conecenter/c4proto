@@ -1173,14 +1173,15 @@ my $ci_build = sub{
     };
     my $handle_fin = sub{
         my($proj_tag)=@_;
-        my $aggr_tag = &$single(@{$$tag_aggr_rules{proj2aggr}{$proj_tag}||[$proj_tag]});
+        my $aggr_tags = $$tag_aggr_rules{proj2aggr}{$proj_tag};
+        my $from_img = $aggr_tags ?
+            &$single(map{"$common_img.$_.aggr"}@$aggr_tags) : $common_img;
         my $img_pre = "$common_img.$proj_tag";
-        my $aggr_img = "$common_img.$aggr_tag.aggr";
         my $cp_steps = [
             &$get_build_steps("",$proj_tag),
             "RUN \$C4STEP_CP"
         ];
-        &$build_derived($aggr_img,$cp_steps,"$img_pre.cp");
+        &$build_derived($from_img,$cp_steps,"$img_pre.cp");
         &$ci_docker_build_result($builder_comp,"$img_pre.cp","$img_pre.rt");
     };
     my %handle = (aggr=>$handle_aggr,fin=>$handle_fin);
