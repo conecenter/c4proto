@@ -1108,6 +1108,8 @@ my $mem_repo_commits = sub{
     &$put_text(&$need_path("$dir/target/c4repo_commits"),$content);
 };
 
+my $ci_de_step = "ENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main";
+
 push @tasks, ["ci_build_common", "", sub{
     my $end = &$ci_measure();
     &$ssh_add();
@@ -1123,6 +1125,8 @@ push @tasks, ["ci_build_common", "", sub{
     &$ci_docker_build($local_dir,$builder_comp,$common_img);
     my $kubectl = &$get_kubectl_raw($deploy_context);
     &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$common_img]);
+    my $dir = &$make_dir_with_dockerfile(join"\n","FROM $common_img",$ci_de_step);
+    &$ci_docker_build($dir, $builder_comp, "$common_img.nil-def-main.de");
     &$end("ci_build_common");
 }];
 
@@ -1164,19 +1168,19 @@ my $ci_build = sub{
                 "ENV C4CI_BASE_TAG_ENV=$proj_tag",
                 "ENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main",
             ];
-            &$build_derived($aggr_img,$sb_steps,"$common_img.$proj_tag.sb");
+            &$build_derived($aggr_img,$sb_steps,"$common_img.$proj_tag.de");
         }
     };
     my $handle_fin = sub{
         my($proj_tag)=@_;
         my $aggr_tag = &$single(@{$$tag_aggr_rules{proj2aggr}{$proj_tag}||[$proj_tag]});
         my $img_pre = "$common_img.$proj_tag";
+        my $aggr_img = "$common_img.$aggr_tag.aggr";
         my $cp_steps = [
-            &$get_build_steps("1",$aggr_tag),
             &$get_build_steps("",$proj_tag),
             "RUN \$C4STEP_CP"
         ];
-        &$build_derived($common_img,$cp_steps,"$img_pre.cp");
+        &$build_derived($aggr_img,$cp_steps,"$img_pre.cp");
         &$ci_docker_build_result($builder_comp,"$img_pre.cp","$img_pre.rt");
     };
     my %handle = (aggr=>$handle_aggr,fin=>$handle_fin);
