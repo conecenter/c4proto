@@ -1362,6 +1362,14 @@ push @tasks, ["ci_setup", "", sub{
     &$end("ci_setup");
 }];
 
+push @tasks, ["ci_check", "", sub{
+    my($env_comp)=@_;
+    &$ssh_add();
+    my @comps = &$ci_get_compositions($env_comp);
+    my $kubectl = &$get_kubectl($env_comp);
+    sy("$kubectl rollout status deployments/$_") for @comps;
+}];
+
 ########
 
 my $ci_inner_opt = sub{

@@ -99,6 +99,11 @@ def handle_qa_run(dir):
     subprocess.run(["chmod","+x",f"./{qa_run}"],cwd=dir).check_returncode()
     subprocess.run([f"./{qa_run}",ci_info_path()],cwd=dir).check_returncode()
 
+def handle_check():
+    name = get_c4env_from_tag()
+    prod(["ci_check",name])
+
+
 # def get_stop_url():
 #     pipeline_id = get_env("CI_PIPELINE_ID")
 #     api_url = get_env("CI_API_V4_URL")
@@ -127,6 +132,7 @@ def handle_qa_run(dir):
 handle = {
     "deploy": handle_deploy,
     "up": handle_up,
+    "check": handle_check,
     "qa_run": handle_qa_run,
     "down": handle_down
 }
