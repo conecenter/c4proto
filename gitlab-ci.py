@@ -50,14 +50,12 @@ def query_ci_info(name):
 def get_slug(info):
     return "c4-"+sha256(info["env"])[0:8]
 
-def handle_deploy(mode,arg_raw,proj_name,opt):
+# re.findall(r'[^/]+',arg_raw)[-1]  re.sub(r'\W+','',arg_raw_last)  sha256(v)[0:5]  re.fullmatch("(\w+)/(.+)",branch).groups()
+# f"{mode}-{arg}-{proj_name}-{opt}"
+def handle_deploy(base):
     commit = get_env("CI_COMMIT_SHA")
     branch = get_env("CI_COMMIT_BRANCH")
     project_url = get_env("CI_PROJECT_URL")
-    arg_raw_last = re.findall(r'[^/]+',arg_raw)[-1]
-    arg = re.sub(r'\W+','',arg_raw_last) #last word sha256(v)[0:5]s
-    #proj_name, hint = re.fullmatch("(\w+)/(.+)",branch).groups()
-    base = f"{mode}-{arg}-{proj_name}-{opt}"
     info = query_ci_info(f"{base}-env")
     slug = get_slug(info)
     project = get_project()
