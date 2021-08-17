@@ -25,10 +25,9 @@ my $get_text_or_empty = sub{
     close FF or die;
     $res;
 };
-my $forever = sub{
-    my ($f) = @_;
-    my @state;
-    @state = &$f(@state) while 1;
+my $repeat = sub{
+    my ($f,@state) = @_;
+    @state = &$f(@state) while @state > 0;
 };
 
 my $serve_bloop = sub{ &$exec("bloop","server") }; #may be add: $exec_at JAVA_TOOL_OPTIONS => "-Xmx4g -Xss16m -XX:+UseG1GC",
@@ -149,7 +148,7 @@ my $remake = sub{
     return ($pid);
 };
 
-my $serve_loop = sub{ &$forever(sub{
+my $loop_iteration = sub{
     my ($was_ver,@active_pid) = @_;
     my $build_dir = $ENV{C4CI_BUILD_DIR} || die "no C4CI_BUILD_DIR";
     my $droll = "$build_dir/target/dev-rolling-";
@@ -177,7 +176,18 @@ my $serve_loop = sub{ &$forever(sub{
     }
     sleep 1;
     ($curr_ver,@active_pid);
-})};
+};
+
+
+my $serve_loop = sub{
+    &$repeat(sub{
+        my @st = @_;
+        so("bloop about") or return ();
+        sleep 1;
+        @st
+    },1);
+    &$repeat($loop_iteration,"");
+};
 #? say Failed
 
 ####
