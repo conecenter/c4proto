@@ -93,7 +93,7 @@ def get_deploy_jobs(config_statements):
   }
   def deploy(mode, arg, proj_name, opt):
     skipped_arg = arg if mode == "cl" else "..."
-    cond = prefix_cond(f"{proj_name}\/release" if arg == "prod" else proj_name)
+    cond = "" if proj_name == "nil" else prefix_cond(f"{proj_name}\/release" if arg == "prod" else proj_name)
     stage, needs_fun = modes[mode]
     needs = needs_fun(proj_name)
     script = [
