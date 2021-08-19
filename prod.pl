@@ -1134,7 +1134,6 @@ my $ci_build = sub{
     my($mode,$proj_tag_arg) = @_;
     my $end = &$ci_measure();
     &$ssh_add();
-    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
     my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
     #
@@ -1152,18 +1151,12 @@ my $ci_build = sub{
             "RUN eval \$C4STEP_BUILD_CLIENT"
         )
     };
-
-    my $tag_aggr_rules = &$merge_list({}, map{
-        my($k,$from,$to)=@$_;
-        $k eq 'C4TAG_AGGR' ?
-            {proj2aggr=>{$from=>[$to]},aggr2proj=>{$to=>[$from]}} : ()
-    } grep{ref} map{@$_} &$decode(syf("cat $local_dir/c4dep.main.json")));
     my $handle_aggr = sub{
-        my($aggr_tag)=@_;
+        my($aggr_tag,$proj_tags)=@_;
         my $steps = [&$get_build_steps("1",$aggr_tag)];
         my $aggr_img = "$common_img.$aggr_tag.aggr";
         &$build_derived($common_img,$steps,$aggr_img);
-        for my $proj_tag(@{$$tag_aggr_rules{aggr2proj}{$aggr_tag} || [$aggr_tag]}){
+        for my $proj_tag($proj_tags=~/([^:]+)/g){
             my $sb_steps = [
                 "ENV C4CI_BASE_TAG_ENV=$proj_tag",
                 "ENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main",
@@ -1172,10 +1165,8 @@ my $ci_build = sub{
         }
     };
     my $handle_fin = sub{
-        my($proj_tag)=@_;
-        my $aggr_tags = $$tag_aggr_rules{proj2aggr}{$proj_tag};
-        my $from_img = $aggr_tags ?
-            &$single(map{"$common_img.$_.aggr"}@$aggr_tags) : $common_img;
+        my($proj_tag,$aggr_tag)=@_;
+        my $from_img = $aggr_tag ? "$common_img.$aggr_tag.aggr" : $common_img;
         my $img_pre = "$common_img.$proj_tag";
         my $cp_steps = [
             &$get_build_steps("",$proj_tag),
