@@ -27,11 +27,11 @@ def ext(f): return lambda arg: f(*arg)
 
 ###
 
-def docker_conf(): return "python3 $$C4CI_PROTO_DIR/gitlab-docker-conf.py"
+def docker_conf(): return "python3 $C4CI_PROTO_DIR/gitlab-docker-conf.py"
 def prod(arg):
-  return [docker_conf(),f"ssh-agent perl $$C4CI_PROTO_DIR/prod.pl {arg}"]
+  return [docker_conf(),f"ssh-agent perl $C4CI_PROTO_DIR/prod.pl {arg}"]
 def handle(arg):
-  return f"python3 $$C4CI_PROTO_DIR/gitlab-ci.py {arg}"
+  return f"python3 $C4CI_PROTO_DIR/gitlab-ci.py {arg}"
 def push_rule(cond):
   return { "if": f"$CI_PIPELINE_SOURCE == \"push\" && {cond}" }
 def common_job(cond,when,stage,script):
