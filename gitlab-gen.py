@@ -84,12 +84,12 @@ def get_deploy_jobs(config_statements):
   def needs_rt(cond): return [f"{tag}.rt" for tag in cond_to_tags[cond]]
   def needs_fc(cond): return ["build-frp"]
   modes = {
-    "cl": ("deploy_client",needs_rt),
-    "sp": ("deploy_spec",needs_rt),
-    "qs": ("deploy_spec",needs_rt),
-    "qp": ("deploy_spec",needs_rt),
-    "de": ("deploy_dev",needs_de),
-    "fc": ("deploy_dev",needs_fc)
+    "cl": ("deploy_rt",needs_rt),
+    "sp": ("deploy_rt",needs_rt),
+    "qs": ("deploy_rt",needs_rt),
+    "qp": ("deploy_rt",needs_rt),
+    "de": ("deploy_de",needs_de),
+    "fc": ("deploy_de",needs_fc)
   }
   def deploy(mode, arg, proj_name, opt):
     skipped_arg = arg if mode == "cl" else "..."
@@ -135,7 +135,7 @@ def main():
   config_statements = group_map(read_json(build_path("c4dep.main.json")), lambda it: (it[0],it[1:]))
   out = {
     "variables": { "C4CI_DOCKER_CONFIG": "/tmp/c4-docker-config" },
-    "stages": ["build_replink","build_main","build_add","deploy_dev","deploy_spec","deploy_client","start","after_start","stop"],
+    "stages": ["build_replink","build_common","build_main","build_add","deploy_de","deploy_rt","start","after_start","stop"],
     "build_replink": {
       "image": {
         "name": "gcr.io/kaniko-project/executor:debug",
@@ -155,7 +155,7 @@ def main():
     },
     "build_common": {
       "rules": [push_rule("$CI_COMMIT_BRANCH")],
-      "stage": "build_main",
+      "stage": "build_common",
       "image": "$CI_REGISTRY_IMAGE/replink:v2sshk3",
       "script": [
         "export C4CI_BUILD_DIR=$CI_PROJECT_DIR",
