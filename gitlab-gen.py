@@ -52,25 +52,24 @@ def get_aggr_cond(aggr_cond_list):
 def get_build_jobs(config_statements):
   def build(cond,stage,arg):
     return common_job(f"$CI_COMMIT_BRANCH {cond}","on_success",stage,prod(arg))
+  def build_main(cond,arg):
+    return { **build(cond,"build_main",arg), "needs": ["build_common"] }
   tag_aggr_list = config_statements["C4TAG_AGGR"]
   (aggr_cond_list, aggr_to_cond) = get_aggr_cond(config_statements["C4AGGR_COND"])
   aggr_to_tags = group_map(tag_aggr_list, ext(lambda tag, aggr: (aggr,tag)))
   aggr_jobs = {
-    f"{aggr}.aggr": build(
-      prefix_cond(cond), "build_main",
-      f"ci_build_aggr {aggr} " + ":".join(aggr_to_tags[aggr])
-    )
-    for aggr, cond in aggr_cond_list
+    f"{aggr}.aggr": build_main(
+      prefix_cond(cond), f"ci_build_aggr {aggr} " + ":".join(aggr_to_tags[aggr])
+    ) for aggr, cond in aggr_cond_list
   }
   fin_jobs = {
     f"{tag}.rt": build(
       prefix_cond(aggr_to_cond[aggr]), "build_add", f"ci_build {tag} {aggr}"
-    )
-    for tag, aggr in tag_aggr_list
+    ) for tag, aggr in tag_aggr_list
   }
   return {
-    "build-def": build("","build_main","ci_build def"),
-    "build-frp": build("","build_main","ci_build_frp"),
+    "build-def": build_main("","ci_build def"),
+    "build-frp": build_main("","ci_build_frp"),
     **aggr_jobs, **fin_jobs
   }
 
@@ -93,7 +92,7 @@ def get_deploy_jobs(config_statements):
     "fc": ("deploy_dev",needs_fc)
   }
   def deploy(mode, arg, proj_name, opt):
-    key = f"{mode}-{arg}-{proj_name}-{opt}"
+    skipped_arg = arg if mode == "cl" else "..."
     cond = prefix_cond(f"{proj_name}\/release" if arg == "prod" else proj_name)
     stage, needs_fun = modes[mode]
     needs = needs_fun(proj_name)
@@ -101,9 +100,9 @@ def get_deploy_jobs(config_statements):
       "export C4SUBJ=$(perl -e 's{[^\w/]}{}g,/(\w+)$/&&print$1 for $ENV{CI_COMMIT_BRANCH}')",
       "export C4USER=$(perl -e 's{[^\w/]}{}g,/(\w+)$/&&print$1 for $ENV{GITLAB_USER_LOGIN}')",
       "env | grep C4 | sort",
-      handle(f"deploy {key}")
+      handle(f"deploy {mode}-{arg}-{proj_name}-{opt}")
     ]
-    return (key,{
+    return (f"{mode}-{skipped_arg}-{proj_name}-{opt}",{
       **common_job(f"$CI_COMMIT_BRANCH {cond}","manual",stage,script), "needs": needs
     })
   deploy_masks = \
@@ -136,7 +135,7 @@ def main():
   config_statements = group_map(read_json(build_path("c4dep.main.json")), lambda it: (it[0],it[1:]))
   out = {
     "variables": { "C4CI_DOCKER_CONFIG": "/tmp/c4-docker-config" },
-    "stages": ["build_replink","build_common","build_main","build_add","deploy_dev","deploy_spec","deploy_client","start","after_start","stop"],
+    "stages": ["build_replink","build_main","build_add","deploy_dev","deploy_spec","deploy_client","start","after_start","stop"],
     "build_replink": {
       "image": {
         "name": "gcr.io/kaniko-project/executor:debug",
@@ -156,7 +155,7 @@ def main():
     },
     "build_common": {
       "rules": [push_rule("$CI_COMMIT_BRANCH")],
-      "stage": "build_common",
+      "stage": "build_main",
       "image": "$CI_REGISTRY_IMAGE/replink:v2sshk3",
       "script": [
         "export C4CI_BUILD_DIR=$CI_PROJECT_DIR",
