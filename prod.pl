@@ -1261,10 +1261,13 @@ push @tasks, ["ci_push", "", sub{
     my %existing_images = map{($_=>1)} @existing_images;
     for my $part_comp(@comps){
         my($from_img,$to_img) = &$ci_get_image($common_img,$part_comp);
-        $existing_images{$from_img} || next;
-        &$ci_docker_tag($builder_comp,$from_img,$to_img) if $from_img ne $to_img;
-        my $kubectl = &$get_kubectl_raw($deploy_context);
-        &$ci_docker_push($kubectl,$builder_comp,$docker_conf_path,[$to_img]);
+        if($existing_images{$from_img}) {
+            &$ci_docker_tag($builder_comp, $from_img, $to_img) if $from_img ne $to_img;
+            my $kubectl = &$get_kubectl_raw($deploy_context);
+            &$ci_docker_push($kubectl, $builder_comp, $docker_conf_path, [ $to_img ]);
+        } else {
+            print "image does not exist ($from_img) => ($to_img)\n";
+        }
     }
 }];
 
