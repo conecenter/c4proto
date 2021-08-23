@@ -106,7 +106,7 @@ def get_deploy_jobs(config_statements):
       **common_job(f"$CI_COMMIT_BRANCH {cond}","manual",stage,script), "needs": needs
     })
   deploy_masks = \
-    [re.findall(r'[^\-]+',env) for env, in config_statements["C4DEPLOY"]]
+    [re.findall(r'[^\-]+',env) for env,dummy in config_statements["C4DEPLOY"]]
   return dict([
     deploy(mode, arg, proj_name, opt)
     for mode, arg, proj_mask, opt in deploy_masks

@@ -340,5 +340,4 @@ do{
         symlink $f, &$need_path($l) or die "$!: $f, $l";
     },@tasks);
 };
-
 &$put_text(&$need_path("$src_dir/target/gen-ver"),time);

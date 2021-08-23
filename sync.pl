@@ -122,7 +122,7 @@ push @tasks, ["back","",sub{
     my($dir)=@_;
     my $remote_dir = &$request_remote_dir();
     my $remote_pre = &$get_remote_pre();
-    my %tasks = map{($_=>1)} grep{/\bc4gen\b/} &$find($remote_pre,"$remote_dir/",$prune);
+    my %tasks = map{($_=>1)} grep{/\bc4gen\b/ || /-generated\./} &$find($remote_pre,"$remote_dir/",$prune);
     &$sync0($dir,$remote_dir,1,\%tasks);
 }];
 push @tasks, ["run","",sub{
