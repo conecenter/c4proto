@@ -49,27 +49,33 @@ def get_aggr_cond(aggr_cond_list):
   aggr_to_cond = { aggr: one(*cond_list) for aggr, cond_list in aggr_to_cond_list.items() }
   return (aggr_cond_list, aggr_to_cond)
 
+build_common_name = "build common"
+build_gate_name = "build gate"
+build_frp_name = "build frp"
+def build_aggr_name(v): return f"{v}.aggr"
+def build_rt_name(v): return f"{v}.rt"
+
 def get_build_jobs(config_statements):
   def build(cond,stage,arg):
     return common_job(f"$CI_COMMIT_BRANCH {cond}","on_success",stage,prod(arg))
   def build_main(cond,arg):
-    return { **build(cond,"build_main",arg), "needs": ["build_common"] }
+    return { **build(cond,"build_main",arg), "needs": [build_common_name] }
   tag_aggr_list = config_statements["C4TAG_AGGR"]
   (aggr_cond_list, aggr_to_cond) = get_aggr_cond(config_statements["C4AGGR_COND"])
   aggr_to_tags = group_map(tag_aggr_list, ext(lambda tag, aggr: (aggr,tag)))
   aggr_jobs = {
-    f"{aggr}.aggr": build_main(
+    build_aggr_name(aggr): build_main(
       prefix_cond(cond), f"ci_build_aggr {aggr} " + ":".join(aggr_to_tags[aggr])
     ) for aggr, cond in aggr_cond_list
   }
   fin_jobs = {
-    f"{tag}.rt": build(
+    build_rt_name(tag): build(
       prefix_cond(aggr_to_cond[aggr]), "build_add", f"ci_build {tag} {aggr}"
     ) for tag, aggr in tag_aggr_list
   }
   return {
-    "build-def": build_main("","ci_build def"),
-    "build-frp": build_main("","ci_build_frp"),
+    build_gate_name: build_main("","ci_build def"),
+    build_frp_name: build_main("","ci_build_frp"),
     **aggr_jobs, **fin_jobs
   }
 
@@ -79,63 +85,56 @@ def get_deploy_jobs(config_statements):
   cond_to_aggr = group_map(aggr_cond_list, ext(lambda aggr, cond: (cond,aggr)))
   cond_to_tags = group_map(tag_aggr_list, ext(lambda tag, aggr: (aggr_to_cond[aggr], tag)))
   cond_list = sorted(set(cond for aggr, cond in aggr_cond_list))
-  print(cond_list)
-  def needs_de(cond): return ["build-def"] if cond == "nil" else [f"{aggr}.aggr" for aggr in cond_to_aggr[cond]]
-  def needs_rt(cond): return [f"{tag}.rt" for tag in cond_to_tags[cond]]
-  def needs_fc(cond): return ["build-frp"]
-  modes = {
-    "cl": ("deploy_rt",needs_rt),
-    "sp": ("deploy_rt",needs_rt),
-    "qs": ("deploy_rt",needs_rt),
-    "qp": ("deploy_rt",needs_rt),
-    "de": ("deploy_de",needs_de),
-    "fc": ("deploy_de",needs_fc)
-  }
-  def deploy(mode, arg, proj_name, opt):
-    skipped_arg = arg if mode == "cl" else "..."
-    cond = "" if proj_name == "nil" else prefix_cond(f"{proj_name}\/release" if arg == "prod" else proj_name)
-    stage, needs_fun = modes[mode]
-    needs = needs_fun(proj_name)
-    script = [
-      "export C4SUBJ=$(perl -e 's{[^\w/]}{}g,/(\w+)$/&&print$1 for $ENV{CI_COMMIT_BRANCH}')",
-      "export C4USER=$(perl -e 's{[^\w/]}{}g,/(\w+)$/&&print$1 for $ENV{GITLAB_USER_LOGIN}')",
-      "env | grep C4 | sort",
-      handle(f"deploy {mode}-{arg}-{proj_name}-{opt}")
-    ]
-    return (f"{mode}-{skipped_arg}-{proj_name}-{opt}",{
-      **common_job(f"$CI_COMMIT_BRANCH {cond}","manual",stage,script), "needs": needs
-    })
-  deploy_masks = \
-    [re.findall(r'[^\-]+',env) for env,dummy in config_statements["C4DEPLOY"]]
-  return dict([
-    deploy(mode, arg, proj_name, opt)
-    for mode, arg, proj_mask, opt in deploy_masks
+  def needs_de(cond): return [build_gate_name] + ([] if cond == "nil" else [build_aggr_name(aggr) for aggr in cond_to_aggr[cond]])
+  def needs_rt(cond): return [build_gate_name] + [build_rt_name(tag) for tag in cond_to_tags[cond]]
+  def needs_fc(cond): return [build_frp_name]
+  return {
+    caption_mask.replace("$C4PROJ",proj_name).replace("$C4MODE",mode): {
+      **common_job(
+        f"$CI_COMMIT_BRANCH {cond}","manual",stage,
+        [
+          "export C4SUBJ=$(perl -e 's{[^\w/]}{}g,/(\w+)$/&&print$1 for $ENV{CI_COMMIT_BRANCH}')",
+          "export C4USER=$(perl -e 's{[^\w/]}{}g,/(\w+)$/&&print$1 for $ENV{GITLAB_USER_LOGIN}')",
+          "env | grep C4 | sort",
+          handle(f"deploy {mode}-{arg}-{proj_name}-{opt}")
+        ]
+      ),
+      "needs": needs_fun(proj_name)
+    }
+    for env_mask, caption_mask in config_statements["C4DEPLOY"]
+    for mode_mask, arg, proj_mask, opt in [re.findall(r'[^\-]+',env_mask)]
     for proj_name in (cond_list if proj_mask == "$C4PROJ" else [proj_mask])
-  ])
+    for cond in ["" if proj_name == "nil" else prefix_cond(f"{proj_name}\/release" if arg == "prod" else proj_name)]
+    for mode, stage, needs_fun in (
+      [("de","deploy_de",needs_de),("fc","deploy_de",needs_fc)] if mode_mask == "de"
+      else [(mode_mask,"deploy_rt",needs_rt)]
+    )
+  }
 
 def get_env_jobs():
-  cond_qa = "$CI_COMMIT_TAG =~ /\\/(qs|qp)-/"
-  cond_not_qa = "$CI_COMMIT_TAG =~ /\\/(de|sp|cl)-/"
+  cond_qa = "$CI_COMMIT_TAG =~ /\\/qa-/"
   def stop(cond,when,needs): return {
     **common_job(cond,when,"stop",[handle("down")]), "needs": needs,
     "environment": { "name": "$CI_COMMIT_TAG", "action": "stop" }
   }
+  start_name = "start"
+  testing_name = "testing"
   return {
-    "start": {
+    start_name: {
       **common_job("$CI_COMMIT_TAG","on_success","start",[docker_conf(),handle("up $CI_ENVIRONMENT_SLUG")]),
       "environment": { "name": "$CI_COMMIT_TAG", "action": "start", "on_stop": "stop" }
     },
-    "testing": common_job(cond_qa,"on_success","after_start",[handle("qa_run /c4/qa")]),
-    "check": common_job(cond_not_qa,"on_success","after_start",[handle("check")]),
-    "stop": stop("$CI_COMMIT_TAG","manual",["start"]),
-    "auto-stop": stop(cond_qa,"on_success",["testing"])
+    testing_name: common_job(cond_qa,"on_success","testing",[handle("qa_run /c4/qa")]),
+    "check": common_job("$CI_COMMIT_TAG","on_success","check",[handle("check")]),
+    "stop": stop("$CI_COMMIT_TAG","manual",[start_name]),
+    "auto-stop": stop(cond_qa,"on_success",[testing_name])
   }
 
 def main():
   config_statements = group_map(read_json(build_path("c4dep.main.json")), lambda it: (it[0],it[1:]))
   out = {
     "variables": { "C4CI_DOCKER_CONFIG": "/tmp/c4-docker-config" },
-    "stages": ["build_replink","build_common","build_main","build_add","deploy_de","deploy_rt","start","after_start","stop"],
+    "stages": ["build_replink","build_common","build_main","build_add","deploy_de","deploy_rt","start","check","testing","stop"],
     "build_replink": {
       "image": {
         "name": "gcr.io/kaniko-project/executor:debug",
@@ -153,7 +152,7 @@ def main():
         "/kaniko/executor --context $CI_PROJECT_DIR/replink_extra --dockerfile $CI_PROJECT_DIR/replink_extra/Dockerfile --destination $CI_REGISTRY_IMAGE/replink:v2sshk3"
       ]
     },
-    "build_common": {
+    build_common_name: {
       "rules": [push_rule("$CI_COMMIT_BRANCH")],
       "stage": "build_common",
       "image": "$CI_REGISTRY_IMAGE/replink:v2sshk3",
