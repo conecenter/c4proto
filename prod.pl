@@ -1131,7 +1131,7 @@ push @tasks, ["ci_build_common", "", sub{
 }];
 
 my $ci_build = sub{
-    my($mode,$proj_tag_arg) = @_;
+    my($mode,@args) = @_;
     my $end = &$ci_measure();
     &$ssh_add();
     my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
@@ -1151,12 +1151,17 @@ my $ci_build = sub{
             "RUN eval \$C4STEP_BUILD_CLIENT"
         )
     };
+    my $chk_tag = sub{
+        $_[0]=~/^(\w[\w\-]*\w)$/ ? "$1" : die "bad image postfix ($_[0])"
+    };
     my $handle_aggr = sub{
-        my($aggr_tag,$proj_tags)=@_;
+        my($aggr_tag_arg,$proj_tags)=@_;
+        my $aggr_tag = &$chk_tag($aggr_tag_arg);
         my $steps = [&$get_build_steps("1",$aggr_tag)];
         my $aggr_img = "$common_img.$aggr_tag.aggr";
         &$build_derived($common_img,$steps,$aggr_img);
-        for my $proj_tag($proj_tags=~/([^:]+)/g){
+        for($proj_tags=~/([^:]+)/g){
+            my $proj_tag = &$chk_tag($_);
             my $sb_steps = [
                 "ENV C4CI_BASE_TAG_ENV=$proj_tag",
                 "ENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main",
@@ -1165,7 +1170,7 @@ my $ci_build = sub{
         }
     };
     my $handle_fin = sub{
-        my($proj_tag,$aggr_tag)=@_;
+        my($proj_tag,$aggr_tag) = map{&$chk_tag($_)} @_;
         my $from_img = $aggr_tag ? "$common_img.$aggr_tag.aggr" : $common_img;
         my $img_pre = "$common_img.$proj_tag";
         my $cp_steps = [
@@ -1176,8 +1181,7 @@ my $ci_build = sub{
         &$ci_docker_build_result($builder_comp,"$img_pre.cp","$img_pre.rt");
     };
     my %handle = (aggr=>$handle_aggr,fin=>$handle_fin);
-    my $proj_tag = $proj_tag_arg=~/^(\w[\w\-]*\w)$/ ? $1 : die "bad image postfix ($proj_tag_arg)";
-    &{$handle{$mode}}($proj_tag);
+    &{$handle{$mode}}(@args);
     &$end("ci_build");
 };
 
