@@ -53,7 +53,10 @@ build_common_name = "build common"
 build_gate_name = "build gate"
 build_frp_name = "build frp"
 def build_aggr_name(v): return f"{v}.aggr"
-def build_rt_name(v): return f"{v}.rt"
+def build_rt_name(v): return f"b {v}.rt"
+stage_build_rt = "build_add"
+stage_deploy_de = "deploy_de"
+stage_confirm = "build_add"
 
 def get_build_jobs(config_statements):
   def build(cond,stage,arg):
@@ -70,7 +73,7 @@ def get_build_jobs(config_statements):
   }
   fin_jobs = {
     build_rt_name(tag): build(
-      prefix_cond(aggr_to_cond[aggr]), "build_add", f"ci_build {tag} {aggr}"
+      prefix_cond(aggr_to_cond[aggr]), stage_build_rt, f"ci_build {tag} {aggr}"
     ) for tag, aggr in tag_aggr_list
   }
   return {
@@ -89,25 +92,31 @@ def get_deploy_jobs(config_statements):
   def needs_rt(cond): return [build_gate_name] + [build_rt_name(tag) for tag in cond_to_tags[cond]]
   def needs_fc(cond): return [build_frp_name]
   return {
-    caption_mask.replace("$C4PROJ",proj_name).replace("$C4MODE",mode): {
-      **common_job(
-        f"$CI_COMMIT_BRANCH {cond}","manual",stage,
-        [
-          "export C4SUBJ=$(perl -e 's{[^\w/]}{}g,/(\w+)$/&&print$1 for $ENV{CI_COMMIT_BRANCH}')",
-          "export C4USER=$(perl -e 's{[^\w/]}{}g,/(\w+)$/&&print$1 for $ENV{GITLAB_USER_LOGIN}')",
-          "env | grep C4 | sort",
-          handle(f"deploy {mode}-{arg}-{proj_name}-{opt}")
-        ]
-      ),
-      "needs": needs_fun(proj_name)
-    }
+    key: value
     for env_mask, caption_mask in config_statements["C4DEPLOY"]
     for mode_mask, arg, proj_mask, opt in [re.findall(r'[^\-]+',env_mask)]
     for proj_name in (cond_list if proj_mask == "$C4PROJ" else [proj_mask])
-    for cond in ["" if proj_name == "nil" else prefix_cond(f"{proj_name}\/release" if arg == "prod" else proj_name)]
-    for mode, stage, needs_fun in (
-      [("de","deploy_de",needs_de),("fc","deploy_de",needs_fc)] if mode_mask == "de"
-      else [(mode_mask,"deploy_rt",needs_rt)]
+    for cond_re in ["" if proj_name == "nil" else prefix_cond(f"{proj_name}\/release" if arg == "prod" else proj_name)]
+    for cond in [f"$CI_COMMIT_BRANCH {cond_re}"]
+    for mode, stage, needs_fun, need_confirm in (
+      [(mode_mask,stage_deploy_de,needs_de,False),("fc",stage_deploy_de,needs_fc,False)] if mode_mask == "de" else
+      [(mode_mask,"deploy_rt",needs_rt,True)] if mode_mask == "cl" else
+      [(mode_mask,"deploy_rt",needs_rt,False)]
+    )
+    for key_mask in [caption_mask.replace("$C4PROJ",proj_name).replace("$C4MODE",mode)]
+    for script in [[
+      "export C4SUBJ=$(perl -e 's{[^\w/]}{}g,/(\w+)$/&&print$1 for $ENV{CI_COMMIT_BRANCH}')",
+      "export C4USER=$(perl -e 's{[^\w/]}{}g,/(\w+)$/&&print$1 for $ENV{GITLAB_USER_LOGIN}')",
+      "env | grep C4 | sort",
+      handle(f"deploy {mode}-{arg}-{proj_name}-{opt}")
+    ]]
+    for key, value in (
+      [
+        (f"confirm {key_mask}", { **common_job(cond,"manual",stage_confirm,["echo confirming"]), "needs": [] }),
+        (key_mask, { **common_job(cond,"manual",stage,script), "needs": [f"confirm {key_mask}"] + needs_fun(proj_name) }),
+      ] if need_confirm else [
+        (key_mask, { **common_job(cond,"manual",stage,script), "needs": needs_fun(proj_name) }),
+      ]
     )
   }
 
