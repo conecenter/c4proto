@@ -1340,6 +1340,7 @@ push @tasks, ["ci_setup", "", sub{
         my($from,$to) = @$_;
         +{$from=>[$to]}
     } @from_to_comps);
+    my @to_comps = map{$$_[1]}@from_to_comps;
     my $tasks = &$merge_list({},&$map($to_by_from_comp,sub{ my($from_comp,$to_comp_list)=@_;
         my ($ls_stm,$cat) = &$snapshot_get_statements($from_comp);
         my $fn = &$snapshot_name(&$snapshot_parse_last(syf($ls_stm))) || die "bad or no snapshot name";
@@ -1355,8 +1356,9 @@ push @tasks, ["ci_setup", "", sub{
         }
     }));
     &$ci_parallel(sort map{$$_[0]} values %{$$tasks{get}||{}});
-    &$ci_wait(map{$$_[1]}@from_to_comps);
+    &$ci_wait(@to_comps);
     &$ci_parallel(@{$$tasks{put}||[]});
+    &$ci_wait(@to_comps);
     &$end("ci_setup");
 }];
 
