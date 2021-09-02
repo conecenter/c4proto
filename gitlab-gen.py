@@ -140,7 +140,7 @@ def get_env_jobs():
     "stop": stop("$CI_COMMIT_TAG","manual",[start_name]),
     "auto-stop": stop(cond_qa,"on_success",[testing_name]),
     "forward": common_job("$CI_COMMIT_TAG =~ /\\/de-/","manual","start",[
-      handle("deploy fc-$(perl -e '/\bde-(\w+-\w+-\w+)$/&&print$1 for $ENV{CI_COMMIT_TAG}') no-branch")
+      handle("deploy fc-$(perl -e '/\\bde-(\w+-\w+-\w+)/&&print$1 for $ENV{CI_COMMIT_TAG}') no-branch")
     ])
   }
 
