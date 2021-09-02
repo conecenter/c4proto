@@ -34,11 +34,11 @@ def handle(arg):
   return f"python3 $C4CI_PROTO_DIR/gitlab-ci.py {arg}"
 def push_rule(cond):
   return { "if": f"$CI_PIPELINE_SOURCE == \"push\" && {cond}" }
-def common_job(cond,when,stage,script):
+def common_job(cond,when,stage,needs,script):
   return {
     "rules": [{ **push_rule(cond), "when": when }],
     "image": "$C4COMMON_IMAGE", "variables": {"GIT_STRATEGY": "none" },
-    "stage": stage, "script": script
+    "stage": stage, "needs": needs, "script": script
   }
 def build_path(fn):
   dir = os.environ["C4CI_BUILD_DIR"]
@@ -61,10 +61,10 @@ stage_deploy_sp = "confirm"
 stage_deploy_cl = "deploy"
 
 def get_build_jobs(config_statements):
-  def build(cond,stage,arg):
-    return common_job(f"$CI_COMMIT_BRANCH {cond}","on_success",stage,prod(arg))
+  def build(cond,stage,needs,arg):
+    return common_job(f"$CI_COMMIT_BRANCH {cond}","on_success",stage,needs,prod(arg))
   def build_main(cond,arg):
-    return { **build(cond,"build_main",arg), "needs": [build_common_name] }
+    return build(cond,"build_main",[build_common_name],arg)
   tag_aggr_list = config_statements["C4TAG_AGGR"]
   (aggr_cond_list, aggr_to_cond) = get_aggr_cond(config_statements["C4AGGR_COND"])
   aggr_to_tags = group_map(tag_aggr_list, ext(lambda tag, aggr: (aggr,tag)))
@@ -75,7 +75,8 @@ def get_build_jobs(config_statements):
   }
   fin_jobs = {
     build_rt_name(tag): build(
-      prefix_cond(aggr_to_cond[aggr]), stage_build_rt, f"ci_build {tag} {aggr}"
+      prefix_cond(aggr_to_cond[aggr]), stage_build_rt, sorted(aggr_jobs.keys()),
+      f"ci_build {tag} {aggr}"
     ) for tag, aggr in tag_aggr_list
   }
   return {
@@ -114,10 +115,10 @@ def get_deploy_jobs(config_statements):
     for confirm_key in [key_mask.replace("$C4CONFIRM","confirm")]
     for key, value in (
       [
-        (confirm_key, { **common_job(cond,"manual",stage_confirm,["echo confirming"]), "needs": [] }),
-        (key_mask.replace("$C4CONFIRM","deploy"), { **common_job(cond,"manual",stage,script), "needs": [confirm_key] + needs_fun(proj_name) }),
+        (confirm_key, common_job(cond,"manual",stage_confirm,[],["echo confirming"])),
+        (key_mask.replace("$C4CONFIRM","deploy"), common_job(cond,"manual",stage,[confirm_key]+needs_fun(proj_name),script)),
       ] if confirm_key != key_mask else [
-        (key_mask, { **common_job(cond,"manual",stage,script), "needs": needs_fun(proj_name) }),
+        (key_mask, common_job(cond,"manual",stage,needs_fun(proj_name),script)),
       ]
     )
   }
@@ -125,23 +126,27 @@ def get_deploy_jobs(config_statements):
 def get_env_jobs():
   cond_qa = "$CI_COMMIT_TAG =~ /\\/qa-/"
   def stop(cond,when,needs): return {
-    **common_job(cond,when,"stop",[handle("down")]), "needs": needs,
+    **common_job(cond,when,"stop",needs,[handle("down")]),
     "environment": { "name": "$CI_COMMIT_TAG", "action": "stop" }
   }
+  def forward(when): return common_job("$CI_COMMIT_TAG =~ /\\/de-/",when,"start",[],[
+    handle("deploy fc-$(perl -e '/\\bde-(\w+-\w+-\w+)/&&print$1 for $ENV{CI_COMMIT_TAG}') no-branch")
+  ])
+
   start_name = "start"
+  check_name = "check"
   testing_name = "testing"
   return {
     start_name: {
-      **common_job("$CI_COMMIT_TAG","on_success","start",[docker_conf(),handle("up $CI_ENVIRONMENT_SLUG")]),
+      **common_job("$CI_COMMIT_TAG","on_success","start",[],[docker_conf(),handle("up $CI_ENVIRONMENT_SLUG")]),
       "environment": { "name": "$CI_COMMIT_TAG", "action": "start", "on_stop": "stop" }
     },
-    testing_name: common_job(cond_qa,"on_success","testing",[handle("qa_run /c4/qa")]),
-    "check": common_job("$CI_COMMIT_TAG","on_success","check",[handle("check")]),
+    check_name: common_job("$CI_COMMIT_TAG","on_success","check",[start_name],[handle("check")]),
+    testing_name: common_job(cond_qa,"on_success","testing",[check_name],[handle("qa_run /c4/qa")]),
     "stop": stop("$CI_COMMIT_TAG","manual",[start_name]),
     "auto-stop": stop(cond_qa,"on_success",[testing_name]),
-    "forward": common_job("$CI_COMMIT_TAG =~ /\\/de-/","manual","start",[
-      handle("deploy fc-$(perl -e '/\\bde-(\w+-\w+-\w+)/&&print$1 for $ENV{CI_COMMIT_TAG}') no-branch")
-    ])
+    "forward": forward("manual"),
+    "auto-forward": forward("on_success"),
   }
 
 def main():
