@@ -54,9 +54,11 @@ build_gate_name = "build gate"
 build_frp_name = "build frp"
 def build_aggr_name(v): return f"{v}.aggr"
 def build_rt_name(v): return f"b {v}.rt"
-stage_build_rt = "build_add"
-stage_deploy_de = "deploy_de"
-stage_confirm = "build_add"
+stage_build_rt = "develop"
+stage_deploy_de = "develop"
+stage_confirm = "confirm"
+stage_deploy_sp = "confirm"
+stage_deploy_cl = "deploy"
 
 def get_build_jobs(config_statements):
   def build(cond,stage,arg):
@@ -88,9 +90,8 @@ def get_deploy_jobs(config_statements):
   cond_to_aggr = group_map(aggr_cond_list, ext(lambda aggr, cond: (cond,aggr)))
   cond_to_tags = group_map(tag_aggr_list, ext(lambda tag, aggr: (aggr_to_cond[aggr], tag)))
   cond_list = sorted(set(cond for aggr, cond in aggr_cond_list))
-  def needs_de(cond): return [build_gate_name] + ([] if cond == "nil" else [build_aggr_name(aggr) for aggr in cond_to_aggr[cond]])
+  def needs_de(cond): return [build_gate_name,build_frp_name] + ([] if cond == "nil" else [build_aggr_name(aggr) for aggr in cond_to_aggr[cond]])
   def needs_rt(cond): return [build_gate_name] + [build_rt_name(tag) for tag in cond_to_tags[cond]]
-  def needs_fc(cond): return [build_frp_name]
   return {
     key: value
     for env_mask, caption_mask in config_statements["C4DEPLOY"]
@@ -98,23 +99,24 @@ def get_deploy_jobs(config_statements):
     for proj_name in (cond_list if proj_mask == "$C4PROJ" else [proj_mask])
     for cond_re in ["" if proj_name == "nil" else prefix_cond(f"{proj_name}\/release" if arg == "prod" else proj_name)]
     for cond in [f"$CI_COMMIT_BRANCH {cond_re}"]
-    for mode, stage, needs_fun, need_confirm in (
-      [(mode_mask,stage_deploy_de,needs_de,False),("fc",stage_deploy_de,needs_fc,False)] if mode_mask == "de" else
-      [(mode_mask,"deploy_rt",needs_rt,True)] if mode_mask == "cl" else
-      [(mode_mask,"deploy_rt",needs_rt,False)]
+    for mode, stage, needs_fun in (
+      [(mode_mask,stage_deploy_de,needs_de)] if mode_mask == "de" else
+      [(mode_mask,stage_deploy_cl,needs_rt)] if mode_mask == "cl" else
+      [(mode_mask,stage_deploy_sp,needs_rt)]
     )
-    for key_mask in [caption_mask.replace("$C4PROJ",proj_name).replace("$C4MODE",mode)]
+    for key_mask in [caption_mask.replace("$C4PROJ",proj_name)]
     for script in [[
       "export C4SUBJ=$(perl -e 's{[^\w/]}{}g,/(\w+)$/&&print$1 for $ENV{CI_COMMIT_BRANCH}')",
       "export C4USER=$(perl -e 's{[^\w/]}{}g,/(\w+)$/&&print$1 for $ENV{GITLAB_USER_LOGIN}')",
       "env | grep C4 | sort",
       handle(f"deploy {mode}-{arg}-{proj_name}-{opt}")
     ]]
+    for confirm_key in [key_mask.replace("$C4CONFIRM","confirm")]
     for key, value in (
       [
-        (f"confirm {key_mask}", { **common_job(cond,"manual",stage_confirm,["echo confirming"]), "needs": [] }),
-        (key_mask, { **common_job(cond,"manual",stage,script), "needs": [f"confirm {key_mask}"] + needs_fun(proj_name) }),
-      ] if need_confirm else [
+        (confirm_key, { **common_job(cond,"manual",stage_confirm,["echo confirming"]), "needs": [] }),
+        (key_mask.replace("$C4CONFIRM","deploy"), { **common_job(cond,"manual",stage,script), "needs": [confirm_key] + needs_fun(proj_name) }),
+      ] if confirm_key != key_mask else [
         (key_mask, { **common_job(cond,"manual",stage,script), "needs": needs_fun(proj_name) }),
       ]
     )
@@ -136,14 +138,17 @@ def get_env_jobs():
     testing_name: common_job(cond_qa,"on_success","testing",[handle("qa_run /c4/qa")]),
     "check": common_job("$CI_COMMIT_TAG","on_success","check",[handle("check")]),
     "stop": stop("$CI_COMMIT_TAG","manual",[start_name]),
-    "auto-stop": stop(cond_qa,"on_success",[testing_name])
+    "auto-stop": stop(cond_qa,"on_success",[testing_name]),
+    "forward": common_job("$CI_COMMIT_TAG =~ /\\/de-/","manual","start",[
+      handle("deploy fc-$(perl -e '/\bde-(\w+-\w+-\w+)$/&&print$1 for $ENV{CI_COMMIT_TAG}')")
+    ])
   }
 
 def main():
   config_statements = group_map(read_json(build_path("c4dep.main.json")), lambda it: (it[0],it[1:]))
   out = {
     "variables": { "C4CI_DOCKER_CONFIG": "/tmp/c4-docker-config" },
-    "stages": ["build_replink","build_common","build_main","build_add","deploy_de","deploy_rt","start","check","testing","stop"],
+    "stages": ["build_replink","build_common","build_main","develop","confirm","deploy","start","check","testing","stop"],
     "build_replink": {
       "image": {
         "name": "gcr.io/kaniko-project/executor:debug",
