@@ -109,7 +109,7 @@ def get_deploy_jobs(config_statements):
       "export C4SUBJ=$(perl -e 's{[^\w/]}{}g,/(\w+)$/&&print$1 for $ENV{CI_COMMIT_BRANCH}')",
       "export C4USER=$(perl -e 's{[^\w/]}{}g,/(\w+)$/&&print$1 for $ENV{GITLAB_USER_LOGIN}')",
       "env | grep C4 | sort",
-      handle(f"deploy {mode}-{arg}-{proj_name}-{opt}")
+      handle(f"deploy {mode}-{arg}-{proj_name}-{opt} $CI_COMMIT_BRANCH")
     ]]
     for confirm_key in [key_mask.replace("$C4CONFIRM","confirm")]
     for key, value in (
@@ -140,7 +140,7 @@ def get_env_jobs():
     "stop": stop("$CI_COMMIT_TAG","manual",[start_name]),
     "auto-stop": stop(cond_qa,"on_success",[testing_name]),
     "forward": common_job("$CI_COMMIT_TAG =~ /\\/de-/","manual","start",[
-      handle("deploy fc-$(perl -e '/\bde-(\w+-\w+-\w+)$/&&print$1 for $ENV{CI_COMMIT_TAG}')")
+      handle("deploy fc-$(perl -e '/\bde-(\w+-\w+-\w+)$/&&print$1 for $ENV{CI_COMMIT_TAG}') no-branch")
     ])
   }
 

@@ -52,9 +52,8 @@ def get_slug(info):
 
 # re.findall(r'[^/]+',arg_raw)[-1]  re.sub(r'\W+','',arg_raw_last)  sha256(v)[0:5]  re.fullmatch("(\w+)/(.+)",branch).groups()
 # f"{mode}-{arg}-{proj_name}-{opt}"
-def handle_deploy(base):
+def handle_deploy(base,branch):
     commit = get_env("CI_COMMIT_SHA")
-    branch = get_env("CI_COMMIT_BRANCH")
     project_url = get_env("CI_PROJECT_URL")
     info = query_ci_info(f"{base}-env")
     slug = get_slug(info)
