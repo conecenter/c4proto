@@ -24,10 +24,15 @@ import scala.jdk.CollectionConverters.MapHasAsJava
   def keepRecordsForever(client: AdminClient): Unit = {
     val commands: Map[ConfigResource, util.Collection[AlterConfigOp]] = Map(
       new ConfigResource(ConfigResource.Type.TOPIC, topicName) ->
-        util.Collections.singleton(
+        util.List.of(
           new AlterConfigOp(
             new ConfigEntry(
               TopicConfig.RETENTION_MS_CONFIG, "-1"
+            ), AlterConfigOp.OpType.SET
+          ),
+          new AlterConfigOp(
+            new ConfigEntry(
+              TopicConfig.RETENTION_BYTES_CONFIG, "-1"
             ), AlterConfigOp.OpType.SET
           )
         )
