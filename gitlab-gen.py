@@ -81,7 +81,7 @@ def get_build_jobs(config_statements):
   }
   return {
     "rebuild": common_job(
-      "$CI_COMMIT_BRANCH","on_success","build_main",[build_common_name],
+      "$CI_COMMIT_BRANCH","manual","build_main",[build_common_name],
       [handle(f"rebuild $CI_COMMIT_BRANCH")]
     ),
     build_gate_name: build_main("","ci_build def"),
