@@ -104,9 +104,13 @@ def handle_check():
 
 def handle_rebuild(branch_arg):
     commit = get_env("CI_COMMIT_SHA")
-    postfix = f".{commit}"
+    postfix = f".rebuild.{commit}"
     branch = branch_arg if branch_arg.endswith(postfix) else f"{branch_arg}{postfix}"
     project = get_project()
+    try:
+        project.branches.get(branch).delete()
+    except gitlab.GitlabGetError:
+        pass
     project.branches.create({'branch': branch, 'ref': commit})
 
 
