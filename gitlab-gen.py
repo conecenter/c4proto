@@ -80,6 +80,10 @@ def get_build_jobs(config_statements):
     ) for tag, aggr in tag_aggr_list
   }
   return {
+    "rebuild": common_job(
+      "$CI_COMMIT_BRANCH","on_success","build_main",[build_common_name],
+      [handle(f"rebuild $CI_COMMIT_BRANCH")]
+    ),
     build_gate_name: build_main("","ci_build def"),
     build_frp_name: build_main("","ci_build_frp"),
     **aggr_jobs, **fin_jobs

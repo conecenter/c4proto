@@ -102,6 +102,13 @@ def handle_check():
     name = get_c4env_from_tag()
     prod(["ci_check",name])
 
+def handle_rebuild(branch_arg):
+    commit = get_env("CI_COMMIT_SHA")
+    postfix = f".{commit}"
+    branch = branch_arg if branch_arg.endswith(postfix) else f"{branch_arg}{postfix}"
+    project = get_project()
+    project.branches.create({'branch': branch, 'ref': commit})
+
 
 # def get_stop_url():
 #     pipeline_id = get_env("CI_PIPELINE_ID")
@@ -133,7 +140,8 @@ handle = {
     "up": handle_up,
     "check": handle_check,
     "qa_run": handle_qa_run,
-    "down": handle_down
+    "down": handle_down,
+    "rebuild": handle_rebuild
 }
 
 script, act, *args = sys.argv
