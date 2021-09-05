@@ -2,9 +2,11 @@
 
 use strict;
 
-my $http_server = $ENV{C4HTTP_SERVER}||die 'no C4HTTP_SERVER';
-my $curl_test = "curl $http_server/abc";
 my $gen_dir = "."; #"target/c4gen/res";
+my $get_curl_test = sub{
+    my $http_server = $ENV{C4HTTP_SERVER}||die 'no C4HTTP_SERVER';
+    "curl $http_server/abc";
+};
 
 sub sy{
     print "$ENV{PATH}\n";
@@ -48,6 +50,7 @@ push @tasks, ["test_client",sub{
 }];
 push @tasks, ["test_client ee.cone.c4gate.TestConsumerApp", sub{
     my $v = int(rand()*10);
+    my $curl_test = &$get_curl_test();
     sy("$curl_test -X POST -d $v");
     sleep 1;
     sy("$curl_test -v");
@@ -56,10 +59,12 @@ push @tasks, ["test_client ee.cone.c4gate.TestConsumerApp", sub{
     print " -- should be posted * 3\n";
 }];
 push @tasks, ["test_client ee.cone.c4gate.TestParallelApp", sub{
+    my $curl_test = &$get_curl_test();
     sy("$curl_test -X POST") for 0..11;
 }];
 push @tasks, ["test_client post_big_message", sub{
     &$need_tmp();
+    my $curl_test = &$get_curl_test();
     sy("dd if=/dev/zero of=tmp/test.bin bs=1M count=4 && $curl_test -v -XPOST -T tmp/test.bin")
 }];
 

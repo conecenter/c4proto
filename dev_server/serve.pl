@@ -116,7 +116,7 @@ my $serve_proxy = sub{
         "frontend fe_http",
         "  mode http",
         "  bind :1080",
-        "  use_backend be_sse if { path_beg /sse }",
+        #"  use_backend be_sse if { path_beg /sse }",
         "  use_backend be_src if { path_beg /src/ }",
         "  use_backend be_src if { path_beg /\@ }",
         "  use_backend be_src if { path_beg /node_modules/ }",
@@ -127,9 +127,9 @@ my $serve_proxy = sub{
         "backend be_http",
         "  mode http",
         "  server be_http $http_server",
-        "backend be_sse",
-        "  mode http",
-        "  server se_sse 127.0.0.1:$sse_port",
+        #"backend be_sse",
+        #"  mode http",
+        #"  server se_sse 127.0.0.1:$sse_port",
         # this is for HA elector test:
         (map{
             my $from_port = $elector_proxy_port_base + $_;
