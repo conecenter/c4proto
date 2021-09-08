@@ -49,9 +49,12 @@ case class VDomHandlerImpl[State](
   //relocateKey: VDomLens[State,String]
 ) extends VDomHandler[State] {
 
-  private def empty = Option(VDomState(wasNoValue,0))
-  private def init(state: State): State =
-    vDomStateKey.modify(_.orElse(empty))(state)
+  private def reset(state: State): State = vDomStateKey.modify(_.map(
+    st=>st.copy(value = wasNoValue, until = 0)
+  ))(state)
+  private def init(state: State): State = vDomStateKey.modify(_.orElse(
+    Option(VDomState(wasNoValue,0,System.currentTimeMillis(),0))
+  ))(state)
 
   private def pathHeader: VDomMessage => String = _.header("x-r-vdom-path")
   //dispatches incoming message // can close / set refresh time
@@ -86,7 +89,7 @@ case class VDomHandlerImpl[State](
     val vState = vDomStateKey.of(state).get
     val (keepTo,freshTo) = sender.sending(state)
     if(keepTo.isEmpty && freshTo.isEmpty){
-      vDomStateKey.set(empty)(state) //orElse in init bug
+      reset(state) //orElse in init bug
     }
     else if(
       vState.value != wasNoValue &&
@@ -98,7 +101,7 @@ case class VDomHandlerImpl[State](
       freshTo.isEmpty
     ) state
     else chain[State](Seq(
-      vDomStateKey.set(empty), // need to remove prev DomState before review to avoid leak: local-vdom-el-action-local
+      reset(_), // need to remove prev DomState before review to avoid leak: local-vdom-el-action-local
       reView(_),
       diffSend(vState.value, keepTo, _),
       diffSend(wasNoValue, freshTo, _)
@@ -106,10 +109,15 @@ case class VDomHandlerImpl[State](
   }
 
   private def reView(state: State): State = {
+    val startedAt = System.currentTimeMillis
     val (until,viewRes) = vDomUntil.get(view.view(state))
+    val wasMakingViewMillis = System.currentTimeMillis - startedAt
     val vPair = child("root", RootElement(sender.branchKey), viewRes).asInstanceOf[VPair]
     val nextDom = vPair.value
-    vDomStateKey.set(Option(VDomState(nextDom, until)))(state)
+    vDomStateKey.modify(_.map(st=>st.copy(
+      value=nextDom, until=until,
+      wasMakingViewMillis = st.wasMakingViewMillis+wasMakingViewMillis
+    )))(state)
   }
 /*
   def seeds: State => List[(String,Product)] = state => {

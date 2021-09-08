@@ -129,7 +129,10 @@ trait VDomHandlerFactory {
   ): VDomHandler[State]
 }
 
-case class VDomState(value: VDomValue, until: Long)
+case class VDomState(
+  value: VDomValue, until: Long,
+  startedAtMillis: Long, wasMakingViewMillis: Long
+)
 
 trait VDomUntil {
   def get(pairs: ViewRes): (Long, ViewRes)
