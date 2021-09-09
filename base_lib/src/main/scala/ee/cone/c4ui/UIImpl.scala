@@ -66,12 +66,21 @@ object VDomUntilImpl extends VDomUntil {
 
 case class UntilPair(key: String, until: Long) extends ChildPair[OfDiv]
 
-@c4("UICompApp") final class DefaultUntilPolicy extends UntilPolicy {
+@c4("UICompApp") final class DefaultUntilPolicy(
+  viewRestPeriodProvider: ViewRestPeriodProvider
+) extends UntilPolicy {
   def wrap(view: Context=>ViewRes): Context=>ViewRes = local => {
-    val startTime = System.currentTimeMillis
-    val res = view(local)
-    val endTime = System.currentTimeMillis
-    val until = endTime+Math.max((endTime-startTime)*10, 500)
-    UntilPair("until",until) :: res
+    val restPeriod = viewRestPeriodProvider.get(local)
+    val res = view(ViewRestPeriodKey.set(restPeriod)(local))
+    UntilPair("until",System.currentTimeMillis+restPeriod) :: res
+  }
+}
+
+@c4("UICompApp") final class DynamicViewRestPeriodProvider() extends ViewRestPeriodProvider {
+  def get(local: Context): Long = {
+    val state = VDomStateKey.of(local).get
+    val age = System.currentTimeMillis() - state.startedAtMillis
+    val allowedMaking = age / 10
+    Math.max(state.wasMakingViewMillis - allowedMaking, 500)
   }
 }
