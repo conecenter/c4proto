@@ -19,7 +19,7 @@ case class PreHashingMurMur3() extends PreHashing {
   4 - Int,
   5 - String,
   6 - PreHashedMD5,
-  7 - BigDecimal - LongExact,
+  7 - BigDecimal,
   8 - Long,
   9 - okio.ByteString
   10 - Product,
@@ -53,12 +53,7 @@ case class PreHashingMurMur3() extends PreHashing {
         messengerInner.updateLong(3)
         calculateModelHash(BigDecimalFactory.unapply(BigDecimal(j)).get, messengerInner)
       case j: BigDecimal =>
-        if (j.isValidLong) {
-          messengerInner.updateLong(7)
-          messengerInner.updateLong(j.toLongExact)
-        } else {
-          calculateModelHash(BigDecimalFactory.unapply(j).get, messengerInner) // TODO this allocates new ByteArray each time
-        }
+        calculateModelHash(BigDecimalFactory.unapply(j).get, messengerInner) // TODO this allocates new ByteArray each time
       case a: Int =>
         messengerInner.updateLong(4)
         messengerInner.updateInt(a)
