@@ -70,17 +70,24 @@ case class UntilPair(key: String, until: Long) extends ChildPair[OfDiv]
   viewRestPeriodProvider: ViewRestPeriodProvider
 ) extends UntilPolicy {
   def wrap(view: Context=>ViewRes): Context=>ViewRes = local => {
-    val restPeriod = viewRestPeriodProvider.get(local)
-    val res = view(ViewRestPeriodKey.set(restPeriod)(local))
-    UntilPair("until",System.currentTimeMillis+restPeriod) :: res
+    val restPeriod = ViewRestPeriodKey.of(local).getOrElse(viewRestPeriodProvider.get(local))
+    val res = view(ViewRestPeriodKey.set(Option(restPeriod))(local))
+    UntilPair("until",System.currentTimeMillis+restPeriod.valueMillis) :: res
   }
 }
 
 @c4("UICompApp") final class DynamicViewRestPeriodProvider() extends ViewRestPeriodProvider {
-  def get(local: Context): Long = {
+  def get(local: Context): ViewRestPeriod = {
     val state = VDomStateKey.of(local).get
-    val age = System.currentTimeMillis() - state.startedAtMillis
-    val allowedMaking = age / 10
-    Math.max(state.wasMakingViewMillis - allowedMaking, 500)
+    //val age = System.currentTimeMillis() - state.startedAtMillis
+    //val allowedMaking = age / 10
+    //DynamicViewRestPeriod(Math.max(state.wasMakingViewMillis - allowedMaking, 500))
+    //val age = System.currentTimeMillis() - state.startedAtMillis
+    //DynamicViewRestPeriod(Math.max(Math.min(age / 4, state.wasMakingViewMillis * 10 - age), 500))
+    val default = 500L
+    DynamicViewRestPeriod(
+      if(state.wasMakingViewMillis.size <= 1) default
+      else Math.max(state.wasMakingViewMillis.min * 10, default)
+    )
   }
 }
