@@ -472,7 +472,7 @@ my $make_kc_yml = sub{
             securityContext => { allowPrivilegeEscalation => "false" },
             resources => {
                 limits => {
-                    cpu => "64",
+                    cpu => $$opt{lim_cpu} || "64",
                     memory => "64Gi",
                 },
                 requests => {
