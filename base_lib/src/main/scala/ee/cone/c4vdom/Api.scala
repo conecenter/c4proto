@@ -131,7 +131,7 @@ trait VDomHandlerFactory {
 
 case class VDomState(
   value: VDomValue, until: Long,
-  startedAtMillis: Long, wasMakingViewMillis: Long
+  startedAtMillis: Long, wasMakingViewMillis: Seq[Long],
 )
 
 trait VDomUntil {

@@ -12,3 +12,17 @@ trait UntilPolicy {
 
 case object VDomStateKey extends TransientLens[Option[VDomState]](None)
   with VDomLens[Context, Option[VDomState]]
+
+
+trait ViewRestPeriodProvider {
+  def get(local: Context): ViewRestPeriod
+}
+
+sealed trait ViewRestPeriod extends Product {
+  def valueMillis: Long
+}
+
+case class DynamicViewRestPeriod(valueMillis: Long) extends ViewRestPeriod
+case class StaticViewRestPeriod(valueMillis: Long) extends ViewRestPeriod
+
+case object ViewRestPeriodKey extends TransientLens[Option[ViewRestPeriod]](None)

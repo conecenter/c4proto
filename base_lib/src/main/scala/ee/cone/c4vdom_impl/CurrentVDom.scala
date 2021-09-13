@@ -53,7 +53,7 @@ case class VDomHandlerImpl[State](
     st=>st.copy(value = wasNoValue, until = 0)
   ))(state)
   private def init(state: State): State = vDomStateKey.modify(_.orElse(
-    Option(VDomState(wasNoValue,0,System.currentTimeMillis(),0))
+    Option(VDomState(wasNoValue,0,System.currentTimeMillis(),Nil))
   ))(state)
 
   private def pathHeader: VDomMessage => String = _.header("x-r-vdom-path")
@@ -111,13 +111,17 @@ case class VDomHandlerImpl[State](
   private def reView(state: State): State = {
     val startedAt = System.currentTimeMillis
     val (until,viewRes) = vDomUntil.get(view.view(state))
-    val wasMakingViewMillis = System.currentTimeMillis - startedAt
+    val measured = System.currentTimeMillis - startedAt
     val vPair = child("root", RootElement(sender.branchKey), viewRes).asInstanceOf[VPair]
     val nextDom = vPair.value
-    vDomStateKey.modify(_.map(st=>st.copy(
-      value=nextDom, until=until,
-      wasMakingViewMillis = st.wasMakingViewMillis+wasMakingViewMillis
-    )))(state)
+    vDomStateKey.modify(_.map{ st =>
+      val wasMakingViewMillis = st.wasMakingViewMillis match {
+        case Seq(a,b,c,d) => Seq(a+b,c,d,measured)
+        case s if s.size < 4 => s.appended(measured)
+        case _ => throw new Exception
+      }
+      st.copy(value=nextDom, until=until, wasMakingViewMillis=wasMakingViewMillis)
+    })(state)
   }
 /*
   def seeds: State => List[(String,Product)] = state => {
