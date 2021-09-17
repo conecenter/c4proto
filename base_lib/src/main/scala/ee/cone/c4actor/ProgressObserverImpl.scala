@@ -193,7 +193,7 @@ trait IsMaster {
   } yield until
 
   @tailrec def iter(wasUntilOpt: Option[Long], last: Future[Option[Long]], wasUncompleted: List[Future[Option[Long]]]): Unit = {
-    val next = sendMore(last)(execution.mainExecutionContext)
+    val next = sendMore(last)(execution.unboundedExecutionContext)
     execution.fatal(_=>next)
     Thread.sleep(1000+Random.nextInt(300))
     logger.trace(s"$hint $wasUntilOpt")
