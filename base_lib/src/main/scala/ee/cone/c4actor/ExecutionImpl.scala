@@ -77,15 +77,16 @@ class RUncaughtExceptionHandler(inner: UncaughtExceptionHandler) extends Uncaugh
 @c4("VMExecutionApp") final class DefExecutionFilter extends ExecutionFilter(_=>true)
 
 @c4("VMExecutionApp") final class VMExecution(getToStart: DeferredSeq[Executable], executionFilter: ExecutionFilter)(
-  threadPool: ExecutorService = VMExecution.newExecutorService("tx-",Option(Runtime.getRuntime.availableProcessors)) // None?
+  txThreadPool: ExecutorService = VMExecution.newExecutorService("tx-",Option(Runtime.getRuntime.availableProcessors)),
+  ubThreadPool: ExecutorService = VMExecution.newExecutorService("ub-",None)
 )(
-  val mainExecutionContext: ExecutionContext = ExecutionContext.fromExecutor(threadPool)
+  val mainExecutionContext: ExecutionContext = ExecutionContext.fromExecutor(txThreadPool),
+  val unboundedExecutionContext: ExecutionContext = ExecutionContext.fromExecutor(ubThreadPool)
 ) extends Execution with LazyLogging {
   def run(): Unit = {
     val toStart = getToStart.value.filter(executionFilter.check)
     logger.info(s"tracking ${toStart.size} services")
-    val ec = ExecutionContext.fromExecutor(VMExecution.newExecutorService("early-",None))
-    toStart.foreach(f => fatal(Future(f.run())(_), ec))
+    toStart.foreach(f => fatal(Future(f.run())(_), unboundedExecutionContext))
   }
   private def ignoreRootFuture[T](value: Future[T]): Unit = ()
   def fatal[T](future: ExecutionContext=>Future[T]): Unit =
