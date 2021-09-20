@@ -16,7 +16,7 @@ class VDomHandlerFactoryImpl(
     view: VDomView[State],
     vDomUntil: VDomUntil,
     vDomStateKey: VDomLens[State,Option[VDomState]]
-  ): VDomHandler[State] =
+  ): Receiver[State] =
     VDomHandlerImpl(sender,view)(diff,jsonToString,wasNoValue,child,vDomUntil,vDomStateKey)
 }
 
@@ -47,13 +47,13 @@ case class VDomHandlerImpl[State](
 
   vDomStateKey: VDomLens[State,Option[VDomState]]
   //relocateKey: VDomLens[State,String]
-) extends VDomHandler[State] {
+) extends Receiver[State] {
 
   private def reset(state: State): State = vDomStateKey.modify(_.map(
-    st=>st.copy(value = wasNoValue, until = 0)
+    st=>st.copy(value = wasNoValue, seeds = Nil, until = 0)
   ))(state)
   private def init(state: State): State = vDomStateKey.modify(_.orElse(
-    Option(VDomState(wasNoValue,0,System.currentTimeMillis(),Nil))
+    Option(VDomState(wasNoValue,Nil,0,System.currentTimeMillis(),MakingViewStats(0,Nil,0)))
   ))(state)
 
   private def pathHeader: VDomMessage => String = _.header("x-r-vdom-path")
@@ -110,44 +110,29 @@ case class VDomHandlerImpl[State](
 
   private def reView(state: State): State = {
     val startedAt = System.currentTimeMillis
-    val (until,viewRes) = vDomUntil.get(view.view(state))
-    val measured = System.currentTimeMillis - startedAt
-    val vPair = child("root", RootElement(sender.branchKey), viewRes).asInstanceOf[VPair]
+    val vPair = child("root", RootElement(sender.branchKey), view.view(state)).asInstanceOf[VPair]
+    val now = System.currentTimeMillis
     val nextDom = vPair.value
+    val seeds = gatherSeedsFinal(Nil, gatherSeedsPair("",nextDom,Nil), Nil)
+    val until = now + vDomUntil.get(seeds.map(_._2))
     vDomStateKey.modify(_.map{ st =>
-      val wasMakingViewMillis = st.wasMakingViewMillis match {
-        case Seq(a,b,c,d) => Seq(a+b,c,d,measured)
-        case s if s.size < 4 => s.appended(measured)
-        case _ => throw new Exception
-      }
-      st.copy(value=nextDom, until=until, wasMakingViewMillis=wasMakingViewMillis)
+      val wasMakingViewMillis = addMakingViewStat(st.wasMakingViewMillis,startedAt,now)
+      st.copy(value=nextDom, seeds=seeds, until=until, wasMakingViewMillis=wasMakingViewMillis)
     })(state)
   }
-/*
-  def seeds: State => List[(String,Product)] = state => {
-    //println(vDomStateKey.of(state).get.value.getClass)
-    gatherSeeds(Nil, Nil, vDomStateKey.of(state).get.value)
+
+  def addMakingViewStat(was: MakingViewStats, startedAt: Long, now: Long): MakingViewStats = {
+    val measured = now - startedAt
+    val sum = was.sum + measured
+    val (moreRecent,lessRecent) = was.recent.splitAt(2)
+    val recent = MakingViewStat(now,measured) :: moreRecent ::: lessRecent.filter(m => now-m.at < 10000)
+    val lowered = Math.min(was.stable, recent.maxBy(_.value).value)
+    val stable = if(recent.size < 3) lowered else Math.max(lowered,recent.minBy(_.value).value)
+    println(s"AAA ${stable} ${recent.size}")
+    MakingViewStats(sum,recent,stable)
   }
-  private def gatherSeeds(
-    acc: List[(String,Product)], path: List[String], value: VDomValue
-  ): List[(String,Product)] = value match {
-    case n: MapVDomValue =>
-      (acc /: n.pairs)((acc,pair)=>gatherSeeds(acc, pair.jsonKey::path, pair.value))
-    case n: SeedVDomValue => (path.reverse.map(e=>s"/$e").mkString,n.seed) :: acc
-     //case UntilElement(until) => acc.copy(until = Math.min(until, acc.until))
-    case _ => acc
-  }*/
-  /*private def gatherSeedsValue(value: VDomValue): Product = value match {
-    case n: MapVDomValue =>
-      val subRes = gatherSeedsPairs(n.pairs,Nil)
-      if(subRes.nonEmpty) GatheredSeeds(subRes) else NoSeeds
-    case n: SeedVDomValue => n.seed
-    case _ => NoSeeds
-  }*/
 
   type Seeds = List[(String,Product)]
-  def seeds: State => Seeds = state =>
-    gatherSeedsFinal(Nil, gatherSeedsPair("",vDomStateKey.of(state).get.value,Nil), Nil)
   @tailrec private def gatherSeedsPairs(from: List[VPair], res: Seeds): Seeds =
     if(from.isEmpty) res else gatherSeedsPairs(from.tail, gatherSeedsPair(from.head.jsonKey,from.head.value,res))
   private def gatherSeedsPair(key: String, value: VDomValue, res: Seeds ): Seeds = value match {
@@ -181,6 +166,8 @@ case class VDomHandlerImpl[State](
       })
   */
 }
+
+
 
 case class GatheredSeeds(pairs: List[(String,Product)])
 

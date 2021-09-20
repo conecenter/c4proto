@@ -3,7 +3,6 @@ package ee.cone.c4vdom
 
 //import ee.cone.c4connection_api.EventKey
 import java.text.DecimalFormat
-
 import ee.cone.c4vdom.OnChangeMode._
 import ee.cone.c4vdom.Types.{ViewRes, _}
 
@@ -116,26 +115,25 @@ trait VDomResolver {
   def resolve(pathStr: String): Option[Resolvable] => Option[Resolvable]
 }
 
-trait VDomHandler[State] extends Receiver[State] {
-  def seeds: State => List[(String,Product)]
-}
-
 trait VDomHandlerFactory {
   def create[State](
     sender: VDomSender[State],
     view: VDomView[State],
     vDomUntil: VDomUntil,
     vDomStateKey: VDomLens[State,Option[VDomState]]
-  ): VDomHandler[State]
+  ): Receiver[State]
 }
 
+case class MakingViewStat(at: Long, value: Long)
+case class MakingViewStats(sum: Long, recent: List[MakingViewStat], stable: Long)
+
 case class VDomState(
-  value: VDomValue, until: Long,
-  startedAtMillis: Long, wasMakingViewMillis: Seq[Long],
+  value: VDomValue, seeds: List[(String,Product)], until: Long,
+  startedAtMillis: Long, wasMakingViewMillis: MakingViewStats,
 )
 
 trait VDomUntil {
-  def get(pairs: ViewRes): (Long, ViewRes)
+  def get(seeds: Seq[Product]): Long
 }
 
 ////
