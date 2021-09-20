@@ -67,6 +67,11 @@ case class BranchRel(srcId: SrcId, seed: S_BranchResult, parentSrcId: SrcId, par
     @Id(0x004C) srcId: String,
     @Id(0x004D) branchKey: String
   )
+
+  @Id(0x004E) case class N_RestPeriod(
+    @Id(0x004D) branchKey: String,
+    @Id(0x004F) value: Long
+  )
 }
 
 trait ToAlienSender {

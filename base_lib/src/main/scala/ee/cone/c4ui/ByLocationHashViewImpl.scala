@@ -31,8 +31,6 @@ import ee.cone.c4vdom.Types.ViewRes
 }
 
 case class AssignedPublicView(branchKey: SrcId, task: FromAlienTask, currentView: View) extends View {
-  def view: Context => ViewRes = Function.chain(Seq(
-    CurrentBranchKey.set(branchKey),
-    CurrentSessionKey.set(task.fromAlienState.sessionKey)
-  )).andThen(currentView.view)
+  def view: Context => ViewRes =
+    CurrentSessionKey.set(task.fromAlienState.sessionKey).andThen(currentView.view)
 }
