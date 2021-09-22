@@ -3,10 +3,11 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol._
 import ee.cone.c4actor.Types._
-import ee.cone.c4assemble.{ReadModel, _}
+import ee.cone.c4assemble.{DOut, ReadModel, _}
 import ee.cone.c4assemble.Types._
 import ee.cone.c4di.Types.ComponentFactory
 import ee.cone.c4di.{c4, c4multi, provide}
+import ee.cone.c4proto.HasId
 
 import scala.collection.immutable
 import scala.collection.immutable.{Map, Seq}
@@ -14,10 +15,21 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.control.NonFatal
 import scala.concurrent.duration.Duration
 
-@c4("RichDataCompApp") final class ProtocolDataDependencies(qAdapterRegistry: QAdapterRegistry, origKeyFactory: OrigKeyFactoryFinalHolder) extends DataDependencyProvider {
+@c4("RichDataCompApp") final class ProtocolDataDependencies(
+  qAdapterRegistry: QAdapterRegistry,
+  origKeyFactory: OrigKeyFactoryFinalHolder,
+  composes: IndexUtil,
+  origPartitionerRegistry: OrigPartitionerRegistry,
+) extends DataDependencyProvider {
   def getRules: List[WorldPartRule] =
-    qAdapterRegistry.byId.values.map(_.className).toList.sorted
-      .map(nm => new OriginalWorldPart(Seq(origKeyFactory.value.rawKey(nm))))
+    qAdapterRegistry.byId.values.toList.sortBy(_.className).map{ valueAdapter =>
+      val key = origKeyFactory.value.rawKey(valueAdapter.className)
+      val partitionedKeys = for {
+        partitioner <- origPartitionerRegistry.getByAdapter(valueAdapter)
+        partition <- partitioner.partitions
+      } yield composes.addNS(key,partition)
+      new OriginalWorldPart(key :: partitionedKeys)
+    }
 }
 
 //case object TreeAssemblerKey extends SharedComponentKey[Replace]
@@ -25,6 +37,17 @@ import scala.concurrent.duration.Duration
 @c4("RichDataCompApp") final class DefLongAssembleWarnPeriod extends LongAssembleWarnPeriod(Option(System.getenv("C4ASSEMBLE_WARN_PERIOD_MS")).fold(1000L)(_.toLong))
 
 @c4("RichDataCompApp") final class DefAssembleOptions extends AssembleOptions("AssembleOptions",false,0L)
+
+@c4("RichDataCompApp") final class OrigPartitionerRegistry(
+  origPartitionerList: List[GeneralOrigPartitioner],
+)(
+  byClassName:  Map[String, GeneralOrigPartitioner] =
+    CheckedMap(origPartitionerList.map{ case c: OrigPartitioner[_] => c.cl.getName -> c })
+){
+  def getByAdapter(valueAdapter: HasId): List[OrigPartitioner[Product]] =
+    byClassName.get(valueAdapter.protoOrigMeta.cl.getName).toList
+      .asInstanceOf[List[OrigPartitioner[Product]]]
+}
 
 @c4("RichDataCompApp") final class AssemblerUtil(
   qAdapterRegistry: QAdapterRegistry,
@@ -34,43 +57,51 @@ import scala.concurrent.duration.Duration
   warnPeriod: LongAssembleWarnPeriod,
   replace: Replace,
   activeOrigKeyRegistry: ActiveOrigKeyRegistry,
+  origPartitionerRegistry: OrigPartitionerRegistry,
 ) extends LazyLogging {
+  def buildIndex(changes: Iterable[DOut])(implicit ec: ExecutionContext): Future[Index] =
+    Single(composes.buildIndex(Seq(composes.aggregate(changes))))
   def toTreeReplace(assembled: ReadModel, updates: Seq[N_Update], profiling: JoiningProfiling, executionContext: OuterExecutionContext): Future[WorldTransition] = {
     val start = System.nanoTime
+    val txName = Thread.currentThread.getName
     val isActiveOrig: Set[AssembledKey] = activeOrigKeyRegistry.values
     val outFactory = composes.createOutFactory(0, +1)
-    val mDiff = for {
+    implicit val ec: ExecutionContext = executionContext.value
+    val indexGroups = for {
       tpPair <- updates.groupBy(_.valueTypeId)
       (valueTypeId, tpUpdates) = tpPair : (Long,Seq[N_Update])
       valueAdapter <- qAdapterRegistry.byId.get(valueTypeId)
       wKey <- Option(origKeyFactory.value.rawKey(valueAdapter.className)) if isActiveOrig(wKey)
     } yield {
-      implicit val ec: ExecutionContext = executionContext.value
-      val indexF = for {
+      val updatesBySrcId = tpUpdates.groupBy(_.srcId)
+      val adds: Iterable[DOut] = for {
+        iPair <- updatesBySrcId
+        (srcId, iUpdates) = iPair
+        rawValue = iUpdates.last.value if rawValue.size > 0
+      } yield outFactory.result(srcId,valueAdapter.decode(rawValue))
+      val partitionerList = origPartitionerRegistry.getByAdapter(valueAdapter)
+      for {
         wasIndex <- wKey.of(assembled)
-        updatesBySrcId = tpUpdates.groupBy(_.srcId)
-        adds = for {
-          iPair <- updatesBySrcId
-          (srcId, iUpdates) = iPair
-          rawValue = iUpdates.last.value if rawValue.size > 0
-        } yield outFactory.result(srcId,valueAdapter.decode(rawValue))
-        addF = Single(composes.buildIndex(Seq(composes.aggregate(adds))))
-        remove = composes.removingDiff(wasIndex,updatesBySrcId.keys)
-        add <- addF
-      } yield composes.mergeIndex(Seq(add,remove))
-      wKey -> indexF
+        removes = composes.removingDiff(0, wasIndex, updatesBySrcId.keys)
+        changes = adds ++ removes
+        partitionedIndexFList = for{
+          partitioner <- partitionerList
+          (nsName,nsChanges) <- changes.groupBy(change=>partitioner.handle(composes.getValue(change)))
+        } yield composes.addNS(wKey,nsName) -> buildIndex(nsChanges)
+      } yield (wKey->buildIndex(changes)) :: partitionedIndexFList
     }
-    val diff = readModelUtil.create(mDiff.toMap)
-    val res = replace.replace(assembled,diff,profiling,executionContext)
-    if(logger.underlying.isDebugEnabled){
-      val txName = Thread.currentThread.getName
-      res.foreach(transition=>{
+    for {
+      indexes <- Future.sequence(indexGroups)
+      diff = readModelUtil.create(CheckedMap(indexes.toSeq.flatten))
+      transition <- replace.replace(assembled,diff,profiling,executionContext)
+    } yield {
+      if(logger.underlying.isDebugEnabled){
         val period = (System.nanoTime-start)/1000000
         val ids = updates.map(_.valueTypeId).distinct.map(v=>s"0x${java.lang.Long.toHexString(v)}").mkString(" ")
         logger.debug(s"checked: ${transition.taskLog.size} rules $period ms by $txName ($ids)")
-      })(executionContext.value)
+      }
+      transition
     }
-    res
   }
 
   def waitFor[T](res: Future[T], options: AssembleOptions, stage: String): T = concurrent.blocking{

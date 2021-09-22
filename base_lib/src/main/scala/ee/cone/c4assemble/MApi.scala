@@ -17,7 +17,7 @@ trait IndexUtil extends Product {
   def zipMergeIndex(aDiffs: Seq[Index])(bDiffs: Seq[Index]): Seq[Index]
   def getValues(index: Index, key: Any, warning: String): Values[Product] //m
   def nonEmpty(index: Index, key: Any): Boolean //m
-  def removingDiff(index: Index, keys: Iterable[Any]): Index
+  def removingDiff(pos: Int, index: Index, keys: Iterable[Any]): Iterable[DOut]
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): List[MultiForPart]  //m
   def mayBePar[V](seq: Seq[V]): DPIterable[V]
   //
@@ -29,6 +29,9 @@ trait IndexUtil extends Product {
   def getInstantly(future: Future[Index]): Index
   //
   def createOutFactory(pos: Int, dir: Int): OutFactory[Any,Product]
+  //
+  def getValue(dOut: DOut): Product
+  def addNS(key: AssembledKey, ns: String): AssembledKey
 }
 
 // ${outKeyName.fold("DOut=>Unit")(_=>"Tuple2[Any,Product]=>Unit")}      ${outKeyName.fold("buffer.add _")(_=>"pair=>buffer.add(outFactory.result(pair))")}  MutableDOutBuffer
