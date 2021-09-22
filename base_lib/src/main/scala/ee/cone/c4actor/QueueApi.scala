@@ -322,3 +322,9 @@ trait UpdateProcessor {
 trait UpdateIfChanged {
   def updateSimple[T<:Product](getByPK: GetByPK[T]): Context=>Seq[T]=>Seq[LEvent[Product]]
 }
+
+trait GeneralOrigPartitioner
+abstract class OrigPartitioner[T<:Product](val cl: Class[T]) extends GeneralOrigPartitioner {
+  def handle(value: T): String
+  def partitions: Set[String]
+}

@@ -145,13 +145,13 @@ final case class ParallelExecution(power: Int) {
 
   def emptyMS: DMultiSet = Map.empty
 
-  def removingDiff(index: Index, keys: Iterable[Any]): Index = {
-    val pairs = for {
+  def removingDiff(pos: Int, index: Index, keys: Iterable[Any]): Iterable[DOut] =
+    for {
       key <- keys
-      values <- getMS(index,key)
-    } yield key->values.transform((k,v)=> v.map(IndexUtilImpl.inverse))
-    IndexUtilImpl.makeIndex(pairs.toMap)
-  }
+      values <- getMS(index,key).toIterable
+      (mKey,counts)  <- values
+      count <- counts
+    } yield new DOutImpl(pos, key, mKey, IndexUtilImpl.inverse(count))
 
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): List[MultiForPart] = {
     getMS(currentIndex,key).fold(Nil:List[MultiForPart]){currentValues =>
@@ -224,6 +224,11 @@ final case class ParallelExecution(power: Int) {
     new OutFactoryImpl(pos,dir)
 
   @SuppressWarnings(Array("org.wartremover.warts.TryPartial")) def getInstantly(future: Future[Index]): Index = future.value.get.get
+
+  def getValue(dOut: DOut): Product = dOut match { case d: DOutImpl => d.count.item }
+  def addNS(key: AssembledKey, ns: String): AssembledKey = key match {
+    case k: JoinKeyImpl => k.copy(keyAlias=k.keyAlias+"#"+ns)
+  }
 }
 
 final class ChangedMultiForPart(val items: List[Product]) extends MultiForPart {
