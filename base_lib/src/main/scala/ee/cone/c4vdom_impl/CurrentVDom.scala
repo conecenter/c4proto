@@ -128,7 +128,7 @@ case class VDomHandlerImpl[State](
     val recent = MakingViewStat(now,measured) :: moreRecent ::: lessRecent.filter(m => now-m.at < 10000)
     val lowered = Math.min(was.stable, recent.maxBy(_.value).value)
     val stable = if(recent.size < 3) lowered else Math.max(lowered,recent.minBy(_.value).value)
-    println(s"AAA ${stable} ${recent.size}")
+    //println(s"AAA ${stable} ${recent.size}")
     MakingViewStats(sum,recent,stable)
   }
 
