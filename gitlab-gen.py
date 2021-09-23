@@ -75,7 +75,7 @@ def get_build_jobs(config_statements):
   }
   fin_jobs = {
     build_rt_name(tag): build(
-      prefix_cond(aggr_to_cond[aggr]), stage_build_rt, sorted(aggr_jobs.keys()),
+      prefix_cond(aggr_to_cond[aggr]), stage_build_rt, [build_aggr_name(aggr)], # sorted(aggr_jobs.keys())
       f"ci_build {tag} {aggr}"
     ) for tag, aggr in tag_aggr_list
   }
