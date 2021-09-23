@@ -30,7 +30,9 @@ my $repeat = sub{
     @state = &$f(@state) while @state > 0;
 };
 
-my $serve_bloop = sub{ &$exec("bloop","server") }; #may be add: $exec_at JAVA_TOOL_OPTIONS => "-Xmx4g -Xss16m -XX:+UseG1GC",
+my $serve_bloop = sub{
+    &$exec_at(".", { JAVA_TOOL_OPTIONS => "$ENV{JAVA_TOOL_OPTIONS} $ENV{C4BUILD_JAVA_TOOL_OPTIONS}" }, "bloop", "server")
+};
 my $serve_sshd = sub{
     do{
         my $dev_auth_dir = $ENV{C4DEV_AUTH_DIR} || die "no C4DEV_AUTH_DIR";
