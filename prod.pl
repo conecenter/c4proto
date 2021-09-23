@@ -1009,8 +1009,9 @@ push @tasks, ["watch","$composes_txt",sub{
     my $kubectl = &$get_kubectl($comp);
     sy(qq[watch $kubectl get po -l app=$comp]);
 }];
-push @tasks, ["log","<pod|$composes_txt> [tail] [add]",sub{
-    my($arg,$tail,$add)=@_;
+push @tasks, ["log","[pod|$composes_txt] [tail] [add]",sub{
+    my($arg_opt,$tail,$add)=@_;
+    my $arg = $arg_opt || &$mandatory_of(C4INBOX_TOPIC_PREFIX=>\%ENV)."-main";
     &$ssh_add();
     &$for_comp_pod($arg,sub{ my ($comp,$pod) = @_;
         my $kubectl = &$get_kubectl($comp);
