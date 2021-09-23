@@ -984,12 +984,14 @@ my $need_auth_path = sub{
     "$from_path/simple.auth"
 };
 
-push @tasks, ["snapshot_put", "$composes_txt <file_path> [to_address]", sub{
-    my($comp,$data_path,$address_arg)=@_;
+push @tasks, ["snapshot_put", "$composes_txt <file_path|nil> [to_address]", sub{
+    my($comp,$data_path_arg,$address_arg)=@_;
     &$ssh_add();
     my $host = &$get_hostname($comp);
     my $address = $address_arg || $host && "https://$host" ||
         die "need le_hostname or domain_zone for $comp or address";
+    my $data_path = $data_path_arg ne "nil" ? $data_path_arg :
+        &$put_temp("0000000000000000-d41d8cd9-8f00-3204-a980-0998ecf8427e","");
     sy(&$snapshot_put(&$need_auth_path($comp),$data_path,$address));
 }];
 
