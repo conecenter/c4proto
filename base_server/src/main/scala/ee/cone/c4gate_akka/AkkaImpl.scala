@@ -77,7 +77,10 @@ import scala.util.control.NonFatal
           Single.option(response.headers.filter(_.name == "x-r-redirect-inner").map(_.value))
         redirectUriOpt.fold(Future.successful(response)){ uri:String =>
           logger debug s"Redirecting to $uri"
-          http.singleRequest(HttpRequest(uri = uri))
+          Source.single(request)
+            .via(Http().connectionTo(host).toPort(proxyPort).http())
+            .toMat(Sink.head)(Keep.right)
+            .run()
         }
       }
     } yield response).recover{ case NonFatal(e) =>
