@@ -41,6 +41,8 @@ import scala.util.control.NonFatal
     "akka.http.client.request-timeout = 600 s",
     "akka.http.parsing.max-to-strict-bytes = infinite",
     "akka.http.server.raw-request-uri-header = on",
+    "akka.http.host-connection-pool.max-connections = 64",
+    "akka.http.host-connection-pool.max-open-requests = 64",
   ).mkString("\n")
 }
 
@@ -76,8 +78,16 @@ import scala.util.control.NonFatal
         val redirectUriOpt =
           Single.option(response.headers.filter(_.name == "x-r-redirect-inner").map(_.value))
         redirectUriOpt.fold(Future.successful(response)){ uri:String =>
-          logger debug s"Redirecting to $uri"
-          http.singleRequest(HttpRequest(uri = uri))
+          /*
+          if(response.headers.exists(h => h.name == "accept" and h.value == "text/event-stream")){
+            logger debug s"Redirecting event-stream $uri"
+            Source.single(request)
+              .via(http.connectionTo(request.uri.authority.host).toPort(request.uri.authority.port).http())
+              .toMat(Sink.head)(Keep.right)
+          } else {*/
+            logger debug s"Redirecting to $uri"
+            http.singleRequest(HttpRequest(uri = uri))
+          //}
         }
       }
     } yield response).recover{ case NonFatal(e) =>
