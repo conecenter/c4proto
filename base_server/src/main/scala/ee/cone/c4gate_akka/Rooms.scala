@@ -4,78 +4,82 @@ package ee.cone.c4gate_akka
 import ee.cone.c4actor.{Executable, Execution}
 
 import java.nio.file.Paths
-import scala.concurrent.{Future, Promise}
+import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
 
+import akka.NotUsed
+import akka.util.ByteString
 import akka.stream.{KillSwitch, KillSwitches, SharedKillSwitch}
 import akka.stream.scaladsl.{Flow, Keep, MergeHub, Sink, Source}
 
-import akka.http.scaladsl.model.{AttributeKeys, HttpRequest, HttpResponse}
-import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage, WebSocketUpgrade}
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse, ResponseEntity}
+import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage, UpgradeToWebSocket}
+
+import ee.cone.c4gate_akka.Rooms._
 
 trait RoomFactory {
-  def createRoom(will: RoomConf, killSwitch: SharedKillSwitch): Flow[String,String,NotUsed]
+  def createRoom(will: RoomConf, killSwitch: SharedKillSwitch): Flow[ByteString,ByteString,NotUsed]
 }
 
 object Rooms {
   sealed trait ToMainMessage
 
   case class RoomFlowReq(
-    roomKey: RoomKey, response: Promise[Option[Flow[String,String,NotUsed]]]Keep
+    roomKey: RoomKey, response: Promise[Option[Flow[ByteString,ByteString,NotUsed]]]
   ) extends ToMainMessage
 
-  case class RoomsConf[T<:Product](rooms: Map[RoomKey,T]) extends ToMainMessage
+  case class RoomsConf(rooms: Map[RoomKey,RoomConf]) extends ToMainMessage
 
   type RoomKey = String
+  type RoomConf = String
 
   class RoomAccess(
-    conf: RoomConf,
-    flow: Flow[String,String,NotUsed],
-    killSwitch: KillSwitch
+    val conf: RoomConf,
+    val flow: Flow[ByteString,ByteString,NotUsed],
+    val killSwitch: KillSwitch
   )
 }
 
-import ee.cone.c4gate_akka.Rooms._
-
 trait RoomsHandler {
-  def handle(req: HttpRequest): Future[HttpResponse]
+  def handle(req: HttpRequest)(implicit ec: ExecutionContext): Future[HttpResponse]
 }
 
 class RoomsManagerImpl(
   execution: Execution,
   akkaMat: AkkaMat,
+  roomFactory: RoomFactory
 )(
-  val mainSink: Promise[Sink[ToMainMessage,NotUsed]]
+  val mainSink: Promise[Sink[ToMainMessage,NotUsed]] = Promise[Sink[ToMainMessage,NotUsed]]()
 ) extends RoomsHandler with Executable {
 
   def configureRooms(
-    rooms: Map[RoomKey,RoomConf], willRoomsConf: Map[RoomKey,RoomConf]
-  ): Map[RoomKey,RoomConf] =
-    copy(rooms=
-      (rooms.keys ++ willRoomsConf.keys).toList.distinct.sorted
-        .foldLeft(rooms){ (st,roomKey)=>
-          val wasOpt = rooms.get(roomKey)
-          val willConfOpt = willRoomsConf.get(roomKey)
-          if(wasOpt.map(_.conf)==willConfOpt) st else {
-            for(was<-wasOpt){
-              was.killSwitch.shutdown()
-              println(s"shutdown $roomKey")
-            }
-            willConfOpt.fold(st - roomKey){ conf =>
-              val killSwitch = KillSwitches.shared(s"room-$roomKey")
-              val flow = createRoom(conf,killSwitch)
-              println(s"created $roomKey")
-              st + (roomKey->RoomAccess(conf,flow,killSwitch))
-            }
+    rooms: Map[RoomKey,RoomAccess], willRoomsConf: Map[RoomKey,RoomConf]
+  ): Map[RoomKey,RoomAccess] =
+    (rooms.keys ++ willRoomsConf.keys).toList.distinct.sorted
+      .foldLeft(rooms){ (st,roomKey)=>
+        val wasOpt = rooms.get(roomKey)
+        val willConfOpt = willRoomsConf.get(roomKey)
+        if(wasOpt.map(_.conf)==willConfOpt) st else {
+          for(was<-wasOpt){
+            was.killSwitch.shutdown()
+            println(s"shutdown $roomKey")
+          }
+          willConfOpt.fold(st - roomKey){ conf =>
+            val killSwitch = KillSwitches.shared(s"room-$roomKey")
+            val flow = roomFactory.createRoom(conf,killSwitch)
+            println(s"created $roomKey")
+            st + (roomKey -> new RoomAccess(conf,flow,killSwitch))
           }
         }
-    )
+      }
+
+  private def ignoreFailureWillPrintWarning(nu: NotUsed): Unit = ()
 
   def receive(
-    rooms: Map[RoomKey,RoomConf], message: ToMainMessage
-  ): Map[RoomKey,RoomConf] = message match {
+    rooms: Map[RoomKey,RoomAccess], message: ToMainMessage
+  ): Map[RoomKey,RoomAccess] = message match {
     case RoomFlowReq(roomKey,resp) =>
-      resp.success(rooms.get(roomKey).map(_.flow))
+      execution.success(resp, rooms.get(roomKey).map(_.flow))
       rooms
     case RoomsConf(will) => configureRooms(rooms, will)
   }
@@ -84,38 +88,40 @@ class RoomsManagerImpl(
     for(mat <- akkaMat.get)
       yield MergeHub.source[ToMainMessage]
         .mapMaterializedValue(mainSink.success)
-        .toMat(Sink.fold(Map.empty[RoomKey,RoomConf])(receive))(Keep.right)
+        .toMat(Sink.fold(Map.empty[RoomKey,RoomAccess])(receive _))(Keep.right)
         .run()(mat)
   }
 
-  def wrapWebSocketFlow(inner: Flow[String,String,_]): Flow[Message,Message,_] =
-    Flow[Message].mapAsync(1){
-      case m: TextMessage =>
-        execution.fatal { implicit ec =>
-          for {
-            mat <- akkaMat.get
-            strictMessage <- m.toStrict(1.seconds)(mat)
-          } yield strictMessage.text
-        }
-      case _: BinaryMessage => Future.successful("")
-    }.via(inner).map(TextMessage(_))
-
-  def handleWebSocket(req: HttpRequest): Option[Flow[String,String,_]=>HttpResponse] =
-    req.attribute(AttributeKeys.webSocketUpgrade)
-      .map(upgrade=>innerFlow=>upgrade.handleMessages(wrapWebSocketFlow(innerFlow)))
-
-  def handle(req: HttpRequest): Future[HttpResponse] = handleWebSocket(req)
-    .fold(Future.successful(HttpResponse(400, entity = ""))){handle=>
-      val promise = Promise[Option[Flow[String, String, NotUsed]]]()
-      val roomKey = req.uri.path.toString.split('/').last
-      execution.fatal { implicit ec =>
-        for {
-          respOpt <- promise.future
-        } yield respOpt.fold(HttpResponse(404, entity = ""))(handle)
-        for {
-          mat <- akkaMat.get
-          sink <- mainSink.future
-        } yield Source.single(RoomFlowReq(roomKey, promise)).to(sink).run()(mat) // failure will print warning
+  def getData(message: Message)(implicit ec: ExecutionContext): Future[ByteString] =
+    for {
+      mat <- akkaMat.get
+      data <- message match {
+        case m: BinaryMessage =>
+          m.toStrict(1.seconds)(mat).map(_.data)
+        case m: TextMessage =>
+          m.toStrict(1.seconds)(mat).map(tm=>ByteString(tm.text))
       }
+    } yield data
+
+  def handleWebSocket(
+    req: HttpRequest
+  )(implicit ec: ExecutionContext): Option[Flow[ByteString,ByteString,_]=>HttpResponse] =
+    req.header[UpgradeToWebSocket]
+      .map(upgrade=>innerFlow=>upgrade.handleMessages(
+        Flow[Message].mapAsync(1)(getData(_)).via(innerFlow).map(BinaryMessage(_))
+      ))
+
+  def handle(req: HttpRequest)(implicit ec: ExecutionContext): Future[HttpResponse] = handleWebSocket(req)
+    .fold(Future.successful(HttpResponse(400, entity = ""))){handle=>
+      val promise = Promise[Option[Flow[ByteString, ByteString, NotUsed]]]()
+      val roomKey = req.uri.path.toString.split('/').last
+      for {
+        mat <- akkaMat.get
+        sink <- mainSink.future
+        respOpt <- {
+          ignoreFailureWillPrintWarning(Source.single(RoomFlowReq(roomKey, promise)).to(sink).run()(mat))
+          promise.future
+        }
+      } yield respOpt.fold(HttpResponse(404, entity = ""))(handle)
     }
 }

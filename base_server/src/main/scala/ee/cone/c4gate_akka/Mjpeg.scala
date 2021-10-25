@@ -1,7 +1,26 @@
 
 package ee.cone.c4gate_akka
 
+import scala.concurrent.{Future, Promise}
+import scala.concurrent.duration._
+
+import akka.NotUsed
+import akka.util.ByteString
+import akka.stream.{OverflowStrategy,SharedKillSwitch}
+import akka.stream.scaladsl.{Flow, Keep, MergeHub, Sink, Source, BroadcastHub, RestartSource}
+
+import akka.http.scaladsl.HttpExt
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse, ResponseEntity}
+
+import akka.http.scaladsl.model.headers.{Authorization,GenericHttpCredentials,HttpChallenge,`WWW-Authenticate`}
+
 import ee.cone.c4actor.Execution
+
+import ee.cone.c4gate_akka.Rooms._
+
+trait AkkaHttp {
+  def get: Future[HttpExt]
+}
 
 case class MjpegCamConf(
   host: String, uri: String, username: String, password: String
@@ -10,14 +29,17 @@ case class MjpegCamConf(
 class MjpegClient(
   execution: Execution,
   akkaMat: AkkaMat,
+  akkaHttp: AkkaHttp,
 ) extends RoomFactory {
+  def md5(v: String): String = okio.ByteString.encodeUtf8(v).md5().hex()
+
   def getAuthReq(resp: HttpResponse, uri: String, username: String, password: String): HttpRequest = {
     val Seq(HttpChallenge("Digest",realm,challengeArgs)) =
       resp.headers[`WWW-Authenticate`].flatMap(_.challenges)
     val nonce = challengeArgs("nonce")
-    val ha1 = MD5(s"$username:$realm:$password")
-    val ha2 = MD5(s"GET:$uri")
-    val response = MD5(s"$ha1:$nonce:$ha2")
+    val ha1 = md5(s"$username:$realm:$password")
+    val ha2 = md5(s"GET:$uri")
+    val response = md5(s"$ha1:$nonce:$ha2")
     val cred = GenericHttpCredentials("Digest","",Map(
       "username" -> username,
       "realm" -> realm,
@@ -30,7 +52,7 @@ class MjpegClient(
   }
 
   // custom step takes less cpu than Framing.delimiter, but works only if there are more in-frames, than out
-  def jpegSource(entity: ResponseEntity): Source[String,_] = {
+  def jpegSource(entity: ResponseEntity): Source[ByteString,_] = {
     val boundary = entity.contentType.mediaType.params("boundary")
     val headEnd = ByteString("\r\n\r\n")
     val boundaryOuter = ByteString(s"--$boundary\r\n")
@@ -42,18 +64,20 @@ class MjpegClient(
       else (acc.take(boundaryPos), acc.drop(boundaryPos+boundaryOuter.size))
     }.collect{ case (out,_) if out.nonEmpty =>
       val headEndPos = out.indexOfSlice(headEnd)
-      out.drop(headEndPos+headEnd.size).encodeBase64.utf8String
+      out.drop(headEndPos+headEnd.size)
     }
   }
 
-  def createRoom(will: RoomConf, killSwitch: SharedKillSwitch): Flow[String,String,NotUsed] = {
-    val commonSourcePromise = Promise[Source[String,NotUsed]]
+  def createRoom(will: RoomConf, killSwitch: SharedKillSwitch): Flow[ByteString,ByteString,NotUsed] = {
+    val commonSourcePromise = Promise[Source[ByteString,NotUsed]]
     execution.fatal{ implicit ec =>
       for{
         mat <- akkaMat.get
+        http <- akkaHttp.get
         commonSource = {
-          import will._
-          val connFlow = http.connectionTo(host).http()
+          val ConfLineValues = """\s*(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s*""".r
+          val ConfLineValues(host,uri,username,password) = will
+          val connFlow = http.outgoingConnection(host)
           val canFailSource = Source.single(HttpRequest(uri=uri))
             .via(connFlow)
             .mapAsync(1){ firstResp =>
@@ -63,24 +87,23 @@ class MjpegClient(
             .via(connFlow)
             .flatMapConcat{ secondResp => jpegSource(secondResp.entity) }
             .idleTimeout(4.seconds)
-          val restartSettings = RestartSettings(
+          RestartSource.withBackoff(
             minBackoff = 3.seconds, maxBackoff = 30.seconds, randomFactor = 0.2,
-          )
-          RestartSource.withBackoff(restartSettings)(()=>canFailSource)
+          )(()=>canFailSource)
             .via(killSwitch.flow)
-            .toMat(BroadcastHub.sink[String])(Keep.right)
+            .toMat(BroadcastHub.sink[ByteString])(Keep.right)
             .run()(mat) //check?
         }
         ignoredOK <- commonSource.toMat(Sink.ignore)(Keep.right).run()(mat)
       } yield {
-        commonSourcePromise.success(commonSource)
+        execution.success(commonSourcePromise,commonSource)
         ignoredOK
       }
     }
-    val source = Source.futureSource(commonSourcePromise.future)
+    val source = Source.fromFutureSource(commonSourcePromise.future)
       .buffer(size = 2, overflowStrategy = OverflowStrategy.dropHead)
-      .keepAlive(1.seconds,()=>"")
-    val sink = Flow[String].idleTimeout(5.seconds).to(Sink.ignore) // ignore stream -- so cam will work w/o client
+      .keepAlive(1.seconds,()=>ByteString.empty)
+    val sink = Flow[ByteString].idleTimeout(5.seconds).to(Sink.ignore) // ignore stream -- so cam will work w/o client
     Flow.fromSinkAndSourceCoupled(sink,source)
   }
 }
