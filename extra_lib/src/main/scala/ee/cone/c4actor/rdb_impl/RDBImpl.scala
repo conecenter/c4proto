@@ -339,10 +339,12 @@ class ProtoToString(registry: QAdapterRegistry, rDBTypes: RDBTypes){
 
 object Hex { def apply(i: Long): String = "0x%04x".format(i) }
 
+
 @c4("RDBSyncApp") final class RDBTypes(
   universalProtoAdapter: ProtoAdapter[UniversalNode],
   universalNodeFactory: UniversalNodeFactory,
-  srcIdProtoAdapter: ProtoAdapter[SrcId]
+  srcIdProtoAdapter: ProtoAdapter[SrcId],
+  universalPropHandlers: List[UniversalPropHandler]
 ) {
   import universalNodeFactory._
   def encode(p: Object): String = p match {
@@ -356,6 +358,8 @@ object Hex { def apply(i: Long): String = "0x%04x".format(i) }
     case v: Instant => v.toEpochMilli.toString
   }
   def shortName(cl: Class[_]): String = cl.getName.split("\\.").last
+
+  lazy val byTypeHandlers: Map[String, UniversalPropHandler] = universalPropHandlers.map(h => h.handledType -> h).toMap
 
   def toUniversalProp(tag: Int, typeName: String, value: String): UniversalProp = typeName match {
     case "String" =>
@@ -375,6 +379,8 @@ object Hex { def apply(i: Long): String = "0x%04x".format(i) }
       val scaleProp = prop(0x0001,scale:Integer,ProtoAdapter.SINT32)
       val bytesProp = prop(0x0002,bytes,ProtoAdapter.BYTES)
       prop[UniversalNode](tag,node(List(scaleProp,bytesProp)),universalProtoAdapter)
+    case other if byTypeHandlers.contains(other)=>
+      byTypeHandlers(other).handle(tag, value)
   }
 }
 
