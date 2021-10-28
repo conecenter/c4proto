@@ -339,10 +339,6 @@ class ProtoToString(registry: QAdapterRegistry, rDBTypes: RDBTypes){
 
 object Hex { def apply(i: Long): String = "0x%04x".format(i) }
 
-trait UniversalPropHandler {
-  def handledType: String
-  def handle(tag: Int, value: String): UniversalProp
-}
 
 @c4("RDBSyncApp") final class RDBTypes(
   universalProtoAdapter: ProtoAdapter[UniversalNode],
