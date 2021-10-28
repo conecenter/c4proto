@@ -1,10 +1,8 @@
 
 package ee.cone.c4gate_akka
 
-import ee.cone.c4actor.QProtocol.S_Firstborn
-import ee.cone.c4actor.{Executable, Execution}
-
-import java.nio.file.Paths
+import java.time.Instant
+import java.nio.file.{Files,Paths}
 import java.nio.charset.StandardCharsets.UTF_8
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
@@ -17,6 +15,13 @@ import akka.stream.scaladsl.{Flow, Keep, MergeHub, Sink, Source}
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse, ResponseEntity}
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage, UpgradeToWebSocket}
 
+import ee.cone.c4di._
+import ee.cone.c4assemble._
+import ee.cone.c4assemble.Types.{Each, Values}
+import ee.cone.c4actor._
+import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.QProtocol.S_Firstborn
+import ee.cone.c4gate.RoomsConfProtocol._
 import ee.cone.c4gate_akka.Rooms._
 
 object Rooms {
@@ -43,9 +48,6 @@ object Rooms {
   roomFactoryList: List[RoomFactory],
 )(
   mainSinkPromise: Promise[Sink[ToMainMessage,NotUsed]] = Promise()
-)(
-  mainSink: Sink[ToMainMessage,Future[NotUsed]] =
-    Sink.futureSink(mainSinkPromise.future)
 ) extends Executable {
   def configureRooms(
     rooms: Map[RoomPath,RoomAccess], willRoomsConf: Map[RoomPath,RoomConf]
@@ -61,7 +63,7 @@ object Rooms {
           }
           willConfOpt.fold(st - path){ conf =>
             val killSwitch = KillSwitches.shared(s"room-$path")
-            val roomFactory = Single(roomFactoryList.filter(path.startsWith))
+            val roomFactory = Single(roomFactoryList.filter(roomF=>path.startsWith(roomF.pathPrefix)))
             val flow = roomFactory.createRoom(conf,killSwitch)
             println(s"created $path")
             st + (path -> new RoomAccess(conf,flow,killSwitch))
@@ -88,9 +90,12 @@ object Rooms {
         .run()(mat)
   }
 
-  private def ignoreNotUsed(nu: NotUsed): Unit = () //?FailureWillPrintWarning
-  def send(message: ToMainMessage): Unit =
-    ignoreNotUsed(Source.single(message).to(mainSink).run()(mat))
+  def send(message: ToMainMessage): Unit = execution.fatal{ implicit ec =>
+    for{
+      mat <- akkaMat.get
+      mainSink <- mainSinkPromise.future
+    } yield Source.single(message).to(mainSink).run()(mat) //NotUsed ? FailureWillPrintWarning
+  }
 }
 
 @c4("AkkaGatewayApp") final class RoomsRequestHandlerProvider(
@@ -141,24 +146,27 @@ object Rooms {
 @c4assemble("AkkaGatewayApp") class RoomsConfAssembleBase(
   actorName: ActorName,
   roomConfTxFactory: RoomConfTxFactory,
+  roomFileConfTxFactory: RoomFileConfTxFactory,
 ) {
   type RoomTxKey = SrcId
   def fromConf(
     srcId: SrcId,
     conf: Each[S_RoomsConf]
   ): Values[(RoomTxKey, S_RoomsConf)] =
-    List(actorName -> conf)
+    List(actorName.value -> conf)
 
   def toTx(
     srcId: SrcId,
-    firstborn: Each[S_Firstborn]
+    firstborn: Each[S_Firstborn],
     @by[RoomTxKey] confList: Values[S_RoomsConf]
   ): Values[(SrcId, TxTransform)] =
-    List(WithPK(roomConfTxFactory.create("RoomConfTx",confList.toList.sorted(_.srcId))))
-    ++ { path =>
-      val key = "RoomFileConfTx"
-      List(WithPK(RoomFileConfTx(key,Single.option(confList.filter(_.srcId==key)))))
-    }
+    List(
+      WithPK(roomConfTxFactory.create("RoomConfTx",confList.toList.sortBy(_.srcId))),
+      {
+        val key = "RoomFileConfTx"
+        WithPK(roomFileConfTxFactory.create(key,Single.option(confList.filter(_.srcId==key))))
+      }
+    )
 }
 
 case object RoomConfWas extends TransientLens[List[S_RoomsConf]](Nil)
@@ -168,14 +176,14 @@ case object RoomConfWas extends TransientLens[List[S_RoomsConf]](Nil)
   roomsManager: RoomsManager
 ) extends TxTransform {
   def transform(local: Context): Context = {
-    if(RoomConfWas.of(local) != conf) {
+    if(RoomConfWas.of(local) != confList) {
       val confPairs = for {
         confs <- confList
         conf <- confs.rooms
       } yield conf.path -> conf.content
       roomsManager.send(RoomsConf(confPairs.toMap))
     }
-    RoomConfWas.set(conf)(local)
+    RoomConfWas.set(confList)(local)
   }
 }
 
@@ -183,35 +191,29 @@ case object RoomConfFileContentWas extends TransientLens[String]("")
 @c4multi("AkkaGatewayApp") final case class RoomFileConfTx(
   srcId: SrcId, confOpt: Option[S_RoomsConf]
 )(
-  config: ListConfig
+  config: ListConfig,
+  txAdd: LTxAdd,
 ) extends TxTransform {
   def transform(local: Context): Context = {
-    val content = Single.option(config.get("C4ROOMS_CONF"))
+    val content: String = Single.option(config.get("C4ROOMS_CONF"))
       .map(Paths.get(_)).filter(Files.exists(_))
       .fold("")(path=>new String(Files.readAllBytes(path),UTF_8))
-    if(RoomConfFileContentWas.get(local) != content){
+    val events = if(RoomConfFileContentWas.of(local) == content) Nil else {
       val ConfLineIgnore = """(\s*|#.*)""".r
       val ConfLineValues = """\s*(\S+)\s+(.*)""".r
-      val rooms = content.split('\n').toSeq.flatMap {
+      val rooms = content.split('\n').toList.flatMap {
         case ConfLineIgnore(_) => Nil
         case ConfLineValues(path, content) => List(N_RoomConf(path, content))
       }
-      ??? S_RoomsConf(srcId,rooms)
-      //parse
-      // == confOpt
+      val willConfOpt: Option[S_RoomsConf] =
+        if(rooms.isEmpty) None else Option(S_RoomsConf(srcId,rooms))
+      if(confOpt == willConfOpt) Nil
+      else willConfOpt.fold(LEvent.delete(confOpt))(c=>LEvent.update(c))
     }
     Function.chain(Seq(
+      txAdd.add(events),
       RoomConfFileContentWas.set(content),
-      SleepUntilKey.set(now.plusSeconds(3)),
+      SleepUntilKey.set(Instant.now.plusSeconds(3)),
     ))(local)
   }
 }
-/*  def parseCamConf(content: String): RoomsConf = {
-    val ConfLineIgnore = """(\s*|#.*)""".r
-    val ConfLineValues = """\s*(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s*""".r
-    RoomsConf(content.split('\n').toSeq.flatMap{
-      case ConfLineIgnore(_) => Nil
-      case ConfLineValues(roomKey,host,uri,username,password) =>
-        List(roomKey -> RoomConf(host,uri,username,password))
-    }.toMap)
-  }*/

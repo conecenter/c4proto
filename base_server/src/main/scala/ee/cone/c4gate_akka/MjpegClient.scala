@@ -14,6 +14,7 @@ import akka.http.scaladsl.model.{HttpRequest, HttpResponse, ResponseEntity}
 
 import akka.http.scaladsl.model.headers.{Authorization,GenericHttpCredentials,HttpChallenge,`WWW-Authenticate`}
 
+import ee.cone.c4di._
 import ee.cone.c4actor.Execution
 
 case class MjpegCamConf(

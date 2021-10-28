@@ -3,7 +3,12 @@ package ee.cone.c4gate_akka
 import akka.stream.ActorMaterializer
 
 import scala.concurrent.{ExecutionContext, Future}
-import akka.http.scaladsl.model.HttpRequest
+import akka.NotUsed
+import akka.util.ByteString
+import akka.stream.SharedKillSwitch
+import akka.stream.scaladsl.Flow
+import akka.http.scaladsl.model.{HttpRequest,HttpResponse}
+import akka.http.scaladsl.HttpExt
 
 trait AkkaMat {
   def get: Future[ActorMaterializer]

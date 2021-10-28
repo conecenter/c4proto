@@ -52,7 +52,7 @@ import scala.util.control.NonFatal
   val httpPromise: Promise[HttpExt] = Promise()
 ) extends AkkaHttp with Executable with Early {
   def run(): Unit = execution.fatal { implicit ec =>
-    for(mat <- akkaMat.get) execution.success(httpPromise, Http()(mat.system))
+    for(mat <- akkaMat.get) yield execution.success(httpPromise, Http()(mat.system))
   }
   def get: Future[HttpExt] = httpPromise.future
 }
@@ -64,7 +64,7 @@ import scala.util.control.NonFatal
 ) extends AkkaRequestHandler with LazyLogging {
   def pathPrefix = ""
   def handleAsync(req: HttpRequest)(implicit ec: ExecutionContext): Future[HttpResponse] =
-    req => for {
+    for {
       mat <- akkaMat.get
       http <- akkaHttp.get
       request <- requestPreHandler.handleAsync(req)
@@ -119,7 +119,6 @@ import scala.util.control.NonFatal
     for{
       mat <- akkaMat.get
       http <- akkaHttp.get
-      handler = getHandler
       // to see: MergeHub/PartitionHub.statefulSink solution of the same task vs FHttpHandler
       binding <- http.bindAndHandleAsync(
         handler = (req: HttpRequest)=>{
