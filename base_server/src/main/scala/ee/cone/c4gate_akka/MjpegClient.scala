@@ -16,21 +16,17 @@ import akka.http.scaladsl.model.headers.{Authorization,GenericHttpCredentials,Ht
 
 import ee.cone.c4actor.Execution
 
-import ee.cone.c4gate_akka.Rooms._
-
-trait AkkaHttp {
-  def get: Future[HttpExt]
-}
-
 case class MjpegCamConf(
   host: String, uri: String, username: String, password: String
 )
 
-class MjpegClient(
+@c4("AkkaGatewayApp") final class MjpegClient(
   execution: Execution,
   akkaMat: AkkaMat,
   akkaHttp: AkkaHttp,
 ) extends RoomFactory {
+  def pathPrefix: String = "/mjpeg/"
+
   def md5(v: String): String = okio.ByteString.encodeUtf8(v).md5().hex()
 
   def getAuthReq(resp: HttpResponse, uri: String, username: String, password: String): HttpRequest = {
@@ -68,7 +64,7 @@ class MjpegClient(
     }
   }
 
-  def createRoom(will: RoomConf, killSwitch: SharedKillSwitch): Flow[ByteString,ByteString,NotUsed] = {
+  def createRoom(will: String, killSwitch: SharedKillSwitch): Flow[ByteString,ByteString,NotUsed] = {
     val commonSourcePromise = Promise[Source[ByteString,NotUsed]]
     execution.fatal{ implicit ec =>
       for{
