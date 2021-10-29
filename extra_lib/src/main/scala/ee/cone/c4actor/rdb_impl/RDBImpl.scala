@@ -320,7 +320,7 @@ class ProtoToString(registry: QAdapterRegistry, rDBTypes: RDBTypes){
     case Nil | None => ""
     case Some(e) => encode(id, e)
     case l: List[_] => l.map(encode(id, _)).mkString
-    case p: Product =>
+    case p: Product if registry.byName.contains(p.getClass.getName)=>
       val adapter = registry.byName(p.getClass.getName)
       esc(id, "Node", adapter.props.zipWithIndex.map{
         case(prop,i) => encode(prop.id, p.productElement(i))
@@ -339,11 +339,22 @@ class ProtoToString(registry: QAdapterRegistry, rDBTypes: RDBTypes){
 
 object Hex { def apply(i: Long): String = "0x%04x".format(i) }
 
+trait CustomFieldAdapter {
+  def supportedCl: Class[_]
+  def encode(value: Object): String
+  def toUniversalProp(tag: Int, value: String): UniversalProp
+}
+
 @c4("RDBSyncApp") final class RDBTypes(
   universalProtoAdapter: ProtoAdapter[UniversalNode],
   universalNodeFactory: UniversalNodeFactory,
-  srcIdProtoAdapter: ProtoAdapter[SrcId]
+  srcIdProtoAdapter: ProtoAdapter[SrcId],
+  customFieldAdapters: List[CustomFieldAdapter]
 ) {
+  lazy val customFieldAdapterByType: Map[String, CustomFieldAdapter] =
+    customFieldAdapters.map(adapter => shortName(adapter.supportedCl) -> adapter)
+      .toMap
+
   import universalNodeFactory._
   def encode(p: Object): String = p match {
     case v: String => v
@@ -354,6 +365,11 @@ object Hex { def apply(i: Long): String = "0x%04x".format(i) }
     case v: BigDecimal => v.bigDecimal.toString
     case v: okio.ByteString => v.base64()
     case v: Instant => v.toEpochMilli.toString
+    case other =>
+      customFieldAdapterByType.get(shortName(other.getClass)) match {
+        case Some(adapter) => adapter.encode(other)
+        case None => FailWith(s"Unsupported encode type ${other.getClass.getName}")
+      }
   }
   def shortName(cl: Class[_]): String = cl.getName.split("\\.").last
 
@@ -375,6 +391,10 @@ object Hex { def apply(i: Long): String = "0x%04x".format(i) }
       val scaleProp = prop(0x0001,scale:Integer,ProtoAdapter.SINT32)
       val bytesProp = prop(0x0002,bytes,ProtoAdapter.BYTES)
       prop[UniversalNode](tag,node(List(scaleProp,bytesProp)),universalProtoAdapter)
+    case other => customFieldAdapterByType.get(other) match {
+      case Some(adapter) => adapter.toUniversalProp(tag, value)
+      case None => FailWith(s"Unsupported toUniversalProp type ${other}")
+    }
   }
 }
 
