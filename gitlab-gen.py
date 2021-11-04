@@ -89,25 +89,34 @@ def get_build_jobs(config_statements):
     **aggr_jobs, **fin_jobs
   }
 
+# build aggr jobs -- C4AGGR_COND
+# build fin jobs -- C4TAG_AGGR
+# deploy jobs -- C4DEPLOY > C4TAG_AGGR
+
 def get_deploy_jobs(config_statements):
   tag_aggr_list = config_statements["C4TAG_AGGR"]
+  def tag_to_proj(tag): return re.match(r'\w+',tag)[0]
+  tag_aggr_list_by_proj = group_map(tag_aggr_list, ext(lambda tag, aggr: (tag_to_proj(tag),(tag,aggr))))
+  proj_list = sorted(tag_aggr_list_by_proj.keys())
   (aggr_cond_list, aggr_to_cond) = get_aggr_cond(config_statements["C4AGGR_COND"])
-  cond_to_aggr = group_map(aggr_cond_list, ext(lambda aggr, cond: (cond,aggr)))
-  cond_to_tags = group_map(tag_aggr_list, ext(lambda tag, aggr: (aggr_to_cond[aggr], tag)))
-  cond_list = sorted(set(cond for aggr, cond in aggr_cond_list))
-  def needs_de(cond): return [build_gate_name,build_frp_name] + ([] if cond == "nil" else [build_aggr_name(aggr) for aggr in cond_to_aggr[cond]])
-  def needs_rt(cond): return [build_gate_name] + [build_rt_name(tag) for tag in cond_to_tags[cond]]
+  def needs_de(aggr):
+    return [build_gate_name,build_frp_name] + ([] if aggr == "" else [build_aggr_name(aggr)])
+  def needs_rt(info):
+    return [build_gate_name] + [build_rt_name(tag) for tag, aggr in info]
   return {
     key: value
     for env_mask, caption_mask in config_statements["C4DEPLOY"]
-    for mode_mask, arg, proj_mask, opt in [re.findall(r'[^\-]+',env_mask)]
-    for proj_name in (cond_list if proj_mask == "$C4PROJ" else [proj_mask])
-    for cond_re in ["" if proj_name == "nil" else prefix_cond(f"{proj_name}\/release" if arg == "prod" else proj_name)]
+    for mode, arg, proj_mask, opt in [re.findall(r'[^\-]+',env_mask)]
+    for proj_name in (proj_list if proj_mask == "$C4PROJ" else [proj_mask])
+    for info in [[] if proj_name == "nil" else tag_aggr_list_by_proj[proj_name]]
+    for aggr in [one(*set(aggr for tag, aggr in info)) if info else ""]
+    for cond_pre in [aggr_to_cond[aggr] if aggr in aggr_to_cond else ""]
+    for cond_re in [prefix_cond(f"{cond_pre}\/release" if arg == "prod" else cond_pre)]
     for cond in [f"$CI_COMMIT_BRANCH {cond_re}"]
-    for mode, stage, needs_fun in (
-      [(mode_mask,stage_deploy_de,needs_de)] if mode_mask == "de" else
-      [(mode_mask,stage_deploy_cl,needs_rt)] if mode_mask == "cl" else
-      [(mode_mask,stage_deploy_sp,needs_rt)]
+    for stage, needs in (
+      [(stage_deploy_de,needs_de(aggr))] if mode == "de" else
+      [(stage_deploy_cl,needs_rt(info))] if mode == "cl" else
+      [(stage_deploy_sp,needs_rt(info))]
     )
     for key_mask in [caption_mask.replace("$C4PROJ",proj_name)]
     for script in [[
@@ -120,9 +129,9 @@ def get_deploy_jobs(config_statements):
     for key, value in (
       [
         (confirm_key, common_job(cond,"manual",stage_confirm,[],["echo confirming"])),
-        (key_mask.replace("$C4CONFIRM","deploy"), common_job(cond,"manual",stage,[confirm_key]+needs_fun(proj_name),script)),
+        (key_mask.replace("$C4CONFIRM","deploy"), common_job(cond,"manual",stage,[confirm_key]+needs,script)),
       ] if confirm_key != key_mask else [
-        (key_mask, common_job(cond,"manual",stage,needs_fun(proj_name),script)),
+        (key_mask, common_job(cond,"manual",stage,needs,script)),
       ]
     )
   }
