@@ -1,6 +1,6 @@
 package ee.cone.c4gate_server
 
-import ee.cone.c4actor_kafka_impl.{KafkaConsumerApp, KafkaProducerApp, LZ4RawCompressorApp}
+import ee.cone.c4actor_kafka_impl.{KafkaConsumerApp, KafkaProducerApp, KafkaPurgerApp, LZ4RawCompressorApp}
 import ee.cone.c4actor_logback_impl.BasicLoggingApp
 import ee.cone.c4actor._
 import ee.cone.c4di.{c4, c4app, provide}
@@ -8,31 +8,16 @@ import ee.cone.c4gate._
 
 @c4app class NoOpApp extends VMExecutionApp with ExecutableApp with BaseApp
 
-@c4app class IgnoreAllSnapshotsAppBase extends EnvConfigCompApp with VMExecutionApp with NoAssembleProfilerCompApp
-  with ExecutableApp with RichDataCompApp with KafkaConsumerApp
-  with SnapshotUtilImplApp with FileRawSnapshotSaverApp with ConfigDataDirApp
-
-/*
-@c4app class PublishAppBase extends ServerCompApp
-  with EnvConfigCompApp with VMExecutionApp
-  with KafkaProducerApp with KafkaConsumerApp
-  with PublishingCompApp
-  with NoAssembleProfilerCompApp
-  with RemoteRawSnapshotApp
-  with NoObserversApp*/
-
-////
-
-trait ConfigDataDirAppBase
-trait FileRawSnapshotLoaderAppBase
-trait FileRawSnapshotSaverAppBase
+trait S3ManagerAppBase
+trait S3RawSnapshotLoaderAppBase
+trait S3RawSnapshotSaverAppBase
 trait NoProxySSEConfigAppBase
 trait SafeToRunAppBase
 trait WorldProviderAppBase
 
 abstract class AbstractHttpGatewayAppBase extends ServerCompApp
   with EnvConfigCompApp with VMExecutionApp
-  with KafkaProducerApp with KafkaConsumerApp
+  with KafkaProducerApp with KafkaConsumerApp with KafkaPurgerApp
   with ParallelObserversApp
   with PublisherApp with AuthProtocolApp
   with SSEServerApp
@@ -83,8 +68,8 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
   extends SnapshotSavers(factory.create("snapshots"), factory.create("snapshot_txs"))
 
 trait SnapshotMakingAppBase extends TaskSignerApp
-  with FileRawSnapshotLoaderApp with FileRawSnapshotSaverApp
-  with ConfigDataDirApp with SignedReqUtilImplApp
+  with S3RawSnapshotLoaderApp with S3RawSnapshotSaverApp
+  with S3ManagerApp with SignedReqUtilImplApp
   with ConfigSimpleSignerApp with SnapshotUtilImplApp
   with SnapshotListProtocolApp
 trait SnapshotPutAppBase extends SignedReqUtilImplApp with SnapshotLoaderFactoryImplApp

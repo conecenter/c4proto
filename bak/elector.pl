@@ -19,7 +19,7 @@ push @tasks, [kubectl=>sub{
 }];
 
 push @tasks, [elector=>sub{
-    my $ns = `cat /var/run/secrets/kubernetes.io/serviceaccount/namespace`=~/(\w+)/ ? "$1" : die;
+    my $ns = `cat /var/run/secrets/kubernetes.io/serviceaccount/namespace`=~/(\S+)/ ? "$1" : die;
     &$forever(sub{
         my ($was_container_ids_by_app) = @_;
         my $pods_data = syf("kubectl -n $ns get pods -l c4rolling=v1 -o json");

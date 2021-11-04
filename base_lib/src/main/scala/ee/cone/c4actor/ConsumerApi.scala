@@ -11,3 +11,10 @@ trait Consumer {
   def endOffset: NextOffset
   def beginningOffset: NextOffset
 }
+
+trait QPurging {
+  def process[R](body: QPurger=>R): R
+}
+trait QPurger {
+  def delete(beforeOffset: NextOffset): Unit
+}

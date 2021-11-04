@@ -50,7 +50,7 @@ push @tasks, ["cmd-run"=>sub{
     sy("cd $dir/$comp && ./up");
 }];
 push @tasks, ["cmd-pods"=>sub{
-    my $ns = `cat /var/run/secrets/kubernetes.io/serviceaccount/namespace`=~/(\w+)/ ? "$1" : die;
+    my $ns = `cat /var/run/secrets/kubernetes.io/serviceaccount/namespace`=~/(\S+)/ ? "$1" : die;
     sy("kubectl -n $ns get pods -o jsonpath='pods: {.items[*].metadata.name}'");
 }];
 push @tasks, ["cmd-registry"=>sub{

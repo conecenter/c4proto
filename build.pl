@@ -126,17 +126,20 @@ my $calc_bloop_conf = sub{
     my @main_scala = map{ my($from,$to)=@$_; $from eq "main"?"$dir/$to":()} &$dep_conf("C4SRC");
     my @main_public = map{ my($from,$to)=@$_; $from eq "main"?"$dir/$to":()} &$dep_conf("C4PUB");
     @main_scala<=1 && @main_public<=1 or die;
-    my @main_paths_will = map{+{ fn=>"$tmp/main_public_path", content=>$_ }} @main_public;
+    my $public_paths =join ":", "$tmp/client/out", @main_public;
     my @bloop_will = map{
         my $conf = &$single(&$conf_by_name($_));
         my $classpath = join ":", &$bloop_conf_to_classpath($conf);
-        my $sh = join "", map{"export $_\n"}
-            (map{"C4GENERATOR_MAIN_SCALA_PATH=$_"} @main_scala),
-            (map{"C4GENERATOR_MAIN_PUBLIC_PATH=$_"} @main_public),
-            "CLASSPATH=$classpath";
+        my $res = {
+            (map{(C4GENERATOR_MAIN_SCALA_PATH=>$_)} @main_scala),
+            (map{(C4GENERATOR_MAIN_PUBLIC_PATH=>$_)} @main_public),
+            C4PUBLIC_PATH => $public_paths,
+            CLASSPATH => $classpath,
+        };
+        my $sh = join "", map{"export $_=$$res{$_}\n"} sort keys %$res;
         (
             +{ fn=>"$dir/.bloop/$_.json", content=>&$json()->encode($conf) },
-            +{ fn=>"$tmp/mod.$_.classpath", content=>$classpath },
+            +{ fn=>"$tmp/mod.$_.classpath.json", content=>&$json()->encode($res) },
             +{ fn=>"$tmp/mod.$_.classpath.sh", content=>$sh },
         )
     } @mod_names;
@@ -160,7 +163,7 @@ my $calc_bloop_conf = sub{
         my @res = &$distinct(@own, map{@$_} map{&$get($_)} @local_dependencies);
         @res
     });
-    ([@tag2mod,@bloop_will,@main_paths_will],$src_dirs_by_name);
+    ([@tag2mod,@bloop_will],$src_dirs_by_name);
 };
 my $calc_sbt_conf = sub{
     my($src_dirs,$externals,$resolvers)=@_;
@@ -337,5 +340,4 @@ do{
         symlink $f, &$need_path($l) or die "$!: $f, $l";
     },@tasks);
 };
-
 &$put_text(&$need_path("$src_dir/target/gen-ver"),time);

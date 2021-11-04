@@ -3,9 +3,6 @@
 
 use strict;
 
-my $http_port = 8067;
-my $sse_port = 8068;
-
 my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
 
 my @tasks;
@@ -16,17 +13,12 @@ my $serve = sub{
         "-XX:GCTimeRatio=1","-XX:MinHeapFreeRatio=15","-XX:MaxHeapFreeRatio=50";
     # https://www.javacodegeeks.com/2017/11/minimize-java-memory-usage-right-garbage-collector.html
     # with G1 unused RAM is released back to OS
-    
-    $ENV{CLASSPATH} = join ":", sort <app/*.jar>;
+    local $ENV{C4PUBLIC_PATH} = "htdocs";
+    local $ENV{CLASSPATH} = join ":", sort <app/*.jar>;
     &$exec("sh", "serve.sh");
 };
-push @tasks, [gate=>sub{
-    $ENV{C4HTTP_PORT} = $http_port;
-    $ENV{C4SSE_PORT} = $sse_port;
-    &$serve();
-}];
 push @tasks, [main=>sub{
-    m{([^/]+)$} and (-e $1 or symlink $_,$1) or die for </c4conf/*>;
+    m{([^/]+)$} and (-e $1 or symlink $_,$1) or die for </c4conf/*>; # gate do not need
     &$serve();
 }];
 
