@@ -111,7 +111,7 @@ def get_deploy_jobs(config_statements):
     for info in [[] if proj_name == "nil" else tag_aggr_list_by_proj[proj_name]]
     for aggr in [one(*set(aggr for tag, aggr in info)) if info else ""]
     for cond_pre in [aggr_to_cond[aggr] if aggr in aggr_to_cond else ""]
-    for cond_re in [prefix_cond(f"{cond_pre}\/release" if arg == "prod" else cond_pre)]
+    for cond_re in ["" if cond_pre == "" else prefix_cond(f"{cond_pre}\/release" if arg == "prod" else cond_pre)]
     for cond in [f"$CI_COMMIT_BRANCH {cond_re}"]
     for stage, needs in (
       [(stage_deploy_de,needs_de(aggr))] if mode == "de" else
