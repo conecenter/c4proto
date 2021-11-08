@@ -50,6 +50,7 @@ case class MjpegCamConf(
 
   // custom step takes less cpu than Framing.delimiter, but works only if there are more in-frames, than out
   def jpegSource(entity: ResponseEntity): Source[ByteString,_] = {
+    //println(s"AAA: ${entity.contentType}")
     val boundary = entity.contentType.mediaType.params("boundary")
     val headEnd = ByteString("\r\n\r\n")
     val boundaryOuter = ByteString(s"--$boundary\r\n")
@@ -71,8 +72,8 @@ case class MjpegCamConf(
       for{
         mat <- akkaMat.get
         http <- akkaHttp.get
-        commonSource = {
-          val ConfLineValues = """\s*(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s*""".r
+        ignoredOK <- {
+          val ConfLineValues = """\s*(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s*""".r
           val ConfLineValues(host,uri,username,password) = will
           val connFlow = http.outgoingConnection(host)
           val canFailSource = Source.single(HttpRequest(uri=uri))
@@ -84,18 +85,16 @@ case class MjpegCamConf(
             .via(connFlow)
             .flatMapConcat{ secondResp => jpegSource(secondResp.entity) }
             .idleTimeout(4.seconds)
-          RestartSource.withBackoff(
+          val commonSource = RestartSource.withBackoff(
             minBackoff = 3.seconds, maxBackoff = 30.seconds, randomFactor = 0.2,
           )(()=>canFailSource)
             .via(killSwitch.flow)
             .toMat(BroadcastHub.sink[ByteString])(Keep.right)
             .run()(mat) //check?
+          execution.success(commonSourcePromise,commonSource) // need to be before ignoredOK resolution
+          commonSource.toMat(Sink.ignore)(Keep.right).run()(mat)
         }
-        ignoredOK <- commonSource.toMat(Sink.ignore)(Keep.right).run()(mat)
-      } yield {
-        execution.success(commonSourcePromise,commonSource)
-        ignoredOK
-      }
+      } yield ignoredOK
     }
     val source = Source.fromFutureSource(commonSourcePromise.future)
       .buffer(size = 2, overflowStrategy = OverflowStrategy.dropHead)

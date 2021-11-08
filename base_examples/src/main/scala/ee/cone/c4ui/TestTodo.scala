@@ -209,7 +209,7 @@ case object HeaderCSSClassName extends CSSClassName{ def name = "tableHeadContai
       gridRoot("todoList",
         dragCol = NoReceiver,
         dragRow = sortReceiverFactory.create(todoSortHandlerFactory.create(todoSortOrder)),
-        rows = todoTasks.map(_.srcId).map(gridRow),
+        rows = todoTasks.map(_.srcId).map(gridRow(_)),
         cols = List(
           gridCol(
             colKey = "drag", width = boundGridColWidth(1,1),
