@@ -1,9 +1,9 @@
 package ee.cone.c4ui
 
-import java.text.{DecimalFormat, NumberFormat}
-
+import java.text.{DecimalFormat, DecimalFormatSymbols, NumberFormat}
 import ee.cone.c4di._
 import ee.cone.c4actor.Context
+import ee.cone.c4ui.FrontTypes.Em
 import ee.cone.c4vdom._
 
 @c4("UICompApp") final class ListJsonAdapterProvider(util: TagJsonUtils){
@@ -20,4 +20,17 @@ import ee.cone.c4vdom._
     List(util.jsonValueAdapter((value, builder) => builder.just.append(value.name)))
   @provide def forReceiver: Seq[JsonValueAdapter[Receiver[Context]]] =
     List(util.jsonValueAdapter((value, builder) => builder.just.append("send")))
+}
+
+@c4("UICompApp") final class EmAdapterProvider(util: TagJsonUtils)(
+  symbols: DecimalFormatSymbols = {
+    val result = DecimalFormatSymbols.getInstance
+    result.setDecimalSeparator('.')
+    result
+  }
+)(
+  emFormat: DecimalFormat = new DecimalFormat("#0.###", symbols)
+) {
+  @provide def emAdapter: Seq[JsonValueAdapter[Em]] =
+    List(util.jsonValueAdapter((value, builder) => builder.just.append(value, emFormat)))
 }

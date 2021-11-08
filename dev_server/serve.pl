@@ -208,6 +208,7 @@ my $serve_gate = sub{
     &$exec_server({
         C4S3_CONF_DIR=>$s3conf_dir,
         C4STATE_REFRESH_SECONDS=>100,
+        C4ROOMS_CONF=>"/tmp/rooms.conf",
     }, "gate", 0);
 };
 
