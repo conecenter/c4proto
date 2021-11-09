@@ -339,12 +339,6 @@ class ProtoToString(registry: QAdapterRegistry, rDBTypes: RDBTypes){
 
 object Hex { def apply(i: Long): String = "0x%04x".format(i) }
 
-trait CustomFieldAdapter {
-  def supportedCl: Class[_]
-  def encode(value: Object): String
-  def toUniversalProp(tag: Int, value: String): UniversalProp
-}
-
 @c4("RDBSyncApp") final class RDBTypes(
   universalProtoAdapter: ProtoAdapter[UniversalNode],
   universalNodeFactory: UniversalNodeFactory,
