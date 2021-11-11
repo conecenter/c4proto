@@ -1365,6 +1365,30 @@ push @tasks, ["ci_setup", "", sub{
     &$end("ci_setup");
 }];
 
+my $distinct_joined = sub{ join " ", sort keys %{+{map{($_=>1)}@_}} };
+
+push @tasks, ["ci_check_images", "", sub{
+    my($env_comp)=@_;
+    &$ssh_add();
+    my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
+    my @comps = &$ci_get_compositions($env_comp);
+    my $to_images = &$distinct_joined(map{
+        my ($from_img, $to_img) = &$ci_get_image($common_img, $_);
+        $to_img
+    } @comps);
+    print "target images:  $to_images\n";
+    my $kubectl = &$get_kubectl($env_comp);
+    my $env_name = &$mandatory_of("ci:env"=>&$get_compose($env_comp));
+    while(1){
+        my $curr_images = &$distinct_joined(&$spaced_list(syf(
+            qq[$kubectl get deployment -l c4env=$env_name -o jsonpath="{.items[*].spec.template.spec.containers[*].image}"]
+        )));
+        print "current images: $curr_images\n";
+        last if $to_images eq $curr_images;
+        sleep 2;
+    }
+}];
+
 push @tasks, ["ci_check", "", sub{
     my($env_comp)=@_;
     &$ssh_add();
