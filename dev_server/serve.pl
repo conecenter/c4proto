@@ -32,7 +32,9 @@ my $s3conf_dir = "$data_dir/minio-conf";
 
 my $serve_bloop = sub{
     #-e "$home/.bloop/bloop" or sy("curl -L https://github.com/scalacenter/bloop/releases/download/v1.3.4/install.py | python");
-    &$exec("bloop","server");
+    &$exec_at(".",{
+        JAVA_TOOL_OPTIONS => '-Xss32m',
+    },"bloop","server");
 };
 
 my $serve_zookeeper = sub{
