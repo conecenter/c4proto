@@ -55,7 +55,8 @@ def get_slug(info):
 def handle_deploy(base,branch):
     commit = get_env("CI_COMMIT_SHA")
     project_url = get_env("CI_PROJECT_URL")
-    info = query_ci_info(f"{base}-env")
+    name = f"{base}-env"
+    info = query_ci_info(name)
     slug = get_slug(info)
     project = get_project()
     hostnames = [c["hostname"] for c in info["ci_parts"] if "hostname" in c]
@@ -68,7 +69,10 @@ def handle_deploy(base,branch):
     environment.save()
     environment_url = f"{project_url}/-/environments/{environment.get_id()}"
     print(f"deploy environment: {environment_url}")
+    prod(["ci_push",name])
     set_tag(project,tag_name,commit)
+    prod(["ci_check_images",name])
+    prod(["ci_check",name])
 
 def sha256(v):
     return hashlib.sha256(v.encode('utf-8')).hexdigest()
@@ -84,7 +88,7 @@ def handle_up(s_slug):
     info = query_ci_info(name)
     f_slug = get_slug(info)
     if s_slug != f_slug: raise Exception(f"{s_slug} != {f_slug}")
-    prod(["ci_push",name])
+    #prod(["ci_push",name])
     prod(["ci_up",name])
 
 def handle_qa_run(dir):
