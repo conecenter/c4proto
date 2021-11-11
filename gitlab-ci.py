@@ -69,7 +69,7 @@ def handle_deploy(base,branch):
     environment.save()
     environment_url = f"{project_url}/-/environments/{environment.get_id()}"
     print(f"deploy environment: {environment_url}")
-    prod(["ci_push",name])
+    #prod(["ci_push",name])
     set_tag(project,tag_name,commit)
     prod(["ci_check_images",name])
     prod(["ci_check",name])
@@ -88,7 +88,7 @@ def handle_up(s_slug):
     info = query_ci_info(name)
     f_slug = get_slug(info)
     if s_slug != f_slug: raise Exception(f"{s_slug} != {f_slug}")
-    #prod(["ci_push",name])
+    prod(["ci_push",name])
     prod(["ci_up",name])
 
 def handle_qa_run(dir):
