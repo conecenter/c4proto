@@ -72,7 +72,7 @@ def handle_deploy(base,branch):
     #prod(["ci_push",name])
     set_tag(project,tag_name,commit)
     prod(["ci_check_images",name])
-    prod(["ci_check",name])
+    #prod(["ci_check",name])
 
 def sha256(v):
     return hashlib.sha256(v.encode('utf-8')).hexdigest()
