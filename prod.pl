@@ -1391,8 +1391,8 @@ push @tasks, ["ci_check_images", "", sub {
                 map{$$_{status}||{}} map{@$_} map{$$_{items}||[]} $resp;
             if(@statuses){
                 my @others = grep{$_ ne $to_img} map{$$_{image}} @statuses;
-                print "other images:$_\n" for @others;
-                my @not_ready = grep{$$_{ready}?():$$_{state}} @statuses;
+                print "other images: $_\n" for @others;
+                my @not_ready = map{$$_{ready}?():$$_{state}} @statuses;
                 print "not ready: ".&$encode($_)."\n" for @not_ready;
                 @others or @not_ready or last;
             }
