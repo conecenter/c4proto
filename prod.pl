@@ -1365,8 +1365,6 @@ push @tasks, ["ci_setup", "", sub{
     &$end("ci_setup");
 }];
 
-my $distinct_joined = sub{ join " ", sort keys %{+{map{($_=>1)}@_}} };
-
 push @tasks, ["ci_check_images", "", sub {
     my ($env_comp) = @_;
     &$ssh_add();
@@ -1374,6 +1372,11 @@ push @tasks, ["ci_check_images", "", sub {
     my @comps = &$ci_get_compositions($env_comp);
     my $kubectl = &$get_kubectl($env_comp);
     for my $comp(@comps){
+        while(1){
+            my $stm = qq[$kubectl get deployment -o jsonpath="{.items[*].metadata.name}"];
+            last if grep{$_ eq $comp} &$spaced_list(syf($stm));
+            sleep 2;
+        }
         my ($from_img, $to_img) = &$ci_get_image($common_img, $comp);
         print "target image:     $to_img\n";
         while(1){
