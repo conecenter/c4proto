@@ -2,6 +2,7 @@
 use strict;
 use JSON::XS;
 
+sub so{ print join(" ",@_),"\n"; system @_ }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 sub syf{ for(@_){ print "$_\n"; my $r = scalar `$_`; $? && die $?; return $r } }
 my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
@@ -33,7 +34,9 @@ my $s3conf_dir = "$data_dir/minio-conf";
 
 my $serve_bloop = sub{
     #-e "$home/.bloop/bloop" or sy("curl -L https://github.com/scalacenter/bloop/releases/download/v1.3.4/install.py | python");
-    &$exec("bloop","server");
+    &$exec_at(".",{
+        JAVA_TOOL_OPTIONS => '-Xss32m',
+    },"bloop","server");
 };
 
 my $serve_zookeeper = sub{
@@ -173,6 +176,8 @@ my $get_tag_info = sub{
     $argv=~/^(\w+)\.(.+)\.(\w+)$/ ? ($dir,"$1","$1.$2","$2.$3") : die;
 };
 
+my $inbox_topic_prefix = "def0";
+
 my $get_consumer_env = sub{
     my ($nm,$elector_port_base_arg)=@_;
     my $elector_servers = join ",", map{
@@ -182,7 +187,7 @@ my $get_consumer_env = sub{
     (
         C4STATE_TOPIC_PREFIX => $nm,
         C4BOOTSTRAP_SERVERS => $ssl_bootstrap_server,
-        C4INBOX_TOPIC_PREFIX => "def0",
+        C4INBOX_TOPIC_PREFIX => $inbox_topic_prefix,
         C4MAX_REQUEST_SIZE => 250000000,
         C4HTTP_SERVER => "http://$http_server",
         C4AUTH_KEY_FILE => "$data_dir/simple.auth",
@@ -197,6 +202,7 @@ my $get_consumer_env = sub{
 my $get_gate_env = sub{(
     C4S3_CONF_DIR=>$s3conf_dir,
     C4STATE_REFRESH_SECONDS=>100,
+    C4ROOMS_CONF=>"/tmp/rooms.conf",
     C4HTTP_PORT => $http_port,
     C4SSE_PORT => $sse_port,
 )};
@@ -249,7 +255,7 @@ my $serve_minio = sub{
 };
 
 my $serve_mcl = sub{
-    sy("mcl alias set local \$(cat $s3conf_dir/address) \$(cat $s3conf_dir/key) \$(cat $s3conf_dir/secret)");
+    sy("sh $s3conf_dir/setup");
     sleep 1 while 1;
 };
 
@@ -272,13 +278,18 @@ my $exec_demo_server = sub{
 };
 
 my $serve_demo_main = sub{ &$exec_demo_server({}, main => "/tools/c4main") };
-my $serve_demo_gate = sub{ &$exec_demo_server({ &$get_gate_env() }, gate => "/tools/c4gate") };
+my $serve_demo_gate = sub{
+    sleep 1 while so("sh $s3conf_dir/setup");
+    my $dir = "local/$inbox_topic_prefix.snapshots/";
+    my $snapshot_path = $ENV{C4DS_SNAPSHOT_PATH};
+    $snapshot_path and !so("mcl mb $dir") and sy("mcl cp $snapshot_path $dir");
+    &$exec_demo_server({ &$get_gate_env() }, gate => "/tools/c4gate")
+};
 
 my $common_service_map = {
     zookeeper => $serve_zookeeper,
     broker => $serve_broker,
     minio => $serve_minio,
-    mcl => $serve_mcl,
     &$replicas(elector => $serve_elector, $elector_replicas),
 };
 my $dev_service_map = {
@@ -288,6 +299,7 @@ my $dev_service_map = {
     node  => $serve_node,
     gate  => $serve_gate,
     &$replicas(main => $serve_main, 2),
+    mcl => $serve_mcl,
 };
 my $demo_service_map = {
     demo_gate => $serve_demo_gate,
@@ -301,6 +313,7 @@ my $init_s3 = sub{
     &$put_text("$s3conf_dir/address",$address);
     &$put_text("$s3conf_dir/key",$key);
     &$put_text("$s3conf_dir/secret",$secret);
+    &$put_text("$s3conf_dir/setup","mcl alias set local $address $key $secret || exit 1");
 };
 
 my $init = sub{
@@ -309,15 +322,15 @@ my $init = sub{
     &$need_certs("$data_dir/ca", "cu.broker", $data_dir, $data_dir);
     &$need_certs("$data_dir/ca", "cu.def", $data_dir);
     #
-#    my ($services_by_build_dir,$build_dirs) = &$group(
-#        [$repo_dir=>"main"],
-#        [$proto_dir=>"gate"],
-#    );
-#    my @builder_service_lines = map{
-#        my $dir = $_;
-#        my @services = &$services_by_build_dir($dir);
-#        ["build_$services[0]", "build $dir ".join(",",@services)]
-#    } @$build_dirs;
+    #    my ($services_by_build_dir,$build_dirs) = &$group(
+    #        [$repo_dir=>"main"],
+    #        [$proto_dir=>"gate"],
+    #    );
+    #    my @builder_service_lines = map{
+    #        my $dir = $_;
+    #        my @services = &$services_by_build_dir($dir);
+    #        ["build_$services[0]", "build $dir ".join(",",@services)]
+    #    } @$build_dirs;
     my @program_lines = map{(
         "[program:$$_[0]]",
         "command=perl $0 $$_[1]",
