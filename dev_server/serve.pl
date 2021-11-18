@@ -277,6 +277,12 @@ my $exec_demo_server = sub{
     &$exec_at($dir,$env,"perl","run.pl","main");
 };
 
+my $serve_demo_jasper = sub{
+    my $dir = "/tools/c4jasper_server";
+    -e $dir and &$exec_at($dir,{},"perl","run.pl","main");
+    sleep 1 while 1;
+};
+
 my $serve_demo_main = sub{ &$exec_demo_server({}, main => "/tools/c4main") };
 my $serve_demo_gate = sub{
     sleep 1 while so("sh $s3conf_dir/setup");
@@ -304,6 +310,7 @@ my $dev_service_map = {
 my $demo_service_map = {
     demo_gate => $serve_demo_gate,
     demo_main => $serve_demo_main,
+    demo_jasper => $serve_demo_jasper,
 };
 
 my $init_s3 = sub{
