@@ -283,7 +283,10 @@ my $serve_demo_jasper = sub{
     sleep 1 while 1;
 };
 
-my $serve_demo_main = sub{ &$exec_demo_server({}, main => "/tools/c4main") };
+my $serve_demo_main = sub{
+    my $env = { C4JR => "http://127.0.0.1:1080/" };
+    &$exec_demo_server($env, main => "/tools/c4main");
+};
 my $serve_demo_gate = sub{
     sleep 1 while so("sh $s3conf_dir/setup");
     my $dir = "local/$inbox_topic_prefix.snapshots/";
