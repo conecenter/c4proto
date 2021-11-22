@@ -107,7 +107,7 @@ push @tasks, ["report_changes","",sub{
     &$put_text($changed_path, &$lines(map{ #... to ENV
         my ($dir_infix,$commit) = /^(.*):(.*)$/ ? ($1,$2) : die;
         map{"$dir_infix$_"}
-            map{ syf("cd $_ && git diff --name-only $commit && git ls-files --others --exclude-standard")=~/(\S+)/g }
+            map{ syf("cd $_ && git diff --name-only --no-renames $commit && git ls-files --others --exclude-standard")=~/(\S+)/g }
                 grep{ -e "$_.git" } "$dir/$dir_infix"
     } syf("$remote_pre 'cat $remote_dir/target/c4repo_commits'")=~/(\S+)/g));
 }];

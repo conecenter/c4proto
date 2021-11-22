@@ -8,17 +8,14 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpRequest.BodyPublishers
 import java.net.http.HttpResponse.BodyHandlers
-
 import scala.annotation.tailrec
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.Random
 import scala.util.control.NonFatal
 import scala.jdk.FutureConverters._
-
-
 import com.typesafe.scalalogging.LazyLogging
-
 import ee.cone.c4actor.Types.NextOffset
+import ee.cone.c4assemble.Single
 import ee.cone.c4di.{c4, c4multi}
 
 ////
@@ -137,24 +134,28 @@ trait IsMaster {
 }
 
 @c4("ServerCompApp") final class ElectorSystem(
-  config: Config, actorName: ActorName, factory: ElectorWorkerFactory
+  config: Config, listConfig: ListConfig, actorName: ActorName,
+  factory: ElectorWorkerFactory,
 ) extends Executable with Early {
   def run(): Unit = concurrent.blocking {
+    val lockPeriod = Single.option(listConfig.get("C4ELECTOR_LOCK_PERIOD"))
+      .fold(10000)(_.toInt)
     val inboxTopicPrefix = config.get("C4INBOX_TOPIC_PREFIX")
     val serversStr = config.get("C4ELECTOR_SERVERS")
     val addresses = serversStr.split(",").toList
     val hint = s"$serversStr ${actorName.value}"
     val owner = s"${UUID.randomUUID()}"
-    def createRequest(address: String, period: String): HttpRequest =
+    def createRequest(address: String, period: Int): HttpRequest =
       HttpRequest.newBuilder
         .timeout(java.time.Duration.ofSeconds(1))
         .uri(URI.create(s"$address/lock/$inboxTopicPrefix/${actorName.value}"))
-        .headers("x-r-lock-owner",owner,"x-r-lock-period",period)
+        .headers("x-r-lock-owner",owner,"x-r-lock-period",s"$period")
         .POST(BodyPublishers.noBody()).build()
-    val lockRequests = addresses.map(createRequest(_,"10000"))
-    val unlockRequests = addresses.map(createRequest(_,"1"))
+    val lockRequests = addresses.map(createRequest(_,lockPeriod))
+    val unlockRequests = addresses.map(createRequest(_,1))
     val client = HttpClient.newHttpClient
-    factory.create(client,lockRequests,unlockRequests,hint).iter(None,Future.successful(None),Nil)
+    factory.create(client,lockRequests,unlockRequests,hint,lockPeriod)
+      .iter(None,Future.successful(None),Nil)
   }
 }
 
@@ -162,7 +163,8 @@ trait IsMaster {
   client: HttpClient,
   lockRequests: List[HttpRequest],
   unlockRequests: List[HttpRequest],
-  hint: String
+  hint: String,
+  lockPeriod: Int,
 )(
   isMaster: IsMasterImpl, execution: Execution
 ) extends LazyLogging {
@@ -187,7 +189,7 @@ trait IsMaster {
     started = msNow
     wasMaster = wasUntil.nonEmpty
     ok <- send(lockRequests)
-    until = if(ok) Option(started+10000) else wasUntil
+    until = if(ok) Option(started+lockPeriod) else wasUntil
     _ <- if(!ok && !wasMaster) send(unlockRequests) else Future.successful()
 
   } yield until
@@ -211,7 +213,7 @@ trait IsMaster {
         logger.error("can not stay master 0")
         execution.fatal(_=>Future.failed(new Exception("can not stay master")))
         logger.error("can not stay master 1")
-        Thread.sleep(left)
+        if(left>0) Thread.sleep(left)
         Runtime.getRuntime.halt(2)
       }
     }
