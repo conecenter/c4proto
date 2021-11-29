@@ -870,11 +870,10 @@ my $base_image_steps = sub{(
 my $prod_image_steps = sub{(
     &$base_image_steps(),
     "RUN perl install.pl apt".
-    " curl unzip software-properties-common".
+    " curl software-properties-common".
     " lsof mc iputils-ping netcat-openbsd fontconfig".
     " openssh-client", #repl
     "RUN perl install.pl curl https://github.com/AdoptOpenJDK/openjdk15-binaries/releases/download/jdk-15.0.1%2B9/OpenJDK15U-jdk_x64_linux_hotspot_15.0.1_9.tar.gz",
-    "RUN perl install.pl curl http://ompc.oss.aliyuncs.com/greys/release/greys-stable-bin.zip",
     'ENV PATH=${PATH}:/tools/jdk/bin',
 )};
 
@@ -1493,12 +1492,14 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
         "ENV JAVA_HOME=/tools/jdk",
         "RUN chown -R c4:c4 /c4",
         "WORKDIR /c4",
+        "RUN ln -s /c4/greys /tools/greys",
         "USER c4",
-        "RUN cd /tools/greys && bash ./install-local.sh",
         "COPY --chown=c4:c4 . /c4",
+        "RUN cd /tools/greys && bash ./install-local.sh",
         'ENTRYPOINT ["perl","run.pl"]',
     );
     sy("cp $proto_dir/$_ $ctx_dir/$_") for "install.pl", "run.pl";
+    sy("cd $ctx_dir && tar -xzf $proto_dir/tools/greys.tar.gz");
     #
     mkdir "$ctx_dir/app";
     my $mod     = syf("cat $gen_dir/.bloop/c4/tag.$base.mod" )=~/(\S+)/ ? $1 : die;
@@ -1744,8 +1745,12 @@ push @tasks, ["exec_repl","<pod|$composes_txt>",sub{
 push @tasks, ["greys_local","<pid>",sub{
     my($pid)=@_;
     $pid || die;
-    -e "$ENV{HOME}/.greys" or sy("cd /tools/greys && bash ./install-local.sh");
-    sy("/tools/greys/greys.sh $pid");
+    if(!-e "$ENV{HOME}/.greys"){
+        my $gen_dir = &$get_proto_dir();
+        sy("cd $ENV{HOME} && tar -xzf $gen_dir/tools/greys.tar.gz");
+        sy("cd $ENV{HOME}/greys && bash ./install-local.sh");
+    }
+    sy("$ENV{HOME}/greys/greys.sh $pid");
 }];
 push @tasks, ["greys","<pod|$composes_txt>",sub{
     my($arg)=@_;
