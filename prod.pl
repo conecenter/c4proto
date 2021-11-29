@@ -963,7 +963,6 @@ my $prod_image_steps = sub{(
     " curl unzip software-properties-common".
     " lsof mc iputils-ping netcat-openbsd fontconfig",
     "RUN perl install.pl curl https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.5%2B10/OpenJDK11U-jdk_x64_linux_hotspot_11.0.5_10.tar.gz",
-    "RUN perl install.pl curl http://ompc.oss.aliyuncs.com/greys/release/greys-stable-bin.zip",
     "RUN mkdir /c4db && chown c4:c4 /c4db",
 )};
 
@@ -1407,7 +1406,6 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
         "RUN chown -R c4:c4 /c4",
         "WORKDIR /c4",
         "USER c4",
-        "RUN cd /tools/greys && bash ./install-local.sh",
         "COPY --chown=c4:c4 . /c4",
         'ENTRYPOINT ["perl","run.pl"]',
     );
