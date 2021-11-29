@@ -874,7 +874,6 @@ my $prod_image_steps = sub{(
     " lsof mc iputils-ping netcat-openbsd fontconfig".
     " openssh-client", #repl
     "RUN perl install.pl curl https://github.com/AdoptOpenJDK/openjdk15-binaries/releases/download/jdk-15.0.1%2B9/OpenJDK15U-jdk_x64_linux_hotspot_15.0.1_9.tar.gz",
-    "RUN perl install.pl curl http://ompc.oss.aliyuncs.com/greys/release/greys-stable-bin.zip",
     'ENV PATH=${PATH}:/tools/jdk/bin',
 )};
 
@@ -1455,7 +1454,6 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
         "RUN chown -R c4:c4 /c4",
         "WORKDIR /c4",
         "USER c4",
-        "RUN cd /tools/greys && bash ./install-local.sh",
         "COPY --chown=c4:c4 . /c4",
         'ENTRYPOINT ["perl","run.pl"]',
     );
