@@ -2,7 +2,7 @@
 package ee.cone.c4actor
 
 import ee.cone.c4assemble._
-import ee.cone.c4di.AbstractComponents
+import ee.cone.c4di.{AbstractComponents, c4app}
 
 trait BaseAppBase
 trait BigDecimalAppBase
@@ -34,3 +34,5 @@ trait VMExecutionAppBase extends AbstractComponents {
 }
 
 trait DeadlockDetectAppBase
+
+@c4app class ElectorClientAppBase extends ExecutableApp with VMExecutionApp with BaseApp with EnvConfigCompApp
