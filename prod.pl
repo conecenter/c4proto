@@ -1894,6 +1894,20 @@ push @tasks, ["secret_set","$composes_txt <secret-name>",sub{
     &$dir_to_secret($kubectl,$secret_name,$dir);
 }];
 
+push @tasks, ["secret_add_arg","$composes_txt <secret-content>",sub{
+    my($comp,$secret_content)=@_;
+    &$ssh_add();
+    my $kubectl = &$get_kubectl($comp);
+    my $hash = &$md5_hex($secret_content);
+    my $secret_name = "c4hash-$hash";
+    my $dir = &$get_tmp_dir();
+    my $put = &$rel_put_text($dir);
+    my $fn = "value";
+    &$put($fn,$secret_content);
+    &$dir_to_secret($kubectl,$secret_name,$dir);
+    print qq[ADD TO CONFIG: "/c4conf-$secret_name/$fn"\n];
+}];
+
 push @tasks, ["debug","<on|off>",sub{
     my($arg)=@_;
     my $d_path = "/c4/debug-enable";
