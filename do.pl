@@ -26,7 +26,7 @@ my $exec_server = sub{
     my ($nm,$mod,$cl) = $arg=~/^(\w+)\.(.+)\.(\w+)$/ ? ($1,"$1.$2","$2.$3") : die;
     my $tmp = ".bloop/c4";
     sy("perl $tmp/compile.pl $mod");
-    &$exec(". $tmp/mod.$mod.classpath.sh && C4STATE_TOPIC_PREFIX=$nm C4APP_CLASS=$cl exec java ee.cone.c4actor.ServerMain");
+    &$exec(". $tmp/mod.$mod.classpath.sh && C4ELECTOR_CLIENT_ID= C4STATE_TOPIC_PREFIX=$nm C4APP_CLASS=$cl exec java ee.cone.c4actor.ServerMain");
 };
 push @tasks, ["run", $exec_server];
 

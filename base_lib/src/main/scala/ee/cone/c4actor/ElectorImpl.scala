@@ -23,7 +23,7 @@ import scala.util.Random
 import scala.util.control.NonFatal
 import scala.jdk.FutureConverters._
 
-@protocol("ServerCompApp") object ElectorProtocol {
+@protocol("ChildElectorClientApp") object ElectorProtocol {
   @Id(0x00B0) case class S_ReadyProcess(
     @Id(0x0011) srcId: SrcId,
     @Id(0x001A) txId: String,
@@ -35,13 +35,15 @@ import scala.jdk.FutureConverters._
   )
 }
 
-@c4assemble("ServerCompApp") class EnableTxAssembleBase(
+trait EveryProcessTxTr
+
+@c4assemble("ChildElectorClientApp") class EnableTxAssembleBase(
   config: Config,
   actorName: ActorName,
   readyProcessTxFactory: ReadyProcessTxFactory,
   purgeReadyProcessTxFactory: PurgeReadyProcessTxFactory,
 )(
-  electorClientId: String = config.get("C4ELECTOR_CLIENT_ID")
+  electorClientIdOpt: List[String] = List(config.get("C4ELECTOR_CLIENT_ID")).filter(_.nonEmpty)
 ) {
   type CurrentElectorClientKey = SrcId
   type MasterAll = AbstractAll
@@ -50,35 +52,35 @@ import scala.jdk.FutureConverters._
     key: SrcId,
     process: Each[S_ReadyProcess],
   ): Values[(CurrentElectorClientKey,S_ReadyProcess)] =
-    if(process.role==actorName.value) List(electorClientId->process) else Nil
+    electorClientIdOpt.filter(_=>process.role==actorName.value).map(_->process)
 
   def gatherFirstborn(
     key: SrcId,
     firstborn: Each[S_Firstborn],
   ): Values[(CurrentElectorClientKey,S_Firstborn)] =
-    List(electorClientId->firstborn)
+    electorClientIdOpt.map(_->firstborn)
 
   def enableReadyProcessTx(
     key: SrcId,
     @by[CurrentElectorClientKey] firstborn: Each[S_Firstborn],
     @by[CurrentElectorClientKey] processes: Values[S_ReadyProcess],
-  ): Values[(SrcId,EnabledTxTr)] =
-    WithPK(EnabledTxTr(purgeReadyProcessTxFactory.create(
-      s"PurgeReadyProcessTx-$electorClientId",
+  ): Values[(SrcId,TxTransform)] =
+    WithPK(purgeReadyProcessTxFactory.create(
+      s"PurgeReadyProcessTx-$key",
       processes.sortBy(_.srcId).toList
-    ))) :: (
-      if(processes.exists(_.srcId==electorClientId)) Nil
-      else List(WithPK(EnabledTxTr(readyProcessTxFactory.create(
-        s"ReadyProcessTx-$electorClientId",
-        S_ReadyProcess(electorClientId, "", actorName.value)
-      ))))
+    )) :: (
+      if(processes.exists(_.srcId==key)) Nil
+      else List(WithPK(readyProcessTxFactory.create(
+        s"ReadyProcessTx-$key",
+        S_ReadyProcess(key, "", actorName.value)
+      )))
     )
 
   def checkIsMaster(
     key: SrcId,
     @by[CurrentElectorClientKey] processes: Values[S_ReadyProcess],
   ): Values[(MasterAll,S_ReadyProcess)] =
-    List(processes.minBy(_.txId)).filter(_.srcId == electorClientId).map(All->_)
+    List(processes.minBy(_.txId)).filter(_.srcId == key).map(All->_)
 
   def enable(
     key: SrcId,
@@ -87,48 +89,53 @@ import scala.jdk.FutureConverters._
     @byEq[MasterAll](All) master: Values[S_ReadyProcess],
   ): Values[(SrcId,EnabledTxTr)] =
     if(
-      scaled.exists(_.electorClientId==electorClientId) ||
-        scaled.isEmpty && master.nonEmpty
+      scaled.exists(s=>electorClientIdOpt.contains(s.electorClientId)) ||
+      scaled.isEmpty && master.nonEmpty ||
+      txTr.isInstanceOf[EveryProcessTxTr] ||
+      electorClientIdOpt.isEmpty
     ) List(WithPK(EnabledTxTr(txTr))) else Nil
 }
 
-case object PurgeReadyProcessStateKey extends TransientLens[(Option[HttpClient],List[(S_ReadyProcess,Future[Option[Long]])])]((None,Nil))
-@c4multi("ServerCompApp") final case class PurgeReadyProcessTx(
+case object PurgeReadyProcessStateKey extends TransientLens[(Option[HttpClient],List[(S_ReadyProcess,ElectorDeferredResponse)])]((None,Nil))
+@c4multi("ChildElectorClientApp") final case class PurgeReadyProcessTx(
   srcId: SrcId, processes: List[S_ReadyProcess]
 )(
   txAdd: LTxAdd,
   electorRequestsFactory: ElectorRequestsFactory,
-  execution: Execution,
 )(
   requests: List[(S_ReadyProcess,ElectorRequests)] =
     processes.map(p=>(p,electorRequestsFactory.createCheck(p.srcId))),
-) extends TxTransform {
+) extends TxTransform with EveryProcessTxTr with LazyLogging {
   def transform(local: Context): Context = {
     val (clientOpt,wasRes) = PurgeReadyProcessStateKey.of(local)
-    val lEvents = wasRes.flatMap{ case (p,f) => if(f.value.flatMap(_.get).nonEmpty) LEvent.delete(p) else Nil }
+    val toDel = wasRes.collect{ case (p,r) if r.get().nonEmpty => p }
+    for(p <- toDel) logger.info(s"${p.srcId}")
     val client = clientOpt.getOrElse(HttpClient.newHttpClient)
-    val willRes = requests.map{ case (p,r) => (p, execution.unboundedFatal(r.send(client)(_))) }
+    val willRes = requests.map{ case (p,r) => (p, r.send(client)) }
     Function.chain(Seq(
-      txAdd.add(lEvents),
+      txAdd.add(LEvent.delete(toDel)),
       PurgeReadyProcessStateKey.set((Option(client),willRes)),
-      SleepUntilKey.set(Instant.now.plusSeconds(1))
+      SleepUntilKey.set(Instant.now.plusSeconds(2))
     ))(local)
   }
 }
 
-@c4("ServerCompApp") final class ReadyProcessOnce(value: Promise[Unit] = Promise()){
+@c4("ChildElectorClientApp") final class ReadyProcessOnce(
+  execution: Execution,
+  value: Promise[Unit] = Promise()
+){
   def check(): Unit = {
     if(value.isCompleted) Runtime.getRuntime.halt(2)
-    value.success(())
+    execution.success(value,())
   }
 }
-@c4multi("ServerCompApp") final case class ReadyProcessTx(
+@c4multi("ChildElectorClientApp") final case class ReadyProcessTx(
   srcId: SrcId, toAdd: S_ReadyProcess
 )(
   txAdd: LTxAdd,
   once: ReadyProcessOnce,
-) extends TxTransform with LazyLogging {
-  def transform(local: Context): Context = { // register self / track no self
+) extends TxTransform with EveryProcessTxTr with LazyLogging {
+  def transform(local: Context): Context = { // register self / track no self -- activity like snapshot-put can drop S_ReadyProcess
     once.check()
     txAdd.add(LEvent.update(toAdd))(local)
   }
@@ -137,7 +144,7 @@ case object PurgeReadyProcessStateKey extends TransientLens[(Option[HttpClient],
 ////
 
 @c4("ElectorClientApp") final class ElectorRequestsFactory(
-  config: Config, listConfig: ListConfig
+  config: Config, listConfig: ListConfig, execution: Execution
 ){
   def createRequest(ownerObj: String, ownerSubj: String, address: String, period: Int): HttpRequest =
     HttpRequest.newBuilder
@@ -149,10 +156,10 @@ case object PurgeReadyProcessStateKey extends TransientLens[(Option[HttpClient],
     val serversStr = config.get("C4ELECTOR_SERVERS")
     val addresses = serversStr.split(",").toList
     val hint = s"$serversStr $ownerObj $ownerSubj $modeHint"
-    new ElectorRequests(addresses.map(createRequest(ownerObj,ownerSubj,_,period)), period, hint)
+    new ElectorRequests(addresses.map(createRequest(ownerObj,ownerSubj,_,period)), period, hint, execution)
   }
   def createLock(owner: String): ElectorRequests = {
-    val lockPeriod = Single.option(listConfig.get("C4ELECTOR_LOCK_PERIOD"))
+    val lockPeriod = Single.option(listConfig.get("C4ELECTOR_LOCKING_PERIOD"))
       .fold(10000)(_.toInt)
     createRequests(owner, owner, lockPeriod,s"  lock")
   }
@@ -164,9 +171,13 @@ case object PurgeReadyProcessStateKey extends TransientLens[(Option[HttpClient],
   }
 }
 
-class ElectorRequests(requests: List[HttpRequest], lockPeriod: Int, hint: String) extends LazyLogging {
+class ElectorRequests(
+  requests: List[HttpRequest], lockPeriod: Int, hint: String, execution: Execution
+) extends LazyLogging {
   def msNow: Long = System.nanoTime / 1000000
-  def send(client: HttpClient)(implicit ec: ExecutionContext): Future[Option[Long]] = {
+  def send(client: HttpClient): ElectorDeferredResponse =
+    new ElectorDeferredResponse(execution.unboundedFatal(sendInner(client)(_)))
+  def sendInner(client: HttpClient)(implicit ec: ExecutionContext): Future[Option[Long]] = {
     val started = msNow
     Future.sequence(requests.map(req=>
       client.sendAsync(req, BodyHandlers.discarding()).asScala
@@ -183,6 +194,10 @@ class ElectorRequests(requests: List[HttpRequest], lockPeriod: Int, hint: String
   }
 }
 
+class ElectorDeferredResponse(f: Future[Option[Long]]) {
+  def get(): Option[Long] = f.value.flatMap(_.toOption).flatten
+}
+
 ////
 
 
@@ -191,16 +206,12 @@ class ElectorRequests(requests: List[HttpRequest], lockPeriod: Int, hint: String
 ) extends Executable with Early {
   def run(): Unit = for{
     pid <- Single.option(listConfig.get("C4PARENT_PID"))
-  } iteration(Paths.get(s"/proc/$pid"), listConfig.get("C4PARENT_FORCE").nonEmpty)
-  @tailrec private def iteration(path: Path, force: Boolean): Unit =
-    if(Files.exists(path)) {
-      Thread.sleep(1000)
-      iteration(path,force)
-    } else if(force) {
-      Runtime.getRuntime.halt(2)
-    } else {
-      System.exit(2)
-    }
+    path = Paths.get(s"/proc/$pid")
+  } {
+    Iterator.continually(Thread.sleep(1000)).takeWhile(_=>Files.exists(path)).foreach(_=>())
+    if(listConfig.get("C4PARENT_FORCE").nonEmpty) Runtime.getRuntime.halt(2)
+    throw new Exception(s"$path not found")
+  }
 }
 
 @c4("ParentElectorClientApp") final class ProcessTree(execution: Execution){
@@ -209,20 +220,22 @@ class ElectorRequests(requests: List[HttpRequest], lockPeriod: Int, hint: String
     for((k,v) <- env) processBuilder.environment().put(k,v)
     processBuilder.start()
   }
+  def ignoreTheSameProcess(p: Process): Unit = ()
   def withProcess(args: Seq[String], env: Map[String,String], inner: Process=>Unit): Unit = {
     val allowExit = Promise[Unit]()
     val pid = ManagementFactory.getRuntimeMXBean.getPid
     val addEnv = Map("C4PARENT_PID" -> s"$pid","C4PARENT_FORCE" -> "1")
     val process = startProcess(args, env ++ addEnv)
+    val remove = execution.onShutdown("controlSubProcess", ()=>{
+      process.destroy()
+      Await.result(allowExit.future,Duration.Inf)
+    })
     try {
-      execution.onShutdown("controlSubProcess", ()=>{
-        process.destroy()
-        Await.ready(allowExit.future,Duration.Inf)
-      })
       inner(process)
     } finally {
-      process.destroyForcibly()
-      allowExit.success(())
+      ignoreTheSameProcess(process.destroyForcibly())
+      execution.success(allowExit,())
+      remove()
     }
   }
 }
@@ -231,36 +244,35 @@ class ElectorRequests(requests: List[HttpRequest], lockPeriod: Int, hint: String
 
 @c4("ParentElectorClientApp") final class ElectorSystem(
   config: Config,
-  execution: Execution,
   electorRequestsFactory: ElectorRequestsFactory,
   processTree: ProcessTree,
+  execution: Execution,
   owner: String = s"${UUID.randomUUID()}"
 ) extends Executable with Early {
   def sendSleep(client: HttpClient, requests: ElectorRequests): Option[Long] = {
-
-    val next = execution.unboundedFatal(requests.send(client)(_))
+    val next = requests.send(client)
     Thread.sleep(1000+Random.nextInt(300))
-    next.value.flatMap(_.get)
+    next.get()
   }
   def run(): Unit = {
     val lockRequests = electorRequestsFactory.createLock(owner)
     val unlockRequests = electorRequestsFactory.createUnlock(owner)
     val client = HttpClient.newHttpClient
-    def untilInit(): Long = sendSleep(client,lockRequests).getOrElse(untilInit())
-    @tailrec def iter(process: Process, wasUntil: Long): Unit =
-      if(!process.isAlive){
-        sendSleep(client,unlockRequests)
-      } else {
-        val until = (wasUntil :: sendSleep(client,lockRequests).toList).max
-        if(until - lockRequests.msNow < 4000)
-          throw new Exception("can not stay")
-        iter(process,until)
-      }
-    val initUntil = untilInit() // before process start
+    val initUntil = Iterator.continually(sendSleep(client,lockRequests))
+      .flatten.take(1).toList.head // before process start
     val appClass = config.get("C4APP_CLASS_INNER")
     val env = Map("C4APP_CLASS" -> appClass,"C4ELECTOR_CLIENT_ID" -> owner)
     val args = Seq("java","ee.cone.c4actor.ServerMain")
-    processTree.withProcess(args, env, process => iter(process, initUntil))
+    processTree.withProcess(args, env, process => {
+      Iterator.iterate(initUntil){ wasUntil =>
+        val until = (wasUntil :: sendSleep(client,lockRequests).toList).max
+        if(until - lockRequests.msNow < 4000)
+          throw new Exception("can not stay")
+        until
+      }.takeWhile(_=>process.isAlive).foreach(_=>())
+      val ignoredUntil = sendSleep(client,unlockRequests)
+    })
+    execution.complete()
   }
 }
 
@@ -312,4 +324,31 @@ in child:
     any actor can reassign self to other proc-uid by orig
     assigned actor is activated only on their proc-uid
     non-assigned actor is activated on proc-uid with minimal registration tx-id
+ */
+
+/* check:
+check
+    LateInit: one time, one process
+    random txtr -- same
+    purging
+process death order
+    make child sleep in hook;
+    case soft kill child
+    case soft kill parent
+    check leaser will stay active
+    check both will die
+    check fast unlock
+test real
+    split brain
+    elector node off
+    app node off
+    child gc
+
+refactor
+    C4ELECTOR_PROC_PATH => C4PARENT_PID
+    C4APP_CLASS + C4APP_CLASS_INNER -- what for test apps?
+move to elector api
+
+
+
  */

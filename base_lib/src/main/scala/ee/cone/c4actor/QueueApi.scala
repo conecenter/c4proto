@@ -250,6 +250,8 @@ trait TxTransform extends Product {
   def transform(local: Context): Context
 }
 
+case class EnabledTxTr(value: TxTransform)
+
 case object WriteModelKey extends TransientLens[Queue[N_Update]](Queue.empty)
 
 case class RawHeader(key: String, value: String)
