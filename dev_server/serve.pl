@@ -347,10 +347,12 @@ my $init = sub{
         "command=perl $0 $$_[1]",
         "autorestart=true",
         $ENV{C4MERGE_LOGS} ? (
-            "stderr_logfile=/dev/stderr",
-            "stderr_logfile_maxbytes=0",
-            "stdout_logfile=/dev/stdout",
-            "stdout_logfile_maxbytes=0",
+            "stdout_syslog=true",
+            "stderr_syslog=true",
+            # "stderr_logfile=/dev/stderr",
+            # "stderr_logfile_maxbytes=0",
+            # "stdout_logfile=/dev/stdout",
+            # "stdout_logfile_maxbytes=0",
         ):()
     )} map{
         [$_,$_]

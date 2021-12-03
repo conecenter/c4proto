@@ -36,10 +36,12 @@ RUN /install.pl curl https://dl.min.io/client/mc/release/linux-amd64/mc \
 FROM c4downloader
 RUN perl /install.pl apt \
   libjson-xs-perl python \
-  supervisor haproxy \
+  python3-pip \
+  haproxy \
   uuid-runtime '#kafka cert gen' \
   mc lsof '#debug'
-RUN ln -s /c4/supervisord.conf /etc/supervisord.conf \
+RUN pip3 install setuptools supervisor \
+ && ln -s /c4/supervisord.conf /etc/supervisord.conf \
  && mkdir /c4repo && chown c4:c4 /c4repo
 USER c4
 COPY --chown=c4:c4 --from=c4tools-jdk /tools/* /tools/jdk

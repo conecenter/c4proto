@@ -5,6 +5,7 @@ services:
     restart: unless-stopped
     volumes:
     - "../..:/c4repo"
+    - "/dev/log:/dev/log"
     ports:
     - "127.0.0.10:3000:3000"
     - "127.0.0.10:80:1080"
