@@ -346,6 +346,8 @@ my $init = sub{
         "[program:$$_[0]]",
         "command=perl $0 $$_[1]",
         "autorestart=true",
+        "stopasgroup=true",
+        "killasgroup=true",
         $ENV{C4MERGE_LOGS} ? (
             "stdout_syslog=true",
             "stderr_syslog=true",

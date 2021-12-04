@@ -8,6 +8,7 @@ import ee.cone.c4assemble.{AbstractAll, All, Single, by, byEq, c4assemble}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4di.{c4, c4multi}
 import ee.cone.c4proto.{Id, protocol}
+
 import java.lang.management.ManagementFactory
 import java.net.URI
 import java.net.http.{HttpClient, HttpRequest}
@@ -18,7 +19,7 @@ import java.time.Instant
 import java.util.UUID
 import scala.annotation.tailrec
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
-import scala.concurrent.duration.Duration
+import scala.concurrent.duration.{Duration, MILLISECONDS}
 import scala.util.Random
 import scala.util.control.NonFatal
 import scala.jdk.FutureConverters._
@@ -60,21 +61,24 @@ trait EveryProcessTxTr
   ): Values[(CurrentElectorClientKey,S_Firstborn)] =
     electorClientIdOpt.map(_->firstborn)
 
+  def enablePurgeReadyProcessTx(
+    key: SrcId,
+    @by[CurrentElectorClientKey] processes: Values[S_ReadyProcess],
+  ): Values[(SrcId,TxTransform)] = for {
+    p <- processes
+    id = s"PurgeReadyProcessTx-${p.srcId}"
+  } yield WithPK(purgeReadyProcessTxFactory.create(id,p))
+
   def enableReadyProcessTx(
     key: SrcId,
     @by[CurrentElectorClientKey] firstborn: Each[S_Firstborn],
     @by[CurrentElectorClientKey] processes: Values[S_ReadyProcess],
   ): Values[(SrcId,TxTransform)] =
-    WithPK(purgeReadyProcessTxFactory.create(
-      s"PurgeReadyProcessTx-$key",
-      processes.sortBy(_.srcId).toList
-    )) :: (
       if(processes.exists(_.srcId==key)) Nil
       else List(WithPK(readyProcessTxFactory.create(
         s"ReadyProcessTx-$key",
         S_ReadyProcess(key, "", actorName.value)
       )))
-    )
 
   def checkIsMaster(
     key: SrcId,
@@ -96,27 +100,24 @@ trait EveryProcessTxTr
     ) List(WithPK(EnabledTxTr(txTr))) else Nil
 }
 
-case object PurgeReadyProcessStateKey extends TransientLens[(Option[HttpClient],List[(S_ReadyProcess,ElectorDeferredResponse)])]((None,Nil))
+case object PurgeReadyProcessStateKey extends TransientLens[Option[ElectorRequests]](None)
 @c4multi("ChildElectorClientApp") final case class PurgeReadyProcessTx(
-  srcId: SrcId, processes: List[S_ReadyProcess]
+  srcId: SrcId, process: S_ReadyProcess
 )(
   txAdd: LTxAdd,
   electorRequestsFactory: ElectorRequestsFactory,
-)(
-  requests: List[(S_ReadyProcess,ElectorRequests)] =
-    processes.map(p=>(p,electorRequestsFactory.createCheck(p.srcId))),
 ) extends TxTransform with EveryProcessTxTr with LazyLogging {
   def transform(local: Context): Context = {
-    val (clientOpt,wasRes) = PurgeReadyProcessStateKey.of(local)
-    val toDel = wasRes.collect{ case (p,r) if r.get().nonEmpty => p }
-    for(p <- toDel) logger.info(s"${p.srcId}")
-    val client = clientOpt.getOrElse(HttpClient.newHttpClient)
-    val willRes = requests.map{ case (p,r) => (p, r.send(client)) }
-    Function.chain(Seq(
-      txAdd.add(LEvent.delete(toDel)),
-      PurgeReadyProcessStateKey.set((Option(client),willRes)),
-      SleepUntilKey.set(Instant.now.plusSeconds(2))
-    ))(local)
+    val wasReq = PurgeReadyProcessStateKey.of(local)
+      .getOrElse(electorRequestsFactory.createCheck(process.srcId))
+    if(wasReq.lockedUntil() > 0) {
+      logger.info(process.srcId)
+      txAdd.add(LEvent.delete(process))(local)
+    } else {
+      val willReq = wasReq.mayBeSend()
+      if(wasReq == willReq) local
+      else PurgeReadyProcessStateKey.set(Option(willReq))(local)
+    }
   }
 }
 
@@ -130,25 +131,29 @@ case object PurgeReadyProcessStateKey extends TransientLens[(Option[HttpClient],
   }
 }
 @c4multi("ChildElectorClientApp") final case class ReadyProcessTx(
-  srcId: SrcId, toAdd: S_ReadyProcess
+  srcId: SrcId, process: S_ReadyProcess
 )(
   txAdd: LTxAdd,
   once: ReadyProcessOnce,
 ) extends TxTransform with EveryProcessTxTr with LazyLogging {
   def transform(local: Context): Context = { // register self / track no self -- activity like snapshot-put can drop S_ReadyProcess
     once.check()
-    txAdd.add(LEvent.update(toAdd))(local)
+    logger.info(process.srcId)
+    txAdd.add(LEvent.update(process))(local)
   }
 }
 
 ////
 
 @c4("ElectorClientApp") final class ElectorRequestsFactory(
-  config: Config, listConfig: ListConfig, execution: Execution
-){
+  config: Config, listConfig: ListConfig, val execution: Execution,
+  val clientPromise: Promise[HttpClient] = Promise(),
+) extends Executable with Early {
+  def run(): Unit = execution.success(clientPromise, HttpClient.newHttpClient)
+  def timeout: Long = 1000
   def createRequest(ownerObj: String, ownerSubj: String, address: String, period: Int): HttpRequest =
     HttpRequest.newBuilder
-      .timeout(java.time.Duration.ofSeconds(1))
+      .timeout(java.time.Duration.ofMillis(timeout))
       .uri(URI.create(s"$address/lock/$ownerObj"))
       .headers("x-r-lock-owner",ownerSubj,"x-r-lock-period",s"$period")
       .POST(BodyPublishers.noBody()).build()
@@ -156,7 +161,7 @@ case object PurgeReadyProcessStateKey extends TransientLens[(Option[HttpClient],
     val serversStr = config.get("C4ELECTOR_SERVERS")
     val addresses = serversStr.split(",").toList
     val hint = s"$serversStr $ownerObj $ownerSubj $modeHint"
-    new ElectorRequests(addresses.map(createRequest(ownerObj,ownerSubj,_,period)), period, hint, execution)
+    new ElectorRequests(addresses.map(createRequest(ownerObj,ownerSubj,_,period)), period, hint, this)
   }
   def createLock(owner: String): ElectorRequests = {
     val lockPeriod = Single.option(listConfig.get("C4ELECTOR_LOCKING_PERIOD"))
@@ -172,30 +177,39 @@ case object PurgeReadyProcessStateKey extends TransientLens[(Option[HttpClient],
 }
 
 class ElectorRequests(
-  requests: List[HttpRequest], lockPeriod: Int, hint: String, execution: Execution
+  requests: List[HttpRequest], lockPeriod: Int, hint: String,
+  parent: ElectorRequestsFactory,
+  wasLockedUntil: Long = 0,
+  val response: Future[Option[Long]] = Future.successful(None), skipUntil: Long = 0,
 ) extends LazyLogging {
-  def msNow: Long = System.nanoTime / 1000000
-  def send(client: HttpClient): ElectorDeferredResponse =
-    new ElectorDeferredResponse(execution.unboundedFatal(sendInner(client)(_)))
-  def sendInner(client: HttpClient)(implicit ec: ExecutionContext): Future[Option[Long]] = {
-    val started = msNow
-    Future.sequence(requests.map(req=>
-      client.sendAsync(req, BodyHandlers.discarding()).asScala
-        .map(resp=>resp.statusCode==200)
-        .recover{ case NonFatal(e) =>
-          logger.error("elector-post",e)
-          false
-        }
-    )).map{ results =>
+  def msNow(): Long = System.nanoTime / 1000000
+  def mayBeSend(): ElectorRequests = {
+    val started = msNow()
+    if(started < skipUntil) this else {
+      val resF = parent.execution.unboundedFatal(sendInner(started)(_))
+      val until = started + parent.timeout + Random.nextInt(200)
+      new ElectorRequests(requests, lockPeriod, hint, parent, lockedUntil(), resF, until)
+    }
+  }
+  def sendInner(started: Long)(implicit ec: ExecutionContext): Future[Option[Long]] =
+    for {
+      client <- parent.clientPromise.future
+      results <- Future.sequence(requests.map(req=>
+        client.sendAsync(req, BodyHandlers.discarding()).asScala
+          .map(resp=>resp.statusCode==200)
+          .recover{ case NonFatal(e) =>
+            logger.error("elector-post",e)
+            false
+          }
+      ))
+    } yield {
       val (ok,nok) = results.partition(r=>r)
       logger.debug(s"$hint -- ${ok.size}/${requests.size}")
       if(ok.size > nok.size) Option(started+lockPeriod) else None
     }
-  }
-}
-
-class ElectorDeferredResponse(f: Future[Option[Long]]) {
-  def get(): Option[Long] = f.value.flatMap(_.toOption).flatten
+  def lockedUntil(): Long = response.value.flatMap(_.toOption).flatten
+    .fold(wasLockedUntil)(v=>Math.max(v,wasLockedUntil))
+  def lockedUntilRel(): Long = lockedUntil() - msNow()
 }
 
 ////
@@ -218,9 +232,11 @@ class ElectorDeferredResponse(f: Future[Option[Long]]) {
   def startProcess(args: Seq[String], env: Map[String,String]): Process = {
     val processBuilder = new ProcessBuilder(args:_*)
     for((k,v) <- env) processBuilder.environment().put(k,v)
-    processBuilder.start()
+    processBuilder.inheritIO().start() // by default stdout pipes to parent, so most easy is inheritIO here
   }
   def ignoreTheSameProcess(p: Process): Unit = ()
+  def destroyForcibly(process: Process): Unit =
+    ignoreTheSameProcess(process.destroyForcibly())
   def withProcess(args: Seq[String], env: Map[String,String], inner: Process=>Unit): Unit = {
     val allowExit = Promise[Unit]()
     val pid = ManagementFactory.getRuntimeMXBean.getPid
@@ -233,7 +249,7 @@ class ElectorDeferredResponse(f: Future[Option[Long]]) {
     try {
       inner(process)
     } finally {
-      ignoreTheSameProcess(process.destroyForcibly())
+      destroyForcibly(process)
       execution.success(allowExit,())
       remove()
     }
@@ -249,31 +265,31 @@ class ElectorDeferredResponse(f: Future[Option[Long]]) {
   execution: Execution,
   owner: String = s"${UUID.randomUUID()}"
 ) extends Executable with Early {
-  def sendSleep(client: HttpClient, requests: ElectorRequests): Option[Long] = {
-    val next = requests.send(client)
-    Thread.sleep(1000+Random.nextInt(300))
-    next.get()
-  }
+  def sendWhile(initReq: ElectorRequests)(cond: ElectorRequests=>Boolean): ElectorRequests =
+    Iterator.iterate(initReq){ req =>
+      Thread.sleep(100)
+      req.mayBeSend()
+    }.dropWhile(cond).take(1).toList.head
+  def notSafelyLocked(req: ElectorRequests): Boolean = req.lockedUntilRel() < 4000
   def run(): Unit = {
     val lockRequests = electorRequestsFactory.createLock(owner)
     val unlockRequests = electorRequestsFactory.createUnlock(owner)
-    val client = HttpClient.newHttpClient
-    val initUntil = Iterator.continually(sendSleep(client,lockRequests))
-      .flatten.take(1).toList.head // before process start
+    val initLockReq = sendWhile(lockRequests)(notSafelyLocked) // before process start
     val appClass = config.get("C4APP_CLASS_INNER")
     val env = Map("C4APP_CLASS" -> appClass,"C4ELECTOR_CLIENT_ID" -> owner)
     val args = Seq("java","ee.cone.c4actor.ServerMain")
     processTree.withProcess(args, env, process => {
-      Iterator.iterate(initUntil){ wasUntil =>
-        val until = (wasUntil :: sendSleep(client,lockRequests).toList).max
-        if(until - lockRequests.msNow < 4000)
-          throw new Exception("can not stay")
-        until
-      }.takeWhile(_=>process.isAlive).foreach(_=>())
-      val ignoredUntil = sendSleep(client,unlockRequests)
+      val finLockReq = sendWhile(initLockReq){ req =>
+        if(notSafelyLocked(req)) processTree.destroyForcibly(process)
+        process.isAlive
+      }
+      val unlockRes = unlockRequests.mayBeSend().response
+      val unlockTimeout = Duration(electorRequestsFactory.timeout+100, MILLISECONDS)
+      ignoreExiting(Await.result(unlockRes, unlockTimeout))
     })
     execution.complete()
   }
+  def ignoreExiting(v: Option[Long]): Unit = ()
 }
 
 
@@ -287,68 +303,65 @@ class ElectorDeferredResponse(f: Future[Option[Long]]) {
   } yield until
 */
 
-
-/*
-in child: if no parent: halt self
-    # things went wrong, normally parent waits for child
-in parent: onShutdown: signal child, Await leaser
-    # normal; leaser will see child death (check leaser will stay active)
-in parent leaser:
-    if no parent: signal child
-        # normal; leaser will see child death
-    if lease ends: return
-        # finally will do rest
-    if not isAlive child: unlock lease, return
-    finally: halt child, unlock hook
-*/
 /*
 in parent:
     onShutdown: signal child, Await leaser
         # normal; leaser will see child death (check leaser will stay active)
-    in leaser loop:
-        lock proc-uid
-        if no parent: signal child
-            # normal; leaser will see child death
-        if proc-uid lease ends: return
-            # finally will do rest
-        if not isAlive child: unlock proc-uid, return
-    finally:
-        halt child, unlock hook
+    watch:
+        if no parent: exit
+            # normal; hook will run; give signal child; leaser will see child death
+    in leaser:
+        while isAlive child:
+          lock proc-uid
+          if proc-uid lease ends: halt child
+            # isAlive will become false
+        unlock proc-uid
+        finally:
+            halt child, unlock hook
 in child:
     watch:
         if no parent: halt self
             # things went wrong, normally parent waits for child
-    purger actor in any child:
-        once add proc-uid orig
+    PurgeReadyProcessTx -- purger actor in any child:
         try lock all proc-uid by orig-s; delete orig-s for succeeded
+    ReadyProcessTx
+        register self with proc-uid orig
+        if orig deleted (ex put snapshot): halts
     any actor can reassign self to other proc-uid by orig
     assigned actor is activated only on their proc-uid
     non-assigned actor is activated on proc-uid with minimal registration tx-id
- */
+    late executables run from tx
+*/
 
-/* check:
-check
-    LateInit: one time, one process
-    random txtr -- same
-    purging
-process death order
-    make child sleep in hook;
-    case soft kill child
-    case soft kill parent
-    check leaser will stay active
-    check both will die
-    check fast unlock
-test real
+/*
+checking 1 on dev_server:
+  made FailOverTest Tx and Executable
+  make everything up and see their log from single replica
+  kill this replica parent and see in order:
+  -->parent 'hook-in controlSubProcess'
+  --> child kafka dies --> parent 'unlock 3/3' --> elector 'locked by checker'
+  --> other replica PurgeReadyProcessTx
+  --> other replica 'tracking 1 late services'
+  --> new replica ProducerConfig
+  --> new replica ReadyProcessTx
+
+todo:
+
+impl scale purger
+move scaling to elector api
+test scaler
+
+add supervisor opts to de
+check in de
+check in sp
+
+
+check more in real:
     split brain
     elector node off
     app node off
     child gc
 
-refactor
-    C4ELECTOR_PROC_PATH => C4PARENT_PID
-    C4APP_CLASS + C4APP_CLASS_INNER -- what for test apps?
-move to elector api
-
-
+check proto test apps
 
  */
