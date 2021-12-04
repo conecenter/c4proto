@@ -221,6 +221,8 @@ my $init = sub{
             "[program:$_]",
             "command=perl $ENV{C4CI_PROTO_DIR}/sandbox.pl $_",
             "autorestart=true",
+            "stopasgroup=true",
+            "killasgroup=true",
             "stderr_logfile=/dev/stderr",
             "stderr_logfile_maxbytes=0",
             "stdout_logfile=/dev/stdout",
