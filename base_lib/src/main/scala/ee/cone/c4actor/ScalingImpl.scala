@@ -23,7 +23,7 @@ import ee.cone.c4proto.{Id, protocol}
   actorName: ActorName,
   scaleTxFactory: ScaleTxFactory,
   idGenUtil: IdGenUtil,
-  enables: List[EnableSimpleScaling]
+  enables: List[GeneralEnableSimpleScaling]
 )(
   clNames: Set[String] = enables.map(_.cl.getName).toSet
 ){
@@ -69,7 +69,8 @@ import ee.cone.c4proto.{Id, protocol}
       val worksAtId = Single.option(scaled).fold(masterId)(_.electorClientId)
       if(worksAtId != processes.currentId) Nil else {
         val scaleToNum = // does not try to minimize rescheduling yet
-          if(txTrs.exists(t=>clNames(t.getClass.getName))) key.hashCode else 0
+          if(txTrs.exists(t=>clNames(t.getClass.getName))) Math.abs(key.hashCode)
+          else 0
         val scaleToId = processes.ids(scaleToNum % processes.ids.size)
         if(worksAtId == scaleToId) txTrs.map(t=>WithPK(EnabledTxTr(t)))
         else List(WithPK(EnabledTxTr(scaleTxFactory.create(key, toDel(scaled) ::: toAdd(key, scaleToId)))))

@@ -29,6 +29,9 @@ import scala.annotation.tailrec
 }
 */
 
+@c4("TestTodoApp") final class FailOverTestEnable
+  extends EnableSimpleScaling(classOf[FailOverTestTx])
+
 @c4("TestTodoApp") final class FailOverTest extends Executable with LazyLogging {
   def run(): Unit = iter()
   @tailrec def iter(): Unit = {
@@ -45,14 +48,18 @@ import scala.annotation.tailrec
     srcId: SrcId,
     firstborn: Each[S_Firstborn],
   ): Values[(SrcId, TxTransform)] =
-    List(WithPK(failOverTestTxFactory.create()))
+    List(
+      WithPK(failOverTestTxFactory.create("FailOverTest-0")),
+      WithPK(failOverTestTxFactory.create("FailOverTest-1")),
+      WithPK(failOverTestTxFactory.create("FailOverTest-2")),
+    )
 }
 
 @c4multi("TestTodoApp") final case class FailOverTestTx(
-  srcId: SrcId = "FailOverTest"
+  srcId: SrcId
 ) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = {
-    logger.debug(s"Tx up")
+    logger.debug(s"Tx up $srcId")
     local
   }
 }
