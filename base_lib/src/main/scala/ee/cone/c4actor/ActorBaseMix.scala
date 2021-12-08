@@ -38,3 +38,5 @@ trait DeadlockDetectAppBase
 trait ElectorClientAppBase
 trait ChildElectorClientAppBase extends ElectorClientApp
 @c4app class ParentElectorClientAppBase extends ElectorClientApp with ExecutableApp with VMExecutionApp with BaseApp with EnvConfigCompApp
+
+trait ScalingAppBase extends ChildElectorClientApp

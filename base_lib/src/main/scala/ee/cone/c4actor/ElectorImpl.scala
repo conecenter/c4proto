@@ -1,10 +1,10 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.ElectorProtocol.{S_ReadyProcess, S_ScaledTxTr}
+import ee.cone.c4actor.ElectorProtocol._
 import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.{AbstractAll, All, Single, by, byEq, c4assemble}
+import ee.cone.c4assemble.{Single, by, byEq, c4assemble, ignore}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4di.{c4, c4multi}
 import ee.cone.c4proto.{Id, protocol}
@@ -14,10 +14,8 @@ import java.net.URI
 import java.net.http.{HttpClient, HttpRequest}
 import java.net.http.HttpRequest.BodyPublishers
 import java.net.http.HttpResponse.BodyHandlers
-import java.nio.file.{Files, Path, Paths}
-import java.time.Instant
+import java.nio.file.{Files, Paths}
 import java.util.UUID
-import scala.annotation.tailrec
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.concurrent.duration.{Duration, MILLISECONDS}
 import scala.util.Random
@@ -26,78 +24,83 @@ import scala.jdk.FutureConverters._
 
 @protocol("ChildElectorClientApp") object ElectorProtocol {
   @Id(0x00B0) case class S_ReadyProcess(
-    @Id(0x0011) srcId: SrcId,
+    @Id(0x00B1) electorClientId: SrcId,
     @Id(0x001A) txId: String,
     @Id(0x00B0) role: String,
   )
-  @Id(0x00B1) case class S_ScaledTxTr(
-    @Id(0x0011) srcId: SrcId,
-    @Id(0x00B1) electorClientId: SrcId,
-  )
 }
 
-trait EveryProcessTxTr
+case class ReadyProcessesImpl(
+  srcId: SrcId,
+  processesByTxId: List[S_ReadyProcess],
+  val isMaster: Boolean,
+  currentIdOpt: Option[SrcId]
+)(
+  val ids: List[SrcId] = processesByTxId.map(_.electorClientId)
+) extends ReadyProcesses {
+  def currentId: SrcId = currentIdOpt.get
+}
 
 @c4assemble("ChildElectorClientApp") class EnableTxAssembleBase(
   config: Config,
   actorName: ActorName,
   readyProcessTxFactory: ReadyProcessTxFactory,
   purgeReadyProcessTxFactory: PurgeReadyProcessTxFactory,
+  enableScaling: Option[EnableScaling],
 )(
-  electorClientIdOpt: List[String] = List(config.get("C4ELECTOR_CLIENT_ID")).filter(_.nonEmpty)
-) {
-  type CurrentElectorClientKey = SrcId
-  type MasterAll = AbstractAll
+  electorClientIdOpt: List[String] =
+    List(config.get("C4ELECTOR_CLIENT_ID")).filter(_.nonEmpty)
+){
+  type ActorNameKey = SrcId
+
+  @ignore def enable(t: TxTransform): Values[(SrcId,EnabledTxTr)] =
+    List(WithPK(EnabledTxTr(t)))
 
   def gatherProcesses(
     key: SrcId,
     process: Each[S_ReadyProcess],
-  ): Values[(CurrentElectorClientKey,S_ReadyProcess)] =
-    electorClientIdOpt.filter(_=>process.role==actorName.value).map(_->process)
+  ): Values[(ActorNameKey,S_ReadyProcess)] =
+    if(process.role==actorName.value) List(actorName.value->process) else Nil
 
-  def gatherFirstborn(
+  def makeReadyProcesses(
     key: SrcId,
     firstborn: Each[S_Firstborn],
-  ): Values[(CurrentElectorClientKey,S_Firstborn)] =
-    electorClientIdOpt.map(_->firstborn)
-
-  def enablePurgeReadyProcessTx(
-    key: SrcId,
-    @by[CurrentElectorClientKey] processes: Values[S_ReadyProcess],
-  ): Values[(SrcId,TxTransform)] = for {
-    p <- processes
-    id = s"PurgeReadyProcessTx-${p.srcId}"
-  } yield WithPK(purgeReadyProcessTxFactory.create(id,p))
+    @by[ActorNameKey] processes: Values[S_ReadyProcess],
+  ): Values[(SrcId,ReadyProcesses)] = {
+    val processesByTxId = processes.sortBy(_.txId).toList
+    val isMaster = processesByTxId.take(1).map(_.electorClientId) == electorClientIdOpt
+    //val currentDestinations = if(isMaster) "" :: electorClientIdOpt else electorClientIdOpt
+    List(WithPK(ReadyProcessesImpl(key,processesByTxId,isMaster,Single.option(electorClientIdOpt))()))
+  }
 
   def enableReadyProcessTx(
     key: SrcId,
-    @by[CurrentElectorClientKey] firstborn: Each[S_Firstborn],
-    @by[CurrentElectorClientKey] processes: Values[S_ReadyProcess],
-  ): Values[(SrcId,TxTransform)] =
-      if(processes.exists(_.srcId==key)) Nil
-      else List(WithPK(readyProcessTxFactory.create(
-        s"ReadyProcessTx-$key",
-        S_ReadyProcess(key, "", actorName.value)
-      )))
-
-  def checkIsMaster(
-    key: SrcId,
-    @by[CurrentElectorClientKey] processes: Values[S_ReadyProcess],
-  ): Values[(MasterAll,S_ReadyProcess)] =
-    List(processes.minBy(_.txId)).filter(_.srcId == key).map(All->_)
-
-  def enable(
-    key: SrcId,
-    txTr: Each[TxTransform],
-    scaled: Values[S_ScaledTxTr],
-    @byEq[MasterAll](All) master: Values[S_ReadyProcess],
+    processes: Each[ReadyProcesses]
   ): Values[(SrcId,EnabledTxTr)] =
-    if(
-      scaled.exists(s=>electorClientIdOpt.contains(s.electorClientId)) ||
-      scaled.isEmpty && master.nonEmpty ||
-      txTr.isInstanceOf[EveryProcessTxTr] ||
-      electorClientIdOpt.isEmpty
-    ) List(WithPK(EnabledTxTr(txTr))) else Nil
+    for{
+      id <- electorClientIdOpt if !processes.ids.contains(id)
+      process = S_ReadyProcess(id, "", key)
+      res <- enable(readyProcessTxFactory.create(s"ReadyProcessTx", process))
+    } yield res
+
+  def enablePurgeReadyProcessTx(
+    key: SrcId,
+    processes: Values[ReadyProcesses]
+  ): Values[(SrcId,EnabledTxTr)] =
+    for{
+      id <- electorClientIdOpt
+      processesImpl <- processes.map{ case p: ReadyProcessesImpl => p } if processesImpl.processesByTxId.size > 1
+      procList = processesImpl.processesByTxId
+      process = procList((procList.indexWhere(_.electorClientId==id)+1)%procList.size)
+      res <- enable(purgeReadyProcessTxFactory.create(s"PurgeReadyProcessTx",process))
+    } yield res
+
+  def enableTxTr(
+    key: SrcId,
+    txTrs: Values[TxTransform],
+    @byEq[SrcId](actorName.value) processes: Each[ReadyProcesses],
+  ): Values[(SrcId,EnabledTxTr)] =
+    if(processes.isMaster && enableScaling.isEmpty) txTrs.flatMap(enable) else Nil
 }
 
 case object PurgeReadyProcessStateKey extends TransientLens[Option[ElectorRequests]](None)
@@ -106,12 +109,12 @@ case object PurgeReadyProcessStateKey extends TransientLens[Option[ElectorReques
 )(
   txAdd: LTxAdd,
   electorRequestsFactory: ElectorRequestsFactory,
-) extends TxTransform with EveryProcessTxTr with LazyLogging {
+) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = {
     val wasReq = PurgeReadyProcessStateKey.of(local)
-      .getOrElse(electorRequestsFactory.createCheck(process.srcId))
+      .getOrElse(electorRequestsFactory.createCheck(process.electorClientId))
     if(wasReq.lockedUntil() > 0) {
-      logger.info(process.srcId)
+      logger.info(process.electorClientId)
       txAdd.add(LEvent.delete(process))(local)
     } else {
       val willReq = wasReq.mayBeSend()
@@ -135,10 +138,10 @@ case object PurgeReadyProcessStateKey extends TransientLens[Option[ElectorReques
 )(
   txAdd: LTxAdd,
   once: ReadyProcessOnce,
-) extends TxTransform with EveryProcessTxTr with LazyLogging {
+) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = { // register self / track no self -- activity like snapshot-put can drop S_ReadyProcess
     once.check()
-    logger.info(process.srcId)
+    logger.info(process.electorClientId)
     txAdd.add(LEvent.update(process))(local)
   }
 }
@@ -347,14 +350,10 @@ checking 1 on dev_server:
 
 todo:
 
-impl scale purger
-move scaling to elector api
-test scaler
+test scaler + purging
 
-add supervisor opts to de
 check in de
 check in sp
-
 
 check more in real:
     split brain
