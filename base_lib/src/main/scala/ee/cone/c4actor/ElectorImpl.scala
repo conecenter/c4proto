@@ -350,8 +350,6 @@ checking 1 on dev_server:
 
 todo:
 
-test scaler + purging
-
 check in de
 check in sp
 
