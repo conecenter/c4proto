@@ -348,9 +348,17 @@ checking 1 on dev_server:
   --> new replica ProducerConfig
   --> new replica ReadyProcessTx
 
+de- works
+
 todo:
 
-check in de
+add tx code
+c43e
+see res5tart
+push
+make sp- with 2 replicas
+
+
 check in sp
 
 check more in real:

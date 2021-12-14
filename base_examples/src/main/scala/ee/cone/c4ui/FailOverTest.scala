@@ -29,6 +29,7 @@ import scala.annotation.tailrec
 }
 */
 
+/*
 @c4("TestTodoApp") final class FailOverTestEnable
   extends EnableSimpleScaling(classOf[FailOverTestTx])
 
@@ -62,4 +63,4 @@ import scala.annotation.tailrec
     logger.debug(s"Tx up $srcId")
     local
   }
-}
+}*/
