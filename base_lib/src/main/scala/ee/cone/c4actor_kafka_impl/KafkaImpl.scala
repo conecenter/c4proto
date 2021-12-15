@@ -36,7 +36,7 @@ import scala.jdk.CollectionConverters.{IterableHasAsScala,MapHasAsJava,MapHasAsS
 
 @c4("KafkaProducerApp") final class KafkaRawQSender(conf: KafkaConfig, execution: Execution)(
   producer: CompletableFuture[Producer[Array[Byte], Array[Byte]]] = new CompletableFuture()
-) extends RawQSender with Executable {
+) extends RawQSender with RawQSenderExecutable {
   def run(): Unit = concurrent.blocking {
     val props = conf.ssl ++ Map[String, Object](
       "acks" -> "all",

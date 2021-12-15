@@ -13,7 +13,7 @@ trait Execution extends Runnable {
   def newExecutorService(prefix: String, threadCount: Option[Int]): ExecutorService
   def fatal[T](future: ExecutionContext=>Future[T]): Unit
   def mainExecutionContext: ExecutionContext
-  def unboundedExecutionContext: ExecutionContext
+  def unboundedFatal[T](future: ExecutionContext=>Future[T]): Future[T]
   def success[T](promise: Promise[T], value: T): Unit
 }
 

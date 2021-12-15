@@ -93,6 +93,7 @@ trait QRecord {
 trait RawQSender {
   def send(rec: List[QRecord]): List[NextOffset]
 }
+trait RawQSenderExecutable extends Executable
 
 object OffsetHexSize{ def apply() = 16 }
 case object ReadAfterWriteOffsetKey extends TransientLens[NextOffset]("0" * OffsetHexSize())

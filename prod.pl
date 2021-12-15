@@ -1511,7 +1511,11 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
         m{([^/]+)\.classes(-bloop-cli)?$} ? "cd $_ && zip -q -r $ctx_dir/app/$1.jar ." : die $_
     } @classpath;
     &$_() for @started;
-    &$put_text("$ctx_dir/serve.sh","export C4APP_CLASS=$main_cl\nexec java ee.cone.c4actor.ServerMain");
+    &$put_text("$ctx_dir/serve.sh", join "\n",
+        "export C4APP_CLASS=ee.cone.c4actor.ParentElectorClientApp",
+        "export C4APP_CLASS_INNER=$main_cl",
+        "exec java ee.cone.c4actor.ServerMain"
+    );
     #
     my %has_mod = map{m"/mod\.([^/]+)\.classes(-bloop-cli)?$"?($1=>1):()} @classpath;
     my @public_part = map{ my $dir = $_;

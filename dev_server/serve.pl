@@ -216,7 +216,8 @@ my $exec_server = sub{
     my $paths = JSON::XS->new->decode(syf("cat $dir/.bloop/c4/mod.$mod.classpath.json"));
     my $env = {
         &$get_consumer_env($nm, $replica>0?$elector_proxy_port_base:$elector_port_base),
-        C4APP_CLASS => $cl,
+        C4APP_CLASS => "ee.cone.c4actor.ParentElectorClientApp",
+        C4APP_CLASS_INNER => $cl,
         %$paths,
         %$add_env,
     };
@@ -345,11 +346,15 @@ my $init = sub{
         "[program:$$_[0]]",
         "command=perl $0 $$_[1]",
         "autorestart=true",
+        "stopasgroup=true",
+        "killasgroup=true",
         $ENV{C4MERGE_LOGS} ? (
-            "stderr_logfile=/dev/stderr",
-            "stderr_logfile_maxbytes=0",
-            "stdout_logfile=/dev/stdout",
-            "stdout_logfile_maxbytes=0",
+            "stdout_syslog=true",
+            "stderr_syslog=true",
+            # "stderr_logfile=/dev/stderr",
+            # "stderr_logfile_maxbytes=0",
+            # "stdout_logfile=/dev/stdout",
+            # "stdout_logfile_maxbytes=0",
         ):()
     )} map{
         [$_,$_]

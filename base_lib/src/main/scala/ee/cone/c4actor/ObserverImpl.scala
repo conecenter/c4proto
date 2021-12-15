@@ -19,7 +19,7 @@ trait TxTransforms {
 
 @c4("ServerCompApp") final class TxTransformsImpl(
   qMessages: QMessages, warnPeriod: LongTxWarnPeriod, catchNonFatal: CatchNonFatal,
-  getTxTransform: GetByPK[TxTransform],
+  getTxTransform: GetByPK[EnabledTxTr],
 ) extends TxTransforms with LazyLogging {
   def get(global: RichContext): Map[SrcId,TransientMap=>TransientMap] =
     getTxTransform.ofA(global).keys.map(k=>k->handle(global,k)).toMap
@@ -45,7 +45,8 @@ trait TxTransforms {
     catchNonFatal {
         getTxTransform.ofA(global).get(key) match {
           case None => prev
-          case Some(tr) =>
+          case Some(trE) =>
+            val tr = trE.value
             val workTimer = NanoTimer()
             val name = s"${tr.getClass.getName}-$key"
             setName(s"tx-from-${System.currentTimeMillis}-$name")
