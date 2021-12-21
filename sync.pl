@@ -75,7 +75,7 @@ my $sync0 = sub{
     my @del = @{$task_by_mode{del}||[]};
     my $tm = Time::HiRes::time();
     sy("$to_pre 'cd $to_dir && cat > $changed_fn' < ".&$put_temp(changed=>&$lines(@all)));
-    sy("rsync -e '$ssh' -rltDvc --files-from=".&$put_temp(upd=>&$lines(@upd))." $from_pre_d$from_dir/ $to_pre_d$to_dir") if @upd;
+    sy("rsync -e '$ssh' -rlDvc --files-from=".&$put_temp(upd=>&$lines(@upd))." $from_pre_d$from_dir/ $to_pre_d$to_dir") if @upd;
     if(@del){
         my $remover_fn = "target/c4sync-rm.pl";
         sy("$to_pre 'cd $to_dir && cat > $remover_fn' < ".&$put_temp(remover=>&$lines(
