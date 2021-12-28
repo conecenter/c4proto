@@ -96,6 +96,8 @@ object Rooms {
       mainSink <- mainSinkPromise.future
     } yield Source.single(message).to(mainSink).run()(mat) //NotUsed ? FailureWillPrintWarning
   }
+
+  def isReady: Boolean = mainSinkPromise.isCompleted
 }
 
 @c4("AkkaGatewayApp") final class RoomsRequestHandlerProvider(
@@ -133,13 +135,13 @@ object Rooms {
     .fold(Future.successful(HttpResponse(400, entity = ""))){handle=>
       val promise = Promise[Option[Flow[ByteString, ByteString, NotUsed]]]()
       val path = req.uri.path.toString
-      for {
-        mat <- akkaMat.get
-        respOpt <- {
-          roomsManager.send(RoomFlowReq(path, promise))
-          promise.future
-        }
-      } yield respOpt.fold(HttpResponse(404, entity = ""))(handle)
+      if(roomsManager.isReady){
+        roomsManager.send(RoomFlowReq(path, promise))
+        for(respOpt <- promise.future)
+          yield respOpt.fold(HttpResponse(404, entity = ""))(handle)
+      } else {
+        Future.successful(HttpResponse(502, entity = "")) // check reconnecting; check pongs distribution
+      }
     }
 }
 
