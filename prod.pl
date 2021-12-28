@@ -466,7 +466,10 @@ my $make_kc_yml = sub{
 
     my $container = {
             name => $nm, args=>[$nm], image => &$mandatory_of(image=>$opt),
-            env=>[@env],
+            env=>[
+                #{name=>"C4POD_IP",valueFrom=>{fieldRef=>{fieldPath=>"status.podIP"}}},
+                @env
+            ],
             volumeMounts=>[@secret_mounts,@host_mounts],
             $$opt{tty} ? (tty=>$$opt{tty}) : (),
             securityContext => { allowPrivilegeEscalation => "false" },
@@ -1018,6 +1021,16 @@ push @tasks, ["log","[pod|$composes_txt] [tail] [add]",sub{
         my $kubectl = &$get_kubectl($comp);
         my $tail_or = ($tail+0) || 100;
         sy(qq[$kubectl logs -f $pod --tail $tail_or $add]);
+    });
+}];
+push @tasks, ["log_debug","<pod|$composes_txt> [class]",sub{
+    my($arg,$cl_arg)=@_;
+    &$ssh_add();
+    &$for_comp_pod($arg,sub{ my ($comp,$pod) = @_;
+        my $kubectl = &$get_kubectl($comp);
+        my $cl = $cl_arg || "ee.cone";
+        my $content = qq[<logger name="$cl" level="DEBUG"><appender-ref ref="ASYNCFILE" /></logger>];
+        sy(qq[$kubectl exec -i $pod -- sh -c 'cat > /tmp/logback.xml' < ].&$put_temp("logback.xml",$content));
     });
 }];
 
