@@ -207,7 +207,7 @@ class ElectorRequests(
       ))
     } yield {
       val (ok,nok) = results.partition(r=>r)
-      logger.debug(s"$hint -- ${ok.size}/${requests.size}")
+      logger.trace(s"$hint -- ${ok.size}/${requests.size}")
       if(ok.size > nok.size) Option(started+lockPeriod) else None
     }
   def lockedUntil(): Long = response.value.flatMap(_.toOption).flatten
