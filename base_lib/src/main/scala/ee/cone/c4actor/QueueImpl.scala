@@ -45,7 +45,7 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq
       //println(s"sending: ${updates.size} ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
       val (bytes, headers) = toUpdate.toBytes(updates)
       val rec = new QRecordImpl(InboxTopicName(), bytes, headers)
-      val offset = Single(Single(getRawQSender.value).send(List(rec)))
+      val offset = Single(getRawQSender.value).send(rec)
       logger.debug(s"${updates.size} updates was sent -- $offset")
       Function.chain(
         Seq(
@@ -57,7 +57,7 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq
   }
 }
 
-@c4("RichDataCompApp") final class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(50000000L)
+@c4("RichDataCompApp") final class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(1000000L)
 
 @c4("ProtoApp") final class FillTxIdUpdateFlag extends UpdateFlag {
   val flagValue: Long = 1L

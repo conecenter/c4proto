@@ -47,7 +47,7 @@ trait ListConfig {
 }
 
 
-case class ActorName(value: String)
+case class ActorName(value: String, prefix: String)
 
 trait SimpleSigner extends Signer[List[String]]
 trait Signer[T] {

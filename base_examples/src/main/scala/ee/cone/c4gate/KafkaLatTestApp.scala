@@ -17,7 +17,7 @@ class TestQRecordImpl(val topic: TopicName, val value: Array[Byte], val headers:
   @tailrec private def iteration(): Unit = {
     val updates = Nil //LEvent.update(S_Firstborn(actorName,offset)).toList.map(toUpdate.toUpdate)
     val (bytes, headers) = toUpdate.toBytes(updates)
-    val offset = Single(rawQSender.send(List(new TestQRecordImpl(InboxTopicName(),bytes,headers))))
+    val offset = rawQSender.send(new TestQRecordImpl(InboxTopicName(),bytes,headers))
     logger.info(s"pushed $offset")
     Thread.sleep(1000)
     iteration()

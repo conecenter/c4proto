@@ -3,16 +3,15 @@ package ee.cone.c4actor_kafka_impl
 
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
-
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4assemble.Single
 import ee.cone.c4proto.ToByteString
+
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Paths}
-
 import ee.cone.c4actor._
-import ee.cone.c4di.c4
+import ee.cone.c4di.{c4, c4multi}
 import okio.ByteString
 import org.apache.kafka.clients.consumer.{ConsumerRecord, KafkaConsumer}
 import org.apache.kafka.clients.producer.{KafkaProducer, Producer, RecordMetadata}
@@ -25,16 +24,19 @@ import org.apache.kafka.common.serialization.{ByteArrayDeserializer, ByteArraySe
 import scala.collection.immutable.Map
 import scala.jdk.CollectionConverters.{IterableHasAsScala,MapHasAsJava,MapHasAsScala,SeqHasAsJava}
 
-@c4("KafkaConfigApp") final class ConfigKafkaConfig(config: Config) extends KafkaConfig(
+@c4("KafkaConfigApp") final class ConfigKafkaConfig(
+  config: Config, actorName: ActorName
+) extends KafkaConfig(
   bootstrapServers = config.get("C4BOOTSTRAP_SERVERS"),
-  inboxTopicPrefix = config.get("C4INBOX_TOPIC_PREFIX"),
-  maxRequestSize = config.get("C4MAX_REQUEST_SIZE"),
+  inboxTopicPrefix = actorName.prefix,
   keyStorePath = config.get("C4KEYSTORE_PATH"),
   trustStorePath = config.get("C4TRUSTSTORE_PATH"),
   keyPassPath = config.get("C4STORE_PASS_PATH"),
 )()
 
-@c4("KafkaProducerApp") final class KafkaRawQSender(conf: KafkaConfig, execution: Execution)(
+@c4("KafkaProducerApp") final class KafkaRawQSender(
+  conf: KafkaConfig, execution: Execution, loBroker: LOBroker
+)(
   producer: CompletableFuture[Producer[Array[Byte], Array[Byte]]] = new CompletableFuture()
 ) extends RawQSender with RawQSenderExecutable {
   def run(): Unit = concurrent.blocking {
@@ -43,9 +45,9 @@ import scala.jdk.CollectionConverters.{IterableHasAsScala,MapHasAsJava,MapHasAsS
       "retries" -> "0",
       "batch.size" -> "16384",
       "linger.ms" -> "1",
-      "buffer.memory" -> conf.maxRequestSize,
+      //"buffer.memory" -> conf.maxRequestSize,
       "compression.type" -> "lz4",
-      "max.request.size" -> conf.maxRequestSize,
+      //"max.request.size" -> conf.maxRequestSize,1048576
       // max.request.size -- seems to be uncompressed
       // + in broker config: message.max.bytes
     )
@@ -65,10 +67,12 @@ import scala.jdk.CollectionConverters.{IterableHasAsScala,MapHasAsJava,MapHasAsS
     producer.get.send(record)*/
     KafkaMessageSender.send(topic, value, headers, producer)
   }
-  def send(recs: List[QRecord]): List[NextOffset] = concurrent.blocking{
-    val futures: List[java.util.concurrent.Future[RecordMetadata]] = recs.map(sendStart)
-    futures.map(res=>OffsetHex(res.get().offset()+1))
+  def send(rec: QRecord): NextOffset = {
+    val rRec = if(rec.value.length > 1000000) loBroker.put(rec) else rec
+    val future: java.util.concurrent.Future[RecordMetadata] = sendStart(rRec)
+    OffsetHex(future.get().offset()+1)
   }
+  // max.request.size is 1048576
 }
 
 object OffsetHex {
@@ -77,12 +81,11 @@ object OffsetHex {
 }
 
 case class KafkaConfig(
-  bootstrapServers: String, inboxTopicPrefix: String, maxRequestSize: String,
+  bootstrapServers: String, inboxTopicPrefix: String,
   keyStorePath: String, trustStorePath: String, keyPassPath: String
 )(
   ok: Unit = assert(Seq(
-    bootstrapServers, maxRequestSize,
-    keyStorePath, trustStorePath, keyPassPath
+    bootstrapServers, keyStorePath, trustStorePath, keyPassPath
   ).forall(_.nonEmpty)),
   keyPass: String = new String(Files.readAllBytes(Paths.get(keyPassPath)),UTF_8)
 ){
@@ -102,7 +105,10 @@ case class KafkaConfig(
   }
 }
 
-@c4("KafkaConsumerApp") final case class KafkaConsuming(conf: KafkaConfig)(execution: Execution) extends Consuming with LazyLogging {
+@c4("KafkaConsumerApp") final case class KafkaConsuming(conf: KafkaConfig)(
+  execution: Execution,
+  consumerFactory: RKafkaConsumerFactory,
+) extends Consuming with LazyLogging {
   def process[R](from: NextOffset, body: Consumer=>R): R = {
     process(List(conf.topicNameToString(InboxTopicName())->from), body)
   }
@@ -130,7 +136,7 @@ case class KafkaConfig(
           val initialOffset = java.lang.Long.parseLong(offset,16)
           consumer.seek(topicPartition, initialOffset)
         }
-        body(new RKafkaConsumer(consumer, topicPartitions))
+        body(consumerFactory.create(consumer, topicPartitions))
       } finally {
         remove()
       }
@@ -139,16 +145,16 @@ case class KafkaConfig(
 }
 //todo: remove hook
 
-class RKafkaConsumer(
+@c4multi("KafkaConsumerApp") final class RKafkaConsumer(
   consumer: KafkaConsumer[Array[Byte], Array[Byte]],
-  inboxTopicPartition: List[TopicPartition]
-) extends Consumer {
+  inboxTopicPartition: List[TopicPartition],
+)(loBroker: LOBroker) extends Consumer {
   def poll(): List[RawEvent] =
-    consumer.poll(Duration.ofMillis(200) /*timeout*/).asScala.toList.map { rec: ConsumerRecord[Array[Byte], Array[Byte]] =>
+    loBroker.get(consumer.poll(Duration.ofMillis(200) /*timeout*/).asScala.toList.map { rec: ConsumerRecord[Array[Byte], Array[Byte]] =>
       val compHeader = rec.headers().toArray.toList.map(h => RawHeader(h.key(), new String(h.value(), UTF_8)))
       val data: Array[Byte] = if (rec.value ne null) rec.value else Array.empty
       KafkaRawEvent(OffsetHex(rec.offset + 1L), ToByteString(data), compHeader, rec.timestamp, rec.topic)
-    }
+    })
   def endOffset: NextOffset = // may be extend to endOffset-s
     OffsetHex(Single(consumer.endOffsets(inboxTopicPartition.asJava).asScala.values.toList): java.lang.Long)
   def beginningOffset: NextOffset =

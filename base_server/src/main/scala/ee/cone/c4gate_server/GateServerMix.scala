@@ -8,7 +8,6 @@ import ee.cone.c4gate._
 
 @c4app class NoOpApp extends VMExecutionApp with ExecutableApp with BaseApp
 
-trait S3ManagerAppBase
 trait S3RawSnapshotLoaderAppBase
 trait S3RawSnapshotSaverAppBase
 trait NoProxySSEConfigAppBase

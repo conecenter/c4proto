@@ -735,7 +735,6 @@ my $get_visitor_conf = sub{
 
 my $all_consumer_options = sub{(
     tty => "true",
-    C4MAX_REQUEST_SIZE => "250000000",
     JAVA_TOOL_OPTIONS => "-XX:-UseContainerSupport ", # -XX:ActiveProcessorCount=36
     C4LOGBACK_XML => "/c4conf/logback.xml",
     C4AUTH_KEY_FILE => "/c4conf/simple.auth", #gate does no symlinks
@@ -797,6 +796,7 @@ my $get_consumer_options = sub{
         C4KEYSTORE_PATH      => "/c4conf-kafka-certs/kafka.keystore.jks",
         C4TRUSTSTORE_PATH    => "/c4conf-kafka-certs/kafka.truststore.jks",
         C4BOOTSTRAP_SERVERS  => ($bootstrap_servers || die "no host bootstrap_servers"),
+        C4S3_CONF_DIR        => "/c4conf-ceph-client",
         C4HTTP_SERVER        => "http://$comp:$inner_http_port",
         C4ELECTOR_SERVERS    => join(",", map {"http://$elector-$_.$elector:$elector_port"} 0, 1, 2),
         C4READINESS_PATH     => "/c4/c4is-ready",
@@ -841,7 +841,6 @@ my $up_gate = sub{
     my ($ingress_secret_name) = &$get_deployer_conf($run_comp,0,qw[ingress_secret_name]);
     ($from_path, {
         image => $img, %consumer_options,
-        C4S3_CONF_DIR => "/c4conf-ceph-client",
         C4STATE_TOPIC_PREFIX => "gate",
         C4STATE_REFRESH_SECONDS => 1000,
         req_mem => "4Gi", req_cpu => "1000m",

@@ -17,11 +17,11 @@ import ee.cone.c4di.c4
     val snapshotInfo :: _ = snapshotLister.list
     val Some(event) = snapshotLoader.load(snapshotInfo.raw)
     assert(event.headers.isEmpty)
-    val offset = Single(rawQSender.send(List(new QRecord {
+    val offset = rawQSender.send(new QRecord {
       def topic: TopicName = InboxTopicName()
       def value: Array[Byte] = event.data.toByteArray
       def headers: scala.collection.immutable.Seq[RawHeader] = event.headers
-    })))
+    })
     logger.info(s"pushed $offset")
     execution.complete()
   }

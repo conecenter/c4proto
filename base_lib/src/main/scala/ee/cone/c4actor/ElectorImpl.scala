@@ -150,9 +150,8 @@ case object PurgeReadyProcessStateKey extends TransientLens[Option[ElectorReques
 
 @c4("ElectorClientApp") final class ElectorRequestsFactory(
   config: Config, listConfig: ListConfig, val execution: Execution,
-  val clientPromise: Promise[HttpClient] = Promise(),
-) extends Executable with Early {
-  def run(): Unit = execution.success(clientPromise, HttpClient.newHttpClient)
+  val clientProvider: HttpClientProvider
+) {
   def timeout: Long = 1000
   def createRequest(ownerObj: String, ownerSubj: String, address: String, period: Int): HttpRequest =
     HttpRequest.newBuilder
@@ -196,7 +195,7 @@ class ElectorRequests(
   }
   def sendInner(started: Long)(implicit ec: ExecutionContext): Future[Option[Long]] =
     for {
-      client <- parent.clientPromise.future
+      client <- parent.clientProvider.get
       results <- Future.sequence(requests.map(req=>
         client.sendAsync(req, BodyHandlers.discarding()).asScala
           .map(resp=>resp.statusCode==200)

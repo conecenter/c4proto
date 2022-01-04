@@ -188,7 +188,7 @@ my $get_consumer_env = sub{
         C4STATE_TOPIC_PREFIX => $nm,
         C4BOOTSTRAP_SERVERS => $ssl_bootstrap_server,
         C4INBOX_TOPIC_PREFIX => $inbox_topic_prefix,
-        C4MAX_REQUEST_SIZE => 250000000,
+        C4S3_CONF_DIR => $s3conf_dir,
         C4HTTP_SERVER => "http://$http_server",
         C4AUTH_KEY_FILE => "$data_dir/simple.auth",
         C4STORE_PASS_PATH => "$data_dir/simple.auth",
@@ -200,7 +200,6 @@ my $get_consumer_env = sub{
 };
 
 my $get_gate_env = sub{(
-    C4S3_CONF_DIR=>$s3conf_dir,
     C4STATE_REFRESH_SECONDS=>100,
     C4ROOMS_CONF=>"/tmp/rooms.conf",
     C4HTTP_PORT => $http_port,

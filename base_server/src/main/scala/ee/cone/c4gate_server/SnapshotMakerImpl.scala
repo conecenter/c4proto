@@ -1,6 +1,5 @@
 package ee.cone.c4gate_server
 
-import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path, Paths}
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{N_Update, S_Firstborn}
@@ -15,13 +14,11 @@ import ee.cone.c4gate._
 import ee.cone.c4gate_server.RHttpTypes.RHttpHandlerCreate
 import okio.ByteString
 
-import java.time.ZonedDateTime
 import scala.annotation.tailrec
 // import scala.collection.JavaConverters.iterableAsScalaIterableConverter
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future, Await}
+import scala.concurrent.duration.Duration
 import scala.jdk.CollectionConverters.IterableHasAsScala
-
-import scala.xml.XML
 
 @c4("SnapshotMakingApp") final class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, httpResponseFactory: RHttpResponseFactory) extends LazyLogging {
   def wire: RHttpHandlerCreate = next => (request,local) =>
@@ -248,50 +245,54 @@ trait SnapshotConfig {
   } yield java.lang.Long.parseLong(found, 16)).toSet
 ) extends SnapshotConfig
 
-@c4("S3RawSnapshotLoaderApp") final class S3RawPrefix(config: Config)(
-  value: String = s"/${config.get("C4INBOX_TOPIC_PREFIX")}."
+@c4("S3RawSnapshotLoaderApp") final class S3RawPrefix(actorName: ActorName)(
+  value: String = s"/${actorName.prefix}."
 ){
   def ++(that: String): String = s"$value$that"
   def ++(that: RawSnapshot): String = this ++ that.relativePath
 }
 
 @c4("S3RawSnapshotLoaderApp") final class S3RawSnapshotLoaderImpl(
-  s3: S3Manager, util: SnapshotUtil, prefix: S3RawPrefix,
+  s3: S3Manager, util: SnapshotUtil, prefix: S3RawPrefix, s3Lister: S3Lister,
 ) extends RawSnapshotLoader with SnapshotLister with LazyLogging {
+  def getSync(resource: String): Option[Array[Byte]] =
+    Await.result(s3.get(resource), Duration.Inf)
   def load(snapshot: RawSnapshot): ByteString = {
-    ToByteString(s3.get(prefix++snapshot).get)
+    ToByteString(getSync(prefix++snapshot).get)
   }
   private def infix = "snapshots"
   def listInner(): List[(RawSnapshot,String)] = for {
-    xmlBytes <- s3.get(prefix++infix).toList
-    xml = XML.loadString(new String(xmlBytes,UTF_8))
-    _ = logger.debug(s"$xml")
-    item <- xml \ "Contents"
-  } yield (RawSnapshot(s"$infix/${(item \ "Key").text}"), (item \ "LastModified").text)
+    xmlBytes <- getSync(prefix++infix).toList
+    (name,timeStr) <- s3Lister.parseItems(xmlBytes)
+  } yield (RawSnapshot(s"$infix/${name}"), timeStr)
   def list: List[SnapshotInfo] = (for{
     (rawSnapshot,_) <- listInner()
     _ = logger.debug(s"$rawSnapshot")
     snapshotInfo <- util.hashFromName(rawSnapshot)
   } yield snapshotInfo).sortBy(_.offset).reverse
-  def listWithMTime: List[TimedSnapshotInfo] = (for{
-    (rawSnapshot,mTimeStr) <- listInner()
-    snapshotInfo <- util.hashFromName(rawSnapshot)
-  } yield {
-    val mTime = ZonedDateTime.parse(mTimeStr).toInstant.toEpochMilli
-    TimedSnapshotInfo(snapshotInfo,mTime)
-  }).sortBy(_.snapshot.offset).reverse
+  def listWithMTime: List[TimedSnapshotInfo] = (
+    for{
+      (rawSnapshot,mTimeStr) <- listInner()
+      snapshotInfo <- util.hashFromName(rawSnapshot)
+    } yield TimedSnapshotInfo(snapshotInfo,s3Lister.parseTime(mTimeStr))
+  ).sortBy(_.snapshot.offset).reverse
 }
 
 @c4("S3RawSnapshotSaverApp") final class S3RawSnapshotSaver(
-  s3: S3Manager, util: SnapshotUtil, prefix: S3RawPrefix,
+  s3: S3Manager, util: SnapshotUtil, prefix: S3RawPrefix, execution: Execution
 ) extends RawSnapshotSaver with SnapshotRemover with LazyLogging {
   def save(snapshot: RawSnapshot, data: Array[Byte]): Unit = {
-    val bucket = prefix ++ util.hashFromName(snapshot).get.subDirStr
-    if(s3.get(bucket).isEmpty) s3.put(bucket,Array.empty)
-    s3.put(prefix++snapshot, data)
+    implicit val ec: ExecutionContext = execution.mainExecutionContext
+    val res = for {
+      touchR <- s3.touch(prefix ++ util.hashFromName(snapshot).get.subDirStr)
+      putR <- s3.put(prefix++snapshot, data)
+    } yield putR
+    Await.result(res, Duration.Inf)
   }
-  def deleteIfExists(snapshot: SnapshotInfo): Boolean =
-    s3.delete(prefix++snapshot.raw)
+  def deleteIfExists(snapshot: SnapshotInfo): Boolean = {
+    val res = s3.delete(prefix++snapshot.raw)
+    Await.result(res, Duration.Inf)
+  }
 }
 
 /*
