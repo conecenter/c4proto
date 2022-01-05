@@ -13,7 +13,7 @@ trait Consumer {
 }
 
 trait QPurging {
-  def process[R](body: QPurger=>R): R
+  def process[R](txLogName: TxLogName, body: QPurger=>R): R
 }
 trait QPurger {
   def delete(beforeOffset: NextOffset): Unit

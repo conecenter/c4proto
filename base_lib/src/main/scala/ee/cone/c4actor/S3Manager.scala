@@ -56,37 +56,39 @@ import scala.jdk.FutureConverters._
     }
   }
 
-  def send(resource: String, method: String, contentType: String, builder: HttpRequest.Builder)(implicit ec: ExecutionContext): Future[Option[Array[Byte]]] = {
+  def send(txLogName: TxLogName, resource: String, method: String, contentType: String, builder: HttpRequest.Builder)(implicit ec: ExecutionContext): Future[Option[Array[Byte]]] = {
+    val resourceWithPrefix = s"/${txLogName.value}.$resource"
     val date = getDateStr
-    sendInner(resource, date, sign(s"$method\n\n$contentType\n$date\n$resource"), builder)
+    sendInner(resourceWithPrefix, date, sign(s"$method\n\n$contentType\n$date\n$resourceWithPrefix"), builder)
   }
 
-  def put(resource: String, body: Array[Byte]): Future[Unit] = {
+  def putInner(txLogName: TxLogName, resource: String, body: Array[Byte]): Boolean = {
     val contentType = "application/octet-stream"
     val builder = HttpRequest.newBuilder()
       .header("Content-Type",contentType)
       .PUT(HttpRequest.BodyPublishers.ofByteArray(body))
     implicit val ec: ExecutionContext = execution.mainExecutionContext
-    send(resource, "PUT", contentType, builder)
-      .map(res=>assert(res.nonEmpty))
+    val res = send(txLogName, resource, "PUT", contentType, builder)
+    Await.result(res.map(_.nonEmpty), Duration.Inf)
   }
+  def put(txLogName: TxLogName, resource: String, body: Array[Byte]): Unit =
+    if(!putInner(txLogName, resource, body)){
+      val Array(bucket,_) = resource.split('/')
+      if(!putInner(txLogName, bucket, Array.empty))
+        throw new Exception(s"put ($resource)")
+      Thread.sleep(3000)
+      if(!putInner(txLogName, resource, body))
+        throw new Exception(s"put ($resource)")
+    }
 
-  def delete(resource: String): Future[Boolean] = {
+  def delete(txLogName: TxLogName, resource: String): Future[Boolean] = {
     implicit val ec: ExecutionContext = execution.mainExecutionContext
-    send(resource, "DELETE", "", HttpRequest.newBuilder().DELETE())
+    send(txLogName, resource, "DELETE", "", HttpRequest.newBuilder().DELETE())
       .map(_.nonEmpty)
   }
 
-  def get(resource: String): Future[Option[Array[Byte]]] = {
+  def get(txLogName: TxLogName, resource: String): Future[Option[Array[Byte]]] = {
     implicit val ec: ExecutionContext = execution.mainExecutionContext
-    send(resource, "GET", "", HttpRequest.newBuilder().GET())
-  }
-
-  def touch(resource: String): Future[Unit] = {
-    implicit val ec: ExecutionContext = execution.mainExecutionContext
-    for {
-      regR <- get(resource)
-      putR <- if(regR.isEmpty) put(resource,Array.empty) else Future.successful(())
-    } yield putR
+    send(txLogName, resource, "GET", "", HttpRequest.newBuilder().GET())
   }
 }

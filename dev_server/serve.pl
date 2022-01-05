@@ -98,10 +98,8 @@ my $serve_broker = sub{
     &$put_text("$data_dir/server.properties", join '', map{"$_\n"}
         "log.dirs=$data_dir/kafka-logs",
         "zookeeper.connect=127.0.0.1:$zoo_port",
-        "message.max.bytes=250000000", #seems to be compressed
         "listeners=SSL://$ssl_bootstrap_server",
         "inter.broker.listener.name=SSL",
-        "socket.request.max.bytes=250000000",
     );
     sy("cat $data_dir/cu.broker.properties >> $data_dir/server.properties");
     &$exec("kafka-server-start.sh","$data_dir/server.properties");
@@ -189,6 +187,7 @@ my $get_consumer_env = sub{
         C4BOOTSTRAP_SERVERS => $ssl_bootstrap_server,
         C4INBOX_TOPIC_PREFIX => $inbox_topic_prefix,
         C4S3_CONF_DIR => $s3conf_dir,
+        C4BROKER_MIN_LO_SIZE => "0",
         C4HTTP_SERVER => "http://$http_server",
         C4AUTH_KEY_FILE => "$data_dir/simple.auth",
         C4STORE_PASS_PATH => "$data_dir/simple.auth",

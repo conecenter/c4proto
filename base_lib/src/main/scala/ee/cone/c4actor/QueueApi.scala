@@ -80,11 +80,13 @@ trait UpdateFlag {
 
 //case class Task(srcId: SrcId, value: Product, offset: Long)
 
-sealed trait TopicName
-case class InboxTopicName() extends TopicName
+trait TxLogName extends Product {
+  def value: String
+}
+trait CurrentTxLogName extends TxLogName
 
 trait QRecord {
-  def topic: TopicName
+  def topic: TxLogName
   def value: Array[Byte]
   def headers: Seq[RawHeader]
 }
@@ -270,8 +272,8 @@ trait ProgressObserverFactory {
   def create(endOffset: NextOffset): Observer[RichContext]
 }
 
-trait FromTopicRawEvent {
-  def topicName: String
+trait HasTxLogName {
+  def txLogName: TxLogName
 }
 
 trait MTime {
@@ -334,14 +336,13 @@ trait HttpClientProvider {
 }
 
 trait S3Manager {
-  def get(resource: String): Future[Option[Array[Byte]]]
-  def put(resource: String, body: Array[Byte]): Future[Unit]
-  def delete(resource: String): Future[Boolean]
-  def touch(resource: String): Future[Unit]
+  def get(txLogName: TxLogName, resource: String): Future[Option[Array[Byte]]]
+  def put(txLogName: TxLogName, resource: String, body: Array[Byte]): Unit
+  def delete(txLogName: TxLogName, resource: String): Future[Boolean]
 }
 
 trait LOBroker {
   def put(rec: QRecord): QRecord
-  def get(events: List[RawEvent]): List[RawEvent]
-  def bucket: String
+  def get(events: List[RawEvent with HasTxLogName]): List[RawEvent] // this can potentially lead to too big volume in single event list after getting LOB-s
+  def bucketPostfix: String
 }

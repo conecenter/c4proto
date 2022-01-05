@@ -13,8 +13,10 @@ import scala.concurrent.Future
   lister: SnapshotLister,
   keepLogForSnapshotCount: Int = 10,
   s3LogPurger: S3LogPurger,
+  currentTxLogName: CurrentTxLogName,
 ) extends Executable {
-  def run(): Unit = purging.process{ purger => iteration(purger, None) }
+  def run(): Unit =
+    purging.process(currentTxLogName, purger => iteration(purger, None))
   @tailrec private def iteration(purger: QPurger, wasOffset: Option[NextOffset]): Unit = {
     val (need, noNeed) = lister.listWithMTime.sortBy(_.snapshot.offset).reverse
       .splitAt(keepLogForSnapshotCount)
@@ -23,7 +25,7 @@ import scala.concurrent.Future
     else {
       willOffset.foreach(purger.delete(_))
       need.map(_.mTime).minOption.foreach{ mTime =>
-        s3LogPurger.delete(mTime - 5*60*1000)
+        s3LogPurger.delete(currentTxLogName, mTime - 5*60*1000)
       }
     }
     iteration(purger,willOffset)
@@ -32,18 +34,18 @@ import scala.concurrent.Future
 
 @c4("SnapshotMakingApp") final class S3LogPurger(
   loBroker: LOBroker,
-  s3Manager: S3Manager,
+  s3: S3Manager,
   s3L: S3Lister,
-  execution: Execution
+  execution: Execution,
 ){
-  def delete(beforeMillis: Long): Unit = execution.fatal{ implicit ec =>
+  def delete(txLogName: TxLogName, beforeMillis: Long): Unit = execution.fatal{ implicit ec =>
     for{
-      dataOpt <- s3Manager.get(loBroker.bucket)
+      dataOpt <- s3.get(txLogName,loBroker.bucketPostfix)
       deleted <- Future.sequence(
         for {
           data <- dataOpt.toList
           (name,tStr) <- s3L.parseItems(data) if s3L.parseTime(tStr) < beforeMillis
-        } yield s3Manager.delete(s"${loBroker.bucket}/$name")
+        } yield s3.delete(txLogName,s"${loBroker.bucketPostfix}/$name")
       )
     } yield deleted
   }

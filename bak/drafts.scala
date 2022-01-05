@@ -205,3 +205,15 @@ object A extends scala.collection.immutable.Map.Map1 {
 
 }
 */
+//prod:
+      //"buffer.memory" -> conf.maxRequestSize,
+      //"max.request.size" -> conf.maxRequestSize,1048576
+      // max.request.size -- seems to be uncompressed
+      // + in broker config: message.max.bytes
+//cons:
+//"receive.buffer.bytes" -> "1000000",
+//"max.poll.records" -> "10001"
+//"group.id" -> actorName.value //?pos
+//broker:
+//"message.max.bytes=250000000", #seems to be compressed
+//"socket.request.max.bytes=250000000",

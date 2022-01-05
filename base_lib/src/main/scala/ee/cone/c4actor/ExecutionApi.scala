@@ -46,8 +46,7 @@ trait ListConfig {
   def get(key: String): List[String]
 }
 
-
-case class ActorName(value: String, prefix: String)
+case class ActorName(value: String)
 
 trait SimpleSigner extends Signer[List[String]]
 trait Signer[T] {

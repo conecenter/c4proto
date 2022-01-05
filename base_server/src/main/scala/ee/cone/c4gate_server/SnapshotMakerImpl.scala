@@ -245,24 +245,20 @@ trait SnapshotConfig {
   } yield java.lang.Long.parseLong(found, 16)).toSet
 ) extends SnapshotConfig
 
-@c4("S3RawSnapshotLoaderApp") final class S3RawPrefix(actorName: ActorName)(
-  value: String = s"/${actorName.prefix}."
-){
-  def ++(that: String): String = s"$value$that"
-  def ++(that: RawSnapshot): String = this ++ that.relativePath
-}
+
 
 @c4("S3RawSnapshotLoaderApp") final class S3RawSnapshotLoaderImpl(
-  s3: S3Manager, util: SnapshotUtil, prefix: S3RawPrefix, s3Lister: S3Lister,
+  s3: S3Manager, util: SnapshotUtil,
+  currentTxLogName: CurrentTxLogName, s3Lister: S3Lister,
 ) extends RawSnapshotLoader with SnapshotLister with LazyLogging {
   def getSync(resource: String): Option[Array[Byte]] =
-    Await.result(s3.get(resource), Duration.Inf)
+    Await.result(s3.get(currentTxLogName, resource), Duration.Inf)
   def load(snapshot: RawSnapshot): ByteString = {
-    ToByteString(getSync(prefix++snapshot).get)
+    ToByteString(getSync(snapshot.relativePath).get)
   }
   private def infix = "snapshots"
   def listInner(): List[(RawSnapshot,String)] = for {
-    xmlBytes <- getSync(prefix++infix).toList
+    xmlBytes <- getSync(infix).toList
     (name,timeStr) <- s3Lister.parseItems(xmlBytes)
   } yield (RawSnapshot(s"$infix/${name}"), timeStr)
   def list: List[SnapshotInfo] = (for{
@@ -279,18 +275,12 @@ trait SnapshotConfig {
 }
 
 @c4("S3RawSnapshotSaverApp") final class S3RawSnapshotSaver(
-  s3: S3Manager, util: SnapshotUtil, prefix: S3RawPrefix, execution: Execution
+  s3: S3Manager, util: SnapshotUtil, currentTxLogName: CurrentTxLogName,
 ) extends RawSnapshotSaver with SnapshotRemover with LazyLogging {
-  def save(snapshot: RawSnapshot, data: Array[Byte]): Unit = {
-    implicit val ec: ExecutionContext = execution.mainExecutionContext
-    val res = for {
-      touchR <- s3.touch(prefix ++ util.hashFromName(snapshot).get.subDirStr)
-      putR <- s3.put(prefix++snapshot, data)
-    } yield putR
-    Await.result(res, Duration.Inf)
-  }
+  def save(snapshot: RawSnapshot, data: Array[Byte]): Unit =
+    s3.put(currentTxLogName, snapshot.relativePath, data)
   def deleteIfExists(snapshot: SnapshotInfo): Boolean = {
-    val res = s3.delete(prefix++snapshot.raw)
+    val res = s3.delete(currentTxLogName, snapshot.raw.relativePath)
     Await.result(res, Duration.Inf)
   }
 }

@@ -9,15 +9,18 @@ import scala.annotation.tailrec
 import scala.collection.immutable.Seq
 
 
-class TestQRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
-@c4("KafkaLatTestApp") final class TestRootProducerImpl(rawQSender: RawQSender, toUpdate: ToUpdate) extends Executable with LazyLogging {
+class TestQRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
+@c4("KafkaLatTestApp") final class TestRootProducerImpl(
+  rawQSender: RawQSender, toUpdate: ToUpdate,
+  currentTxLogName: CurrentTxLogName,
+) extends Executable with LazyLogging {
   def run(): Unit = {
     iteration()
   }
   @tailrec private def iteration(): Unit = {
     val updates = Nil //LEvent.update(S_Firstborn(actorName,offset)).toList.map(toUpdate.toUpdate)
     val (bytes, headers) = toUpdate.toBytes(updates)
-    val offset = rawQSender.send(new TestQRecordImpl(InboxTopicName(),bytes,headers))
+    val offset = rawQSender.send(new TestQRecordImpl(currentTxLogName,bytes,headers))
     logger.info(s"pushed $offset")
     Thread.sleep(1000)
     iteration()
