@@ -1451,9 +1451,9 @@ push @tasks, ["ci_inner_build","",sub{
 
 my $client_mode_to_opt = sub{
     my($mode)=@_;
-    $mode eq "fast" ? "--env.fast=true --mode development" :
-    $mode eq "dev" ? "--mode development" :
-    "--mode production";
+    $mode eq "fast" ? "--color --env.fast=true --mode development" :
+    $mode eq "dev" ? "--color --mode development" :
+    "--color --mode production";
 };
 my $if_changed = sub{
     my($path,$will,$then)=@_;

@@ -206,7 +206,7 @@ class ElectorRequests(
       ))
     } yield {
       val (ok,nok) = results.partition(r=>r)
-      logger.debug(s"$hint -- ${ok.size}/${requests.size}")
+      logger.trace(s"$hint -- ${ok.size}/${requests.size}")
       if(ok.size > nok.size) Option(started+lockPeriod) else None
     }
   def lockedUntil(): Long = response.value.flatMap(_.toOption).flatten
@@ -262,6 +262,7 @@ class ElectorRequests(
 
 @c4("ParentElectorClientApp") final class ElectorSystem(
   config: Config,
+  listConfig: ListConfig,
   electorRequestsFactory: ElectorRequestsFactory,
   processTree: ProcessTree,
   execution: Execution,
@@ -279,7 +280,7 @@ class ElectorRequests(
     val initLockReq = sendWhile(lockRequests)(notSafelyLocked) // before process start
     val appClass = config.get("C4APP_CLASS_INNER")
     val env = Map("C4APP_CLASS" -> appClass,"C4ELECTOR_CLIENT_ID" -> owner)
-    val args = Seq("java","ee.cone.c4actor.ServerMain")
+    val args = Seq("java") ++ debug ++ Seq("ee.cone.c4actor.ServerMain")
     processTree.withProcess(args, env, process => {
       val finLockReq = sendWhile(initLockReq){ req =>
         if(notSafelyLocked(req)) processTree.destroyForcibly(process)
@@ -292,6 +293,8 @@ class ElectorRequests(
     execution.complete()
   }
   def ignoreExiting(v: Option[Long]): Unit = ()
+  def debug: Seq[String] = listConfig.get("C4JDWP_ADDRESS")
+      .map(a=>s"-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$a")
 }
 
 
