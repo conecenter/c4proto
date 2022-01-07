@@ -132,7 +132,8 @@ my $remake = sub{
         my $env = {
             %$paths,
             (-e "/c4/debug-components") ? (C4DEBUG_COMPONENTS => "1") : (),
-            JAVA_TOOL_OPTIONS => (-e "/c4/debug-enable") ? " -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$debug_int_ip:$debug_port $tool_opt" : $tool_opt,
+            JAVA_TOOL_OPTIONS => $tool_opt,
+            (-e "/c4/debug-enable") ? (C4JDWP_ADDRESS => "$debug_int_ip:$debug_port") : (),
             C4PARENT_PID => $ppid,
             C4READINESS_PATH => "$dir/c4is-ready",
             C4STATE_TOPIC_PREFIX => $nm,
