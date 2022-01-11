@@ -272,12 +272,10 @@ trait ProgressObserverFactory {
   def create(endOffset: NextOffset): Observer[RichContext]
 }
 
-trait HasTxLogName {
-  def txLogName: TxLogName
-}
-
-trait MTime {
+trait ExtendedRawEvent extends RawEvent {
   def mTime: Long
+  def txLogName: TxLogName
+  def withContent(headers: List[RawHeader], data: ByteString): ExtendedRawEvent
 }
 
 //trait RawDebugOptions {
@@ -343,6 +341,6 @@ trait S3Manager {
 
 trait LOBroker {
   def put(rec: QRecord): QRecord
-  def get(events: List[RawEvent with HasTxLogName]): List[RawEvent] // this can potentially lead to too big volume in single event list after getting LOB-s
+  def get(events: List[ExtendedRawEvent]): List[ExtendedRawEvent] // this can potentially lead to too big volume in single event list after getting LOB-s
   def bucketPostfix: String
 }

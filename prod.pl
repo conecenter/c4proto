@@ -1924,9 +1924,10 @@ push @tasks, ["secret_add_arg","$composes_txt <secret-content>",sub{
     print qq[ADD TO CONFIG: "/c4conf-$secret_name/$fn"\n];
 }];
 
-push @tasks, ["debug","<on|off>",sub{
-    my($arg)=@_;
-    my $d_path = "/c4/debug-enable";
+push @tasks, ["debug","<on|off> [components]",sub{
+    my($arg,$obj)=@_;
+    my $d_path = $obj eq "" ? "/c4/debug-enable" :
+        $obj eq "components" ? "/c4/debug-components" : die;
     if($arg eq "on"){
         -e $d_path or &$put_text($d_path,"");
     }elsif($arg eq "off"){

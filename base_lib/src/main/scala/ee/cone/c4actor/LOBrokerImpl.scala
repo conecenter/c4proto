@@ -31,10 +31,10 @@ import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 
   def isLocal(ev: RawEvent): Boolean = !ev.headers.contains(header)
 
-  def get(events: List[RawEvent with HasTxLogName]): List[RawEvent] =
+  def get(events: List[ExtendedRawEvent]): List[ExtendedRawEvent] =
     get(events, backoffFull)
 
-  @tailrec private def get(events: List[RawEvent with HasTxLogName], backoffLeft: List[Long]): List[RawEvent] =
+  @tailrec private def get(events: List[ExtendedRawEvent], backoffLeft: List[Long]): List[ExtendedRawEvent] =
     if(events.forall(isLocal)) events else {
       backoffLeft match {
         case 0L :: _ => ()
@@ -48,18 +48,16 @@ import scala.concurrent.{Await, ExecutionContext, Future, Promise}
         case ev if isLocal(ev) => Future.successful(ev)
         case ev =>
           val path :: opt = ev.data.utf8().split(':').toList
-          val headers =
-            opt.grouped(2).map{ case k::v::Nil => RawHeader(k,v) }.toList
-          val txLogName = ev.txLogName
-          for(dataOpt <- s3.get(txLogName,path))
-            yield dataOpt.fold(ev)(data=>RefRawEvent(ev.srcId,ToByteString(data),headers,txLogName))
+          val headers = opt.grouped(2).map{
+            case k :: v :: Nil => RawHeader(k,v)
+            case e => throw new Exception(e.toString)
+          }.toList
+          for(dataOpt <- s3.get(ev.txLogName,path))
+            yield dataOpt.fold(ev)(data=>ev.withContent(headers,ToByteString(data)))
       }),Duration.Inf),backoffLeft.tail)
     }
 }
 
-case class RefRawEvent(
-  srcId: SrcId, data: ByteString, headers: List[RawHeader], txLogName: TxLogName
-) extends RawEvent with HasTxLogName
 class RefQRecord(
   val topic: TxLogName, val value: Array[Byte], val headers: Seq[RawHeader]
 ) extends QRecord

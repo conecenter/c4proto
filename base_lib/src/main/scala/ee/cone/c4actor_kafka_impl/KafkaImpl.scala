@@ -145,7 +145,7 @@ case class KafkaConfig(
   inboxTopicPartition: List[TopicPartition],
   topicNameMap: Map[String,TxLogName],
 )(loBroker: LOBroker) extends Consumer {
-  def poll(): List[RawEvent] =
+  def poll(): List[ExtendedRawEvent] =
     loBroker.get(consumer.poll(Duration.ofMillis(200) /*timeout*/).asScala.toList.map { rec: ConsumerRecord[Array[Byte], Array[Byte]] =>
       val compHeader = rec.headers().toArray.toList.map(h => RawHeader(h.key(), new String(h.value(), UTF_8)))
       val data: Array[Byte] = if (rec.value ne null) rec.value else Array.empty
@@ -160,4 +160,7 @@ case class KafkaConfig(
 case class KafkaRawEvent(
   srcId: SrcId, data: ByteString, headers: List[RawHeader], mTime: Long,
   txLogName: TxLogName
-) extends RawEvent with MTime with HasTxLogName
+) extends ExtendedRawEvent {
+  def withContent(headers: List[RawHeader], data: ByteString): ExtendedRawEvent =
+    copy(headers = headers, data = data)
+}
