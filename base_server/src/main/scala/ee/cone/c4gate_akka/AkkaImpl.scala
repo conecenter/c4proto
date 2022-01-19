@@ -41,8 +41,8 @@ import scala.util.control.NonFatal
     "akka.http.client.request-timeout = 600 s",
     "akka.http.parsing.max-to-strict-bytes = infinite",
     "akka.http.server.raw-request-uri-header = on",
-    "akka.http.host-connection-pool.max-connections = 640",
-    "akka.http.host-connection-pool.max-open-requests = 640",
+    "akka.http.host-connection-pool.max-connections = 512",
+    "akka.http.host-connection-pool.max-open-requests = 512",
   ).mkString("\n")
 }
 
