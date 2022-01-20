@@ -839,6 +839,7 @@ my $up_gate = sub{
     &$need_logback($run_comp,$from_path);
     my $hostname = &$get_hostname($run_comp) || die "no le_hostname";
     my ($ingress_secret_name) = &$get_deployer_conf($run_comp,0,qw[ingress_secret_name]);
+    my $conf = &$get_compose($run_comp);
     ($from_path, {
         image => $img, %consumer_options,
         C4STATE_TOPIC_PREFIX => "gate",
@@ -851,6 +852,7 @@ my $up_gate = sub{
         ingress_secret_name=>$ingress_secret_name,
         C4HTTP_PORT => $inner_http_port,
         C4SSE_PORT => $inner_sse_port,
+        C4KEEP_SNAPSHOTS => &$mandatory_of(C4KEEP_SNAPSHOTS=>$conf),
     });
 };
 
@@ -1022,14 +1024,17 @@ push @tasks, ["log","[pod|$composes_txt] [tail] [add]",sub{
         sy(qq[$kubectl logs -f $pod --tail $tail_or $add]);
     });
 }];
-push @tasks, ["log_debug","<pod|$composes_txt> [class]",sub{
-    my($arg,$cl_arg)=@_;
+push @tasks, ["log_debug","<pod|$composes_txt> [class]",sub{ # ee.cone
+    my($arg,$cl)=@_;
     &$ssh_add();
     &$for_comp_pod($arg,sub{ my ($comp,$pod) = @_;
         my $kubectl = &$get_kubectl($comp);
-        my $cl = $cl_arg || "ee.cone";
-        my $content = qq[<logger name="$cl" level="DEBUG"><appender-ref ref="ASYNCFILE" /></logger>];
-        sy(qq[$kubectl exec -i $pod -- sh -c 'cat > /tmp/logback.xml' < ].&$put_temp("logback.xml",$content));
+        if($cl){
+            my $content = qq[<logger name="$cl" level="DEBUG"><appender-ref ref="ASYNCFILE" /></logger>];
+            sy(qq[$kubectl exec -i $pod -- sh -c 'cat >> /tmp/logback.xml' < ].&$put_temp("logback.xml",$content));
+        } else {
+            so(qq[$kubectl exec -i $pod -- rm /tmp/logback.xml]);
+        }
     });
 }];
 

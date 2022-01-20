@@ -40,7 +40,7 @@ import scala.jdk.CollectionConverters.{IterableHasAsScala,MapHasAsJava,MapHasAsS
     new CompletableFuture(),
   minLOSize: Long =
     Single.option(listConfig.get("C4BROKER_MIN_LO_SIZE")).fold(1000000L)(_.toLong) // default max.request.size is 1048576
-) extends RawQSender with RawQSenderExecutable {
+) extends RawQSender with RawQSenderExecutable with LazyLogging {
   def run(): Unit = concurrent.blocking {
     val props = conf.ssl ++ Map[String, Object](
       "acks" -> "all",
@@ -66,9 +66,12 @@ import scala.jdk.CollectionConverters.{IterableHasAsScala,MapHasAsJava,MapHasAsS
     KafkaMessageSender.send(topic, value, headers, producer)
   }
   def send(rec: QRecord): NextOffset = {
-    val rRec = if(rec.value.length >= minLOSize) loBroker.put(rec) else rec
+    val isLO = rec.value.length >= minLOSize
+    val rRec = if(isLO) loBroker.put(rec) else rec
     val future: java.util.concurrent.Future[RecordMetadata] = sendStart(rRec)
-    OffsetHex(future.get().offset()+1)
+    val offset = OffsetHex(future.get().offset()+1)
+    if(isLO) logger.debug(s"LO $offset")
+    offset
   }
 }
 

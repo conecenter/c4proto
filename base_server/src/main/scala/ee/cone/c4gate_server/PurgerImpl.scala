@@ -55,10 +55,24 @@ case class PurgerTx(
   }
 }
 
-@c4assemble("SnapshotMakingApp") class PurgerAssembleBase(purger: Purger)   {
+@c4assemble("SnapshotMakingApp") class PurgerAssembleBase(
+  purger: Purger,
+  config: Config,
+)(
+  policy: List[KeepPolicy] = {
+    val value = config.get("C4KEEP_SNAPSHOTS")
+    val res = if(value == "default") PurgerDefaultPolicy()
+      else (for(pair <- value.split(",").toList) yield {
+        val Array(periodStr,countStr) = pair.split("x")
+        KeepPolicy(periodStr.toLong,countStr.toInt)
+      })
+    assert(res.nonEmpty)
+    res
+  }
+){
   def joinPurger(
     key: SrcId,
     first: Each[S_Firstborn]
   ): Values[(SrcId,TxTransform)] =
-    List(WithPK(PurgerTx("purger",PurgerDefaultPolicy())(purger)))
+    List(WithPK(PurgerTx("purger",policy)(purger)))
 }

@@ -1,6 +1,7 @@
 
 package ee.cone.c4gate_server
 
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.NextOffset
 import ee.cone.c4di.c4
@@ -37,8 +38,9 @@ import scala.concurrent.Future
   s3: S3Manager,
   s3L: S3Lister,
   execution: Execution,
-){
+) extends LazyLogging {
   def delete(txLogName: TxLogName, beforeMillis: Long): Unit = execution.fatal{ implicit ec =>
+    logger.debug(s"delete before ms: $beforeMillis")
     for{
       dataOpt <- s3.get(txLogName,loBroker.bucketPostfix)
       deleted <- Future.sequence(
