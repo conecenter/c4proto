@@ -492,7 +492,7 @@ my $make_kc_yml = sub{
     };
     #
     my $spec = {
-            $$opt{replicas} ? (replicas=>$$opt{replicas}) : (),
+            (exists $$opt{replicas}) ? (replicas=>$$opt{replicas}) : (),
             selector => { matchLabels => { app => $name } },
             template => {
                 metadata => {
@@ -852,7 +852,7 @@ my $up_gate = sub{
         ingress_secret_name=>$ingress_secret_name,
         C4HTTP_PORT => $inner_http_port,
         C4SSE_PORT => $inner_sse_port,
-        C4KEEP_SNAPSHOTS => &$mandatory_of(C4KEEP_SNAPSHOTS=>$conf),
+        (map{($_=>&$mandatory_of($_=>$conf))} qw[C4KEEP_SNAPSHOTS replicas]),
     });
 };
 
