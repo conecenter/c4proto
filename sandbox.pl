@@ -62,7 +62,7 @@ my $serve_sshd = sub{
     &$get_text_or_empty("/c4/.bashrc")=~/alias prod=/ or do{
         sy("echo '$alias_prod' >> /c4/.bashrc");
         sy(q[echo 'alias kc="kubectl --context "' >> /c4/.bashrc]);
-    }
+    };
 
     #
     &$exec('dropbear', '-RFEmwgs', '-p', $ENV{C4SSH_PORT}||die 'no C4SSH_PORT');
