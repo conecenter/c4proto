@@ -59,7 +59,11 @@ my $serve_sshd = sub{
     );
     sy("export C4AUTHORIZED_KEYS_CONTENT= ; export -p | grep ' C4' >> /c4p_alias.sh");
     &$get_text_or_empty("/c4/.profile")=~/c4p_alias/ or sy("echo '. /c4p_alias.sh' >> /c4/.profile");
-    &$get_text_or_empty("/c4/.bashrc")=~/alias prod=/ or sy("echo '$alias_prod' >> /c4/.bashrc");
+    &$get_text_or_empty("/c4/.bashrc")=~/alias prod=/ or do{
+        sy("echo '$alias_prod' >> /c4/.bashrc");
+        sy(q[echo 'alias kc="kubectl --context "' >> /c4/.bashrc]);
+    }
+
     #
     &$exec('dropbear', '-RFEmwgs', '-p', $ENV{C4SSH_PORT}||die 'no C4SSH_PORT');
 };
