@@ -4,11 +4,12 @@ export C4DS_BUILD_DIR=/c4repo/c4proto
 export C4REPO_MAIN_CONF=/c4repo/c4proto/c4dep.main.replink
 export C4DEV_SERVER_MAIN=base_examples.ee.cone.c4ui.TestTodoApp
 docker build -t c4devel --build-arg C4UID=$(id -u) . || exit 1
-docker run -d --rm -p 127.0.1.24:80:8067 --name c4devel \
-  -v $PWD/../..:/c4repo \
+export C4DEV_SERVER_IP="${C4DEV_SERVER_IP:-127.0.0.10}"
+docker run -d --rm --name c4devel \
+  -v $PWD/..:/c4repo/c4proto \
   -v /dev/log:/dev/log \
-  -p 127.0.0.10:3000:3000 \
-  -p 127.0.0.10:80:1080 \
+  -p $C4DEV_SERVER_IP:3000:3000 \
+  -p $C4DEV_SERVER_IP:80:1080 \
   -e C4DS_PROTO_DIR=/c4repo/c4proto \
   -e C4DS_ELECTOR_DIR=/c4repo/c4proto \
   -e C4DS_BUILD_DIR=${C4DS_BUILD_DIR} \

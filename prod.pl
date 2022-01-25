@@ -467,7 +467,7 @@ my $make_kc_yml = sub{
     my $container = {
             name => $nm, args=>[$nm], image => &$mandatory_of(image=>$opt),
             env=>[
-                #{name=>"C4POD_IP",valueFrom=>{fieldRef=>{fieldPath=>"status.podIP"}}},
+                $$opt{need_pod_ip} ? {name=>"C4POD_IP",valueFrom=>{fieldRef=>{fieldPath=>"status.podIP"}}} : (),
                 @env
             ],
             volumeMounts=>[@secret_mounts,@host_mounts],
@@ -852,6 +852,7 @@ my $up_gate = sub{
         ingress_secret_name=>$ingress_secret_name,
         C4HTTP_PORT => $inner_http_port,
         C4SSE_PORT => $inner_sse_port,
+        need_pod_ip => 1,
         (map{($_=>&$mandatory_of($_=>$conf))} qw[C4KEEP_SNAPSHOTS replicas]),
     });
 };

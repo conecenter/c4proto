@@ -135,7 +135,7 @@ object Rooms {
     .fold(Future.successful(HttpResponse(400, entity = ""))){handle=>
       val promise = Promise[Option[Flow[ByteString, ByteString, NotUsed]]]()
       val path = req.uri.path.toString
-      if(roomsManager.isReady){
+      if(roomsManager.isReady){ // may be better skip to next handler in AkkaHttpServer if this not ready
         roomsManager.send(RoomFlowReq(path, promise))
         for(respOpt <- promise.future)
           yield respOpt.fold(HttpResponse(404, entity = ""))(handle)
