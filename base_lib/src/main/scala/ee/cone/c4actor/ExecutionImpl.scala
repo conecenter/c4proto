@@ -167,7 +167,8 @@ object ServerMain extends BaseServerMain(
     Single[String](inner.get(key), (l:Seq[String])=>new Exception(s"Need single ENV: $key: $l"))
 }
 
-@c4("EnvConfigCompApp") final class ActorNameImpl(config: Config) extends ActorName(config.get("C4STATE_TOPIC_PREFIX"))
+@c4("EnvConfigCompApp") final class ActorNameImpl(config: Config)
+  extends ActorName(config.get("C4STATE_TOPIC_PREFIX"))
 
 @c4("CatchNonFatalApp") final class CatchNonFatalImpl extends CatchNonFatal with LazyLogging {
   def apply[T](aTry: =>T)(getHint: =>String)(aCatch: Throwable=>T): T = try { aTry } catch {

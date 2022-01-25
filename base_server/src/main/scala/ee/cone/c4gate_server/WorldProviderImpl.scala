@@ -39,8 +39,8 @@ class WorldProviderImpl(
   def join(
     srcId: SrcId,
     firstborn: Each[S_Firstborn]
-  ): Values[(SrcId,TxTransform)] =
-    List(WithPK(WorldProviderTx()(worldProviderProvider.receiverFuture)))
+  ): Values[(SrcId,EnabledTxTr)] =
+    List(WithPK(EnabledTxTr(WorldProviderTx()(worldProviderProvider.receiverFuture))))
 }
 
 case class WorldProviderTx(srcId: SrcId="WorldProviderTx")(receiverF: Future[StatefulReceiver[WorldMessage]]) extends TxTransform {
@@ -60,7 +60,7 @@ case class WorldProviderTx(srcId: SrcId="WorldProviderTx")(receiverF: Future[Sta
   txAdd: LTxAdd,
 )(
   receiverPromise: Promise[StatefulReceiver[WorldMessage]] = Promise()
-) extends Executable {
+) extends Executable with Early {
   def receiverFuture: Future[StatefulReceiver[WorldMessage]] = receiverPromise.future
   @provide def getWorldProvider: Seq[WorldProvider] =
     List(new WorldProviderImpl(qMessages,receiverFuture,None,txAdd))

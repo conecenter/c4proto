@@ -120,8 +120,8 @@ def get_deploy_jobs(config_statements):
     )
     for key_mask in [caption_mask.replace("$C4PROJ",proj_name)]
     for script in [[
-      "export C4SUBJ=$(perl -e 's{[^\w/]}{}g,/(\w+)$/&&print$1 for $ENV{CI_COMMIT_BRANCH}')",
-      "export C4USER=$(perl -e 's{[^\w/]}{}g,/(\w+)$/&&print$1 for $ENV{GITLAB_USER_LOGIN}')",
+      "export C4SUBJ=$(perl -e 's{[^a-zA-Z/]}{}g,/(\w+)$/ && print lc $1 for $ENV{CI_COMMIT_BRANCH}')",
+      "export C4USER=$(perl -e 's{[^a-zA-Z/]}{}g,/(\w+)$/ && print lc $1 for $ENV{GITLAB_USER_LOGIN}')",
       "env | grep C4 | sort",
       handle(f"deploy {mode}-{arg}-{proj_name}-{opt} $CI_COMMIT_BRANCH")
     ]]

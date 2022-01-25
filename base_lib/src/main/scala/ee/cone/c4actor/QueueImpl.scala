@@ -10,7 +10,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.{NextOffset, SrcId, TypeId}
 import ee.cone.c4assemble.Single
-import ee.cone.c4di.c4
+import ee.cone.c4di._
 import okio.ByteString
 
 import scala.annotation.tailrec
@@ -33,9 +33,12 @@ import scala.concurrent.{Await, ExecutionContext, Future}
   }
 )
 
-class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
+class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
 
-@c4("ServerCompApp") final class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender], flagsCheck: UpdateFlagsCheck) extends QMessages with LazyLogging {
+@c4("ServerCompApp") final class QMessagesImpl(
+  toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender],
+  flagsCheck: UpdateFlagsCheck, currentTxLogName: CurrentTxLogName,
+) extends QMessages with LazyLogging {
   assert(flagsCheck.flagsOk, s"Some of the flags are incorrect: ${flagsCheck.updateFlags}")
   //import qAdapterRegistry._
   // .map(o=> nTx.setLocal(OffsetWorldKey, o+1))
@@ -44,8 +47,8 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq
     if(updates.isEmpty) local else {
       //println(s"sending: ${updates.size} ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
       val (bytes, headers) = toUpdate.toBytes(updates)
-      val rec = new QRecordImpl(InboxTopicName(), bytes, headers)
-      val offset = Single(Single(getRawQSender.value).send(List(rec)))
+      val rec = new QRecordImpl(currentTxLogName, bytes, headers)
+      val offset = Single(getRawQSender.value).send(rec)
       logger.debug(s"${updates.size} updates was sent -- $offset")
       Function.chain(
         Seq(
@@ -57,7 +60,7 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq
   }
 }
 
-@c4("RichDataCompApp") final class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(50000000L)
+@c4("RichDataCompApp") final class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(1000000L)
 
 @c4("ProtoApp") final class FillTxIdUpdateFlag extends UpdateFlag {
   val flagValue: Long = 1L
@@ -196,4 +199,10 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq
 
   def toKey(up: N_Update): N_Update = up.copy(value=ByteString.EMPTY)
   def by(up: N_Update): (TypeId, SrcId) = (up.valueTypeId,up.srcId)
+}
+
+case class CurrentTxLogNameImpl(value: String) extends CurrentTxLogName
+@c4("ProtoApp") final class CurrentTxLogNameProvider(config: Config){
+  @provide def get: Seq[CurrentTxLogName] =
+    Seq(CurrentTxLogNameImpl(config.get("C4INBOX_TOPIC_PREFIX")))
 }

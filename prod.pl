@@ -466,7 +466,10 @@ my $make_kc_yml = sub{
 
     my $container = {
             name => $nm, args=>[$nm], image => &$mandatory_of(image=>$opt),
-            env=>[@env],
+            env=>[
+                $$opt{need_pod_ip} ? {name=>"C4POD_IP",valueFrom=>{fieldRef=>{fieldPath=>"status.podIP"}}} : (),
+                @env
+            ],
             volumeMounts=>[@secret_mounts,@host_mounts],
             $$opt{tty} ? (tty=>$$opt{tty}) : (),
             securityContext => { allowPrivilegeEscalation => "false" },
@@ -489,7 +492,7 @@ my $make_kc_yml = sub{
     };
     #
     my $spec = {
-            $$opt{replicas} ? (replicas=>$$opt{replicas}) : (),
+            (exists $$opt{replicas}) ? (replicas=>$$opt{replicas}) : (),
             selector => { matchLabels => { app => $name } },
             template => {
                 metadata => {
@@ -732,7 +735,6 @@ my $get_visitor_conf = sub{
 
 my $all_consumer_options = sub{(
     tty => "true",
-    C4MAX_REQUEST_SIZE => "250000000",
     JAVA_TOOL_OPTIONS => "-XX:-UseContainerSupport ", # -XX:ActiveProcessorCount=36
     C4LOGBACK_XML => "/c4conf/logback.xml",
     C4AUTH_KEY_FILE => "/c4conf/simple.auth", #gate does no symlinks
@@ -794,6 +796,7 @@ my $get_consumer_options = sub{
         C4KEYSTORE_PATH      => "/c4conf-kafka-certs/kafka.keystore.jks",
         C4TRUSTSTORE_PATH    => "/c4conf-kafka-certs/kafka.truststore.jks",
         C4BOOTSTRAP_SERVERS  => ($bootstrap_servers || die "no host bootstrap_servers"),
+        C4S3_CONF_DIR        => "/c4conf-ceph-client",
         C4HTTP_SERVER        => "http://$comp:$inner_http_port",
         C4ELECTOR_SERVERS    => join(",", map {"http://$elector-$_.$elector:$elector_port"} 0, 1, 2),
         C4READINESS_PATH     => "/c4/c4is-ready",
@@ -836,9 +839,9 @@ my $up_gate = sub{
     &$need_logback($run_comp,$from_path);
     my $hostname = &$get_hostname($run_comp) || die "no le_hostname";
     my ($ingress_secret_name) = &$get_deployer_conf($run_comp,0,qw[ingress_secret_name]);
+    my $conf = &$get_compose($run_comp);
     ($from_path, {
         image => $img, %consumer_options,
-        C4S3_CONF_DIR => "/c4conf-ceph-client",
         C4STATE_TOPIC_PREFIX => "gate",
         C4STATE_REFRESH_SECONDS => 1000,
         req_mem => "4Gi", req_cpu => "1000m",
@@ -849,6 +852,8 @@ my $up_gate = sub{
         ingress_secret_name=>$ingress_secret_name,
         C4HTTP_PORT => $inner_http_port,
         C4SSE_PORT => $inner_sse_port,
+        need_pod_ip => 1,
+        (map{($_=>&$mandatory_of($_=>$conf))} qw[C4KEEP_SNAPSHOTS replicas]),
     });
 };
 
@@ -862,7 +867,7 @@ my $up_frp_client = sub{
 };
 
 my $base_image_steps = sub{(
-    "FROM ubuntu:18.04",
+    "FROM ubuntu:20.04",
     "COPY install.pl /",
     "RUN perl install.pl useradd",
 )};
@@ -1018,6 +1023,19 @@ push @tasks, ["log","[pod|$composes_txt] [tail] [add]",sub{
         my $kubectl = &$get_kubectl($comp);
         my $tail_or = ($tail+0) || 100;
         sy(qq[$kubectl logs -f $pod --tail $tail_or $add]);
+    });
+}];
+push @tasks, ["log_debug","<pod|$composes_txt> [class]",sub{ # ee.cone
+    my($arg,$cl)=@_;
+    &$ssh_add();
+    &$for_comp_pod($arg,sub{ my ($comp,$pod) = @_;
+        my $kubectl = &$get_kubectl($comp);
+        if($cl){
+            my $content = qq[<logger name="$cl" level="DEBUG"><appender-ref ref="ASYNCFILE" /></logger>];
+            sy(qq[$kubectl exec -i $pod -- sh -c 'cat >> /tmp/logback.xml' < ].&$put_temp("logback.xml",$content));
+        } else {
+            so(qq[$kubectl exec -i $pod -- rm /tmp/logback.xml]);
+        }
     });
 }];
 
@@ -1912,9 +1930,10 @@ push @tasks, ["secret_add_arg","$composes_txt <secret-content>",sub{
     print qq[ADD TO CONFIG: "/c4conf-$secret_name/$fn"\n];
 }];
 
-push @tasks, ["debug","<on|off>",sub{
-    my($arg)=@_;
-    my $d_path = "/c4/debug-enable";
+push @tasks, ["debug","<on|off> [components]",sub{
+    my($arg,$obj)=@_;
+    my $d_path = $obj eq "" ? "/c4/debug-enable" :
+        $obj eq "components" ? "/c4/debug-components" : die;
     if($arg eq "on"){
         -e $d_path or &$put_text($d_path,"");
     }elsif($arg eq "off"){
