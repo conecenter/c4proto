@@ -43,8 +43,7 @@ import scala.concurrent.{Await, ExecutionContext, Future, Promise}
           Thread.sleep(p)
         case Seq() => throw new Exception(events.filterNot(isLocal).toString)
       }
-      implicit val ec: ExecutionContext = execution.mainExecutionContext
-      get(Await.result(Future.sequence(events.map{
+      get(execution.aWait{ implicit ec => Future.sequence(events.map{
         case ev if isLocal(ev) => Future.successful(ev)
         case ev =>
           val path :: opt = ev.data.utf8().split(':').toList
@@ -54,7 +53,7 @@ import scala.concurrent.{Await, ExecutionContext, Future, Promise}
           }.toList
           for(dataOpt <- s3.get(ev.txLogName,path))
             yield dataOpt.fold(ev)(data=>ev.withContent(headers,ToByteString(data)))
-      }),Duration.Inf),backoffLeft.tail)
+      })},backoffLeft.tail)
     }
 }
 

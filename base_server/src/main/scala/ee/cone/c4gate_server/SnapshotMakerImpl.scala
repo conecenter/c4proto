@@ -248,11 +248,13 @@ trait SnapshotConfig {
 
 
 @c4("S3RawSnapshotLoaderApp") final class S3RawSnapshotLoaderImpl(
-  s3: S3Manager, util: SnapshotUtil,
+  s3: S3Manager, util: SnapshotUtil, execution: Execution,
   currentTxLogName: CurrentTxLogName, s3Lister: S3Lister,
 ) extends RawSnapshotLoader with SnapshotLister with LazyLogging {
   def getSync(resource: String): Option[Array[Byte]] =
-    Await.result(s3.get(currentTxLogName, resource), Duration.Inf)
+    execution.aWait{ implicit ec =>
+      s3.get(currentTxLogName, resource)
+    }
   def load(snapshot: RawSnapshot): ByteString = {
     ToByteString(getSync(snapshot.relativePath).get)
   }
@@ -275,14 +277,15 @@ trait SnapshotConfig {
 }
 
 @c4("S3RawSnapshotSaverApp") final class S3RawSnapshotSaver(
-  s3: S3Manager, util: SnapshotUtil, currentTxLogName: CurrentTxLogName,
+  s3: S3Manager, util: SnapshotUtil, execution: Execution,
+  currentTxLogName: CurrentTxLogName,
 ) extends RawSnapshotSaver with SnapshotRemover with LazyLogging {
   def save(snapshot: RawSnapshot, data: Array[Byte]): Unit =
     s3.put(currentTxLogName, snapshot.relativePath, data)
-  def deleteIfExists(snapshot: SnapshotInfo): Boolean = {
-    val res = s3.delete(currentTxLogName, snapshot.raw.relativePath)
-    Await.result(res, Duration.Inf)
-  }
+  def deleteIfExists(snapshot: SnapshotInfo): Boolean =
+    execution.aWait{ implicit ec =>
+      s3.delete(currentTxLogName, snapshot.raw.relativePath)
+    }
 }
 
 /*

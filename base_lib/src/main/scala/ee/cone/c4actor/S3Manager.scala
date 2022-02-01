@@ -67,9 +67,9 @@ import scala.jdk.FutureConverters._
     val builder = HttpRequest.newBuilder()
       .header("Content-Type",contentType)
       .PUT(HttpRequest.BodyPublishers.ofByteArray(body))
-    implicit val ec: ExecutionContext = execution.mainExecutionContext
-    val res = send(txLogName, resource, "PUT", contentType, builder)
-    Await.result(res.map(_.nonEmpty), Duration.Inf)
+    execution.aWait{ implicit ec =>
+      send(txLogName, resource, "PUT", contentType, builder).map(_.nonEmpty)
+    }
   }
   def put(txLogName: TxLogName, resource: String, body: Array[Byte]): Unit =
     if(!putInner(txLogName, resource, body)){
@@ -81,14 +81,10 @@ import scala.jdk.FutureConverters._
         throw new Exception(s"put ($resource)")
     }
 
-  def delete(txLogName: TxLogName, resource: String): Future[Boolean] = {
-    implicit val ec: ExecutionContext = execution.mainExecutionContext
+  def delete(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Boolean] =
     send(txLogName, resource, "DELETE", "", HttpRequest.newBuilder().DELETE())
       .map(_.nonEmpty)
-  }
 
-  def get(txLogName: TxLogName, resource: String): Future[Option[Array[Byte]]] = {
-    implicit val ec: ExecutionContext = execution.mainExecutionContext
+  def get(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Option[Array[Byte]]] =
     send(txLogName, resource, "GET", "", HttpRequest.newBuilder().GET())
-  }
 }

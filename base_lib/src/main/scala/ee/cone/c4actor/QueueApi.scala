@@ -334,9 +334,9 @@ trait HttpClientProvider {
 }
 
 trait S3Manager {
-  def get(txLogName: TxLogName, resource: String): Future[Option[Array[Byte]]]
+  def get(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Option[Array[Byte]]]
   def put(txLogName: TxLogName, resource: String, body: Array[Byte]): Unit
-  def delete(txLogName: TxLogName, resource: String): Future[Boolean]
+  def delete(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Boolean]
 }
 
 trait LOBroker {

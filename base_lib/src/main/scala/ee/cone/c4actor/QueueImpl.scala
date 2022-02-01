@@ -120,8 +120,6 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
   private def makeHeaderFromName: MultiRawCompressor => List[RawHeader] = jc =>
     RawHeader(compressionKey, jc.name) :: Nil
 
-  implicit val executionContext = execution.mainExecutionContext
-
   @tailrec private def nextPartSize(updates: List[N_Update], count: Long, size: Long): Option[Long] =
     if(updates.isEmpty) None
     else if(size >= compressionMinSize.value) Option(count)
@@ -146,10 +144,11 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
       .fold{
         (encode(filteredUpdates), List.empty[RawHeader])
       } { compressor =>
-        val parts = split(filteredUpdates, Nil).map(u=>Future(encode(u)))
-        logger.debug(s"Compressing ${parts.size} parts...")
-        val resF = compressor.compress(parts: _*)
-        val res = Await.result(resF, Duration.Inf)
+        val res = execution.aWait{ implicit ec =>
+          val parts = split(filteredUpdates, Nil).map(u=>Future(encode(u)))
+          logger.debug(s"Compressing ${parts.size} parts...")
+          compressor.compress(parts: _*)
+        }
         logger.debug(s"Compressed")
         (res, makeHeaderFromName(compressor))
       }
@@ -158,14 +157,15 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
   private def deCompressDecode(event: RawEvent): List[N_Update] = concurrent.blocking{
     val compressorOpt = findCompressor(event.headers)
     logger.debug("Decompressing...")
-    val resF = Future.sequence(
-      compressorOpt.fold(List(Future.successful(event.data)))(_.deCompress(event.data))
-      .map(f=>f.map{data=>
-        logger.debug(s"Decoding ${data.size} bytes...")
-        updatesAdapter.decode(data).updates
-      })
-    ).map(_.flatten)
-    val res = Await.result(resF, Duration.Inf)
+    val res = execution.aWait { implicit ec =>
+      Future.sequence(
+        compressorOpt.fold(List(Future.successful(event.data)))(_.deCompress(event.data))
+          .map(f=>f.map{data=>
+            logger.debug(s"Decoding ${data.size} bytes...")
+            updatesAdapter.decode(data).updates
+          })
+      ).map(_.flatten)
+    }
     logger.debug("Decompressing finished...")
     res
   }

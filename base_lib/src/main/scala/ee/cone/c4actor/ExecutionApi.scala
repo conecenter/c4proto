@@ -2,7 +2,7 @@ package ee.cone.c4actor
 
 import java.nio.file.Path
 import java.util.concurrent.ExecutorService
-
+import scala.concurrent.duration.Duration
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.Try
 
@@ -12,8 +12,8 @@ trait Execution extends Runnable {
   def skippingFuture[T](value: T): SkippingFuture[T]
   def newExecutorService(prefix: String, threadCount: Option[Int]): ExecutorService
   def fatal[T](future: ExecutionContext=>Future[T]): Unit
-  def mainExecutionContext: ExecutionContext
   def unboundedFatal[T](future: ExecutionContext=>Future[T]): Future[T]
+  def aWait[T](future: ExecutionContext=>Future[T]): T
   def success[T](promise: Promise[T], value: T): Unit
 }
 
