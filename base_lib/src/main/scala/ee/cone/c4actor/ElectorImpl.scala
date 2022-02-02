@@ -44,12 +44,14 @@ case class ReadyProcessesImpl(
 @c4assemble("ChildElectorClientApp") class EnableTxAssembleBase(
   config: Config,
   actorName: ActorName,
+  currentTxLogName: CurrentTxLogName,
   readyProcessTxFactory: ReadyProcessTxFactory,
   purgeReadyProcessTxFactory: PurgeReadyProcessTxFactory,
   enableScaling: Option[EnableScaling],
 )(
   electorClientIdOpt: List[String] =
-    List(config.get("C4ELECTOR_CLIENT_ID")).filter(_.nonEmpty)
+    List(config.get("C4ELECTOR_CLIENT_ID")).filter(_.nonEmpty),
+  fullActorName: String = s"${currentTxLogName.value}.${actorName.value}"
 ){
   type ActorNameKey = SrcId
 
@@ -60,7 +62,7 @@ case class ReadyProcessesImpl(
     key: SrcId,
     process: Each[S_ReadyProcess],
   ): Values[(ActorNameKey,S_ReadyProcess)] =
-    if(process.role==actorName.value) List(actorName.value->process) else Nil
+    if(process.role==fullActorName) List(actorName.value->process) else Nil
 
   def makeReadyProcesses(
     key: SrcId,
@@ -79,7 +81,7 @@ case class ReadyProcessesImpl(
   ): Values[(SrcId,EnabledTxTr)] =
     for{
       id <- electorClientIdOpt if !processes.ids.contains(id)
-      process = S_ReadyProcess(id, "", key)
+      process = S_ReadyProcess(id, "", fullActorName)
       res <- enable(readyProcessTxFactory.create(s"ReadyProcessTx", process))
     } yield res
 
