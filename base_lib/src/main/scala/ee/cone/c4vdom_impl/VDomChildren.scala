@@ -23,16 +23,16 @@ case class ChildOrderValue(value: Seq[VDomKey], hint: String) extends VDomValue 
 }
 case class ChildGroup(key: String, elements: ViewRes)
 class ChildPairFactoryImpl(inner: VDomFactory) extends ChildPairFactory {
-  def apply[C](key: VDomKey, theElement: VDomValue, elements: ViewRes): ChildPair[C] =
+  def apply[C](key: VDomKey, theElement: VDomValue, elements: List[ChildPair[_]]): ChildPair[C] =
     inner.create(key,theElement,inner.addGroup(key,"chl",elements,Nil))
 }
 
 class VDomFactoryImpl(createMapValue: List[VPair]=>MapVDomValue) extends VDomFactory {
-  def create[C](key: VDomKey, theElement: VDomValue, elements: ViewRes): ChildPair[C] =
+  def create[C](key: VDomKey, theElement: VDomValue, elements: List[ChildPair[_]]): ChildPair[C] =
     ChildPairImpl[C](key, createMapValue(TheElementPair(theElement) :: elements.asInstanceOf[List[VPair]]))
-  def addGroup(key: String, groupKey: String, elements: Seq[ChildPair[_]], res: ViewRes): ViewRes =
-    if(elements.isEmpty) res else
-    ChildOrderPair(groupKey, ChildOrderValue(elements.map(getKey), key)) :: elements ++: res //elements.foldLeft(res)((res,el)=>)
+  def addGroup(key: String, groupKey: String, elements: Seq[ChildPair[_]], res: Seq[ChildPair[_]]): List[ChildPair[_]] =
+    if(elements.isEmpty) res.toList else
+    ChildOrderPair(groupKey, ChildOrderValue(elements.map(getKey), key)) :: elements ++: res.toList //elements.foldLeft(res)((res,el)=>)
   //def addGroup(key: String, groupKey: String, element: ChildPair[_], res: ViewRes): ViewRes =
   //  ChildOrderPair(groupKey, ChildOrderValue(Seq(getKey(element)), key)) :: element :: res
   def getKey(pair: ChildPair[_]): VDomKey = pair match {

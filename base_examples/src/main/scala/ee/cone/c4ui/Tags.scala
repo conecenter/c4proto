@@ -61,13 +61,13 @@ case class SeedElement(seed: Product, styles: List[TagStyle], src: String)(utils
 ) extends Tags {
   def text(key: VDomKey, text: String): ChildPair[OfDiv] = //base_examples
     child[OfDiv](key, TextContentElement(text), Nil)
-  def tag(key: VDomKey, tagName: TagName, attr: List[TagStyle])(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] = //div only
+  def tag(key: VDomKey, tagName: TagName, attr: List[TagStyle])(children: ViewRes): ChildPair[OfDiv] = //div only
     child[OfDiv](key, StyledValue(tagName, attr)(this), children)
-  def div(key: VDomKey, attr: List[TagStyle])(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] = //base_examples
+  def div(key: VDomKey, attr: List[TagStyle])(children: ViewRes): ChildPair[OfDiv] = //base_examples
     tag(key, DivTagName, attr)(children)
-  def divButton[State](key:VDomKey)(action:State=>State)(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] = //base_examples
+  def divButton[State](key:VDomKey)(action:State=>State)(children: ViewRes): ChildPair[OfDiv] = //base_examples
     child[OfDiv](key,DivButton()((_:VDomMessage)=>action), children)
-  def seed(product: Product)(attr: List[TagStyle], src: String)(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] = //base_examples
+  def seed(product: Product)(attr: List[TagStyle], src: String)(children: ViewRes): ChildPair[OfDiv] = //base_examples
     child[OfDiv](product.productElement(0).toString,SeedElement(product,attr,src)(this), children)
   def appendStyles(builder: MutableJsonBuilder, styles: List[TagStyle]): Unit =
     if(styles.nonEmpty){
@@ -80,10 +80,10 @@ case class SeedElement(seed: Product, styles: List[TagStyle], src: String)(utils
 
 trait Tags {
   def text(key: VDomKey, text: String): ChildPair[OfDiv]
-  def tag(key: VDomKey, tagName: TagName, attr: List[TagStyle])(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv]
-  def div(key: VDomKey, attr: List[TagStyle])(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv]
-  def divButton[State](key:VDomKey)(action:State=>State)(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv]
-  def seed(product: Product)(attr: List[TagStyle], src: String)(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv]
+  def tag(key: VDomKey, tagName: TagName, attr: List[TagStyle])(children: ViewRes): ChildPair[OfDiv]
+  def div(key: VDomKey, attr: List[TagStyle])(children: ViewRes): ChildPair[OfDiv]
+  def divButton[State](key:VDomKey)(action:State=>State)(children: ViewRes): ChildPair[OfDiv]
+  def seed(product: Product)(attr: List[TagStyle], src: String)(children: ViewRes): ChildPair[OfDiv]
   def appendStyles(builder: MutableJsonBuilder, styles: List[TagStyle]): Unit
 }
 

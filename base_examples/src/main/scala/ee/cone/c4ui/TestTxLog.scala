@@ -53,7 +53,7 @@ import scala.annotation.tailrec
   def view: Context => ViewRes = untilPolicy.wrap { local =>
     import mTags._
 
-    val logs: List[ChildPair[OfDiv]] = for{
+    val logs: ViewRes = for{
       updatesListSummary <- getUpdatesListSummary.ofA(local).get(actorName.value).toList
       updatesSummary <- updatesListSummary.items
       add = updatesSummary.add
@@ -80,7 +80,7 @@ import scala.annotation.tailrec
     val baseURLAccessOpt = getAccess(TestTxLogAttrs.baseURL)
     val authKeyAccessOpt = getAccess(TestTxLogAttrs.authKey)
 //signer.sign()
-    val inputs: List[ChildPair[OfDiv]] =
+    val inputs: ViewRes =
       List(baseURLAccessOpt,authKeyAccessOpt).flatten.map(tags.input)
 
     val merge: Option[ChildPair[OfDiv]] = for {

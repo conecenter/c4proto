@@ -37,7 +37,7 @@ object TagGenerator extends Generator {
               val defValStr = defVal.map(_.toString)
               val paramTypeFullExpr = paramType.toString
               paramType match {
-                case t"ChildPairList[${Type.Name(_)}]" =>
+                case t"ViewRes" =>
                   TagParam(paramName, paramTypeFullExpr, None, isReceiver = false, Option(paramName))
                 case t"ElList[${Type.Name(_)}]" =>
                   TagParam(paramName, paramTypeFullExpr, None, isReceiver = false, Option(s"$paramName.map(_.toChildPair)"))
