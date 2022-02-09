@@ -78,8 +78,8 @@ import ee.cone.c4gate_server.HttpProxyProtocol._
   def transform(local: Context): Context = txAdd.add(LEvent.update(ip))(local)
 }
 
-@c4("SSEServerApp") final class PongProxyHandler(
-  sseConfig: SSEConfig,
+@c4("SSEServerApp") final class HttpProxyHandler(
+  matchers: List[ProxyPathMatcher],
   httpResponseFactory: RHttpResponseFactory,
   getS_HttpProxy: GetByPK[S_HttpProxy],
   actorName: ActorName,
@@ -89,10 +89,10 @@ import ee.cone.c4gate_server.HttpProxyProtocol._
   val port: String = config.get("C4HTTP_PORT"),
 ) extends LazyLogging {
   def wire: RHttpHandlerCreate = next => (request,local) =>
-    if(request.method == "POST" && request.path == sseConfig.pongURL){
+    if(matchers.exists(_.check(request.path))){
       getS_HttpProxy.ofA(local).get(actorName.value) match {
         case Some(pr) if pr.to!=httpProxyConfig.to =>
-          val to = s"orig:${pr.to}${sseConfig.pongURL}"
+          val to = s"orig:${pr.to}${request.path}"
           logger.debug(to)
           val headers = List(N_Header("x-r-redirect-inner",to))
           httpResponseFactory.directResponse(request,_.copy(headers=headers))
@@ -100,3 +100,10 @@ import ee.cone.c4gate_server.HttpProxyProtocol._
       }
     } else next(request,local)
 }
+
+@c4("SSEServerApp") final class PongProxyPathMatcher(
+  sseConfig: SSEConfig
+) extends ProxyPathMatcher {
+  def check(path: String): Boolean = path == sseConfig.pongURL
+}
+

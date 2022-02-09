@@ -17,6 +17,8 @@ import akka.http.scaladsl.model.headers.{Authorization,GenericHttpCredentials,Ht
 import ee.cone.c4di._
 import ee.cone.c4actor.Execution
 
+import com.typesafe.scalalogging.LazyLogging
+
 case class MjpegCamConf(
   host: String, uri: String, username: String, password: String
 )
@@ -25,7 +27,7 @@ case class MjpegCamConf(
   execution: Execution,
   akkaMat: AkkaMat,
   akkaHttp: AkkaHttp,
-) extends RoomFactory {
+) extends RoomFactory with LazyLogging {
   def pathPrefix: String = "/mjpeg/"
 
   def md5(v: String): String = okio.ByteString.encodeUtf8(v).md5().hex()
@@ -53,7 +55,8 @@ case class MjpegCamConf(
     //println(s"AAA: ${entity.contentType}")
     val boundary = entity.contentType.mediaType.params("boundary")
     val headEnd = ByteString("\r\n\r\n")
-    val boundaryOuter = ByteString(s"--$boundary\r\n")
+    val boundaryOuter = ByteString(s"$boundary\r\n")
+    logger.info(s"B[$boundary]")
     entity.dataBytes.scan((ByteString.empty,ByteString.empty)){(st, part) =>
       val (_,keep) = st
       val acc = keep ++ part
@@ -74,15 +77,20 @@ case class MjpegCamConf(
         http <- akkaHttp.get
         ignoredOK <- {
           val ConfLineValues = """\s*(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s*""".r
-          val ConfLineValues(host,uri,username,password) = will
-          val connFlow = http.outgoingConnection(host)
-          val canFailSource = Source.single(HttpRequest(uri=uri))
-            .via(connFlow)
-            .mapAsync(1){ firstResp =>
+          val ConfLineValues(hostPort,uri,username,password) = will
+          val ConfHostPort = """(\S+):(\S+)""".r
+          val (host,port): (String,Int) = hostPort match {
+            case ConfHostPort(host,portStr) => (host,portStr.toInt)
+            case h => (h,80)
+          }
+          val connFlow = http.outgoingConnection(host,port)
+          val initReqSource = Source.single(HttpRequest(uri=uri))
+          val authReqSource = if(username=="-" && password=="-") initReqSource
+            else initReqSource.via(connFlow).mapAsync(1){ firstResp =>
               firstResp.entity.discardBytes()(mat).future()
                 .map(done=>getAuthReq(firstResp, uri, username, password))(ec)
             }
-            .via(connFlow)
+          val canFailSource = authReqSource.via(connFlow)
             .flatMapConcat{ secondResp => jpegSource(secondResp.entity) }
             .idleTimeout(4.seconds)
           val commonSource = RestartSource.withBackoff(

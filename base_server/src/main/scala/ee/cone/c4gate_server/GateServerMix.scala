@@ -36,7 +36,7 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
   fHttpHandlerFactory: FHttpHandlerImplFactory,
   httpGetSnapshotHandler: HttpGetSnapshotHandler,
   getPublicationHttpHandler: GetPublicationHttpHandler,
-  pongProxyHandler: PongProxyHandler,
+  httpProxyHandler: HttpProxyHandler,
   pongHandler: PongHandler,
   notFoundProtectionHttpHandler: NotFoundProtectionHttpHandler,
   selfDosProtectionHttpHandler: SelfDosProtectionHttpHandler,
@@ -47,7 +47,7 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
     fHttpHandlerFactory.create(
       httpGetSnapshotHandler.wire(
         getPublicationHttpHandler.wire(
-          pongProxyHandler.wire(pongHandler.wire(
+          httpProxyHandler.wire(pongHandler.wire(
             notFoundProtectionHttpHandler.wire(
               selfDosProtectionHttpHandler.wire(
                 authHttpHandler.wire(

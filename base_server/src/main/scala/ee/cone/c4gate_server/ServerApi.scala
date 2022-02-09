@@ -68,3 +68,7 @@ trait S3Lister {
   def parseItems(data: Array[Byte]): List[(String,String)]
   def parseTime(s: String): Long
 }
+
+trait ProxyPathMatcher {
+  def check(path: String): Boolean
+}

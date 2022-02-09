@@ -30,7 +30,7 @@ trait AkkaRequestPreHandler {
 
 trait AkkaRequestHandler {
   def pathPrefix: String
-  def handleAsync(req: HttpRequest)(implicit ec: ExecutionContext): Future[HttpResponse]
+  def handleAsync(req: HttpRequest)(implicit ec: ExecutionContext): Option[Future[HttpResponse]]
 }
 
 trait RoomFactory {

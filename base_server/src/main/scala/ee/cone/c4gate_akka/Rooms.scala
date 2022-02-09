@@ -21,6 +21,7 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.QProtocol.S_Firstborn
+import ee.cone.c4gate_server.ProxyPathMatcher
 import ee.cone.c4gate.RoomsConfProtocol._
 import ee.cone.c4gate_akka.Rooms._
 
@@ -106,6 +107,12 @@ object Rooms {
 ){
   @provide def handlers: Seq[AkkaRequestHandler] =
     roomFactoryList.map(f=>roomsRequestHandlerFactory.create(f.pathPrefix))
+  @provide def proxies: Seq[ProxyPathMatcher] =
+    roomFactoryList.map(f=>new RoomsProxyPathMatcher(f.pathPrefix))
+}
+
+class RoomsProxyPathMatcher(pathPrefix: String) extends ProxyPathMatcher {
+  def check(path: String): Boolean = path.startsWith(pathPrefix)
 }
 
 @c4multi("AkkaGatewayApp") final class RoomsRequestHandler(val pathPrefix: String)(
@@ -130,19 +137,17 @@ object Rooms {
         Flow[Message].mapAsync(1)(getData(_)).via(innerFlow).map(BinaryMessage(_))
       ))
 
-  def handleAsync(req: HttpRequest)(implicit ec: ExecutionContext): Future[HttpResponse] =
-    handleWebSocket(req)
-    .fold(Future.successful(HttpResponse(400, entity = ""))){handle=>
-      val promise = Promise[Option[Flow[ByteString, ByteString, NotUsed]]]()
-      val path = req.uri.path.toString
-      if(roomsManager.isReady){ // may be better skip to next handler in AkkaHttpServer if this not ready
+  def handleAsync(req: HttpRequest)(implicit ec: ExecutionContext): Option[Future[HttpResponse]] =
+    if(!roomsManager.isReady) None else Option(
+      handleWebSocket(req)
+      .fold(Future.successful(HttpResponse(400, entity = ""))){handle=>
+        val promise = Promise[Option[Flow[ByteString, ByteString, NotUsed]]]()
+        val path = req.uri.path.toString
         roomsManager.send(RoomFlowReq(path, promise))
         for(respOpt <- promise.future)
           yield respOpt.fold(HttpResponse(404, entity = ""))(handle)
-      } else {
-        Future.successful(HttpResponse(502, entity = "")) // check reconnecting; check pongs distribution
       }
-    }
+    )
 }
 
 @c4assemble("AkkaGatewayApp") class RoomsConfAssembleBase(

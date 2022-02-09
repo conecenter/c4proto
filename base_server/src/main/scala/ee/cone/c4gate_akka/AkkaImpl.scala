@@ -63,8 +63,8 @@ import scala.util.control.NonFatal
   requestPreHandler: AkkaRequestPreHandler
 ) extends AkkaRequestHandler with LazyLogging {
   def pathPrefix = ""
-  def handleAsync(req: HttpRequest)(implicit ec: ExecutionContext): Future[HttpResponse] =
-    for {
+  def handleAsync(req: HttpRequest)(implicit ec: ExecutionContext): Option[Future[HttpResponse]] =
+    Option(for {
       mat <- akkaMat.get
       http <- akkaHttp.get
       request <- requestPreHandler.handleAsync(req)
@@ -107,7 +107,7 @@ import scala.util.control.NonFatal
           //}
         }
       }
-    } yield response
+    } yield response)
 }
 
 @c4("SimpleAkkaGatewayApp") final class AkkaHttpServer(
@@ -126,11 +126,13 @@ import scala.util.control.NonFatal
         handler = (req: HttpRequest)=>{
           val path = req.uri.path.toString
           logger.debug(s"req init: $path")
-          handlers.find(h=>path.startsWith(h.pathPrefix)).get.handleAsync(req)
-            .recover{ case NonFatal(e) =>
-              logger.error("http-handler",e)
-              throw e
-            }
+          handlers.foldLeft(Option.empty[Future[HttpResponse]])((res,h)=>
+            if(res.isEmpty && path.startsWith(h.pathPrefix)) h.handleAsync(req)
+            else res
+          ).get.recover{ case NonFatal(e) =>
+            logger.error("http-handler",e)
+            throw e
+          }
         },
         interface = "0.0.0.0",
         port = port,
