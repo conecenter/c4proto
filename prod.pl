@@ -886,6 +886,7 @@ my $dl_node_url = "https://nodejs.org/dist/v14.15.4/node-v14.15.4-linux-x64.tar.
 
 my $dl_frp_url = "https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz";
 my $make_frp_image_inner = sub{
+    my ($v) = @_; ## $v -- just to have different images with newer c-time and prevent pruning
     my $gen_dir = &$get_proto_dir();
     my $from_path = &$get_tmp_dir();
     my $put = &$rel_put_text($from_path);
@@ -901,7 +902,7 @@ my $make_frp_image_inner = sub{
         "RUN perl install.pl curl $dl_frp_url",
         "COPY frp.pl /",
         "USER c4",
-        'ENTRYPOINT ["perl", "/frp.pl"]',
+        'ENTRYPOINT ["perl", "/frp.pl", "'.$v.'"]',
     );
     return $from_path;
 };
@@ -1212,7 +1213,7 @@ push @tasks, ["ci_build_frp", "", sub{
     &$ssh_add();
     my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
-    my $dir = &$make_frp_image_inner();
+    my $dir = &$make_frp_image_inner($common_img);
     my $img = "$common_img.frp.rt";
     &$ci_docker_build($dir, $builder_comp, $img);
 }];
@@ -1559,7 +1560,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
 
 my $make_frp_image = sub{
     my ($comp) = @_;
-    return &$remote_build(''=>$comp,&$make_frp_image_inner());
+    return &$remote_build(''=>$comp,&$make_frp_image_inner(""));
 };
 
 push @tasks, ["up-frp_client", "", sub{
