@@ -116,7 +116,7 @@ my $get_debug_ip = sub{
 
 my $remake = sub{
     my($build_dir,$droll) = @_;
-    my $arg = $ENV{C4CI_BASE_TAG_ENV} || die "no C4CI_BASE_TAG_ENV";
+    my $arg = &$get_text_or_empty("/c4/debug-tag") || $ENV{C4CI_BASE_TAG_ENV} || die "no C4CI_BASE_TAG_ENV";
     my $tmp = "$build_dir/.bloop/c4";
     my $to = &$get_text_or_empty("$tmp/tag.$arg.to");
     my ($nm,$mod,$cl) = $to=~/^(\w+)\.(.+)\.(\w+)$/ ? ($1,"$1.$2","$2.$3") : die "[$to]";

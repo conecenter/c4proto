@@ -1931,6 +1931,11 @@ push @tasks, ["secret_add_arg","$composes_txt <secret-content>",sub{
     print qq[ADD TO CONFIG: "/c4conf-$secret_name/$fn"\n];
 }];
 
+my $restart = sub{
+    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
+    &$put_text(&$need_path("$local_dir/target/gen-ver"),time);
+};
+
 push @tasks, ["debug","<on|off> [components]",sub{
     my($arg,$obj)=@_;
     my $d_path = $obj eq "" ? "/c4/debug-enable" :
@@ -1940,8 +1945,13 @@ push @tasks, ["debug","<on|off> [components]",sub{
     }elsif($arg eq "off"){
         -e $d_path and sy("rm $d_path");
     }else{ die }
-    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
-    &$put_text(&$need_path("$local_dir/target/gen-ver"),time);
+    &$restart();
+}];
+
+push @tasks, ["tag","[tag]",sub{
+    my($tag)=@_;
+    &$put_text("/c4/debug-tag",$tag||"");
+    &$restart();
 }];
 
 push @tasks, ["kafka","( topics | offsets <hours> | nodes | sizes <node> | topics_rm )",sub{
