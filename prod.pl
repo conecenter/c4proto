@@ -466,7 +466,10 @@ my $make_kc_yml = sub{
 
     my $container = {
             name => $nm, args=>[$nm], image => &$mandatory_of(image=>$opt),
-            env=>[@env],
+            env=>[
+                $$opt{need_pod_ip} ? {name=>"C4POD_IP",valueFrom=>{fieldRef=>{fieldPath=>"status.podIP"}}} : (),
+                @env
+            ],
             volumeMounts=>[@secret_mounts,@host_mounts],
             $$opt{tty} ? (tty=>$$opt{tty}) : (),
             securityContext => { allowPrivilegeEscalation => "false" },
@@ -489,7 +492,7 @@ my $make_kc_yml = sub{
     };
     #
     my $spec = {
-            $$opt{replicas} ? (replicas=>$$opt{replicas}) : (),
+            (exists $$opt{replicas}) ? (replicas=>$$opt{replicas}) : (),
             selector => { matchLabels => { app => $name } },
             template => {
                 metadata => {
@@ -732,7 +735,6 @@ my $get_visitor_conf = sub{
 
 my $all_consumer_options = sub{(
     tty => "true",
-    C4MAX_REQUEST_SIZE => "250000000",
     JAVA_TOOL_OPTIONS => "-XX:-UseContainerSupport ", # -XX:ActiveProcessorCount=36
     C4LOGBACK_XML => "/c4conf/logback.xml",
     C4AUTH_KEY_FILE => "/c4conf/simple.auth", #gate does no symlinks
@@ -794,6 +796,7 @@ my $get_consumer_options = sub{
         C4KEYSTORE_PATH      => "/c4conf-kafka-certs/kafka.keystore.jks",
         C4TRUSTSTORE_PATH    => "/c4conf-kafka-certs/kafka.truststore.jks",
         C4BOOTSTRAP_SERVERS  => ($bootstrap_servers || die "no host bootstrap_servers"),
+        C4S3_CONF_DIR        => "/c4conf-ceph-client",
         C4HTTP_SERVER        => "http://$comp:$inner_http_port",
         C4ELECTOR_SERVERS    => join(",", map {"http://$elector-$_.$elector:$elector_port"} 0, 1, 2),
         C4READINESS_PATH     => "/c4/c4is-ready",
@@ -836,9 +839,9 @@ my $up_gate = sub{
     &$need_logback($run_comp,$from_path);
     my $hostname = &$get_hostname($run_comp) || die "no le_hostname";
     my ($ingress_secret_name) = &$get_deployer_conf($run_comp,0,qw[ingress_secret_name]);
+    my $conf = &$get_compose($run_comp);
     ($from_path, {
         image => $img, %consumer_options,
-        C4S3_CONF_DIR => "/c4conf-ceph-client",
         C4STATE_TOPIC_PREFIX => "gate",
         C4STATE_REFRESH_SECONDS => 1000,
         req_mem => "4Gi", req_cpu => "1000m",
@@ -849,6 +852,8 @@ my $up_gate = sub{
         ingress_secret_name=>$ingress_secret_name,
         C4HTTP_PORT => $inner_http_port,
         C4SSE_PORT => $inner_sse_port,
+        need_pod_ip => 1,
+        (map{($_=>&$mandatory_of($_=>$conf))} qw[C4KEEP_SNAPSHOTS replicas]),
     });
 };
 
@@ -862,7 +867,7 @@ my $up_frp_client = sub{
 };
 
 my $base_image_steps = sub{(
-    "FROM ubuntu:18.04",
+    "FROM ubuntu:20.04",
     "COPY install.pl /",
     "RUN perl install.pl useradd",
 )};
@@ -881,6 +886,7 @@ my $dl_node_url = "https://nodejs.org/dist/v14.15.4/node-v14.15.4-linux-x64.tar.
 
 my $dl_frp_url = "https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz";
 my $make_frp_image_inner = sub{
+    my ($v) = @_; ## $v -- just to have different images with newer c-time and prevent pruning
     my $gen_dir = &$get_proto_dir();
     my $from_path = &$get_tmp_dir();
     my $put = &$rel_put_text($from_path);
@@ -896,7 +902,7 @@ my $make_frp_image_inner = sub{
         "RUN perl install.pl curl $dl_frp_url",
         "COPY frp.pl /",
         "USER c4",
-        'ENTRYPOINT ["perl", "/frp.pl"]',
+        'ENTRYPOINT ["perl", "/frp.pl", "'.$v.'"]',
     );
     return $from_path;
 };
@@ -1018,6 +1024,19 @@ push @tasks, ["log","[pod|$composes_txt] [tail] [add]",sub{
         my $kubectl = &$get_kubectl($comp);
         my $tail_or = ($tail+0) || 100;
         sy(qq[$kubectl logs -f $pod --tail $tail_or $add]);
+    });
+}];
+push @tasks, ["log_debug","<pod|$composes_txt> [class]",sub{ # ee.cone
+    my($arg,$cl)=@_;
+    &$ssh_add();
+    &$for_comp_pod($arg,sub{ my ($comp,$pod) = @_;
+        my $kubectl = &$get_kubectl($comp);
+        if($cl){
+            my $content = qq[<logger name="$cl" level="DEBUG"><appender-ref ref="ASYNCFILE" /></logger>];
+            sy(qq[$kubectl exec -i $pod -- sh -c 'cat >> /tmp/logback.xml' < ].&$put_temp("logback.xml",$content));
+        } else {
+            so(qq[$kubectl exec -i $pod -- rm /tmp/logback.xml]);
+        }
     });
 }];
 
@@ -1194,7 +1213,7 @@ push @tasks, ["ci_build_frp", "", sub{
     &$ssh_add();
     my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
-    my $dir = &$make_frp_image_inner();
+    my $dir = &$make_frp_image_inner($common_img);
     my $img = "$common_img.frp.rt";
     &$ci_docker_build($dir, $builder_comp, $img);
 }];
@@ -1458,7 +1477,7 @@ my $build_client = sub{
     unlink or die $! for <$build_dir/*>;
     my $conf_dir = &$single_or_undef(grep{-e} map{"$_/webpack"} <$dir/src/*>) || die;
     &$if_changed("$dir/package.json", syf("cat $conf_dir/package.json"), sub{1})
-        and sy("cd $dir && npm install");
+        and sy("cd $dir && npm install --no-save");
     sy("cd $dir && cp $conf_dir/webpack.config.js . && cp $conf_dir/tsconfig.json . && node_modules/webpack/bin/webpack.js $opt");# -d
     &$put_text("$build_dir/publish_time",time);
     &$put_text("$build_dir/c4gen.ht.links",join"",
@@ -1541,7 +1560,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
 
 my $make_frp_image = sub{
     my ($comp) = @_;
-    return &$remote_build(''=>$comp,&$make_frp_image_inner());
+    return &$remote_build(''=>$comp,&$make_frp_image_inner(""));
 };
 
 push @tasks, ["up-frp_client", "", sub{
@@ -1912,16 +1931,27 @@ push @tasks, ["secret_add_arg","$composes_txt <secret-content>",sub{
     print qq[ADD TO CONFIG: "/c4conf-$secret_name/$fn"\n];
 }];
 
-push @tasks, ["debug","<on|off>",sub{
-    my($arg)=@_;
-    my $d_path = "/c4/debug-enable";
+my $restart = sub{
+    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
+    &$put_text(&$need_path("$local_dir/target/gen-ver"),time);
+};
+
+push @tasks, ["debug","<on|off> [components]",sub{
+    my($arg,$obj)=@_;
+    my $d_path = $obj eq "" ? "/c4/debug-enable" :
+        $obj eq "components" ? "/c4/debug-components" : die;
     if($arg eq "on"){
         -e $d_path or &$put_text($d_path,"");
     }elsif($arg eq "off"){
         -e $d_path and sy("rm $d_path");
     }else{ die }
-    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
-    &$put_text(&$need_path("$local_dir/target/gen-ver"),time);
+    &$restart();
+}];
+
+push @tasks, ["tag","[tag]",sub{
+    my($tag)=@_;
+    &$put_text("/c4/debug-tag",$tag||"");
+    &$restart();
 }];
 
 push @tasks, ["kafka","( topics | offsets <hours> | nodes | sizes <node> | topics_rm )",sub{
