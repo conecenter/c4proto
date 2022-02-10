@@ -4,7 +4,7 @@ import java.nio.file.{Files, Path, Paths}
 import java.time.Instant
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.S_Firstborn
-import ee.cone.c4actor.{Context, SleepUntilKey, SnapshotInfo, TxTransform, WithPK}
+import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, c4assemble}
@@ -55,10 +55,24 @@ case class PurgerTx(
   }
 }
 
-@c4assemble("SnapshotMakingApp") class PurgerAssembleBase(purger: Purger)   {
+@c4assemble("SnapshotMakingApp") class PurgerAssembleBase(
+  purger: Purger,
+  config: Config,
+)(
+  policy: List[KeepPolicy] = {
+    val value = config.get("C4KEEP_SNAPSHOTS")
+    val res = if(value == "default") PurgerDefaultPolicy()
+      else (for(pair <- value.split(",").toList) yield {
+        val Array(periodStr,countStr) = pair.split("x")
+        KeepPolicy(periodStr.toLong,countStr.toInt)
+      })
+    assert(res.nonEmpty)
+    res
+  }
+){
   def joinPurger(
     key: SrcId,
     first: Each[S_Firstborn]
   ): Values[(SrcId,TxTransform)] =
-    List(WithPK(PurgerTx("purger",PurgerDefaultPolicy())(purger)))
+    List(WithPK(PurgerTx("purger",policy)(purger)))
 }

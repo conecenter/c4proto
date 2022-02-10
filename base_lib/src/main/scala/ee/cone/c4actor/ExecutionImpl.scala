@@ -4,13 +4,12 @@ package ee.cone.c4actor
 import java.lang.Thread.UncaughtExceptionHandler
 import java.util.concurrent.ForkJoinPool.ForkJoinWorkerThreadFactory
 import java.util.concurrent.{ExecutorService, Executors, ForkJoinPool, ForkJoinWorkerThread, ThreadFactory, TimeUnit}
-import java.util.concurrent.atomic.AtomicReference
-
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4assemble.Single
 import ee.cone.c4di.c4
 
-import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.util.Try
 import scala.util.control.NonFatal
 
@@ -30,10 +29,8 @@ object VMExecution {
       val threadFactory = new RThreadFactory(defaultThreadFactory,prefix)
       Executors.newCachedThreadPool(threadFactory) //newWorkStealingPool
     }{ fixedThreadCount =>
-      val defaultThreadFactory = ForkJoinPool.defaultForkJoinWorkerThreadFactory
-      val threadFactory = new RForkJoinWorkerThreadFactory(defaultThreadFactory,prefix)
-      @SuppressWarnings(Array("org.wartremover.warts.Null")) val handler: UncaughtExceptionHandler = null
-      new ForkJoinPool(fixedThreadCount, threadFactory, handler, false)
+      new RForkJoinPool(prefix,0,fixedThreadCount)()
+      //@SuppressWarnings(Array("org.wartremover.warts.Null")) val handler: UncaughtExceptionHandler = null
     }
   }
   def setup[T<:Thread](prefix: String, thread: T): T = {
@@ -63,6 +60,18 @@ class RForkJoinWorkerThreadFactory(inner: ForkJoinWorkerThreadFactory, prefix: S
     VMExecution.setup(prefix,inner.newThread(pool))
 }
 
+@SuppressWarnings(Array("org.wartremover.warts.Null"))
+class RForkJoinPool(prefix: String, depth: Int, threadCount: Int)(
+  threadFactory: RForkJoinWorkerThreadFactory =
+    new RForkJoinWorkerThreadFactory(
+      ForkJoinPool.defaultForkJoinWorkerThreadFactory,s"$prefix$depth-"
+    )
+) extends ForkJoinPool(threadCount,threadFactory,null,false){
+  lazy val deeper: ExecutionContext = ExecutionContext.fromExecutor(
+    new RForkJoinPool(prefix, depth+1, threadCount)()
+  )
+}
+
 /*
 default exceptions in futures:
   Exception -- onComplete Failure
@@ -80,8 +89,8 @@ class RUncaughtExceptionHandler(inner: UncaughtExceptionHandler) extends Uncaugh
   txThreadPool: ExecutorService = VMExecution.newExecutorService("tx-",Option(Runtime.getRuntime.availableProcessors)),
   ubThreadPool: ExecutorService = VMExecution.newExecutorService("ub-",None)
 )(
-  val mainExecutionContext: ExecutionContext = ExecutionContext.fromExecutor(txThreadPool),
-  val unboundedExecutionContext: ExecutionContext = ExecutionContext.fromExecutor(ubThreadPool)
+  mainExecutionContext: ExecutionContext = ExecutionContext.fromExecutor(txThreadPool),
+  unboundedExecutionContext: ExecutionContext = ExecutionContext.fromExecutor(ubThreadPool),
 ) extends Execution with LazyLogging {
   def run(): Unit = {
     val toStart = getToStart.value.filter(executionFilter.check)
@@ -112,6 +121,16 @@ class RUncaughtExceptionHandler(inner: UncaughtExceptionHandler) extends Uncaugh
     VMExecution.newExecutorService(prefix,threadCount)
   def success[T](promise: Promise[T], value: T): Unit =
     VMExecution.success(promise,value)
+  def aWait[T](body: ExecutionContext=>Future[T]): T = {
+    val ec = Thread.currentThread match {
+      case t: ForkJoinWorkerThread => t.getPool match{
+        case p: RForkJoinPool => p.deeper
+        case _ => mainExecutionContext
+      }
+      case _ => mainExecutionContext
+    }
+    Await.result(body(ec), Duration.Inf)
+  }
 }
 
 class SkippingFutureImpl[T](inner: Future[T], isNotLast: Promise[Unit])(implicit executionContext: ExecutionContext) extends SkippingFuture[T] with LazyLogging {
@@ -167,7 +186,8 @@ object ServerMain extends BaseServerMain(
     Single[String](inner.get(key), (l:Seq[String])=>new Exception(s"Need single ENV: $key: $l"))
 }
 
-@c4("EnvConfigCompApp") final class ActorNameImpl(config: Config) extends ActorName(config.get("C4STATE_TOPIC_PREFIX"))
+@c4("EnvConfigCompApp") final class ActorNameImpl(config: Config)
+  extends ActorName(config.get("C4STATE_TOPIC_PREFIX"))
 
 @c4("CatchNonFatalApp") final class CatchNonFatalImpl extends CatchNonFatal with LazyLogging {
   def apply[T](aTry: =>T)(getHint: =>String)(aCatch: Throwable=>T): T = try { aTry } catch {

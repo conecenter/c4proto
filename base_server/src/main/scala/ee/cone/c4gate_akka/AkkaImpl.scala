@@ -100,8 +100,10 @@ import scala.util.control.NonFatal
               .via(http.connectionTo(request.uri.authority.host).toPort(request.uri.authority.port).http())
               .toMat(Sink.head)(Keep.right)
           } else {*/
-            logger debug s"Redirecting to $uri"
-            http.singleRequest(HttpRequest(uri = uri))
+          logger debug s"Redirecting to $uri"
+          val nReq = if(uri.startsWith("orig:")) req.withUri(uri.drop(5))
+            else HttpRequest(uri = uri)
+          http.singleRequest(nReq)
           //}
         }
       }

@@ -47,7 +47,7 @@ import scala.annotation.tailrec
   ): Unit = {
     val events = consumer.poll()
     if(events.nonEmpty){
-      val latency = System.currentTimeMillis-events.map{ case e: MTime => e.mTime}.min //check rec.timestampType == TimestampType.CREATE_TIME ?
+      val latency = System.currentTimeMillis-events.map(_.mTime).min //check rec.timestampType == TimestampType.CREATE_TIME ?
       logger.debug(s"p-c latency $latency ms")
     }
     val end = NanoTimer()

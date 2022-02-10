@@ -17,7 +17,7 @@ trait ParallelObserversAppBase
 trait ProtoAppBase
 trait RichDataCompAppBase extends BaseApp with ProtoApp with AssembleApp with CatchNonFatalApp
 trait SerialObserversAppBase
-trait ServerCompAppBase extends RichDataCompApp with ExecutableApp with SnapshotLoaderImplApp with ChildElectorClientApp
+trait ServerCompAppBase extends RichDataCompApp with ExecutableApp with SnapshotLoaderImplApp with ChildElectorClientApp with S3ManagerApp
 trait SimpleAssembleProfilerCompAppBase
 trait SkipWorldPartsAppBase
 trait SnapshotLoaderFactoryImplAppBase
@@ -35,9 +35,13 @@ trait VMExecutionAppBase extends AbstractComponents {
 
 trait DeadlockDetectAppBase
 
-trait ElectorClientAppBase
+trait HttpClientAppBase
+
+trait ElectorClientAppBase extends HttpClientApp
 trait ChildElectorClientAppBase extends ElectorClientApp
 @c4app class ParentElectorClientAppBase extends ElectorClientApp with ExecutableApp with VMExecutionApp with BaseApp with EnvConfigCompApp
 
 trait ScalingAppBase extends ChildElectorClientApp
 trait ScalingTestAppBase
+
+trait S3ManagerAppBase extends HttpClientApp

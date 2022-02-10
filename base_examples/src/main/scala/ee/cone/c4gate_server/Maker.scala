@@ -12,16 +12,20 @@ import ee.cone.c4di.c4
   }
 }
 
-@c4("SimplePusherApp") final class SimplePusherExecutable(execution: Execution, snapshotLister: SnapshotLister, snapshotLoader: SnapshotLoader, rawQSender: RawQSender) extends Executable with LazyLogging {
+@c4("SimplePusherApp") final class SimplePusherExecutable(
+  execution: Execution, snapshotLister: SnapshotLister,
+  snapshotLoader: SnapshotLoader, rawQSender: RawQSender,
+  currentTxLogName: CurrentTxLogName,
+) extends Executable with LazyLogging {
   def run(): Unit = {
     val snapshotInfo :: _ = snapshotLister.list
     val Some(event) = snapshotLoader.load(snapshotInfo.raw)
     assert(event.headers.isEmpty)
-    val offset = Single(rawQSender.send(List(new QRecord {
-      def topic: TopicName = InboxTopicName()
+    val offset = rawQSender.send(new QRecord {
+      def topic: TxLogName = currentTxLogName
       def value: Array[Byte] = event.data.toByteArray
       def headers: scala.collection.immutable.Seq[RawHeader] = event.headers
-    })))
+    })
     logger.info(s"pushed $offset")
     execution.complete()
   }
