@@ -1296,13 +1296,26 @@ push @tasks, ["ci_push", "", sub{
     }
 }];
 
+my $ci_env_name = sub{
+    my($env_comp)=@_;
+    my $env_name = &$mandatory_of("ci:env"=>&$get_compose($env_comp));
+    my $kubectl = &$get_kubectl($env_comp);
+    ($kubectl,$env_name)
+};
+
+my $ci_apply = sub{
+    my ($kubectl,$env_name,$tmp) = @_;
+    my $whitelist = join " ", map{"--prune-whitelist $$_[0]/$$_[1]/$$_[2]"} @kinds;
+    sy("$kubectl apply -f $tmp --prune -l c4env=$env_name $whitelist");
+};
+
 push @tasks, ["ci_up", "", sub{
     my($env_comp)=@_;
     my $end = &$ci_measure();
     &$ssh_add();
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
     my @comps = &$ci_get_compositions($env_comp);
-    my $env_name = &$mandatory_of("ci:env"=>&$get_compose($env_comp));
+    my ($kubectl,$env_name) = &$ci_env_name($env_comp);
     my $labeled = {metadata=>{labels=>{c4env=>$env_name}}};
     my $yml_str = join "\n", map{ &$encode(&$merge_list($_,$labeled)) } map{
         my $l_comp = $_;
@@ -1311,18 +1324,55 @@ push @tasks, ["ci_up", "", sub{
         my ($tmp_path,$options) = &$find_handler(ci_up=>$l_comp)->($l_comp,$to_img);
         @{&$make_kc_yml($l_comp,$tmp_path,&$add_image_pull_secrets($l_comp,$options))};
     } @comps;
-    my $kubectl = &$get_kubectl($env_comp);
-    my $tmp = &$put_temp("up.yml",$yml_str);
-    my $whitelist = join " ", map{"--prune-whitelist $$_[0]/$$_[1]/$$_[2]"} @kinds;
-    sy("$kubectl apply -f $tmp --prune -l c4env=$env_name $whitelist");
+    #
+    my $secret_name = "hist-".&$get_rand_uuid();
+    my $hist_yml = &$put_temp("hist.yml",&$encode(&$merge_list(
+        &$secret_yml_from_files($secret_name, {value=>&$put_temp("value",$yml_str)}),
+        {metadata=>{
+            labels=>{"c4target-env"=>$env_name}, annotations=>{c4img=>$common_img},
+        }},
+    )));
+    sy("$kubectl apply -f $hist_yml");
+    &$ci_apply($kubectl,$env_name,&$put_temp("up.yml",$yml_str));
     &$end("ci_up");
 }];
 
-push @tasks, ["ci_down","",sub{
-    my($comp)=@_;
+my $get_image_from_deployment = sub{ #.spec.template.spec.containers[*].image
+    my ($deployment) = @_;
+    my ($curr_img,@more) = map{$$_{image}} map{@$_} map{$$_{containers}||{}}
+        map{$$_{spec}||{}} map{$$_{template}||{}} map{$$_{spec}||{}} $deployment;
+    die if @more;
+    $curr_img
+};
+
+push @tasks, ["hist_ls","<env-comp>", sub{
+    my($env_comp)=@_;
     &$ssh_add();
-    my $env_name = &$mandatory_of("ci:env"=>&$get_compose($comp));
-    my $kubectl = &$get_kubectl($comp);
+    my ($kubectl,$env_name) = &$ci_env_name($env_comp);
+    my $deploy_res = syf("$kubectl get deployment -l c4env=$env_name -o json");
+    my $hist_res = syf("$kubectl get secrets -l c4target-env=$env_name -o json");
+    print "Current deployment images:\n";
+    print "\t".&$get_image_from_deployment($_)."\n"
+        for @{&$decode($deploy_res)->{items}||die};
+    print "History:\n";
+    print for sort
+        map{"\t$$_{creationTimestamp} $$_{name} $$_{annotations}{c4img}\n"}
+        map{$$_{metadata}} @{&$decode($hist_res)->{items}||die};
+}];
+
+push @tasks, ["hist_revert","<env-comp> <hist-item>", sub{
+    my($env_comp,$hist_item)=@_;
+    &$ssh_add();
+    my ($kubectl,$env_name) = &$ci_env_name($env_comp);
+    my $tmp_dir = &$get_tmp_dir();
+    &$secret_to_dir($kubectl,$hist_item,$tmp_dir);
+    &$ci_apply($kubectl,$env_name,"$tmp_dir/value");
+}];
+
+push @tasks, ["ci_down","",sub{
+    my($env_comp)=@_;
+    &$ssh_add();
+    my ($kubectl,$env_name) = &$ci_env_name($env_comp);
     my $kinds = join ",",map{$$_[2]}@kinds;
     sy("$kubectl delete -l c4env=$env_name $kinds");
 }];
@@ -1398,10 +1448,8 @@ push @tasks, ["ci_check_images", "", sub {
         my ($from_img, $to_img) = &$ci_get_image($common_img, $comp);
         print "target image:     $to_img\n";
         while(1){
-            my $resp = &$decode(syf(qq[$kubectl get deployment $comp -o json])); #.spec.template.spec.containers[*].image
-            my ($curr_img,@more) = map{$$_{image}} map{@$_} map{$$_{containers}||{}}
-                map{$$_{spec}||{}} map{$$_{template}||{}} map{$$_{spec}||{}} $resp;
-            die if @more;
+            my $resp = &$decode(syf(qq[$kubectl get deployment $comp -o json]));
+            my $curr_img = &$get_image_from_deployment($resp);
             print "deployment image: $curr_img\n";
             last if $curr_img eq $to_img;
             sleep 2;
