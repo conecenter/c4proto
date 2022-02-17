@@ -867,7 +867,7 @@ my $up_frp_client = sub{
 };
 
 my $base_image_steps = sub{(
-    "FROM ubuntu:18.04",
+    "FROM ubuntu:20.04",
     "COPY install.pl /",
     "RUN perl install.pl useradd",
 )};
@@ -878,7 +878,8 @@ my $prod_image_steps = sub{(
     " curl software-properties-common".
     " lsof mc iputils-ping netcat-openbsd fontconfig".
     " openssh-client", #repl
-    "RUN perl install.pl curl https://github.com/AdoptOpenJDK/openjdk15-binaries/releases/download/jdk-15.0.1%2B9/OpenJDK15U-jdk_x64_linux_hotspot_15.0.1_9.tar.gz",
+    #"RUN perl install.pl curl https://github.com/AdoptOpenJDK/openjdk15-binaries/releases/download/jdk-15.0.1%2B9/OpenJDK15U-jdk_x64_linux_hotspot_15.0.1_9.tar.gz",
+    "RUN perl install.pl curl https://download.oracle.com/java/17/latest/jdk-17_linux-x64_bin.tar.gz",
     'ENV PATH=${PATH}:/tools/jdk/bin',
 )};
 
