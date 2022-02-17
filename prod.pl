@@ -867,7 +867,7 @@ my $up_frp_client = sub{
 };
 
 my $base_image_steps = sub{(
-    "FROM ubuntu:20.04",
+    "FROM ubuntu:18.04",
     "COPY install.pl /",
     "RUN perl install.pl useradd",
 )};
