@@ -4,8 +4,9 @@ USER root
 RUN perl install.pl apt curl ca-certificates
 
 FROM c4downloader AS c4tools-jdk
-#RUN /install.pl curl https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.5%2B10/OpenJDK11U-jdk_x64_linux_hotspot_11.0.5_10.tar.gz
-RUN /install.pl curl https://github.com/AdoptOpenJDK/openjdk15-binaries/releases/download/jdk-15.0.1%2B9/OpenJDK15U-jdk_x64_linux_hotspot_15.0.1_9.tar.gz
+#RUN /install.pl curl https://github.com/AdoptOpenJDK/openjdk15-binaries/releases/download/jdk-15.0.1%2B9/OpenJDK15U-jdk_x64_linux_hotspot_15.0.1_9.tar.gz
+#RUN /install.pl curl https://download.oracle.com/java/17/latest/jdk-17_linux-x64_bin.tar.gz"
+RUN /install.pl curl https://download.bell-sw.com/java/17.0.2+9/bellsoft-jdk17.0.2+9-linux-amd64.tar.gz
 RUN ls -la /tools
 
 FROM c4downloader AS c4tools-coursier
