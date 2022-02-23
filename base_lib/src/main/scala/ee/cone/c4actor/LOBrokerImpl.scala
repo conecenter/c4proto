@@ -12,7 +12,7 @@ import scala.annotation.tailrec
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 
-@c4("ServerCompApp") final class LOBrokerImpl(
+@c4("LOBrokerApp") final class LOBrokerImpl(
   s3: S3Manager,
   execution: Execution,
 )(
