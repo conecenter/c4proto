@@ -1,9 +1,11 @@
 
 package ee.cone.c4actor_kafka_impl
 
+import ee.cone.c4actor.LOBrokerApp
+
 trait KafkaConfigAppBase
-trait KafkaProducerAppBase extends KafkaConfigApp
-trait KafkaConsumerAppBase extends KafkaConfigApp with LZ4DeCompressorApp
+trait KafkaProducerAppBase extends KafkaConfigApp with LOBrokerApp
+trait KafkaConsumerAppBase extends KafkaConfigApp with LZ4DeCompressorApp with LOBrokerApp
 trait LZ4DeCompressorAppBase
 trait LZ4RawCompressorAppBase
 trait KafkaPurgerAppBase
