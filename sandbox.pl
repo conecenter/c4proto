@@ -132,7 +132,7 @@ my $remake = sub{
         &$prep_empty_dir($dir);
         my $debug_int_ip = &$get_debug_ip($$);
         my $paths = JSON::XS->new->decode(&$get_text_or_empty("$tmp/mod.$mod.classpath.json"));
-        my $tool_opt = "-XX:+UseZGC -XX:GCTimeRatio=1 -XX:MinHeapFreeRatio=15 -XX:MaxHeapFreeRatio=50 $ENV{JAVA_TOOL_OPTIONS}";
+        my $tool_opt = "-XX:+UseG1GC -XX:GCTimeRatio=1 -XX:MinHeapFreeRatio=15 -XX:MaxHeapFreeRatio=50 $ENV{JAVA_TOOL_OPTIONS} -XX:NativeMemoryTracking=summary";
         my $env = {
             %$paths,
             (-e "/c4/debug-components") ? (C4DEBUG_COMPONENTS => "1") : (),
