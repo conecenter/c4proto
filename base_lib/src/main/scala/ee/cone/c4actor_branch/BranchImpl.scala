@@ -68,6 +68,9 @@ case object EmptyBranchMessage extends BranchMessage {
   def deletes: Seq[LEvent[Product]] = Nil
 }
 
+@c4("BranchApp") final class EnableBranchScaling
+  extends EnableSimpleScaling(classOf[BranchTxTransform])
+
 @c4multi("BranchApp") final case class BranchTxTransform(
   branchKey: String,
   seed: Option[S_BranchResult],
