@@ -1547,7 +1547,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     -e $ctx_dir and sy("rm -r $ctx_dir");
     sy("mkdir $ctx_dir");
     &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile");
-    my @add_steps = syf("cat $gen_dir/.bloop/c4/tag.$base.steps");
+    my @add_steps = syl("cat $gen_dir/.bloop/c4/tag.$base.steps");
     my @from_steps = grep{/^FROM\s/} @add_steps;
     &$put_text("$ctx_dir/Dockerfile", join "\n",
         @from_steps ? @from_steps : "FROM ubuntu:18.04",
