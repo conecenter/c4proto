@@ -14,7 +14,7 @@ import java.net.URI
 import java.net.http.{HttpClient, HttpRequest}
 import java.net.http.HttpRequest.BodyPublishers
 import java.net.http.HttpResponse.BodyHandlers
-import java.nio.file.{Files, Paths}
+import java.nio.file.{Files, Path, Paths}
 import java.util.UUID
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.concurrent.duration.{Duration, MILLISECONDS}
@@ -178,6 +178,8 @@ case object PurgeReadyProcessStateKey extends TransientLens[Option[ElectorReques
   def createCheck(owner: String): ElectorRequests = {
     createRequests(owner, "checker", 1, s" check")
   }
+  def checkDebug(): Boolean =
+    listConfig.get("C4ELECTOR_DEBUG").exists(v=>Files.exists(Paths.get(v)))
 }
 
 class ElectorRequests(
@@ -185,14 +187,16 @@ class ElectorRequests(
   parent: ElectorRequestsFactory,
   wasLockedUntil: Long = 0,
   val response: Future[Option[Long]] = Future.successful(None), skipUntil: Long = 0,
+  debug: Boolean = false,
 ) extends LazyLogging {
   def msNow(): Long = System.nanoTime / 1000000
   def mayBeSend(): ElectorRequests = {
     val started = msNow()
+    if(debug) logger.debug(s"st:${started} su:${skipUntil}")
     if(started < skipUntil) this else {
       val resF = parent.execution.unboundedFatal(sendInner(started)(_))
       val until = started + parent.timeout + Random.nextInt(200)
-      new ElectorRequests(requests, lockPeriod, hint, parent, lockedUntil(), resF, until)
+      new ElectorRequests(requests, lockPeriod, hint, parent, lockedUntil(), resF, until, parent.checkDebug())
     }
   }
   def sendInner(started: Long)(implicit ec: ExecutionContext): Future[Option[Long]] =
@@ -200,7 +204,10 @@ class ElectorRequests(
       client <- parent.clientProvider.get
       results <- Future.sequence(requests.map(req=>
         client.sendAsync(req, BodyHandlers.discarding()).asScala
-          .map(resp=>resp.statusCode==200)
+          .map{ resp =>
+            if(debug) logger.debug(s"resp ${resp.statusCode} ${resp.uri()}")
+            resp.statusCode==200
+          }
           .recover{ case NonFatal(e) =>
             logger.error("elector-post",e)
             false
@@ -208,7 +215,7 @@ class ElectorRequests(
       ))
     } yield {
       val (ok,nok) = results.partition(r=>r)
-      logger.trace(s"$hint -- ${ok.size}/${requests.size}")
+      if(debug) logger.debug(s"$hint -- ${ok.size}/${requests.size}")
       if(ok.size > nok.size) Option(started+lockPeriod) else None
     }
   def lockedUntil(): Long = response.value.flatMap(_.toOption).flatten

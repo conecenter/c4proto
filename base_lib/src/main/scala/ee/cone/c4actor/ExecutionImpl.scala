@@ -113,6 +113,8 @@ class RUncaughtExceptionHandler(inner: UncaughtExceptionHandler) extends Uncaugh
     VMExecution.onShutdown(hint,f)
   def complete(): Unit = { // exit from pooled thread will block itself
     logger.info("exiting")
+    val runtime = Runtime.getRuntime
+    logger.info(s"totalMemory:${runtime.totalMemory} freeMemory:${runtime.freeMemory}")
     System.exit(0)
   }
   def skippingFuture[T](value: T): SkippingFuture[T] =
