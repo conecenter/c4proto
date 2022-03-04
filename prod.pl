@@ -1756,10 +1756,9 @@ push @tasks, ["thread_print","$composes_txt",sub{
     &$ssh_add();
     my @cmd = sort{$b<=>$a} map{
         my $pod = $_;
-        map{
-            my $pid = /^(\d+)\s+(ee\.cone\.\S+)/  ?"$1":();
-            &$kj_exec($comp,$pod,"","jcmd $pid Thread.print")
-        } syl(&$kj_exec($comp,$pod,"","jcmd"));
+        map{&$kj_exec($comp,$pod,"","jcmd $_ Thread.print")}
+        map{/^(\d+)\s+(ee\.cone\.\S+)/ ?"$1":()}
+        syl(&$kj_exec($comp,$pod,"","jcmd"));
     } &$get_pods($comp);
     while(@cmd){
         &$sleep(0.25);
