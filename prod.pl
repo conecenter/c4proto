@@ -1751,48 +1751,20 @@ push @tasks, ["up-frps","",sub{
 
 my $tp_split = sub{ "$_[0]\n\n"=~/(.*?\n\n)/gs };
 my $sleep = sub{ select undef, undef, undef, $_[0] };
-my $tp_run = sub{
-    my($wrap)=@_;
-    my $cmd = &$wrap("jcmd");
-    my $get_pids = sub{
-        sort{$b<=>$a} map{/^(\d+)\s+(ee\.cone\.\S+)/  ?"$1":()} syl($cmd);
-    };
-    my $prn = sub{
-        my @pid = @_;
-        my $p_cmd = &$wrap(join " && ", map{"jcmd $_ Thread.print"} @pid);
-        while(1){
-            &$sleep(0.25);
-            print grep{ !/\.epollWait\(/ && /\sat\s/ } &$tp_split(syf($p_cmd));
-        }
-    };
-    ($get_pids,$prn);
-};
-push @tasks, ["thread_print_local_next"," ",sub{
-    my($get_pids,$prn) = &$tp_run(sub{"$_[0]"});
-    my %was = map{($_=>1)} &$get_pids();
-    my $wait_next = sub{
-        while(1){
-            &$sleep(0.25);
-            $was{$_} or return $_ for &$get_pids();
-        }
-    };
-    my $pid = &$wait_next();
-    &$prn($pid);
-}];
-push @tasks, ["thread_print_local_max"," ",sub{
-    my($get_pids,$prn) = &$tp_run(sub{"$_[0]"});
-    my @pid = &$get_pids();
-    @pid || return;
-    &$prn($pid[0]);
-}];
 push @tasks, ["thread_print","$composes_txt",sub{
     my($comp)=@_;
     &$ssh_add();
-    my @pods = &$get_pods($comp);
-    my($get_pids,$prn) = &$tp_run(sub{ my($cmd)=@_; join " && ", map{"($_)"} map{&$kj_exec($comp,$_,"",$cmd)} @pods });#/RUNNABLE/
-    my @pid = &$get_pids();
-    @pid || return;
-    &$prn(@pid);
+    my @cmd = sort{$b<=>$a} map{
+        my $pod = $_;
+        map{
+            my $pid = /^(\d+)\s+(ee\.cone\.\S+)/  ?"$1":();
+            &$kj_exec($comp,$pod,"","jcmd $pid Thread.print")
+        } syl(&$kj_exec($comp,$pod,"","jcmd"));
+    } &$get_pods($comp);
+    while(@cmd){
+        &$sleep(0.25);
+        print grep{ !/\.epollWait\(/ && /\sat\s/ } &$tp_split(syf($_)) for @cmd;
+    }
 }];
 push @tasks, ["thread_grep_cut","<substring>",sub{
     my($v)=@_;
