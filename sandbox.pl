@@ -59,7 +59,11 @@ my $serve_sshd = sub{
     );
     sy("export C4AUTHORIZED_KEYS_CONTENT= ; export -p | grep ' C4' >> /c4p_alias.sh");
     &$get_text_or_empty("/c4/.profile")=~/c4p_alias/ or sy("echo '. /c4p_alias.sh' >> /c4/.profile");
-    &$get_text_or_empty("/c4/.bashrc")=~/alias prod=/ or sy("echo '$alias_prod' >> /c4/.bashrc");
+    &$get_text_or_empty("/c4/.bashrc")=~/alias prod=/ or do{
+        sy("echo '$alias_prod' >> /c4/.bashrc");
+        sy(q[echo 'alias kc="kubectl --context "' >> /c4/.bashrc]);
+    };
+
     #
     &$exec('dropbear', '-RFEmwgs', '-p', $ENV{C4SSH_PORT}||die 'no C4SSH_PORT');
 };
@@ -128,7 +132,7 @@ my $remake = sub{
         &$prep_empty_dir($dir);
         my $debug_int_ip = &$get_debug_ip($$);
         my $paths = JSON::XS->new->decode(&$get_text_or_empty("$tmp/mod.$mod.classpath.json"));
-        my $tool_opt = "-XX:+UseG1GC -XX:GCTimeRatio=1 -XX:MinHeapFreeRatio=15 -XX:MaxHeapFreeRatio=50 $ENV{JAVA_TOOL_OPTIONS}";
+        my $tool_opt = "-XX:+UseG1GC -XX:GCTimeRatio=1 -XX:MinHeapFreeRatio=15 -XX:MaxHeapFreeRatio=50 $ENV{JAVA_TOOL_OPTIONS} -XX:NativeMemoryTracking=summary";
         my $env = {
             %$paths,
             (-e "/c4/debug-components") ? (C4DEBUG_COMPONENTS => "1") : (),

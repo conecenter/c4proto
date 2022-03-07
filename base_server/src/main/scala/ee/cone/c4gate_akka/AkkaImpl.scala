@@ -32,7 +32,7 @@ import scala.util.control.NonFatal
 
 @c4("AkkaGatewayApp") final class AkkaHttpServerConf extends AkkaConf {
   def content: String = List(
-    "akka.log-config-on-start = on",
+    //"akka.log-config-on-start = on",
     "akka.http.server.idle-timeout = 300 s",
     "akka.http.server.parsing.max-content-length = infinite",
     //"akka.http.server.parsing.max-to-strict-bytes = infinite",
@@ -100,8 +100,10 @@ import scala.util.control.NonFatal
               .via(http.connectionTo(request.uri.authority.host).toPort(request.uri.authority.port).http())
               .toMat(Sink.head)(Keep.right)
           } else {*/
-            logger debug s"Redirecting to $uri"
-            http.singleRequest(HttpRequest(uri = uri))
+          logger debug s"Redirecting to $uri"
+          val nReq = if(uri.startsWith("orig:")) req.withUri(uri.drop(5))
+            else HttpRequest(uri = uri)
+          http.singleRequest(nReq)
           //}
         }
       }

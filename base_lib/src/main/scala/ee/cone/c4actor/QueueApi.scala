@@ -2,7 +2,6 @@
 package ee.cone.c4actor
 
 import java.time.Instant
-
 import ee.cone.c4actor.MetaAttrProtocol.D_TxTransformNameMeta
 import ee.cone.c4actor.QProtocol.N_Update
 import ee.cone.c4actor.Types._
@@ -11,6 +10,7 @@ import ee.cone.c4di.c4
 import ee.cone.c4proto._
 import okio.ByteString
 
+import java.net.http.HttpClient
 import scala.collection.immutable.{Map, Queue, Seq}
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -80,18 +80,19 @@ trait UpdateFlag {
 
 //case class Task(srcId: SrcId, value: Product, offset: Long)
 
-sealed trait TopicName
-case class InboxTopicName() extends TopicName
-//case class LogTopicName() extends TopicName
+trait TxLogName extends Product {
+  def value: String
+}
+trait CurrentTxLogName extends TxLogName
 
 trait QRecord {
-  def topic: TopicName
+  def topic: TxLogName
   def value: Array[Byte]
   def headers: Seq[RawHeader]
 }
 
 trait RawQSender {
-  def send(rec: List[QRecord]): List[NextOffset]
+  def send(rec: QRecord): NextOffset
 }
 trait RawQSenderExecutable extends Executable
 
@@ -271,12 +272,10 @@ trait ProgressObserverFactory {
   def create(endOffset: NextOffset): Observer[RichContext]
 }
 
-trait FromTopicRawEvent {
-  def topicName: String
-}
-
-trait MTime {
+trait ExtendedRawEvent extends RawEvent {
   def mTime: Long
+  def txLogName: TxLogName
+  def withContent(headers: List[RawHeader], data: ByteString): ExtendedRawEvent
 }
 
 //trait RawDebugOptions {
@@ -328,4 +327,20 @@ trait GeneralOrigPartitioner
 abstract class OrigPartitioner[T<:Product](val cl: Class[T]) extends GeneralOrigPartitioner {
   def handle(value: T): String
   def partitions: Set[String]
+}
+
+trait HttpClientProvider {
+  def get: Future[HttpClient]
+}
+
+trait S3Manager {
+  def get(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Option[Array[Byte]]]
+  def put(txLogName: TxLogName, resource: String, body: Array[Byte]): Unit
+  def delete(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Boolean]
+}
+
+trait LOBroker {
+  def put(rec: QRecord): QRecord
+  def get(events: List[ExtendedRawEvent]): List[ExtendedRawEvent] // this can potentially lead to too big volume in single event list after getting LOB-s
+  def bucketPostfix: String
 }

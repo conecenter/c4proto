@@ -22,9 +22,8 @@ my $distinct = sub{ my(@r,%was); $was{$_}++ or push @r,$_ for @_; @r };
 
 my $zoo_port = 8081;
 my $ssl_bootstrap_server = "localhost:8093"; #dup
-my $http_port = 8067; #dup
-my $sse_port = 8068; #dup
-my $http_server = "localhost:$http_port"; #dup
+my $http_port = sub{8067+$_[0]*100}; #dup
+my $sse_port = sub{8068+$_[0]*100}; #dup
 my $get_repo_dir = sub{ $ENV{C4DS_BUILD_DIR} || die "no C4DS_BUILD_DIR" };
 my $get_proto_dir = sub{ $ENV{C4DS_PROTO_DIR} || die "no C4DS_PROTO_DIR" };
 my $elector_dir = $ENV{C4DS_ELECTOR_DIR} || die "no C4DS_ELECTOR_DIR";
@@ -98,10 +97,8 @@ my $serve_broker = sub{
     &$put_text("$data_dir/server.properties", join '', map{"$_\n"}
         "log.dirs=$data_dir/kafka-logs",
         "zookeeper.connect=127.0.0.1:$zoo_port",
-        "message.max.bytes=250000000", #seems to be compressed
         "listeners=SSL://$ssl_bootstrap_server",
         "inter.broker.listener.name=SSL",
-        "socket.request.max.bytes=250000000",
     );
     sy("cat $data_dir/cu.broker.properties >> $data_dir/server.properties");
     &$exec("kafka-server-start.sh","$data_dir/server.properties");
@@ -130,7 +127,9 @@ my $serve_proxy = sub{
         "  server se_src 127.0.0.1:3000",
         "backend be_http",
         "  mode http",
-        "  server be_http $http_server",
+        "  default-server check", # w/o it all servers considered ok and req-s gets 503
+        "  server be_http_0 127.0.0.1:".&$http_port(0),
+        "  server be_http_1 127.0.0.1:".&$http_port(1),
         #"backend be_sse",
         #"  mode http",
         #"  server se_sse 127.0.0.1:$sse_port",
@@ -160,7 +159,7 @@ my $serve_node = sub{
 my $get_compilable_services = sub{[
     { name=>"gate", dir=>&$get_proto_dir(),
         main => "def",
-        replicas => [''],
+        replicas => [0,1],
     },
     { name=>"main", dir=>&$get_repo_dir(),
         main => ($ENV{C4DEV_SERVER_MAIN} || die "no C4DEV_SERVER_MAIN"),
@@ -188,8 +187,9 @@ my $get_consumer_env = sub{
         C4STATE_TOPIC_PREFIX => $nm,
         C4BOOTSTRAP_SERVERS => $ssl_bootstrap_server,
         C4INBOX_TOPIC_PREFIX => $inbox_topic_prefix,
-        C4MAX_REQUEST_SIZE => 250000000,
-        C4HTTP_SERVER => "http://$http_server",
+        C4S3_CONF_DIR => $s3conf_dir,
+        C4BROKER_MIN_LO_SIZE => "0",
+        C4HTTP_SERVER => "http://127.0.0.1:1080",
         C4AUTH_KEY_FILE => "$data_dir/simple.auth",
         C4STORE_PASS_PATH => "$data_dir/simple.auth",
         C4KEYSTORE_PATH => "$data_dir/cu.def.keystore.jks",
@@ -199,13 +199,17 @@ my $get_consumer_env = sub{
     )
 };
 
-my $get_gate_env = sub{(
-    C4S3_CONF_DIR=>$s3conf_dir,
-    C4STATE_REFRESH_SECONDS=>100,
-    C4ROOMS_CONF=>"/tmp/rooms.conf",
-    C4HTTP_PORT => $http_port,
-    C4SSE_PORT => $sse_port,
-)};
+my $get_gate_env = sub{
+    my($replica)=@_;
+    (
+        C4STATE_REFRESH_SECONDS=>100,
+        C4ROOMS_CONF=>"/tmp/rooms.conf",
+        C4HTTP_PORT => &$http_port($replica),
+        C4SSE_PORT => &$sse_port($replica),
+        C4POD_IP => "127.0.0.1",
+        C4KEEP_SNAPSHOTS => "default",
+    )
+};
 
 my $exec_server = sub{
     my($add_env,$service_name,$replica)=@_;
@@ -225,7 +229,8 @@ my $exec_server = sub{
 };
 
 my $serve_gate = sub{
-    &$exec_server({&$get_gate_env()}, "gate", 0);
+    my($replica)=@_;
+    &$exec_server({&$get_gate_env($replica)}, "gate", $replica);
 };
 
 my $serve_main = sub{
@@ -293,7 +298,7 @@ my $serve_demo_gate = sub{
     my $dir = "local/$inbox_topic_prefix.snapshots/";
     my $snapshot_path = $ENV{C4DS_SNAPSHOT_PATH};
     $snapshot_path and !so("mcl mb $dir") and sy("mcl cp $snapshot_path $dir");
-    &$exec_demo_server({ &$get_gate_env() }, gate => "/tools/c4gate")
+    &$exec_demo_server({ &$get_gate_env(0) }, gate => "/tools/c4gate")
 };
 
 my $common_service_map = {
@@ -307,7 +312,7 @@ my $dev_service_map = {
     bloop => $serve_bloop,
     proxy => $serve_proxy,
     node  => $serve_node,
-    gate  => $serve_gate,
+    &$replicas(gate => $serve_gate, 2),
     &$replicas(main => $serve_main, 2),
     mcl => $serve_mcl,
 };
@@ -376,7 +381,12 @@ my $init = sub{
     &$exec("supervisord","-c","$data_dir/supervisord.conf");
 };
 
-my $init_dev = sub{ &$init({%$common_service_map,%$dev_service_map}) };
+my $init_dev = sub{
+    my $proto_dir = &$get_proto_dir();
+    my $repo_dir = &$get_repo_dir();
+    sy("perl $proto_dir/sync.pl clean_local $repo_dir");
+    &$init({%$common_service_map,%$dev_service_map})
+};
 my $init_demo = sub{ &$init({%$common_service_map,%$demo_service_map}) };
 
 my $cmd_map = {

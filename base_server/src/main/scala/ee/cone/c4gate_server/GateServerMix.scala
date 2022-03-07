@@ -8,7 +8,6 @@ import ee.cone.c4gate._
 
 @c4app class NoOpApp extends VMExecutionApp with ExecutableApp with BaseApp
 
-trait S3ManagerAppBase
 trait S3RawSnapshotLoaderAppBase
 trait S3RawSnapshotSaverAppBase
 trait NoProxySSEConfigAppBase
@@ -37,6 +36,7 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
   fHttpHandlerFactory: FHttpHandlerImplFactory,
   httpGetSnapshotHandler: HttpGetSnapshotHandler,
   getPublicationHttpHandler: GetPublicationHttpHandler,
+  pongProxyHandler: PongProxyHandler,
   pongHandler: PongHandler,
   notFoundProtectionHttpHandler: NotFoundProtectionHttpHandler,
   selfDosProtectionHttpHandler: SelfDosProtectionHttpHandler,
@@ -47,7 +47,7 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
     fHttpHandlerFactory.create(
       httpGetSnapshotHandler.wire(
         getPublicationHttpHandler.wire(
-          pongHandler.wire(
+          pongProxyHandler.wire(pongHandler.wire(
             notFoundProtectionHttpHandler.wire(
               selfDosProtectionHttpHandler.wire(
                 authHttpHandler.wire(
@@ -55,7 +55,7 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
                 )
               )
             )
-          )
+          ))
         )
       )
     )
@@ -67,7 +67,7 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
 @c4("SnapshotMakingApp") final class DefSnapshotSavers(factory: SnapshotSaverImplFactory)
   extends SnapshotSavers(factory.create("snapshots"), factory.create("snapshot_txs"))
 
-trait SnapshotMakingAppBase extends TaskSignerApp
+trait SnapshotMakingAppBase extends TaskSignerApp with LOBrokerApp
   with S3RawSnapshotLoaderApp with S3RawSnapshotSaverApp
   with S3ManagerApp with SignedReqUtilImplApp
   with ConfigSimpleSignerApp with SnapshotUtilImplApp
