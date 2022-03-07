@@ -866,21 +866,14 @@ my $up_frp_client = sub{
     })
 };
 
-my $base_image_steps = sub{(
-    "FROM ubuntu:20.04",
+my $installer_steps = sub{(
     "COPY install.pl /",
     "RUN perl install.pl useradd",
 )};
 
-my $prod_image_steps = sub{(
-    &$base_image_steps(),
-    "RUN perl install.pl apt".
-    " curl software-properties-common".
-    " lsof mc iputils-ping netcat-openbsd fontconfig".
-    " openssh-client", #repl
-    "RUN perl install.pl curl https://github.com/AdoptOpenJDK/openjdk15-binaries/releases/download/jdk-15.0.1%2B9/OpenJDK15U-jdk_x64_linux_hotspot_15.0.1_9.tar.gz",
-    #"RUN perl install.pl curl https://download.bell-sw.com/java/17.0.2+9/bellsoft-jdk17.0.2+9-linux-amd64.tar.gz",
-    'ENV PATH=${PATH}:/tools/jdk/bin',
+my $base_image_steps = sub{(
+    "FROM ubuntu:20.04",
+    &$installer_steps(),
 )};
 
 my $dl_node_url = "https://nodejs.org/dist/v14.15.4/node-v14.15.4-linux-x64.tar.xz";
@@ -1554,9 +1547,19 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     -e $ctx_dir and sy("rm -r $ctx_dir");
     sy("mkdir $ctx_dir");
     &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile");
+    my @add_steps = syl("cat $gen_dir/.bloop/c4/tag.$base.steps");
+    my @from_steps = grep{/^FROM\s/} @add_steps;
     &$put_text("$ctx_dir/Dockerfile", join "\n",
-        &$prod_image_steps(),
-        (grep{$_} syf("cat $gen_dir/.bloop/c4/tag.$base.steps")),
+        @from_steps ? @from_steps : "FROM ubuntu:18.04",
+        &$installer_steps(),
+        "RUN perl install.pl apt".
+        " curl software-properties-common".
+        " lsof mc iputils-ping netcat-openbsd fontconfig".
+        " openssh-client", #repl
+        "RUN perl install.pl curl https://github.com/AdoptOpenJDK/openjdk15-binaries/releases/download/jdk-15.0.1%2B9/OpenJDK15U-jdk_x64_linux_hotspot_15.0.1_9.tar.gz",
+        #"RUN perl install.pl curl https://download.bell-sw.com/java/17.0.2+9/bellsoft-jdk17.0.2+9-linux-amd64.tar.gz",
+        'ENV PATH=${PATH}:/tools/jdk/bin',
+        (grep{/^RUN\s/} @add_steps),
         "ENV JAVA_HOME=/tools/jdk",
         "RUN chown -R c4:c4 /c4",
         "WORKDIR /c4",
