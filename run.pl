@@ -8,9 +8,9 @@ my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
 my @tasks;
 
 my $serve = sub{
-    $ENV{JAVA_TOOL_OPTIONS} = join " ", $ENV{JAVA_TOOL_OPTIONS},
-        "-XX:+UseG1GC","-XX:MaxGCPauseMillis=200","-XX:+ExitOnOutOfMemoryError",
-        "-XX:GCTimeRatio=1","-XX:MinHeapFreeRatio=15","-XX:MaxHeapFreeRatio=50";
+#    $ENV{JAVA_TOOL_OPTIONS} = join " ", $ENV{JAVA_TOOL_OPTIONS},
+#        "-XX:+UseG1GC","-XX:MaxGCPauseMillis=200","-XX:+ExitOnOutOfMemoryError",
+#        "-XX:GCTimeRatio=1","-XX:MinHeapFreeRatio=15","-XX:MaxHeapFreeRatio=50";
     # https://www.javacodegeeks.com/2017/11/minimize-java-memory-usage-right-garbage-collector.html
     # with G1/ZGC unused RAM is released back to OS
     # G1 gets many GCLocker oom errors on ubuntu 20.04, so we move to ZGC
