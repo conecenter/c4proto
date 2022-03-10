@@ -8,7 +8,8 @@ my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
 my @tasks;
 
 my $serve = sub{
-#    $ENV{JAVA_TOOL_OPTIONS} = join " ", $ENV{JAVA_TOOL_OPTIONS},
+    $ENV{JAVA_TOOL_OPTIONS} = join " ", $ENV{JAVA_TOOL_OPTIONS},
+        "-XX:+ExitOnOutOfMemoryError";
 #        "-XX:+UseG1GC","-XX:MaxGCPauseMillis=200","-XX:+ExitOnOutOfMemoryError",
 #        "-XX:GCTimeRatio=1","-XX:MinHeapFreeRatio=15","-XX:MaxHeapFreeRatio=50";
     # https://www.javacodegeeks.com/2017/11/minimize-java-memory-usage-right-garbage-collector.html
