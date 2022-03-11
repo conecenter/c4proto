@@ -197,7 +197,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   def add(out: Seq[N_Update]): Context => Context =
     if (out.isEmpty) identity[Context]
     else doAdd(out,_)
-  private def doAdd(out: Seq[N_Update], local: Context): Context = {
+    private def doAdd(out: Seq[N_Update], local: Context): Context = {
       implicit val executionContext: ExecutionContext = local.executionContext.value
       val options = getAssembleOptions.get(local.assembled)
       val processedOut: List[N_Update] = processors.flatMap(_.process(out)) ++ out

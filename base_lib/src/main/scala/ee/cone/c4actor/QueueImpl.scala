@@ -1,7 +1,7 @@
 
 package ee.cone.c4actor
 
-import ee.cone.c4actor.QProtocol.{N_CompressedUpdates, N_TxRef, N_Update, S_Offset, S_Updates}
+import ee.cone.c4actor.QProtocol.{N_CompressedUpdates, N_TxRef, N_Update, N_UpdateFrom, S_Offset, S_Updates}
 import ee.cone.c4proto._
 
 import scala.collection.immutable.{Queue, Seq}
@@ -120,11 +120,11 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
   private def makeHeaderFromName: MultiRawCompressor => List[RawHeader] = jc =>
     RawHeader(compressionKey, jc.name) :: Nil
 
-  @tailrec private def nextPartSize(updates: List[N_Update], count: Long, size: Long): Option[Long] =
+  @tailrec private def nextPartSize(updates: List[N_UpdateFrom], count: Long, size: Long): Option[Long] =
     if(updates.isEmpty) None
     else if(size >= compressionMinSize.value) Option(count)
-    else nextPartSize(updates.tail,count+1,size+updates.head.value.size)
-  @tailrec private def split(in: List[N_Update], out: List[List[N_Update]]): List[List[N_Update]] = {
+    else nextPartSize(updates.tail,count+1,size+updates.head.value.size+updates.head.fromValue.size)
+  @tailrec private def split(in: List[N_UpdateFrom], out: List[List[N_UpdateFrom]]): List[List[N_UpdateFrom]] = {
     nextPartSize(in,0,0) match {
       case None => (in::out).reverse
       case Some(partSize) =>
@@ -132,13 +132,13 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
         split(right,left::out)
     }
   }
-  private def encode(updates: List[N_Update]): Array[Byte] = {
+  private def encode(updates: List[N_UpdateFrom]): Array[Byte] = {
     logger.debug(s"Encoding ${updates.size} updates...")
     val res = updatesAdapter.encode(S_Updates("", updates))
     logger.debug(s"Encoded to ${res.length} bytes")
     res
   }
-  def toBytes(updates: List[N_Update]): (Array[Byte], List[RawHeader]) = concurrent.blocking{
+  def toBytes(updates: List[N_UpdateFrom]): (Array[Byte], List[RawHeader]) = concurrent.blocking{
     val filteredUpdates = updates.filterNot(_.valueTypeId==offsetAdapter.id)
     compressorOpt.filter(_=>nextPartSize(filteredUpdates,0,0).nonEmpty)
       .fold{
@@ -154,7 +154,7 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
       }
   }
 
-  private def deCompressDecode(event: RawEvent): List[N_Update] = concurrent.blocking{
+  private def deCompressDecode(event: RawEvent): List[N_UpdateFrom] = concurrent.blocking{
     val compressorOpt = findCompressor(event.headers)
     logger.debug("Decompressing...")
     val res = execution.aWait { implicit ec =>
@@ -170,7 +170,7 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
     res
   }
 
-  def toUpdates(events: List[RawEvent]): List[N_Update] =
+  def toUpdates(events: List[RawEvent]): List[N_UpdateFrom] =
     for {
       event <- events
       update <- deCompressDecode(event)
