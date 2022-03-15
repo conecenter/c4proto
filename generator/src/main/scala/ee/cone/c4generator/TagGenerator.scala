@@ -6,6 +6,7 @@ case class ToJsonOptions(
   paramTypeName: String, paramTypeExpr: String,
   defaultValue: Option[String],
   isList: Boolean,
+  isOption: Boolean,
 )
 
 case class TagParam(
@@ -42,9 +43,11 @@ object TagGenerator extends Generator {
                 case t"ElList[${Type.Name(_)}]" =>
                   TagParam(paramName, paramTypeFullExpr, None, isReceiver = false, Option(s"$paramName.map(_.toChildPair)"))
                 case Type.Name(paramTypeName) =>
-                  TagParam(paramName, paramTypeFullExpr, Option(ToJsonOptions(paramTypeName, paramTypeName, defValStr, isList = false)), isReceiver = false, None)
+                  TagParam(paramName, paramTypeFullExpr, Option(ToJsonOptions(paramTypeName, paramTypeName, defValStr, isList = false, isOption = false)), isReceiver = false, None)
                 case t"List[${Type.Name(paramTypeName)}]" =>
-                  TagParam(paramName, paramTypeFullExpr, Option(ToJsonOptions(paramTypeName, paramTypeName, defValStr, isList = true)), isReceiver = false,None)
+                  TagParam(paramName, paramTypeFullExpr, Option(ToJsonOptions(paramTypeName, paramTypeName, defValStr, isList = true, isOption = false)), isReceiver = false,None)
+                case t"Option[${Type.Name(paramTypeName)}]" =>
+                  TagParam(paramName, paramTypeFullExpr, Option(ToJsonOptions(paramTypeName, paramTypeName, defValStr, isList = false, isOption = true)), isReceiver = false,None)
                 case Type.Apply(Type.Name(_), List(Type.Name(paramTypeNameInner))) if tParamNameOpt.contains(paramTypeNameInner) =>
                   TagParam(paramName, paramTypeFullExpr, None, isReceiver = true, None)
                 case p =>
@@ -176,6 +179,10 @@ case class TagStatements(
     ) :::
     s"}" :: Nil
 
+  def optionCondition(isOption: Boolean, valueName: String): String =
+    if (isOption) s" && $valueName.nonEmpty"
+    else ""
+
   def getAdapterBodyArg(param: TagParam, opt: ToJsonOptions): List[String] = {
     val value = s"value.${param.paramName}"
     val appendOne = s"a${opt.paramTypeName}JsonValueAdapter.appendJson"
@@ -183,10 +190,12 @@ case class TagStatements(
       s"builder.startArray()",
       s"$value.foreach(v=>$appendOne(v,builder))",
       s"builder.end()"
+    ) else if (opt.isOption) List(
+      s"$value.foreach(v=>$appendOne(v,builder))"
     ) else List(s"$appendOne($value, builder)")
     val appendKeyValue = s"builder.just.append(${quot(param.paramName)})" :: appendValue
-    if(opt.defaultValue.isEmpty) appendKeyValue
-    else s"if($value!=${opt.defaultValue.get}){" :: indent(appendKeyValue) ::: "}" :: Nil
+    if(opt.defaultValue.isEmpty && !opt.isOption) appendKeyValue
+    else s"if($value!=${opt.defaultValue.get}${optionCondition(opt.isOption, value)}){" :: indent(appendKeyValue) ::: "}" :: Nil
   }
   def indent(l: List[String]): List[String] = l.map(v=>s"  $v")
   def indentStr(l: List[String]): String = indent(l).map(v=>s"\n$v").mkString
