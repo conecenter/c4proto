@@ -48,14 +48,8 @@ class SnapshotMergerImpl(
   snapshotMaker: SnapshotMaker,
   snapshotLoader: SnapshotLoader
 ) extends SnapshotDiffer {
-  def diff(snapshot: RawEvent, targetSnapshot: RawEvent): List[N_Update] = {
-    val currentUpdates = toUpdate.toUpdates(List(snapshot))
-    val targetUpdates = toUpdate.toUpdates(List(targetSnapshot))
-    val state = currentUpdates.map(up=>toUpdate.toKey(up)->up).toMap
-    val updates = targetUpdates.filterNot{ up => state.get(toUpdate.toKey(up)).contains(up) }
-    val deletes = state.keySet -- targetUpdates.map(toUpdate.toKey)
-    (deletes.toList ::: updates).sortBy(toUpdate.by)
-  }
+  def diff(snapshot: RawEvent, targetSnapshot: RawEvent): List[N_UpdateFrom] =
+    toUpdate.diff(toUpdate.toUpdates(List(snapshot)), toUpdate.toUpdates(List(targetSnapshot)))
   def needCurrentSnapshot: Context=>RawEvent = local => {
     val rawSnapshot = snapshotMaker.make(NextSnapshotTask(Option(getOffset.of(local))))
     val Seq(Some(currentFullSnapshot)) = rawSnapshot.map(snapshotLoader.load)

@@ -7,7 +7,8 @@ import ee.cone.c4assemble.{DOut, ReadModel, _}
 import ee.cone.c4assemble.Types._
 import ee.cone.c4di.Types.ComponentFactory
 import ee.cone.c4di.{c4, c4multi, provide}
-import ee.cone.c4proto.HasId
+import ee.cone.c4proto.{HasId, ToByteString}
+import okio.ByteString
 
 import scala.collection.immutable
 import scala.collection.immutable.{Map, Seq}
@@ -169,7 +170,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   } yield toUpdate.toUpdate(lEvent)
   private def readModelAdd(executionContext: OuterExecutionContext): Seq[RawEvent]=>ReadModel=>ReadModel = events => assembled => catchNonFatal {
     val options = getAssembleOptions.get(assembled)
-    val updates = offset(events) ::: toUpdate.toUpdates(events.toList)
+    val updates: List[N_Update] = offset(events) ::: toUpdate.toUpdates(events.toList).map(toUpdate.toUpdateLost)
     reduce(assembled, updates, options, executionContext)
   }("reduce"){ e => // ??? exception to record
     if(events.size == 1){
@@ -185,9 +186,24 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   }
 }
 
+@c4("RichDataCompApp") final class UpdateFromUtil(
+  qAdapterRegistry: QAdapterRegistry,
+  origKeyFactory: OrigKeyFactoryFinalHolder,
+  indexUtil: IndexUtil,
+){
+  def get(assembled: ReadModel, updates: Seq[N_Update]): Seq[N_UpdateFrom] = for {
+    u <- updates
+    valueAdapter = qAdapterRegistry.byId(u.valueTypeId)
+    wKey = origKeyFactory.value.rawKey(valueAdapter.className)
+    index = indexUtil.getInstantly(wKey.of(assembled))
+    fromValue = Single.option(indexUtil.getValues(index,u.srcId,""))
+      .fold(ByteString.EMPTY)(item=>ToByteString(valueAdapter.encode(item)))
+  } yield N_UpdateFrom(u.srcId,u.valueTypeId,fromValue,u.value,u.flags)
+}
+
 @c4("RichDataCompApp") final class RawTxAddImpl(
   utilOpt: DeferredSeq[AssemblerUtil],
-  composes: IndexUtil,
+  updateFromUtil: UpdateFromUtil,
   assembleProfiler: AssembleProfiler,
   updateProcessor: Option[UpdateProcessor],
   processors: List[UpdatesPreprocessor],
@@ -209,7 +225,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
         updates <- assembleProfiler.addMeta(transition, externalOut)
       } yield {
         val nLocal = new Context(local.injected, transition.result, local.executionContext, local.transient)
-        WriteModelKey.modify(_.enqueueAll(updates))(nLocal)
+        WriteModelKey.modify(_.enqueueAll(updateFromUtil.get(local.assembled,updates)))(nLocal)
       }
       util.waitFor(res, options, "add")
       //call add here for new mortal?

@@ -3,7 +3,7 @@ package ee.cone.c4actor
 
 import java.time.Instant
 import ee.cone.c4actor.MetaAttrProtocol.D_TxTransformNameMeta
-import ee.cone.c4actor.QProtocol.N_Update
+import ee.cone.c4actor.QProtocol.{N_Update, N_UpdateFrom}
 import ee.cone.c4actor.Types._
 import ee.cone.c4assemble._
 import ee.cone.c4di.c4
@@ -42,9 +42,17 @@ trait UpdateFlag {
     @Id(0x001C) flags: Long
   )
 
+  case class N_UpdateFrom(
+    @Id(0x0011) srcId: SrcId,
+    @Id(0x0012) valueTypeId: Long,
+    @Id(0x0014) fromValue: okio.ByteString,
+    @Id(0x0013) value: okio.ByteString,
+    @Id(0x001C) flags: Long
+  )
+
   @Id(0x0014) case class S_Updates(
     @Id(0x0011) srcId: SrcId, //dummy
-    @Id(0x0015) updates: List[N_Update]
+    @Id(0x0015) updates: List[N_UpdateFrom]
   )
 
     @Id(0x0016) case class S_Firstborn(
@@ -117,14 +125,16 @@ trait ContextFactory { // for tests only
 
 trait ToUpdate {
   def toUpdate[M<:Product](message: LEvent[M]): N_Update
-  def toBytes(updates: List[N_Update]): (Array[Byte], List[RawHeader])
+  def toBytes(updates: List[N_UpdateFrom]): (Array[Byte], List[RawHeader])
+
   /**
     * Transforms RawEvents to updates, adds TxId and removes ALL flags
     *
     * @param events events from Kafka or Snapshot
     * @return updates
     */
-  def toUpdates(events: List[RawEvent]): List[N_Update]
+  def toUpdates(events: List[RawEvent]): List[N_UpdateFrom]
+
   /**
     * Transforms RawEvents to updates, adds TxId and keeps ALL but TxId flags
     *
@@ -132,8 +142,11 @@ trait ToUpdate {
     * @return updates
     */
   def toUpdatesWithFlags(events: List[RawEvent]): List[N_Update]
-  def toKey(up: N_Update): N_Update
-  def by(up: N_Update): (TypeId, SrcId)
+
+  def toUpdateLost(up: N_UpdateFrom): N_Update
+  def diff(currentUpdates: List[N_UpdateFrom], targetUpdates: List[N_UpdateFrom]): List[N_UpdateFrom]
+  def add(state: UpdateMap, up: N_UpdateFrom): UpdateMap
+  def toUpdates(state: UpdateMap): List[N_UpdateFrom]
 }
 
 object Types {
@@ -144,6 +157,7 @@ object Types {
   type TransientMap = Map[TransientLens[_],Object]
   type NextOffset = String
   type TypeKey = ee.cone.c4di.TypeKey
+  type UpdateMap = Map[(Long,SrcId),ByteString]
 }
 
 
@@ -251,7 +265,7 @@ trait TxTransform extends Product {
   def transform(local: Context): Context
 }
 
-case object WriteModelKey extends TransientLens[Queue[N_Update]](Queue.empty)
+case object WriteModelKey extends TransientLens[Queue[N_UpdateFrom]](Queue.empty)
 
 case class RawHeader(key: String, value: String)
 
