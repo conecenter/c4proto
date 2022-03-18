@@ -196,9 +196,9 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     valueAdapter = qAdapterRegistry.byId(u.valueTypeId)
     wKey = origKeyFactory.value.rawKey(valueAdapter.className)
     index = indexUtil.getInstantly(wKey.of(assembled))
-    fromValue = Single.option(indexUtil.getValues(index,u.srcId,""))
-      .fold(ByteString.EMPTY)(item=>ToByteString(valueAdapter.encode(item)))
-  } yield N_UpdateFrom(u.srcId,u.valueTypeId,fromValue,u.value,u.flags)
+    fromValues = indexUtil.getValues(index,u.srcId,"")
+      .map(item=>ToByteString(valueAdapter.encode(item))).toList
+  } yield N_UpdateFrom(u.srcId,u.valueTypeId,fromValues,Nil,u.value,u.flags)
 }
 
 @c4("RichDataCompApp") final class RawTxAddImpl(

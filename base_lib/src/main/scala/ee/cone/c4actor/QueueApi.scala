@@ -45,7 +45,8 @@ trait UpdateFlag {
   case class N_UpdateFrom(
     @Id(0x0011) srcId: SrcId,
     @Id(0x0012) valueTypeId: Long,
-    @Id(0x0014) fromValue: okio.ByteString,
+    @Id(0x0014) lessValues: List[okio.ByteString],
+    @Id(0x0016) moreValues: List[okio.ByteString],
     @Id(0x0013) value: okio.ByteString,
     @Id(0x001C) flags: Long
   )
@@ -143,10 +144,12 @@ trait ToUpdate {
     */
   def toUpdatesWithFlags(events: List[RawEvent]): List[N_Update]
 
+  def getSize(up: N_UpdateFrom): Long
   def toUpdateLost(up: N_UpdateFrom): N_Update
   def diff(currentUpdates: List[N_UpdateFrom], targetUpdates: List[N_UpdateFrom]): List[N_UpdateFrom]
   def add(state: UpdateMap, up: N_UpdateFrom): UpdateMap
   def toUpdates(state: UpdateMap): List[N_UpdateFrom]
+  def revert(up: N_UpdateFrom): N_UpdateFrom
 }
 
 object Types {
@@ -157,7 +160,7 @@ object Types {
   type TransientMap = Map[TransientLens[_],Object]
   type NextOffset = String
   type TypeKey = ee.cone.c4di.TypeKey
-  type UpdateMap = Map[(Long,SrcId),ByteString]
+  type UpdateMap = Map[(Long,SrcId),N_UpdateFrom]
 }
 
 
@@ -357,4 +360,10 @@ trait LOBroker {
   def put(rec: QRecord): QRecord
   def get(events: List[ExtendedRawEvent]): List[ExtendedRawEvent] // this can potentially lead to too big volume in single event list after getting LOB-s
   def bucketPostfix: String
+}
+
+trait Reverting {
+  def getSavepoint: Context=>Option[NextOffset]
+  def revertToSavepoint: Context=>Context
+  def makeSavepoint: Context=>Context
 }

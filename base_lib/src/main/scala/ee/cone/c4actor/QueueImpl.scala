@@ -119,10 +119,12 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
   private def makeHeaderFromName: MultiRawCompressor => List[RawHeader] = jc =>
     RawHeader(compressionKey, jc.name) :: Nil
 
+  def getSize(up: N_UpdateFrom): Long =
+    up.value.size + up.lessValues.map(_.size).sum + up.moreValues.map(_.size).sum
   @tailrec private def nextPartSize(updates: List[N_UpdateFrom], count: Long, size: Long): Option[Long] =
     if(updates.isEmpty) None
     else if(size >= compressionMinSize.value) Option(count)
-    else nextPartSize(updates.tail,count+1,size+updates.head.value.size+updates.head.fromValue.size)
+    else nextPartSize(updates.tail,count+1,size+getSize(updates.head))
   @tailrec private def split(in: List[N_UpdateFrom], out: List[List[N_UpdateFrom]]): List[List[N_UpdateFrom]] = {
     nextPartSize(in,0,0) match {
       case None => (in::out).reverse
@@ -200,34 +202,47 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
     )
 
   private def toKey(up: N_UpdateFrom) = (up.valueTypeId,up.srcId)
-  private def toUpdateMap(updates: List[N_UpdateFrom]): UpdateMap =
+  private def toLessValues(b: ByteString) = if(b.size==0) Nil else b :: Nil
+
+  private def toUpdateMap(updates: List[N_UpdateFrom]): Map[(Long,SrcId),ByteString] =
     CheckedMap(updates.map{ up =>
       assert(up.flags==0L)
-      assert(up.fromValue.size==0)
       toKey(up)->up.value
     })
   def diff(currentUpdates: List[N_UpdateFrom], targetUpdates: List[N_UpdateFrom]): List[N_UpdateFrom] = {
     val currentMap = toUpdateMap(currentUpdates)
     val targetMap = toUpdateMap(targetUpdates)
     (currentMap.keySet ++ targetMap.keySet).toList.sorted.flatMap{ k =>
-      val currentOpt = currentMap.getOrElse(k,ByteString.EMPTY)
-      val targetOpt = targetMap.getOrElse(k,ByteString.EMPTY)
-      if(currentOpt==targetOpt) Nil else {
+      val currentB = currentMap.getOrElse(k,ByteString.EMPTY)
+      val targetB = targetMap.getOrElse(k,ByteString.EMPTY)
+      if(currentB==targetB) Nil else {
         val (valueTypeId,srcId) = k
-        N_UpdateFrom(srcId,valueTypeId,currentOpt,targetOpt,0L) :: Nil
+        N_UpdateFrom(srcId,valueTypeId,toLessValues(currentB),Nil,targetB,0L) :: Nil
       }
     }
   }
+
   def add(state: UpdateMap, up: N_UpdateFrom): UpdateMap = {
     val key = toKey(up)
-    if(up.fromValue != state.getOrElse(key,ByteString.EMPTY))
-      logger.warn(s"bad update.fromValue: $up")
-    if(up.value.size > 0) state + (key->up.value) else state - key
+    val will = state.get(key).fold(up){ was =>
+      val longLessValues = was.lessValues ::: up.lessValues
+      val pMoreValues = if(was.value.size==0) Nil else was.value :: Nil
+      val longMoreValues = was.moreValues ::: pMoreValues ::: up.moreValues
+      val same = longLessValues == longMoreValues
+      val lessValues = if(same) Nil else longLessValues.diff(longMoreValues)
+      val moreValues = if(same) Nil else longMoreValues.diff(longLessValues)
+      up.copy(lessValues=lessValues,moreValues=moreValues)
+    }
+    if(will.value.size==0 && will.lessValues.isEmpty && will.moreValues.isEmpty)
+      state - key else state + (key->will)
   }
-  def toUpdates(state: UpdateMap): List[N_UpdateFrom] = state.map{
-    case ((valueTypeId,srcId),value) =>
-      N_UpdateFrom(srcId,valueTypeId,ByteString.EMPTY,value,0L)
-  }.toList.sortBy(toKey)
+  def toUpdates(state: UpdateMap): List[N_UpdateFrom] =
+    state.values.toList.sortBy(toKey)
+  def revert(up: N_UpdateFrom): N_UpdateFrom = {
+    assert(up.moreValues.isEmpty && up.flags==0)
+    val value = Single.option(up.lessValues).getOrElse(ByteString.EMPTY)
+    up.copy(value = value, lessValues = toLessValues(up.value))
+  }
 }
 
 case class CurrentTxLogNameImpl(value: String) extends CurrentTxLogName

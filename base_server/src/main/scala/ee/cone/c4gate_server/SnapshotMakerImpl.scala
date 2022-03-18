@@ -150,7 +150,7 @@ class SnapshotSavers(val full: SnapshotSaver, val tx: SnapshotSaver)
       logger.debug(s"t:${java.lang.Long.toHexString(currType)} c:$currCount s:$currSize")
       updates
     } else {
-      val size = currSize + updates.head.value.size + updates.head.fromValue.size
+      val size = currSize + toUpdate.getSize(updates.head)
       makeStatLine(currType,currCount+1,size,updates.tail)
     }
   @tailrec private def makeStats(updates: List[N_UpdateFrom]): Unit =
