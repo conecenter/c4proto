@@ -171,21 +171,6 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
     res
   }
 
-  def toUpdateLost(up: N_UpdateFrom): N_Update =
-    N_Update(up.srcId,up.valueTypeId,up.value,up.flags)
-  def toUpdateFrom(up: N_Update, fromValues: List[ByteString]): N_UpdateFrom =
-    debug(N_UpdateFrom(up.srcId,up.valueTypeId,fromValues,Nil,up.value,up.flags))
-
-  private def debug(u: N_UpdateFrom): N_UpdateFrom = {
-    logger.info(
-      s"item 0x${java.lang.Long.toHexString(u.valueTypeId)} [${u.srcId}] " +
-      s"${u.lessValues.map(_.size).sum}/${u.lessValues.size} " +
-      s"${u.moreValues.map(_.size).sum}/${u.moreValues.size} " +
-      s"${u.value.size}"
-    )
-    u
-  }
-
   def toUpdates(events: List[RawEvent]): List[N_UpdateFrom] =
     for {
       event <- events
@@ -213,6 +198,21 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
       }
     )
 
+  def toUpdateLost(up: N_UpdateFrom): N_Update =
+    N_Update(up.srcId,up.valueTypeId,up.value,up.flags)
+  def toUpdateFrom(up: N_Update, fromValues: List[ByteString]): N_UpdateFrom =
+    debug(N_UpdateFrom(up.srcId,up.valueTypeId,fromValues,Nil,up.value,up.flags))
+
+  private def debug(u: N_UpdateFrom): N_UpdateFrom = {
+    logger.info(
+      s"item 0x${java.lang.Long.toHexString(u.valueTypeId)} [${u.srcId}] " +
+        s"${u.lessValues.map(_.size).sum}/${u.lessValues.size} " +
+        s"${u.moreValues.map(_.size).sum}/${u.moreValues.size} " +
+        s"${u.value.size}"
+    )
+    u
+  }
+  
   private def toKey(up: N_UpdateFrom) = (up.valueTypeId,up.srcId)
   private def toLessValues(b: ByteString) = if(b.size==0) Nil else b :: Nil
 
