@@ -34,7 +34,6 @@ class RevertPatch(val values: UpdateMap, val offset: NextOffset)
     })
     val updates = toUpdate.toUpdates(patch.values).map(toUpdate.revert)
     logger.info(s"reverting ${updates.size} items")
-    for(u <- updates) logger.info(s"item 0x${java.lang.Long.toHexString(u.valueTypeId)} [${u.srcId}] ${u.lessValues.size}/${u.lessValues.map(_.size).sum} ${u.moreValues.size}/${u.moreValues.map(_.size).sum} ${u.value.size}")
     WriteModelKey.modify(_.enqueueAll(updates))
   }
   def id = "CAN_REVERT_FROM"

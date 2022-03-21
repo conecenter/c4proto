@@ -190,6 +190,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   qAdapterRegistry: QAdapterRegistry,
   origKeyFactory: OrigKeyFactoryFinalHolder,
   indexUtil: IndexUtil,
+  toUpdate: ToUpdate,
 ){
   def get(assembled: ReadModel, updates: Seq[N_Update]): Seq[N_UpdateFrom] = for {
     u <- updates
@@ -198,7 +199,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     index = indexUtil.getInstantly(wKey.of(assembled))
     fromValues = indexUtil.getValues(index,u.srcId,"")
       .map(item=>ToByteString(valueAdapter.encode(item))).toList
-  } yield N_UpdateFrom(u.srcId,u.valueTypeId,fromValues,Nil,u.value,u.flags)
+  } yield toUpdate.toUpdateFrom(u,fromValues)
 }
 
 @c4("RichDataCompApp") final class RawTxAddImpl(

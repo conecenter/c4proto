@@ -146,6 +146,7 @@ trait ToUpdate {
 
   def getSize(up: N_UpdateFrom): Long
   def toUpdateLost(up: N_UpdateFrom): N_Update
+  def toUpdateFrom(up: N_Update, fromValues: List[ByteString]): N_UpdateFrom
   def diff(currentUpdates: List[N_UpdateFrom], targetUpdates: List[N_UpdateFrom]): List[N_UpdateFrom]
   def add(state: UpdateMap, up: N_UpdateFrom): UpdateMap
   def toUpdates(state: UpdateMap): List[N_UpdateFrom]
