@@ -179,14 +179,17 @@ case class TagStatements(
     ) :::
     s"}" :: Nil
 
-  def optionCondition(isOption: Boolean, valueName: String): String =
-    if (isOption) s" && $valueName.nonEmpty"
-    else ""
+  def optionCondition(isOption: Boolean, valueName: String): List[String] =
+    if (isOption) s"$valueName.nonEmpty" :: Nil
+    else Nil
+
+  def andConditions(conditions: List[String]): String =
+    conditions.filter(_.nonEmpty).mkString(" && ")
 
   def getAdapterBodyArg(param: TagParam, opt: ToJsonOptions): List[String] = {
     val value = s"value.${param.paramName}"
     val appendOne = s"a${opt.paramTypeName}JsonValueAdapter.appendJson"
-    val appendValue = if(opt.isList) List(
+    val appendValue = if (opt.isList) List(
       s"builder.startArray()",
       s"$value.foreach(v=>$appendOne(v,builder))",
       s"builder.end()"
@@ -194,8 +197,13 @@ case class TagStatements(
       s"$value.foreach(v=>$appendOne(v,builder))"
     ) else List(s"$appendOne($value, builder)")
     val appendKeyValue = s"builder.just.append(${quot(param.paramName)})" :: appendValue
-    if(opt.defaultValue.isEmpty && !opt.isOption) appendKeyValue
-    else s"if($value!=${opt.defaultValue.get}${optionCondition(opt.isOption, value)}){" :: indent(appendKeyValue) ::: "}" :: Nil
+    val defaultConditions =
+      (if (opt.defaultValue.nonEmpty) s"$value!=${opt.defaultValue.get}" :: Nil else Nil) :::
+        optionCondition(opt.isOption, value)
+    defaultConditions match {
+      case Nil => appendKeyValue
+      case ne => s"if(${andConditions(ne)}){" :: indent(appendKeyValue) ::: "}" :: Nil
+    }
   }
   def indent(l: List[String]): List[String] = l.map(v=>s"  $v")
   def indentStr(l: List[String]): String = indent(l).map(v=>s"\n$v").mkString
