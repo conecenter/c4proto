@@ -476,7 +476,7 @@ my $make_kc_yml = sub{
             resources => {
                 limits => {
                     cpu => $$opt{lim_cpu} || "64",
-                    memory => "64Gi",
+                    memory => $$opt{lim_mem} || "64Gi",
                 },
                 requests => {
                     cpu => &$mandatory_of(req_cpu=>$opt),
@@ -746,6 +746,7 @@ my $need_deploy_cert = sub{
     &$put("simple.auth",&$get_simple_auth($comp));
 };
 
+my @lim_small = (lim_mem=>"100Mi",lim_cpu=>"250m");
 my @req_small = (req_mem=>"100Mi",req_cpu=>"250m");
 my @req_big = (req_mem=>"10Gi",req_cpu=>"1000m");
 
@@ -1700,7 +1701,7 @@ push @tasks, ["up-kc_host", "", sub{ # the last multi container kc
                 verbs => ["get"],
             },
             {
-                apiGroups => [""],
+                apiGroups => ["","metrics.k8s.io"],
                 resources => ["pods"],
                 verbs => ["get","list","delete"],
             },
@@ -1843,7 +1844,7 @@ push @tasks, ["up-elector","",sub{
     my $options = {
         image => $img, tty => "true", headless => 1, replicas => 3,
         C4HTTP_PORT => $elector_port, "port:$elector_port:$elector_port"=>"",
-        @req_small
+        @req_small, @lim_small,
     };
     &$wrap_deploy($comp,$from_path,$options);
 }];
