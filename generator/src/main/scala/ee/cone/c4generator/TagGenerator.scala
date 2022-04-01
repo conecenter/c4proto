@@ -18,23 +18,30 @@ case class TagParam(
 )
 
 object TagGenerator extends Generator {
-  def get(parseContext: ParseContext): List[Generated] = parseContext.stats.flatMap{
-    case Defn.Trait(Seq(mod"@c4tags(...$e)"),Type.Name(traitName),tParams,y,code) =>
+
+  val defaultImports: List[GeneratedImport] =
+  GeneratedImport("import ee.cone.c4di._") ::
+    GeneratedImport("import ee.cone.c4vdom.Types._")::
+    GeneratedImport("import ee.cone.c4vdom._") ::
+    Nil
+
+  def get(parseContext: ParseContext): List[Generated] = parseContext.stats.flatMap {
+    case Defn.Trait(Seq(mod"@c4tags(...$e)"), Type.Name(traitName), tParams, y, code) =>
       val tParamNameOpt = tParams match {
         case Seq() => None
         case Seq(tparam"..$_ ${Type.Name(nm)} <: $_") => Option(nm)
       }
       val mod = mod"@c4(...$e)".syntax
-      val res: List[TagStatements] = code.stats.map{
+      val res: List[TagStatements] = code.stats.map {
         case defDef@q"..$mods def $defName(...$args): ${Type.Name(outTypeName)}" =>
-          val (clientType,outIsChild) = mods match {
-            case Seq(mod"@c4val") => (None,false)
-            case Seq(mod"@c4val(${Lit(t: String)})") => (Option(t),false)
-            case Seq(mod"@c4el(${Lit(t: String)})") => (Option(t),true)
+          val (clientType, outIsChild) = mods match {
+            case Seq(mod"@c4val") => (None, false)
+            case Seq(mod"@c4val(${Lit(t: String)})") => (Option(t), false)
+            case Seq(mod"@c4el(${Lit(t: String)})") => (Option(t), true)
           }
 
-          val params = args.flatten.map{
-            case p@Term.Param(Nil,Term.Name(paramName),Some(paramType),defVal) =>
+          val params = args.flatten.map {
+            case p@Term.Param(Nil, Term.Name(paramName), Some(paramType), defVal) =>
               val defValStr = defVal.map(_.toString)
               val paramTypeFullExpr = paramType.toString
               paramType match {
@@ -45,52 +52,57 @@ object TagGenerator extends Generator {
                 case Type.Name(paramTypeName) =>
                   TagParam(paramName, paramTypeFullExpr, Option(ToJsonOptions(paramTypeName, paramTypeName, defValStr, isList = false, isOption = false)), isReceiver = false, None)
                 case t"List[${Type.Name(paramTypeName)}]" =>
-                  TagParam(paramName, paramTypeFullExpr, Option(ToJsonOptions(paramTypeName, paramTypeName, defValStr, isList = true, isOption = false)), isReceiver = false,None)
+                  TagParam(paramName, paramTypeFullExpr, Option(ToJsonOptions(paramTypeName, paramTypeName, defValStr, isList = true, isOption = false)), isReceiver = false, None)
                 case t"Option[${Type.Name(paramTypeName)}]" =>
-                  TagParam(paramName, paramTypeFullExpr, Option(ToJsonOptions(paramTypeName, paramTypeName, defValStr, isList = false, isOption = true)), isReceiver = false,None)
+                  TagParam(paramName, paramTypeFullExpr, Option(ToJsonOptions(paramTypeName, paramTypeName, defValStr, isList = false, isOption = true)), isReceiver = false, None)
                 case Type.Apply(Type.Name(_), List(Type.Name(paramTypeNameInner))) if tParamNameOpt.contains(paramTypeNameInner) =>
                   TagParam(paramName, paramTypeFullExpr, None, isReceiver = true, None)
                 case p =>
                   throw new Exception(s"unsupported tag param type [$p] ${p.structure} of $defName")
               }
           }
-          if(!outIsChild && params.exists(_.toElement.nonEmpty))
+          if (!outIsChild && params.exists(_.toElement.nonEmpty))
             throw new Exception(s"$defName takes elements so it should return element")
           val tagTypeName = Util.pkgNameToId(s"$traitName.$defName")
-          val localParamNameOpt = tParamNameOpt.filter(_=>params.exists(_.isReceiver))
+          val localParamNameOpt = tParamNameOpt.filter(_ => params.exists(_.isReceiver))
           TagStatements(defDef.syntax, defName.value, params.toList, outIsChild, outTypeName, mod, tagTypeName, clientType, traitName, localParamNameOpt)
       }
       res.map(_.getTagClass).map(GeneratedCode) ++
-      tParamNameOpt.fold(List.empty[String])(v=>List(
-        s"\ntrait General$traitName",
-        s"\n$mod final class ${traitName}Provider(tags: $traitName[Nothing]){ " +
-        s"\n  def get[T]: $traitName[T] = tags.asInstanceOf[$traitName[T]] " +
-        s"\n}"
-      )).map(GeneratedCode) ++
-      List(GeneratedCode(
-        s"\n$mod final class ${traitName}Impl(" +
-        "\n  val child: VDomFactory, " +
-        res.flatMap(_.getArg).distinct.mkString +
-        s"\n) extends ${tParamNameOpt.fold(traitName)(v=>s"$traitName[Nothing]")} {" +
-        tParamNameOpt.fold("")(v=>s"\n  type $v = Nothing") +
-        res.map(_.getDef).mkString +
-        s"\n}"
-      ))
+        tParamNameOpt.fold(List.empty[String])(v => List(
+          s"\ntrait General$traitName",
+          s"\n$mod final class ${traitName}Provider(tags: $traitName[Nothing]){ " +
+            s"\n  def get[T]: $traitName[T] = tags.asInstanceOf[$traitName[T]] " +
+            s"\n}"
+        )
+        ).map(GeneratedCode) ++
+        List(GeneratedCode(
+          s"\n$mod final class ${traitName}Impl(" +
+            "\n  val child: VDomFactory, " +
+            res.flatMap(_.getArg).distinct.mkString +
+            s"\n) extends ${tParamNameOpt.fold(traitName)(v => s"$traitName[Nothing]")} {" +
+            tParamNameOpt.fold("")(v => s"\n  type $v = Nothing") +
+            res.map(_.getDef).mkString +
+            s"\n}"
+        )
+        )
     case _ => Nil
-  } ::: parseContext.stats.collect{ case Defn.Trait(Seq(mod"@c4tagSwitch(...$e)"),Type.Name(traitName),x,y,code) =>
-      val mod = mod"@c4(...$e)".syntax
-      val id = Util.pathToId(parseContext.path)
-      val pf = e.flatten match {
-        case Seq() => ""
-        case Seq(Lit(n: String)) => n
-      }
-      (
-        s"$mod final class ${id}${pf}JsonValueAdapterProviders(adapters: List[JsonValueAdapter[ToJson]])",
-        s"@provide def for$traitName: Seq[JsonValueAdapter[$traitName]] = adapters"
-      )
-  }.groupMap(_._1)(_._2).map{ case (cl,defs) =>
-    defs.map(s=>s"\n  $s").mkString(s"\n$cl{","","\n}")
-  }.toList.sorted.map(GeneratedCode)
+  } ::: parseContext.stats.collect { case Defn.Trait(Seq(mod"@c4tagSwitch(...$e)"), Type.Name(traitName), x, y, code) =>
+    val mod = mod"@c4(...$e)".syntax
+    val id = Util.pathToId(parseContext.path)
+    val pf = e.flatten match {
+      case Seq() => ""
+      case Seq(Lit(n: String)) => n
+    }
+    (
+      s"$mod final class ${id}${pf}JsonValueAdapterProviders(adapters: List[JsonValueAdapter[ToJson]])",
+      s"@provide def for$traitName: Seq[JsonValueAdapter[$traitName]] = adapters"
+    )
+  }.groupMap(_._1)(_._2).map { case (cl, defs) =>
+    defs.map(s => s"\n  $s").mkString(s"\n$cl{", "", "\n}")
+  }.toList.sorted.map(GeneratedCode) match {
+    case Nil => Nil
+    case code => defaultImports ::: code
+  }
 }
 
 case class TagStatements(
