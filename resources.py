@@ -4,6 +4,7 @@ import subprocess
 import json
 import math
 import time
+import os
 
 def group_map(l,f):
     res = {}
@@ -84,7 +85,8 @@ def get_sorted_nodes(nodes,top_p_k,top_k):
         for node in sorted(nodes,key=top_p_k,reverse=True)
     ]
 
-def get_kc(context_name): return ("kubectl","--context",context_name)
+def get_kc(context_name):
+    return ("kubectl","--kubeconfig",os.environ["C4KUBECONFIG"],"--context",context_name)
 
 def get_filtered_nodes(nodes,search_str):
     return [n for n in nodes if any(search_str in p["pod_name"] for p in n["pods"])]
@@ -103,7 +105,7 @@ def get_deployment_name(pod_name):
     parts = pod_name.split("-")
     return "-".join(parts[0:5]) if len(parts)==7 else None
 
-def suggest(nodes):
+def suggest(nodes): # todo fix if needs of replicas are different
     for node in get_sorted_nodes(nodes, lambda node: node["top_mem_p"], lambda pod: pod["top_mem"]-pod["req_mem"]):
         for pod in node["pods"]:
             if pod["top_mem"]>pod["req_mem"]:
@@ -126,19 +128,6 @@ def get_set_cmd(context_name,deployment_name,requests):
 
 def handle_set(context_name,deployment_name,requests):
     print(run(get_set_cmd(context_name,deployment_name,requests)))
-
-def loop(inner):
-    def run(period_str, *args):
-        period = int(period_str)
-        state = None
-        while True:
-            print("### step")
-            try:
-                state = inner(args,state)
-            except subprocess.CalledProcessError as err:
-                print(err)
-            time.sleep(period)
-    return run
 
 def get_exec_cmd(pod):
     kc = get_kc(pod["context_name"])
@@ -202,13 +191,33 @@ def iter_req_setter(args,state): #10
     else:
         return (deployment_name, started)
 
+def loop(inner, period_str, *args):
+    period = int(period_str)
+    state = None
+    while True:
+        print("### step")
+        try:
+            state = inner(args,state)
+        except subprocess.CalledProcessError as err:
+            print(err)
+        time.sleep(period)
+
+iter = {
+    "de_purger": iter_de_purger,
+    "gc_runner": iter_gc_runner,
+    "req_setter": iter_req_setter,
+}
+
+def handle_tracker(*q_args):
+    print(q_args)
+    name, *args = os.environ["C4RES_TRACKER_OPTIONS"].split()
+    loop(iter[name], *args)
+
 handle = {
     "top": handle_top,
     "suggest": handle_suggest,
     "set": handle_set,
-    "de_purger": loop(iter_de_purger),
-    "gc_runner": loop(iter_gc_runner),
-    "req_setter": loop(iter_req_setter),
+    "tracker": handle_tracker,
 }
 
 script, act, *args = sys.argv

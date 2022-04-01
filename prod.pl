@@ -4,7 +4,7 @@ use strict;
 use Digest::MD5 qw(md5_hex);
 use JSON::XS;
 
-my $sys_image_ver = "v91";
+my $sys_image_ver = "v93";
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -1665,10 +1665,10 @@ push @tasks, ["up-s3client", "", sub{
     &$wrap_deploy($comp,$from_path,$options);
 }];
 
-# my $install_kubectl = sub{
-#     "RUN /install.pl curl https://storage.googleapis.com/kubernetes-release/release/v1.14.0/bin/linux/amd64/kubectl "
-#     ."&& chmod +x /tools/kubectl "
-# };
+my $install_kubectl = sub{
+    "RUN perl install.pl curl https://storage.googleapis.com/kubernetes-release/release/v1.21.0/bin/linux/amd64/kubectl "
+    ."&& chmod +x /tools/kubectl "
+};
 my $install_tini = sub{
     "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini"
     ."&& chmod +x /tools/tini"
@@ -1984,9 +1984,53 @@ push @tasks, ["kafka","( topics | offsets <hours> | nodes | sizes <node> | topic
     my $cp = syf("coursier fetch --classpath org.apache.kafka:kafka-clients:2.8.0")=~/(\S+)/ ? $1 : die;
     sy("CLASSPATH=$cp java --source 15 $gen_dir/kafka_info.java ".join" ",@args);
 }];
-push @tasks, ["kafka_purge"," ",sub{
+
+my $py_run = sub{
+    my ($nm,@args) = @_;
     my $gen_dir = &$get_proto_dir();
-    sy("python3.8","$gen_dir/kafka_purger.py")
+    sy("python3.8","$gen_dir/$nm",@args);
+};
+
+push @tasks, ["kafka_purge"," ",sub{ &$py_run("kafka_purger.py") }];
+
+push @tasks, ["resources","( top <ctx> <search_str> | suggest <ctx> <level (ex 70)> )",sub{
+    &$py_run("resources.py",@_)
+}];
+
+push @tasks, ["resources_set","$composes_txt <cpu=n|memory=nGi>",sub{
+    my ($comp,$res) = @_;
+    &$ssh_add();
+    my ($context) = &$get_deployer_conf($comp,1,qw[context]);
+    &$py_run("resources.py","set",$context,$comp,$res);
+}];
+
+push @tasks, ["up-resource_tracker","",sub{
+    my ($comp) = @_;
+    my $img = do{
+        my $gen_dir = &$get_proto_dir();
+        my $from_path = &$get_tmp_dir();
+        my $put = &$rel_put_text($from_path);
+        sy("cp $gen_dir/install.pl $gen_dir/resources.py $from_path/");
+        &$put("Dockerfile", join "\n",
+            &$base_image_steps(),
+            "RUN perl install.pl apt curl ca-certificates python3.8",
+            &$install_kubectl(),
+            &$install_tini(),
+            "COPY resources.py /",
+            "USER c4",
+            'ENV PATH=${PATH}:/tools',
+            'ENTRYPOINT ["/tools/tini","--","python3.8","/resources.py","tracker"]',
+        );
+        &$remote_build(''=>$comp,$from_path);
+    };
+    my $from_path = &$get_tmp_dir();
+    my $conf = &$get_compose($comp);
+    my $options = {
+        image => $img, tty => "true",
+        @req_small, @lim_small,
+        (map{($_=>&$mandatory_of($_=>$conf))} qw[C4RES_TRACKER_OPTIONS C4KUBECONFIG ]),
+    };
+    &$wrap_deploy($comp,$from_path,$options);
 }];
 
 ####
