@@ -2,12 +2,26 @@ package ee.cone.c4generator
 
 import scala.meta._
 
-case class ToJsonOptions(
+trait ToJsonOptions
+
+object ToJsonOptions {
+  def apply(
+    paramTypeName: String, paramTypeExpr: String,
+    defaultValue: Option[String],
+    isList: Boolean,
+    isOption: Boolean
+  ): ToJsonOptions =
+    ToJsonOptionsDefault(paramTypeName, paramTypeExpr, defaultValue, isList, isOption)
+}
+
+case class ToJsonOptionsDefault(
   paramTypeName: String, paramTypeExpr: String,
   defaultValue: Option[String],
   isList: Boolean,
   isOption: Boolean,
-)
+) extends ToJsonOptions
+
+case class ReceiverToJsonOptions(defaultValue: Option[String]) extends ToJsonOptions
 
 case class TagParam(
   paramName: String,
@@ -56,7 +70,7 @@ object TagGenerator extends Generator {
                 case t"Option[${Type.Name(paramTypeName)}]" =>
                   TagParam(paramName, paramTypeFullExpr, Option(ToJsonOptions(paramTypeName, paramTypeName, defValStr, isList = false, isOption = true)), isReceiver = false, None)
                 case Type.Apply(Type.Name(_), List(Type.Name(paramTypeNameInner))) if tParamNameOpt.contains(paramTypeNameInner) =>
-                  TagParam(paramName, paramTypeFullExpr, None, isReceiver = true, None)
+                  TagParam(paramName, paramTypeFullExpr, Option(ReceiverToJsonOptions(defValStr)), isReceiver = true, None)
                 case p =>
                   throw new Exception(s"unsupported tag param type [$p] ${p.structure} of $defName")
               }
@@ -113,7 +127,7 @@ case class TagStatements(
 ){
   def getArg: List[String] = for {
     param <- args
-    opt <- param.toJsonOptions
+    opt <- param.toJsonOptions.collect { case d: ToJsonOptionsDefault => d }
   } yield s"\n  a${opt.paramTypeName}JsonValueAdapter: JsonValueAdapter[${opt.paramTypeExpr}], "
 
 
@@ -198,25 +212,35 @@ case class TagStatements(
   def andConditions(conditions: List[String]): String =
     conditions.filter(_.nonEmpty).mkString(" && ")
 
-  def getAdapterBodyArg(param: TagParam, opt: ToJsonOptions): List[String] = {
-    val value = s"value.${param.paramName}"
-    val appendOne = s"a${opt.paramTypeName}JsonValueAdapter.appendJson"
-    val appendValue = if (opt.isList) List(
-      s"builder.startArray()",
-      s"$value.foreach(v=>$appendOne(v,builder))",
-      s"builder.end()"
-    ) else if (opt.isOption) List(
-      s"$value.foreach(v=>$appendOne(v,builder))"
-    ) else List(s"$appendOne($value, builder)")
-    val appendKeyValue = s"builder.just.append(${quot(param.paramName)})" :: appendValue
-    val defaultConditions =
-      (if (opt.defaultValue.nonEmpty) s"$value!=${opt.defaultValue.get}" :: Nil else Nil) :::
-        optionCondition(opt.isOption, value)
-    defaultConditions match {
-      case Nil => appendKeyValue
-      case ne => s"if(${andConditions(ne)}){" :: indent(appendKeyValue) ::: "}" :: Nil
+  def getAdapterBodyArg(param: TagParam, opt: ToJsonOptions): List[String] =
+    opt match {
+      case ToJsonOptionsDefault(paramTypeName, paramTypeExpr, defaultValue, isList, isOption) =>
+        val value = s"value.${param.paramName}"
+        val appendOne = s"a${paramTypeName}JsonValueAdapter.appendJson"
+        val appendValue = if (isList) List(
+          s"builder.startArray()",
+          s"$value.foreach(v=>$appendOne(v,builder))",
+          s"builder.end()"
+        ) else if (isOption) List(
+          s"$value.foreach(v=>$appendOne(v,builder))"
+        ) else List(s"$appendOne($value, builder)")
+        val appendKeyValue = s"builder.just.append(${quot(param.paramName)})" :: appendValue
+        val defaultConditions =
+          (if (defaultValue.nonEmpty) s"$value!=${defaultValue.get}" :: Nil else Nil) :::
+            optionCondition(isOption, value)
+        defaultConditions match {
+          case Nil => appendKeyValue
+          case ne => s"if(${andConditions(ne)}){" :: indent(appendKeyValue) ::: "}" :: Nil
+        }
+      case ReceiverToJsonOptions(defaultValue) =>
+        defaultValue match {
+          case Some(defValue) =>
+            val value = s"value.${param.paramName}"
+            s"builder.append(${quot(param.paramName)}).append($value!=$defValue)" :: Nil
+          case None => s"builder.append(${quot(param.paramName)}).append(true)" :: Nil
+        }
+      case _ => ???
     }
-  }
   def indent(l: List[String]): List[String] = l.map(v=>s"  $v")
   def indentStr(l: List[String]): String = indent(l).map(v=>s"\n$v").mkString
 }
