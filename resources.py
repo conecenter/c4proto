@@ -14,9 +14,18 @@ def group_map(l,f):
         res[k].append(v)
     return res
 
-def run(args):
+def print_args(args):
     print("running: "+" ".join(args))
-    return subprocess.run(args,check=True,capture_output=True,text=True).stdout
+    return args
+
+def run(args):
+    return subprocess.run(print_args(args),capture_output=True,text=True,check=True)
+
+def run_no_check(args):
+    proc_res = subprocess.run(print_args(args),capture_output=True,text=True)
+    if proc_res.returncode != 0:
+        print(f"return code: {proc_res.returncode}")
+    return proc_res
 
 def parse_table(data):
     return [line.split() for line in data.split("\n") if len(line) > 0]
@@ -41,7 +50,7 @@ def get_pods(context_name):
     kc = get_kc(context_name)
     cpu_units = [("m",1),("",1000)]
     mem_units = [("Gi",1024),("Mi",1)]
-    top_pods = parse_top(run([*kc,"top","pods"]))
+    top_pods = parse_top(run([*kc,"top","pods"]).stdout)
     return [
         {
             "context_name": context_name,
@@ -54,7 +63,7 @@ def get_pods(context_name):
             "top_cpu": col_sum(cpu_units,"CPU(cores)",tops),
             "top_mem": col_sum(mem_units,"MEMORY(bytes)",tops),
         }
-        for pod in json.loads(run([*kc,"get","pods","-o","json"]))["items"]
+        for pod in json.loads(run([*kc,"get","pods","-o","json"]).stdout)["items"]
         for pod_name in [pod["metadata"]["name"]]
         for deployment_name in [get_deployment_name(pod_name)] if deployment_name
         for requests in [[
@@ -67,7 +76,7 @@ def get_pods(context_name):
 def get_nodes(context_name):
     pods = get_pods(context_name)
     p_units = [("%",1)]
-    top_nodes = parse_top(run([*get_kc(context_name),"top","nodes"]))
+    top_nodes = parse_top(run([*get_kc(context_name),"top","nodes"]).stdout)
     return [
         {
             "node_name": node_name,
@@ -127,15 +136,17 @@ def get_set_cmd(context_name,deployment_name,requests):
     return [*kc,"set","resources",f"--requests={requests}","deployment",deployment_name]
 
 def handle_set(context_name,deployment_name,requests):
-    print(run(get_set_cmd(context_name,deployment_name,requests)))
+    print(run(get_set_cmd(context_name,deployment_name,requests)).stdout)
 
 def get_exec_cmd(pod):
     kc = get_kc(pod["context_name"])
     return (*kc,"exec",pod["pod_name"],"--")
 
 def ps_java(pod):
-    head, *body_lines = \
-        parse_table(run((*get_exec_cmd(pod),"ps","-eo","pid,etimes,args")))
+    res = run_no_check((*get_exec_cmd(pod),"ps","-eo","pid,etimes,args"))
+    if res.returncode != 0:
+        return []
+    head, *body_lines = parse_table(res.stdout)
     return [
         (proc, proc["1stARG"]=="ee.cone.c4actor.ServerMain")
         for proc in apply_header([*head,"1stARG"],body_lines)
@@ -155,7 +166,7 @@ def iter_de_purger(args,state): #60
             if int(proc["ELAPSED"]) > age_sec
         ]
         if to_kill:
-            run((*get_exec_cmd(pod),"kill",*to_kill))
+            run_no_check((*get_exec_cmd(pod),"kill",*to_kill))
 
 def iter_gc_runner(args,state): #25
     context_name, period_str, level_str = args
@@ -170,7 +181,7 @@ def iter_gc_runner(args,state): #25
     if not gc_tasks:
         return
     for task in gc_tasks:
-        run(task)
+        run_no_check(task)
     time.sleep(period)
 
 def iter_req_setter(args,state): #10
