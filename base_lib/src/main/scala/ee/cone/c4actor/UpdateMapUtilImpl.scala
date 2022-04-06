@@ -53,7 +53,7 @@ import okio.ByteString
     assert(up.moreValues.isEmpty && up.flags==0,toSzStr(up))
     val value = Single.option(up.lessValues).getOrElse(ByteString.EMPTY)
     val res = up.copy(value = value, lessValues = toLessValues(up.value))
-    logger.info("reverting "+toSzStr(res))
+    logger.debug("reverting "+toSzStr(res))
     res
   }
 
@@ -80,7 +80,7 @@ import okio.ByteString
 
   def toUpdateFrom(up: N_Update, fromValues: List[ByteString]): N_UpdateFrom = {
     val res = N_UpdateFrom(up.srcId,up.valueTypeId,fromValues,Nil,up.value,up.flags)
-    logger.info("updating "+toSzStr(res))
+    logger.debug("updating "+toSzStr(res))
     res
   }
 

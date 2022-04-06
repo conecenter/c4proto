@@ -187,10 +187,10 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
       else {
         val ref = N_TxRef("", event.srcId)
         val value = ToByteString(update.value.toByteArray ++ refAdapter.encode(ref))
-        logger.info(s"TxRef filled ${update.srcId} ${event.srcId}")
+        logger.debug(s"TxRef filled ${update.srcId} ${event.srcId}")
         update.copy(value = value, flags = 0L)
       }
-    logger.info(
+    logger.debug(
       s"E2U $hint ${event.srcId} " + updates.groupMapReduce(u=>(
         u.valueTypeId,
         "D"*u.lessValues.size + "M"*u.moreValues.size + "A"*(if(u.value.size > 0) 1 else 0) // D A DA are valid
