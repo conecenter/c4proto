@@ -22,7 +22,7 @@ class MemRawSnapshotLoader(relativePath: String, bytes: ByteString) extends RawS
 
 @c4("SnapshotPutApp") final class SnapshotPutter(
   snapshotLoaderFactory: SnapshotLoaderFactory,
-  snapshotDiffer: SnapshotDiffer
+  snapshotDiffer: SnapshotDiffer,
 ) extends LazyLogging {
   val url = "/put-snapshot"
   def merge(relativePath: String, data: ByteString): Context=>Context = local => {
@@ -30,7 +30,7 @@ class MemRawSnapshotLoader(relativePath: String, bytes: ByteString) extends RawS
     val snapshotLoader = snapshotLoaderFactory.create(rawSnapshotLoader)
     val Some(targetFullSnapshot) = snapshotLoader.load(RawSnapshot(relativePath))
     val currentSnapshot = snapshotDiffer.needCurrentSnapshot(local)
-    val diffUpdates = snapshotDiffer.diff(currentSnapshot,targetFullSnapshot)
+    val diffUpdates = snapshotDiffer.diff(currentSnapshot, targetFullSnapshot, Set.empty)
     logger.info(s"put-snapshot activated, ${diffUpdates.size} updates")
     WriteModelKey.modify(_.enqueueAll(diffUpdates))(local)
   }

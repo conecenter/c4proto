@@ -19,7 +19,7 @@ class SnapshotMergerImpl(
   snapshotLoaderFactory: SnapshotLoaderFactory,
   reducer: RichRawWorldReducer,
   signer: SnapshotTaskSigner
-) extends SnapshotMerger {
+) extends SnapshotMerger { // not needed
   def merge(baseURL: String, signed: String): Context=>Context = local => {
     val task = signer.retrieve(check = false)(Option(signed)).get
     val parentProcess = remoteSnapshotUtil.request(baseURL,signed)
@@ -27,7 +27,7 @@ class SnapshotMergerImpl(
     val currentFullSnapshot = differ.needCurrentSnapshot(local)
     val targetRawSnapshot :: txs = parentProcess()
     val Some(targetFullSnapshot) = parentSnapshotLoader.load(targetRawSnapshot)
-    val diffUpdates = differ.diff(currentFullSnapshot,targetFullSnapshot)
+    val diffUpdates = differ.diff(currentFullSnapshot, targetFullSnapshot, Set.empty)
     task match {
       case t:NextSnapshotTask =>
         assert(t.offsetOpt.isEmpty || txs.isEmpty)
@@ -46,10 +46,14 @@ class SnapshotMergerImpl(
   toUpdate: ToUpdate,
   getOffset: GetOffset,
   snapshotMaker: SnapshotMaker,
-  snapshotLoader: SnapshotLoader
+  snapshotLoader: SnapshotLoader,
+  updateMapUtil: UpdateMapUtil,
+  snapshotPatchIgnoreRegistry: SnapshotPatchIgnoreRegistry,
 ) extends SnapshotDiffer {
-  def diff(snapshot: RawEvent, targetSnapshot: RawEvent): List[N_UpdateFrom] =
-    toUpdate.diff(toUpdate.toUpdates(List(snapshot)), toUpdate.toUpdates(List(targetSnapshot)))
+  def diff(currentSnapshot: RawEvent, targetFullSnapshot: RawEvent, addIgnore: Set[Long]): List[N_UpdateFrom] =
+    diff(currentSnapshot, toUpdate.toUpdates(List(targetFullSnapshot),"diff-to"), addIgnore)
+  def diff(currentSnapshot: RawEvent, target: List[N_UpdateFrom], addIgnore: Set[Long]): List[N_UpdateFrom] =
+    updateMapUtil.diff(toUpdate.toUpdates(List(currentSnapshot),"diff-from"), target, snapshotPatchIgnoreRegistry.ignore ++ addIgnore)
   def needCurrentSnapshot: Context=>RawEvent = local => {
     val rawSnapshot = snapshotMaker.make(NextSnapshotTask(Option(getOffset.of(local))))
     val Seq(Some(currentFullSnapshot)) = rawSnapshot.map(snapshotLoader.load)

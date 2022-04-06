@@ -10,10 +10,10 @@ import scala.collection.immutable.Map
 @c4("TestVMRichDataCompApp") final class ContextFactoryImpl(
   reducer: RichRawWorldReducer,
   toUpdate: ToUpdate,
+  updateMapUtil: UpdateMapUtil,
 ) extends ContextFactory {
   def updated(updates: List[N_Update]): Context = {
-    val updateFromSeq = updates.map(toUpdate.toUpdateFrom(_,Nil))
-    val (bytes, headers) = toUpdate.toBytes(updateFromSeq)
+    val (bytes, headers) = toUpdate.toBytes(updates.map(updateMapUtil.insert))
     val firstUpdate = SimpleRawEvent("0" * OffsetHexSize(), ToByteString(bytes), headers)
     val world = reducer.reduce(None,List(firstUpdate))
     new Context(world.injected, world.assembled, world.executionContext, Map.empty)

@@ -17,7 +17,7 @@ class SnapshotParser(execution: Execution, toUpdate: ToUpdate, snapshotLoader: S
     val fromName = SnapshotUtilImpl.hashFromName(RawSnapshot("0000000000000000-92b87c05-294d-3c1d-b443-fb83bdc71d20-c-lz4")).get.uuid
     println(hashFromData, fromName)
     val sn = snapshotLoader.load(RawSnapshot("0000000000000000-92b87c05-294d-3c1d-b443-fb83bdc71d20-c-lz4"))
-    val updates = toUpdate.toUpdates(sn.toList)
+    val updates = toUpdate.toUpdates(sn.toList,"test")
     println(updates.filter(_.flags != 0L).mkString("\n"))
     execution.complete()
   }

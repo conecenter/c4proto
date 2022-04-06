@@ -7,7 +7,7 @@ import ee.cone.c4proto._
 import scala.collection.immutable.{Queue, Seq}
 import java.nio.charset.StandardCharsets.UTF_8
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.Types.{NextOffset, SrcId, TypeId, UpdateMap}
+import ee.cone.c4actor.Types.{NextOffset, SrcId, TypeId, UpdateKey, UpdateMap}
 import ee.cone.c4assemble.Single
 import ee.cone.c4di._
 import okio.ByteString
@@ -77,6 +77,7 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
   fillTxIdUpdateFlag: FillTxIdUpdateFlag,
   archiveUpdateFlag: ArchiveUpdateFlag,
   execution: Execution,
+  updateMapUtil: UpdateMapUtil,
 )(
   updatesAdapter: ProtoAdapter[S_Updates] with HasId =
   qAdapterRegistry.byName(classOf[QProtocol.S_Updates].getName)
@@ -119,12 +120,12 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
   private def makeHeaderFromName: MultiRawCompressor => List[RawHeader] = jc =>
     RawHeader(compressionKey, jc.name) :: Nil
 
-  def getSize(up: N_UpdateFrom): Long =
+  def getInnerSize(up: N_UpdateFrom): Long =
     up.value.size + up.lessValues.map(_.size).sum + up.moreValues.map(_.size).sum
   @tailrec private def nextPartSize(updates: List[N_UpdateFrom], count: Long, size: Long): Option[Long] =
     if(updates.isEmpty) None
     else if(size >= compressionMinSize.value) Option(count)
-    else nextPartSize(updates.tail,count+1,size+getSize(updates.head))
+    else nextPartSize(updates.tail,count+1,size+getInnerSize(updates.head))
   @tailrec private def split(in: List[N_UpdateFrom], out: List[List[N_UpdateFrom]]): List[List[N_UpdateFrom]] = {
     nextPartSize(in,0,0) match {
       case None => (in::out).reverse
@@ -171,9 +172,14 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
     res
   }
 
-  def toUpdates(events: List[RawEvent]): List[N_UpdateFrom] =
+  def toUpdates(events: List[RawEvent], hint: String): List[N_UpdateFrom] =
     for {
       event <- events
+      up <- toUpdates(event, hint)
+    } yield up
+
+  def toUpdates(event: RawEvent, hint: String): List[N_UpdateFrom] = {
+    val updates = for {
       update <- deCompressDecode(event)
     } yield
       if (update.flags == 0L) update
@@ -181,8 +187,20 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
       else {
         val ref = N_TxRef("", event.srcId)
         val value = ToByteString(update.value.toByteArray ++ refAdapter.encode(ref))
+        logger.info(s"TxRef filled ${update.srcId} ${event.srcId}")
         update.copy(value = value, flags = 0L)
       }
+    logger.info(
+      s"E2U $hint ${event.srcId} " + updates.groupMapReduce(u=>(
+        u.valueTypeId,
+        "D"*u.lessValues.size + "M"*u.moreValues.size + "A"*(if(u.value.size > 0) 1 else 0) // D A DA are valid
+      ))(_=>1)((a,b)=>a+b).toSeq.sorted.map{
+        case ((id,dma),count) =>
+          s"${java.lang.Long.toHexString(id)}:$dma:$count"
+      }.mkString(" ")
+    )
+    updates
+  }
 
   def toUpdatesWithFlags(events: List[RawEvent]): List[N_Update] =
     for {
@@ -200,61 +218,6 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
 
   def toUpdateLost(up: N_UpdateFrom): N_Update =
     N_Update(up.srcId,up.valueTypeId,up.value,up.flags)
-  def toUpdateFrom(up: N_Update, fromValues: List[ByteString]): N_UpdateFrom =
-    debug(N_UpdateFrom(up.srcId,up.valueTypeId,fromValues,Nil,up.value,up.flags))
-
-  private def debug(u: N_UpdateFrom): N_UpdateFrom = {
-    logger.info(
-      s"item 0x${java.lang.Long.toHexString(u.valueTypeId)} [${u.srcId}] " +
-        s"${u.lessValues.map(_.size).sum}/${u.lessValues.size} " +
-        s"${u.moreValues.map(_.size).sum}/${u.moreValues.size} " +
-        s"${u.value.size}"
-    )
-    u
-  }
-  
-  private def toKey(up: N_UpdateFrom) = (up.valueTypeId,up.srcId)
-  private def toLessValues(b: ByteString) = if(b.size==0) Nil else b :: Nil
-
-  private def toUpdateMap(updates: List[N_UpdateFrom]): Map[(Long,SrcId),ByteString] =
-    CheckedMap(updates.map{ up =>
-      assert(up.flags==0L)
-      toKey(up)->up.value
-    })
-  def diff(currentUpdates: List[N_UpdateFrom], targetUpdates: List[N_UpdateFrom]): List[N_UpdateFrom] = {
-    val currentMap = toUpdateMap(currentUpdates)
-    val targetMap = toUpdateMap(targetUpdates)
-    (currentMap.keySet ++ targetMap.keySet).toList.sorted.flatMap{ k =>
-      val currentB = currentMap.getOrElse(k,ByteString.EMPTY)
-      val targetB = targetMap.getOrElse(k,ByteString.EMPTY)
-      if(currentB==targetB) Nil else {
-        val (valueTypeId,srcId) = k
-        N_UpdateFrom(srcId,valueTypeId,toLessValues(currentB),Nil,targetB,0L) :: Nil
-      }
-    }
-  }
-
-  def add(state: UpdateMap, up: N_UpdateFrom): UpdateMap = {
-    val key = toKey(up)
-    val will = state.get(key).fold(up){ was =>
-      val longLessValues = was.lessValues ::: up.lessValues
-      val pMoreValues = if(was.value.size==0) Nil else was.value :: Nil
-      val longMoreValues = was.moreValues ::: pMoreValues ::: up.moreValues
-      val same = longLessValues == longMoreValues
-      val lessValues = if(same) Nil else longLessValues.diff(longMoreValues)
-      val moreValues = if(same) Nil else longMoreValues.diff(longLessValues)
-      up.copy(lessValues=lessValues,moreValues=moreValues)
-    }
-    if(will.value.size==0 && will.lessValues.isEmpty && will.moreValues.isEmpty)
-      state - key else state + (key->will)
-  }
-  def toUpdates(state: UpdateMap): List[N_UpdateFrom] =
-    state.values.toList.sortBy(toKey)
-  def revert(up: N_UpdateFrom): N_UpdateFrom = {
-    assert(up.moreValues.isEmpty && up.flags==0)
-    val value = Single.option(up.lessValues).getOrElse(ByteString.EMPTY)
-    debug(up.copy(value = value, lessValues = toLessValues(up.value)))
-  }
 }
 
 case class CurrentTxLogNameImpl(value: String) extends CurrentTxLogName

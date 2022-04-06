@@ -134,7 +134,7 @@ trait ToUpdate {
     * @param events events from Kafka or Snapshot
     * @return updates
     */
-  def toUpdates(events: List[RawEvent]): List[N_UpdateFrom]
+  def toUpdates(events: List[RawEvent], hint: String): List[N_UpdateFrom]
 
   /**
     * Transforms RawEvents to updates, adds TxId and keeps ALL but TxId flags
@@ -144,13 +144,8 @@ trait ToUpdate {
     */
   def toUpdatesWithFlags(events: List[RawEvent]): List[N_Update]
 
-  def getSize(up: N_UpdateFrom): Long
+  def getInnerSize(up: N_UpdateFrom): Long
   def toUpdateLost(up: N_UpdateFrom): N_Update
-  def toUpdateFrom(up: N_Update, fromValues: List[ByteString]): N_UpdateFrom
-  def diff(currentUpdates: List[N_UpdateFrom], targetUpdates: List[N_UpdateFrom]): List[N_UpdateFrom]
-  def add(state: UpdateMap, up: N_UpdateFrom): UpdateMap
-  def toUpdates(state: UpdateMap): List[N_UpdateFrom]
-  def revert(up: N_UpdateFrom): N_UpdateFrom
 }
 
 object Types {
@@ -161,7 +156,8 @@ object Types {
   type TransientMap = Map[TransientLens[_],Object]
   type NextOffset = String
   type TypeKey = ee.cone.c4di.TypeKey
-  type UpdateMap = Map[(Long,SrcId),N_UpdateFrom]
+  type UpdateKey = (Long,SrcId)
+  type UpdateMap = Map[UpdateKey,N_UpdateFrom]
 }
 
 
@@ -367,4 +363,19 @@ trait Reverting {
   def getSavepoint: Context=>Option[NextOffset]
   def revertToSavepoint: Context=>Context
   def makeSavepoint: Context=>Context
+}
+
+trait UpdateMapUtil {
+  def reduce(state: UpdateMap, updates: List[N_UpdateFrom], ignore: Set[Long]): UpdateMap
+  def toSingleUpdates(state: UpdateMap): List[N_UpdateFrom]
+  def revert(state: UpdateMap): List[N_UpdateFrom]
+  def diff(currentUpdates: List[N_UpdateFrom], targetUpdates: List[N_UpdateFrom], ignore: Set[Long]): List[N_UpdateFrom]
+  def toUpdateFrom(up: N_Update, fromValues: List[ByteString]): N_UpdateFrom
+  def insert(up: N_Update): N_UpdateFrom
+}
+
+trait GeneralSnapshotPatchIgnore
+class SnapshotPatchIgnore[T<:Product](val cl: Class[T]) extends GeneralSnapshotPatchIgnore
+trait SnapshotPatchIgnoreRegistry {
+  def ignore: Set[Long]
 }

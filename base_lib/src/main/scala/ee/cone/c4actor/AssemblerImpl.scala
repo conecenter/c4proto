@@ -170,7 +170,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   } yield toUpdate.toUpdate(lEvent)
   private def readModelAdd(executionContext: OuterExecutionContext): Seq[RawEvent]=>ReadModel=>ReadModel = events => assembled => catchNonFatal {
     val options = getAssembleOptions.get(assembled)
-    val updates: List[N_Update] = offset(events) ::: toUpdate.toUpdates(events.toList).map(toUpdate.toUpdateLost)
+    val updates: List[N_Update] = offset(events) ::: toUpdate.toUpdates(events.toList,"rma").map(toUpdate.toUpdateLost)
     reduce(assembled, updates, options, executionContext)
   }("reduce"){ e => // ??? exception to record
     if(events.size == 1){
@@ -190,7 +190,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   qAdapterRegistry: QAdapterRegistry,
   origKeyFactory: OrigKeyFactoryFinalHolder,
   indexUtil: IndexUtil,
-  toUpdate: ToUpdate,
+  updateMapUtil: UpdateMapUtil,
 ){
   def get(assembled: ReadModel, updates: Seq[N_Update]): Seq[N_UpdateFrom] = for {
     u <- updates
@@ -199,7 +199,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     index = indexUtil.getInstantly(wKey.of(assembled))
     fromValues = indexUtil.getValues(index,u.srcId,"")
       .map(item=>ToByteString(valueAdapter.encode(item))).toList
-  } yield toUpdate.toUpdateFrom(u,fromValues)
+  } yield updateMapUtil.toUpdateFrom(u,fromValues)
 }
 
 @c4("RichDataCompApp") final class RawTxAddImpl(

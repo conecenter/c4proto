@@ -13,27 +13,23 @@ class RevertPatch(val values: UpdateMap, val offset: NextOffset)
   consuming: Consuming,
   toUpdate: ToUpdate,
   getN_TxRef: GetByPK[N_TxRef],
-  txAdd: LTxAdd
+  txAdd: LTxAdd,
+  updateMapUtil: UpdateMapUtil,
+  ignoreRegistry: SnapshotPatchIgnoreRegistry,
 ) extends Reverting with LazyLogging {
-  @tailrec private def iteration(
-    consumer: Consumer, wasPatch: RevertPatch, endOffset: NextOffset
-  ): RevertPatch = {
-    val events = consumer.poll()
-    val willPatch = if(events.isEmpty) wasPatch else {
-      val updates = toUpdate.toUpdates(events)
-      val values = updates.foldLeft(wasPatch.values)(toUpdate.add)
-      new RevertPatch(values,events.last.srcId)
-    }
-    if(willPatch.offset >= endOffset) willPatch
-    else iteration(consumer, willPatch, endOffset)
-  }
-  def revert(offset: NextOffset): Context=>Context = {
-    val patch = consuming.process(offset, consumer => {
-      val wasPatch = new RevertPatch(Map.empty,"0" * OffsetHexSize())
-      iteration(consumer, wasPatch, consumer.endOffset)
+  def revert(offset: NextOffset): Context=>Context = { // skips the offset event
+    val patch = consuming.process(offset, consumer => { // todo fix; now seems to skip ALL events if starting one is expired
+      val endOffset = consumer.endOffset
+      logger.info(s"endOffset ${endOffset}")
+      @tailrec def iteration(was: UpdateMap): UpdateMap = {
+        val events = consumer.poll()
+        val updates = toUpdate.toUpdates(events,"revert")
+        val will = updateMapUtil.reduce(was,updates,ignoreRegistry.ignore)
+        if(events.exists(_.srcId>=endOffset)) will else iteration(will)
+      }
+      iteration(Map.empty)
     })
-    val updates = toUpdate.toUpdates(patch.values).map(toUpdate.revert)
-    logger.info(s"reverting ${updates.size} items")
+    val updates = updateMapUtil.revert(patch)
     WriteModelKey.modify(_.enqueueAll(updates))
   }
   def id = "CAN_REVERT_FROM"
@@ -43,3 +39,13 @@ class RevertPatch(val values: UpdateMap, val offset: NextOffset)
     local => revert(getSavepoint(local).get).andThen(makeSavepoint)(local)
   def makeSavepoint: Context=>Context = txAdd.add(LEvent.update(N_TxRef(id,"")))
 }
+
+@c4("ServerCompApp") final class SnapshotPatchIgnoreRegistryImpl(
+  items: List[GeneralSnapshotPatchIgnore],
+  qAdapterRegistry: QAdapterRegistry,
+)(
+  val ignore: Set[Long] = items.map{
+    case item: SnapshotPatchIgnore[_] =>
+      qAdapterRegistry.byName(item.cl.getName).id
+  }.toSet
+) extends SnapshotPatchIgnoreRegistry

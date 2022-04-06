@@ -119,16 +119,13 @@ class SnapshotSavers(val full: SnapshotSaver, val tx: SnapshotSaver)
   snapshotLoader: SnapshotLoader,
   snapshotSavers: SnapshotSavers,
   consuming: Consuming,
-  toUpdate: ToUpdate
+  toUpdate: ToUpdate,
+  updateMapUtil: UpdateMapUtil,
 ) extends SnapshotMaker with SnapshotMakerMaxTime with LazyLogging {
 
   private def reduce(events: List[RawEvent]): SnapshotWorld=>SnapshotWorld = if(events.isEmpty) w=>w else world=>{
-    val updates = toUpdate.toUpdates(events)
-    logger.debug(s"Reduce: got updates ${updates.size}")
-    val newState = updates.foldLeft(world.state){ (state,up) =>
-      if(snapshotConfig.ignore(up.valueTypeId)) state
-      else toUpdate.add(state, up)
-    }
+    val updates = toUpdate.toUpdates(events,"maker")
+    val newState = updateMapUtil.reduce(world.state, updates, snapshotConfig.ignore)
     new SnapshotWorld(newState,events.last.srcId)
   }
 
@@ -150,7 +147,7 @@ class SnapshotSavers(val full: SnapshotSaver, val tx: SnapshotSaver)
       logger.debug(s"t:${java.lang.Long.toHexString(currType)} c:$currCount s:$currSize")
       updates
     } else {
-      val size = currSize + toUpdate.getSize(updates.head)
+      val size = currSize + toUpdate.getInnerSize(updates.head)
       makeStatLine(currType,currCount+1,size,updates.tail)
     }
   @tailrec private def makeStats(updates: List[N_UpdateFrom]): Unit =
@@ -158,7 +155,7 @@ class SnapshotSavers(val full: SnapshotSaver, val tx: SnapshotSaver)
 
   private def save(world: SnapshotWorld): RawSnapshot = {
     logger.debug("Saving...")
-    val updates = toUpdate.toUpdates(world.state)
+    val updates = updateMapUtil.toSingleUpdates(world.state)
     makeStats(updates)
     val (bytes, headers) = toUpdate.toBytes(updates)
     val res = snapshotSavers.full.save(world.offset, bytes, headers)

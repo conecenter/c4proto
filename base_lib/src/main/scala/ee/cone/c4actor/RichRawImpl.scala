@@ -34,12 +34,13 @@ object EmptyInjected extends Injected
   getOffset: GetOffsetImpl,
   readModelAdd: ReadModelAdd,
   getAssembleOptions: GetAssembleOptions,
+  updateMapUtil: UpdateMapUtil,
 ) extends RichRawWorldReducer with LazyLogging {
   def reduce(contextOpt: Option[SharedContext with AssembledContext], addEvents: List[RawEvent]): RichContext = {
     val events = if(contextOpt.nonEmpty) addEvents else {
       val offset = addEvents.lastOption.fold(getOffset.empty)(_.srcId)
       val fUpdates = LEvent.update(S_Firstborn(actorName.value,offset))
-        .map(toUpdate.toUpdate).map(toUpdate.toUpdateFrom(_,Nil)).toList
+        .map(toUpdate.toUpdate).map(updateMapUtil.insert).toList
       val (bytes, headers) = toUpdate.toBytes(fUpdates)
       SimpleRawEvent(offset, ToByteString(bytes), headers) :: addEvents
     }
