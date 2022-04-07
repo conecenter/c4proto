@@ -4,8 +4,9 @@ package ee.cone.c4gate
 import ee.cone.c4actor.{SnapshotPatchIgnore, _}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4di.{c4, provide}
-import ee.cone.c4gate.AlienProtocol.{U_FromAlienStatus, U_ToAlienWrite}
-import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpRequest}
+import ee.cone.c4gate.AlienProtocol._
+import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
+import ee.cone.c4gate.HttpProtocol._
 import ee.cone.c4proto._
 
 @protocol("HttpProtocolApp") object HttpProtocol   {
@@ -136,14 +137,23 @@ import ee.cone.c4proto._
   )
 }
 
-@c4("HttpProtocolApp") final class HttpRequestSnapshotPatchIgnore
-  extends SnapshotPatchIgnore(classOf[S_HttpRequest])
-
+@c4("HttpProtocolApp") final class HttpSnapshotPatchIgnores {
+  @provide def get: Seq[GeneralSnapshotPatchIgnore] = Seq(
+    classOf[S_HttpRequest],
+    //classOf[S_HttpPublicationV2], classOf[S_Manifest],
+  ).map(new SnapshotPatchIgnore(_))
+}
 
 @c4("AlienProtocolApp") final class AlienSnapshotPatchIgnores {
   @provide def get: Seq[GeneralSnapshotPatchIgnore] = Seq(
-    new SnapshotPatchIgnore(classOf[U_ToAlienWrite]),
-    new SnapshotPatchIgnore(classOf[U_FromAlienStatus]),
-  )
+    classOf[U_ToAlienWrite],
+    //classOf[U_FromAlienState], classOf[U_FromAlienStatus],
+    //classOf[U_FromAlienConnected],
+  ).map(new SnapshotPatchIgnore(_))
 }
 
+//@c4("AuthProtocolApp") final class AuthSnapshotPatchIgnores {
+//  @provide def get: Seq[GeneralSnapshotPatchIgnore] = Seq(
+//    classOf[U_AuthenticatedSession],
+//  ).map(new SnapshotPatchIgnore(_))
+//}

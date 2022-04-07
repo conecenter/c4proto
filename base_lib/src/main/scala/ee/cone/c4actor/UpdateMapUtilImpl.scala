@@ -47,14 +47,20 @@ import okio.ByteString
   def toUpdates(state: UpdateMap): List[N_UpdateFrom] =
     state.values.toList.sortBy(toKey)
 
-  def revert(state: UpdateMap): List[N_UpdateFrom] =
-    toUpdates(state).map(revert)
-  private def revert(up: N_UpdateFrom): N_UpdateFrom = {
-    assert(up.moreValues.isEmpty && up.flags==0,toSzStr(up))
-    val value = Single.option(up.lessValues).getOrElse(ByteString.EMPTY)
-    val res = up.copy(value = value, lessValues = toLessValues(up.value))
-    logger.debug("reverting "+toSzStr(res))
-    res
+  def revert(state: UpdateMap): List[N_UpdateFrom] = toUpdates(state).map{ up =>
+    val (value,moreValues) = if(up.lessValues.isEmpty) (ByteString.EMPTY,Nil)
+      else (up.lessValues.head,up.lessValues.tail)
+    val lessValues = up.moreValues ::: toLessValues(up.value)
+    //
+    if(moreValues.exists(_!=value) || up.flags!=0L)
+      logger.error("reverting bad "+toSzStr(up))
+    else if(moreValues.nonEmpty)
+      logger.warn("reverting inconsistent-more "+toSzStr(up))
+    else if(lessValues.size > 1)
+      logger.warn("reverting inconsistent-less "+toSzStr(up))
+    else logger.debug("reverting "+toSzStr(up))
+    //
+    up.copy(lessValues=lessValues, moreValues=moreValues, value=value)
   }
 
   private def toLessValues(b: ByteString) = if(b.size==0) Nil else b :: Nil
