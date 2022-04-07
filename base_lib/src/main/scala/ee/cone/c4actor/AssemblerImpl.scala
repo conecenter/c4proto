@@ -186,20 +186,20 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   }
 }
 
-@c4("RichDataCompApp") final class UpdateFromUtil(
+@c4("RichDataCompApp") final class UpdateFromUtilImpl(
   qAdapterRegistry: QAdapterRegistry,
   origKeyFactory: OrigKeyFactoryFinalHolder,
   indexUtil: IndexUtil,
   updateMapUtil: UpdateMapUtil,
-){
-  def get(assembled: ReadModel, updates: Seq[N_Update]): Seq[N_UpdateFrom] = for {
-    u <- updates
-    valueAdapter = qAdapterRegistry.byId(u.valueTypeId)
-    wKey = origKeyFactory.value.rawKey(valueAdapter.className)
-    index = indexUtil.getInstantly(wKey.of(assembled))
-    fromValues = indexUtil.getValues(index,u.srcId,"")
-      .map(item=>ToByteString(valueAdapter.encode(item))).toList
-  } yield updateMapUtil.toUpdateFrom(u,fromValues)
+) extends UpdateFromUtil {
+  def get(local: Context, updates: Seq[N_Update]): Seq[N_UpdateFrom] =
+    updateMapUtil.toUpdatesFrom(updates.toList, u => {
+      val valueAdapter = qAdapterRegistry.byId(u.valueTypeId)
+      val wKey = origKeyFactory.value.rawKey(valueAdapter.className)
+      val index = indexUtil.getInstantly(wKey.of(local.assembled))
+      indexUtil.getValues(index,u.srcId,"")
+        .map(item=>ToByteString(valueAdapter.encode(item))).toList
+    })
 }
 
 @c4("RichDataCompApp") final class RawTxAddImpl(
@@ -226,7 +226,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
         updates <- assembleProfiler.addMeta(transition, externalOut)
       } yield {
         val nLocal = new Context(local.injected, transition.result, local.executionContext, local.transient)
-        WriteModelKey.modify(_.enqueueAll(updateFromUtil.get(local.assembled,updates)))(nLocal)
+        WriteModelKey.modify(_.enqueueAll(updateFromUtil.get(local,updates)))(nLocal)
       }
       util.waitFor(res, options, "add")
       //call add here for new mortal?

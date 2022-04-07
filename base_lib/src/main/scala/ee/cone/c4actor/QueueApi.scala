@@ -370,7 +370,7 @@ trait UpdateMapUtil {
   def toSingleUpdates(state: UpdateMap): List[N_UpdateFrom]
   def revert(state: UpdateMap): List[N_UpdateFrom]
   def diff(currentUpdates: List[N_UpdateFrom], targetUpdates: List[N_UpdateFrom], ignore: Set[Long]): List[N_UpdateFrom]
-  def toUpdateFrom(up: N_Update, fromValues: List[ByteString]): N_UpdateFrom
+  def toUpdatesFrom(updates: List[N_Update], getFrom: N_Update=>List[ByteString]): List[N_UpdateFrom]
   def insert(up: N_Update): N_UpdateFrom
 }
 
@@ -378,4 +378,8 @@ trait GeneralSnapshotPatchIgnore
 class SnapshotPatchIgnore[T<:Product](val cl: Class[T]) extends GeneralSnapshotPatchIgnore
 trait SnapshotPatchIgnoreRegistry {
   def ignore: Set[Long]
+}
+
+trait UpdateFromUtil {
+  def get(local: Context, updates: Seq[N_Update]): Seq[N_UpdateFrom]
 }

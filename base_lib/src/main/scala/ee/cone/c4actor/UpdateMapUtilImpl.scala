@@ -19,9 +19,9 @@ import okio.ByteString
 
   def reduce(state: UpdateMap, updates: List[N_UpdateFrom], ignore: Set[Long]): UpdateMap =
     updates.foldLeft(state){ (st,up) =>
-      if(ignore(up.valueTypeId)) st else add(st, up)
+      if(ignore(up.valueTypeId)) st else addMerge(st, up)
     }
-  private def add(state: UpdateMap, up: N_UpdateFrom): UpdateMap = {
+  private def addMerge(state: UpdateMap, up: N_UpdateFrom): UpdateMap = {
     val key = toKey(up)
     val will = state.get(key).fold(up){ was =>
       val longLessValues = was.lessValues ::: up.lessValues
@@ -35,6 +35,12 @@ import okio.ByteString
     if(will.value.size==0 && will.lessValues.isEmpty && will.moreValues.isEmpty)
       state - key else state + (key->will)
   }
+
+  def toUpdatesFrom(updates: List[N_Update], getFrom: N_Update=>List[ByteString]): List[N_UpdateFrom] =
+    toUpdates(updates.foldLeft(Map.empty:UpdateMap){ (state,u) =>
+      val up = toUpdateFrom(u, getFrom(u))
+      state + (toKey(up)->up)
+    })
 
   def toSingleUpdates(state: UpdateMap): List[N_UpdateFrom] = {
     val res = toUpdates(state)
