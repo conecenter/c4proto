@@ -6,7 +6,7 @@ package ee.cone.c4assemble
 import java.nio.file.{Files, Path, Paths}
 
 import Types._
-import ee.cone.c4assemble.IndexTypes.{DMultiSet, InnerIndex, InnerKey, Products}
+import ee.cone.c4assemble.IndexTypes.{DMultiSet, InnerIndex, Products}
 import ee.cone.c4assemble.Merge.Compose
 import ee.cone.c4di.{c4, c4multi}
 
@@ -33,9 +33,11 @@ final  class IndexImpl(val data: InnerIndex) extends Index {
   override def toString: String = s"IndexImpl($data)"
 }
 
+case class InnerKey(primaryKey: String, hash: Int)
+
 object IndexTypes {
   type Products = List[Count]
-  type InnerKey = (String,Int)
+  //type InnerKey = (String,Int)
   type DMultiSet = Map[InnerKey,Products]
   type InnerIndex = DMap[Any,DMultiSet]
 }
@@ -54,6 +56,11 @@ object IndexUtilImpl {
       distinct.head.item
     }
 
+  implicit val ordering: Ordering[InnerKey] = (x: InnerKey, y: InnerKey) => {
+    val r = x.primaryKey compareTo y.primaryKey
+    if (r == 0) x.hash compareTo y.hash else r
+  }
+
   def toOrdered(inner: Compose[DMultiSet]): Compose[DMultiSet] =  // Ordering.by can drop keys!: https://github.com/scala/bug/issues/8674
     (a, b) => toOrdered(inner(a, b))
   def toOrdered(res: DMultiSet): DMultiSet =
@@ -71,7 +78,7 @@ object IndexUtilImpl {
       }
     }
 
-  def mergeProducts(aList: Products, bList: Products): Products =
+  @tailrec def mergeProducts(aList: Products, bList: Products): Products =
     if(aList.isEmpty) bList
     else mergeProducts(aList.tail, mergeProduct(aList.head, bList))
 
@@ -156,6 +163,7 @@ final case class ParallelExecution(power: Int) {
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): List[MultiForPart] = {
     getMS(currentIndex,key).fold(Nil:List[MultiForPart]){currentValues =>
       val diffValues = getMS(diffIndex,key).getOrElse(emptyMS)
+      MeasureP(if(currentValues eq diffValues) "partition-eq" else "partition-ne",currentValues,diffValues,Map.empty)
       if(currentValues eq diffValues){
         val changed = (for {
           (k,values) <- currentValues
@@ -204,6 +212,7 @@ final case class ParallelExecution(power: Int) {
             val wasCounts = wasValues.getOrElse(mKey,Nil)
             val counts = IndexUtilImpl.mergeProduct(rec.count,wasCounts)
             val values: DMultiSet = IndexUtilImpl.toOrdered(if(counts.nonEmpty) wasValues.updated(mKey,counts) else wasValues.removed(mKey))
+            MeasureP("buildIndex",wasValues,Map.empty,values)
             if(values.nonEmpty) index(key) = values else assert(index.remove(key).nonEmpty)
           }
         }
@@ -298,7 +307,7 @@ final class KeyIterationImpl(parallelExecution: ParallelExecution, parts: Vector
 final class DOutImpl(val pos: Int, val key: Any, val mKey: InnerKey, val count: Count) extends DOut
 final class OutFactoryImpl(pos: Int, dir: Int) extends OutFactory[Any, Product] {
   def result(key: Any, value: Product): DOut =
-    new DOutImpl(pos,key,(ToPrimaryKey(value),value.hashCode),Count(value,dir))
+    new DOutImpl(pos,key,InnerKey(ToPrimaryKey(value),value.hashCode),Count(value,dir))
   def result(pair: (Any, Product)): DOut = {
     val (k,v) = pair
     result(k,v)
@@ -629,8 +638,57 @@ object Merge {
         val resVal = if(bigValOpt.isEmpty) smallVal else inner(bigValOpt.get,smallVal)
         if(isEmpty(resVal)) resMap - k else resMap + (k -> resVal)
       }
+      MeasureP("merge",bigMap,smallMap,res)
       res
     })
+}
+
+object MeasureP {
+  import java.util.concurrent.ConcurrentHashMap
+  import java.util.concurrent.atomic.LongAdder
+  import scala.jdk.CollectionConverters._
+  val state = new ConcurrentHashMap[(String,String,String,String), LongAdder]
+  //def log2(value: Int): Int = Integer.SIZE - Integer.numberOfLeadingZeros(value)
+  def sz(m: Map[_,_]): String = m.size match {
+    case 0 => "0"
+    case 1 => "1"
+    case a if a < 256 => "C"
+    case _ => "M"
+  }
+  def inc(key: (String,String,String,String)): Unit =
+    state.computeIfAbsent(key, _ => new LongAdder).increment()
+
+  def apply(hint: String, m0: Map[_,_], m1: Map[_,_], m2: Map[_,_]): Unit = {
+    inc((hint, sz(m0), sz(m1), sz(m2)))
+    inc((hint, "*", "*", "*"))
+  }
+  def out(): Unit =
+    state.keySet.asScala.toSeq.sorted.foreach(key=>println(key,state.get(key).longValue))
+  def out(readModel: Map[AssembledKey,Index]): Unit = {
+    val cols = Seq("S","H","L","M")
+    val stat = for {
+      (assembledKey,index) <- readModel
+    } yield {
+      val data = index match {
+        case i: IndexImpl => i.data
+        case i if i == emptyIndex => Map.empty
+      }
+      val sm = data.foldLeft(Map.empty[String,Long]){(res,kv)=>
+        val (key,dMultiSet) = kv
+        val text = dMultiSet.toSeq match {
+          case Seq((_,Seq(Count(_,1)))) => "S"
+          case m if m.size != m.map(_._1.primaryKey).distinct.size => "H"
+          case m if m.exists(_._2.size!=1) => "L"
+          case _ => "M"
+        }
+        res + (text->(res.getOrElse(text,0L)+1L))
+      }
+      (cols.map(c=>sm.getOrElse(c,0L)),assembledKey)
+    }
+    stat.foreach(println)
+    cols.zipWithIndex.foreach{ case(c,i)=>println(s"$c:${stat.map(_._1(i)).sum}") }
+    out()
+  }
 }
 
 // if we need more: scala rrb vector, java...binarySearch
