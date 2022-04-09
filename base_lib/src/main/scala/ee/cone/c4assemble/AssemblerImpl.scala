@@ -4,9 +4,8 @@ package ee.cone.c4assemble
 // see Topological sorting
 
 import java.nio.file.{Files, Path, Paths}
-
 import Types._
-import ee.cone.c4assemble.IndexTypes.{DMultiSet, InnerIndex, Products}
+import ee.cone.c4assemble.IndexTypes.{InnerIndex, DMultiSet, Products}
 import ee.cone.c4assemble.Merge.Compose
 import ee.cone.c4di.{c4, c4multi}
 
@@ -35,11 +34,15 @@ final  class IndexImpl(val data: InnerIndex) extends Index {
 
 case class InnerKey(primaryKey: String, hash: Int)
 
+sealed trait OuterMultiSet
+class MultiOuterMultiSet(val data: DMultiSet) extends OuterMultiSet
+object EmptyOuterMultiSet extends MultiOuterMultiSet(Map.empty)
+class SingleOuterMultiSet(val primaryKey: String, val hash: Int, val item: Product, val count: Int) extends OuterMultiSet
+
 object IndexTypes {
   type Products = List[Count]
-  //type InnerKey = (String,Int)
   type DMultiSet = Map[InnerKey,Products]
-  type InnerIndex = DMap[Any,DMultiSet]
+  type InnerIndex = DMap[Any,OuterMultiSet]
 }
 
 // todo All on upd, Tree on upd
@@ -61,11 +64,32 @@ object IndexUtilImpl {
     if (r == 0) x.hash compareTo y.hash else r
   }
 
-  def toOrdered(inner: Compose[DMultiSet]): Compose[DMultiSet] =  // Ordering.by can drop keys!: https://github.com/scala/bug/issues/8674
-    (a, b) => toOrdered(inner(a, b))
-  def toOrdered(res: DMultiSet): DMultiSet =
-    if(res.size > 1 && !res.isInstanceOf[TreeMap[_, _]])
-    TreeMap.empty[InnerKey,Products] ++ res else res
+  def toOrdered(inner: Compose[DMultiSet]): Compose[OuterMultiSet] = (a, b) => { // Ordering.by can drop keys!: https://github.com/scala/bug/issues/8674
+    val aV = getInnerMultiSet(a)
+    val bV = getInnerMultiSet(b)
+    val resV = inner(aV, bV)
+    MeasureP("merge",aV,bV,resV)
+    if(resV eq aV) a else if(resV eq bV) b else toOrdered(resV)
+  }
+  def toOrdered(res: DMultiSet): OuterMultiSet = res.size match {
+    case 0 => EmptyOuterMultiSet
+    case 1 => res.head match {
+      case (innerKey,Seq(count)) =>
+        new SingleOuterMultiSet(innerKey.primaryKey,innerKey.hash,count.item,count.count)
+      case _ => new MultiOuterMultiSet(res)
+    }
+    case _ =>
+      new MultiOuterMultiSet(
+        if(!res.isInstanceOf[TreeMap[_, _]])
+          TreeMap.empty[InnerKey,Products] ++ res else res
+      )
+  }
+
+  def getInnerMultiSet(outer: OuterMultiSet): DMultiSet = outer match {
+    case ms: MultiOuterMultiSet => ms.data
+    case ms: SingleOuterMultiSet =>
+      Map.empty.updated(InnerKey(ms.primaryKey,ms.hash),Count(ms.item,ms.count)::Nil)
+  }
 
   def inverse(a: Count): Count = a.copy(count = -a.count)
 
@@ -104,7 +128,7 @@ final case class ParallelExecution(power: Int) {
 
 @c4("AssembleApp") final case class IndexUtilImpl()(
   mergeIndexInner: Compose[InnerIndex] =
-    Merge[Any,DMultiSet](v=>v.isEmpty,
+    Merge[Any,OuterMultiSet](v => v eq EmptyOuterMultiSet,
       IndexUtilImpl.toOrdered(
         Merge[InnerKey,Products](v=>v.isEmpty, IndexUtilImpl.mergeProducts)
       )
@@ -119,7 +143,7 @@ final case class ParallelExecution(power: Int) {
     case i if i == emptyIndex => Map.empty
   }
 
-  def getMS(index: Index, key: Any): Option[DMultiSet] = index match {
+  def getMS(index: Index, key: Any): Option[OuterMultiSet] = index match {
     case i: IndexImpl => i.data.get(key)
     case _ if index == emptyIndex => None
   }
@@ -134,10 +158,12 @@ final case class ParallelExecution(power: Int) {
   }
 
   def getValues(index: Index, key: Any, warning: String): Values[Product] = {
-    val res = getMS(index,key).fold(Nil:Values[Product])(v => DValuesImpl(v,warning))
+    val res = getMS(index,key).fold(Nil:Values[Product]) {
+      case ms: SingleOuterMultiSet => ms.item :: Nil
+      case ms: MultiOuterMultiSet => DValuesImpl(ms.data,warning)
+    }
     res
   }
-
 
   def mergeIndex(l: DPIterable[Index]): Index = {
     val res =
@@ -150,26 +176,28 @@ final case class ParallelExecution(power: Int) {
     (aDiffs zip bDiffs).map{ case (a,b) => mergeIndex(Seq(a, b)) }
   }
 
-  def emptyMS: DMultiSet = Map.empty
-
   def removingDiff(pos: Int, index: Index, keys: Iterable[Any]): Iterable[DOut] =
     for {
       key <- keys
-      values <- getMS(index,key).toIterable
-      (mKey,counts)  <- values
+      ms <- getMS(index,key).toIterable
+      (mKey,counts)  <- IndexUtilImpl.getInnerMultiSet(ms)
       count <- counts
     } yield new DOutImpl(pos, key, mKey, IndexUtilImpl.inverse(count))
 
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): List[MultiForPart] = {
-    getMS(currentIndex,key).fold(Nil:List[MultiForPart]){currentValues =>
-      val diffValues = getMS(diffIndex,key).getOrElse(emptyMS)
-      MeasureP(if(currentValues eq diffValues) "partition-eq" else "partition-ne",currentValues,diffValues,Map.empty)
-      if(currentValues eq diffValues){
+    getMS(currentIndex,key).fold(Nil:List[MultiForPart]){currentMS =>
+      val diffMS = getMS(diffIndex,key).getOrElse(EmptyOuterMultiSet)
+      if(currentMS eq diffMS){
+        val currentValues = IndexUtilImpl.getInnerMultiSet(currentMS)
+        MeasureP("partition",Map.empty,currentValues,Map.empty)
         val changed = (for {
           (k,values) <- currentValues
         } yield IndexUtilImpl.single(values,warning)).toList
         new ChangedMultiForPart(changed) :: Nil
       } else {
+        val currentValues = IndexUtilImpl.getInnerMultiSet(currentMS)
+        val diffValues = IndexUtilImpl.getInnerMultiSet(diffMS)
+        MeasureP("partition",Map.empty.updated(0,0),currentValues,diffValues)
         val changed = (for {
           (k,v) <- diffValues; values <- currentValues.get(k)
         } yield IndexUtilImpl.single(values,warning)).toList
@@ -203,17 +231,19 @@ final case class ParallelExecution(power: Int) {
     val setup = Single(dataI.map(_.setup).distinct)
     (0 until setup.outCount).map{ outPos =>
       setup.parallelExecution.execute{ partPos =>
-        val index: mutable.Map[Any,DMultiSet] = mutable.Map()
+        val index: mutable.Map[Any,OuterMultiSet] = mutable.Map()
         dataI.foreach{ aggr =>
           aggr.byOutThenTarget(setup.bufferPos(outPos, partPos)).foreach{ rec =>
             val key = rec.key
             val mKey = rec.mKey
-            val wasValues = index.getOrElse(key,Map.empty)
+            val wasMS = index.getOrElse(key,EmptyOuterMultiSet)
+            val wasValues: DMultiSet = IndexUtilImpl.getInnerMultiSet(wasMS)
             val wasCounts = wasValues.getOrElse(mKey,Nil)
             val counts = IndexUtilImpl.mergeProduct(rec.count,wasCounts)
-            val values: DMultiSet = IndexUtilImpl.toOrdered(if(counts.nonEmpty) wasValues.updated(mKey,counts) else wasValues.removed(mKey))
+            val values = if(counts.nonEmpty) wasValues.updated(mKey,counts) else wasValues.removed(mKey)
+            val willMS: OuterMultiSet = IndexUtilImpl.toOrdered(values)
             MeasureP("buildIndex",wasValues,Map.empty,values)
-            if(values.nonEmpty) index(key) = values else assert(index.remove(key).nonEmpty)
+            if(willMS ne EmptyOuterMultiSet) index(key) = willMS else assert(index.remove(key).nonEmpty)
           }
         }
         index.toMap
@@ -638,7 +668,6 @@ object Merge {
         val resVal = if(bigValOpt.isEmpty) smallVal else inner(bigValOpt.get,smallVal)
         if(isEmpty(resVal)) resMap - k else resMap + (k -> resVal)
       }
-      MeasureP("merge",bigMap,smallMap,res)
       res
     })
 }
@@ -675,12 +704,22 @@ object MeasureP {
       }
       val sm = data.foldLeft(Map.empty[String,Long]){(res,kv)=>
         val (key,dMultiSet) = kv
-        val text = dMultiSet.toSeq match {
-          case Seq((_,Seq(Count(_,1)))) => "S"
-          case m if m.size != m.map(_._1.primaryKey).distinct.size => "H"
-          case m if m.exists(_._2.size!=1) => "L"
-          case _ => "M"
+        val text = dMultiSet match {
+          case set: MultiOuterMultiSet =>
+            set.data.toSeq match {
+              case m if m.size != m.map(_._1.primaryKey).distinct.size => "H"
+              case m if m.exists(_._2.size!=1) => "L"
+              case _ => "M"
+            }
+          case set: SingleOuterMultiSet => "S"
         }
+
+//        val text = dMultiSet.toSeq match {
+//          case Seq((_,Seq(Count(_,1)))) => "S"
+//          case m if m.size != m.map(_._1.primaryKey).distinct.size => "H"
+//          case m if m.exists(_._2.size!=1) => "L"
+//          case _ => "M"
+//        }
         res + (text->(res.getOrElse(text,0L)+1L))
       }
       (cols.map(c=>sm.getOrElse(c,0L)),assembledKey)
