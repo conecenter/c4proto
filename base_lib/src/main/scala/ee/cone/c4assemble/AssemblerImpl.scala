@@ -5,13 +5,13 @@ package ee.cone.c4assemble
 
 import java.nio.file.{Files, Path, Paths}
 import Types._
-import ee.cone.c4assemble.IndexTypes.{InnerIndex, DMultiSet, Products}
+import ee.cone.c4assemble.IndexTypes.{DMultiSet, InnerIndex, Products}
 import ee.cone.c4assemble.Merge.Compose
 import ee.cone.c4di.{c4, c4multi}
 
 import scala.annotation.tailrec
 import scala.collection.{immutable, mutable}
-import scala.collection.immutable.{Map, Seq, TreeMap}
+import scala.collection.immutable.{Map, Seq, TreeMap, ArraySeq}
 import scala.util.{Failure, Success}
 //import scala.collection.parallel.immutable.ParVector
 import scala.concurrent.{ExecutionContext, Future}
@@ -23,7 +23,10 @@ case class DValuesImpl(asMultiSet: DMultiSet, warning: String) extends Values[Pr
   def length: Int = asMultiSet.size
   private def value(kv: (InnerKey,Products)): Product =
     IndexUtilImpl.single(kv._2,warning)
-  def apply(idx: Int): Product = value(asMultiSet.view.slice(idx,idx+1).head)
+  def apply(idx: Int): Product = {
+    println(s"APPL $warning")
+    value(asMultiSet.view.slice(idx,idx+1).head)
+  }
   def iterator: Iterator[Product] = asMultiSet.iterator.map(value)
   override def isEmpty: Boolean = asMultiSet.isEmpty //optim
 }
@@ -38,6 +41,8 @@ sealed trait OuterMultiSet
 class MultiOuterMultiSet(val data: DMultiSet) extends OuterMultiSet
 object EmptyOuterMultiSet extends MultiOuterMultiSet(Map.empty)
 class SingleOuterMultiSet(val primaryKey: String, val hash: Int, val item: Product, val count: Int) extends OuterMultiSet
+class FewOuterMultiSet(val data: ArraySeq[SingleOuterMultiSet]) extends OuterMultiSet
+
 
 object IndexTypes {
   type Products = List[Count]
@@ -78,7 +83,12 @@ object IndexUtilImpl {
         new SingleOuterMultiSet(innerKey.primaryKey,innerKey.hash,count.item,count.count)
       case _ => new MultiOuterMultiSet(res)
     }
-    case _ =>
+    case n if n<16 && res.forall{ case (innerKey,products) => products.size==1 } => // 16==>256 will give ex -200M
+      new FewOuterMultiSet(ArraySeq.from(for {
+        (innerKey,products) <- res
+        count <- products
+      } yield new SingleOuterMultiSet(innerKey.primaryKey,innerKey.hash,count.item,count.count)))
+    case n =>
       new MultiOuterMultiSet(
         if(!res.isInstanceOf[TreeMap[_, _]])
           TreeMap.empty[InnerKey,Products] ++ res else res
@@ -86,9 +96,13 @@ object IndexUtilImpl {
   }
 
   def getInnerMultiSet(outer: OuterMultiSet): DMultiSet = outer match {
-    case ms: MultiOuterMultiSet => ms.data
     case ms: SingleOuterMultiSet =>
       Map.empty.updated(InnerKey(ms.primaryKey,ms.hash),Count(ms.item,ms.count)::Nil)
+    case fms: FewOuterMultiSet =>
+      TreeMap.empty[InnerKey,Products] ++ fms.data.map{ ms =>
+        (InnerKey(ms.primaryKey,ms.hash),Count(ms.item,ms.count)::Nil)
+      }
+    case ms: MultiOuterMultiSet => ms.data
   }
 
   def inverse(a: Count): Count = a.copy(count = -a.count)
@@ -160,6 +174,7 @@ final case class ParallelExecution(power: Int) {
   def getValues(index: Index, key: Any, warning: String): Values[Product] = {
     val res = getMS(index,key).fold(Nil:Values[Product]) {
       case ms: SingleOuterMultiSet => ms.item :: Nil
+      case ms: FewOuterMultiSet => ms.data.map(_.item)
       case ms: MultiOuterMultiSet => DValuesImpl(ms.data,warning)
     }
     res
@@ -688,13 +703,13 @@ object MeasureP {
     state.computeIfAbsent(key, _ => new LongAdder).increment()
 
   def apply(hint: String, m0: Map[_,_], m1: Map[_,_], m2: Map[_,_]): Unit = {
-    inc((hint, sz(m0), sz(m1), sz(m2)))
-    inc((hint, "*", "*", "*"))
+    //inc((hint, sz(m0), sz(m1), sz(m2)))
+    //inc((hint, "*", "*", "*"))
   }
   def out(): Unit =
     state.keySet.asScala.toSeq.sorted.foreach(key=>println(key,state.get(key).longValue))
   def out(readModel: Map[AssembledKey,Index]): Unit = {
-    val cols = Seq("S","H","L","M")
+    val cols = Seq("S","F","L","M1","MH","MC","MM")
     val stat = for {
       (assembledKey,index) <- readModel
     } yield {
@@ -705,21 +720,26 @@ object MeasureP {
       val sm = data.foldLeft(Map.empty[String,Long]){(res,kv)=>
         val (key,dMultiSet) = kv
         val text = dMultiSet match {
-          case set: MultiOuterMultiSet =>
-            set.data.toSeq match {
-              case m if m.size != m.map(_._1.primaryKey).distinct.size => "H"
-              case m if m.exists(_._2.size!=1) => "L"
-              case _ => "M"
-            }
           case set: SingleOuterMultiSet => "S"
+          case set: FewOuterMultiSet => "F"
+          case set: MultiOuterMultiSet =>
+            set.data match {
+              case m if m.exists(_._2.size!=1) => "L"
+              case data =>
+                //val c = data.groupMapReduce{ case (InnerKey(primaryKey,hash),products) => primaryKey }(_=>1)(_+_).values.max //maxProdsPerPK
+                val c = data.values.flatten.size // counts per ms
+                //if(c<=1) "M1" else
+                //if(c<=16) "MH" else
+                if(c<=256) "MC" else "MM"
+            }
+
         }
 
-//        val text = dMultiSet.toSeq match {
-//          case Seq((_,Seq(Count(_,1)))) => "S"
-//          case m if m.size != m.map(_._1.primaryKey).distinct.size => "H"
-//          case m if m.exists(_._2.size!=1) => "L"
-//          case _ => "M"
-//        }
+        //List().sorted
+
+
+
+
         res + (text->(res.getOrElse(text,0L)+1L))
       }
       (cols.map(c=>sm.getOrElse(c,0L)),assembledKey)
