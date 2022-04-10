@@ -708,15 +708,17 @@ object MeasureP {
   }
   def out(): Unit =
     state.keySet.asScala.toSeq.sorted.foreach(key=>println(key,state.get(key).longValue))
+  def getData(index: Index): InnerIndex = index match {
+    case i: IndexImpl => i.data
+    case i if i == emptyIndex => Map.empty
+  }
+
   def out(readModel: Map[AssembledKey,Index]): Unit = {
     val cols = Seq("S","F","L","M1","MH","MC","MM")
     val stat = for {
       (assembledKey,index) <- readModel
     } yield {
-      val data = index match {
-        case i: IndexImpl => i.data
-        case i if i == emptyIndex => Map.empty
-      }
+      val data = getData(index)
       val sm = data.foldLeft(Map.empty[String,Long]){(res,kv)=>
         val (key,dMultiSet) = kv
         val text = dMultiSet match {
@@ -734,12 +736,6 @@ object MeasureP {
             }
 
         }
-
-        //List().sorted
-
-
-
-
         res + (text->(res.getOrElse(text,0L)+1L))
       }
       (cols.map(c=>sm.getOrElse(c,0L)),assembledKey)
@@ -747,6 +743,36 @@ object MeasureP {
     stat.foreach(println)
     cols.zipWithIndex.foreach{ case(c,i)=>println(s"$c:${stat.map(_._1(i)).sum}") }
     out()
+
+    val items: Iterable[(Any,Product)] = for{
+      (_,index) <- readModel
+      data = getData(index)
+      (key,outerMS) <- data
+      (_,products)<- IndexUtilImpl.getInnerMultiSet(outerMS)
+      count <- products
+    } yield (key, count.item)
+
+    items.foldLeft(Map.empty[String,Long]){ (res,ki) =>
+      val key = ki._2.getClass.getName
+      res.updated(key,res.getOrElse(key,0L)+1L)
+    }.toSeq.map{
+      case (className,count) => (count,className)
+    }.sorted.foreach {
+      case (count,className) => println(s"CC: $count $className")
+    }
+
+    print("SrcId-Only: " + items.count{ case (k,i) => i.productArity == 1 && i.productElement(0) == k }.toString)
+
+//    items.foldLeft(Map.empty[Int,Long]){ (res,item) =>
+//      val key = item.productArity
+//      res.updated(key,res.getOrElse(key,0L)+1L)
+//    }.toSeq.foreach{
+//      case (arity,count) => println(s"Arity: $arity $count")
+//    }
+
+
+
+
   }
 }
 

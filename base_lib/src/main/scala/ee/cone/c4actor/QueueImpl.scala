@@ -178,7 +178,9 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
       up <- toUpdates(event, hint)
     } yield up
 
+  def msNow(): Long = System.nanoTime / 1000000
   def toUpdates(event: RawEvent, hint: String): List[N_UpdateFrom] = {
+    val started = msNow()
     val updates = for {
       update <- deCompressDecode(event)
     } yield
@@ -190,6 +192,8 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
         logger.debug(s"TxRef filled ${update.srcId} ${event.srcId}")
         update.copy(value = value, flags = 0L)
       }
+    val period = msNow() - started
+    if(period > 5000) logger.info(s"E2U $hint was for $period ms ")
     logger.debug(
       s"E2U $hint ${event.srcId} " + updates.groupMapReduce(u=>(
         u.valueTypeId,
