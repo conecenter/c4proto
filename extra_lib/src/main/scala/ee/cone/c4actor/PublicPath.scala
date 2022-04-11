@@ -109,13 +109,13 @@ object ImagePublicPath {
 object DefaultPublicPath {
   lazy val curPathType = "default"
 
-  def empty = DefaultPublicPath("")
+  val empty: DefaultPublicPath = DefaultPublicPath("")
 }
 
 object NonSVGPublicPath {
   lazy val curPathType = "nonSVG"
 
-  def empty = NonSVGPublicPath("")
+  val empty: NonSVGPublicPath = NonSVGPublicPath("")
 }
 
 object SVGPublicPath {
@@ -123,5 +123,5 @@ object SVGPublicPath {
 
   def adaptiveColor = "adaptive"
 
-  def empty: SVGPublicPath = SVGPublicPath("")
+  val empty: SVGPublicPath = SVGPublicPath("")
 }
