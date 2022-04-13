@@ -40,7 +40,7 @@ case class InnerKey(primaryKey: String, hash: Int)
 sealed trait OuterMultiSet
 class MultiOuterMultiSet(val data: DMultiSet) extends OuterMultiSet
 object EmptyOuterMultiSet extends MultiOuterMultiSet(Map.empty)
-class SingleOuterMultiSet(val primaryKey: String, val hash: Int, val item: Product, val count: Int) extends OuterMultiSet
+class SingleOuterMultiSet(val primaryKey: String, val hash: Int, val item: Product) extends OuterMultiSet
 class FewOuterMultiSet(val data: ArraySeq[SingleOuterMultiSet]) extends OuterMultiSet
 
 
@@ -79,15 +79,17 @@ object IndexUtilImpl {
   def toOrdered(res: DMultiSet): OuterMultiSet = res.size match {
     case 0 => EmptyOuterMultiSet
     case 1 => res.head match {
-      case (innerKey,Seq(count)) =>
-        new SingleOuterMultiSet(innerKey.primaryKey,innerKey.hash,count.item,count.count)
+      case (innerKey,Seq(count)) if count.count == 1 =>
+        new SingleOuterMultiSet(innerKey.primaryKey,innerKey.hash,count.item)
       case _ => new MultiOuterMultiSet(res)
     }
-    case n if n<16 && res.forall{ case (innerKey,products) => products.size==1 } => // 16==>256 will give ex -200M
+    case n if n<16 && res.forall{
+      case (innerKey,products) => products.size==1 && products.head.count == 1
+    } => // 16==>256 will give ex -200M
       new FewOuterMultiSet(ArraySeq.from(for {
         (innerKey,products) <- res
         count <- products
-      } yield new SingleOuterMultiSet(innerKey.primaryKey,innerKey.hash,count.item,count.count)))
+      } yield new SingleOuterMultiSet(innerKey.primaryKey,innerKey.hash,count.item)))
     case n =>
       new MultiOuterMultiSet(
         if(!res.isInstanceOf[TreeMap[_, _]])
@@ -97,10 +99,10 @@ object IndexUtilImpl {
 
   def getInnerMultiSet(outer: OuterMultiSet): DMultiSet = outer match {
     case ms: SingleOuterMultiSet =>
-      Map.empty.updated(InnerKey(ms.primaryKey,ms.hash),Count(ms.item,ms.count)::Nil)
+      Map.empty.updated(InnerKey(ms.primaryKey,ms.hash),Count(ms.item,1)::Nil)
     case fms: FewOuterMultiSet =>
       TreeMap.empty[InnerKey,Products] ++ fms.data.map{ ms =>
-        (InnerKey(ms.primaryKey,ms.hash),Count(ms.item,ms.count)::Nil)
+        (InnerKey(ms.primaryKey,ms.hash),Count(ms.item,1)::Nil)
       }
     case ms: MultiOuterMultiSet => ms.data
   }

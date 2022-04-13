@@ -113,7 +113,7 @@ import com.squareup.wire.ProtoAdapter._
 
 @c4("ProtoApp") final class StringProtoAdapter(
 ) extends ProtoAdapter[String](FieldEncoding.LENGTH_DELIMITED, classOf[Product]) {
-  def decode(protoReader: ProtoReader): String = STRING.decode(protoReader)//.intern()
+  def decode(protoReader: ProtoReader): String = STRING.decode(protoReader).intern()
   def encode(protoWriter: ProtoWriter, e: String): Unit = STRING.encode(protoWriter,e)
   def encodedSize(e: String): Int = STRING.encodedSize(e)
   def redact(e: String): String = e

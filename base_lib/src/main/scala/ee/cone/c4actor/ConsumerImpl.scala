@@ -3,7 +3,7 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.S_FailedUpdates
 import ee.cone.c4assemble.Types.emptyIndex
-import ee.cone.c4assemble.{Count, IndexImpl, MeasureP, ReadModel, ReadModelUtil}
+import ee.cone.c4assemble.{IndexImpl, MeasureP, ReadModel, ReadModelUtil}
 import ee.cone.c4di.c4
 
 import scala.annotation.tailrec
