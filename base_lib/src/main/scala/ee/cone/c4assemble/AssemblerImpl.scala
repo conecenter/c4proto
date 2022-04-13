@@ -41,7 +41,9 @@ sealed trait OuterMultiSet
 class MultiOuterMultiSet(val data: DMultiSet) extends OuterMultiSet
 object EmptyOuterMultiSet extends MultiOuterMultiSet(Map.empty)
 class SingleOuterMultiSet(val primaryKey: String, val hash: Int, val item: Product) extends OuterMultiSet
-class FewOuterMultiSet(val data: ArraySeq[SingleOuterMultiSet]) extends OuterMultiSet
+class FewOuterMultiSet(
+  val primaryKeys: Array[String], val hashes: Array[Int], val items: Array[Product]
+) extends OuterMultiSet
 
 
 object IndexTypes {
@@ -86,10 +88,16 @@ object IndexUtilImpl {
     case n if n<16 && res.forall{
       case (innerKey,products) => products.size==1 && products.head.count == 1
     } => // 16==>256 will give ex -200M
-      new FewOuterMultiSet(ArraySeq.from(for {
-        (innerKey,products) <- res
-        count <- products
-      } yield new SingleOuterMultiSet(innerKey.primaryKey,innerKey.hash,count.item)))
+      val size = res.size
+      val primaryKeys = new Array[String](size)
+      val hashes = new Array[Int](size)
+      val items = new Array[Product](size)
+      for(((innerKey,products),i) <- res.zipWithIndex) { //todo while ?
+        primaryKeys(i) = innerKey.primaryKey
+        hashes(i) = innerKey.hash
+        items(i) = products.head.item
+      }
+      new FewOuterMultiSet(primaryKeys,hashes,items)
     case n =>
       new MultiOuterMultiSet(
         if(!res.isInstanceOf[TreeMap[_, _]])
@@ -101,9 +109,9 @@ object IndexUtilImpl {
     case ms: SingleOuterMultiSet =>
       Map.empty.updated(InnerKey(ms.primaryKey,ms.hash),Count(ms.item,1)::Nil)
     case fms: FewOuterMultiSet =>
-      TreeMap.empty[InnerKey,Products] ++ fms.data.map{ ms =>
-        (InnerKey(ms.primaryKey,ms.hash),Count(ms.item,1)::Nil)
-      }
+      TreeMap.empty[InnerKey,Products] ++ fms.items.indices.map(i=>
+        (InnerKey(fms.primaryKeys(i),fms.hashes(i)),Count(fms.items(i),1)::Nil)
+      )
     case ms: MultiOuterMultiSet => ms.data
   }
 
@@ -176,7 +184,7 @@ final case class ParallelExecution(power: Int) {
   def getValues(index: Index, key: Any, warning: String): Values[Product] = {
     val res = getMS(index,key).fold(Nil:Values[Product]) {
       case ms: SingleOuterMultiSet => ms.item :: Nil
-      case ms: FewOuterMultiSet => ms.data.map(_.item)
+      case ms: FewOuterMultiSet => ArraySeq.unsafeWrapArray(ms.items)
       case ms: MultiOuterMultiSet => DValuesImpl(ms.data,warning)
     }
     res
@@ -746,24 +754,27 @@ object MeasureP {
     cols.zipWithIndex.foreach{ case(c,i)=>println(s"$c:${stat.map(_._1(i)).sum}") }
     out()
 
-    val items: Iterable[(Any,Product)] = for{
-      (_,index) <- readModel
+    def items: Iterator[(Any,Product)] = for{
+      (_,index) <- readModel.iterator
       data = getData(index)
       (key,outerMS) <- data
       (_,products)<- IndexUtilImpl.getInnerMultiSet(outerMS)
       count <- products
     } yield (key, count.item)
 
+    def inc(res: Map[String,Long], key: String): Map[String,Long] =
+      res.updated(key,res.getOrElse(key,0L)+1L)
+
     items.foldLeft(Map.empty[String,Long]){ (res,ki) =>
       val key = ki._2.getClass.getName
-      res.updated(key,res.getOrElse(key,0L)+1L)
+      inc(inc(res,key),"ALL")
     }.toSeq.map{
       case (className,count) => (count,className)
     }.sorted.foreach {
       case (count,className) => println(s"CC: $count $className")
     }
 
-    print("SrcId-Only: " + items.count{ case (k,i) => i.productArity == 1 && i.productElement(0) == k }.toString)
+    //print("SrcId-Only: " + items.count{ case (k,i) => i.productArity == 1 && i.productElement(0) == k }.toString)
 
 //    items.foldLeft(Map.empty[Int,Long]){ (res,item) =>
 //      val key = item.productArity
