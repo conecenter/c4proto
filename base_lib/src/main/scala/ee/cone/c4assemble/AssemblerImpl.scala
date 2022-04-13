@@ -5,7 +5,7 @@ package ee.cone.c4assemble
 
 import java.nio.file.{Files, Path, Paths}
 import Types._
-import ee.cone.c4assemble.IndexTypes.{DMultiSet, InnerIndex, Products}
+import ee.cone.c4assemble.IndexTypes.{DMultiSet, InnerIndex}
 import ee.cone.c4assemble.Merge.Compose
 import ee.cone.c4di.{c4, c4multi}
 
@@ -17,7 +17,15 @@ import scala.util.{Failure, Success}
 import scala.concurrent.{ExecutionContext, Future}
 import java.nio.charset.StandardCharsets.UTF_8
 
-case class Count(item: Product, count: Int)
+sealed trait Products
+sealed trait Count extends Products {
+  def item: Product
+  def count: Int
+}
+final class SingleCount(val item: Product) extends Count { def count: Int = 1 }
+final class NonSingleCount(val item: Product, val count: Int) extends Count
+sealed class Counts(val data: Map[Product,Int]) extends Products
+object EmptyCounts extends Counts(Map.empty)
 
 case class DValuesImpl(asMultiSet: DMultiSet, warning: String) extends Values[Product] {
   def length: Int = asMultiSet.size
@@ -45,9 +53,7 @@ class FewOuterMultiSet(
   val primaryKeys: Array[String], val hashes: Array[Int], val items: Array[Product]
 ) extends OuterMultiSet
 
-
 object IndexTypes {
-  type Products = List[Count]
   type DMultiSet = Map[InnerKey,Products]
   type InnerIndex = DMap[Any,OuterMultiSet]
 }
@@ -55,16 +61,51 @@ object IndexTypes {
 // todo All on upd, Tree on upd
 
 object IndexUtilImpl {
-  def single(items: Products, warning: String): Product =
-    if(items.tail.isEmpty && items.head.count==1) items.head.item else {
-      val distinct = items.distinct
-      if(distinct.tail.nonEmpty) throw new Exception(s"non-single $warning")
-      if(warning.nonEmpty) {
-        val item = distinct.head.item
-        println(s"non-single $warning ${item.productPrefix}:${ToPrimaryKey(item)}")
-      }
-      distinct.head.item
+  def single(products: Products, warning: String): Product = products match {
+    case c: Count =>
+      if(c.count!=1 && warning.nonEmpty)
+        println(s"non-single $warning ${c.item.productPrefix}:${ToPrimaryKey(c.item)}")
+      c.item
+    case c: Counts => throw new Exception(s"non-single $c")
+  }
+  def isEmptyProducts(products: Products): Boolean = products eq EmptyCounts
+  def isSingleProduct(products: Products): Boolean = products.isInstanceOf[SingleCount]
+  def asSingleProduct(products: Products): Product = products match {
+    case c: SingleCount => c.item
+    case c => throw new Exception(s"non-single $c")
+  }
+  def toCounts(products: Products): Seq[Count] = products match {
+    case m: Counts => m.data.map{ case (i,c) => makeCount(i,c) }.toSeq //unsorted
+    case c: Count => c :: Nil
+  }
+  def mergeProducts(aList: Products, bList: Products): Products = bList match {
+    case c: Counts => toCounts(c).foldLeft(aList)(mergeProduct)
+    case c: Count => mergeProduct(aList,c)
+  }
+  def mergeProduct(products: Products, aCount: Count): Products =
+    products match {
+      case c: Counts =>
+        if(c.data.isEmpty) aCount
+        else makeProducts(c.data.updated(aCount.item, c.data.getOrElse(aCount.item,0)+aCount.count).filter{ case(_,v)=>v!=0 })
+      case c: Count =>
+        if(c.item != aCount.item)
+          makeProducts(Map.empty.updated(c.item,c.count).updated(aCount.item,aCount.count))
+        else makeProducts(aCount.item, c.count + aCount.count)
     }
+  def makeProducts(data: Map[Product,Int]): Products = data.size match {
+    case 0 => EmptyCounts
+    case 1 => data.head match { case (i,c) => makeProducts(i,c) }
+    case _ => new Counts(data)
+  }
+  def makeProducts(item: Product, count: Int): Products =
+    if(count==0) EmptyCounts else makeCount(item,count)
+  def makeCount(item: Product, count: Int): Count = count match {
+    case 0 => throw new Exception
+    case 1 => new SingleCount(item)
+    case n => new NonSingleCount(item, n)
+  }
+
+  ////
 
   implicit val ordering: Ordering[InnerKey] = (x: InnerKey, y: InnerKey) => {
     val r = x.primaryKey compareTo y.primaryKey
@@ -81,13 +122,11 @@ object IndexUtilImpl {
   def toOrdered(res: DMultiSet): OuterMultiSet = res.size match {
     case 0 => EmptyOuterMultiSet
     case 1 => res.head match {
-      case (innerKey,Seq(count)) if count.count == 1 =>
-        new SingleOuterMultiSet(innerKey.primaryKey,innerKey.hash,count.item)
+      case (innerKey,products) if isSingleProduct(products) =>
+        new SingleOuterMultiSet(innerKey.primaryKey,innerKey.hash,asSingleProduct(products))
       case _ => new MultiOuterMultiSet(res)
     }
-    case n if n<16 && res.forall{
-      case (innerKey,products) => products.size==1 && products.head.count == 1
-    } => // 16==>256 will give ex -200M
+    case n if n<16 && res.forall{ case (innerKey,products) => isSingleProduct(products) } => // 16==>256 will give ex -200M
       val size = res.size
       val primaryKeys = new Array[String](size)
       val hashes = new Array[Int](size)
@@ -95,7 +134,7 @@ object IndexUtilImpl {
       for(((innerKey,products),i) <- res.zipWithIndex) { //todo while ?
         primaryKeys(i) = innerKey.primaryKey
         hashes(i) = innerKey.hash
-        items(i) = products.head.item
+        items(i) = asSingleProduct(products)
       }
       new FewOuterMultiSet(primaryKeys,hashes,items)
     case n =>
@@ -107,28 +146,15 @@ object IndexUtilImpl {
 
   def getInnerMultiSet(outer: OuterMultiSet): DMultiSet = outer match {
     case ms: SingleOuterMultiSet =>
-      Map.empty.updated(InnerKey(ms.primaryKey,ms.hash),Count(ms.item,1)::Nil)
+      Map.empty.updated(InnerKey(ms.primaryKey,ms.hash),new SingleCount(ms.item))
     case fms: FewOuterMultiSet =>
       TreeMap.empty[InnerKey,Products] ++ fms.items.indices.map(i=>
-        (InnerKey(fms.primaryKeys(i),fms.hashes(i)),Count(fms.items(i),1)::Nil)
+        (InnerKey(fms.primaryKeys(i),fms.hashes(i)),new SingleCount(fms.items(i)))
       )
     case ms: MultiOuterMultiSet => ms.data
   }
 
-  def inverse(a: Count): Count = a.copy(count = -a.count)
-
-  def mergeProduct(a: Count, l: Products): Products =
-    if(l.isEmpty) a::Nil else {
-      val b = l.head
-      if(a.item!=b.item) b :: mergeProduct(a,l.tail) else {
-        val count = a.count + b.count
-        if(count==0) l.tail else b.copy(count=count) :: l.tail
-      }
-    }
-
-  @tailrec def mergeProducts(aList: Products, bList: Products): Products =
-    if(aList.isEmpty) bList
-    else mergeProducts(aList.tail, mergeProduct(aList.head, bList))
+  def inverse(a: Count): Count = makeCount(a.item, -a.count)
 
   def makeIndex(data: InnerIndex): Index =
     if(data.isEmpty) emptyIndex else new IndexImpl(data)
@@ -154,7 +180,7 @@ final case class ParallelExecution(power: Int) {
   mergeIndexInner: Compose[InnerIndex] =
     Merge[Any,OuterMultiSet](v => v eq EmptyOuterMultiSet,
       IndexUtilImpl.toOrdered(
-        Merge[InnerKey,Products](v=>v.isEmpty, IndexUtilImpl.mergeProducts)
+        Merge[InnerKey,Products](IndexUtilImpl.isEmptyProducts, IndexUtilImpl.mergeProducts)
       )
     )
 ) extends IndexUtil {
@@ -205,8 +231,8 @@ final case class ParallelExecution(power: Int) {
     for {
       key <- keys
       ms <- getMS(index,key).toIterable
-      (mKey,counts)  <- IndexUtilImpl.getInnerMultiSet(ms)
-      count <- counts
+      (mKey,products)  <- IndexUtilImpl.getInnerMultiSet(ms)
+      count <- IndexUtilImpl.toCounts(products)
     } yield new DOutImpl(pos, key, mKey, IndexUtilImpl.inverse(count))
 
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): List[MultiForPart] = {
@@ -263,9 +289,9 @@ final case class ParallelExecution(power: Int) {
             val mKey = rec.mKey
             val wasMS = index.getOrElse(key,EmptyOuterMultiSet)
             val wasValues: DMultiSet = IndexUtilImpl.getInnerMultiSet(wasMS)
-            val wasCounts = wasValues.getOrElse(mKey,Nil)
-            val counts = IndexUtilImpl.mergeProduct(rec.count,wasCounts)
-            val values = if(counts.nonEmpty) wasValues.updated(mKey,counts) else wasValues.removed(mKey)
+            val wasCounts = wasValues.getOrElse(mKey,EmptyCounts)
+            val counts = IndexUtilImpl.mergeProduct(wasCounts,rec.count)
+            val values = if(!IndexUtilImpl.isEmptyProducts(counts)) wasValues.updated(mKey,counts) else wasValues.removed(mKey)
             val willMS: OuterMultiSet = IndexUtilImpl.toOrdered(values)
             MeasureP("buildIndex",wasValues,Map.empty,values)
             if(willMS ne EmptyOuterMultiSet) index(key) = willMS else assert(index.remove(key).nonEmpty)
@@ -362,7 +388,7 @@ final class KeyIterationImpl(parallelExecution: ParallelExecution, parts: Vector
 final class DOutImpl(val pos: Int, val key: Any, val mKey: InnerKey, val count: Count) extends DOut
 final class OutFactoryImpl(pos: Int, dir: Int) extends OutFactory[Any, Product] {
   def result(key: Any, value: Product): DOut =
-    new DOutImpl(pos,key,InnerKey(ToPrimaryKey(value),value.hashCode),Count(value,dir))
+    new DOutImpl(pos,key,InnerKey(ToPrimaryKey(value),value.hashCode),IndexUtilImpl.makeCount(value,dir))
   def result(pair: (Any, Product)): DOut = {
     val (k,v) = pair
     result(k,v)
@@ -724,6 +750,7 @@ object MeasureP {
   }
 
   def out(readModel: Map[AssembledKey,Index]): Unit = {
+    /*
     val cols = Seq("S","F","L","M1","MH","MC","MM")
     val stat = for {
       (assembledKey,index) <- readModel
@@ -751,9 +778,10 @@ object MeasureP {
       (cols.map(c=>sm.getOrElse(c,0L)),assembledKey)
     }
     stat.foreach(println)
-    cols.zipWithIndex.foreach{ case(c,i)=>println(s"$c:${stat.map(_._1(i)).sum}") }
+    cols.zipWithIndex.foreach{ case(c,i)=>println(s"$c:${stat.map(_._1(i)).sum}") }*/
     out()
 
+    /*
     def items: Iterator[(Any,Product)] = for{
       (_,index) <- readModel.iterator
       data = getData(index)
@@ -773,7 +801,7 @@ object MeasureP {
     }.sorted.foreach {
       case (count,className) => println(s"CC: $count $className")
     }
-
+    */
     //print("SrcId-Only: " + items.count{ case (k,i) => i.productArity == 1 && i.productElement(0) == k }.toString)
 
 //    items.foldLeft(Map.empty[Int,Long]){ (res,item) =>
@@ -782,8 +810,16 @@ object MeasureP {
 //    }.toSeq.foreach{
 //      case (arity,count) => println(s"Arity: $arity $count")
 //    }
-
-
+    (for {
+      (_, index) <- readModel.iterator
+      data = getData(index)
+      (_, ms:SingleOuterMultiSet) <- data
+      r <- ms.item.productPrefix::"ALL"::Nil
+    } yield r).foldLeft(Map.empty[String,Int])((res,n)=>res.updated(n,res.getOrElse(n,0)+1)).toSeq.map{
+      case (className,count) => (count,className)
+    }.sorted.foreach {
+      case (count,className) => println(s"CP: $count $className")
+    }
 
 
   }
