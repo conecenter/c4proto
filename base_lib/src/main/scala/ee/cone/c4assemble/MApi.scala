@@ -238,3 +238,6 @@ trait EachSubAssemble[R<:Product] extends SubAssemble[R] {
 trait ValuesSubAssemble[R<:Product] extends SubAssemble[R] {
   def call(implicit can: CanCallToValues): Values[R] = throw new Exception("never here")
 }
+
+trait OuterMultiSet
+trait AssembledProduct extends Product with OuterMultiSet

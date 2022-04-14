@@ -45,7 +45,6 @@ final  class IndexImpl(val data: InnerIndex) extends Index {
 
 case class InnerKey(primaryKey: String, hash: Int)
 
-sealed trait OuterMultiSet
 class MultiOuterMultiSet(val data: DMultiSet) extends OuterMultiSet
 object EmptyOuterMultiSet extends MultiOuterMultiSet(Map.empty)
 class SingleOuterMultiSet(val primaryKey: String, val hash: Int, val item: Product) extends OuterMultiSet
@@ -116,14 +115,17 @@ object IndexUtilImpl {
     val aV = getInnerMultiSet(a)
     val bV = getInnerMultiSet(b)
     val resV = inner(aV, bV)
-    MeasureP("merge",aV,bV,resV)
+    //MeasureP("merge",aV,bV,resV)
     if(resV eq aV) a else if(resV eq bV) b else toOrdered(resV)
   }
   def toOrdered(res: DMultiSet): OuterMultiSet = res.size match {
     case 0 => EmptyOuterMultiSet
     case 1 => res.head match {
       case (innerKey,products) if isSingleProduct(products) =>
-        new SingleOuterMultiSet(innerKey.primaryKey,innerKey.hash,asSingleProduct(products))
+        asSingleProduct(products) match {
+          case item: AssembledProduct => item
+          case item => new SingleOuterMultiSet(innerKey.primaryKey,innerKey.hash,item)
+        }
       case _ => new MultiOuterMultiSet(res)
     }
     case n if n<16 && res.forall{ case (innerKey,products) => isSingleProduct(products) } => // 16==>256 will give ex -200M
@@ -145,6 +147,8 @@ object IndexUtilImpl {
   }
 
   def getInnerMultiSet(outer: OuterMultiSet): DMultiSet = outer match {
+    case item: AssembledProduct =>
+      Map.empty.updated(InnerKey(ToPrimaryKey(item),item.hashCode),new SingleCount(item))
     case ms: SingleOuterMultiSet =>
       Map.empty.updated(InnerKey(ms.primaryKey,ms.hash),new SingleCount(ms.item))
     case fms: FewOuterMultiSet =>
@@ -209,6 +213,7 @@ final case class ParallelExecution(power: Int) {
 
   def getValues(index: Index, key: Any, warning: String): Values[Product] = {
     val res = getMS(index,key).fold(Nil:Values[Product]) {
+      case ms: AssembledProduct => ms :: Nil
       case ms: SingleOuterMultiSet => ms.item :: Nil
       case ms: FewOuterMultiSet => ArraySeq.unsafeWrapArray(ms.items)
       case ms: MultiOuterMultiSet => DValuesImpl(ms.data,warning)
@@ -240,7 +245,7 @@ final case class ParallelExecution(power: Int) {
       val diffMS = getMS(diffIndex,key).getOrElse(EmptyOuterMultiSet)
       if(currentMS eq diffMS){
         val currentValues = IndexUtilImpl.getInnerMultiSet(currentMS)
-        MeasureP("partition",Map.empty,currentValues,Map.empty)
+        //MeasureP("partition",Map.empty,currentValues,Map.empty)
         val changed = (for {
           (k,values) <- currentValues
         } yield IndexUtilImpl.single(values,warning)).toList
@@ -248,7 +253,7 @@ final case class ParallelExecution(power: Int) {
       } else {
         val currentValues = IndexUtilImpl.getInnerMultiSet(currentMS)
         val diffValues = IndexUtilImpl.getInnerMultiSet(diffMS)
-        MeasureP("partition",Map.empty.updated(0,0),currentValues,diffValues)
+        //MeasureP("partition",Map.empty.updated(0,0),currentValues,diffValues)
         val changed = (for {
           (k,v) <- diffValues; values <- currentValues.get(k)
         } yield IndexUtilImpl.single(values,warning)).toList
@@ -293,7 +298,7 @@ final case class ParallelExecution(power: Int) {
             val counts = IndexUtilImpl.mergeProduct(wasCounts,rec.count)
             val values = if(!IndexUtilImpl.isEmptyProducts(counts)) wasValues.updated(mKey,counts) else wasValues.removed(mKey)
             val willMS: OuterMultiSet = IndexUtilImpl.toOrdered(values)
-            MeasureP("buildIndex",wasValues,Map.empty,values)
+            //MeasureP("buildIndex",wasValues,Map.empty,values)
             if(willMS ne EmptyOuterMultiSet) index(key) = willMS else assert(index.remove(key).nonEmpty)
           }
         }
@@ -810,17 +815,91 @@ object MeasureP {
 //    }.toSeq.foreach{
 //      case (arity,count) => println(s"Arity: $arity $count")
 //    }
-    (for {
+
+    def countItems[T](iterator: Iterator[T]): Seq[(Int,T)] =
+      iterator.foldLeft(Map.empty[T,Int])((res,n)=>res.updated(n,res.getOrElse(n,0)+1)).toSeq.map{
+      case (className,count) => (count,className)
+    }
+
+    countItems(for {
       (_, index) <- readModel.iterator
       data = getData(index)
-      (_, ms:SingleOuterMultiSet) <- data
-      r <- ms.item.productPrefix::"ALL"::Nil
-    } yield r).foldLeft(Map.empty[String,Int])((res,n)=>res.updated(n,res.getOrElse(n,0)+1)).toSeq.map{
-      case (className,count) => (count,className)
-    }.sorted.foreach {
+      (_, ms) <- data
+      r <- ms match {
+        case item: AssembledProduct => "AP ALL"::"AP "+item.productPrefix::Nil
+        case ms: SingleOuterMultiSet => "SM ALL"::"SM "+ms.item.productPrefix::Nil
+        case ms: FewOuterMultiSet =>
+          for {
+            item <- ms.items.toSeq
+            r <- (item match {
+              case ii: AssembledProduct => "FM AP ALL" ::
+                "FM AP " + item.productPrefix :: Nil
+              case ii: Product => "FM NP ALL" ::
+                "FM NP " + item.productPrefix :: Nil
+            })
+          } yield r
+        case _ => "ETC ALL"::Nil
+      }
+    } yield r).sorted.foreach {
       case (count,className) => println(s"CP: $count $className")
     }
 
+    // find non-interned
+    countItems(for {
+      (_, index) <- readModel.iterator
+      data = getData(index)
+      (key, ms) <- data
+      (_,products)<- IndexUtilImpl.getInnerMultiSet(ms)
+      count <- IndexUtilImpl.toCounts(products)
+      (fVal,fPos) <- count.item.productIterator.zipWithIndex if (fVal match {
+        case v: String => v.intern() ne v
+        case _ => false
+      })
+    } yield (count.item.productPrefix,fPos)).sorted.foreach {
+      case (count,fld) => println(s"NON-INTERN: $count $fld")
+    }
+
+    // find Assembled in fewMS hist
+    countItems(for {
+      (_, index) <- readModel.iterator
+      data = getData(index)
+      (_, ms) <- data
+      sz <- ms match {
+        case ms: FewOuterMultiSet => ms.items.length :: Nil
+        case ms: MultiOuterMultiSet => ms.data.size :: Nil
+        case _ => 1::Nil
+      }
+    } yield sz match {
+      case n if n <= 8 => n
+      case n if n <= 16 => 16
+      case n if n <= 32 => 32
+      case n if n <= 64 => 64
+      case n if n <= 128 => 128
+      case n if n <= 256 => 256
+      case n if n <= 512 => 512
+      case n if n <= 1024 => 1024
+      case n if n <= 4096 => 4096
+      case n if n <= 65536 => 65536
+      case n if n <= 1048576 => 1048576
+      case n if n <= 16777216 => 16777216
+      case n => -1
+    }).sortBy(_._2).foreach {
+      case (count,sz) => println(s"MS-SZ: $count $sz")
+    }
+
+    // find SrcIdOnly in MultiOuterMultiSet
+    countItems(for {
+      (_, index) <- readModel.iterator
+      data = getData(index)
+      (_, ms: MultiOuterMultiSet) <- data
+      (_, products) <- IndexUtilImpl.getInnerMultiSet(ms)
+      count <- IndexUtilImpl.toCounts(products)
+      r <- (if(count.item.productArity == 1 && count.item.productElement(0).isInstanceOf[String])
+        "ALL_ONLY" :: count.item.productPrefix :: Nil else "ALL_BIG" :: Nil
+      )
+    } yield r).sorted.foreach {
+      case (count,cl) => println(s"SrcIdOnly: $count $cl")
+    }
 
   }
 }
