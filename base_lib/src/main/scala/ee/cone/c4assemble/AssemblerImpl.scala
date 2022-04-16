@@ -43,7 +43,7 @@ final  class IndexImpl(val data: InnerIndex) extends Index {
   override def toString: String = s"IndexImpl($data)"
 }
 
-case class InnerKey(primaryKey: String, hash: Int)
+case class InnerKeyImpl(primaryKey: String, hash: Int) extends InnerKey
 
 class MultiOuterMultiSet(val data: DMultiSet) extends OuterMultiSet
 object EmptyOuterMultiSet extends MultiOuterMultiSet(Map.empty)
@@ -51,6 +51,8 @@ class SingleOuterMultiSet(val primaryKey: String, val hash: Int, val item: Produ
 class FewOuterMultiSet(
   val primaryKeys: Array[String], val hashes: Array[Int], val items: Array[Product]
 ) extends OuterMultiSet
+
+//trait XProducts
 
 object IndexTypes {
   type DMultiSet = Map[InnerKey,Products]
@@ -60,6 +62,7 @@ object IndexTypes {
 // todo All on upd, Tree on upd
 
 object IndexUtilImpl {
+  //def toProducts(value: XProducts): Products
   def single(products: Products, warning: String): Product = products match {
     case c: Count =>
       if(c.count!=1 && warning.nonEmpty)
@@ -146,14 +149,19 @@ object IndexUtilImpl {
       )
   }
 
+  def toInnerKey(item: Product): InnerKey = item match {
+    case i: InnerKey => i
+    case i => InnerKeyImpl(ToPrimaryKey(i),i.hashCode)
+  }
+
   def getInnerMultiSet(outer: OuterMultiSet): DMultiSet = outer match {
     case item: AssembledProduct =>
-      Map.empty.updated(InnerKey(ToPrimaryKey(item),item.hashCode),new SingleCount(item))
+      Map.empty.updated(toInnerKey(item),new SingleCount(item))
     case ms: SingleOuterMultiSet =>
-      Map.empty.updated(InnerKey(ms.primaryKey,ms.hash),new SingleCount(ms.item))
+      Map.empty.updated(InnerKeyImpl(ms.primaryKey,ms.hash),new SingleCount(ms.item))
     case fms: FewOuterMultiSet =>
       TreeMap.empty[InnerKey,Products] ++ fms.items.indices.map(i=>
-        (InnerKey(fms.primaryKeys(i),fms.hashes(i)),new SingleCount(fms.items(i)))
+        (InnerKeyImpl/*optimize*/(fms.primaryKeys(i),fms.hashes(i)),new SingleCount(fms.items(i)))
       )
     case ms: MultiOuterMultiSet => ms.data
   }
@@ -393,7 +401,7 @@ final class KeyIterationImpl(parallelExecution: ParallelExecution, parts: Vector
 final class DOutImpl(val pos: Int, val key: Any, val mKey: InnerKey, val count: Count) extends DOut
 final class OutFactoryImpl(pos: Int, dir: Int) extends OutFactory[Any, Product] {
   def result(key: Any, value: Product): DOut =
-    new DOutImpl(pos,key,InnerKey(ToPrimaryKey(value),value.hashCode),IndexUtilImpl.makeCount(value,dir))
+    new DOutImpl(pos,key,IndexUtilImpl.toInnerKey(value),IndexUtilImpl.makeCount(value,dir))
   def result(pair: (Any, Product)): DOut = {
     val (k,v) = pair
     result(k,v)
@@ -844,48 +852,49 @@ object MeasureP {
       case (count,className) => println(s"CP: $count $className")
     }
 
-    // find non-interned
-    countItems(for {
-      (_, index) <- readModel.iterator
-      data = getData(index)
-      (key, ms) <- data
-      (_,products)<- IndexUtilImpl.getInnerMultiSet(ms)
-      count <- IndexUtilImpl.toCounts(products)
-      (fVal,fPos) <- count.item.productIterator.zipWithIndex if (fVal match {
-        case v: String => v.intern() ne v
-        case _ => false
-      })
-    } yield (count.item.productPrefix,fPos)).sorted.foreach {
-      case (count,fld) => println(s"NON-INTERN: $count $fld")
-    }
+    // find non-interned -- not found at 1st level, max 365
+//    countItems(for {
+//      (_, index) <- readModel.iterator
+//      data = getData(index)
+//      (key, ms) <- data
+//      (_,products)<- IndexUtilImpl.getInnerMultiSet(ms)
+//      count <- IndexUtilImpl.toCounts(products)
+//      (fVal,fPos) <- count.item.productIterator.zipWithIndex if (fVal match {
+//        case v: String => v.intern() ne v
+//        case _ => false
+//      })
+//    } yield (count.item.productPrefix,fPos)).sorted.foreach {
+//      case (count,fld) => println(s"NON-INTERN: $count $fld")
+//    }
+
 
     // find Assembled in fewMS hist
-    countItems(for {
-      (_, index) <- readModel.iterator
-      data = getData(index)
-      (_, ms) <- data
-      sz <- ms match {
-        case ms: FewOuterMultiSet => ms.items.length :: Nil
-        case ms: MultiOuterMultiSet => ms.data.size :: Nil
-        case _ => 1::Nil
-      }
-    } yield sz match {
-      case n if n <= 8 => n
-      case n if n <= 16 => 16
-      case n if n <= 32 => 32
-      case n if n <= 64 => 64
-      case n if n <= 128 => 128
-      case n if n <= 256 => 256
-      case n if n <= 512 => 512
-      case n if n <= 1024 => 1024
-      case n if n <= 4096 => 4096
-      case n if n <= 65536 => 65536
-      case n if n <= 1048576 => 1048576
-      case n if n <= 16777216 => 16777216
-      case n => -1
-    }).sortBy(_._2).foreach {
-      case (count,sz) => println(s"MS-SZ: $count $sz")
-    }
+//    countItems(for {
+//      (_, index) <- readModel.iterator
+//      data = getData(index)
+//      (_, ms) <- data
+//      sz <- ms match {
+//        case ms: FewOuterMultiSet => ms.items.length :: Nil
+//        case ms: MultiOuterMultiSet => ms.data.size :: Nil
+//        case _ => 1::Nil
+//      }
+//    } yield sz match {
+//      case n if n <= 8 => n
+//      case n if n <= 16 => 16
+//      case n if n <= 32 => 32
+//      case n if n <= 64 => 64
+//      case n if n <= 128 => 128
+//      case n if n <= 256 => 256
+//      case n if n <= 512 => 512
+//      case n if n <= 1024 => 1024
+//      case n if n <= 4096 => 4096
+//      case n if n <= 65536 => 65536
+//      case n if n <= 1048576 => 1048576
+//      case n if n <= 16777216 => 16777216
+//      case n => -1
+//    }).sortBy(_._2).foreach {
+//      case (count,sz) => println(s"MS-SZ: $count $sz")
+//    }
 
     // find SrcIdOnly in MultiOuterMultiSet
     countItems(for {
@@ -894,12 +903,21 @@ object MeasureP {
       (_, ms: MultiOuterMultiSet) <- data
       (_, products) <- IndexUtilImpl.getInnerMultiSet(ms)
       count <- IndexUtilImpl.toCounts(products)
-      r <- (if(count.item.productArity == 1 && count.item.productElement(0).isInstanceOf[String])
-        "ALL_ONLY" :: count.item.productPrefix :: Nil else "ALL_BIG" :: Nil
+      r <- (
+        if(count.item.isInstanceOf[PrimaryKeyOnly]) "POK ALL" :: Nil
+        else if(count.item.productArity == 1 && count.item.productElement(0).isInstanceOf[String])
+          "MAY ALL" :: "MAY "+count.item.productPrefix :: Nil
+        else "BIG ALL" :: Nil
       )
     } yield r).sorted.foreach {
       case (count,cl) => println(s"SrcIdOnly: $count $cl")
     }
+
+    for {
+      (k0, index) <- readModel.iterator
+      data = getData(index)
+      (k1, ms: MultiOuterMultiSet) <- data if ms.data.size > 65536
+    } println(s"Big Values: ${ms.data.size} $k0 $k1")
 
   }
 }
