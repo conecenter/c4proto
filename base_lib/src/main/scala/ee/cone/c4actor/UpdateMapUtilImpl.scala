@@ -25,8 +25,7 @@ import okio.ByteString
     val key = toKey(up)
     val will = state.get(key).fold(up){ was =>
       val longLessValues = was.lessValues ::: up.lessValues
-      val pMoreValues = if(was.value.size==0) Nil else was.value :: Nil
-      val longMoreValues = was.moreValues ::: pMoreValues ::: up.moreValues
+      val longMoreValues = moreToList(was) ::: up.moreValues
       val same = longLessValues == longMoreValues
       val lessValues = if(same) Nil else longLessValues.diff(longMoreValues)
       val moreValues = if(same) Nil else longMoreValues.diff(longLessValues)
@@ -56,7 +55,7 @@ import okio.ByteString
   def revert(state: UpdateMap): List[N_UpdateFrom] = toUpdates(state).map{ up =>
     val (value,moreValues) = if(up.lessValues.isEmpty) (ByteString.EMPTY,Nil)
       else (up.lessValues.head,up.lessValues.tail)
-    val lessValues = up.moreValues ::: toLessValues(up.value)
+    val lessValues = moreToList(up)
     //
     if(moreValues.exists(_!=value) || up.flags!=0L)
       logger.error("reverting bad "+toSzStr(up))
@@ -69,26 +68,13 @@ import okio.ByteString
     up.copy(lessValues=lessValues, moreValues=moreValues, value=value)
   }
 
-  private def toLessValues(b: ByteString) = if(b.size==0) Nil else b :: Nil
+  private def moreToList(up: N_UpdateFrom) =
+    if(up.value.size==0) up.moreValues else up.moreValues ::: up.value :: Nil
 
-  private def toUpdateMap(updates: List[N_UpdateFrom], ignore: Set[Long]): Map[(Long,SrcId),ByteString] =
-    CheckedMap(for(up<-updates if !ignore(up.valueTypeId)) yield {
-      assert(up.flags==0L)
-      toKey(up)->up.value
-    })
-
-  def diff(currentUpdates: List[N_UpdateFrom], targetUpdates: List[N_UpdateFrom], ignore: Set[Long]): List[N_UpdateFrom] = {
-    val currentMap = toUpdateMap(currentUpdates, ignore)
-    val targetMap = toUpdateMap(targetUpdates, ignore)
-    (currentMap.keySet ++ targetMap.keySet).toList.sorted.flatMap{ k =>
-      val currentB = currentMap.getOrElse(k,ByteString.EMPTY)
-      val targetB = targetMap.getOrElse(k,ByteString.EMPTY)
-      if(currentB==targetB) Nil else {
-        val (valueTypeId,srcId) = k
-        N_UpdateFrom(srcId,valueTypeId,toLessValues(currentB),Nil,targetB,0L) :: Nil
-      }
-    }
-  }
+  def diff(currentUpdates: List[N_UpdateFrom], targetUpdates: List[N_UpdateFrom], ignore: Set[Long]): List[N_UpdateFrom] =
+    toUpdates(reduce(reduce(Map.empty,currentUpdates.map(up =>
+      up.copy(lessValues=moreToList(up),moreValues=up.lessValues,value=ByteString.EMPTY)
+    ),ignore),targetUpdates,ignore))
 
   def toUpdateFrom(up: N_Update, fromValues: List[ByteString]): N_UpdateFrom = {
     val res = N_UpdateFrom(up.srcId,up.valueTypeId,fromValues,Nil,up.value,up.flags)
@@ -97,4 +83,5 @@ import okio.ByteString
   }
 
   def insert(up: N_Update): N_UpdateFrom = toUpdateFrom(up,Nil)
+
 }
