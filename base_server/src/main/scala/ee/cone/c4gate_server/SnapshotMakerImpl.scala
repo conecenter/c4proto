@@ -125,13 +125,13 @@ class SnapshotSavers(val full: SnapshotSaver, val tx: SnapshotSaver)
 
   private def reduce(events: List[RawEvent]): SnapshotWorld=>SnapshotWorld = if(events.isEmpty) w=>w else world=>{
     val updates = toUpdate.toUpdates(events,"maker")
-    val newState = updateMapUtil.reduce(world.state, updates, snapshotConfig.ignore)
+    val newState = world.state.add(updates)
     new SnapshotWorld(newState,events.last.srcId)
   }
 
   private def load(snapshotFilter: Option[NextOffset=>Boolean]): SnapshotWorld = {
     val srcId = "0" * OffsetHexSize()
-    val emptyRawWorld = new SnapshotWorld(Map.empty, srcId)
+    val emptyRawWorld = new SnapshotWorld(updateMapUtil.startSnapshot(snapshotConfig.ignore), srcId)
     (for{
       snapshot <- snapshotLister.list.toStream if snapshotFilter.forall(_(snapshot.offset))
       event <- snapshotLoader.load(snapshot.raw)
@@ -155,7 +155,7 @@ class SnapshotSavers(val full: SnapshotSaver, val tx: SnapshotSaver)
 
   private def save(world: SnapshotWorld): RawSnapshot = {
     logger.debug("Saving...")
-    val updates = updateMapUtil.toSingleUpdates(world.state)
+    val updates = world.state.result
     makeStats(updates)
     val (bytes, headers) = toUpdate.toBytes(updates)
     val res = snapshotSavers.full.save(world.offset, bytes, headers)
@@ -229,7 +229,7 @@ trait SnapshotMakerMaxTime {
   }
 }
 
-class SnapshotWorld(val state: UpdateMap, val offset: NextOffset)
+class SnapshotWorld(val state: UpdateMapping, val offset: NextOffset)
 
 trait SnapshotConfig {
   def ignore: Set[Long]

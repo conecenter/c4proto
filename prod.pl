@@ -746,7 +746,7 @@ my $need_deploy_cert = sub{
     &$put("simple.auth",&$get_simple_auth($comp));
 };
 
-my @lim_small = (lim_mem=>"100Mi",lim_cpu=>"250m");
+my @lim_small = (lim_mem=>"100Mi",lim_cpu=>"250m"); # use rarely, on lim_mem child processes inside container can be killed, and parent get mad
 my @req_small = (req_mem=>"100Mi",req_cpu=>"250m");
 my @req_big = (req_mem=>"10Gi",req_cpu=>"1000m");
 
@@ -2027,7 +2027,7 @@ push @tasks, ["up-resource_tracker","",sub{
     my $conf = &$get_compose($comp);
     my $options = {
         image => $img, tty => "true",
-        @req_small, @lim_small,
+        @req_small,
         (map{($_=>&$mandatory_of($_=>$conf))} qw[C4RES_TRACKER_OPTIONS C4KUBECONFIG ]),
     };
     &$wrap_deploy($comp,$from_path,$options);
