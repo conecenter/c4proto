@@ -45,8 +45,7 @@ trait UpdateFlag {
   case class N_UpdateFrom(
     @Id(0x0011) srcId: SrcId,
     @Id(0x0012) valueTypeId: Long,
-    @Id(0x0014) lessValues: List[okio.ByteString],
-    @Id(0x0016) moreValues: List[okio.ByteString],
+    @Id(0x0014) fromValue: okio.ByteString,
     @Id(0x0013) value: okio.ByteString,
     @Id(0x001C) flags: Long
   )
@@ -365,12 +364,16 @@ trait Reverting {
   def makeSavepoint: Context=>Context
 }
 
+trait UpdateMapping {
+  def add(updates: List[N_UpdateFrom]): UpdateMapping
+  def result: List[N_UpdateFrom]
+}
+
 trait UpdateMapUtil {
-  def reduce(state: UpdateMap, updates: List[N_UpdateFrom], ignore: Set[Long]): UpdateMap
-  def toSingleUpdates(state: UpdateMap): List[N_UpdateFrom]
-  def revert(state: UpdateMap): List[N_UpdateFrom]
+  def startSnapshot(ignore: Set[Long]): UpdateMapping
+  def startRevert(ignore: Set[Long]): UpdateMapping
   def diff(currentUpdates: List[N_UpdateFrom], targetUpdates: List[N_UpdateFrom], ignore: Set[Long]): List[N_UpdateFrom]
-  def toUpdatesFrom(updates: List[N_Update], getFrom: N_Update=>List[ByteString]): List[N_UpdateFrom]
+  def toUpdatesFrom(updates: List[N_Update], getFrom: N_Update=>ByteString): List[N_UpdateFrom]
   def insert(up: N_Update): N_UpdateFrom
 }
 

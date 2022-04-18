@@ -197,8 +197,8 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
       val valueAdapter = qAdapterRegistry.byId(u.valueTypeId)
       val wKey = origKeyFactory.value.rawKey(valueAdapter.className)
       val index = indexUtil.getInstantly(wKey.of(local.assembled))
-      indexUtil.getValues(index,u.srcId,"")
-        .map(item=>ToByteString(valueAdapter.encode(item))).toList
+      Single.option(indexUtil.getValues(index,u.srcId,""))
+        .fold(ByteString.EMPTY)(item=>ToByteString(valueAdapter.encode(item)))
     })
 }
 

@@ -120,8 +120,7 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
   private def makeHeaderFromName: MultiRawCompressor => List[RawHeader] = jc =>
     RawHeader(compressionKey, jc.name) :: Nil
 
-  def getInnerSize(up: N_UpdateFrom): Long =
-    up.value.size + up.lessValues.map(_.size).sum + up.moreValues.map(_.size).sum
+  def getInnerSize(up: N_UpdateFrom): Long = up.fromValue.size + up.value.size
   @tailrec private def nextPartSize(updates: List[N_UpdateFrom], count: Long, size: Long): Option[Long] =
     if(updates.isEmpty) None
     else if(size >= compressionMinSize.value) Option(count)
@@ -193,7 +192,7 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
     logger.debug(
       s"E2U $hint ${event.srcId} " + updates.groupMapReduce(u=>(
         u.valueTypeId,
-        "D"*u.lessValues.size + "M"*u.moreValues.size + "A"*(if(u.value.size > 0) 1 else 0) // D A DA are valid
+        "D"*(if(u.fromValue.size > 0) 1 else 0) + "A"*(if(u.value.size > 0) 1 else 0) // D A DA are valid
       ))(_=>1)((a,b)=>a+b).toSeq.sorted.map{
         case ((id,dma),count) =>
           s"${java.lang.Long.toHexString(id)}:$dma:$count"

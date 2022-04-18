@@ -21,15 +21,15 @@ class RevertPatch(val values: UpdateMap, val offset: NextOffset)
     val patch = consuming.process(offset, consumer => { // todo fix; now seems to skip ALL events if starting one is expired
       val endOffset = consumer.endOffset
       logger.info(s"endOffset ${endOffset}")
-      @tailrec def iteration(was: UpdateMap): UpdateMap = {
+      @tailrec def iteration(was: UpdateMapping): UpdateMapping = {
         val events = consumer.poll()
         val updates = toUpdate.toUpdates(events,"revert")
-        val will = updateMapUtil.reduce(was,updates,ignoreRegistry.ignore)
+        val will = was.add(updates)
         if(events.exists(_.srcId>=endOffset)) will else iteration(will)
       }
-      iteration(Map.empty)
+      iteration(updateMapUtil.startRevert(ignoreRegistry.ignore))
     })
-    val updates = updateMapUtil.revert(patch)
+    val updates = patch.result
     WriteModelKey.modify(_.enqueueAll(updates))
   }
   def id = "CAN_REVERT_FROM"
