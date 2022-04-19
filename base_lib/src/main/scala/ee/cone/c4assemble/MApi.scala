@@ -246,7 +246,7 @@ trait InnerKey extends Product {
 }
 trait AssembledProduct extends Product with OuterMultiSet
 trait PrimaryKeyOnly extends AssembledProduct with InnerKey {
-  def primaryKey: String = asInstanceOf[Product1[_]]._1.asInstanceOf[String]
+  def primaryKey: String = productElement(0).asInstanceOf[String]
   def hash: Int = hashCode
 }
 
