@@ -136,12 +136,12 @@ object IndexUtilImpl {
     if (r == 0) x.hash compareTo y.hash else r
   }
 
-  def toOrdered(inner: Compose[DMultiSet]): Compose[OuterMultiSet] = (a, b) => { // Ordering.by can drop keys!: https://github.com/scala/bug/issues/8674
+  def toOrderedCompact(inner: Compose[DMultiSet]): Compose[OuterMultiSet] = (a, b) => { // Ordering.by can drop keys!: https://github.com/scala/bug/issues/8674
     val aV = getInnerMultiSet(a)
     val bV = getInnerMultiSet(b)
     val resV = inner(aV, bV)
-    //MeasureP("merge",aV,bV,resV)
-    if(resV eq aV) a else if(resV eq bV) b else toOrdered(resV)
+    MeasureP("merge",aV.size+bV.size)
+    if(resV eq aV) a else if(resV eq bV) b else toCompact(toOrdered(resV))
   }
   def toOrdered(res: DMultiSet): OuterMultiSet = res.size match {
     case 0 => EmptyOuterMultiSet
@@ -153,26 +153,30 @@ object IndexUtilImpl {
         }
       case _ => new MultiOuterMultiSet(res)
     }
-    case n if n<16 && res.forall{ case (_,products) => isSingleProduct(products) } => // 16==>256 will give ex -200M
-      if(res.forall(_._2.isInstanceOf[AssembledProduct])){
-        new FewAssembledOuterMultiSet(res.values.map(_.asInstanceOf[AssembledProduct]).toArray)
+    //case n if n<256 && res.forall{ case (_,products) => isSingleProduct(products) } => // 16==>256 will give ex -200M
+    case _ =>
+      new MultiOuterMultiSet(
+        if(!res.isInstanceOf[TreeMap[_, _]])
+          TreeMap.empty[InnerKey,Products] ++ res else res
+      )
+  }
+  def toCompact(ms: OuterMultiSet): OuterMultiSet = ms match {
+    case ms: MultiOuterMultiSet if ms.data.forall{ case (_,products) => isSingleProduct(products) } =>
+      if(ms.data.forall(_._2.isInstanceOf[AssembledProduct])){
+        new FewAssembledOuterMultiSet(ms.data.values.map(_.asInstanceOf[AssembledProduct]).toArray)
       } else {
-        val size = res.size
+        val size = ms.data.size
         val primaryKeys = new Array[String](size)
         val hashes = new Array[Int](size)
         val items = new Array[Product](size)
-        for(((innerKey,products),i) <- res.zipWithIndex) { //todo while ?
+        for(((innerKey,products),i) <- ms.data.zipWithIndex) { //todo while ?
           primaryKeys(i) = innerKey.primaryKey
           hashes(i) = innerKey.hash
           items(i) = asSingleProduct(products)
         }
         new FewOuterMultiSet(primaryKeys,hashes,items)
       }
-    case _ =>
-      new MultiOuterMultiSet(
-        if(!res.isInstanceOf[TreeMap[_, _]])
-          TreeMap.empty[InnerKey,Products] ++ res else res
-      )
+    case _ => ms
   }
 
   def toInnerKey(item: Product): InnerKey = item match {
@@ -226,7 +230,7 @@ final case class ParallelExecution(power: Int) {
 @c4("AssembleApp") final case class IndexUtilImpl()(
   mergeIndexInner: Compose[InnerIndex] =
     Merge[Any,OuterMultiSet](v => v eq EmptyOuterMultiSet,
-      IndexUtilImpl.toOrdered(
+      IndexUtilImpl.toOrderedCompact(
         Merge[InnerKey,Products](IndexUtilImpl.isEmptyProducts, IndexUtilImpl.mergeProducts)
       )
     )
@@ -289,7 +293,7 @@ final case class ParallelExecution(power: Int) {
       val diffMS = getMS(diffIndex,key).getOrElse(EmptyOuterMultiSet)
       if(currentMS eq diffMS){
         val currentValues = IndexUtilImpl.getInnerMultiSet(currentMS)
-        //MeasureP("partition",Map.empty,currentValues,Map.empty)
+        MeasureP("partition0",currentValues.size)
         val changed = (for {
           (_,values) <- currentValues
         } yield IndexUtilImpl.single(values,warning)).toList
@@ -297,7 +301,7 @@ final case class ParallelExecution(power: Int) {
       } else {
         val currentValues = IndexUtilImpl.getInnerMultiSet(currentMS)
         val diffValues = IndexUtilImpl.getInnerMultiSet(diffMS)
-        //MeasureP("partition",Map.empty.updated(0,0),currentValues,diffValues)
+        MeasureP("partition1",currentValues.size+diffValues.size)
         val changed = (for {
           (k,_) <- diffValues; values <- currentValues.get(k)
         } yield IndexUtilImpl.single(values,warning)).toList
@@ -343,11 +347,11 @@ final case class ParallelExecution(power: Int) {
             )
             val values = if(!IndexUtilImpl.isEmptyProducts(counts)) wasValues.updated(mKey,counts) else wasValues.removed(mKey)
             val willMS: OuterMultiSet = IndexUtilImpl.toOrdered(values)
-            //MeasureP("buildIndex",wasValues,Map.empty,values)
+            MeasureP("buildIndex",wasValues.size)
             if(willMS ne EmptyOuterMultiSet) index(key) = willMS else assert(index.remove(key).nonEmpty)
           }
         }
-        index.toMap
+        index.map{ case (k,ms) => k -> IndexUtilImpl.toCompact(ms) }.toMap
       }.map{ pRes: Seq[InnerIndex] =>
         IndexUtilImpl.makeIndex(pRes.reduce((a,b)=>a++b))
       }
@@ -777,7 +781,7 @@ object MeasureP {
   import java.util.concurrent.ConcurrentHashMap
   import java.util.concurrent.atomic.LongAdder
   import scala.jdk.CollectionConverters._
-  val state = new ConcurrentHashMap[(String,String,String,String), LongAdder]
+  val state = new ConcurrentHashMap[(String,String), LongAdder]
   //def log2(value: Int): Int = Integer.SIZE - Integer.numberOfLeadingZeros(value)
   def sz(m: Map[_,_]): String = m.size match {
     case 0 => "0"
@@ -785,15 +789,17 @@ object MeasureP {
     case a if a < 256 => "C"
     case _ => "M"
   }
-  def inc(key: (String,String,String,String)): Unit =
-    state.computeIfAbsent(key, _ => new LongAdder).increment()
+  def inc(key: (String,String), value: Int): Unit =
+    state.computeIfAbsent(key, _ => new LongAdder).add(value)
 
-  def apply(hint: String, m0: Map[_,_], m1: Map[_,_], m2: Map[_,_]): Unit = {
+  def apply(hint: String, size: Int): Unit = {
+    inc((hint,"o"),1)
+    inc((hint,"i"),size)
     //inc((hint, sz(m0), sz(m1), sz(m2)))
     //inc((hint, "*", "*", "*"))
   }
   def out(): Unit =
-    state.keySet.asScala.toSeq.sorted.foreach(key=>println(key,state.get(key).longValue))
+    state.keySet.asScala.toSeq.sorted.foreach(key=>println(s"ME: ${key._1} ${key._2} ${state.get(key).longValue}"))
   def getData(index: Index): InnerIndex = index match {
     case i: IndexImpl => i.data
     case i if i == emptyIndex => Map.empty
