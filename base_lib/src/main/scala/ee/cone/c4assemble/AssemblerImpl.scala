@@ -41,6 +41,7 @@ case class InnerKeyImpl(primaryKey: String, hash: Int) extends InnerKey
 class MultiOuterMultiSet(val data: DMultiSet) extends OuterMultiSet
 object EmptyOuterMultiSet extends MultiOuterMultiSet(Map.empty)
 class SingleOuterMultiSet(val primaryKey: String, val hash: Int, val item: Product) extends OuterMultiSet
+class FewAssembledOuterMultiSet(val items: Array[AssembledProduct]) extends OuterMultiSet
 class FewOuterMultiSet(
   val primaryKeys: Array[String], val hashes: Array[Int], val items: Array[Product]
 ) extends OuterMultiSet
@@ -153,16 +154,20 @@ object IndexUtilImpl {
       case _ => new MultiOuterMultiSet(res)
     }
     case n if n<16 && res.forall{ case (_,products) => isSingleProduct(products) } => // 16==>256 will give ex -200M
-      val size = res.size
-      val primaryKeys = new Array[String](size)
-      val hashes = new Array[Int](size)
-      val items = new Array[Product](size)
-      for(((innerKey,products),i) <- res.zipWithIndex) { //todo while ?
-        primaryKeys(i) = innerKey.primaryKey
-        hashes(i) = innerKey.hash
-        items(i) = asSingleProduct(products)
+      if(res.forall(_._2.isInstanceOf[AssembledProduct])){
+        new FewAssembledOuterMultiSet(res.values.map(_.asInstanceOf[AssembledProduct]).toArray)
+      } else {
+        val size = res.size
+        val primaryKeys = new Array[String](size)
+        val hashes = new Array[Int](size)
+        val items = new Array[Product](size)
+        for(((innerKey,products),i) <- res.zipWithIndex) { //todo while ?
+          primaryKeys(i) = innerKey.primaryKey
+          hashes(i) = innerKey.hash
+          items(i) = asSingleProduct(products)
+        }
+        new FewOuterMultiSet(primaryKeys,hashes,items)
       }
-      new FewOuterMultiSet(primaryKeys,hashes,items)
     case _ =>
       new MultiOuterMultiSet(
         if(!res.isInstanceOf[TreeMap[_, _]])
@@ -180,10 +185,19 @@ object IndexUtilImpl {
       Map.empty.updated(toInnerKey(item),asUProducts(item))
     case ms: SingleOuterMultiSet =>
       Map.empty.updated(InnerKeyImpl(ms.primaryKey,ms.hash),asUProducts(ms.item))
-    case fms: FewOuterMultiSet =>
-      TreeMap.empty[InnerKey,Products] ++ fms.items.indices.map(i=>
-        (InnerKeyImpl/*optimize*/(fms.primaryKeys(i),fms.hashes(i)),asUProducts(fms.items(i)))
+    case fms: FewAssembledOuterMultiSet =>
+      TreeMap.empty[InnerKey,Products] ++ fms.items.map(item=>
+        toInnerKey(item)->asUProducts(item)
       )
+    case fms: FewOuterMultiSet =>
+      TreeMap.empty[InnerKey,Products] ++ fms.items.indices.map { i =>
+        val item = fms.items(i)
+        val key = item match {
+          case k: InnerKey => k
+          case _ => InnerKeyImpl(fms.primaryKeys(i), fms.hashes(i))
+        }
+        key -> asUProducts(item)
+      }
     case ms: MultiOuterMultiSet => ms.data
   }
 
@@ -245,6 +259,7 @@ final case class ParallelExecution(power: Int) {
       case ms: AssembledProduct => ms :: Nil
       case ms: SingleOuterMultiSet => ms.item :: Nil
       case ms: FewOuterMultiSet => ArraySeq.unsafeWrapArray(ms.items)
+      case ms: FewAssembledOuterMultiSet => ArraySeq.unsafeWrapArray(ms.items)
       case ms: MultiOuterMultiSet => DValuesImpl(ms.data,warning)
     }
     res
@@ -861,13 +876,10 @@ object MeasureP {
         case ms: FewOuterMultiSet =>
           for {
             item <- ms.items.toSeq
-            r <- item match {
-              case _: AssembledProduct => "FM AP ALL" ::
-                "FM AP " + item.productPrefix :: Nil
-              case _: Product => "FM NP ALL" ::
-                "FM NP " + item.productPrefix :: Nil
-            }
+            r <- "FM ALL" :: "FM " + item.productPrefix :: Nil
           } yield r
+        case ms: FewAssembledOuterMultiSet =>
+          "FAM ALL"::Nil
         case _ => "ETC ALL"::Nil
       }
     } yield r).sorted.foreach {
