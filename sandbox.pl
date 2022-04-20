@@ -133,6 +133,7 @@ my $remake = sub{
         my $debug_int_ip = &$get_debug_ip($$);
         my $paths = JSON::XS->new->decode(&$get_text_or_empty("$tmp/mod.$mod.classpath.json"));
         my $tool_opt = "-XX:+UseG1GC -XX:GCTimeRatio=1 -XX:MinHeapFreeRatio=15 -XX:MaxHeapFreeRatio=50 $ENV{JAVA_TOOL_OPTIONS} -XX:+UseStringDeduplication"; #-XX:NativeMemoryTracking=summary
+        ### if need heap >32G keeping 32bit pointers, insert: -XX:ObjectAlignmentInBytes=16 -Xmx45g
         my $env = {
             %$paths,
             (-e "/c4/debug-components") ? (C4DEBUG_COMPONENTS => "1") : (),
