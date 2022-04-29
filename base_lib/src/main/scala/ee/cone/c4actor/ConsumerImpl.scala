@@ -2,8 +2,7 @@ package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.S_FailedUpdates
-import ee.cone.c4assemble.Types.emptyIndex
-import ee.cone.c4assemble.{IndexImpl, MeasureP, ReadModel, ReadModelUtil}
+import ee.cone.c4assemble.StartUpSpaceProfiler
 import ee.cone.c4di.c4
 
 import scala.annotation.tailrec
@@ -15,7 +14,7 @@ import scala.annotation.tailrec
   progressObserverFactory: ProgressObserverFactory,
   consuming: Consuming,
   getS_FailedUpdates: GetByPK[S_FailedUpdates],
-  readModelUtil: ReadModelUtil,
+  startUpSpaceProfiler: StartUpSpaceProfiler,
 ) extends Executable with Early with LazyLogging {
   def run(): Unit = concurrent.blocking { //ck mg
     logger.info(s"Starting RootConsumer...")
@@ -40,7 +39,7 @@ import scala.annotation.tailrec
         world
       }).head
     GCLog("after loadRecent")
-    MeasureP.out(readModelUtil.toMap(initialRawWorld.assembled))
+    startUpSpaceProfiler.out(initialRawWorld.assembled)
     consuming.process(initialRawWorld.offset, consumer => {
       val initialRawObserver = progressObserverFactory.create(consumer.endOffset)
       iteration(consumer, initialRawWorld, initialRawObserver)

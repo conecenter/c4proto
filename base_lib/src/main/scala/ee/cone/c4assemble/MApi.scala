@@ -12,7 +12,8 @@ case class AssembleOptions(srcId: String, @deprecated isParallel: Boolean, threa
 trait IndexUtil extends Product {
   def joinKey(was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String): JoinKey
   def isEmpty(index: Index): Boolean
-  def keySet(index: Index): Set[Any]
+  def size(index: Index): Int
+  def keyIterator(index: Index): Iterator[Any]
   def mergeIndex(l: DPIterable[Index]): Index
   def zipMergeIndex(aDiffs: Seq[Index])(bDiffs: Seq[Index]): Seq[Index]
   def getValues(index: Index, key: Any, warning: String): Values[Product] //m
@@ -71,13 +72,13 @@ object Types {
   type Each[V] = V
   type DMap[K,V] = Map[K,V] //ParMap[K,V]
   type DPIterable[V] = Iterable[V]
-  trait Index //DMap[Any,DMultiSet]
-  private object EmptyIndex extends Index
+  type Index = RIndex
+
   private object EmptyReadModel extends ReadModelImpl(emptyDMap)
   //
   def emptyDMap[K,V]: DMap[K,V] = Map.empty
   def emptyReadModel: ReadModel = EmptyReadModel
-  def emptyIndex: Index = EmptyIndex//emptyDMap
+  def emptyIndex: Index = EmptyRIndex
   //
   type ProfilingLog = List[Product]
   //
@@ -259,4 +260,6 @@ extender from PrimaryKeyOnly declares also, that the class contains only the key
 
 */
 
-
+trait StartUpSpaceProfiler {
+  def out(readModelA: ReadModel): Unit
+}

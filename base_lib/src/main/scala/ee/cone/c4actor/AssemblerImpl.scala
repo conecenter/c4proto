@@ -288,11 +288,13 @@ object AnyIsTargetWorldPartRule extends IsTargetWorldPartRule {
 case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K,V] {
   def updated[B1 >: V](k: K, v: B1): Map[K, B1] = iterator.toMap.updated(k,v)
   def get(key: K): Option[V] = Single.option(indexUtil.getValues(index,key,"")).asInstanceOf[Option[V]]
-  def iterator: Iterator[(K, V)] = indexUtil.keySet(index).iterator.map{ k => (k,Single(indexUtil.getValues(index,k,""))).asInstanceOf[(K,V)] }
+  def iterator: Iterator[(K, V)] = indexUtil.keyIterator(index).map{ k => (k,Single(indexUtil.getValues(index,k,""))).asInstanceOf[(K,V)] }
   def removed(key: K): Map[K, V] = iterator.toMap - key
-  override def keysIterator: Iterator[K] = indexUtil.keySet(index).iterator.asInstanceOf[Iterator[K]] // to work with non-Single
-  override def keySet: Set[K] = indexUtil.keySet(index).asInstanceOf[Set[K]] // to get keys from index
+  override def keysIterator: Iterator[K] = indexUtil.keyIterator(index).asInstanceOf[Iterator[K]] // to work with non-Single
+  //override def keySet: Set[K] = indexUtil.keySet(index).asInstanceOf[Set[K]] // to get keys from index
 }
+
+
 
 @c4("RichDataCompApp") final class DynamicByPKImpl(indexUtil: IndexUtil) extends DynamicByPK {
   def get(joinKey: AssembledKey, context: AssembledContext): Map[SrcId,Product] = {
