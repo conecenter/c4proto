@@ -4,11 +4,10 @@ package ee.cone.c4assemble
 // see Topological sorting
 
 import java.nio.file.{Files, Path, Paths}
-import java.util.function.BinaryOperator
 import Types._
 import ee.cone.c4assemble.IndexTypes.{Count, DMultiSet, Products}
-import ee.cone.c4assemble.IndexUtilImpl.asUProducts
 import ee.cone.c4assemble.Merge.Compose
+import ee.cone.c4assemble.RIndexTypes.RIndexItem
 import ee.cone.c4di.{c4, c4multi, provide}
 
 import scala.annotation.tailrec
@@ -35,16 +34,12 @@ case class DValuesImpl(asMultiSet: DMultiSet, warning: String) extends Values[Pr
 
 case class InnerKeyImpl(primaryKey: String, hash: Int) extends InnerKey
 
-object EmptyOuterMultiSet extends OuterMultiSet
-sealed trait IndexedOuterMultiSet extends OuterMultiSet {
+sealed trait IndexedOuterMultiSet {
   def keyForRIndex: Object
 }
 class MultiOuterMultiSet(val keyForRIndex: Object, val data: DMultiSet) extends IndexedOuterMultiSet
-class SingleOuterMultiSet(val keyForRIndex: Object, val hash: Int, val item: Product) extends IndexedOuterMultiSet
-class FewAssembledOuterMultiSet(val keyForRIndex: Object, val items: Array[AssembledProduct]) extends IndexedOuterMultiSet
-class FewOuterMultiSet(
-  val keyForRIndex: Object, val hashes: Array[Int], val items: Array[Product]
-) extends IndexedOuterMultiSet
+class SingleOuterMultiSet(val keyForRIndex: Object, val item: Products) extends IndexedOuterMultiSet
+class FewOuterMultiSet(val keyForRIndex: Object, val items: Array[Products]) extends IndexedOuterMultiSet
 
 sealed trait ProductsTag
 sealed trait CountTag
@@ -60,6 +55,14 @@ object IndexTypes {
 // todo All on upd, Tree on upd
 
 object IndexUtilImpl {
+  def emptyRIndexItem: RIndexItem = EmptyRIndexItem.asInstanceOf[RIndexItem]
+  def asRIndexItem(ms: IndexedOuterMultiSet): RIndexItem =
+    ms.asInstanceOf[RIndexItem]
+  def asRIndexItem(ps: Products): RIndexItem = {
+    if(isEmptyProducts(ps)) throw new Exception("empty")
+    ps.asInstanceOf[RIndexItem]
+  }
+
   def single(products: Products, warning: String): Product = products match {
     case c: Counts => throw new Exception(s"non-single $c")
     case c: NonSingleCount =>
@@ -69,20 +72,11 @@ object IndexUtilImpl {
     case item: Product => item
   }
   def isEmptyProducts(products: Products): Boolean = products eq emptyCounts
-  def isSingleProduct(products: Products): Boolean = products match {
-    case _: Counts => false
-    case _: NonSingleCount => false
-    case _: Product => true
-  }
-  def asSingleProduct(products: Products): Product = products match {
-    case m: Counts => throw new Exception(s"non-single $m")
-    case c: NonSingleCount => throw new Exception(s"non-single $c")
-    case item: Product => item
-  }
   def emptyCounts: Products = asUProducts(EmptyCounts)
   def asUProducts(item: Product): Products = item.asInstanceOf[Products]
   def asUProducts(count: Count): Products = count.asInstanceOf[Products]
   def asUProducts(counts: Counts): Products = counts.asInstanceOf[Products]
+  def asUProducts(count: NonSingleCount): Products = count.asInstanceOf[Products]
   def asCount(products: Products): Count = products match {
     case m: Counts => throw new Exception(s"non-single $m")
     case c: NonSingleCount => c.asInstanceOf[Count]
@@ -135,12 +129,14 @@ object IndexUtilImpl {
     if (r == 0) x.hash compareTo y.hash else r
   }
 
-  def getKeyForRIndex(ms: OuterMultiSet): Object = ms match {
+  def getKeyForRIndex(item: RIndexItem): Object = item match {
     case ms: IndexedOuterMultiSet => ms.keyForRIndex
+    case m: Counts => ToPrimaryKey(getItem(m.data.head))
+    case c: NonSingleCount => ToPrimaryKey(c.item)
     case p: Product => ToPrimaryKey(p)
   }
 
-  def toOrderedCompact(inner: Compose[DMultiSet]): Compose[OuterMultiSet] = (a, b) => { // Ordering.by can drop keys!: https://github.com/scala/bug/issues/8674
+  def toOrderedCompact(inner: Compose[DMultiSet]): Compose[RIndexItem] = (a, b) => { // Ordering.by can drop keys!: https://github.com/scala/bug/issues/8674
     val aV = getInnerMultiSet(a)
     val bV = getInnerMultiSet(b)
     val resV = inner(aV, bV)
@@ -148,40 +144,22 @@ object IndexUtilImpl {
     if(resV eq aV) a else if(resV eq bV) b
     else toCompact(toOrdered(getKeyForRIndex(a),resV))
   }
-  def toOrdered(keyForRIndex: Object, res: DMultiSet): OuterMultiSet = res.size match {
-    case 0 => EmptyOuterMultiSet
-    case 1 => res.head match {
-      case (innerKey,products) if isSingleProduct(products) =>
-        asSingleProduct(products) match {
-          case item: AssembledProduct if (innerKey.primaryKey:Object) == keyForRIndex => item
-          case item => new SingleOuterMultiSet(keyForRIndex,innerKey.hash,item)
-        }
-      case _ => new MultiOuterMultiSet(keyForRIndex,res)
-    }
-    //case n if n<256 && res.forall{ case (_,products) => isSingleProduct(products) } => // 16==>256 will give ex -200M
+  def toOrdered(keyForRIndex: Object, res: DMultiSet): RIndexItem = res.size match {
+    case 0 => emptyRIndexItem
+    case 1 =>
+      val (innerKey,products) = res.head
+      assert(!isEmptyProducts(products))
+      if((innerKey.primaryKey:Object) == keyForRIndex) asRIndexItem(products)
+      else asRIndexItem(new SingleOuterMultiSet(keyForRIndex,products))
     case _ =>
-      new MultiOuterMultiSet(keyForRIndex,
+      asRIndexItem(new MultiOuterMultiSet(keyForRIndex,
         if(!res.isInstanceOf[TreeMap[_, _]])
           TreeMap.empty[InnerKey,Products] ++ res else res
-      )
+      ))
   }
-  def toCompact(ms: OuterMultiSet): OuterMultiSet = ms match {
-    case ms: MultiOuterMultiSet if ms.data.forall{ case (_,products) => isSingleProduct(products) } =>
-      if(ms.data.forall(_._2.isInstanceOf[AssembledProduct])){
-        new FewAssembledOuterMultiSet(
-          ms.keyForRIndex,
-          ms.data.values.map(_.asInstanceOf[AssembledProduct]).toArray
-        )
-      } else {
-        val size = ms.data.size
-        val hashes = new Array[Int](size)
-        val items = new Array[Product](size)
-        for(((innerKey,products),i) <- ms.data.zipWithIndex) { //todo while ?
-          hashes(i) = innerKey.hash
-          items(i) = asSingleProduct(products)
-        }
-        new FewOuterMultiSet(ms.keyForRIndex,hashes,items)
-      }
+  def toCompact(ms: RIndexItem): RIndexItem = ms match {
+    case ms: MultiOuterMultiSet =>
+      asRIndexItem(new FewOuterMultiSet(ms.keyForRIndex,ms.data.values.toArray))
     case _ => ms
   }
 
@@ -189,27 +167,26 @@ object IndexUtilImpl {
     case i: InnerKey => i
     case i => InnerKeyImpl(ToPrimaryKey(i),i.hashCode)
   }
+  def toInnerKey(products: Products): InnerKey = toInnerKey(products match {
+    case m: Counts => getItem(m.data.head)
+    case c: NonSingleCount => c.item
+    case item: Product => item
+  })
 
-  def getInnerMultiSet(outer: OuterMultiSet): DMultiSet = outer match {
-    case ms if ms eq EmptyOuterMultiSet => Map.empty
-    case item: AssembledProduct =>
-      Map.empty.updated(toInnerKey(item),asUProducts(item))
-    case ms: SingleOuterMultiSet =>
-      Map.empty.updated(InnerKeyImpl(ToPrimaryKey(ms.item),ms.hash),asUProducts(ms.item))
-    case fms: FewAssembledOuterMultiSet =>
-      TreeMap.empty[InnerKey,Products] ++ fms.items.map(item=>
-        toInnerKey(item)->asUProducts(item)
-      )
+  def toSingleInnerMultiSet(products: Products): DMultiSet =
+    Map.empty.updated(toInnerKey(products),products)
+
+  def getInnerMultiSet(outer: RIndexItem): DMultiSet = outer match {
+    case ms if ms eq emptyRIndexItem => Map.empty
+    case ms: SingleOuterMultiSet => toSingleInnerMultiSet(ms.item)
     case fms: FewOuterMultiSet =>
-      TreeMap.empty[InnerKey,Products] ++ fms.items.indices.map { i =>
-        val item = fms.items(i)
-        val key = item match {
-          case k: InnerKey => k
-          case _ => InnerKeyImpl(ToPrimaryKey(item), fms.hashes(i))
-        }
-        key -> asUProducts(item)
-      }
+      TreeMap.empty[InnerKey,Products] ++ fms.items.map(item =>
+        toInnerKey(item) -> item
+      )
     case ms: MultiOuterMultiSet => ms.data
+    case m: Counts => toSingleInnerMultiSet(asUProducts(m))
+    case c: NonSingleCount => toSingleInnerMultiSet(asUProducts(c))
+    case item: Product => toSingleInnerMultiSet(asUProducts(item))
   }
 
   def inverse(a: Count): Count = makeCount(getItem(a), -getCount(a))
@@ -226,37 +203,37 @@ case class JoinKeyImpl(
 
 final case class ParallelExecution(power: Int) {
   val parallelPartCount: Int = 1 << power
-  def keyToPartPos(elem: Any): Int = elem.hashCode & (parallelPartCount-1)  // other hash?
+  def keyToPartPos(elem: Any): Int = elem.hashCode & (parallelPartCount-1)  // todo other hash?
   private val parallelRange = (0 until parallelPartCount).toVector
   def execute[T](f: Int=>T)(implicit ec: ExecutionContext): Future[Vector[T]] =
     Future.sequence(parallelRange.map(partId=>Future(f(partId))))
 }
 
 final class RIndexOptionsImpl(
-  merger: Compose[OuterMultiSet] = IndexUtilImpl.toOrderedCompact(
+  merger: Compose[RIndexItem] = IndexUtilImpl.toOrderedCompact(
     Merge[InnerKey,Products](IndexUtilImpl.isEmptyProducts, IndexUtilImpl.mergeProducts)
   )
-) extends RIndexOptions[Object,OuterMultiSet] {
+) extends RIndexOptions[Object] {
   def power: Int = 10
-  def toKey(item: OuterMultiSet): Object = IndexUtilImpl.getKeyForRIndex(item)
-  def merge(a: OuterMultiSet, b: OuterMultiSet): OuterMultiSet = merger(a,b)
-  def empty: OuterMultiSet = EmptyOuterMultiSet
-  def toSearchItem(key: Object): OuterMultiSet = new SearchOuterMultiset(key)
-  def getData(index: RIndex): Array[IndexBucket[OuterMultiSet]] = index match {
+  def toKey(item: RIndexItem): Object = IndexUtilImpl.getKeyForRIndex(item)
+  def merge(a: RIndexItem, b: RIndexItem): RIndexItem = merger(a,b)
+  def toSearchItem(key: Object): RIndexItem =
+    IndexUtilImpl.asRIndexItem(new SearchOuterMultiset(key))
+  def getData(index: RIndex): Array[IndexBucket] = index match {
     case index: OuterMultiSetIndex => index.data
   }
-  def wrapData(data: Array[IndexBucket[OuterMultiSet]]): RIndex =
+  def wrapData(data: Array[IndexBucket]): RIndex =
     new OuterMultiSetIndex(data)
 }
 final class SearchOuterMultiset(val keyForRIndex: Object) extends IndexedOuterMultiSet
-final class OuterMultiSetIndex(val data: Array[IndexBucket[OuterMultiSet]]) extends RIndex
+final class OuterMultiSetIndex(val data: Array[IndexBucket]) extends RIndex
 
 @c4("AssembleApp") final case class IndexUtilImpl(
   rIndexUtilFactory: RIndexUtilFactory
 )(
-  rIndexUtil: RIndexUtil[Object,OuterMultiSet] = rIndexUtilFactory.create(new RIndexOptionsImpl)
+  rIndexUtil: RIndexUtil[Object] = rIndexUtilFactory.create(new RIndexOptionsImpl)
 ) extends IndexUtil {
-  @provide def getRIndexUtil: Seq[RIndexUtil[Object,OuterMultiSet]] = Seq(rIndexUtil)
+  @provide def getRIndexUtil: Seq[RIndexUtil[Object]] = Seq(rIndexUtil)
 
   def isEmpty(index: Index): Boolean = rIndexUtil.isEmpty(index)
   def size(index: Index): Int = rIndexUtil.iterator(index).size
@@ -268,18 +245,18 @@ final class OuterMultiSetIndex(val data: Array[IndexBucket[OuterMultiSet]]) exte
   def joinKey(was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String): JoinKey =
     JoinKeyImpl(was,keyAlias,keyClassName,valueClassName)
 
-  def nonEmpty(index: Index, key: Any): Boolean = {
-    rIndexUtil.get(index,oKey(key)) ne EmptyOuterMultiSet
-  }
+  def nonEmpty(index: Index, key: Any): Boolean =
+    rIndexUtil.get(index,oKey(key)) ne rIndexUtil.emptyItem
 
   def getValues(index: Index, key: Any, warning: String): Values[Product] = {
     val res = rIndexUtil.get(index,oKey(key)) match {
-      case ms if ms eq EmptyOuterMultiSet => Nil
-      case ms: AssembledProduct => ms :: Nil
-      case ms: SingleOuterMultiSet => ms.item :: Nil
-      case ms: FewOuterMultiSet => ArraySeq.unsafeWrapArray(ms.items)
-      case ms: FewAssembledOuterMultiSet => ArraySeq.unsafeWrapArray(ms.items)
+      case ms if ms eq rIndexUtil.emptyItem => Nil
+      case ms: SingleOuterMultiSet => IndexUtilImpl.single(ms.item,warning) :: Nil
+      case ms: FewOuterMultiSet => ms.items.map(IndexUtilImpl.single(_,warning)).toIndexedSeq
       case ms: MultiOuterMultiSet => DValuesImpl(ms.data,warning)
+      case c: Counts => throw new Exception(s"non-single $c")
+      case c: NonSingleCount => c.item :: Nil
+      case item: Product => item :: Nil
     }
     res
   }
@@ -301,7 +278,7 @@ final class OuterMultiSetIndex(val data: Array[IndexBucket[OuterMultiSet]]) exte
 
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): List[MultiForPart] = {
     val currentMS = rIndexUtil.get(currentIndex,oKey(key))
-    if(currentMS eq EmptyOuterMultiSet) Nil else {
+    if(currentMS eq rIndexUtil.emptyItem) Nil else {
       val diffMS = rIndexUtil.get(diffIndex,oKey(key))
       if(currentMS eq diffMS){
         val currentValues = IndexUtilImpl.getInnerMultiSet(currentMS)
@@ -350,20 +327,20 @@ final class OuterMultiSetIndex(val data: Array[IndexBucket[OuterMultiSet]]) exte
     val setup = Single(dataI.map(_.setup).distinct)
     (0 until setup.outCount).map{ outPos =>
       setup.parallelExecution.execute{ partPos =>
-        val index: mutable.Map[Any,OuterMultiSet] = mutable.Map()
+        val index: mutable.Map[Any,RIndexItem] = mutable.Map()
         dataI.foreach{ aggr =>
           aggr.byOutThenTarget(setup.bufferPos(outPos, partPos)).foreach{ rec =>
             val key = rec.key
             val mKey = rec.mKey
-            val wasMS = index.getOrElse(key,EmptyOuterMultiSet)
+            val wasMS = index.getOrElse(key,rIndexUtil.emptyItem)
             val wasValues: DMultiSet = IndexUtilImpl.getInnerMultiSet(wasMS)
-            val counts = wasValues.get(mKey).fold(asUProducts(rec.count))(wasCounts=>
-              IndexUtilImpl.mergeProducts(wasCounts,asUProducts(rec.count))
+            val counts = wasValues.get(mKey).fold(IndexUtilImpl.asUProducts(rec.count))(wasCounts=>
+              IndexUtilImpl.mergeProducts(wasCounts,IndexUtilImpl.asUProducts(rec.count))
             )
             val values = if(!IndexUtilImpl.isEmptyProducts(counts)) wasValues.updated(mKey,counts) else wasValues.removed(mKey)
-            val willMS: OuterMultiSet = IndexUtilImpl.toOrdered(oKey(key),values)
+            val willMS: RIndexItem = IndexUtilImpl.toOrdered(oKey(key),values)
             MeasureP("buildIndex",wasValues.size)
-            if(willMS ne EmptyOuterMultiSet) index(key) = willMS else assert(index.remove(key).nonEmpty)
+            if(willMS ne rIndexUtil.emptyItem) index(key) = willMS else assert(index.remove(key).nonEmpty)
           }
         }
         rIndexUtil.build(index.values.map(IndexUtilImpl.toCompact).toIndexedSeq)
@@ -820,7 +797,7 @@ object MeasureP {
 }
 
 @c4("AssembleApp") final class StartUpSpaceProfilerImpl(
-  rIndexUtil: RIndexUtil[Object,OuterMultiSet],
+  rIndexUtil: RIndexUtil[Object],
   readModelUtil: ReadModelUtil,
 ) extends StartUpSpaceProfiler {
 
@@ -890,9 +867,10 @@ object MeasureP {
 
     def countItems[T](iterator: Iterator[T]): Seq[(Int,T)] =
       iterator.foldLeft(Map.empty[T,Int])((res,n)=>res.updated(n,res.getOrElse(n,0)+1)).toSeq.map{
-      case (className,count) => (count,className)
-    }
+        case (className,count) => (count,className)
+      }
 
+    /*
     countItems(for {
       (_, index) <- readModel.iterator
       ms <- rIndexUtil.iterator(index)
@@ -910,7 +888,7 @@ object MeasureP {
       }
     } yield r).sorted.foreach {
       case (count,className) => println(s"CP: $count $className")
-    }
+    }*/
 
     // find non-interned -- not found at 1st level, max 365
 //    countItems(for {

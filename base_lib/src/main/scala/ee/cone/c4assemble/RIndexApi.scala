@@ -1,28 +1,35 @@
 package ee.cone.c4assemble
 
-import scala.reflect.ClassTag
+import ee.cone.c4assemble.RIndexTypes.RIndexItem
 
 trait RIndex
 object EmptyRIndex extends RIndex
+object EmptyRIndexItem
 
-trait RIndexUtil[Key,Item] {
-  def isEmpty(index: RIndex): Boolean
-  def get(index: RIndex, key: Key): Item
-  def merge(a: RIndex, b: RIndex): RIndex
-  def iterator(index: RIndex): Iterator[Item]
-  def build(src: Seq[Item]): RIndex
+sealed trait RIndexItemTag
+object RIndexTypes {
+  type Tagged[U] = { type Tag = U }
+  type RIndexItem = Object with Tagged[RIndexItemTag]
 }
 
-trait RIndexOptions[Key,Item]{
+trait RIndexUtil[Key] {
+  def emptyItem: RIndexItem
+  def isEmpty(index: RIndex): Boolean
+  def get(index: RIndex, key: Key): RIndexItem
+  def merge(a: RIndex, b: RIndex): RIndex
+  def iterator(index: RIndex): Iterator[RIndexItem]
+  def build(src: Seq[RIndexItem]): RIndex
+}
+
+trait RIndexOptions[Key]{
   def power: Int
-  def toKey(item: Item): Key
-  def merge(a: Item, b: Item): Item
-  def empty: Item
-  def toSearchItem(key: Key): Item
-  def getData(index: RIndex): Array[IndexBucket[Item]]
-  def wrapData(data: Array[IndexBucket[Item]]): RIndex
+  def toKey(item: RIndexItem): Key
+  def merge(a: RIndexItem, b: RIndexItem): RIndexItem
+  def toSearchItem(key: Key): RIndexItem
+  def getData(index: RIndex): Array[IndexBucket]
+  def wrapData(data: Array[IndexBucket]): RIndex
 }
 
 trait RIndexUtilFactory {
-  def create[Key<:Object,Item<:Object:ClassTag](options: RIndexOptions[Key,Item]): RIndexUtil[Key,Item]
+  def create[Key<:Object](options: RIndexOptions[Key]): RIndexUtil[Key]
 }

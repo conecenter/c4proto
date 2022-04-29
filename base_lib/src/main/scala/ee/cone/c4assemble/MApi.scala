@@ -240,19 +240,17 @@ trait ValuesSubAssemble[R<:Product] extends SubAssemble[R] {
   def call(implicit can: CanCallToValues): Values[R] = throw new Exception("never here")
 }
 
-trait OuterMultiSet
 trait InnerKey extends Product {
   def primaryKey: String
   def hash: Int
 }
-trait AssembledProduct extends Product with OuterMultiSet
-trait PrimaryKeyOnly extends AssembledProduct with InnerKey {
+trait PrimaryKeyOnly extends InnerKey {
   def primaryKey: String = productElement(0).asInstanceOf[String]
   def hash: Int = hashCode
 }
 
 /*
-extender from AssembledProduct declares, that it has fast x.hashCode and ToPrimaryKey(x),
+we declare, that products has fast x.hashCode and ToPrimaryKey(x),
   so no extra memory is needed to cache this information
 
 extender from PrimaryKeyOnly declares also, that the class contains only the key
