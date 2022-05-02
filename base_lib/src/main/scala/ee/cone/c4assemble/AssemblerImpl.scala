@@ -148,13 +148,6 @@ object IndexUtilImpl {
     case n => new NonSingleCount(item, n).asInstanceOf[Count]
   }
 
-
-
-
-
-
-
-
   def merger: Compose[Seq[RIndexItem]] = (a, b) => { // Ordering.by can drop keys!: https://github.com/scala/bug/issues/8674
     val aV = getInnerMultiSet(a)
     val bV = getInnerMultiSet(b)
@@ -172,7 +165,8 @@ object IndexUtilImpl {
     case i: InnerKey => i
     case i => InnerKeyImpl(ToPrimaryKey(i),i.hashCode)
   }
-  def toInnerKey(products: Products): InnerKey = mapProduct(products,toInnerKey)
+  def toInnerKey(products: Products): InnerKey =
+    IndexUtilImpl.mapProduct(products,toInnerKey)
 
   def getInnerMultiSet(items: Seq[RIndexItem]): DMultiSet = items.size match {
       case 0 => Map.empty
@@ -197,11 +191,8 @@ object IndexUtilImpl {
   def nonEmpty(index: Index, key: Any): Boolean =
     rIndexUtil.get(index,oKey(key)).nonEmpty
 
-  def getValues(index: Index, key: Any, warning: String): Values[Product] = {
-    val res = rIndexUtil.get(index,oKey(key)).map(single(_,warning))
-    MeasureP(s"getValues ${res.getClass.getName}",1) // todo what class? //ArraySeq.unsafeWrapArray(
-    res
-  }
+  def getValues(index: Index, key: Any, warning: String): Values[Product] =  // gives Vector; todo ? ArraySeq.unsafeWrapArray(
+    rIndexUtil.get(index,oKey(key)).map(single(_,warning))
 
   def mergeIndex(l: DPIterable[Index]): Index =
     l.toSeq match { case Seq(a,b) => rIndexUtil.merge(a,b,merger) }
@@ -222,14 +213,15 @@ object IndexUtilImpl {
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): List[MultiForPart] = {
     val currentMS = rIndexUtil.get(currentIndex,oKey(key))
     if(currentMS.isEmpty) Nil else {
-      val diffMS = rIndexUtil.get(diffIndex,oKey(key))
-      if(currentMS eq diffMS){ // todo chk it works with emb-ing
+
+      if(rIndexUtil.eqBuckets(currentIndex,diffIndex,oKey(key))){ // todo fix with emb-ing
         MeasureP("partition0",currentMS.size)
         val changed = (for {
           values <- currentMS
         } yield single(values,warning)).toList
         new ChangedMultiForPart(changed) :: Nil
       } else {
+        val diffMS = rIndexUtil.get(diffIndex,oKey(key))
         val currentValues = getInnerMultiSet(currentMS)
         val diffValues = getInnerMultiSet(diffMS)
         MeasureP("partition1",currentValues.size+diffValues.size)
@@ -804,15 +796,6 @@ object MeasureP {
 //      case (arity,count) => println(s"Arity: $arity $count")
 //    }
 
-    def countItems[T](iterator: Iterator[T]): Seq[(Int,T)] =
-      iterator.foldLeft(Map.empty[T,Int])((res,n)=>res.updated(n,res.getOrElse(n,0)+1)).toSeq.map{
-        case (className,count) => (count,className)
-      }
-
-    // vals count, prod count
-    // bucket count by size
-    // top indexes;
-
 
     /*
     countItems(for {
@@ -899,6 +882,44 @@ object MeasureP {
 //      (k0, index) <- readModel.iterator
 //      ms: MultiOuterMultiSet <- rIndexUtil.iterator(index) if ms.data.size > 65536
 //    } println(s"Big Values: ${ms.data.size} $k0")
+
+    def countItems[T](iterator: Iterator[T]): Seq[(Int,T)] =
+      iterator.foldLeft(Map.empty[T,Int])((res,n)=>res.updated(n,res.getOrElse(n,0)+1)).toSeq.map{
+        case (className,count) => (count,className)
+      }
+
+    countItems(for {
+      (assembledKey,index) <- readModel.iterator
+      assembledKeyS = assembledKey.toString
+      _ <- rIndexUtil.keyIterator(index)
+      r <- "ALL" :: assembledKeyS :: Nil
+    } yield r).sorted.foreach {
+      case (count,it) => println(s"index-key-count $count $it")
+    }
+
+    countItems(for {
+      (assembledKey,index) <- readModel.iterator
+      assembledKeyS = assembledKey.toString
+      key <- rIndexUtil.keyIterator(index)
+      _ <-  rIndexUtil.get(index,key)
+      r <- "ALL" :: assembledKeyS :: Nil
+    } yield r).sorted.foreach {
+      case (count,it) => println(s"index-each-count $count $it")
+    }
+
+    countItems(for {
+      (assembledKey, index: RIndexImpl) <- readModel.iterator
+      bucket <- index.data
+    } yield 1 << (Integer.SIZE - Integer.numberOfLeadingZeros(bucket.data.length))).sortBy(_._2).foreach {
+      case (count,it) => println(s"index-bucket-size-count $it $count")
+    }
+
+
+    // vals count, prod count
+    // bucket count by size
+    // top indexes;
+
+
 
   }
 }

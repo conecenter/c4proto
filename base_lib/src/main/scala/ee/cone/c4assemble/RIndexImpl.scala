@@ -256,6 +256,14 @@ final class RIndexUtilImpl(
   def getViews(options: RIndexOptions, bucket: RIndexBucket): Array[Pair] =
     Array.tabulate(bucket.data.length)(i=>options.toKey(bucket.data(i))->getValueView(bucket,i))
 
+  def eqBuckets(a: RIndex, b: RIndex, key: RIndexKey): Boolean = (a,b) match {
+    case (a,b) if a eq b => true
+    case (aI:RIndexImpl,bI:RIndexImpl) =>
+      aI.data(keyToPosInRoot(aI.options.power,key)) eq bI.data(keyToPosInRoot(bI.options.power,key))
+    case _ => false
+  }
+
+
 }
 
 //arr.mapInPlace() arr.slice
@@ -281,4 +289,6 @@ final class RIndexUtilDebug(inner: RIndexUtil=new RIndexUtilImpl()) extends RInd
     wrap("iterator",inner.keyIterator(index))
   def build(power: Int, toKey: RIndexItem=>RIndexKey, src: Iterator[Pair]): RIndex =
     wrap("build",inner.build(power, toKey, src))
+  def eqBuckets(a: RIndex, b: RIndex, key: RIndexKey): Boolean =
+    wrap("eqBuckets",inner.eqBuckets(a,b,key))
 }
