@@ -9,7 +9,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 case class AssembleOptions(srcId: String, @deprecated isParallel: Boolean, threadCount: Long)
 
-trait IndexUtil extends Product {
+trait IndexUtil {
   def joinKey(was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String): JoinKey
   def isEmpty(index: Index): Boolean
   def size(index: Index): Int
