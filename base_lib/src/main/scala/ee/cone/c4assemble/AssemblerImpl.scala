@@ -730,6 +730,7 @@ object MeasureP {
 @c4("AssembleApp") final class StartUpSpaceProfilerImpl(
   rIndexUtil: RIndexUtil,
   readModelUtil: ReadModelUtil,
+  indexUtil: IndexUtil,
 ) extends StartUpSpaceProfiler {
 
   def out(readModelA: ReadModel): Unit = {
@@ -887,7 +888,7 @@ object MeasureP {
       iterator.foldLeft(Map.empty[T,Int])((res,n)=>res.updated(n,res.getOrElse(n,0)+1)).toSeq.map{
         case (className,count) => (count,className)
       }
-
+/*
     countItems(for {
       (assembledKey,index) <- readModel.iterator
       assembledKeyS = assembledKey.toString
@@ -913,6 +914,26 @@ object MeasureP {
     } yield 1 << (Integer.SIZE - Integer.numberOfLeadingZeros(bucket.data.length))).sortBy(_._2).foreach {
       case (count,it) => println(s"index-bucket-size-count $it $count")
     }
+
+    (for {
+      (assembledKey,index) <- readModel.iterator
+      assembledKeyS = assembledKey.toString
+      key <- rIndexUtil.keyIterator(index)
+      p <- indexUtil.getValues(index,key,"") if (ToPrimaryKey(p):Object) == (key:Object)
+      fn <- 0 until p.productArity if p.productElement(fn).isInstanceOf[List[_]]
+      fullFieldName = p.getClass.getName +"."+ p.productElementName(fn)
+      size = p.productElement(fn).asInstanceOf[List[_]].size
+    } yield (fullFieldName,size)).foldLeft(Map.empty[String,(Int,Int)]){ (res,r)=>
+      val (fullFieldName,size) = r
+      val was = res.getOrElse(fullFieldName,(0,0))
+      res.updated(fullFieldName, (was._1+1,was._2+size))
+    }.toSeq.sortBy{
+        case (fullFieldName,(fieldCount,valueCount)) => valueCount // - fieldCount * 2
+    }.foreach {
+      o => println(s"long-lists-2 $o")
+    }
+*/
+
 
 
     // vals count, prod count
