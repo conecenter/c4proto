@@ -3,7 +3,6 @@ package ee.cone.c4assemble
 
 import ee.cone.c4assemble.Types._
 
-import scala.collection.immutable.Seq
 import scala.concurrent.Future
 
 object Single {
@@ -18,13 +17,8 @@ object Single {
 }
 
 object ToPrimaryKey {
-  def apply(node: Product): String =
-    if(node.productArity > 0) node.productElement(0) match {
-      case s: String => s
-      case p: Product => ToPrimaryKey(p)
-      case _ => throw new Exception(s"1st field of ${node.getClass.getName} should be primary key")
-    } else ""
-}
+  def apply(node: Product): String = RawToPrimaryKey.get(node)
+} //s"1st field of ${node.getClass.getName} should be primary key"
 
 trait WorldPartRule
 

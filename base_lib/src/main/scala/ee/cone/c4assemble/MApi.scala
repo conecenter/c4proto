@@ -261,3 +261,7 @@ extender from PrimaryKeyOnly declares also, that the class contains only the key
 trait StartUpSpaceProfiler {
   def out(readModelA: ReadModel): Unit
 }
+
+trait MemoryOptimizing {
+  def indexPower: Int
+}

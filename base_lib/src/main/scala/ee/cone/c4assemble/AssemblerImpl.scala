@@ -70,26 +70,18 @@ final case class ParallelExecution(power: Int) {
     Future.sequence(parallelRange.map(partId=>Future(f(partId))))
 }
 
-object IndexUtilImpl {
-  def asUProducts(count: Count): Products = count.asInstanceOf[Products]
-  def mapProduct[T](products: Products, f: Product=>T): T = products match {
-    case m: Counts => Single(m.data.map(a=>mapProduct(asUProducts(a),f)).distinct)
-    case c: NonSingleCount => f(c.item)
-    case p: Product => f(p)
-  }
-}
-
 @c4("AssembleApp") final class IndexUtilImpl(
   rIndexUtil: RIndexUtil,
+  memoryOptimizing: MemoryOptimizing,
   val ordering: Ordering[InnerKey] = (x: InnerKey, y: InnerKey) => {
     val r = x.primaryKey compareTo y.primaryKey
     if (r == 0) x.hash compareTo y.hash else r
   },
-  val getKeyForRIndex: RIndexItem=>RIndexKey = item=>((item:Object) match {
-    case s: String => s
-    case a: AbstractAll => a
-    case _ => IndexUtilImpl.mapProduct(item,ToPrimaryKey.apply)
-  }).asInstanceOf[RIndexKey],
+  val isSingle: Products=>Boolean = {
+    case c: Counts => false
+    case c: NonSingleCount => false
+    case item: Product => true
+  }
 ) extends IndexUtil {
   def single(products: Products, warning: String): Product = products match {
     case c: Counts => throw new Exception(s"non-single $c")
@@ -163,18 +155,21 @@ object IndexUtilImpl {
 
   def toInnerKey(item: Product): InnerKey = item match {
     case i: InnerKey => i
-    case i => InnerKeyImpl(ToPrimaryKey(i),i.hashCode)
+    case i => InnerKeyImpl(RawToPrimaryKey.get(i),i.hashCode)
   }
-  def toInnerKey(products: Products): InnerKey =
-    IndexUtilImpl.mapProduct(products,toInnerKey)
+  def cToInnerKey(products: Products): InnerKey = products match {
+    case m: Counts => Single(m.data.map(a=>cToInnerKey(asUProducts(a))).distinct)
+    case c: NonSingleCount => toInnerKey(c.item)
+    case p: Product => toInnerKey(p)
+  }
 
   def getInnerMultiSet(items: Seq[RIndexItem]): DMultiSet = items.size match {
       case 0 => Map.empty
       case 1 =>
         val item = items.head
-        Map.empty.updated(toInnerKey(item),item)
+        Map.empty.updated(cToInnerKey(item),item)
       case _ =>
-        TreeMap.empty[InnerKey,Products](ordering) ++ items.map(item => toInnerKey(item) -> item)
+        TreeMap.empty[InnerKey,Products](ordering) ++ items.map(item => cToInnerKey(item) -> item)
   }
 
   def inverse(a: Count): Count = makeCount(getItem(a), -getCount(a))
@@ -191,8 +186,11 @@ object IndexUtilImpl {
   def nonEmpty(index: Index, key: Any): Boolean =
     rIndexUtil.get(index,oKey(key)).nonEmpty
 
-  def getValues(index: Index, key: Any, warning: String): Values[Product] =  // gives Vector; todo ? ArraySeq.unsafeWrapArray(
-    rIndexUtil.get(index,oKey(key)).map(single(_,warning))
+  def getValues(index: Index, key: Any, warning: String): Values[Product] = { // gives Vector; todo ? ArraySeq.unsafeWrapArray(
+    val values = rIndexUtil.get(index,oKey(key))
+    if(values.forall(isSingle)) values.asInstanceOf[Seq[Product]]
+    else values.map(single(_,warning))
+  }
 
   def mergeIndex(l: DPIterable[Index]): Index =
     l.toSeq match { case Seq(a,b) => rIndexUtil.merge(a,b,merger) }
@@ -206,7 +204,7 @@ object IndexUtilImpl {
     for {
       key <- keys
       products  <- rIndexUtil.get(index,oKey(key))
-      mKey = toInnerKey(products)
+      mKey = cToInnerKey(products)
       count <- toCounts(products)
     } yield new DOutImpl(pos, key, mKey, inverse(count))
 
@@ -274,7 +272,10 @@ object IndexUtilImpl {
             if(values.nonEmpty) index(key) = values else assert(index.remove(key).nonEmpty)
           }
         }
-        rIndexUtil.build(10, getKeyForRIndex, index.map{ case(key,values)=> (key,toCompact(values)) }.iterator)
+        rIndexUtil.build(
+          memoryOptimizing.indexPower,
+          index.map{ case(key,values)=> (key,toCompact(values)) }.iterator
+        )
       }.map(_.reduce((a,b)=>rIndexUtil.merge(a,b,merger)))
     }
   }

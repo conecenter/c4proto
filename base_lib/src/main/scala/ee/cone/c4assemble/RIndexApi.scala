@@ -18,6 +18,6 @@ trait RIndexUtil {
   def get(index: RIndex, key: RIndexKey): Seq[RIndexItem]
   def merge(a: RIndex, b: RIndex, mergeItems: (Seq[RIndexItem],Seq[RIndexItem])=>Seq[RIndexItem]): RIndex
   def keyIterator(index: RIndex): Iterator[RIndexKey]
-  def build(power: Int, toKey: RIndexItem=>RIndexKey, src: Iterator[Pair]): RIndex
+  def build(power: Int, src: Iterator[Pair]): RIndex
   def eqBuckets(a: RIndex, b: RIndex, key: RIndexKey): Boolean
 }

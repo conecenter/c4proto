@@ -4,14 +4,14 @@ import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
 import java.security.MessageDigest
 import java.util.Base64
-
 import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4assemble.Interner
 import ee.cone.c4di.c4
 import okio.ByteString
 
 import scala.collection.immutable.TreeMap
 
-@c4("RichDataCompApp") final case class IdGenUtilImpl()(
+@c4("RichDataCompApp") final case class IdGenUtilImpl(
   proto: MessageDigest = MessageDigest.getInstance("MD5")
 ) extends IdGenUtil {
   private def md5(data: Array[Byte]*): String = {
@@ -24,7 +24,7 @@ import scala.collection.immutable.TreeMap
       d.update((l>> 0).toByte)
       d.update(bytes)
     }
-    Base64.getUrlEncoder.encodeToString(d.digest).intern()
+    Interner.intern(Base64.getUrlEncoder.encodeToString(d.digest))
   }
   private def toBytes(value: String): Array[Byte] = value.getBytes(UTF_8)
   private def toBytes(value: Long): Array[Byte] =

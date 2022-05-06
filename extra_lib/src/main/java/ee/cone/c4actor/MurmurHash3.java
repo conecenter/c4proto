@@ -1,5 +1,7 @@
 package ee.cone.c4actor;
 
+import ee.cone.c4assemble.Interner;
+
 import java.util.Base64;
 
 import static ee.cone.c4actor.MurmurConstants.UNSIGNED_MASK;
@@ -333,7 +335,7 @@ public class MurmurHash3 implements Java128HashInterface {
 
     @Override
     public String getStringHash() {
-        return Base64.getUrlEncoder().encodeToString(doubleLongToBytes(murmur1, murmur2)).intern();
+        return Interner.intern(Base64.getUrlEncoder().encodeToString(doubleLongToBytes(murmur1, murmur2)));
         //return Long.toHexString(murmur1) + Long.toHexString(murmur2);
     }
 
