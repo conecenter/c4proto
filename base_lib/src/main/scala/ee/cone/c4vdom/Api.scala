@@ -12,6 +12,7 @@ class c4tags(a: String*) extends StaticAnnotation
 class c4val(a: String*) extends StaticAnnotation
 class c4tagSwitch(a: String*) extends StaticAnnotation
 class c4el(a: String*) extends StaticAnnotation
+class c4elPath(a: String*) extends StaticAnnotation
 
 trait ToChildPair {
   def toChildPair[T]: ChildPair[T]
