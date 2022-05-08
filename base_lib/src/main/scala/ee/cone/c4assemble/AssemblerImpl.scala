@@ -11,10 +11,12 @@ import ee.cone.c4assemble.RIndexTypes.{RIndexItem, RIndexKey}
 import ee.cone.c4di.{c4, c4multi, provide}
 
 import scala.annotation.tailrec
-import scala.collection.{immutable, mutable}
+import scala.collection.{Searching, immutable, mutable}
 import scala.collection.immutable.{ArraySeq, Map, Seq, TreeMap}
 import scala.concurrent.{ExecutionContext, Future}
 import java.nio.charset.StandardCharsets.UTF_8
+import java.util.Comparator
+import java.util.function.{BinaryOperator, Predicate}
 
 class NonSingleCount(val item: Product, val count: Int)
 sealed class Counts(val data: List[Count])
@@ -75,7 +77,7 @@ final case class ParallelExecution(power: Int) {
   memoryOptimizing: MemoryOptimizing,
   val ordering: Ordering[InnerKey] = (x: InnerKey, y: InnerKey) => {
     val r = x.primaryKey compareTo y.primaryKey
-    if (r == 0) x.hash compareTo y.hash else r
+    if (r == 0) java.lang.Integer.compare(x.hash,y.hash) else r
   },
   val isSingle: Products=>Boolean = {
     case c: Counts => false
@@ -146,7 +148,50 @@ final case class ParallelExecution(power: Int) {
     val resV = Merge[InnerKey,Products](isEmptyProducts, mergeProducts)(aV, bV)
     MeasureP("merge",aV.size+bV.size)
     if(resV eq aV) a else if(resV eq bV) b else toCompact(toOrdered(resV))
+  }/*
+  def merger: Compose[Seq[RIndexItem]] = (a, b) => {
+    val comparator: Comparator[(InnerKey,RIndexItem)] = (kv0,kv1) => ordering.compare(kv0._1,kv1._1)
+    val srcA: Array[(InnerKey,RIndexItem)] = a.map(item => cToInnerKey(item) -> item).toArray
+    val srcB: Array[(InnerKey,RIndexItem)] = b.map(item => cToInnerKey(item) -> item).toArray
+    val dest = new Array[(InnerKey,RIndexItem)](a.length+b.length)
+    val nonEmptyProducts: Predicate[(InnerKey,RIndexItem)] = kv => !isEmptyProducts(kv._2)
+    val mergePairs: BinaryOperator[(InnerKey,RIndexItem)] = (kv0,kv1) => (kv0._1,mergeProducts(kv0._2,kv1._2))
+    val mergedSize = ArrayMerger.merge(
+      srcA, srcB, dest, comparator, mergePairs, nonEmptyProducts
+    )
+    ArraySeq.unsafeWrapArray(dest.take(mergedSize).map(_._2))
   }
+  def merger: Compose[Seq[RIndexItem]] = (a, b) => {
+    val comparator: Comparator[RIndexItem] = (aIt,bIt) => ordering.compare(cToInnerKey(aIt),cToInnerKey(bIt))
+    val srcA: Array[RIndexItem] = a.toArray
+    val srcB: Array[RIndexItem] = b.toArray
+    val dest = new Array[RIndexItem](a.length+b.length)
+    val nonEmptyProducts: Predicate[RIndexItem] = p => !isEmptyProducts(p)
+    val mergePairs: BinaryOperator[RIndexItem] = mergeProducts _
+    val mergedSize = ArrayMerger.merge[RIndexItem](
+      srcA, srcB, dest, comparator, mergePairs, nonEmptyProducts
+    )
+    ArraySeq.unsafeWrapArray(dest.take(mergedSize))
+  }
+  def merger: Compose[Seq[RIndexItem]] = (a, b) => {
+    val oOrdering: Ordering[RIndexItem] = (aIt,bIt) => ordering.compare(cToInnerKey(aIt),cToInnerKey(bIt))
+    def inner: Compose[Seq[RIndexItem]] = (big,small) =>{
+      val found: Seq[Searching.SearchResult] = small.map(big.search(_)(oOrdering))
+      big.slice(0,found.head.insertionPoint) ++ found.indices.flatMap{ i =>
+        val bigSliceEnd = if(i+1<found.length) found(i+1).insertionPoint else big.length
+        found(i) match {
+          case Searching.Found(foundIndex) =>
+            val merged = mergeProducts(big(foundIndex),small(i))
+            if(isEmptyProducts(merged)) big.slice(foundIndex+1,bigSliceEnd)
+            else (merged::Nil) ++ big.slice(foundIndex+1,bigSliceEnd)
+          case Searching.InsertionPoint(insertionPoint) =>
+            small.slice(i,i+1) ++ big.slice(insertionPoint,bigSliceEnd)
+        }
+      }
+    }
+    if(a.length > b.length) inner(a,b) else inner(b,a)
+  }*/
+
   def toOrdered(res: DMultiSet): DMultiSet = {
     if(res.size > 1 && !res.isInstanceOf[TreeMap[_, _]])
       TreeMap.empty[InnerKey,Products](ordering) ++ res else res
@@ -912,7 +957,7 @@ object MeasureP {
     countItems(for {
       (assembledKey, index: RIndexImpl) <- readModel.iterator
       bucket <- index.data
-    } yield 1 << (Integer.SIZE - Integer.numberOfLeadingZeros(bucket.data.length))).sortBy(_._2).foreach {
+    } yield 1 << (Integer.SIZE - Integer.numberOfLeadingZeros(bucket.keys.length))).sortBy(_._2).foreach {
       case (count,it) => println(s"index-bucket-size-count $it $count")
     }
 
@@ -933,15 +978,25 @@ object MeasureP {
     }.foreach {
       o => println(s"long-lists-2 $o")
     }
-*/
 
-
-
+    (for {
+      (assembledKey, index) <- readModel.iterator
+      assembledKeyS = assembledKey.toString
+    } yield {
+      val started = System.nanoTime()
+      val keyCount = rIndexUtil.keyIterator(index).size
+      val sum = (for {
+        key <- rIndexUtil.keyIterator(index)
+        value <- rIndexUtil.get(index,key)
+      } yield value.hashCode()).sum
+      val period = System.nanoTime() - started
+      val periodPerKey = if(keyCount > 0) period/keyCount else 0
+      ("index-hashing-time-0", periodPerKey, period, assembledKeyS, sum)
+    }).toSeq.sorted.foreach(println)
+    */
     // vals count, prod count
     // bucket count by size
     // top indexes;
-
-
 
   }
 }

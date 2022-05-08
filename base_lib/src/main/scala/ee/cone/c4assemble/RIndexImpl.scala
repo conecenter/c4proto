@@ -132,11 +132,20 @@ final class RIndexUtilImpl(
       toBucket(dest, ends)
     }
 
-  def compressIndex(ends: Array[Int]): InnerIndex =
-    if(ends.indices.forall(i=>ends(i)==i+1)) OneToOneInnerIndex
-    else if(ends.last <= Byte.MaxValue) new SmallInnerIndex(ends.map(_.toByte))
-    else if(ends.last <= Char.MaxValue) new DefInnerIndex(ends.map(_.toChar))
+  def compressIndex(ends: Array[Int]): InnerIndex = {
+    if(ends.last == ends.length) OneToOneInnerIndex // because there's no empty
+    else if(ends.last <= Byte.MaxValue){
+      val res = new Array[Byte](ends.length)
+      for(i <- ends.indices) res(i) = ends(i).toByte // .map boxes
+      new SmallInnerIndex(res)
+    }
+    else if(ends.last <= Char.MaxValue){
+      val res = new Array[Char](ends.length)
+      for(i <- ends.indices) res(i) = ends(i).toChar
+      new DefInnerIndex(res)
+    }
     else new BigInnerIndex(ends)
+  }
 
   def keyToInnerPos(rootPower: Int, dataSize: Int, key: RIndexKey): Int = {
     val hash = getHash(key)
@@ -213,7 +222,8 @@ final class RIndexUtilImpl(
 
   def toBucket(data: Array[Pair], ends: Array[Int]): RIndexBucket = {
     val hashPartToKeyRange = compressIndex(ends)
-    val valueSizes: Array[Int] = data.map(_._2.size) // boxing?
+    val valueSizes = new Array[Int](data.length)
+    for(i <- data.indices) valueSizes(i) = data(i)._2.size // check boxing
     val valueEnds = getEnds(valueSizes)
     val keyPosToValueRange = compressIndex(valueEnds)
     val keys = new Array[RIndexKey](data.length)
