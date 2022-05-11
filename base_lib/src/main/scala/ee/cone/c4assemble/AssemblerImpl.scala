@@ -6,17 +6,14 @@ package ee.cone.c4assemble
 import java.nio.file.{Files, Path, Paths}
 import Types._
 import ee.cone.c4assemble.IndexTypes.{Count, DMultiSet, Products}
-import ee.cone.c4assemble.Merge.Compose
 import ee.cone.c4assemble.RIndexTypes.{RIndexItem, RIndexKey}
-import ee.cone.c4di.{c4, c4multi, provide}
+import ee.cone.c4di.{c4, c4multi}
 
 import scala.annotation.tailrec
-import scala.collection.{Searching, immutable, mutable}
-import scala.collection.immutable.{ArraySeq, Map, Seq, TreeMap}
+import scala.collection.immutable
+import scala.collection.immutable.{Map, Seq, TreeMap}
 import scala.concurrent.{ExecutionContext, Future}
 import java.nio.charset.StandardCharsets.UTF_8
-import java.util.Comparator
-import java.util.function.{BinaryOperator, Predicate}
 
 class NonSingleCount(val item: Product, val count: Int)
 sealed class Counts(val data: List[Count])
@@ -36,13 +33,6 @@ case class DValuesImpl(asMultiSet: BranchRIndexItem, warning: String) extends Va
   def iterator: Iterator[Product] = asMultiSet.iterator.map(value)
   override def isEmpty: Boolean = asMultiSet.isEmpty //optim
 }
-
-sealed trait IndexedOuterMultiSet {
-  def keyForRIndex: RIndexKey
-}
-class MultiOuterMultiSet(val keyForRIndex: RIndexKey, val data: DMultiSet) extends IndexedOuterMultiSet
-class SingleOuterMultiSet(val keyForRIndex: RIndexKey, val item: Products) extends IndexedOuterMultiSet
-class FewOuterMultiSet(val keyForRIndex: RIndexKey, val items: Array[Products]) extends IndexedOuterMultiSet
 */
 
 sealed trait CountTag
@@ -72,6 +62,7 @@ final case class ParallelExecution(power: Int) {
     Future.sequence(parallelRange.map(partId=>Future(f(partId))))
 }
 
+// Ordering.by can drop keys!: https://github.com/scala/bug/issues/8674
 @c4("AssembleApp") final class IndexUtilImpl(
   rIndexUtil: RIndexUtil,
   memoryOptimizing: MemoryOptimizing,
@@ -142,61 +133,14 @@ final case class ParallelExecution(power: Int) {
     case n => new NonSingleCount(item, n).asInstanceOf[Count]
   }
 
-  def merger: Compose[Seq[RIndexItem]] = (a, b) => { // Ordering.by can drop keys!: https://github.com/scala/bug/issues/8674
-    val aV = getInnerMultiSet(a)
-    val bV = getInnerMultiSet(b)
-    val resV = Merge[InnerKey,Products](isEmptyProducts, mergeProducts)(aV, bV)
-    MeasureP("merge",aV.size+bV.size)
-    if(resV eq aV) a else if(resV eq bV) b else toCompact(toOrdered(resV))
-  }/*
-  def merger: Compose[Seq[RIndexItem]] = (a, b) => {
-    val comparator: Comparator[(InnerKey,RIndexItem)] = (kv0,kv1) => ordering.compare(kv0._1,kv1._1)
-    val srcA: Array[(InnerKey,RIndexItem)] = a.map(item => cToInnerKey(item) -> item).toArray
-    val srcB: Array[(InnerKey,RIndexItem)] = b.map(item => cToInnerKey(item) -> item).toArray
-    val dest = new Array[(InnerKey,RIndexItem)](a.length+b.length)
-    val nonEmptyProducts: Predicate[(InnerKey,RIndexItem)] = kv => !isEmptyProducts(kv._2)
-    val mergePairs: BinaryOperator[(InnerKey,RIndexItem)] = (kv0,kv1) => (kv0._1,mergeProducts(kv0._2,kv1._2))
-    val mergedSize = ArrayMerger.merge(
-      srcA, srcB, dest, comparator, mergePairs, nonEmptyProducts
-    )
-    ArraySeq.unsafeWrapArray(dest.take(mergedSize).map(_._2))
+  def rIndexValueOperations: RIndexValueOperations = new RIndexValueOperations {
+    def compareInPairs(a: RIndexPair, b: RIndexPair): Int =
+      ordering.compare(a.asInstanceOf[DOutImpl].mKey,b.asInstanceOf[DOutImpl].mKey)
+    def compare(a: RIndexItem, b: RIndexItem): Int =
+      ordering.compare(cToInnerKey(a),cToInnerKey(b))
+    def merge(a: RIndexItem, b: RIndexItem): RIndexItem = mergeProducts(a,b)
+    def nonEmpty(value: RIndexItem): Boolean = !isEmptyProducts(value)
   }
-  def merger: Compose[Seq[RIndexItem]] = (a, b) => {
-    val comparator: Comparator[RIndexItem] = (aIt,bIt) => ordering.compare(cToInnerKey(aIt),cToInnerKey(bIt))
-    val srcA: Array[RIndexItem] = a.toArray
-    val srcB: Array[RIndexItem] = b.toArray
-    val dest = new Array[RIndexItem](a.length+b.length)
-    val nonEmptyProducts: Predicate[RIndexItem] = p => !isEmptyProducts(p)
-    val mergePairs: BinaryOperator[RIndexItem] = mergeProducts _
-    val mergedSize = ArrayMerger.merge[RIndexItem](
-      srcA, srcB, dest, comparator, mergePairs, nonEmptyProducts
-    )
-    ArraySeq.unsafeWrapArray(dest.take(mergedSize))
-  }
-  def merger: Compose[Seq[RIndexItem]] = (a, b) => {
-    val oOrdering: Ordering[RIndexItem] = (aIt,bIt) => ordering.compare(cToInnerKey(aIt),cToInnerKey(bIt))
-    def inner: Compose[Seq[RIndexItem]] = (big,small) =>{
-      val found: Seq[Searching.SearchResult] = small.map(big.search(_)(oOrdering))
-      big.slice(0,found.head.insertionPoint) ++ found.indices.flatMap{ i =>
-        val bigSliceEnd = if(i+1<found.length) found(i+1).insertionPoint else big.length
-        found(i) match {
-          case Searching.Found(foundIndex) =>
-            val merged = mergeProducts(big(foundIndex),small(i))
-            if(isEmptyProducts(merged)) big.slice(foundIndex+1,bigSliceEnd)
-            else (merged::Nil) ++ big.slice(foundIndex+1,bigSliceEnd)
-          case Searching.InsertionPoint(insertionPoint) =>
-            small.slice(i,i+1) ++ big.slice(insertionPoint,bigSliceEnd)
-        }
-      }
-    }
-    if(a.length > b.length) inner(a,b) else inner(b,a)
-  }*/
-
-  def toOrdered(res: DMultiSet): DMultiSet = {
-    if(res.size > 1 && !res.isInstanceOf[TreeMap[_, _]])
-      TreeMap.empty[InnerKey,Products](ordering) ++ res else res
-  }
-  def toCompact(res: DMultiSet): Seq[RIndexItem] = res.values.toSeq // todo chk sort better
 
   def toInnerKey(item: Product): InnerKey = item match {
     case i: InnerKey => i
@@ -238,7 +182,7 @@ final case class ParallelExecution(power: Int) {
   }
 
   def mergeIndex(l: DPIterable[Index]): Index =
-    l.toSeq match { case Seq(a,b) => rIndexUtil.merge(a,b,merger) }
+    l.toSeq match { case Seq(a,b) => rIndexUtil.merge(a,b,rIndexValueOperations) }
 
   def zipMergeIndex(aDiffs: Seq[Index])(bDiffs: Seq[Index]): Seq[Index] = {
     assert(aDiffs.size == bDiffs.size)
@@ -251,7 +195,7 @@ final case class ParallelExecution(power: Int) {
       products  <- rIndexUtil.get(index,oKey(key))
       mKey = cToInnerKey(products)
       count <- toCounts(products)
-    } yield new DOutImpl(pos, key, mKey, inverse(count))
+    } yield new DOutImpl(pos, oKey(key), mKey, asUProducts(inverse(count)))
 
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): List[MultiForPart] = {
     val currentMS = rIndexUtil.get(currentIndex,oKey(key))
@@ -299,29 +243,14 @@ final case class ParallelExecution(power: Int) {
   }
   def buildIndex(data: Seq[AggrDOut])(implicit ec: ExecutionContext): Seq[Future[Index]] = {
     assert(data.nonEmpty)
-    val dataI = data.asInstanceOf[Seq[AggrDOutImpl]]
+    val dataI = data.asInstanceOf[Seq[AggrDOutImpl]].toArray
     val setup = Single(dataI.map(_.setup).distinct)
     (0 until setup.outCount).map{ outPos =>
       setup.parallelExecution.execute{ partPos =>
-        val index: mutable.Map[RIndexKey,DMultiSet] = mutable.Map()
-        dataI.foreach{ aggr =>
-          aggr.byOutThenTarget(setup.bufferPos(outPos, partPos)).foreach{ rec =>
-            val key = oKey(rec.key)
-            val mKey = rec.mKey
-            val wasValues: DMultiSet = index.getOrElse(key,Map.empty)
-            val counts = wasValues.get(mKey).fold(asUProducts(rec.count))(wasCounts=>
-              mergeProducts(wasCounts,asUProducts(rec.count))
-            )
-            val values = toOrdered(if(!isEmptyProducts(counts)) wasValues.updated(mKey,counts) else wasValues.removed(mKey))
-            MeasureP("buildIndex",wasValues.size)
-            if(values.nonEmpty) index(key) = values else assert(index.remove(key).nonEmpty)
-          }
-        }
-        rIndexUtil.build(
-          memoryOptimizing.indexPower,
-          index.map{ case(key,values)=> (key,toCompact(values)) }.iterator
-        )
-      }.map(_.reduce((a,b)=>rIndexUtil.merge(a,b,merger)))
+        val bufferPos = setup.bufferPos(outPos, partPos)
+        val src: Array[RIndexPair] = dataI.flatMap(_.byOutThenTarget(bufferPos))
+        rIndexUtil.build(memoryOptimizing.indexPower, src, rIndexValueOperations)
+      }.map(_.reduce((a,b)=>rIndexUtil.merge(a,b,rIndexValueOperations)))
     }
   }
   def countResults(data: Seq[AggrDOut]): ProfilingCounts =
@@ -336,7 +265,7 @@ final case class ParallelExecution(power: Int) {
 
   @SuppressWarnings(Array("org.wartremover.warts.TryPartial")) def getInstantly(future: Future[Index]): Index = future.value.get.get
 
-  def getValue(dOut: DOut): Product = dOut match { case d: DOutImpl => getItem(d.count) }
+  def getValue(dOut: DOut): Product = dOut match { case d: DOutImpl => getItem(asCount(d.rIndexItem)) }
   def addNS(key: AssembledKey, ns: String): AssembledKey = key match {
     case k: JoinKeyImpl => k.copy(keyAlias=k.keyAlias+"#"+ns)
   }
@@ -375,7 +304,7 @@ final class DOutAggregationBuffer(setup: IndexBuildSetup) extends MutableDOutBuf
   private val inner = new MutableGroupingBufferImpl[DOutImpl](setup.bufferCount)
   private val callCounter = Array[Long](0L,0L)
   private val addOne: DOut=>Unit = { case v: DOutImpl =>
-    inner.add(setup.bufferPos(v.pos,v.key), v)
+    inner.add(setup.bufferPos(v.pos,v.rIndexKey), v)
     callCounter(1) += 1
   }
   def add(values: Iterable[DOut]): Unit = {
@@ -406,10 +335,11 @@ final class KeyIterationImpl(parallelExecution: ParallelExecution, parts: Vector
 }
 
 // makeIndex(Map(key->Map((ToPrimaryKey(product),product.hashCode)->(Count(product,count)::Nil)))/*, opt*/)
-final class DOutImpl(val pos: Int, val key: Any, val mKey: InnerKey, val count: Count) extends DOut
+final class DOutImpl(val pos: Int, val rIndexKey: RIndexKey, val mKey: InnerKey, val rIndexItem: RIndexItem) extends DOut with RIndexPair
+
 final class OutFactoryImpl(util: IndexUtilImpl, pos: Int, dir: Int) extends OutFactory[Any, Product] {
   def result(key: Any, value: Product): DOut = {
-    new DOutImpl(pos,key,util.toInnerKey(value),util.makeCount(value,dir))
+    new DOutImpl(pos,util.oKey(key),util.toInnerKey(value),util.asUProducts(util.makeCount(value,dir)))
   }
   def result(pair: (Any, Product)): DOut = {
     val (k,v) = pair
