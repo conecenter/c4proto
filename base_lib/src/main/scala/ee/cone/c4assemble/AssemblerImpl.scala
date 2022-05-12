@@ -5,7 +5,7 @@ package ee.cone.c4assemble
 
 import java.nio.file.{Files, Path, Paths}
 import Types._
-import ee.cone.c4assemble.IndexTypes.{Count, DMultiSet, Products}
+import ee.cone.c4assemble.IndexTypes.{Count, Products}
 import ee.cone.c4assemble.RIndexTypes.{RIndexItem, RIndexKey}
 import ee.cone.c4di.{c4, c4multi}
 
@@ -41,7 +41,6 @@ object IndexTypes {
   type Tagged[U] = { type Tag = U }
   type Products = RIndexItem
   type Count = Object with Tagged[CountTag]
-  type DMultiSet = Map[InnerKey,Products]
 }
 
 // todo All on upd, Tree on upd
@@ -66,10 +65,7 @@ final case class ParallelExecution(power: Int) {
 @c4("AssembleApp") final class IndexUtilImpl(
   rIndexUtil: RIndexUtil,
   memoryOptimizing: MemoryOptimizing,
-  val ordering: Ordering[InnerKey] = (x: InnerKey, y: InnerKey) => {
-    val r = x.primaryKey compareTo y.primaryKey
-    if (r == 0) java.lang.Integer.compare(x.hash,y.hash) else r
-  },
+  noParts: Array[MultiForPart] = Array.empty,
   val isSingle: Products=>Boolean = {
     case c: Counts => false
     case c: NonSingleCount => false
@@ -134,31 +130,32 @@ final case class ParallelExecution(power: Int) {
   }
 
   def rIndexValueOperations: RIndexValueOperations = new RIndexValueOperations {
-    def compareInPairs(a: RIndexPair, b: RIndexPair): Int =
-      ordering.compare(a.asInstanceOf[DOutImpl].mKey,b.asInstanceOf[DOutImpl].mKey)
-    def compare(a: RIndexItem, b: RIndexItem): Int =
-      ordering.compare(cToInnerKey(a),cToInnerKey(b))
+    def compareInPairs(a: RIndexPair, b: RIndexPair): Int = {
+      val x = a.asInstanceOf[DOutImpl].mKey
+      val y = b.asInstanceOf[DOutImpl].mKey
+      val r = x.primaryKey compareTo y.primaryKey
+      if (r == 0) java.lang.Integer.compare(x.hash,y.hash) else r
+    }
+    def compare(a: RIndexItem, b: RIndexItem): Int = {
+      val aP = headProduct(a)
+      val bP = headProduct(b)
+      val r = RawToPrimaryKey.get(aP) compareTo RawToPrimaryKey.get(bP)
+      if (r == 0) java.lang.Integer.compare(aP.hashCode,bP.hashCode) else r
+    }
     def merge(a: RIndexItem, b: RIndexItem): RIndexItem = mergeProducts(a,b)
     def nonEmpty(value: RIndexItem): Boolean = !isEmptyProducts(value)
+  }
+
+  //noinspection NoTailRecursionAnnotation
+  def headProduct(products: Products): Product = products match {
+    case m: Counts => headProduct(asUProducts(m.data.head))
+    case c: NonSingleCount => c.item
+    case p: Product => p
   }
 
   def toInnerKey(item: Product): InnerKey = item match {
     case i: InnerKey => i
     case i => InnerKeyImpl(RawToPrimaryKey.get(i),i.hashCode)
-  }
-  def cToInnerKey(products: Products): InnerKey = products match {
-    case m: Counts => Single(m.data.map(a=>cToInnerKey(asUProducts(a))).distinct)
-    case c: NonSingleCount => toInnerKey(c.item)
-    case p: Product => toInnerKey(p)
-  }
-
-  def getInnerMultiSet(items: Seq[RIndexItem]): DMultiSet = items.size match {
-      case 0 => Map.empty
-      case 1 =>
-        val item = items.head
-        Map.empty.updated(cToInnerKey(item),item)
-      case _ =>
-        TreeMap.empty[InnerKey,Products](ordering) ++ items.map(item => cToInnerKey(item) -> item)
   }
 
   def inverse(a: Count): Count = makeCount(getItem(a), -getCount(a))
@@ -193,33 +190,29 @@ final case class ParallelExecution(power: Int) {
     for {
       key <- keys
       products  <- rIndexUtil.get(index,oKey(key))
-      mKey = cToInnerKey(products)
+      mKey = toInnerKey(headProduct(products))
       count <- toCounts(products)
     } yield new DOutImpl(pos, oKey(key), mKey, asUProducts(inverse(count)))
 
-  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): List[MultiForPart] = {
+  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Array[MultiForPart] = {
     val currentMS = rIndexUtil.get(currentIndex,oKey(key))
-    if(currentMS.isEmpty) Nil else {
-
+    if(currentMS.isEmpty) noParts else {
       if(rIndexUtil.eqBuckets(currentIndex,diffIndex,oKey(key))){ // todo fix with emb-ing
         MeasureP("partition0",currentMS.size)
-        val changed = (for {
-          values <- currentMS
-        } yield single(values,warning)).toList
-        new ChangedMultiForPart(changed) :: Nil
+        val changed = currentMS.toArray.map(single(_,warning))
+        Array(new ChangedMultiForPart(changed))
       } else {
         val diffMS = rIndexUtil.get(diffIndex,oKey(key))
-        val currentValues = getInnerMultiSet(currentMS)
-        val diffValues = getInnerMultiSet(diffMS)
-        MeasureP("partition1",currentValues.size+diffValues.size)
-        val changed = (for {
-          (k,_) <- diffValues; values <- currentValues.get(k)
-        } yield single(values,warning)).toList
-        val unchanged: ()=>List[Product] = ()=>(for {
-          (k,values) <- currentValues if !diffValues.contains(k)
-        } yield single(values,warning)).toList
-        val unchangedRes = new UnchangedMultiForPart(unchanged) :: Nil
-        if(changed.nonEmpty) new ChangedMultiForPart(changed) :: unchangedRes else unchangedRes
+        MeasureP("partition1",currentMS.size+diffMS.size)
+        val changed =
+          rIndexUtil.changed(currentMS,diffMS,rIndexValueOperations)
+            .map(single(_,warning))
+        val unchanged: ()=>Array[Product] = () => (
+          rIndexUtil.unchanged(currentMS,diffMS,rIndexValueOperations)
+            .map(single(_,warning))
+        )
+        val unchangedRes = new UnchangedMultiForPart(unchanged)
+        if(changed.nonEmpty) Array(new ChangedMultiForPart(changed),unchangedRes) else Array(unchangedRes)
       }
     }
   }
@@ -271,12 +264,12 @@ final case class ParallelExecution(power: Int) {
   }
 }
 
-final class ChangedMultiForPart(val items: List[Product]) extends MultiForPart {
+final class ChangedMultiForPart(val items: Array[Product]) extends MultiForPart {
   def isChanged: Boolean = true
 }
-final class UnchangedMultiForPart(getItems: ()=>List[Product]) extends MultiForPart {
+final class UnchangedMultiForPart(getItems: ()=>Array[Product]) extends MultiForPart {
   def isChanged: Boolean = false
-  lazy val items: List[Product] = getItems()
+  lazy val items: Array[Product] = getItems()
 }
 
 final class MutableGroupingBufferImpl[T](count: Int) {

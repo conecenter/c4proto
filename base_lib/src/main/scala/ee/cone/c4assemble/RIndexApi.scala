@@ -19,6 +19,8 @@ trait RIndexUtil {
   def keyIterator(index: RIndex): Iterator[RIndexKey]
   def build(power: Int, src: Array[RIndexPair], valueOperations: RIndexValueOperations): RIndex
   def eqBuckets(a: RIndex, b: RIndex, key: RIndexKey): Boolean
+  def changed(values: Seq[RIndexItem], diff: Seq[RIndexItem], valueOperations: RIndexValueOperations): Array[RIndexItem]
+  def unchanged(values: Seq[RIndexItem], diff: Seq[RIndexItem], valueOperations: RIndexValueOperations): Array[RIndexItem]
 }
 
 trait RIndexValueOperations {

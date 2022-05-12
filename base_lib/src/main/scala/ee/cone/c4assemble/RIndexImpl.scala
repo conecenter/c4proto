@@ -38,7 +38,7 @@ final class BigInnerIndex(aEnds: Array[Int]) extends InnerIndex {
   def ends(pos: Int): Int = aEnds(pos)
 }
 
-final class RIndexSeq(values: Array[RIndexItem], val start: Int, val length: Int) extends  IndexedSeq[RIndexItem] {
+final class RIndexSeq(val values: Array[RIndexItem], val start: Int, val length: Int) extends  IndexedSeq[RIndexItem] {
   def apply(i: Int): RIndexItem = values(start+i)
   override def copyToArray[B >: RIndexItem](dest: Array[B], destStart: Int): Int = {
     System.arraycopy(values, start, dest, destStart, length)
@@ -258,6 +258,30 @@ final class RIndexUtilImpl(
       aI.data(keyToPosInRoot(aI.options.power,key)) eq bI.data(keyToPosInRoot(bI.options.power,key))
     case _ => false
   }
+
+  def changed(values: Seq[RIndexItem], diff: Seq[RIndexItem], valueOperations: RIndexValueOperations): Array[RIndexItem] = {
+    val builder = new RIndexBuffer[RIndexItem](new Array(diff.length))
+    (new BinaryMerge {
+      def compare(ai: Int, bi: Int): Int =
+        valueOperations.compare(values(ai),diff(bi))
+      def collision(ai: Int, bi: Int): Unit = builder.add(values(ai))
+      def fromA(a0: Int, a1: Int, bi: Int): Unit = ()
+      def fromB(ai: Int, b0: Int, b1: Int): Unit = ()
+    }).merge0(0,values.length,0,diff.length)
+    builder.result()
+  }
+  def unchanged(values: Seq[RIndexItem], diff: Seq[RIndexItem], valueOperations: RIndexValueOperations): Array[RIndexItem] = {
+    val builder = new RIndexBuffer[RIndexItem](new Array(values.length))
+    (new BinaryMerge {
+      def compare(ai: Int, bi: Int): Int =
+        valueOperations.compare(values(ai),diff(bi))
+      def collision(ai: Int, bi: Int): Unit = ()
+      def fromA(a0: Int, a1: Int, bi: Int): Unit =
+        for(i <- a0 until a1) builder.add(values(i))
+      def fromB(ai: Int, b0: Int, b1: Int): Unit = ()
+    }).merge0(0,values.length,0,diff.length)
+    builder.result()
+  }
 }
 
 abstract class RIndexBuildGroupBy {
@@ -378,4 +402,8 @@ final class RIndexUtilDebug(inner: RIndexUtil) extends RIndexUtil {
     wrap("build",inner.build(power, src, valueOperations))
   def eqBuckets(a: RIndex, b: RIndex, key: RIndexKey): Boolean =
     wrap("eqBuckets",inner.eqBuckets(a,b,key))
+  def changed(values: Seq[RIndexItem], diff: Seq[RIndexItem], valueOperations: RIndexValueOperations): Array[RIndexItem] =
+    wrap("changed",inner.changed(values,diff,valueOperations))
+  def unchanged(values: Seq[RIndexItem], diff: Seq[RIndexItem], valueOperations: RIndexValueOperations): Array[RIndexItem] =
+    wrap("unchanged",inner.unchanged(values,diff,valueOperations))
 }

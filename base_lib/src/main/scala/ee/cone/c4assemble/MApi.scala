@@ -19,7 +19,7 @@ trait IndexUtil {
   def getValues(index: Index, key: Any, warning: String): Values[Product] //m
   def nonEmpty(index: Index, key: Any): Boolean //m
   def removingDiff(pos: Int, index: Index, keys: Iterable[Any]): Iterable[DOut]
-  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): List[MultiForPart]  //m
+  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Array[MultiForPart]  //m
   def mayBePar[V](seq: Seq[V]): DPIterable[V]
   //
   def aggregate(values: Iterable[DOut]): AggrDOut

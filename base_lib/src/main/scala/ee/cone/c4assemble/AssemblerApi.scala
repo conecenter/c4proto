@@ -7,9 +7,9 @@ import scala.concurrent.Future
 
 object Single {
   def apply[C](l: Seq[C]): C =
-    if(l.nonEmpty && l.tail.isEmpty) l.head else throw defException(l)
+    if(l.sizeCompare(1)==0) l.head else throw defException(l)
   def apply[C](l: Seq[C], exception: Seq[C]=>Exception): C =
-    if(l.nonEmpty && l.tail.isEmpty) l.head else throw exception(l)
+    if(l.sizeCompare(1)==0) l.head else throw exception(l)
   def option[C](l: Seq[C]): Option[C] = if(l.isEmpty) None else Option(apply(l))
   private def defException[C]: Seq[C]=>Exception = l => new Exception(
     if(l.isEmpty) "empty" else s"non-single: \n${l.head}, \n${l.tail.head} ..."
