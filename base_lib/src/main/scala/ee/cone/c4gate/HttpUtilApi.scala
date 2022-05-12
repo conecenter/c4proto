@@ -7,7 +7,7 @@ case class HttpResponse(status: Int, headers: Map[String, List[String]], body: B
 trait HttpUtil {
   def get(url: String, headers: List[(String, String)]): HttpResponse
   def post(url: String, headers: List[(String, String)]): Unit
-  def post(url: String, headers: List[(String, String)], body: ByteString, timeOut: Option[Int], expectCode: Int): Unit
+  def post(url: String, headers: List[(String, String)], body: ByteString, timeOut: Option[Int], expectCode: Int*): Unit
   def put(url: String, headers: List[(String, String)], body: ByteString, timeOut: Option[Int]): Int
   def put(url: String, headers: List[(String, String)], body: ByteString): Int
 }
