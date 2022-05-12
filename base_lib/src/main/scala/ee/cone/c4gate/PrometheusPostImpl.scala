@@ -66,7 +66,7 @@ import PrometheusPostSettingsObj._
     val bodyBytes = ToByteString(bodyStr.getBytes(StandardCharsets.UTF_8))
     logger.debug(s"Posted ${metrics.size} metrics to ${settings.url}")
     // mimeTypeOpt.map(mimeType => ("content-type", mimeType)).toList
-    util.post(settings.url, Nil, bodyBytes, Option(5000), expectCode = 202)
+    util.post(settings.url, Nil, bodyBytes, Option(5000), expectCode = 200, 202)
     SleepUntilKey.set(Instant.ofEpochMilli(time + settings.refreshRate))(local)
   }
 }
