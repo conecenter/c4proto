@@ -12,6 +12,7 @@ final class RIndexImpl(
 ) extends RIndex
 
 final class RIndexBucket(
+  val powers: RIndexPowers,
   val hashPartToKeyRange: InnerIndex,
   val keys: Array[RIndexKey],
   val keyPosToValueRange: InnerIndex,
@@ -62,9 +63,11 @@ abstract class RIndexSpread {
   }
 }
 
+final class RIndexPowers(val rootPower: Int, val innerPower: Int)
+
 final class RIndexUtilImpl(
   val emptyBucket: RIndexBucket = new RIndexBucket(
-    EmptyInnerIndex, Array.empty, EmptyInnerIndex, Array.empty
+    new RIndexPowers(0,0), EmptyInnerIndex, Array.empty, EmptyInnerIndex, Array.empty
   ),
 ) extends RIndexUtil {
 
@@ -105,20 +108,22 @@ final class RIndexUtilImpl(
     })(src, sizes)
     val kvComparator: Comparator[RIndexPair] = (aPair,bPair)=>{
       val kRes = compareKeys(aPair.rIndexKey,bPair.rIndexKey)
-      if(kRes != 0) kRes else valueOperations.compareInPairs(aPair,bPair)
+      if(kRes != 0) kRes else valueOperations.compare(aPair.rIndexItem,bPair.rIndexItem)
     }
     val builder = new RIndexBucketBuilder(this, options, sizes.max)()
     wrapData(options, dest.map{ pairs =>
       builder.restart()
+      val powers = new RIndexPowers(power,getPower(pairs.length))
       if(pairs.length > 0){
         java.util.Arrays.sort(pairs, kvComparator)
+        val positions = calcInnerPositions[RIndexPair](powers,pairs,_.rIndexKey)
         val valueGrouping: RIndexBuildGroupBy = new RIndexBuildGroupBy {
           @tailrec def merge(value: RIndexItem, pos: Int, end: Int): RIndexItem =
             if(pos < end)
               merge(valueOperations.merge(value,pairs(pos).rIndexItem),pos+1,end)
             else value
           def compare(a: Int, b: Int): Int =
-            valueOperations.compareInPairs(pairs(a),pairs(b))
+            valueOperations.compare(pairs(a).rIndexItem,pairs(b).rIndexItem)
           def forEachGroup(start: Int, end: Int): Unit = {
             val value = merge(pairs(start).rIndexItem, start+1, end)
             if(valueOperations.nonEmpty(value)) builder.addValue(value)
@@ -129,21 +134,20 @@ final class RIndexUtilImpl(
             compareKeys(pairs(a).rIndexKey, pairs(b).rIndexKey)
           def forEachGroup(start: Int, end: Int): Unit = {
             valueGrouping(start,end)
-            builder.addKey(pairs(start).rIndexKey)
+            builder.addKey(pairs(start).rIndexKey,positions(start))
           }
         }
         keyGrouping(0,pairs.length)
       }
-      builder.result()
+      builder.result(powers)
     })
   }
 
   def getPower(sz: Int): Int = Integer.SIZE - Integer.numberOfLeadingZeros(sz)
 
-  def keyToInnerPos(rootPower: Int, dataSize: Int, key: RIndexKey): Int = {
+  def keyToInnerPos(powers: RIndexPowers, key: RIndexKey): Int = {
     val hash = getHash(key)
-    val innerPower = getPower(dataSize)
-    (hash >> (Integer.SIZE - rootPower - innerPower)) & ((1 << innerPower)-1)
+    (hash >> (Integer.SIZE - powers.rootPower - powers.innerPower)) & ((1 << powers.innerPower)-1)
   }
 
   def wrapData(options: RIndexOptions, data: Array[RIndexBucket]): RIndex =
@@ -151,6 +155,27 @@ final class RIndexUtilImpl(
 
   def isEmpty(r: RIndexBucket): Boolean = r.keys.length == 0
   def isEmpty(index: RIndex): Boolean = index eq EmptyRIndex
+
+  def restoreInnerPositions(bucket: RIndexBucket, needPowers: RIndexPowers): Array[Int] = {
+    if(bucket.powers.innerPower != needPowers.innerPower)
+      calcInnerPositions(needPowers, bucket.keys, identity[RIndexKey])
+    else {
+      val res = new Array[Int](bucket.keys.length)
+      for(i <- 0 until (1 << bucket.powers.innerPower)){
+        val start = bucket.hashPartToKeyRange.starts(i)
+        val end = bucket.hashPartToKeyRange.ends(i)
+        if(start < end) java.util.Arrays.fill(res,start,end,i)
+      }
+      //assert(java.util.Arrays.equals(res,calcInnerPositions(needPowers, bucket.keys, identity[RIndexKey])))
+      res
+    }
+  }
+
+  def calcInnerPositions[T](powers: RIndexPowers, data: Array[T], toKey: T=>RIndexKey): Array[Int] = {
+    val res = new Array[Int](data.length)
+    for(i <- data.indices) res(i) = keyToInnerPos(powers, toKey(data(i)))
+    res
+  }
 
   def merge(
     aIndex: RIndex, bIndex: RIndex, valueOperations: RIndexValueOperations,
@@ -178,7 +203,9 @@ final class RIndexUtilImpl(
           builder.restart()
           val aKeys = aBucket.keys
           val bKeys = bBucket.keys
-
+          val needPowers = new RIndexPowers(options.power,getPower(aKeys.length+bKeys.length))
+          val aPositions = restoreInnerPositions(aBucket,needPowers)
+          val bPositions = restoreInnerPositions(bBucket,needPowers)
           val valueMerger = new BinaryMerge {
             def compare(ai: Int, bi: Int): Int =
               valueOperations.compare(aBucket.values(ai), bBucket.values(bi))
@@ -189,19 +216,21 @@ final class RIndexUtilImpl(
             def fromA(a0: Int, a1: Int, bi: Int): Unit = builder.addValues(aBucket, a0, a1)
             def fromB(ai: Int, b0: Int, b1: Int): Unit = builder.addValues(bBucket, b0, b1)
           }
-          @tailrec def add(bucket: RIndexBucket, keysStart: Int, keysEnd: Int): Unit =
+          @tailrec def add(bucket: RIndexBucket, positions: Array[Int], keysStart: Int, keysEnd: Int): Unit =
             if(keysStart < keysEnd){
               builder.addValues(
                 bucket,
                 bucket.keyPosToValueRange.starts(keysStart),
                 bucket.keyPosToValueRange.ends(keysStart)
               )
-              builder.addKey(bucket.keys(keysStart))
-              add(bucket, keysStart+1, keysEnd)
+              builder.addKey(bucket.keys(keysStart),positions(keysStart))
+              add(bucket, positions, keysStart+1, keysEnd)
             }
           val keyMerger: BinaryMerge = new BinaryMerge {
-            def compare(ai: Int, bi: Int): Int =
-              compareKeys(aKeys(ai), bKeys(bi))
+            def compare(ai: Int, bi: Int): Int = {
+              val r = Integer.compare(aPositions(ai),bPositions(bi))
+              if(r != 0) r else compareKeys(aKeys(ai), bKeys(bi))
+            }
             def collision(ai: Int, bi: Int): Unit = {
               valueMerger.merge0(
                 aBucket.keyPosToValueRange.starts(ai),
@@ -209,13 +238,13 @@ final class RIndexUtilImpl(
                 bBucket.keyPosToValueRange.starts(bi),
                 bBucket.keyPosToValueRange.ends(bi),
               )
-              builder.addKey(aKeys(ai))
+              builder.addKey(aKeys(ai),aPositions(ai))
             }
-            def fromA(a0: Int, a1: Int, bi: Int): Unit = add(aBucket, a0, a1)
-            def fromB(ai: Int, b0: Int, b1: Int): Unit = add(bBucket, b0, b1)
+            def fromA(a0: Int, a1: Int, bi: Int): Unit = add(aBucket, aPositions, a0, a1)
+            def fromB(ai: Int, b0: Int, b1: Int): Unit = add(bBucket, bPositions, b0, b1)
           }
           keyMerger.merge0(0,aKeys.length,0,bKeys.length)
-          buckets(i) = builder.result()
+          buckets(i) = builder.result(needPowers)
         }
       }
       wrapData(options, buckets)
@@ -225,7 +254,7 @@ final class RIndexUtilImpl(
     case a if isEmpty(a) => Nil
     case aI: RIndexImpl =>
       val bucket: RIndexBucket = aI.data(keyToPosInRoot(aI.options.power,key))
-      val iPos = keyToInnerPos(aI.options.power, bucket.keys.length, key)
+      val iPos = keyToInnerPos(bucket.powers, key)
       val start = bucket.hashPartToKeyRange.starts(iPos)
       val end = bucket.hashPartToKeyRange.ends(iPos)
       val sz = end - start
@@ -299,7 +328,7 @@ abstract class RIndexBuildGroupBy {
       apply(other, end)
     }
 }
-
+/*
 final class RIndexBuffer[T<:Object](values: Array[T]){
   var end: Int = 0
   def add(src: Array[T], srcStart: Int, sz: Int): Unit = {
@@ -311,7 +340,7 @@ final class RIndexBuffer[T<:Object](values: Array[T]){
     end += 1
   }
   def result(): Array[T] = java.util.Arrays.copyOf[T](values, end)
-}
+}*/
 
 final class RIndexBucketBuilder(
   util: RIndexUtilImpl,
@@ -319,17 +348,19 @@ final class RIndexBucketBuilder(
   val maxSize: Int,
 )(
   destHashToK: Array[Int] = new Array(1 << util.getPower(maxSize)),
-  destKeys: RIndexBuffer[RIndexKey] = new RIndexBuffer(new Array(maxSize)),
+  destKeyToHash: Array[Int] = new Array(maxSize),
+  destKeys: RIndexBuffer[RIndexKey] = new RIndexBuffer[RIndexKey](new Array(maxSize)),
   destKeyToV: Array[Int] = new Array(maxSize),
-  destValues: RIndexBuffer[RIndexItem] = new RIndexBuffer(new Array(maxSize)),
+  destValues: RIndexBuffer[RIndexItem] = new RIndexBuffer[RIndexItem](new Array(maxSize)),
 ){
   def addValue(value: RIndexItem): Unit = destValues.add(value)
   def addValues(bucket: RIndexBucket, start: Int, end: Int): Unit =
     destValues.add(bucket.values, start, end-start)
 
   def lastKeyToV: Int = if(destKeys.end > 0) destKeyToV(destKeys.end-1) else 0
-  def addKey(key: RIndexKey): Unit = if(destValues.end > lastKeyToV) {
+  def addKey(key: RIndexKey, hashPart: Int): Unit = if(destValues.end > lastKeyToV) {
     destKeyToV(destKeys.end) = destValues.end
+    destKeyToHash(destKeys.end) = hashPart
     destKeys.add(key)
   }
 
@@ -338,24 +369,22 @@ final class RIndexBucketBuilder(
     destValues.end = 0
   }
 
-  def result(): RIndexBucket = if(destKeys.end==0) util.emptyBucket else {
-    val keys = destKeys.result()
-    new RIndexBucket(
-      makeInnerIndex(keys), keys,
+  def result(powers: RIndexPowers): RIndexBucket =
+    if(destKeys.end==0) util.emptyBucket else new RIndexBucket(
+      powers, makeInnerIndex(powers), destKeys.result(),
       compressIndex(destKeyToV, destKeys.end), destValues.result(),
     )
-  }
 
   def sizesToEnds(indexLength: Int): Unit =
     for (i <- 0 until indexLength)
       destHashToK(i) = util.starts(destHashToK,i) + destHashToK(i)
 
-  def makeInnerIndex(keys: Array[RIndexKey]): InnerIndex = {
-    val indexLength = 1 << util.getPower(keys.length)
+  def makeInnerIndex(powers: RIndexPowers): InnerIndex = {
+    val indexLength = 1 << powers.innerPower
     java.util.Arrays.fill(destHashToK,0,indexLength,0)
-    util.fillSizes(destHashToK, keys.length, i=>util.keyToInnerPos(options.power,keys.length,keys(i)))
+    util.fillSizes(destHashToK, destKeys.end, i=>destKeyToHash(i))
     sizesToEnds(indexLength)
-    assert(destHashToK(indexLength-1)==keys.length)
+    assert(destHashToK(indexLength-1)==destKeys.end)
     compressIndex(destHashToK,indexLength)
   }
 

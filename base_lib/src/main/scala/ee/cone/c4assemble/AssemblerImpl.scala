@@ -19,27 +19,10 @@ class NonSingleCount(val item: Product, val count: Int)
 sealed class Counts(val data: List[Count])
 object EmptyCounts extends Counts(Nil)
 
-case class InnerKeyImpl(primaryKey: String, hash: Int) extends InnerKey
-
-/*
-case class DValuesImpl(asMultiSet: BranchRIndexItem, warning: String) extends Values[Product] {
-  def length: Int = asMultiSet.size
-  private def value(kv: (InnerKey,Products)): Product =
-    IndexUtilImpl.single(kv._2,warning)
-  def apply(idx: Int): Product = {
-    println(s"APPL $warning")
-    value(asMultiSet.view.slice(idx,idx+1).head)
-  }
-  def iterator: Iterator[Product] = asMultiSet.iterator.map(value)
-  override def isEmpty: Boolean = asMultiSet.isEmpty //optim
-}
-*/
-
-sealed trait CountTag
-
 object IndexTypes {
   type Tagged[U] = { type Tag = U }
   type Products = RIndexItem
+  sealed trait CountTag
   type Count = Object with Tagged[CountTag]
 }
 
@@ -130,12 +113,6 @@ final case class ParallelExecution(power: Int) {
   }
 
   def rIndexValueOperations: RIndexValueOperations = new RIndexValueOperations {
-    def compareInPairs(a: RIndexPair, b: RIndexPair): Int = {
-      val x = a.asInstanceOf[DOutImpl].mKey
-      val y = b.asInstanceOf[DOutImpl].mKey
-      val r = x.primaryKey compareTo y.primaryKey
-      if (r == 0) java.lang.Integer.compare(x.hash,y.hash) else r
-    }
     def compare(a: RIndexItem, b: RIndexItem): Int = {
       val aP = headProduct(a)
       val bP = headProduct(b)
@@ -151,11 +128,6 @@ final case class ParallelExecution(power: Int) {
     case m: Counts => headProduct(asUProducts(m.data.head))
     case c: NonSingleCount => c.item
     case p: Product => p
-  }
-
-  def toInnerKey(item: Product): InnerKey = item match {
-    case i: InnerKey => i
-    case i => InnerKeyImpl(RawToPrimaryKey.get(i),i.hashCode)
   }
 
   def inverse(a: Count): Count = makeCount(getItem(a), -getCount(a))
@@ -190,9 +162,8 @@ final case class ParallelExecution(power: Int) {
     for {
       key <- keys
       products  <- rIndexUtil.get(index,oKey(key))
-      mKey = toInnerKey(headProduct(products))
       count <- toCounts(products)
-    } yield new DOutImpl(pos, oKey(key), mKey, asUProducts(inverse(count)))
+    } yield new DOutImpl(pos, oKey(key), asUProducts(inverse(count)))
 
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Array[MultiForPart] = {
     val currentMS = rIndexUtil.get(currentIndex,oKey(key))
@@ -328,11 +299,11 @@ final class KeyIterationImpl(parallelExecution: ParallelExecution, parts: Vector
 }
 
 // makeIndex(Map(key->Map((ToPrimaryKey(product),product.hashCode)->(Count(product,count)::Nil)))/*, opt*/)
-final class DOutImpl(val pos: Int, val rIndexKey: RIndexKey, val mKey: InnerKey, val rIndexItem: RIndexItem) extends DOut with RIndexPair
+final class DOutImpl(val pos: Int, val rIndexKey: RIndexKey, val rIndexItem: RIndexItem) extends DOut with RIndexPair
 
 final class OutFactoryImpl(util: IndexUtilImpl, pos: Int, dir: Int) extends OutFactory[Any, Product] {
   def result(key: Any, value: Product): DOut = {
-    new DOutImpl(pos,util.oKey(key),util.toInnerKey(value),util.asUProducts(util.makeCount(value,dir)))
+    new DOutImpl(pos,util.oKey(key),util.asUProducts(util.makeCount(value,dir)))
   }
   def result(pair: (Any, Product)): DOut = {
     val (k,v) = pair

@@ -240,11 +240,7 @@ trait ValuesSubAssemble[R<:Product] extends SubAssemble[R] {
   def call(implicit can: CanCallToValues): Values[R] = throw new Exception("never here")
 }
 
-trait InnerKey extends Product {
-  def primaryKey: String
-  def hash: Int
-}
-trait PrimaryKeyOnly extends InnerKey {
+trait PrimaryKeyOnly extends Product {
   def primaryKey: String = productElement(0).asInstanceOf[String]
   def hash: Int = hashCode
 }

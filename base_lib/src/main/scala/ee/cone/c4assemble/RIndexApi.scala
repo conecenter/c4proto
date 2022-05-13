@@ -24,7 +24,7 @@ trait RIndexUtil {
 }
 
 trait RIndexValueOperations {
-  def compareInPairs(a: RIndexPair, b: RIndexPair): Int
+  //def compareInPairs(a: RIndexPair, b: RIndexPair): Int
   def compare(a: RIndexItem, b: RIndexItem): Int
   def merge(a: RIndexItem, b: RIndexItem): RIndexItem
   def nonEmpty(value: RIndexItem): Boolean
