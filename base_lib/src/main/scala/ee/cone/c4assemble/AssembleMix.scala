@@ -17,6 +17,4 @@ trait AssembleAppBase
   @provide def getMemoryOptimizing: Seq[MemoryOptimizing] = Seq(new MemoryOptimizingImpl)
 }
 
-class MemoryOptimizingImpl extends MemoryOptimizing {
-  val indexPower = 10 //12
-}
+final class MemoryOptimizingImpl(val indexPower: Int = 10/*12*/) extends MemoryOptimizing
