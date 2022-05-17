@@ -10,8 +10,11 @@ public final class RIndexBuffer <T> {
         values[end++] = value;
     }
     public void add(T[] src, int srcStart, int sz) {
-        System.arraycopy(src, srcStart, values, end, sz);
-        end += sz;
+        if(sz==1) add(src[srcStart]);
+        else {
+            System.arraycopy(src, srcStart, values, end, sz);
+            end += sz;
+        }
     }
     public T[] result() {
         return java.util.Arrays.copyOf(values, end);

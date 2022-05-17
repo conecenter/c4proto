@@ -93,6 +93,7 @@ final class RIndexUtilImpl(
     for (i <- 0 until srcSize) sizes(toPos(i)) += 1
 
   def build(power: Int, src: Array[RIndexPair], valueOperations: RIndexValueOperations): RIndex = {
+    //val started = System.nanoTime()
     val keyComparator: Comparator[RIndexKey] = compareKeys(_,_)
     val options = new RIndexOptions(power,keyComparator)
     val size = 1 << options.power
@@ -111,11 +112,11 @@ final class RIndexUtilImpl(
       if(kRes != 0) kRes else valueOperations.compare(aPair.rIndexItem,bPair.rIndexItem)
     }
     val builder = new RIndexBucketBuilder(this, options, sizes.max)()
-    wrapData(options, dest.map{ pairs =>
-      builder.restart()
-      val powers = new RIndexPowers(power,getPower(pairs.length))
-      if(pairs.length > 0){
-        java.util.Arrays.sort(pairs, kvComparator)
+    val buckets = dest.map{ pairs =>
+      if(pairs.length == 0) emptyBucket else {
+        builder.restart()
+        val powers = new RIndexPowers(power,getPower(pairs.length))
+        if(pairs.length > 1) java.util.Arrays.sort(pairs, kvComparator)
         val positions = calcInnerPositions[RIndexPair](powers,pairs,_.rIndexKey)
         val valueGrouping: RIndexBuildGroupBy = new RIndexBuildGroupBy {
           @tailrec def merge(value: RIndexItem, pos: Int, end: Int): RIndexItem =
@@ -138,9 +139,11 @@ final class RIndexUtilImpl(
           }
         }
         keyGrouping(0,pairs.length)
+        builder.result(powers)
       }
-      builder.result(powers)
-    })
+    }
+    //MeasureP("build_ms",((System.nanoTime()-started)/1000000).toInt)
+    wrapData(options, buckets)
   }
 
   def getPower(sz: Int): Int = Integer.SIZE - Integer.numberOfLeadingZeros(sz)
@@ -178,25 +181,28 @@ final class RIndexUtilImpl(
   }
 
   def merge(
-    aIndex: RIndex, bIndex: RIndex, valueOperations: RIndexValueOperations,
-  ): RIndex = (aIndex,bIndex) match {
-    case (a,b) if isEmpty(a) => b
-    case (a,b) if isEmpty(b) => a
-    case (aI:RIndexImpl,bI:RIndexImpl) =>
-      val options = aI.options
-      val aD = aI.data
-      val bD = bI.data
-      assert(aD.length == bD.length, "merge length")
-      val buckets: Array[RIndexBucket] = aD.clone()
-      val maxSize = buckets.indices.iterator.map{ i =>
-        val aSz = aD(i).values.length
-        val bSz = bD(i).values.length
-        if(aSz > 0 && bSz > 0) aSz+bSz else 0
-      }.max
+    indexes: Seq[RIndex], valueOperations: RIndexValueOperations,
+  ): RIndex = {
+    val indexArr = indexes.filterNot(isEmpty).map{ case i: RIndexImpl => i }.toArray
+    if(indexArr.length==0) EmptyRIndex else {
+      val options = indexArr.head.options
+      val buckets: Array[RIndexBucket] = indexArr.head.data.clone()
+      assert(indexArr.forall(_.data.length==buckets.length))
+      @tailrec def getMergeSize(bucketIdx: Int, layerIdx: Int, nonEmptyCount: Int, size: Int): Int =
+        if(layerIdx < indexArr.length){
+          val bucketSize = indexArr(layerIdx).data(bucketIdx).values.length
+          getMergeSize(bucketIdx, layerIdx+1, if(bucketSize==0) nonEmptyCount else nonEmptyCount+1, size+bucketSize)
+        } else if(nonEmptyCount>1) size else 0
+      @tailrec def getMaxMergeSize(bucketIdx: Int, size: Int): Int =
+        if(bucketIdx < buckets.length){
+          val sz = getMergeSize(bucketIdx,0,0,0)
+          getMaxMergeSize(bucketIdx+1, Math.max(size,sz))
+        } else size
+      val maxSize = getMaxMergeSize(0,0)
       val builder = new RIndexBucketBuilder(this, options, maxSize)()
-      for(i <- buckets.indices){
-        val aBucket = aD(i)
-        val bBucket = bD(i)
+      for(otherIndex <- indexArr.tail) for(i <- buckets.indices){
+        val aBucket: RIndexBucket = buckets(i)
+        val bBucket: RIndexBucket = otherIndex.data(i)
         if(isEmpty(bBucket)) ()
         else if(isEmpty(aBucket)) buckets(i) = bBucket
         else {
@@ -248,6 +254,15 @@ final class RIndexUtilImpl(
         }
       }
       wrapData(options, buckets)
+    }
+  }
+
+  def split(index: RIndex, count: Int): Seq[RIndex] = index match {
+    case aI if isEmpty(aI) => (0 until count).map(_=>EmptyRIndex)
+    case aI: RIndexImpl =>
+      val data = Array.tabulate(count)(_=>Array.fill(aI.data.length)(emptyBucket))
+      for(i <- aI.data.indices) data(i % count)(i) = aI.data(i)
+      data.map(wrapData(aI.options,_))
   }
 
   def get(index: RIndex, key: RIndexKey): Seq[RIndexItem] = index match {
@@ -290,25 +305,27 @@ final class RIndexUtilImpl(
 
   def changed(values: Seq[RIndexItem], diff: Seq[RIndexItem], valueOperations: RIndexValueOperations): Array[RIndexItem] = {
     val builder = new RIndexBuffer[RIndexItem](new Array(diff.length))
-    (new BinaryMerge {
+    val bm = new BinaryMerge {
       def compare(ai: Int, bi: Int): Int =
         valueOperations.compare(values(ai),diff(bi))
       def collision(ai: Int, bi: Int): Unit = builder.add(values(ai))
       def fromA(a0: Int, a1: Int, bi: Int): Unit = ()
       def fromB(ai: Int, b0: Int, b1: Int): Unit = ()
-    }).merge0(0,values.length,0,diff.length)
+    }
+    bm.merge0(0,values.length,0,diff.length)
     builder.result()
   }
   def unchanged(values: Seq[RIndexItem], diff: Seq[RIndexItem], valueOperations: RIndexValueOperations): Array[RIndexItem] = {
     val builder = new RIndexBuffer[RIndexItem](new Array(values.length))
-    (new BinaryMerge {
+    val bm = new BinaryMerge {
       def compare(ai: Int, bi: Int): Int =
         valueOperations.compare(values(ai),diff(bi))
       def collision(ai: Int, bi: Int): Unit = ()
       def fromA(a0: Int, a1: Int, bi: Int): Unit =
         for(i <- a0 until a1) builder.add(values(i))
       def fromB(ai: Int, b0: Int, b1: Int): Unit = ()
-    }).merge0(0,values.length,0,diff.length)
+    }
+    bm.merge0(0,values.length,0,diff.length)
     builder.result()
   }
 }
@@ -423,8 +440,10 @@ final class RIndexUtilDebug(inner: RIndexUtil) extends RIndexUtil {
 
   def get(index: RIndex, key: RIndexKey): Seq[RIndexItem] =
     wrap("get",inner.get(index,key))
-  def merge(a: RIndex, b: RIndex, valueOperations: RIndexValueOperations): RIndex =
-    wrap("merge",inner.merge(a,b,valueOperations))
+  def merge(indexes: Seq[RIndex], valueOperations: RIndexValueOperations): RIndex =
+    wrap("merge",inner.merge(indexes,valueOperations))
+  def split(index: RIndex, count: Int): Seq[RIndex] =
+    wrap("split",inner.split(index,count))
   def keyIterator(index: RIndex): Iterator[RIndexKey] =
     wrap("iterator",inner.keyIterator(index))
   def build(power: Int, src: Array[RIndexPair], valueOperations: RIndexValueOperations): RIndex =

@@ -150,12 +150,25 @@ final case class ParallelExecution(power: Int) {
     else values.map(single(_,warning))
   }
 
-  def mergeIndex(l: DPIterable[Index]): Index =
-    l.toSeq match { case Seq(a,b) => rIndexUtil.merge(a,b,rIndexValueOperations) }
+  def mergeIndex(l: DPIterable[Index]): Index = // size 2
+    rIndexUtil.merge(l.toSeq,rIndexValueOperations)
 
   def zipMergeIndex(aDiffs: Seq[Index])(bDiffs: Seq[Index]): Seq[Index] = {
     assert(aDiffs.size == bDiffs.size)
     (aDiffs zip bDiffs).map{ case (a,b) => mergeIndex(Seq(a, b)) }
+  }
+
+  def zipMergeIndex(aDiffs: Seq[Index], bDiffs: Seq[Index])(implicit ec: ExecutionContext): Future[Seq[Index]] = {
+    val parallelExecution = ParallelExecution(3)
+    assert(aDiffs.size == bDiffs.size)
+    val ops = rIndexValueOperations
+    Future.sequence((aDiffs zip bDiffs).map{ case (a,b) =>
+      val aParts = rIndexUtil.split(a, parallelExecution.parallelPartCount)
+      val bParts = rIndexUtil.split(b, parallelExecution.parallelPartCount)
+      parallelExecution.execute(partPos=>
+        rIndexUtil.merge(Seq(aParts(partPos), bParts(partPos)),ops)
+      ).map(rIndexUtil.merge(_,ops))
+    })
   }
 
   def removingDiff(pos: Int, index: Index, keys: Iterable[Any]): Iterable[DOut] =
@@ -169,12 +182,12 @@ final case class ParallelExecution(power: Int) {
     val currentMS = rIndexUtil.get(currentIndex,oKey(key))
     if(currentMS.isEmpty) noParts else {
       if(rIndexUtil.eqBuckets(currentIndex,diffIndex,oKey(key))){ // todo fix with emb-ing
-        MeasureP("partition0",currentMS.size)
+        //MeasureP("partition0",currentMS.size)
         val changed = currentMS.toArray.map(single(_,warning))
         Array(new ChangedMultiForPart(changed))
       } else {
         val diffMS = rIndexUtil.get(diffIndex,oKey(key))
-        MeasureP("partition1",currentMS.size+diffMS.size)
+        //MeasureP("partition1",currentMS.size+diffMS.size)
         val changed =
           rIndexUtil.changed(currentMS,diffMS,rIndexValueOperations)
             .map(single(_,warning))
@@ -214,7 +227,7 @@ final case class ParallelExecution(power: Int) {
         val bufferPos = setup.bufferPos(outPos, partPos)
         val src: Array[RIndexPair] = dataI.flatMap(_.byOutThenTarget(bufferPos))
         rIndexUtil.build(memoryOptimizing.indexPower, src, rIndexValueOperations)
-      }.map(_.reduce((a,b)=>rIndexUtil.merge(a,b,rIndexValueOperations)))
+      }.map(rIndexUtil.merge(_,rIndexValueOperations))
     }
   }
   def countResults(data: Seq[AggrDOut]): ProfilingCounts =
@@ -330,7 +343,7 @@ trait ParallelAssembleStrategy {
 
 @c4multi("AssembleApp") final class JoinMapIndex(join: Join)(
   updater: IndexUpdater,
-  composes: IndexUtil
+  composes: IndexUtil,
 ) extends WorldPartExpression
   with DataDependencyFrom[Index]
   with DataDependencyTo[Index]
@@ -371,13 +384,11 @@ trait ParallelAssembleStrategy {
           indexDiffs <- Future.sequence(composes.buildIndex(joinRes))
           findChangesLog = profiler.handle(join, 1L, findChangesStart, countLog)
           noUpdates <- getNoUpdates(findChangesLog)
-        } yield {
-          val patchStart = profiler.time
-          val diffs = composes.zipMergeIndex(noUpdates.diffs)(indexDiffs)
-          val results = composes.zipMergeIndex(noUpdates.results)(indexDiffs)
-          val patchLog = profiler.handle(join, 2L, patchStart, findChangesLog)
-          new IndexUpdates(diffs, results, patchLog)
-        }
+          patchStart = profiler.time
+          diffs <- composes.zipMergeIndex(noUpdates.diffs, indexDiffs)
+          results <- composes.zipMergeIndex(noUpdates.results, indexDiffs)
+          patchLog = profiler.handle(join, 2L, patchStart, findChangesLog)
+        } yield new IndexUpdates(diffs, results, patchLog)
       }
     } yield res
     updater.setPart(outputWorldKeys,next,logTask = true)(transition)
@@ -646,6 +657,7 @@ object MeasureP {
   import scala.jdk.CollectionConverters._
 
   val state = new ConcurrentHashMap[(String, String), LongAdder]
+  val maxState = new ConcurrentHashMap[String,Integer]
   //def log2(value: Int): Int = Integer.SIZE - Integer.numberOfLeadingZeros(value)
   def sz(m: Map[_, _]): String = m.size match {
     case 0 => "0"
@@ -659,12 +671,16 @@ object MeasureP {
   def apply(hint: String, size: Int): Unit = {
     inc((hint, "o"), 1)
     inc((hint, "i"), size)
+    //maxState.computeIfAbsent(hint,_=>0)
+    //maxState.compute(hint,(k,v)=>Math.max(v,size))
     //inc((hint, sz(m0), sz(m1), sz(m2)))
     //inc((hint, "*", "*", "*"))
   }
 
-  def out(): Unit =
+  def out(): Unit = {
     state.keySet.asScala.toSeq.sorted.foreach(key=>println(s"ME: ${key._1} ${key._2} ${state.get(key).longValue}"))
+    //maxState.keySet.asScala.toSeq.sorted.foreach(key=>println(s"ME:MAX: ${key} ${maxState.get(key)}"))
+  }
 }
 
 @c4("AssembleApp") final class StartUpSpaceProfilerImpl(
