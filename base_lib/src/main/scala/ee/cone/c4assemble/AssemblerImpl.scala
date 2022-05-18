@@ -150,6 +150,16 @@ final case class ParallelExecution(power: Int) {
     else values.map(single(_,warning))
   }
 
+  def getNonSingles(index: Index, key: Any): Seq[(Product,Int)] =
+    rIndexUtil.get(index,oKey(key)).flatMap{
+      case m: Counts => m.data.map{
+        case c: NonSingleCount => (c.item, c.count)
+        case p: Product => (p,1)
+      }
+      case c: NonSingleCount => (c.item, c.count) :: Nil
+      case p: Product => Nil
+    }
+
   def mergeIndex(l: DPIterable[Index]): Index = // size 2
     rIndexUtil.merge(l.toSeq,rIndexValueOperations)
 

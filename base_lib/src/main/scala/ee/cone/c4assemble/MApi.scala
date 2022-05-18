@@ -34,6 +34,8 @@ trait IndexUtil {
   //
   def getValue(dOut: DOut): Product
   def addNS(key: AssembledKey, ns: String): AssembledKey
+  //
+  def getNonSingles(index: Index, key: Any): Seq[(Product,Int)]
 }
 
 // ${outKeyName.fold("DOut=>Unit")(_=>"Tuple2[Any,Product]=>Unit")}      ${outKeyName.fold("buffer.add _")(_=>"pair=>buffer.add(outFactory.result(pair))")}  MutableDOutBuffer
@@ -241,18 +243,9 @@ trait ValuesSubAssemble[R<:Product] extends SubAssemble[R] {
   def call(implicit can: CanCallToValues): Values[R] = throw new Exception("never here")
 }
 
-trait PrimaryKeyOnly extends Product {
-  def primaryKey: String = productElement(0).asInstanceOf[String]
-  def hash: Int = hashCode
-}
-
 /*
 we declare, that products has fast x.hashCode and ToPrimaryKey(x),
   so no extra memory is needed to cache this information
-
-extender from PrimaryKeyOnly declares also, that the class contains only the key
-  and can be used as a key for itself
-
 */
 
 trait StartUpSpaceProfiler {
