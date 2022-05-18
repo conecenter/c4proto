@@ -11,7 +11,7 @@ import ee.cone.c4di.{c4, c4multi}
 
 import scala.annotation.tailrec
 import scala.collection.immutable
-import scala.collection.immutable.{Map, Seq, TreeMap}
+import scala.collection.immutable.{Map, Seq}
 import scala.concurrent.{ExecutionContext, Future}
 import java.nio.charset.StandardCharsets.UTF_8
 
@@ -50,9 +50,9 @@ final case class ParallelExecution(power: Int) {
   memoryOptimizing: MemoryOptimizing,
   noParts: Array[MultiForPart] = Array.empty,
   val isSingle: Products=>Boolean = {
-    case c: Counts => false
-    case c: NonSingleCount => false
-    case item: Product => true
+    case _: Counts => false
+    case _: NonSingleCount => false
+    case _: Product => true
   }
 ) extends IndexUtil {
   def single(products: Products, warning: String): Product = products match {
@@ -181,7 +181,7 @@ final case class ParallelExecution(power: Int) {
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Array[MultiForPart] = {
     val currentMS = rIndexUtil.get(currentIndex,oKey(key))
     if(currentMS.isEmpty) noParts else {
-      if(rIndexUtil.eqBuckets(currentIndex,diffIndex,oKey(key))){ // todo fix with emb-ing
+      if(rIndexUtil.eqBuckets(currentIndex,diffIndex,oKey(key))){ // todo fix with emb-ing ?
         //MeasureP("partition0",currentMS.size)
         val changed = currentMS.toArray.map(single(_,warning))
         Array(new ChangedMultiForPart(changed))
@@ -191,10 +191,10 @@ final case class ParallelExecution(power: Int) {
         val changed =
           rIndexUtil.changed(currentMS,diffMS,rIndexValueOperations)
             .map(single(_,warning))
-        val unchanged: ()=>Array[Product] = () => (
-          rIndexUtil.unchanged(currentMS,diffMS,rIndexValueOperations)
-            .map(single(_,warning))
-        )
+        val unchanged: ()=>Array[Product] = () => {
+          rIndexUtil.unchanged(currentMS, diffMS, rIndexValueOperations)
+            .map(single(_, warning))
+        }
         val unchangedRes = new UnchangedMultiForPart(unchanged)
         if(changed.nonEmpty) Array(new ChangedMultiForPart(changed),unchangedRes) else Array(unchangedRes)
       }
