@@ -30,6 +30,9 @@ import scala.jdk.FutureConverters._
   )
 }
 
+@c4("ChildElectorClientApp") final class ReadyProcessSnapshotPatchIgnore
+  extends SnapshotPatchIgnore(classOf[S_ReadyProcess])
+
 case class ReadyProcessesImpl(
   srcId: SrcId,
   processesByTxId: List[S_ReadyProcess],

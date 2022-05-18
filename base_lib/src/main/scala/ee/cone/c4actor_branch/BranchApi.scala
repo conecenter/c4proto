@@ -8,6 +8,7 @@ import scala.collection.immutable.Seq
 import ee.cone.c4actor_branch.BranchProtocol.S_BranchResult
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor_branch.BranchTypes.BranchKey
+import ee.cone.c4di.{c4, provide}
 import ee.cone.c4proto._
 
 object BranchTypes {
@@ -81,3 +82,9 @@ trait ToAlienSender {
 trait BranchError {
   def message(local: Context): String
 }
+
+//@c4("BranchApp") final class BranchSnapshotPatchIgnores {
+//  @provide def get: Seq[GeneralSnapshotPatchIgnore] = Seq(
+//    classOf[S_BranchResult],
+//  ).map(new SnapshotPatchIgnore(_))
+//}

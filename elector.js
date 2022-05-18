@@ -24,4 +24,10 @@ server.listen(process.env.C4HTTP_PORT, "0.0.0.0", () => {
   console.log("Server running",server.address());
 })
 
+setInterval(()=>{
+    const now = Date.now()
+    for(let url in locks) if(locks[url].until < now) delete locks[url]
+    console.log(Object.keys(locks).map(url=>url.substring(url.length-3)).join(" "))
+},1000)
+
 // curl -v kc-elector2-dev-1.kc-elector2-dev:1080 -v -XPOST -H 'x-r-lock-owner: he' -H 'x-r-lock-period: 5000'

@@ -50,6 +50,7 @@ trait SnapshotMerger {
 }
 
 trait SnapshotDiffer {
-  def diff(snapshot: RawEvent, targetSnapshot: RawEvent): List[N_Update]
+  def diff(currentSnapshot: RawEvent, targetFullSnapshot: RawEvent, addIgnore: Set[Long]): List[N_UpdateFrom]
+  def diff(currentSnapshot: RawEvent, target: List[N_UpdateFrom], addIgnore: Set[Long]): List[N_UpdateFrom]
   def needCurrentSnapshot: Context=>RawEvent
 }

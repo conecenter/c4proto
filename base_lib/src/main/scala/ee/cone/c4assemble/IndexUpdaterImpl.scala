@@ -1,6 +1,6 @@
 package ee.cone.c4assemble
 
-import ee.cone.c4assemble.Types.{DMap, Index, emptyIndex}
+import ee.cone.c4assemble.Types.{DMap, Index}
 import ee.cone.c4di.c4
 
 import scala.collection.immutable.Seq

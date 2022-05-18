@@ -52,9 +52,9 @@ import scala.concurrent.{Await, Future}
     }.toList).getOrElse(("[index not found]",emptyIndex))
     val res: List[String] = headers("x-r-selection") match {
       case k if k.startsWith(":") => k.tail :: valueLines(index)(k.tail)
-      case "keys" => indexUtil.keySet(index).map(_.toString).toList.sorted
-      case "all" => indexUtil.keySet(index).map(k=>k.toString->k).toList.sortBy(_._1).flatMap{
-        case(ks,k) => ks :: valueLines(index)(k)
+      case "keys" => indexUtil.keyIterator(index).toList.map(_.toString)
+      case "all" => indexUtil.keyIterator(index).toList.flatMap{
+        k => k.toString :: valueLines(index)(k)
       }
     }
     (s"REPORT $indexStr" :: res.map(indent) ::: "END" :: Nil).mkString("\n")

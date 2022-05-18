@@ -4,7 +4,7 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ArgTypes._
 import ee.cone.c4actor.Types.{ClName, FieldId, SrcId, TypeId}
-import ee.cone.c4assemble.Single
+import ee.cone.c4assemble.{Interner, Single}
 import ee.cone.c4di.Types.ComponentFactory
 import ee.cone.c4di.{CreateTypeKey, TypeKey, c4, provide}
 import ee.cone.c4proto._
@@ -96,16 +96,27 @@ class OptionArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter
 
 import com.squareup.wire.ProtoAdapter._
 
-@c4("ProtoApp") final class PrimitiveProtoAdapterProvider {
+@c4("ProtoApp") final class PrimitiveProtoAdapterProvider(
+  stringProtoAdapter: ProtoAdapter[String]
+){
   @provide def getBoolean: Seq[ProtoAdapter[Boolean]] = List(BOOL.asInstanceOf[ProtoAdapter[Boolean]])
   @provide def getInt: Seq[ProtoAdapter[Int]] = List(SINT32.asInstanceOf[ProtoAdapter[Int]])
   @provide def getLong: Seq[ProtoAdapter[Long]] = List(SINT64.asInstanceOf[ProtoAdapter[Long]])
   @provide def getByteString: Seq[ProtoAdapter[ByteString]] = List(BYTES)
   @provide def getOKIOByteString: Seq[ProtoAdapter[okio.ByteString]] = List(BYTES)
-  @provide def getString: Seq[ProtoAdapter[String]] = List(STRING)
-  @provide def getSrcId: Seq[ProtoAdapter[SrcId]] = List(STRING)
+  //@provide def getString: Seq[ProtoAdapter[String]] = List(STRING)
+  //@provide def getSrcId: Seq[ProtoAdapter[SrcId]] = List(STRING)
+  @provide def getSrcId: Seq[ProtoAdapter[SrcId]] = List(stringProtoAdapter)
   @provide def getTypeId: Seq[ProtoAdapter[TypeId]] = List(SINT64.asInstanceOf[ProtoAdapter[Long]])
   @provide def getFieldId: Seq[ProtoAdapter[FieldId]] = List(SINT64.asInstanceOf[ProtoAdapter[Long]])
+}
+
+@c4("ProtoApp") final class StringProtoAdapter(
+) extends ProtoAdapter[String](FieldEncoding.LENGTH_DELIMITED, classOf[Product]) {
+  def decode(protoReader: ProtoReader): String = Interner.intern(STRING.decode(protoReader))
+  def encode(protoWriter: ProtoWriter, e: String): Unit = STRING.encode(protoWriter,e)
+  def encodedSize(e: String): Int = STRING.encodedSize(e)
+  def redact(e: String): String = e
 }
 
 /*

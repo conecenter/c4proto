@@ -7,7 +7,8 @@ import ee.cone.c4assemble.{DOut, ReadModel, _}
 import ee.cone.c4assemble.Types._
 import ee.cone.c4di.Types.ComponentFactory
 import ee.cone.c4di.{c4, c4multi, provide}
-import ee.cone.c4proto.HasId
+import ee.cone.c4proto.{HasId, ToByteString}
+import okio.ByteString
 
 import scala.collection.immutable
 import scala.collection.immutable.{Map, Seq}
@@ -169,7 +170,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   } yield toUpdate.toUpdate(lEvent)
   private def readModelAdd(executionContext: OuterExecutionContext): Seq[RawEvent]=>ReadModel=>ReadModel = events => assembled => catchNonFatal {
     val options = getAssembleOptions.get(assembled)
-    val updates = offset(events) ::: toUpdate.toUpdates(events.toList)
+    val updates: List[N_Update] = offset(events) ::: toUpdate.toUpdates(events.toList,"rma").map(toUpdate.toUpdateLost)
     reduce(assembled, updates, options, executionContext)
   }("reduce"){ e => // ??? exception to record
     if(events.size == 1){
@@ -185,9 +186,25 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   }
 }
 
+@c4("RichDataCompApp") final class UpdateFromUtilImpl(
+  qAdapterRegistry: QAdapterRegistry,
+  origKeyFactory: OrigKeyFactoryFinalHolder,
+  indexUtil: IndexUtil,
+  updateMapUtil: UpdateMapUtil,
+) extends UpdateFromUtil {
+  def get(local: Context, updates: Seq[N_Update]): Seq[N_UpdateFrom] =
+    updateMapUtil.toUpdatesFrom(updates.toList, u => {
+      val valueAdapter = qAdapterRegistry.byId(u.valueTypeId)
+      val wKey = origKeyFactory.value.rawKey(valueAdapter.className)
+      val index = indexUtil.getInstantly(wKey.of(local.assembled))
+      Single.option(indexUtil.getValues(index,u.srcId,""))
+        .fold(ByteString.EMPTY)(item=>ToByteString(valueAdapter.encode(item)))
+    })
+}
+
 @c4("RichDataCompApp") final class RawTxAddImpl(
   utilOpt: DeferredSeq[AssemblerUtil],
-  composes: IndexUtil,
+  updateFromUtil: UpdateFromUtil,
   assembleProfiler: AssembleProfiler,
   updateProcessor: Option[UpdateProcessor],
   processors: List[UpdatesPreprocessor],
@@ -209,7 +226,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
         updates <- assembleProfiler.addMeta(transition, externalOut)
       } yield {
         val nLocal = new Context(local.injected, transition.result, local.executionContext, local.transient)
-        WriteModelKey.modify(_.enqueueAll(updates))(nLocal)
+        WriteModelKey.modify(_.enqueueAll(updateFromUtil.get(local,updates)))(nLocal)
       }
       util.waitFor(res, options, "add")
       //call add here for new mortal?
@@ -271,11 +288,13 @@ object AnyIsTargetWorldPartRule extends IsTargetWorldPartRule {
 case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K,V] {
   def updated[B1 >: V](k: K, v: B1): Map[K, B1] = iterator.toMap.updated(k,v)
   def get(key: K): Option[V] = Single.option(indexUtil.getValues(index,key,"")).asInstanceOf[Option[V]]
-  def iterator: Iterator[(K, V)] = indexUtil.keySet(index).iterator.map{ k => (k,Single(indexUtil.getValues(index,k,""))).asInstanceOf[(K,V)] }
+  def iterator: Iterator[(K, V)] = indexUtil.keyIterator(index).map{ k => (k,Single(indexUtil.getValues(index,k,""))).asInstanceOf[(K,V)] }
   def removed(key: K): Map[K, V] = iterator.toMap - key
-  override def keysIterator: Iterator[K] = indexUtil.keySet(index).iterator.asInstanceOf[Iterator[K]] // to work with non-Single
-  override def keySet: Set[K] = indexUtil.keySet(index).asInstanceOf[Set[K]] // to get keys from index
+  override def keysIterator: Iterator[K] = indexUtil.keyIterator(index).asInstanceOf[Iterator[K]] // to work with non-Single
+  //override def keySet: Set[K] = indexUtil.keySet(index).asInstanceOf[Set[K]] // to get keys from index
 }
+
+
 
 @c4("RichDataCompApp") final class DynamicByPKImpl(indexUtil: IndexUtil) extends DynamicByPK {
   def get(joinKey: AssembledKey, context: AssembledContext): Map[SrcId,Product] = {
