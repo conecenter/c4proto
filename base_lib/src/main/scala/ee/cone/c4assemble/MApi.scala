@@ -12,7 +12,8 @@ case class AssembleOptions(srcId: String, @deprecated isParallel: Boolean, threa
 trait IndexUtil {
   def joinKey(was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String): JoinKey
   def isEmpty(index: Index): Boolean
-  def size(index: Index): Int
+  def valueCount(index: Index): Int
+  def keyCount(index: Index): Int
   def keyIterator(index: Index): Iterator[Any]
   def mergeIndex(l: DPIterable[Index]): Index
   def zipMergeIndex(aDiffs: Seq[Index])(bDiffs: Seq[Index]): Seq[Index]

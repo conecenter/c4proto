@@ -9,6 +9,8 @@ import scala.annotation.tailrec
 final class RIndexImpl(
   val options: RIndexOptions,
   val data: Array[RIndexBucket],
+  val keyCount: Int,
+  val valueCount: Int,
 ) extends RIndex
 
 final class RIndexBucket(
@@ -153,8 +155,15 @@ final class RIndexUtilImpl(
     (hash >> (Integer.SIZE - powers.rootPower - powers.innerPower)) & ((1 << powers.innerPower)-1)
   }
 
-  def wrapData(options: RIndexOptions, data: Array[RIndexBucket]): RIndex =
-    if(data.forall(isEmpty)) EmptyRIndex else new RIndexImpl(options, data)
+  def wrapData(options: RIndexOptions, data: Array[RIndexBucket]): RIndex = {
+    @tailrec def iter(i: Int, keyCount: Int, valueCount: Int): RIndex = {
+      if(i < data.length)
+        iter(i+1, keyCount+data(i).keys.length, valueCount+data(i).values.length)
+      else if(keyCount > 0) new RIndexImpl(options, data, keyCount, valueCount)
+      else EmptyRIndex
+    }
+    iter(0,0,0)
+  }
 
   def isEmpty(r: RIndexBucket): Boolean = r.keys.length == 0
   def isEmpty(index: RIndex): Boolean = index eq EmptyRIndex
@@ -288,6 +297,16 @@ final class RIndexUtilImpl(
   def keyIterator(index: RIndex): Iterator[RIndexKey] = index match {
     case a if isEmpty(a) => Iterator.empty
     case aI: RIndexImpl => aI.data.iterator.flatMap(_.keys)
+  }
+
+  def keyCount(index: RIndex): Int = index match {
+    case a if isEmpty(a) => 0
+    case aI: RIndexImpl => aI.keyCount
+  }
+
+  def valueCount(index: RIndex): Int = index match {
+    case a if isEmpty(a) => 0
+    case aI: RIndexImpl => aI.valueCount
   }
 
   def getValueView(bucket: RIndexBucket, pos: Int): Seq[RIndexItem] = {
@@ -446,6 +465,10 @@ final class RIndexUtilDebug(inner: RIndexUtil) extends RIndexUtil {
     wrap("split",inner.split(index,count))
   def keyIterator(index: RIndex): Iterator[RIndexKey] =
     wrap("iterator",inner.keyIterator(index))
+  def keyCount(index: RIndex): Int =
+    wrap("keyCount",inner.keyCount(index))
+  def valueCount(index: RIndex): Int =
+    wrap("valueCount",inner.valueCount(index))
   def build(power: Int, src: Array[RIndexPair], valueOperations: RIndexValueOperations): RIndex =
     wrap("build",inner.build(power, src, valueOperations))
   def eqBuckets(a: RIndex, b: RIndex, key: RIndexKey): Boolean =

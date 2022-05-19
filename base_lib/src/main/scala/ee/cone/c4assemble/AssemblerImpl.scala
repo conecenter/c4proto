@@ -133,7 +133,8 @@ final case class ParallelExecution(power: Int) {
   def inverse(a: Count): Count = makeCount(getItem(a), -getCount(a))
 
   def isEmpty(index: Index): Boolean = index eq EmptyRIndex
-  def size(index: Index): Int = rIndexUtil.keyIterator(index).size
+  def valueCount(index: Index): Int = rIndexUtil.valueCount(index)
+  def keyCount(index: Index): Int = rIndexUtil.keyCount(index)
   def keyIterator(index: Index): Iterator[Any] = rIndexUtil.keyIterator(index)
 
   def oKey(key: Any): RIndexKey = key match { case k: Object => k.asInstanceOf[RIndexKey] }

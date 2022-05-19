@@ -12,7 +12,7 @@ import ee.cone.c4di.c4
         (worldKey.valueClassName,index)
     }.sortBy(_._1).map {
       case (key, index) =>
-        Metric("c4index_key_count", MetricLabel("valClass", key) :: Nil, indexUtil.size(index).toLong)
+        Metric("c4index_key_count", MetricLabel("valClass", key) :: Nil, indexUtil.keyCount(index).toLong)
     }
 }
 
