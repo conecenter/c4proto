@@ -72,7 +72,7 @@ trait  ToExternalDBItemAssembleUtil {
   def itemToHasState[D_Item <: Product]: D_Item => Values[(String,B_HasState)] = item =>
     for(e <- LEvent.update(item)) yield {
       val u = toUpdate.toUpdate(e)
-      val key = UUID.nameUUIDFromBytes(ToBytes(u.valueTypeId) ++ u.srcId.getBytes(UTF_8)).toString
+      val key = C4UUID.nameUUIDFromBytes(ToBytes(u.valueTypeId) ++ u.srcId.getBytes(UTF_8)).toString
       key -> B_HasState(key,u.valueTypeId,u.value)
     }
 }
