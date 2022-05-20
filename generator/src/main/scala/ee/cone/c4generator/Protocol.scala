@@ -167,3 +167,38 @@ $c4ann final class ${cl.name}ProtoAdapter(
     protoGenerated.collect{ case c: GeneratedCode => c }
   }
 }
+
+object ProtoChangerGenerator extends Generator {
+  def get(parseContext: ParseContext): List[Generated] = {
+    parseContext.stats.flatMap{
+      case q"@protocol(...$exprss) object ${objectNameNode@Term.Name(objectName)} extends ..$ext { ..$stats }" =>
+        val c4ann = if (exprss.isEmpty) "@c4" else mod"@c4(...$exprss)".syntax
+        val id = Util.pathToId(parseContext.path)
+        val pf = exprss.flatten match {
+          case Seq() => ""
+          case Seq(Lit(n: String)) => n
+        }
+        val providerStm = s"$c4ann final class $id${pf}ProtoChangerProvider"
+        Util.matchClass(stats).flatMap{ cl =>
+          val idOpt = cl.mods.collectFirst{ case mod"@Id(${value@Lit(id: Int)})" => id }
+          val Seq(params) = cl.params
+          val propOpt = params.headOption.collect{
+            case param@param"..$mods ${Term.Name(propName)}: $tpeopt = $v" =>
+              val tp = tpeopt.asInstanceOf[Option[Type]].get
+              (propName,s"$tp")
+          }
+          for {
+            _ <- idOpt.toList
+            (propName,propType) <- propOpt.toList
+          } yield (providerStm,
+            s"new ProtoChanger[${cl.name},$propType](" +
+            s"classOf[${cl.name}],classOf[$propType],(o,k)=>o.copy(${propName}=k)" +
+            s")"
+          )
+        }
+      case _ => Nil
+    }.groupMap(_._1)(_._2).map{ case(providerStm,changers) =>
+      changers.map(s=>s"\n    $s ::").mkString(s"\n$providerStm{\n  @provide def get: Seq[GeneralProtoChanger] = ","","\n    Nil\n}")
+    }.toList.sorted.map(GeneratedCode)
+  }
+}

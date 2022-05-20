@@ -9,11 +9,22 @@ import ee.cone.c4proto._
   qAdapterRegistry: QAdapterRegistry,
   universalProtoAdapter: ProtoAdapter[UniversalNode],
   srcIdAdapter: ProtoAdapter[SrcId],
-  universalNodeFactory: UniversalNodeFactory
+  universalNodeFactory: UniversalNodeFactory,
+  changerList: List[GeneralProtoChanger]
 )(
   val reg: Map[String,GeneralDefaultModelInitializer] =
-    CheckedMap(defaultModelInitializers.map(f=>f.valueClass.getName->f))
+    CheckedMap(defaultModelInitializers.map(f=>f.valueClass.getName->f)),
+  changerMap: Map[String,GeneralProtoChanger] =
+    CheckedMap(changerList.map(c=>c.entityClass.getName->c)),
+  strClassName: String = classOf[String].getName
 ) extends ModelFactory {
+  def change[P<:Product](className: String, base: P, srcId: SrcId): P = {
+    val changer = changerMap(className)
+    if(changer.attributeClass.getName == strClassName)
+      changer.asInstanceOf[ProtoChanger[P,String]].changePrimaryKey(base,srcId)
+    else process(className, Option(base), srcId)
+  }
+
   import universalNodeFactory._
   def process[P<:Product](className: String, basedOn: Option[P], srcId: SrcId): P = {
     val adapter = qAdapterRegistry.byName(className)
