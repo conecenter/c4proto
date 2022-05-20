@@ -15,6 +15,7 @@ object RIndexTypes {
 
 trait RIndexUtil {
   def get(index: RIndex, key: RIndexKey): Seq[RIndexItem]
+  def nonEmpty(index: RIndex, key: RIndexKey): Boolean
   def merge(indexes: Seq[RIndex], valueOperations: RIndexValueOperations): RIndex
   def split(index: RIndex, count: Int): Seq[RIndex]
   def keyIterator(index: RIndex): Iterator[RIndexKey]

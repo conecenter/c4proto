@@ -274,24 +274,32 @@ final class RIndexUtilImpl(
       data.map(wrapData(aI.options,_))
   }
 
+  def findKey(options: RIndexOptions, bucket: RIndexBucket, key: RIndexKey): Int = {
+    val iPos = keyToInnerPos(bucket.powers, key)
+    val start = bucket.hashPartToKeyRange.starts(iPos)
+    val end = bucket.hashPartToKeyRange.ends(iPos)
+    val sz = end - start
+    if(sz < 1) -1
+    else if(sz == 1){
+      if(compareKeys(key,bucket.keys(start)) == 0) start else -1
+    }
+    else util.Arrays.binarySearch[RIndexKey](bucket.keys, start, end, key, options.keyComparator)
+  }
+
+  def findBucket(aI: RIndexImpl, key: RIndexKey): RIndexBucket =
+    aI.data(keyToPosInRoot(aI.options.power,key))
+
   def get(index: RIndex, key: RIndexKey): Seq[RIndexItem] = index match {
     case a if isEmpty(a) => Nil
     case aI: RIndexImpl =>
-      val bucket: RIndexBucket = aI.data(keyToPosInRoot(aI.options.power,key))
-      val iPos = keyToInnerPos(bucket.powers, key)
-      val start = bucket.hashPartToKeyRange.starts(iPos)
-      val end = bucket.hashPartToKeyRange.ends(iPos)
-      val sz = end - start
-      if(sz < 1) Nil
-      else if(sz == 1){
-        if(compareKeys(key,bucket.keys(start)) == 0) getValueView(bucket,start)
-        else Nil
-      }
-      else {
-        val found: Int =
-          util.Arrays.binarySearch[RIndexKey](bucket.keys, start, end, key, aI.options.keyComparator)
-        if(found>=0) getValueView(bucket,found) else Nil
-      }
+      val bucket = findBucket(aI,key)
+      val found = findKey(aI.options, bucket, key)
+      if(found>=0) getValueView(bucket,found) else Nil
+  }
+
+  def nonEmpty(index: RIndex, key: RIndexKey): Boolean = index match {
+    case a if isEmpty(a) => false
+    case aI: RIndexImpl => findKey(aI.options, findBucket(aI,key), key) >= 0
   }
 
   def keyIterator(index: RIndex): Iterator[RIndexKey] = index match {
@@ -317,8 +325,7 @@ final class RIndexUtilImpl(
 
   def eqBuckets(a: RIndex, b: RIndex, key: RIndexKey): Boolean = (a,b) match {
     case (a,b) if a eq b => true
-    case (aI:RIndexImpl,bI:RIndexImpl) =>
-      aI.data(keyToPosInRoot(aI.options.power,key)) eq bI.data(keyToPosInRoot(bI.options.power,key))
+    case (aI:RIndexImpl,bI:RIndexImpl) => findBucket(aI,key) eq findBucket(bI,key)
     case _ => false
   }
 
@@ -459,6 +466,8 @@ final class RIndexUtilDebug(inner: RIndexUtil) extends RIndexUtil {
 
   def get(index: RIndex, key: RIndexKey): Seq[RIndexItem] =
     wrap("get",inner.get(index,key))
+  def nonEmpty(index: RIndex, key: RIndexKey): Boolean =
+    wrap("nonEmpty",inner.nonEmpty(index,key))
   def merge(indexes: Seq[RIndex], valueOperations: RIndexValueOperations): RIndex =
     wrap("merge",inner.merge(indexes,valueOperations))
   def split(index: RIndex, count: Int): Seq[RIndex] =

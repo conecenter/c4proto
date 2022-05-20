@@ -143,7 +143,7 @@ final case class ParallelExecution(power: Int) {
     JoinKeyImpl(was,keyAlias,keyClassName,valueClassName)
 
   def nonEmpty(index: Index, key: Any): Boolean =
-    rIndexUtil.get(index,oKey(key)).nonEmpty
+    rIndexUtil.nonEmpty(index,oKey(key))
 
   def getValues(index: Index, key: Any, warning: String): Values[Product] = { // gives Vector; todo ? ArraySeq.unsafeWrapArray(
     val values = rIndexUtil.get(index,oKey(key))
