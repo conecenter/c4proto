@@ -37,8 +37,9 @@ my $serve_sshd = sub{
     do{
         my $dev_auth_dir = $ENV{C4DEV_AUTH_DIR} || die "no C4DEV_AUTH_DIR";
         my $dir = "/c4/dropbear";
+        sy("mkdir -p $dir");
         my $fn = "dropbear_ecdsa_host_key";
-        sy("mkdir -p $dir && cp $dev_auth_dir/$fn $dir/ && chmod 0600 $dir/$fn");
+        sy("cp $dev_auth_dir/$fn $dir/ && chmod 0600 $dir/$fn") if -e "$dev_auth_dir/$fn";
     };
     do{
         my $dir = "/c4/.ssh";
@@ -54,6 +55,7 @@ my $serve_sshd = sub{
         'export JAVA_HOME=/tools/jdk',
         'export JAVA_TOOL_OPTIONS="$JAVA_TOOL_OPTIONS -XX:-UseContainerSupport"', #-Xss16m
         "export KUBECONFIG=$ENV{C4KUBECONFIG}", # $C4KUBECONFIG was empty at this stage
+        "export KUBE_EDITOR=mcedit",
         'eval `ssh-agent`',
         'history -c && history -r /c4/.bash_history_get && export PROMPT_COMMAND="history -a /c4/.bash_history_put"',
     );
@@ -62,6 +64,7 @@ my $serve_sshd = sub{
     &$get_text_or_empty("/c4/.bashrc")=~/alias prod=/ or do{
         sy("echo '$alias_prod' >> /c4/.bashrc");
         sy(q[echo 'alias kc="kubectl --context "' >> /c4/.bashrc]);
+        sy(q[echo 'alias h="history|grep "' >> /c4/.bashrc]);
     };
 
     #
