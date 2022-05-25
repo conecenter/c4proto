@@ -43,7 +43,9 @@ def common_job(cond,when,stage,needs,script):
 def build_path(fn):
   dir = os.environ["C4CI_BUILD_DIR"]
   return f"{dir}/{fn}"
-def prefix_cond(v): return f"=~ /^{v}\\//"
+def prefix_cond(v):
+  if v != "master": return f"=~ /^{v}\\//"
+  else: return f"=~ /^{v}/"
 def get_aggr_cond(aggr_cond_list):
   aggr_to_cond_list = group_map(aggr_cond_list, ext(lambda aggr, cond: (aggr,cond)))
   aggr_to_cond = { aggr: one(*cond_list) for aggr, cond_list in aggr_to_cond_list.items() }
