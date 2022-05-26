@@ -37,7 +37,7 @@ my $serve_sshd = sub{
     do{
         my $dev_auth_dir = $ENV{C4DEV_AUTH_DIR} || die "no C4DEV_AUTH_DIR";
         my $dir = "/c4/dropbear";
-        sy("mkdir -p $dir");
+        sy("mkdir -p $dir && chmod 0700 $dir");
         my $fn = "dropbear_ecdsa_host_key";
         sy("cp $dev_auth_dir/$fn $dir/ && chmod 0600 $dir/$fn") if -e "$dev_auth_dir/$fn";
     };
