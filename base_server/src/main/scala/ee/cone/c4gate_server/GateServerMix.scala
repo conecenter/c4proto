@@ -2,13 +2,14 @@ package ee.cone.c4gate_server
 
 import ee.cone.c4actor_kafka_impl.{KafkaConsumerApp, KafkaProducerApp, KafkaPurgerApp, LZ4RawCompressorApp}
 import ee.cone.c4actor_logback_impl.BasicLoggingApp
+import ee.cone.c4actor_xml.S3ListerApp
 import ee.cone.c4actor._
 import ee.cone.c4di.{c4, c4app, provide}
 import ee.cone.c4gate._
 
 @c4app class NoOpApp extends VMExecutionApp with ExecutableApp with BaseApp
 
-trait S3RawSnapshotLoaderAppBase
+trait SnapshotListRequestHandlerAppBase
 trait S3RawSnapshotSaverAppBase
 trait NoProxySSEConfigAppBase
 trait SafeToRunAppBase
@@ -68,7 +69,8 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
   extends SnapshotSavers(factory.create("snapshots"), factory.create("snapshot_txs"))
 
 trait SnapshotMakingAppBase extends TaskSignerApp with LOBrokerApp
-  with S3RawSnapshotLoaderApp with S3RawSnapshotSaverApp
+  with S3RawSnapshotLoaderApp with S3ListerApp with S3RawSnapshotSaverApp
+  with SnapshotListRequestHandlerApp
   with S3ManagerApp with SignedReqUtilImplApp
   with ConfigSimpleSignerApp with SnapshotUtilImplApp
   with SnapshotListProtocolApp

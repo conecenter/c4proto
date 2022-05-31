@@ -9,8 +9,3 @@ import ee.cone.c4di.c4app
 @c4app class SimpleMakerAppBase extends RichDataCompApp with ExecutableApp
   with EnvConfigCompApp with VMExecutionApp
   with SnapshotMakingApp with NoAssembleProfilerCompApp with KafkaConsumerApp with SnapshotLoaderImplApp
-
-@c4app class SimplePusherAppBase extends BaseApp with ExecutableApp with EnvConfigCompApp
-  with VMExecutionApp with NoAssembleProfilerCompApp with KafkaProducerApp
-  with SnapshotLoaderImplApp with S3RawSnapshotLoaderApp with S3ManagerApp
-  with SnapshotUtilImplApp with SnapshotListProtocolApp

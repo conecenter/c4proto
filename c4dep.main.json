@@ -24,7 +24,6 @@
 
   ["C4SRC", "front", "c4front/src/sapi"],
 
-  ["C4EXT", "base_server.ee.cone.c4gate_server", "org.scala-lang.modules:scala-xml_2.13:1.2.0" ],
   ["C4EXT", "base_server.ee.cone.c4gate_akka", "com.typesafe.akka:akka-stream_2.13:2.5.25" ],
   ["C4EXT", "base_server.ee.cone.c4gate_akka", "com.typesafe.akka:akka-http-core_2.13:10.1.10" ],
   ["#C4EXT", "base_server.ee.cone.c4gate_akka", "com.typesafe.akka:akka-stream_2.13:2.6.3" ],
@@ -35,6 +34,7 @@
 
   "# com.lihaoyi % ammonite-sshd % 1.6.9 cross CrossVersion.full",
 
+  ["C4DEP", "base_server.ee.cone.c4gate_server", "base_lib.ee.cone.c4actor_xml" ],
   ["C4DEP", "base_server.ee.cone.c4gate_server", "base_lib.ee.cone.c4gate" ],
   ["C4DEP", "base_server.ee.cone.c4gate_server", "base_lib.ee.cone.c4actor_kafka_impl" ],
   ["C4DEP", "base_server.ee.cone.c4gate_server", "base_lib.ee.cone.c4actor_logback_impl" ],
@@ -50,6 +50,7 @@
   ["C4DEP", "base_examples.ee.cone.c4gate", "base_lib.ee.cone.c4gate" ],
   ["C4DEP", "base_examples.ee.cone.c4gate", "base_lib.ee.cone.c4actor_kafka_impl" ],
   ["C4DEP", "base_examples.ee.cone.c4gate", "base_lib.ee.cone.c4actor_logback_impl" ],
+  ["C4DEP", "base_examples.ee.cone.c4gate", "base_lib.ee.cone.c4actor_xml" ],
   ["C4DEP", "base_examples.ee.cone.c4gate_server", "base_server.ee.cone.c4gate_server" ],
 
   ["C4DEP", "base_examples.ee.cone.c4vdom", "base_lib.ee.cone.c4vdom_mix" ],

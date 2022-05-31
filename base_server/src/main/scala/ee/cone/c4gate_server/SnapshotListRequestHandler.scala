@@ -10,7 +10,7 @@ import ee.cone.c4di.c4multi
 
 
 
-@c4assemble("S3RawSnapshotLoaderApp") class SnapshotListRequestAssembleBase(
+@c4assemble("SnapshotListRequestHandlerApp") class SnapshotListRequestAssembleBase(
   requestTransformFactory: SnapshotListRequestTransformFactory
 ) {
   type SnapshotRequestAll = AbstractAll
@@ -32,7 +32,7 @@ import ee.cone.c4di.c4multi
   }
 }
 
-@c4multi("S3RawSnapshotLoaderApp") final case class SnapshotListRequestTransform(requests: List[S_ListSnapshotsRequest])(
+@c4multi("SnapshotListRequestHandlerApp") final case class SnapshotListRequestTransform(requests: List[S_ListSnapshotsRequest])(
   snapshotLister: SnapshotLister,
   txAdd: LTxAdd
 ) extends TxTransform {

@@ -244,37 +244,6 @@ trait SnapshotConfig {
   } yield java.lang.Long.parseLong(found, 16)).toSet
 ) extends SnapshotConfig
 
-
-
-@c4("S3RawSnapshotLoaderApp") final class S3RawSnapshotLoaderImpl(
-  s3: S3Manager, util: SnapshotUtil, execution: Execution,
-  currentTxLogName: CurrentTxLogName, s3Lister: S3Lister,
-) extends RawSnapshotLoader with SnapshotLister with LazyLogging {
-  def getSync(resource: String): Option[Array[Byte]] =
-    execution.aWait{ implicit ec =>
-      s3.get(currentTxLogName, resource)
-    }
-  def load(snapshot: RawSnapshot): ByteString = {
-    ToByteString(getSync(snapshot.relativePath).get)
-  }
-  private def infix = "snapshots"
-  def listInner(): List[(RawSnapshot,String)] = for {
-    xmlBytes <- getSync(infix).toList
-    (name,timeStr) <- s3Lister.parseItems(xmlBytes)
-  } yield (RawSnapshot(s"$infix/${name}"), timeStr)
-  def list: List[SnapshotInfo] = (for{
-    (rawSnapshot,_) <- listInner()
-    _ = logger.debug(s"$rawSnapshot")
-    snapshotInfo <- util.hashFromName(rawSnapshot)
-  } yield snapshotInfo).sortBy(_.offset).reverse
-  def listWithMTime: List[TimedSnapshotInfo] = (
-    for{
-      (rawSnapshot,mTimeStr) <- listInner()
-      snapshotInfo <- util.hashFromName(rawSnapshot)
-    } yield TimedSnapshotInfo(snapshotInfo,s3Lister.parseTime(mTimeStr))
-  ).sortBy(_.snapshot.offset).reverse
-}
-
 @c4("S3RawSnapshotSaverApp") final class S3RawSnapshotSaver(
   s3: S3Manager, util: SnapshotUtil, execution: Execution,
   currentTxLogName: CurrentTxLogName,

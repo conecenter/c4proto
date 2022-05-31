@@ -352,6 +352,11 @@ trait S3Manager {
   def delete(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Boolean]
 }
 
+trait S3Lister {
+  def parseItems(data: Array[Byte]): List[(String,String)]
+  def parseTime(s: String): Long
+}
+
 trait LOBroker {
   def put(rec: QRecord): QRecord
   def get(events: List[ExtendedRawEvent]): List[ExtendedRawEvent] // this can potentially lead to too big volume in single event list after getting LOB-s
