@@ -3,8 +3,7 @@ package ee.cone.c4actor
 import com.squareup.wire.{ProtoReader, ProtoWriter}
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{N_Update, N_UpdateFrom}
-import ee.cone.c4actor.Types.{SrcId, UpdateKey, UpdateMap}
-import ee.cone.c4assemble.Single
+import ee.cone.c4actor.Types.{UpdateKey, UpdateMap}
 import ee.cone.c4di.c4
 import ee.cone.c4proto.{FieldEncoding, ProtoAdapter}
 import okio.ByteString
@@ -13,8 +12,7 @@ import scala.annotation.tailrec
 
 
 
-final class RawObjectListProtoAdapter(
-) extends ProtoAdapter[List[(Int,Any)]](
+final class RawObjectListProtoAdapter extends ProtoAdapter[List[(Int,Any)]](
   FieldEncoding.LENGTH_DELIMITED, classOf[List[_]]
 ){
   type Res = List[(Int,Any)]
