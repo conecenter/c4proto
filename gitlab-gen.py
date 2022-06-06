@@ -96,36 +96,28 @@ def get_build_jobs(config_statements):
 # deploy jobs -- C4DEPLOY > C4TAG_AGGR
 
 def get_deploy_jobs(config_statements):
+  def optional_job(name): return { "job":name, "optional":True }
   tag_aggr_list = config_statements["C4TAG_AGGR"]
-  def tag_to_proj(tag): return re.match(r'\w+',tag)[0]
-  tag_aggr_list_by_proj = group_map(tag_aggr_list, ext(lambda tag, aggr: (tag_to_proj(tag),(tag,aggr))))
-  proj_list = sorted(tag_aggr_list_by_proj.keys())
-  (aggr_cond_list, aggr_to_cond) = get_aggr_cond(config_statements["C4AGGR_COND"])
-  def needs_de(aggr):
-    return [build_gate_name,build_frp_name] + ([] if aggr == "" else [build_aggr_name(aggr)])
-  def needs_rt(info):
-    return [build_gate_name] + [build_rt_name(tag) for tag, aggr in info]
+  aggr_cond_list = config_statements["C4AGGR_COND"]
+  needs_rt = [build_gate_name] + [optional_job(build_rt_name(tag)) for tag, aggr in tag_aggr_list]
+  needs_de = [build_gate_name,build_frp_name] + [optional_job(build_aggr_name(aggr)) for aggr, cond in aggr_cond_list]
   return {
     key: value
     for env_mask, caption_mask in config_statements["C4DEPLOY"]
-    for mode, arg, proj_mask, opt in [re.findall(r'[^\-]+',env_mask)]
-    for proj_name in (proj_list if proj_mask == "$C4PROJ" else [proj_mask])
-    for info in [[] if proj_name == "nil" else tag_aggr_list_by_proj[proj_name]]
-    for aggr in [one(*set(aggr for tag, aggr in info)) if info else ""]
-    for cond_pre in [aggr_to_cond[aggr] if aggr in aggr_to_cond else ""]
-    for cond_re in ["" if cond_pre == "" else prefix_cond(f"{cond_pre}\/release" if arg == "prod" else cond_pre)]
+    for proj_sub, cond_pre in config_statements["C4PROJ_SUB_COND"] if cond_pre or env_mask.startswith("de-")
+    for cond_re in ["" if cond_pre == "" else prefix_cond(f"{cond_pre}\/release" if env_mask == "cl-prod" else cond_pre)]
     for cond in [f"$CI_COMMIT_BRANCH {cond_re}"]
     for stage, needs in (
-      [(stage_deploy_de,needs_de(aggr))] if mode == "de" else
-      [(stage_deploy_cl,needs_rt(info))] if mode == "cl" else
-      [(stage_deploy_sp,needs_rt(info))]
+      [(stage_deploy_de,needs_de)] if env_mask.startswith("de-") else
+      [(stage_deploy_cl,needs_rt)] if env_mask.startswith("cl-") else
+      [(stage_deploy_sp,needs_rt)]
     )
-    for key_mask in [caption_mask.replace("$C4PROJ",proj_name)]
+    for key_mask in [caption_mask.replace("$C4PROJ_SUB",proj_sub)]
     for script in [[
       "export C4SUBJ=$(perl -e 's{[^a-zA-Z/]}{}g,/(\w+)$/ && print lc $1 for $ENV{CI_COMMIT_BRANCH}')",
       "export C4USER=$(perl -e 's{[^a-zA-Z/]}{}g,/(\w+)$/ && print lc $1 for $ENV{GITLAB_USER_LOGIN}')",
       "env | grep C4 | sort",
-      handle(f"deploy {mode}-{arg}-{proj_name}-{opt} $CI_COMMIT_BRANCH")
+      handle(f"deploy {env_mask}-{proj_sub} $CI_COMMIT_BRANCH")
     ]]
     for confirm_key in [key_mask.replace("$C4CONFIRM","confirm")]
     for key, value in (
