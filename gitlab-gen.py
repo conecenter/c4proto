@@ -43,9 +43,9 @@ def common_job(cond,when,stage,needs,script):
 def build_path(fn):
   dir = os.environ["C4CI_BUILD_DIR"]
   return f"{dir}/{fn}"
+def esc_slashes(v): return v.replace("/","\\/")
 def prefix_cond(v):
-  ev = v.replace("/","\\/")
-  return f"$CI_COMMIT_BRANCH =~ /{ev}/"
+    return f"$CI_COMMIT_BRANCH =~ /{esc_slashes(v)}/" if v else "$CI_COMMIT_BRANCH"
 
 def get_aggr_cond(aggr_cond_list):
   aggr_to_cond_list = group_map(aggr_cond_list, ext(lambda aggr, cond: (aggr,cond)))
@@ -84,11 +84,11 @@ def get_build_jobs(config_statements):
   }
   return {
     "rebuild": common_job(
-      "$CI_COMMIT_BRANCH","manual","build_main",[build_common_name],
+      prefix_cond(""),"manual","build_main",[build_common_name],
       [handle(f"rebuild $CI_COMMIT_BRANCH")]
     ),
-    build_gate_name: build_main("","ci_build def"),
-    build_frp_name: build_main("","ci_build_frp"),
+    build_gate_name: build_main(prefix_cond(""),"ci_build def"),
+    build_frp_name: build_main(prefix_cond(""),"ci_build_frp"),
     **aggr_jobs, **fin_jobs
   }
 
@@ -107,7 +107,6 @@ def get_deploy_jobs(config_statements):
     for env_mask, caption_mask in config_statements["C4DEPLOY"]
     for proj_sub, cond_pre in aggr_cond_list if cond_pre or env_mask.startswith("de-")
     for cond in [
-      "$CI_COMMIT_BRANCH" if cond_pre == "" else
       prefix_cond(cond_pre)+" && "+prefix_cond("/release/") if env_mask == "cl-prod" else
       prefix_cond(cond_pre)
     ]
