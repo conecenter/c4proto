@@ -101,7 +101,7 @@ def get_deploy_jobs(config_statements):
   tag_aggr_list = config_statements["C4TAG_AGGR"]
   aggr_cond_list = config_statements["C4AGGR_COND"]
   needs_rt = [build_gate_name] + [optional_job(build_rt_name(tag,aggr)) for tag, aggr in tag_aggr_list]
-  needs_de = [build_gate_name,build_frp_name] + [optional_job(build_aggr_name(aggr)) for aggr, cond in aggr_cond_list]
+  needs_de = [build_gate_name,build_frp_name] + [optional_job(build_aggr_name(aggr)) for aggr, cond in aggr_cond_list if cond]
   return {
     key: value
     for env_mask, caption_mask in config_statements["C4DEPLOY"]
