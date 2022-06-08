@@ -44,8 +44,9 @@ def build_path(fn):
   dir = os.environ["C4CI_BUILD_DIR"]
   return f"{dir}/{fn}"
 def prefix_cond(v):
-  if v != "master": return f"=~ /^{v}\\//"
-  else: return f"=~ /^{v}/"
+  ev = v.replace("/","\\/")
+  return f"$CI_COMMIT_BRANCH =~ /{ev}/"
+
 def get_aggr_cond(aggr_cond_list):
   aggr_to_cond_list = group_map(aggr_cond_list, ext(lambda aggr, cond: (aggr,cond)))
   aggr_to_cond = { aggr: one(*cond_list) for aggr, cond_list in aggr_to_cond_list.items() }
@@ -55,7 +56,7 @@ build_common_name = "build common"
 build_gate_name = "build gate"
 build_frp_name = "build frp"
 def build_aggr_name(v): return f"{v}.aggr"
-def build_rt_name(v): return f"b {v}.rt"
+def build_rt_name(tag,aggr): return f"b {tag} {aggr} rt"
 stage_build_rt = "develop"
 stage_deploy_de = "develop"
 stage_confirm = "confirm"
@@ -64,19 +65,19 @@ stage_deploy_cl = "deploy"
 
 def get_build_jobs(config_statements):
   def build(cond,stage,needs,arg):
-    return common_job(f"$CI_COMMIT_BRANCH {cond}","on_success",stage,needs,prod(arg))
+    return common_job(cond,"on_success",stage,needs,prod(arg))
   def build_main(cond,arg):
     return build(cond,"build_main",[build_common_name],arg)
-  tag_aggr_list = config_statements["C4TAG_AGGR"]
   (aggr_cond_list, aggr_to_cond) = get_aggr_cond(config_statements["C4AGGR_COND"])
+  tag_aggr_list = config_statements["C4TAG_AGGR"]
   aggr_to_tags = group_map(tag_aggr_list, ext(lambda tag, aggr: (aggr,tag)))
   aggr_jobs = {
     build_aggr_name(aggr): build_main(
       prefix_cond(cond), f"ci_build_aggr {aggr} " + ":".join(aggr_to_tags[aggr])
-    ) for aggr, cond in aggr_cond_list
+    ) for aggr, cond in aggr_cond_list if aggr in aggr_to_tags
   }
   fin_jobs = {
-    build_rt_name(tag): build(
+    build_rt_name(tag,aggr): build(
       prefix_cond(aggr_to_cond[aggr]), stage_build_rt, [build_aggr_name(aggr)], # sorted(aggr_jobs.keys())
       f"ci_build {tag} {aggr}"
     ) for tag, aggr in tag_aggr_list
@@ -99,14 +100,17 @@ def get_deploy_jobs(config_statements):
   def optional_job(name): return { "job":name, "optional":True }
   tag_aggr_list = config_statements["C4TAG_AGGR"]
   aggr_cond_list = config_statements["C4AGGR_COND"]
-  needs_rt = [build_gate_name] + [optional_job(build_rt_name(tag)) for tag, aggr in tag_aggr_list]
+  needs_rt = [build_gate_name] + [optional_job(build_rt_name(tag,aggr)) for tag, aggr in tag_aggr_list]
   needs_de = [build_gate_name,build_frp_name] + [optional_job(build_aggr_name(aggr)) for aggr, cond in aggr_cond_list]
   return {
     key: value
     for env_mask, caption_mask in config_statements["C4DEPLOY"]
-    for proj_sub, cond_pre in config_statements["C4PROJ_SUB_COND"] if cond_pre or env_mask.startswith("de-")
-    for cond_re in ["" if cond_pre == "" else prefix_cond(f"{cond_pre}\/release" if env_mask == "cl-prod" else cond_pre)]
-    for cond in [f"$CI_COMMIT_BRANCH {cond_re}"]
+    for proj_sub, cond_pre in aggr_cond_list if cond_pre or env_mask.startswith("de-")
+    for cond in [
+      "$CI_COMMIT_BRANCH" if cond_pre == "" else
+      prefix_cond(cond_pre)+" && "+prefix_cond("/release/") if env_mask == "cl-prod" else
+      prefix_cond(cond_pre)
+    ]
     for stage, needs in (
       [(stage_deploy_de,needs_de)] if env_mask.startswith("de-") else
       [(stage_deploy_cl,needs_rt)] if env_mask.startswith("cl-") else
