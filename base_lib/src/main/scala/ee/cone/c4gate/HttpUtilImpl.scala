@@ -88,9 +88,9 @@ import scala.jdk.CollectionConverters.ListHasAsScala
   }
   def post(url: String, headers: List[(String, String)]): Unit =
     post(url,headers,ByteString.EMPTY,None,200)
-  def post(url: String, headers: List[(String, String)], body: ByteString, timeOut: Option[Int], expectCode: Int): Unit = {
+  def post(url: String, headers: List[(String, String)], body: ByteString, timeOut: Option[Int], expectCode: Int*): Unit = {
     val code = genReq(HttpMethod.POST, url, headers, body, timeOut)
-    assert(code == expectCode)
+    assert(expectCode.contains(code), s"Expected ${expectCode.toList}, got $code")
   }
   def put(
     url: String,
