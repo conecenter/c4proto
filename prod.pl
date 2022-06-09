@@ -1159,11 +1159,13 @@ my $ci_build = sub{
         &$ci_docker_build($dir, $builder_comp, $img);
     };
     my $get_build_steps = sub{
-        my($can_fail,$proj_tag)=@_;
+        my($can_fail,$proj_tags)=@_;
         (
             "ENV C4CI_CAN_FAIL=$can_fail",
-            "ENV C4CI_BASE_TAG_ENV=$proj_tag",
-            "RUN eval \$C4STEP_BUILD",
+            (map{(
+                "ENV C4CI_BASE_TAG_ENV=$_",
+                "RUN eval \$C4STEP_BUILD",
+            )}@$proj_tags),
             "RUN eval \$C4STEP_BUILD_CLIENT"
         )
     };
@@ -1171,12 +1173,13 @@ my $ci_build = sub{
         $_[0]=~/^(\w[\w\-]*\w)$/ ? "$1" : die "bad image postfix ($_[0])"
     };
     my $handle_aggr = sub{
-        my($aggr_tag_arg,$proj_tags)=@_;
+        my($aggr_tag_arg,$proj_tags_arg)=@_;
+        my @proj_tags = $proj_tags_arg=~/([^:]+)/g;
         my $aggr_tag = &$chk_tag($aggr_tag_arg);
-        my $steps = [&$get_build_steps("1",$aggr_tag)];
+        my $steps = [&$get_build_steps("1",\@proj_tags)];
         my $aggr_img = "$common_img.$aggr_tag.aggr";
         &$build_derived($common_img,$steps,$aggr_img);
-        for($proj_tags=~/([^:]+)/g){
+        for(@proj_tags){
             my $proj_tag = &$chk_tag($_);
             my $sb_steps = [
                 "ENV C4CI_BASE_TAG_ENV=$proj_tag",
@@ -1190,7 +1193,7 @@ my $ci_build = sub{
         my $from_img = $aggr_tag ? "$common_img.$aggr_tag.aggr" : $common_img;
         my $img_pre = "$common_img.$proj_tag";
         my $cp_steps = [
-            &$get_build_steps("",$proj_tag),
+            &$get_build_steps("",[$proj_tag]),
             "RUN \$C4STEP_CP"
         ];
         &$build_derived($from_img,$cp_steps,"$img_pre.cp");
