@@ -49,7 +49,7 @@ object EmptyInjected extends Injected
       val context = contextOpt.getOrElse(
         create(Single.option(injected).getOrElse(EmptyInjected), emptyReadModel, EmptyOuterExecutionContext)
       )
-      val nAssembled = readModelAdd.add(events, context)
+      val nAssembled = readModelAdd.add(context.executionContext,events)(context.assembled)
       create(context.injected, nAssembled, context.executionContext)
     }
   }
