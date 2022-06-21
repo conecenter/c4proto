@@ -26,10 +26,11 @@ trait DeepSessionAttrAccessFactoryUtils {
   def deepLens[P <: Product](attr: SessionAttr[P]): ProdLens[DeepRawSessionData[P], P] = {
     val attrMeta = getMeta(attr)
     val rawSessionDataKey = CreateTypeKey(classOf[DeepRawSessionData[P]], "DeepRawSessionData", attrMeta.typeKey :: Nil)
-    ProdLensStrict[DeepRawSessionData[P], P](attr.metaList, classOf[DeepRawSessionData[P]], attrMeta.cl, rawSessionDataKey, attrMeta.typeKey)(
+    CreateProdLens.check(ProdLensStrict[DeepRawSessionData[P], P](attr.metaList, rawSessionDataKey, attrMeta.typeKey)(
+      classOf[DeepRawSessionData[P]], attrMeta.cl,
       _.of(qAdapterRegistry),
       value => deepData => deepData.set(qAdapterRegistry)(value)(deepData)
-    )
+    ))
   }
 }
 
