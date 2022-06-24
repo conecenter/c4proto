@@ -151,9 +151,6 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   catchNonFatal: CatchNonFatal,
   getAssembleOptions: GetAssembleOptions,
 ) extends ReadModelAdd {
-  def add(events: Seq[RawEvent], context: AssembledContext): ReadModel = {
-    readModelAdd(context.executionContext)(events)(context.assembled)
-  }
   // read model part:
   private def reduce(
     wasAssembled: ReadModel, updates: Seq[N_Update],
@@ -168,7 +165,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     ev <- events.lastOption.toList
     lEvent <- LEvent.update(S_Offset(actorName.value,ev.srcId))
   } yield toUpdate.toUpdate(lEvent)
-  private def readModelAdd(executionContext: OuterExecutionContext): Seq[RawEvent]=>ReadModel=>ReadModel = events => assembled => catchNonFatal {
+  def add(executionContext: OuterExecutionContext, events: Seq[RawEvent]): ReadModel=>ReadModel = assembled => catchNonFatal {
     val options = getAssembleOptions.get(assembled)
     val updates: List[N_Update] = offset(events) ::: toUpdate.toUpdates(events.toList,"rma").map(toUpdate.toUpdateLost)
     reduce(assembled, updates, options, executionContext)
@@ -181,7 +178,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
       reduce(assembled, updates, options, executionContext)
     } else {
       val(a,b) = events.splitAt(events.size / 2)
-      Function.chain(Seq(readModelAdd(executionContext)(a), readModelAdd(executionContext)(b)))(assembled)
+      Function.chain(Seq(add(executionContext,a), add(executionContext,b)))(assembled)
     }
   }
 }

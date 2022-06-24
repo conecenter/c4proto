@@ -54,3 +54,10 @@ trait SnapshotDiffer {
   def diff(currentSnapshot: RawEvent, target: List[N_UpdateFrom], addIgnore: Set[Long]): List[N_UpdateFrom]
   def needCurrentSnapshot: Context=>RawEvent
 }
+
+case class TimedSnapshotInfo(snapshot: SnapshotInfo, mTime: Long)
+
+trait SnapshotLister {
+  def list: List[SnapshotInfo]
+  def listWithMTime: List[TimedSnapshotInfo]
+}

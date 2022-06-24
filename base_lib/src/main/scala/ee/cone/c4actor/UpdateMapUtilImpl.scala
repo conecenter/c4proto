@@ -1,15 +1,42 @@
 package ee.cone.c4actor
 
+import com.squareup.wire.{ProtoReader, ProtoWriter}
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{N_Update, N_UpdateFrom}
-import ee.cone.c4actor.Types.{SrcId, UpdateKey, UpdateMap}
-import ee.cone.c4assemble.Single
+import ee.cone.c4actor.Types.{UpdateKey, UpdateMap}
 import ee.cone.c4di.c4
+import ee.cone.c4proto.{FieldEncoding, ProtoAdapter}
 import okio.ByteString
 
+import scala.annotation.tailrec
 
 
-@c4("ProtoApp") final class UpdateMapUtilImpl() extends UpdateMapUtil with LazyLogging {
+
+final class RawObjectListProtoAdapter extends ProtoAdapter[List[(Int,Any)]](
+  FieldEncoding.LENGTH_DELIMITED, classOf[List[_]]
+){
+  type Res = List[(Int,Any)]
+  @tailrec def decodeMore(reader: ProtoReader, res: Res): Res = reader.nextTag() match {
+    case -1 => res.reverse
+    case tag =>
+      val r = reader.peekFieldEncoding.rawProtoAdapter.decode(reader)
+      decodeMore(reader, (tag,r)::res)
+  }
+  def decode(reader: ProtoReader): Res = {
+    val token = reader.beginMessage()
+    val res = decodeMore(reader, Nil)
+    reader.endMessage(token)
+    res
+  }
+  def encode(protoWriter: ProtoWriter, e: Res): Unit = throw new Exception("not implemented")
+  def encodedSize(e: Res): Int = throw new Exception("not implemented")
+  def redact(e: Res): Res = e
+}
+
+
+@c4("ProtoApp") final class UpdateMapUtilImpl(
+  val adapter: RawObjectListProtoAdapter = new RawObjectListProtoAdapter
+) extends UpdateMapUtil with LazyLogging {
 
   class UpdateMappingImpl(
     doAdd: (UpdateMap,N_UpdateFrom)=>UpdateMap,
@@ -35,10 +62,20 @@ import okio.ByteString
 
   private def toKey(up: N_UpdateFrom): UpdateKey = (up.valueTypeId,up.srcId)
 
+  private def eqEncoded(a: ByteString, b: ByteString): Boolean =
+    if(a == b) true
+    else if(a.size != b.size) false
+    else {
+      val al = adapter.decode(a).sortBy(_._1)
+      val bl = adapter.decode(b).sortBy(_._1)
+      //logger.warn(s"al $al")
+      al == bl
+    }
+
   private def addLast(wasFromValue: ByteString, wasValue: ByteString, up: N_UpdateFrom): N_UpdateFrom = {
     if(up.flags != 0)
       logger.warn(s"flagged update "+toSzStr(up))
-    if(wasValue != up.fromValue)
+    if(!eqEncoded(wasValue,up.fromValue))
       logger.warn(s"inconsistent update from ${wasValue.size} to "+toSzStr(up))
     if(wasFromValue != up.fromValue) up.copy(fromValue = wasFromValue) else up
   }
