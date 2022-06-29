@@ -4,13 +4,14 @@ import ee.cone.c4actor.PreHashed
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep.DepTypes.{DepCtx, DepRequest}
 import ee.cone.c4assemble.Types.Values
+import ee.cone.c4di.c4ignoreProductCheck
 
 import scala.collection.immutable.{Map, Seq}
 
 /******************************************************************************/
 // general api for code that uses and returns Dep-s
 
-case class Resolvable[+A](value: Option[A], requests: Seq[DepRequest] = Nil)  // low-level //?hashed
+case class Resolvable[+A](@c4ignoreProductCheck value: Option[A], requests: Seq[DepRequest] = Nil)  // low-level //?hashed
 
 trait Dep[A] {
   def flatMap[B](f: A => Dep[B]): Dep[B]

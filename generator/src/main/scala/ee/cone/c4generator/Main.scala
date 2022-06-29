@@ -28,10 +28,11 @@ object Main {
       AppGenerator,
       TagGenerator,
       ProtoChangerGenerator,
+      ProductCheckGenerator,
     ) //,UnBaseGenerator
   }
   def main(args: Array[String]): Unit = new RootGenerator(defaultGenerators(Nil) ::: List(
-    ValInNonFinalGenerator,
+    ValInNonFinalGenerator
   )).run()
   def toPrefix = "c4gen."
   def env(key: String): Option[String] = Option(System.getenv(key))

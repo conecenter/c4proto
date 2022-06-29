@@ -67,3 +67,5 @@ trait C4Factory0[+Out] { def create(): Out }
 trait C4Factory1[In,+Out] { def create(in: In): Out }
 trait C4Factory2[In1,In2,+Out] { def create(in1: In1, in2: In2): Out }
 trait C4Factory3[In1,In2,In3,+Out] { def create(in1: In1, in2: In2, in3: In3): Out }
+
+class c4ignoreProductCheck extends StaticAnnotation
