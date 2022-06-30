@@ -3,7 +3,7 @@ package ee.cone.c4generator
 
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.meta.Term.Name
-import scala.meta._
+import scala.meta.{Self, _}
 import scala.collection.immutable.Seq
 
 case class ProtoProp(id: Int, name: String, argType: String)
@@ -132,11 +132,22 @@ $c4ann final class ${cl.name}ProtoAdapter(
       //println(t.structure)
     val classes = Util.matchClass(stats)
     val protoGenerated: List[Generated] = stats.collect{
-      case q"..$mods trait ${Type.Name(tp)} { ..$stats }" =>
+      case Defn.Trait(mods,Type.Name(tp),tParams,con,template) =>
+        assert(tParams.isEmpty)
+        println(s"TM::${con.structure}::${template.structure}")
+        val Ctor.Primary(Nil,meta.Name(""),Nil) = con
+        val Template(Nil,init,self,stats) = template
+        val Self(meta.Name(""), None) = self
+        val initOK: Boolean = init match {
+          case Nil => true
+          case List(Init(Type.Name("Product"), meta.Name(""), Nil)) => true
+          case _ => false
+        }
         stats.foreach{
           case q"def $_: $_" => ()
           case t: Tree => Utils.parseError(t, parseContext)
         }
+        if(!initOK) Nil else
         List(
           GeneratedTraitDef(tp),
           GeneratedImport(s"""\nimport $objectName.$tp"""),
