@@ -6,8 +6,15 @@ import ee.cone.c4di.{c4, c4multi}
 import scala.concurrent.{ExecutionContext, Future}
 
 object PrepareBackStage extends WorldPartExpression {
-  def transform(transition: WorldTransition): WorldTransition =
-    transition.copy(prev=Option(transition), diff=emptyReadModel)
+  def transform(transition: WorldTransition): WorldTransition =new WorldTransition(
+    prev = Option(transition),
+    diff = emptyReadModel,
+    result = transition.result,
+    profiling = transition.profiling,
+    log = transition.log,
+    executionContext = transition.executionContext,
+    taskLog = transition.taskLog
+  )
 }
 
 @c4multi("AssembleApp") final class ConnectBackStage[MapKey, Value](

@@ -16,7 +16,15 @@ import scala.concurrent.{ExecutionContext, Future}
       u <- update
     } yield u.log ::: log
     val nTaskLog = if(logTask) worldKeys.toList ::: transition.taskLog else transition.taskLog
-    transition.copy(diff=diff,result=next,log=log,taskLog=nTaskLog)
+    new WorldTransition(
+      prev = transition.prev,
+      diff = diff,
+      result = next,
+      profiling = transition.profiling,
+      log = log,
+      executionContext = transition.executionContext,
+      taskLog = nTaskLog
+    )
   }
 }
 

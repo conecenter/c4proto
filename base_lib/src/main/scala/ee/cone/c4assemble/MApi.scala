@@ -119,14 +119,14 @@ trait WorldPartExpression extends WorldPartRule {
   def transform(transition: WorldTransition): WorldTransition
 }
 //object WorldTransition { type Diff = Map[AssembledKey[_],IndexDiff[Object,_]] } //Map[AssembledKey[_],Index[Object,_]] //Map[AssembledKey[_],Map[Object,Boolean]]
-case class WorldTransition(
-  prev: Option[WorldTransition],
-  diff: ReadModel,
-  result: ReadModel,
-  profiling: JoiningProfiling,
-  log: Future[ProfilingLog],
-  executionContext: OuterExecutionContext,
-  taskLog: List[AssembledKey]
+class WorldTransition(
+  val prev: Option[WorldTransition],
+  val diff: ReadModel,
+  val result: ReadModel,
+  val profiling: JoiningProfiling,
+  val log: Future[ProfilingLog],
+  val executionContext: OuterExecutionContext,
+  val taskLog: List[AssembledKey]
 )
 
 trait JoiningProfiling extends Product {
