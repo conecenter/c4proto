@@ -2,7 +2,7 @@ package ee.cone.c4actor
 
 import ee.cone.c4actor.Types.SrcId
 
-trait ModelFactory {
+trait ModelFactory extends Product {
   def create[P<:Product](valueClass: Class[P])(srcId: SrcId): P = process[P](valueClass.getName, None, srcId)
   def create[P<:Product](className: String)(srcId: SrcId): P = process[P](className, None, srcId)
   def changeSrcId[P<:Product](valueClass: Class[P])(srcId: SrcId)(model: P): P = change[P](valueClass.getName, model, srcId)

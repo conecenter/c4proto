@@ -11,7 +11,7 @@ object Types {
 object CreateTypeKey { // to use mostly from generated code
   def apply(cl: Class[_], alias: String, args: List[TypeKey]): TypeKey =
     Value(cl.getName, alias, args)(cl)
-  private case class Value(clName: String, alias: String, args: List[TypeKey])(val cl: Class[_]) extends TypeKey {
+  @c4ignoreProductCheck private case class Value(clName: String, alias: String, args: List[TypeKey])(val cl: Class[_]) extends TypeKey {
     def copy(alias: String, args: List[TypeKey]): TypeKey =
       Value(clName,alias,args)(cl)
   }
@@ -67,3 +67,6 @@ trait C4Factory0[+Out] { def create(): Out }
 trait C4Factory1[In,+Out] { def create(in: In): Out }
 trait C4Factory2[In1,In2,+Out] { def create(in1: In1, in2: In2): Out }
 trait C4Factory3[In1,In2,In3,+Out] { def create(in1: In1, in2: In2, in3: In3): Out }
+
+class c4ignoreProductCheck extends StaticAnnotation
+trait ProductCheck{ def list: List[_] }
