@@ -7,6 +7,9 @@ object ProductCheckGenerator extends Generator {
   def tupStr(l: Seq[String]): String = l.mkString("(",",",")")
   def notIgnored(mods: Seq[Mod]): Boolean =
     mods.collect{ case mod"@c4ignoreProductCheck" => true }.isEmpty
+
+
+
   def getChecks(stat: Stat, oCtx: String): List[(String,String)] = stat.collect{
     case Defn.Class(cMods,Type.Name(name),tParam,ctor,code)
       if cMods.collect{ case mod"case" => true }.nonEmpty && notIgnored(cMods) =>
@@ -17,6 +20,8 @@ object ProductCheckGenerator extends Generator {
       val Ctor.Primary(_,_,firstListOfParams::_) = ctor
       val cChecks = firstListOfParams.collect{
         case pm@param"..$mods ${Term.Name(propName)}: $tpeopt = $expropt" if notIgnored(mods) =>
+          def tpApply(t: String, ts: List[Type]) =
+            tupStr(clOf(ts.map(_=>"_").mkString(s"$t[",",","]")) :: ts.map(getType))
           def getType(tp: Type): String = tp match {
             case Type.Repeated(t) => getType(t)
             case Type.Name(n) =>
@@ -25,8 +30,7 @@ object ProductCheckGenerator extends Generator {
                 case Some(None) => "Any"
                 case Some(Some(Type.Name(m))) => m
               })
-            case Type.Apply(t,ts) =>
-              tupStr(clOf(ts.map(_=>"_").mkString(s"$t[",",","]")) :: ts.map(getType))
+            case Type.Apply(t,ts) => tpApply(s"$t",ts)
             case Type.With(_,Type.Name("Product")) => clOf("Product")
             case Type.With(t0,t1) => tupStr(Seq("\"OR\"",getType(t0),getType(t1)))
             case t: Type.Select => clOf(s"$t")
@@ -35,7 +39,7 @@ object ProductCheckGenerator extends Generator {
                 case Type.Bounds(None, Some(tb)) => getType(tb)
                 case Type.Bounds(None, None) => clOf("Any")
               }
-            case Type.Tuple(ts) => tupStr("\"AND\"" :: ts.map(getType))
+            case Type.Tuple(ts) => tpApply(s"Tuple${ts.size}",ts)
             case _: Type.Function => clOf(s"Function[_,_]")
             case t => throw new Exception(s"$stat -- " + t.structure)
           }

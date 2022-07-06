@@ -17,7 +17,7 @@ object ArgTypes {
   type LazyList[T] = List[T]
 }
 
-trait QAdapterRegistry {
+trait QAdapterRegistry extends Product {
   def byName: Map[String, ProtoAdapter[Product] with HasId]
   def byId: Map[Long, ProtoAdapter[Product] with HasId]
 }

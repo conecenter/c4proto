@@ -238,7 +238,7 @@ object WithPK {
   def apply[P<:Product](p: P): (SrcId,P) = ToPrimaryKey(p) -> p
 }
 
-trait LTxAdd {
+trait LTxAdd extends Product {
   def add[M<:Product](out: Seq[LEvent[M]]): Context=>Context
 }
 trait RawTxAdd {
