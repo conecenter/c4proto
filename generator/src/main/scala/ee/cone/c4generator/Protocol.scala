@@ -134,7 +134,6 @@ $c4ann final class ${cl.name}ProtoAdapter(
     val protoGenerated: List[Generated] = stats.collect{
       case Defn.Trait(mods,Type.Name(tp),tParams,con,template) =>
         assert(tParams.isEmpty)
-        println(s"TM::${con.structure}::${template.structure}")
         val Ctor.Primary(Nil,meta.Name(""),Nil) = con
         val Template(Nil,init,self,stats) = template
         val Self(meta.Name(""), None) = self
