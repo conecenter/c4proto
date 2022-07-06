@@ -6,7 +6,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.hashsearch.index.dynamic.DynamicIndexModelsProvider
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4di.{c4, provide}
+import ee.cone.c4di.{c4, c4ignoreProductCheck, provide}
 
 case class RootCondition[Model <: Product](srcId: SrcId, innerUnion: InnerUnionList[Model], requestId: SrcId)
 
@@ -96,9 +96,9 @@ object HashSearchAssembleUtils {
 
   private case class ParseLeaf[Model <: Product](cond: Condition[Model])
 
-  private case class ParseIntersect[Model <: Product](list: List[ParseLeaf[Model]])
+  private case class ParseIntersect[Model <: Product](@c4ignoreProductCheck list: List[ParseLeaf[Model]])
 
-  private case class ParseUnion[Model <: Product](list: List[ParseIntersect[Model]])
+  private case class ParseUnion[Model <: Product](@c4ignoreProductCheck list: List[ParseIntersect[Model]])
 
   def conditionToUnionList[Model <: Product]: Class[Model] => SerializationUtils => Condition[Model] => InnerUnionList[Model] = model => ser => cond => {
     val parsed: ParseUnion[Model] = flattenCondition(cond)

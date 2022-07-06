@@ -230,7 +230,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   }
 }
 
-@c4("RichDataCompApp") final class TxAddImpl(
+@c4("RichDataCompApp") final case class TxAddImpl()(
   toUpdate: ToUpdate,
   rawTxAdd: RawTxAdd,
 ) extends LTxAdd with LazyLogging {

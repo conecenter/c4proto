@@ -27,4 +27,3 @@ class ByPriorityBuilder[K,V](uses: K=>(List[K],List[V]=>V)) {
   def apply(items: List[K]): List[V] =
     items.foldLeft(PriorityState[K,V](Map.empty[K,V],Nil,Set.empty[K],Nil))(add).values
 }
-

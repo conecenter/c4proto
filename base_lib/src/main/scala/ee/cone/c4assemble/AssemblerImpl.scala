@@ -590,11 +590,11 @@ class FailedRule(val message: List[String]) extends WorldPartRule
     executionContext: OuterExecutionContext
   ): Future[WorldTransition] = {
     implicit val ec = executionContext.value
-    val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,profiler,Future.successful(Nil),executionContext,Nil)
+    val prevTransition = new WorldTransition(None,emptyReadModel,prevWorld,profiler,Future.successful(Nil),executionContext,Nil)
     val currentWorld = readModelUtil.op(Merge[AssembledKey,Future[Index]](_=>false/*composes.isEmpty*/,(a,b)=>for {
       seq <- Future.sequence(Seq(a,b))
     } yield composes.mergeIndex(seq) ))(prevWorld,diff)
-    val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,profiler,Future.successful(Nil),executionContext,Nil)
+    val nextTransition = new WorldTransition(Option(prevTransition),diff,currentWorld,profiler,Future.successful(Nil),executionContext,Nil)
     for {
       finalTransition <- transformUntilStable(1000, nextTransition)
       ready <- readModelUtil.changesReady(prevWorld,finalTransition.result) //seq
