@@ -27,10 +27,12 @@ object Main {
       FieldAccessGenerator,
       AppGenerator,
       TagGenerator,
+      ProtoChangerGenerator,
+      ProductCheckGenerator,
     ) //,UnBaseGenerator
   }
   def main(args: Array[String]): Unit = new RootGenerator(defaultGenerators(Nil) ::: List(
-    ValInNonFinalGenerator,
+    ValInNonFinalGenerator
   )).run()
   def toPrefix = "c4gen."
   def env(key: String): Option[String] = Option(System.getenv(key))
@@ -124,7 +126,7 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
       if(app=="DefApp"){
         val modParentPath = ctx.dirToModDir(dir)
         val end = modParentPath.removed.map(n=>s".$n").mkString
-        assert(pkg.endsWith(end))
+        assert(pkg.endsWith(end),s"$pkg $end")
         val appPkg = pkg.substring(0,pkg.length-end.length)
         modParentPath.path -> GeneratedAppLink(appPkg, s"${Util.pkgNameToId(s".$appPkg")}$app", s"$pkg.$expr")
       } else dir -> GeneratedAppLink(pkg,app,expr)

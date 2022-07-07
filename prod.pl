@@ -4,7 +4,7 @@ use strict;
 use Digest::MD5 qw(md5_hex);
 use JSON::XS;
 
-my $sys_image_ver = "v86";
+my $sys_image_ver = "v94";
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -466,14 +466,17 @@ my $make_kc_yml = sub{
 
     my $container = {
             name => $nm, args=>[$nm], image => &$mandatory_of(image=>$opt),
-            env=>[@env],
+            env=>[
+                $$opt{need_pod_ip} ? {name=>"C4POD_IP",valueFrom=>{fieldRef=>{fieldPath=>"status.podIP"}}} : (),
+                @env
+            ],
             volumeMounts=>[@secret_mounts,@host_mounts],
             $$opt{tty} ? (tty=>$$opt{tty}) : (),
             securityContext => { allowPrivilegeEscalation => "false" },
             resources => {
                 limits => {
                     cpu => $$opt{lim_cpu} || "64",
-                    memory => "64Gi",
+                    memory => $$opt{lim_mem} || "64Gi",
                 },
                 requests => {
                     cpu => &$mandatory_of(req_cpu=>$opt),
@@ -489,7 +492,7 @@ my $make_kc_yml = sub{
     };
     #
     my $spec = {
-            $$opt{replicas} ? (replicas=>$$opt{replicas}) : (),
+            (exists $$opt{replicas}) ? (replicas=>$$opt{replicas}) : (),
             selector => { matchLabels => { app => $name } },
             template => {
                 metadata => {
@@ -732,7 +735,6 @@ my $get_visitor_conf = sub{
 
 my $all_consumer_options = sub{(
     tty => "true",
-    C4MAX_REQUEST_SIZE => "250000000",
     JAVA_TOOL_OPTIONS => "-XX:-UseContainerSupport ", # -XX:ActiveProcessorCount=36
     C4LOGBACK_XML => "/c4conf/logback.xml",
     C4AUTH_KEY_FILE => "/c4conf/simple.auth", #gate does no symlinks
@@ -744,6 +746,7 @@ my $need_deploy_cert = sub{
     &$put("simple.auth",&$get_simple_auth($comp));
 };
 
+my @lim_small = (lim_mem=>"100Mi",lim_cpu=>"250m"); # use rarely, on lim_mem child processes inside container can be killed, and parent get mad
 my @req_small = (req_mem=>"100Mi",req_cpu=>"250m");
 my @req_big = (req_mem=>"10Gi",req_cpu=>"1000m");
 
@@ -794,6 +797,7 @@ my $get_consumer_options = sub{
         C4KEYSTORE_PATH      => "/c4conf-kafka-certs/kafka.keystore.jks",
         C4TRUSTSTORE_PATH    => "/c4conf-kafka-certs/kafka.truststore.jks",
         C4BOOTSTRAP_SERVERS  => ($bootstrap_servers || die "no host bootstrap_servers"),
+        C4S3_CONF_DIR        => "/c4conf-ceph-client",
         C4HTTP_SERVER        => "http://$comp:$inner_http_port",
         C4ELECTOR_SERVERS    => join(",", map {"http://$elector-$_.$elector:$elector_port"} 0, 1, 2),
         C4READINESS_PATH     => "/c4/c4is-ready",
@@ -836,9 +840,9 @@ my $up_gate = sub{
     &$need_logback($run_comp,$from_path);
     my $hostname = &$get_hostname($run_comp) || die "no le_hostname";
     my ($ingress_secret_name) = &$get_deployer_conf($run_comp,0,qw[ingress_secret_name]);
+    my $conf = &$get_compose($run_comp);
     ($from_path, {
         image => $img, %consumer_options,
-        C4S3_CONF_DIR => "/c4conf-ceph-client",
         C4STATE_TOPIC_PREFIX => "gate",
         C4STATE_REFRESH_SECONDS => 1000,
         req_mem => "4Gi", req_cpu => "1000m",
@@ -849,6 +853,8 @@ my $up_gate = sub{
         ingress_secret_name=>$ingress_secret_name,
         C4HTTP_PORT => $inner_http_port,
         C4SSE_PORT => $inner_sse_port,
+        need_pod_ip => 1,
+        (map{($_=>&$mandatory_of($_=>$conf))} qw[C4KEEP_SNAPSHOTS replicas]),
     });
 };
 
@@ -861,27 +867,21 @@ my $up_frp_client = sub{
     })
 };
 
-my $base_image_steps = sub{(
-    "FROM ubuntu:18.04",
+my $installer_steps = sub{(
     "COPY install.pl /",
     "RUN perl install.pl useradd",
 )};
 
-my $prod_image_steps = sub{(
-    &$base_image_steps(),
-    "RUN perl install.pl apt".
-    " curl unzip software-properties-common".
-    " lsof mc iputils-ping netcat-openbsd fontconfig".
-    " openssh-client", #repl
-    "RUN perl install.pl curl https://github.com/AdoptOpenJDK/openjdk15-binaries/releases/download/jdk-15.0.1%2B9/OpenJDK15U-jdk_x64_linux_hotspot_15.0.1_9.tar.gz",
-    "RUN perl install.pl curl http://ompc.oss.aliyuncs.com/greys/release/greys-stable-bin.zip",
-    'ENV PATH=${PATH}:/tools/jdk/bin',
+my $base_image_steps = sub{(
+    "FROM ubuntu:20.04",
+    &$installer_steps(),
 )};
 
 my $dl_node_url = "https://nodejs.org/dist/v14.15.4/node-v14.15.4-linux-x64.tar.xz";
 
 my $dl_frp_url = "https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz";
 my $make_frp_image_inner = sub{
+    my ($v) = @_; ## $v -- just to have different images with newer c-time and prevent pruning
     my $gen_dir = &$get_proto_dir();
     my $from_path = &$get_tmp_dir();
     my $put = &$rel_put_text($from_path);
@@ -897,7 +897,7 @@ my $make_frp_image_inner = sub{
         "RUN perl install.pl curl $dl_frp_url",
         "COPY frp.pl /",
         "USER c4",
-        'ENTRYPOINT ["perl", "/frp.pl"]',
+        'ENTRYPOINT ["perl", "/frp.pl", "'.$v.'"]',
     );
     return $from_path;
 };
@@ -1019,6 +1019,19 @@ push @tasks, ["log","[pod|$composes_txt] [tail] [add]",sub{
         my $kubectl = &$get_kubectl($comp);
         my $tail_or = ($tail+0) || 100;
         sy(qq[$kubectl logs -f $pod --tail $tail_or $add]);
+    });
+}];
+push @tasks, ["log_debug","<pod|$composes_txt> [class]",sub{ # ee.cone
+    my($arg,$cl)=@_;
+    &$ssh_add();
+    &$for_comp_pod($arg,sub{ my ($comp,$pod) = @_;
+        my $kubectl = &$get_kubectl($comp);
+        if($cl){
+            my $content = qq[<logger name="$cl" level="DEBUG"><appender-ref ref="ASYNCFILE" /></logger>];
+            sy(qq[$kubectl exec -i $pod -- sh -c 'cat >> /tmp/logback.xml' < ].&$put_temp("logback.xml",$content));
+        } else {
+            so(qq[$kubectl exec -i $pod -- rm /tmp/logback.xml]);
+        }
     });
 }];
 
@@ -1146,11 +1159,13 @@ my $ci_build = sub{
         &$ci_docker_build($dir, $builder_comp, $img);
     };
     my $get_build_steps = sub{
-        my($can_fail,$proj_tag)=@_;
+        my($can_fail,$proj_tags)=@_;
         (
             "ENV C4CI_CAN_FAIL=$can_fail",
-            "ENV C4CI_BASE_TAG_ENV=$proj_tag",
-            "RUN eval \$C4STEP_BUILD",
+            (map{(
+                "ENV C4CI_BASE_TAG_ENV=$_",
+                "RUN eval \$C4STEP_BUILD",
+            )}@$proj_tags),
             "RUN eval \$C4STEP_BUILD_CLIENT"
         )
     };
@@ -1158,12 +1173,13 @@ my $ci_build = sub{
         $_[0]=~/^(\w[\w\-]*\w)$/ ? "$1" : die "bad image postfix ($_[0])"
     };
     my $handle_aggr = sub{
-        my($aggr_tag_arg,$proj_tags)=@_;
+        my($aggr_tag_arg,$proj_tags_arg)=@_;
+        my @proj_tags = $proj_tags_arg=~/([^:]+)/g;
         my $aggr_tag = &$chk_tag($aggr_tag_arg);
-        my $steps = [&$get_build_steps("1",$aggr_tag)];
+        my $steps = [&$get_build_steps("1",\@proj_tags)];
         my $aggr_img = "$common_img.$aggr_tag.aggr";
         &$build_derived($common_img,$steps,$aggr_img);
-        for($proj_tags=~/([^:]+)/g){
+        for(@proj_tags){
             my $proj_tag = &$chk_tag($_);
             my $sb_steps = [
                 "ENV C4CI_BASE_TAG_ENV=$proj_tag",
@@ -1177,7 +1193,7 @@ my $ci_build = sub{
         my $from_img = $aggr_tag ? "$common_img.$aggr_tag.aggr" : $common_img;
         my $img_pre = "$common_img.$proj_tag";
         my $cp_steps = [
-            &$get_build_steps("",$proj_tag),
+            &$get_build_steps("",[$proj_tag]),
             "RUN \$C4STEP_CP"
         ];
         &$build_derived($from_img,$cp_steps,"$img_pre.cp");
@@ -1195,7 +1211,7 @@ push @tasks, ["ci_build_frp", "", sub{
     &$ssh_add();
     my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
-    my $dir = &$make_frp_image_inner();
+    my $dir = &$make_frp_image_inner($common_img);
     my $img = "$common_img.frp.rt";
     &$ci_docker_build($dir, $builder_comp, $img);
 }];
@@ -1278,13 +1294,26 @@ push @tasks, ["ci_push", "", sub{
     }
 }];
 
+my $ci_env_name = sub{
+    my($env_comp)=@_;
+    my $env_name = &$mandatory_of("ci:env"=>&$get_compose($env_comp));
+    my $kubectl = &$get_kubectl($env_comp);
+    ($kubectl,$env_name)
+};
+
+my $ci_apply = sub{
+    my ($kubectl,$env_name,$tmp) = @_;
+    my $whitelist = join " ", map{"--prune-whitelist $$_[0]/$$_[1]/$$_[2]"} @kinds;
+    sy("$kubectl apply -f $tmp --prune -l c4env=$env_name $whitelist");
+};
+
 push @tasks, ["ci_up", "", sub{
     my($env_comp)=@_;
     my $end = &$ci_measure();
     &$ssh_add();
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
     my @comps = &$ci_get_compositions($env_comp);
-    my $env_name = &$mandatory_of("ci:env"=>&$get_compose($env_comp));
+    my ($kubectl,$env_name) = &$ci_env_name($env_comp);
     my $labeled = {metadata=>{labels=>{c4env=>$env_name}}};
     my $yml_str = join "\n", map{ &$encode(&$merge_list($_,$labeled)) } map{
         my $l_comp = $_;
@@ -1293,18 +1322,55 @@ push @tasks, ["ci_up", "", sub{
         my ($tmp_path,$options) = &$find_handler(ci_up=>$l_comp)->($l_comp,$to_img);
         @{&$make_kc_yml($l_comp,$tmp_path,&$add_image_pull_secrets($l_comp,$options))};
     } @comps;
-    my $kubectl = &$get_kubectl($env_comp);
-    my $tmp = &$put_temp("up.yml",$yml_str);
-    my $whitelist = join " ", map{"--prune-whitelist $$_[0]/$$_[1]/$$_[2]"} @kinds;
-    sy("$kubectl apply -f $tmp --prune -l c4env=$env_name $whitelist");
+    #
+    my $secret_name = "hist-".&$get_rand_uuid();
+    my $hist_yml = &$put_temp("hist.yml",&$encode(&$merge_list(
+        &$secret_yml_from_files($secret_name, {value=>&$put_temp("value",$yml_str)}),
+        {metadata=>{
+            labels=>{"c4target-env"=>$env_name}, annotations=>{c4img=>$common_img},
+        }},
+    )));
+    sy("$kubectl apply -f $hist_yml");
+    &$ci_apply($kubectl,$env_name,&$put_temp("up.yml",$yml_str));
     &$end("ci_up");
 }];
 
-push @tasks, ["ci_down","",sub{
-    my($comp)=@_;
+my $get_image_from_deployment = sub{ #.spec.template.spec.containers[*].image
+    my ($deployment) = @_;
+    my ($curr_img,@more) = map{$$_{image}} map{@$_} map{$$_{containers}||{}}
+        map{$$_{spec}||{}} map{$$_{template}||{}} map{$$_{spec}||{}} $deployment;
+    die if @more;
+    $curr_img
+};
+
+push @tasks, ["hist_ls","<env-comp>", sub{
+    my($env_comp)=@_;
     &$ssh_add();
-    my $env_name = &$mandatory_of("ci:env"=>&$get_compose($comp));
-    my $kubectl = &$get_kubectl($comp);
+    my ($kubectl,$env_name) = &$ci_env_name($env_comp);
+    my $deploy_res = syf("$kubectl get deployment -l c4env=$env_name -o json");
+    my $hist_res = syf("$kubectl get secrets -l c4target-env=$env_name -o json");
+    print "Current deployment images:\n";
+    print "\t".&$get_image_from_deployment($_)."\n"
+        for @{&$decode($deploy_res)->{items}||die};
+    print "History:\n";
+    print for sort
+        map{"\t$$_{creationTimestamp} $$_{name} $$_{annotations}{c4img}\n"}
+        map{$$_{metadata}} @{&$decode($hist_res)->{items}||die};
+}];
+
+push @tasks, ["hist_revert","<env-comp> <hist-item>", sub{
+    my($env_comp,$hist_item)=@_;
+    &$ssh_add();
+    my ($kubectl,$env_name) = &$ci_env_name($env_comp);
+    my $tmp_dir = &$get_tmp_dir();
+    &$secret_to_dir($kubectl,$hist_item,$tmp_dir);
+    &$ci_apply($kubectl,$env_name,"$tmp_dir/value");
+}];
+
+push @tasks, ["ci_down","",sub{
+    my($env_comp)=@_;
+    &$ssh_add();
+    my ($kubectl,$env_name) = &$ci_env_name($env_comp);
     my $kinds = join ",",map{$$_[2]}@kinds;
     sy("$kubectl delete -l c4env=$env_name $kinds");
 }];
@@ -1365,6 +1431,43 @@ push @tasks, ["ci_setup", "", sub{
     &$end("ci_setup");
 }];
 
+push @tasks, ["ci_check_images", "", sub {
+    my ($env_comp) = @_;
+    &$ssh_add();
+    my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
+    my @comps = &$ci_get_compositions($env_comp);
+    my $kubectl = &$get_kubectl($env_comp);
+    for my $comp(@comps){
+        while(1){
+            my $stm = qq[$kubectl get deployment -o jsonpath="{.items[*].metadata.name}"];
+            last if grep{$_ eq $comp} &$spaced_list(syf($stm));
+            sleep 2;
+        }
+        my ($from_img, $to_img) = &$ci_get_image($common_img, $comp);
+        print "target image:     $to_img\n";
+        while(1){
+            my $resp = &$decode(syf(qq[$kubectl get deployment $comp -o json]));
+            my $curr_img = &$get_image_from_deployment($resp);
+            print "deployment image: $curr_img\n";
+            last if $curr_img eq $to_img;
+            sleep 2;
+        }
+        while(1){
+            my $resp = &$decode(syf("$kubectl get po -l app=$comp -ojson"));
+            my @statuses = map{@$_} map{$$_{containerStatuses}||[]}
+                map{$$_{status}||{}} map{@$_} map{$$_{items}||[]} $resp;
+            if(@statuses){
+                my @others = grep{$_ ne $to_img} map{$$_{image}} @statuses;
+                print "other images: $_\n" for @others;
+                my @not_ready = map{$$_{ready}?():$$_{state}} @statuses;
+                print "not ready: ".&$encode($_)."\n" for @not_ready;
+                @others or @not_ready or last;
+            }
+            sleep 2;
+        }
+    }
+}];
+
 push @tasks, ["ci_check", "", sub{
     my($env_comp)=@_;
     &$ssh_add();
@@ -1401,9 +1504,9 @@ push @tasks, ["ci_inner_build","",sub{
 
 my $client_mode_to_opt = sub{
     my($mode)=@_;
-    $mode eq "fast" ? "--env.fast=true --mode development" :
-    $mode eq "dev" ? "--mode development" :
-    "--mode production";
+    $mode eq "fast" ? "--color --env.fast=true --mode development" :
+    $mode eq "dev" ? "--color --mode development" :
+    "--color --mode production";
 };
 my $if_changed = sub{
     my($path,$will,$then)=@_;
@@ -1420,7 +1523,7 @@ my $build_client = sub{
     unlink or die $! for <$build_dir/*>;
     my $conf_dir = &$single_or_undef(grep{-e} map{"$_/webpack"} <$dir/src/*>) || die;
     &$if_changed("$dir/package.json", syf("cat $conf_dir/package.json"), sub{1})
-        and sy("cd $dir && npm install");
+        and sy("cd $dir && npm install --no-save");
     sy("cd $dir && cp $conf_dir/webpack.config.js . && cp $conf_dir/tsconfig.json . && node_modules/webpack/bin/webpack.js $opt");# -d
     &$put_text("$build_dir/publish_time",time);
     &$put_text("$build_dir/c4gen.ht.links",join"",
@@ -1448,18 +1551,30 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     -e $ctx_dir and sy("rm -r $ctx_dir");
     sy("mkdir $ctx_dir");
     &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile");
+    my @add_steps = syl("cat $gen_dir/.bloop/c4/tag.$base.steps");
+    my @from_steps = grep{/^FROM\s/} @add_steps;
     &$put_text("$ctx_dir/Dockerfile", join "\n",
-        &$prod_image_steps(),
-        (grep{$_} syf("cat $gen_dir/.bloop/c4/tag.$base.steps")),
+        @from_steps ? @from_steps : "FROM ubuntu:18.04",
+        &$installer_steps(),
+        "RUN perl install.pl apt".
+        " curl software-properties-common".
+        " lsof mc iputils-ping netcat-openbsd fontconfig".
+        " openssh-client", #repl
+        "RUN perl install.pl curl https://github.com/AdoptOpenJDK/openjdk15-binaries/releases/download/jdk-15.0.1%2B9/OpenJDK15U-jdk_x64_linux_hotspot_15.0.1_9.tar.gz",
+        #"RUN perl install.pl curl https://download.bell-sw.com/java/17.0.2+9/bellsoft-jdk17.0.2+9-linux-amd64.tar.gz",
+        'ENV PATH=${PATH}:/tools/jdk/bin',
+        (grep{/^RUN\s/} @add_steps),
         "ENV JAVA_HOME=/tools/jdk",
         "RUN chown -R c4:c4 /c4",
         "WORKDIR /c4",
+        "RUN ln -s /c4/greys /tools/greys",
         "USER c4",
-        "RUN cd /tools/greys && bash ./install-local.sh",
         "COPY --chown=c4:c4 . /c4",
+        "RUN cd /tools/greys && bash ./install-local.sh",
         'ENTRYPOINT ["perl","run.pl"]',
     );
     sy("cp $proto_dir/$_ $ctx_dir/$_") for "install.pl", "run.pl";
+    sy("cd $ctx_dir && tar -xzf $proto_dir/tools/greys.tar.gz");
     #
     mkdir "$ctx_dir/app";
     my $mod     = syf("cat $gen_dir/.bloop/c4/tag.$base.mod" )=~/(\S+)/ ? $1 : die;
@@ -1471,7 +1586,11 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
         m{([^/]+)\.classes(-bloop-cli)?$} ? "cd $_ && zip -q -r $ctx_dir/app/$1.jar ." : die $_
     } @classpath;
     &$_() for @started;
-    &$put_text("$ctx_dir/serve.sh","export C4APP_CLASS=$main_cl\nexec java ee.cone.c4actor.ServerMain");
+    &$put_text("$ctx_dir/serve.sh", join "\n",
+        "export C4APP_CLASS=ee.cone.c4actor.ParentElectorClientApp",
+        "export C4APP_CLASS_INNER=$main_cl",
+        "exec java ee.cone.c4actor.ServerMain"
+    );
     #
     my %has_mod = map{m"/mod\.([^/]+)\.classes(-bloop-cli)?$"?($1=>1):()} @classpath;
     my @public_part = map{ my $dir = $_;
@@ -1497,7 +1616,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
 
 my $make_frp_image = sub{
     my ($comp) = @_;
-    return &$remote_build(''=>$comp,&$make_frp_image_inner());
+    return &$remote_build(''=>$comp,&$make_frp_image_inner(""));
 };
 
 push @tasks, ["up-frp_client", "", sub{
@@ -1549,10 +1668,10 @@ push @tasks, ["up-s3client", "", sub{
     &$wrap_deploy($comp,$from_path,$options);
 }];
 
-# my $install_kubectl = sub{
-#     "RUN /install.pl curl https://storage.googleapis.com/kubernetes-release/release/v1.14.0/bin/linux/amd64/kubectl "
-#     ."&& chmod +x /tools/kubectl "
-# };
+my $install_kubectl = sub{
+    "RUN perl install.pl curl https://storage.googleapis.com/kubernetes-release/release/v1.21.0/bin/linux/amd64/kubectl "
+    ."&& chmod +x /tools/kubectl "
+};
 my $install_tini = sub{
     "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini"
     ."&& chmod +x /tools/tini"
@@ -1585,7 +1704,7 @@ push @tasks, ["up-kc_host", "", sub{ # the last multi container kc
                 verbs => ["get"],
             },
             {
-                apiGroups => [""],
+                apiGroups => ["","metrics.k8s.io"],
                 resources => ["pods"],
                 verbs => ["get","list","delete"],
             },
@@ -1636,48 +1755,19 @@ push @tasks, ["up-frps","",sub{
 
 my $tp_split = sub{ "$_[0]\n\n"=~/(.*?\n\n)/gs };
 my $sleep = sub{ select undef, undef, undef, $_[0] };
-my $tp_run = sub{
-    my($wrap)=@_;
-    my $cmd = &$wrap("jcmd");
-    my $get_pids = sub{
-        sort{$b<=>$a} map{/^(\d+)\s+(ee\.cone\.\S+)/  ?"$1":()} syl($cmd);
-    };
-    my $prn = sub{
-        my @pid = @_;
-        my $p_cmd = &$wrap(join " && ", map{"jcmd $_ Thread.print"} @pid);
-        while(1){
-            &$sleep(0.25);
-            print grep{ !/\.epollWait\(/ && /\sat\s/ } &$tp_split(syf($p_cmd));
-        }
-    };
-    ($get_pids,$prn);
-};
-push @tasks, ["thread_print_local_next"," ",sub{
-    my($get_pids,$prn) = &$tp_run(sub{"$_[0]"});
-    my %was = map{($_=>1)} &$get_pids();
-    my $wait_next = sub{
-        while(1){
-            &$sleep(0.25);
-            $was{$_} or return $_ for &$get_pids();
-        }
-    };
-    my $pid = &$wait_next();
-    &$prn($pid);
-}];
-push @tasks, ["thread_print_local_max"," ",sub{
-    my($get_pids,$prn) = &$tp_run(sub{"$_[0]"});
-    my @pid = &$get_pids();
-    @pid || return;
-    &$prn($pid[0]);
-}];
 push @tasks, ["thread_print","$composes_txt",sub{
     my($comp)=@_;
     &$ssh_add();
-    my @pods = &$get_pods($comp);
-    my($get_pids,$prn) = &$tp_run(sub{ my($cmd)=@_; join " && ", map{"($_)"} map{&$kj_exec($comp,$_,"",$cmd)} @pods });#/RUNNABLE/
-    my @pid = &$get_pids();
-    @pid || return;
-    &$prn(@pid);
+    my @cmd = sort{$b<=>$a} map{
+        my $pod = $_;
+        map{&$kj_exec($comp,$pod,"","jcmd $_ Thread.print")}
+        map{/^(\d+)\s+(ee\.cone\.\S+)/ ?"$1":()}
+        syl(&$kj_exec($comp,$pod,"","jcmd"));
+    } &$get_pods($comp);
+    while(@cmd){
+        &$sleep(0.25);
+        print grep{ !/\.epollWait\(/ && /\sat\s/ } &$tp_split(syf($_)) for @cmd;
+    }
 }];
 push @tasks, ["thread_grep_cut","<substring>",sub{
     my($v)=@_;
@@ -1705,8 +1795,12 @@ push @tasks, ["exec_repl","<pod|$composes_txt>",sub{
 push @tasks, ["greys_local","<pid>",sub{
     my($pid)=@_;
     $pid || die;
-    -e "$ENV{HOME}/.greys" or sy("cd /tools/greys && bash ./install-local.sh");
-    sy("/tools/greys/greys.sh $pid");
+    if(!-e "$ENV{HOME}/.greys"){
+        my $gen_dir = &$get_proto_dir();
+        sy("cd $ENV{HOME} && tar -xzf $gen_dir/tools/greys.tar.gz");
+        sy("cd $ENV{HOME}/greys && bash ./install-local.sh");
+    }
+    sy("$ENV{HOME}/greys/greys.sh $pid");
 }];
 push @tasks, ["greys","<pod|$composes_txt>",sub{
     my($arg)=@_;
@@ -1753,7 +1847,7 @@ push @tasks, ["up-elector","",sub{
     my $options = {
         image => $img, tty => "true", headless => 1, replicas => 3,
         C4HTTP_PORT => $elector_port, "port:$elector_port:$elector_port"=>"",
-        @req_small
+        @req_small, @lim_small,
     };
     &$wrap_deploy($comp,$from_path,$options);
 }];
@@ -1850,16 +1944,41 @@ push @tasks, ["secret_set","$composes_txt <secret-name>",sub{
     &$dir_to_secret($kubectl,$secret_name,$dir);
 }];
 
-push @tasks, ["debug","<on|off>",sub{
-    my($arg)=@_;
-    my $d_path = "/c4/debug-enable";
+push @tasks, ["secret_add_arg","$composes_txt <secret-content>",sub{
+    my($comp,$secret_content)=@_;
+    &$ssh_add();
+    my $kubectl = &$get_kubectl($comp);
+    my $hash = &$md5_hex($secret_content);
+    my $secret_name = "c4hash-$hash";
+    my $dir = &$get_tmp_dir();
+    my $put = &$rel_put_text($dir);
+    my $fn = "value";
+    &$put($fn,$secret_content);
+    &$dir_to_secret($kubectl,$secret_name,$dir);
+    print qq[ADD TO CONFIG: "/c4conf-$secret_name/$fn"\n];
+}];
+
+my $restart = sub{
+    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
+    &$put_text(&$need_path("$local_dir/target/gen-ver"),time);
+};
+
+push @tasks, ["debug","<on|off> [components]",sub{
+    my($arg,$obj)=@_;
+    my $d_path = $obj eq "" ? "/c4/debug-enable" :
+        $obj eq "components" ? "/c4/debug-components" : die;
     if($arg eq "on"){
         -e $d_path or &$put_text($d_path,"");
     }elsif($arg eq "off"){
         -e $d_path and sy("rm $d_path");
     }else{ die }
-    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
-    &$put_text(&$need_path("$local_dir/target/gen-ver"),time);
+    &$restart();
+}];
+
+push @tasks, ["tag","[tag]",sub{
+    my($tag)=@_;
+    &$put_text("/c4/debug-tag",$tag||"");
+    &$restart();
 }];
 
 push @tasks, ["kafka","( topics | offsets <hours> | nodes | sizes <node> | topics_rm )",sub{
@@ -1868,9 +1987,53 @@ push @tasks, ["kafka","( topics | offsets <hours> | nodes | sizes <node> | topic
     my $cp = syf("coursier fetch --classpath org.apache.kafka:kafka-clients:2.8.0")=~/(\S+)/ ? $1 : die;
     sy("CLASSPATH=$cp java --source 15 $gen_dir/kafka_info.java ".join" ",@args);
 }];
-push @tasks, ["kafka_purge"," ",sub{
+
+my $py_run = sub{
+    my ($nm,@args) = @_;
     my $gen_dir = &$get_proto_dir();
-    sy("python3.8","$gen_dir/kafka_purger.py")
+    sy("python3.8","$gen_dir/$nm",@args);
+};
+
+push @tasks, ["kafka_purge"," ",sub{ &$py_run("kafka_purger.py") }];
+
+push @tasks, ["resources","( top <ctx> <search_str> | suggest <ctx> <level (ex 70)> )",sub{
+    &$py_run("resources.py",@_)
+}];
+
+push @tasks, ["resources_set","$composes_txt <cpu=n|memory=nGi>",sub{
+    my ($comp,$res) = @_;
+    &$ssh_add();
+    my ($context) = &$get_deployer_conf($comp,1,qw[context]);
+    &$py_run("resources.py","set",$context,$comp,$res);
+}];
+
+push @tasks, ["up-resource_tracker","",sub{
+    my ($comp) = @_;
+    my $img = do{
+        my $gen_dir = &$get_proto_dir();
+        my $from_path = &$get_tmp_dir();
+        my $put = &$rel_put_text($from_path);
+        sy("cp $gen_dir/install.pl $gen_dir/resources.py $from_path/");
+        &$put("Dockerfile", join "\n",
+            &$base_image_steps(),
+            "RUN perl install.pl apt curl ca-certificates python3.8",
+            &$install_kubectl(),
+            &$install_tini(),
+            "COPY resources.py /",
+            "USER c4",
+            'ENV PATH=${PATH}:/tools',
+            'ENTRYPOINT ["/tools/tini","--","python3.8","/resources.py","tracker"]',
+        );
+        &$remote_build(''=>$comp,$from_path);
+    };
+    my $from_path = &$get_tmp_dir();
+    my $conf = &$get_compose($comp);
+    my $options = {
+        image => $img, tty => "true",
+        @req_small,
+        (map{($_=>&$mandatory_of($_=>$conf))} qw[C4RES_TRACKER_OPTIONS C4KUBECONFIG ]),
+    };
+    &$wrap_deploy($comp,$from_path,$options);
 }];
 
 ####

@@ -56,8 +56,11 @@ my $request_remote_dir = sub{
     syf("echo '. /c4p_alias.sh > /dev/null && echo \$C4CI_BUILD_DIR' | $remote_pre sh")=~/^(\S+)\s*$/ ? "$1" : die;
 };
 
+my $distinct_sorted = sub{ sort keys %{+{map{($_=>1)}@_}} };
+my $group_by = sub{ my($f,@in)=@_; my %r; push @{$r{&$f($_)}||=[]},$_ for @in; %r };
+
 my $sync0 = sub{
-    my($dir,$remote_dir,$is_back,$tasks)=@_;
+    my($dir,$remote_dir,$is_back,$paths,$get_mode)=@_;
     my $remote_pre = &$get_remote_pre();
     my $ssh = &$get_ssh();
     my $remote_pre_d = "$user_host:";
@@ -65,14 +68,14 @@ my $sync0 = sub{
         ($remote_pre_d,$remote_dir,"",$dir,"sh -c ") :
         ("",$dir,$remote_pre_d,$remote_dir,$remote_pre);
     my $changed_fn = "target/c4sync-changed";
-    my %was = map{($_=>0)} syf("$to_pre 'cd $to_dir && touch $changed_fn && cat $changed_fn'") =~ /(\S+)/g;
-    my %all = (%was,%$tasks);
-    my @all = sort keys %all;
-    my @upd = grep{$all{$_}} @all;
-    my @del =  grep{!$all{$_}} @all;
+    my @was = syf("$to_pre 'cd $to_dir && touch $changed_fn && cat $changed_fn'") =~ /(\S+)/g;
+    my @all = &$distinct_sorted(@$paths, @was);
+    my %task_by_mode = &$group_by($get_mode,@all);
+    my @upd = @{$task_by_mode{upd}||[]};
+    my @del = @{$task_by_mode{del}||[]};
     my $tm = Time::HiRes::time();
     sy("$to_pre 'cd $to_dir && cat > $changed_fn' < ".&$put_temp(changed=>&$lines(@all)));
-    sy("rsync -e '$ssh' -avc --files-from=".&$put_temp(upd=>&$lines(@upd))." $from_pre_d$from_dir/ $to_pre_d$to_dir") if @upd;
+    sy("rsync -e '$ssh' -rltDvc --files-from=".&$put_temp(upd=>&$lines(@upd))." $from_pre_d$from_dir/ $to_pre_d$to_dir") if @upd;
     if(@del){
         my $remover_fn = "target/c4sync-rm.pl";
         sy("$to_pre 'cd $to_dir && cat > $remover_fn' < ".&$put_temp(remover=>&$lines(
@@ -80,7 +83,7 @@ my $sync0 = sub{
             q[  chomp;],
             q[  next if !-e $_;],
             q[  print "removing $_\n";],
-            q[  unlink $_ or die "can not remove";],
+            q[  unlink $_ or die "can not remove ($_)";],
             q[}],
         )));
         sy("$to_pre 'cd $to_dir && perl $remover_fn' < ".&$put_temp(removed=>&$lines(@del)));
@@ -107,7 +110,7 @@ push @tasks, ["report_changes","",sub{
     &$put_text($changed_path, &$lines(map{ #... to ENV
         my ($dir_infix,$commit) = /^(.*):(.*)$/ ? ($1,$2) : die;
         map{"$dir_infix$_"}
-            map{ syf("cd $_ && git diff --name-only $commit && git ls-files --others --exclude-standard")=~/(\S+)/g }
+            map{ syf("cd $_ && git diff --name-only --no-renames $commit && git ls-files --others --exclude-standard")=~/(\S+)/g }
                 grep{ -e "$_.git" } "$dir/$dir_infix"
     } syf("$remote_pre 'cat $remote_dir/target/c4repo_commits'")=~/(\S+)/g));
 }];
@@ -115,15 +118,16 @@ push @tasks, ["start","",sub{
     my($dir)=@_; $dir || die "need dir";
     my $changed_path = &$mandatory_of(C4GIT_CHANGED_PATH=>\%ENV);
     my $remote_dir = &$request_remote_dir();
-    my %tasks = map{($_=>(-e "$dir/$_")?1:0)} syf("cat $changed_path")=~/(\S+)/g;
-    &$sync0($dir,$remote_dir,0,\%tasks);
+    my @changed = syf("cat $changed_path")=~/(\S+)/g;
+    &$sync0($dir,$remote_dir,0,\@changed,sub{(-e "$dir/$_[0]")?"upd":"del"});
 }];
 push @tasks, ["back","",sub{
     my($dir)=@_;
     my $remote_dir = &$request_remote_dir();
     my $remote_pre = &$get_remote_pre();
-    my %tasks = map{($_=>1)} grep{/\bc4gen\b/ || /-generated\./} &$find($remote_pre,"$remote_dir/",$prune);
-    &$sync0($dir,$remote_dir,1,\%tasks);
+    my @changed = grep{/\bc4gen\b/ || /-generated\./} &$find($remote_pre,"$remote_dir/",$prune);
+    my %changed = map{($_=>1)} @changed;
+    &$sync0($dir,$remote_dir,1,\@changed,sub{$changed{$_[0]}?"upd":"del"});
 }];
 push @tasks, ["run","",sub{
     my($dir,$cmd)=@_;

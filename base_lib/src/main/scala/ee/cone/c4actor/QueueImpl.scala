@@ -1,16 +1,15 @@
 
 package ee.cone.c4actor
 
-import ee.cone.c4actor.QProtocol.{N_CompressedUpdates, N_TxRef, N_Update, S_Offset, S_Updates}
+import ee.cone.c4actor.QProtocol.{N_CompressedUpdates, N_TxRef, N_Update, N_UpdateFrom, S_Offset, S_Updates}
 import ee.cone.c4proto._
 
 import scala.collection.immutable.{Queue, Seq}
 import java.nio.charset.StandardCharsets.UTF_8
-
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.Types.{NextOffset, SrcId, TypeId}
+import ee.cone.c4actor.Types.{NextOffset, SrcId, TypeId, UpdateKey, UpdateMap}
 import ee.cone.c4assemble.Single
-import ee.cone.c4di.c4
+import ee.cone.c4di._
 import okio.ByteString
 
 import scala.annotation.tailrec
@@ -33,19 +32,22 @@ import scala.concurrent.{Await, ExecutionContext, Future}
   }
 )
 
-class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
+class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
 
-@c4("ServerCompApp") final class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender], flagsCheck: UpdateFlagsCheck) extends QMessages with LazyLogging {
+@c4("ServerCompApp") final class QMessagesImpl(
+  toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender],
+  flagsCheck: UpdateFlagsCheck, currentTxLogName: CurrentTxLogName,
+) extends QMessages with LazyLogging {
   assert(flagsCheck.flagsOk, s"Some of the flags are incorrect: ${flagsCheck.updateFlags}")
   //import qAdapterRegistry._
   // .map(o=> nTx.setLocal(OffsetWorldKey, o+1))
   def send[M<:Product](local: Context): Context = {
-    val updates: List[N_Update] = WriteModelKey.of(local).toList
+    val updates: List[N_UpdateFrom] = WriteModelKey.of(local).toList
     if(updates.isEmpty) local else {
       //println(s"sending: ${updates.size} ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
       val (bytes, headers) = toUpdate.toBytes(updates)
-      val rec = new QRecordImpl(InboxTopicName(), bytes, headers)
-      val offset = Single(Single(getRawQSender.value).send(List(rec)))
+      val rec = new QRecordImpl(currentTxLogName, bytes, headers)
+      val offset = Single(getRawQSender.value).send(rec)
       logger.debug(s"${updates.size} updates was sent -- $offset")
       Function.chain(
         Seq(
@@ -57,7 +59,7 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq
   }
 }
 
-@c4("RichDataCompApp") final class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(50000000L)
+@c4("RichDataCompApp") final class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(1000000L)
 
 @c4("ProtoApp") final class FillTxIdUpdateFlag extends UpdateFlag {
   val flagValue: Long = 1L
@@ -75,6 +77,7 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq
   fillTxIdUpdateFlag: FillTxIdUpdateFlag,
   archiveUpdateFlag: ArchiveUpdateFlag,
   execution: Execution,
+  updateMapUtil: UpdateMapUtil,
 )(
   updatesAdapter: ProtoAdapter[S_Updates] with HasId =
   qAdapterRegistry.byName(classOf[QProtocol.S_Updates].getName)
@@ -117,13 +120,12 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq
   private def makeHeaderFromName: MultiRawCompressor => List[RawHeader] = jc =>
     RawHeader(compressionKey, jc.name) :: Nil
 
-  implicit val executionContext = execution.mainExecutionContext
-
-  @tailrec private def nextPartSize(updates: List[N_Update], count: Long, size: Long): Option[Long] =
+  def getInnerSize(up: N_UpdateFrom): Long = up.fromValue.size + up.value.size
+  @tailrec private def nextPartSize(updates: List[N_UpdateFrom], count: Long, size: Long): Option[Long] =
     if(updates.isEmpty) None
     else if(size >= compressionMinSize.value) Option(count)
-    else nextPartSize(updates.tail,count+1,size+updates.head.value.size)
-  @tailrec private def split(in: List[N_Update], out: List[List[N_Update]]): List[List[N_Update]] = {
+    else nextPartSize(updates.tail,count+1,size+getInnerSize(updates.head))
+  @tailrec private def split(in: List[N_UpdateFrom], out: List[List[N_UpdateFrom]]): List[List[N_UpdateFrom]] = {
     nextPartSize(in,0,0) match {
       case None => (in::out).reverse
       case Some(partSize) =>
@@ -131,45 +133,54 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq
         split(right,left::out)
     }
   }
-  private def encode(updates: List[N_Update]): Array[Byte] = {
+  private def encode(updates: List[N_UpdateFrom]): Array[Byte] = {
     logger.debug(s"Encoding ${updates.size} updates...")
     val res = updatesAdapter.encode(S_Updates("", updates))
     logger.debug(s"Encoded to ${res.length} bytes")
     res
   }
-  def toBytes(updates: List[N_Update]): (Array[Byte], List[RawHeader]) = concurrent.blocking{
+  def toBytes(updates: List[N_UpdateFrom]): (Array[Byte], List[RawHeader]) = concurrent.blocking{
     val filteredUpdates = updates.filterNot(_.valueTypeId==offsetAdapter.id)
     compressorOpt.filter(_=>nextPartSize(filteredUpdates,0,0).nonEmpty)
       .fold{
         (encode(filteredUpdates), List.empty[RawHeader])
       } { compressor =>
-        val parts = split(filteredUpdates, Nil).map(u=>Future(encode(u)))
-        logger.debug(s"Compressing ${parts.size} parts...")
-        val resF = compressor.compress(parts: _*)
-        val res = Await.result(resF, Duration.Inf)
+        val res = execution.aWait{ implicit ec =>
+          val parts = split(filteredUpdates, Nil).map(u=>Future(encode(u)))
+          logger.debug(s"Compressing ${parts.size} parts...")
+          compressor.compress(parts: _*)
+        }
         logger.debug(s"Compressed")
         (res, makeHeaderFromName(compressor))
       }
   }
 
-  private def deCompressDecode(event: RawEvent): List[N_Update] = concurrent.blocking{
+  private def deCompressDecode(event: RawEvent): List[N_UpdateFrom] = concurrent.blocking{
     val compressorOpt = findCompressor(event.headers)
     logger.debug("Decompressing...")
-    val resF = Future.sequence(
-      compressorOpt.fold(List(Future.successful(event.data)))(_.deCompress(event.data))
-      .map(f=>f.map{data=>
-        logger.debug(s"Decoding ${data.size} bytes...")
-        updatesAdapter.decode(data).updates
-      })
-    ).map(_.flatten)
-    val res = Await.result(resF, Duration.Inf)
+    val res = execution.aWait { implicit ec =>
+      Future.sequence(
+        compressorOpt.fold(List(Future.successful(event.data)))(_.deCompress(event.data))
+          .map(f=>f.map{data=>
+            logger.debug(s"Decoding ${data.size} bytes...")
+            updatesAdapter.decode(data).updates
+          })
+      ).map(_.flatten)
+    }
     logger.debug("Decompressing finished...")
     res
   }
 
-  def toUpdates(events: List[RawEvent]): List[N_Update] =
+  def toUpdates(events: List[RawEvent], hint: String): List[N_UpdateFrom] =
     for {
       event <- events
+      up <- toUpdates(event, hint)
+    } yield up
+
+  def msNow(): Long = System.nanoTime / 1000000
+  def toUpdates(event: RawEvent, hint: String): List[N_UpdateFrom] = {
+    val started = msNow()
+    val updates = for {
       update <- deCompressDecode(event)
     } yield
       if (update.flags == 0L) update
@@ -177,14 +188,28 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq
       else {
         val ref = N_TxRef("", event.srcId)
         val value = ToByteString(update.value.toByteArray ++ refAdapter.encode(ref))
+        logger.debug(s"TxRef filled ${update.srcId} ${event.srcId}")
         update.copy(value = value, flags = 0L)
       }
+    val period = msNow() - started
+    if(period > 5000) logger.info(s"E2U $hint was for $period ms ")
+    logger.debug(
+      s"E2U $hint ${event.srcId} " + updates.groupMapReduce(u=>(
+        u.valueTypeId,
+        "D"*(if(u.fromValue.size > 0) 1 else 0) + "A"*(if(u.value.size > 0) 1 else 0) // D A DA are valid
+      ))(_=>1)((a,b)=>a+b).toSeq.sorted.map{
+        case ((id,dma),count) =>
+          s"${java.lang.Long.toHexString(id)}:$dma:$count"
+      }.mkString(" ")
+    )
+    updates
+  }
 
   def toUpdatesWithFlags(events: List[RawEvent]): List[N_Update] =
     for {
       event <- events
       update <- deCompressDecode(event)
-    } yield
+    } yield toUpdateLost(
       if ((update.flags & fillTxIdFlag) == 0) update
       else {
         val ref = N_TxRef("",event.srcId)
@@ -192,8 +217,14 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq
         val flags = update.flags & ~fillTxIdFlag
         update.copy(value = value, flags = flags)
       }
+    )
 
+  def toUpdateLost(up: N_UpdateFrom): N_Update =
+    N_Update(up.srcId,up.valueTypeId,up.value,up.flags)
+}
 
-  def toKey(up: N_Update): N_Update = up.copy(value=ByteString.EMPTY)
-  def by(up: N_Update): (TypeId, SrcId) = (up.valueTypeId,up.srcId)
+case class CurrentTxLogNameImpl(value: String) extends CurrentTxLogName
+@c4("ProtoApp") final class CurrentTxLogNameProvider(config: Config){
+  @provide def get: Seq[CurrentTxLogName] =
+    Seq(CurrentTxLogNameImpl(config.get("C4INBOX_TOPIC_PREFIX")))
 }

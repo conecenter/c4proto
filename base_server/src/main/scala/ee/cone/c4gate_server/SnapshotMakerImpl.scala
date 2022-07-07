@@ -1,10 +1,9 @@
 package ee.cone.c4gate_server
 
-import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path, Paths}
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.{N_Update, S_Firstborn}
-import ee.cone.c4actor.Types.{NextOffset, SrcId}
+import ee.cone.c4actor.QProtocol._
+import ee.cone.c4actor.Types._
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
@@ -15,13 +14,11 @@ import ee.cone.c4gate._
 import ee.cone.c4gate_server.RHttpTypes.RHttpHandlerCreate
 import okio.ByteString
 
-import java.time.ZonedDateTime
 import scala.annotation.tailrec
 // import scala.collection.JavaConverters.iterableAsScalaIterableConverter
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future, Await}
+import scala.concurrent.duration.Duration
 import scala.jdk.CollectionConverters.IterableHasAsScala
-
-import scala.xml.XML
 
 @c4("SnapshotMakingApp") final class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, httpResponseFactory: RHttpResponseFactory) extends LazyLogging {
   def wire: RHttpHandlerCreate = next => (request,local) =>
@@ -122,23 +119,19 @@ class SnapshotSavers(val full: SnapshotSaver, val tx: SnapshotSaver)
   snapshotLoader: SnapshotLoader,
   snapshotSavers: SnapshotSavers,
   consuming: Consuming,
-  toUpdate: ToUpdate
+  toUpdate: ToUpdate,
+  updateMapUtil: UpdateMapUtil,
 ) extends SnapshotMaker with SnapshotMakerMaxTime with LazyLogging {
 
   private def reduce(events: List[RawEvent]): SnapshotWorld=>SnapshotWorld = if(events.isEmpty) w=>w else world=>{
-    val updates = toUpdate.toUpdates(events)
-    logger.debug(s"Reduce: got updates ${updates.size}")
-    val newState = updates.foldLeft(world.state){(state,up)=>
-      if(snapshotConfig.ignore(up.valueTypeId)) state
-      else if(up.value.size > 0) state + (toUpdate.toKey(up)->up)
-      else state - up
-    }
+    val updates = toUpdate.toUpdates(events,"maker")
+    val newState = world.state.add(updates)
     new SnapshotWorld(newState,events.last.srcId)
   }
 
   private def load(snapshotFilter: Option[NextOffset=>Boolean]): SnapshotWorld = {
     val srcId = "0" * OffsetHexSize()
-    val emptyRawWorld = new SnapshotWorld(Map.empty, srcId)
+    val emptyRawWorld = new SnapshotWorld(updateMapUtil.startSnapshot(snapshotConfig.ignore), srcId)
     (for{
       snapshot <- snapshotLister.list.toStream if snapshotFilter.forall(_(snapshot.offset))
       event <- snapshotLoader.load(snapshot.raw)
@@ -148,18 +141,21 @@ class SnapshotSavers(val full: SnapshotSaver, val tx: SnapshotSaver)
   }
 
   @tailrec private def makeStatLine(
-    currType: Long, currCount: Long, currSize: Long, updates: List[N_Update]
-  ): List[N_Update] =
+    currType: Long, currCount: Long, currSize: Long, updates: List[N_UpdateFrom]
+  ): List[N_UpdateFrom] =
     if(updates.isEmpty || currType != updates.head.valueTypeId) {
       logger.debug(s"t:${java.lang.Long.toHexString(currType)} c:$currCount s:$currSize")
       updates
-    } else makeStatLine(currType,currCount+1,currSize+updates.head.value.size(),updates.tail)
-  @tailrec private def makeStats(updates: List[N_Update]): Unit =
+    } else {
+      val size = currSize + toUpdate.getInnerSize(updates.head)
+      makeStatLine(currType,currCount+1,size,updates.tail)
+    }
+  @tailrec private def makeStats(updates: List[N_UpdateFrom]): Unit =
     if(updates.nonEmpty) makeStats(makeStatLine(updates.head.valueTypeId,0,0,updates))
 
   private def save(world: SnapshotWorld): RawSnapshot = {
     logger.debug("Saving...")
-    val updates = world.state.values.toList.sortBy(toUpdate.by)
+    val updates = world.state.result
     makeStats(updates)
     val (bytes, headers) = toUpdate.toBytes(updates)
     val res = snapshotSavers.full.save(world.offset, bytes, headers)
@@ -233,7 +229,7 @@ trait SnapshotMakerMaxTime {
   }
 }
 
-class SnapshotWorld(val state: Map[N_Update,N_Update],val offset: NextOffset)
+class SnapshotWorld(val state: UpdateMapping, val offset: NextOffset)
 
 trait SnapshotConfig {
   def ignore: Set[Long]
@@ -248,50 +244,16 @@ trait SnapshotConfig {
   } yield java.lang.Long.parseLong(found, 16)).toSet
 ) extends SnapshotConfig
 
-@c4("S3RawSnapshotLoaderApp") final class S3RawPrefix(config: Config)(
-  value: String = s"/${config.get("C4INBOX_TOPIC_PREFIX")}."
-){
-  def ++(that: String): String = s"$value$that"
-  def ++(that: RawSnapshot): String = this ++ that.relativePath
-}
-
-@c4("S3RawSnapshotLoaderApp") final class S3RawSnapshotLoaderImpl(
-  s3: S3Manager, util: SnapshotUtil, prefix: S3RawPrefix,
-) extends RawSnapshotLoader with SnapshotLister with LazyLogging {
-  def load(snapshot: RawSnapshot): ByteString = {
-    ToByteString(s3.get(prefix++snapshot).get)
-  }
-  private def infix = "snapshots"
-  def listInner(): List[(RawSnapshot,String)] = for {
-    xmlBytes <- s3.get(prefix++infix).toList
-    xml = XML.loadString(new String(xmlBytes,UTF_8))
-    _ = logger.debug(s"$xml")
-    item <- xml \ "Contents"
-  } yield (RawSnapshot(s"$infix/${(item \ "Key").text}"), (item \ "LastModified").text)
-  def list: List[SnapshotInfo] = (for{
-    (rawSnapshot,_) <- listInner()
-    _ = logger.debug(s"$rawSnapshot")
-    snapshotInfo <- util.hashFromName(rawSnapshot)
-  } yield snapshotInfo).sortBy(_.offset).reverse
-  def listWithMTime: List[TimedSnapshotInfo] = (for{
-    (rawSnapshot,mTimeStr) <- listInner()
-    snapshotInfo <- util.hashFromName(rawSnapshot)
-  } yield {
-    val mTime = ZonedDateTime.parse(mTimeStr).toInstant.toEpochMilli
-    TimedSnapshotInfo(snapshotInfo,mTime)
-  }).sortBy(_.snapshot.offset).reverse
-}
-
 @c4("S3RawSnapshotSaverApp") final class S3RawSnapshotSaver(
-  s3: S3Manager, util: SnapshotUtil, prefix: S3RawPrefix,
+  s3: S3Manager, util: SnapshotUtil, execution: Execution,
+  currentTxLogName: CurrentTxLogName,
 ) extends RawSnapshotSaver with SnapshotRemover with LazyLogging {
-  def save(snapshot: RawSnapshot, data: Array[Byte]): Unit = {
-    val bucket = prefix ++ util.hashFromName(snapshot).get.subDirStr
-    if(s3.get(bucket).isEmpty) s3.put(bucket,Array.empty)
-    s3.put(prefix++snapshot, data)
-  }
+  def save(snapshot: RawSnapshot, data: Array[Byte]): Unit =
+    s3.put(currentTxLogName, snapshot.relativePath, data)
   def deleteIfExists(snapshot: SnapshotInfo): Boolean =
-    s3.delete(prefix++snapshot.raw)
+    execution.aWait{ implicit ec =>
+      s3.delete(currentTxLogName, snapshot.raw.relativePath)
+    }
 }
 
 /*

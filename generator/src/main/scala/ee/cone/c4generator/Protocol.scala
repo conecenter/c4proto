@@ -3,7 +3,7 @@ package ee.cone.c4generator
 
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.meta.Term.Name
-import scala.meta._
+import scala.meta.{Self, _}
 import scala.collection.immutable.Seq
 
 case class ProtoProp(id: Int, name: String, argType: String)
@@ -132,11 +132,21 @@ $c4ann final class ${cl.name}ProtoAdapter(
       //println(t.structure)
     val classes = Util.matchClass(stats)
     val protoGenerated: List[Generated] = stats.collect{
-      case q"..$mods trait ${Type.Name(tp)} { ..$stats }" =>
+      case Defn.Trait(mods,Type.Name(tp),tParams,con,template) =>
+        assert(tParams.isEmpty)
+        val Ctor.Primary(Nil,meta.Name(""),Nil) = con
+        val Template(Nil,init,self,stats) = template
+        val Self(meta.Name(""), None) = self
+        val initOK: Boolean = init match {
+          case Nil => true
+          case List(Init(Type.Name("Product"), meta.Name(""), Nil)) => true
+          case _ => false
+        }
         stats.foreach{
           case q"def $_: $_" => ()
           case t: Tree => Utils.parseError(t, parseContext)
         }
+        if(!initOK) Nil else
         List(
           GeneratedTraitDef(tp),
           GeneratedImport(s"""\nimport $objectName.$tp"""),
@@ -165,5 +175,40 @@ $c4ann final class ${cl.name}ProtoAdapter(
     GeneratedImport("\nimport ee.cone.c4di._") ::
     protoGenerated.collect{ case c: GeneratedImport => c } :::
     protoGenerated.collect{ case c: GeneratedCode => c }
+  }
+}
+
+object ProtoChangerGenerator extends Generator {
+  def get(parseContext: ParseContext): List[Generated] = {
+    parseContext.stats.flatMap{
+      case q"@protocol(...$exprss) object ${objectNameNode@Term.Name(objectName)} extends ..$ext { ..$stats }" =>
+        val c4ann = if (exprss.isEmpty) "@c4" else mod"@c4(...$exprss)".syntax
+        val id = Util.pathToId(parseContext.path)
+        val pf = exprss.flatten match {
+          case Seq() => ""
+          case Seq(Lit(n: String)) => n
+        }
+        val providerStm = s"$c4ann final class $id${pf}ProtoChangerProvider"
+        Util.matchClass(stats).flatMap{ cl =>
+          val idOpt = cl.mods.collectFirst{ case mod"@Id(${value@Lit(id: Int)})" => id }
+          val Seq(params) = cl.params
+          val propOpt = params.headOption.collect{
+            case param@param"..$mods ${Term.Name(propName)}: $tpeopt = $v" =>
+              val tp = tpeopt.asInstanceOf[Option[Type]].get
+              (propName,s"$tp")
+          }
+          for {
+            _ <- idOpt.toList
+            (propName,propType) <- propOpt.toList
+          } yield (providerStm,
+            s"new ProtoChanger[${cl.name},$propType](" +
+            s"classOf[${cl.name}],classOf[$propType],(o,k)=>o.copy(${propName}=k)" +
+            s")"
+          )
+        }
+      case _ => Nil
+    }.groupMap(_._1)(_._2).map{ case(providerStm,changers) =>
+      changers.map(s=>s"\n    $s ::").mkString(s"\n$providerStm{\n  @provide def get: Seq[GeneralProtoChanger] = ","","\n    Nil\n}")
+    }.toList.sorted.map(GeneratedCode)
   }
 }

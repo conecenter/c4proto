@@ -4,8 +4,9 @@ USER root
 RUN perl install.pl apt curl ca-certificates
 
 FROM c4downloader AS c4tools-jdk
-#RUN /install.pl curl https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.5%2B10/OpenJDK11U-jdk_x64_linux_hotspot_11.0.5_10.tar.gz
 RUN /install.pl curl https://github.com/AdoptOpenJDK/openjdk15-binaries/releases/download/jdk-15.0.1%2B9/OpenJDK15U-jdk_x64_linux_hotspot_15.0.1_9.tar.gz
+#RUN /install.pl curl https://download.oracle.com/java/17/latest/jdk-17_linux-x64_bin.tar.gz"
+#RUN /install.pl curl https://download.bell-sw.com/java/17.0.2+9/bellsoft-jdk17.0.2+9-linux-amd64.tar.gz
 RUN ls -la /tools
 
 FROM c4downloader AS c4tools-coursier
@@ -18,8 +19,8 @@ RUN /install.pl curl https://nodejs.org/dist/v14.15.4/node-v14.15.4-linux-x64.ta
 RUN ls -la /tools
 
 FROM c4downloader AS c4tools-kafka
-#RUN /install.pl curl https://downloads.apache.org/kafka/2.7.0/kafka_2.13-2.7.0.tgz
-RUN /install.pl curl https://downloads.apache.org/kafka/3.0.0/kafka_2.13-3.0.0.tgz
+#RUN /install.pl curl https://downloads.apache.org/kafka/3.0.0/kafka_2.13-3.0.0.tgz
+RUN /install.pl curl https://downloads.apache.org/kafka/3.1.0/kafka_2.13-3.1.0.tgz
 RUN ls -la /tools
 
 FROM c4downloader AS c4tools-minio
@@ -36,10 +37,12 @@ RUN /install.pl curl https://dl.min.io/client/mc/release/linux-amd64/mc \
 FROM c4downloader
 RUN perl /install.pl apt \
   libjson-xs-perl python \
-  supervisor haproxy \
+  python3-pip \
+  haproxy \
   uuid-runtime '#kafka cert gen' \
   mc lsof '#debug'
-RUN ln -s /c4/supervisord.conf /etc/supervisord.conf \
+RUN pip3 install setuptools supervisor \
+ && ln -s /c4/supervisord.conf /etc/supervisord.conf \
  && mkdir /c4repo && chown c4:c4 /c4repo
 USER c4
 COPY --chown=c4:c4 --from=c4tools-jdk /tools/* /tools/jdk

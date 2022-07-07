@@ -2,6 +2,7 @@
 use strict;
 use JSON::XS;
 
+sub so{ print join(" ",@_),"\n"; system @_ }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 sub syf{ for(@_){ print "$_\n"; my $r = scalar `$_`; $? && die $?; return $r } }
 my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
@@ -21,18 +22,20 @@ my $distinct = sub{ my(@r,%was); $was{$_}++ or push @r,$_ for @_; @r };
 
 my $zoo_port = 8081;
 my $ssl_bootstrap_server = "localhost:8093"; #dup
-my $http_port = 8067; #dup
-my $sse_port = 8068; #dup
-my $http_server = "localhost:$http_port"; #dup
-my $repo_dir = $ENV{C4DS_BUILD_DIR} || die "no C4DS_BUILD_DIR";
-my $proto_dir = $ENV{C4DS_PROTO_DIR} || die "no C4DS_PROTO_DIR";
+my $http_port = sub{8067+$_[0]*100}; #dup
+my $sse_port = sub{8068+$_[0]*100}; #dup
+my $get_repo_dir = sub{ $ENV{C4DS_BUILD_DIR} || die "no C4DS_BUILD_DIR" };
+my $get_proto_dir = sub{ $ENV{C4DS_PROTO_DIR} || die "no C4DS_PROTO_DIR" };
+my $elector_dir = $ENV{C4DS_ELECTOR_DIR} || die "no C4DS_ELECTOR_DIR";
 my $home = $ENV{HOME} || die;
 my $data_dir = $home;
 my $s3conf_dir = "$data_dir/minio-conf";
 
 my $serve_bloop = sub{
     #-e "$home/.bloop/bloop" or sy("curl -L https://github.com/scalacenter/bloop/releases/download/v1.3.4/install.py | python");
-    &$exec("bloop","server");
+    &$exec_at(".",{
+        JAVA_TOOL_OPTIONS => '-Xss32m',
+    },"bloop","server");
 };
 
 my $serve_zookeeper = sub{
@@ -94,10 +97,8 @@ my $serve_broker = sub{
     &$put_text("$data_dir/server.properties", join '', map{"$_\n"}
         "log.dirs=$data_dir/kafka-logs",
         "zookeeper.connect=127.0.0.1:$zoo_port",
-        "message.max.bytes=250000000", #seems to be compressed
         "listeners=SSL://$ssl_bootstrap_server",
         "inter.broker.listener.name=SSL",
-        "socket.request.max.bytes=250000000",
     );
     sy("cat $data_dir/cu.broker.properties >> $data_dir/server.properties");
     &$exec("kafka-server-start.sh","$data_dir/server.properties");
@@ -126,7 +127,9 @@ my $serve_proxy = sub{
         "  server se_src 127.0.0.1:3000",
         "backend be_http",
         "  mode http",
-        "  server be_http $http_server",
+        "  default-server check", # w/o it all servers considered ok and req-s gets 503
+        "  server be_http_0 127.0.0.1:".&$http_port(0),
+        "  server be_http_1 127.0.0.1:".&$http_port(1),
         #"backend be_sse",
         #"  mode http",
         #"  server se_sse 127.0.0.1:$sse_port",
@@ -146,22 +149,23 @@ my $serve_proxy = sub{
 };
 
 my $serve_node = sub{
+    my $repo_dir = &$get_repo_dir();
     my $vite_run_dir = "$repo_dir/.bloop/c4/client";
     my $conf_dir = "$vite_run_dir/src/c4f/vite";
     sy("cd $vite_run_dir && cp $conf_dir/package.json $conf_dir/vite.config.js . && npm install");
     &$exec_at($vite_run_dir,{},"npm","run","dev");
 };
 
-my $compilable_services = [
-    { name=>"gate", dir=>$proto_dir,
+my $get_compilable_services = sub{[
+    { name=>"gate", dir=>&$get_proto_dir(),
         main => "def",
-        replicas => [''],
+        replicas => [0,1],
     },
-    { name=>"main", dir=>$repo_dir,
+    { name=>"main", dir=>&$get_repo_dir(),
         main => ($ENV{C4DEV_SERVER_MAIN} || die "no C4DEV_SERVER_MAIN"),
         replicas => [0,1],
     },
-];
+]};
 
 my $get_tag_info = sub{
     my($compilable_service)=@_;
@@ -171,44 +175,62 @@ my $get_tag_info = sub{
     $argv=~/^(\w+)\.(.+)\.(\w+)$/ ? ($dir,"$1","$1.$2","$2.$3") : die;
 };
 
-my $exec_server = sub{
-    my($add_env,$service_name,$replica)=@_;
-    my $compilable_service =
-        &$single(grep{$$_{name} eq $service_name} @$compilable_services);
-    my ($dir,$nm,$mod,$cl) = &$get_tag_info($compilable_service);
-    my $paths = JSON::XS->new->decode(syf("cat $dir/.bloop/c4/mod.$mod.classpath.json"));
+my $inbox_topic_prefix = "def0";
+
+my $get_consumer_env = sub{
+    my ($nm,$elector_port_base_arg)=@_;
     my $elector_servers = join ",", map{
-        my $port = ($replica>0?$elector_proxy_port_base:$elector_port_base) + $_;
+        my $port = $elector_port_base_arg + $_;
         "http://127.0.0.1:$port"
     } 0..$elector_replicas-1;
-
-    my $env = {
+    (
+        C4STATE_TOPIC_PREFIX => $nm,
         C4BOOTSTRAP_SERVERS => $ssl_bootstrap_server,
-        C4INBOX_TOPIC_PREFIX => "def0",
-        C4MAX_REQUEST_SIZE => 250000000,
-        C4HTTP_SERVER => "http://$http_server",
+        C4INBOX_TOPIC_PREFIX => $inbox_topic_prefix,
+        C4S3_CONF_DIR => $s3conf_dir,
+        C4BROKER_MIN_LO_SIZE => "0",
+        C4HTTP_SERVER => "http://127.0.0.1:1080",
         C4AUTH_KEY_FILE => "$data_dir/simple.auth",
         C4STORE_PASS_PATH => "$data_dir/simple.auth",
         C4KEYSTORE_PATH => "$data_dir/cu.def.keystore.jks",
         C4TRUSTSTORE_PATH => "$data_dir/cu.def.truststore.jks",
-        C4HTTP_PORT => $http_port,
-        C4SSE_PORT => $sse_port,
-        C4STATE_TOPIC_PREFIX => $nm,
-        C4APP_CLASS => $cl,
         C4ELECTOR_SERVERS => $elector_servers,
         C4READINESS_PATH => "",
+    )
+};
+
+my $get_gate_env = sub{
+    my($replica)=@_;
+    (
+        C4STATE_REFRESH_SECONDS=>100,
+        C4ROOMS_CONF=>"/tmp/rooms.conf",
+        C4HTTP_PORT => &$http_port($replica),
+        C4SSE_PORT => &$sse_port($replica),
+        C4POD_IP => "127.0.0.1",
+        C4KEEP_SNAPSHOTS => "default",
+    )
+};
+
+my $exec_server = sub{
+    my($add_env,$service_name,$replica)=@_;
+    my $compilable_services = &$get_compilable_services();
+    my $compilable_service =
+        &$single(grep{$$_{name} eq $service_name} @$compilable_services);
+    my ($dir,$nm,$mod,$cl) = &$get_tag_info($compilable_service);
+    my $paths = JSON::XS->new->decode(syf("cat $dir/.bloop/c4/mod.$mod.classpath.json"));
+    my $env = {
+        &$get_consumer_env($nm, $replica>0?$elector_proxy_port_base:$elector_port_base),
+        C4APP_CLASS => "ee.cone.c4actor.ParentElectorClientApp",
+        C4APP_CLASS_INNER => $cl,
         %$paths,
         %$add_env,
     };
-
     &$exec_at($dir,$env,"java","ee.cone.c4actor.ServerMain");
 };
 
 my $serve_gate = sub{
-    &$exec_server({
-        C4S3_CONF_DIR=>$s3conf_dir,
-        C4STATE_REFRESH_SECONDS=>100,
-    }, "gate", 0);
+    my($replica)=@_;
+    &$exec_server({&$get_gate_env($replica)}, "gate", $replica);
 };
 
 my $serve_main = sub{
@@ -217,6 +239,8 @@ my $serve_main = sub{
 };
 
 my $serve_build = sub{
+    my $proto_dir = &$get_proto_dir();
+    my $compilable_services = &$get_compilable_services();
     for my $dir(&$distinct(map{$$_{dir}} @$compilable_services)){
         sy("cd $dir && perl $proto_dir/build.pl");
     }
@@ -237,13 +261,13 @@ my $serve_minio = sub{
 };
 
 my $serve_mcl = sub{
-    sy("mcl alias set local \$(cat $s3conf_dir/address) \$(cat $s3conf_dir/key) \$(cat $s3conf_dir/secret)");
+    sy("sh $s3conf_dir/setup");
     sleep 1 while 1;
 };
 
 my $serve_elector = sub{
     my($replica)=@_;
-    &$exec_at($proto_dir,{
+    &$exec_at($elector_dir,{
         C4HTTP_PORT => $elector_port_base+$replica
     }, "node","elector.js");
 };
@@ -253,18 +277,49 @@ my $replicas = sub{
     map{my $r=$_;("$key$r"=>sub{&$serve($r,@_)})} 0..$replicas-1
 };
 
-my $service_map = {
-    build => $serve_build,
-    bloop => $serve_bloop,
+my $exec_demo_server = sub{
+    my($add_env,$nm,$dir)=@_;
+    my $env = { &$get_consumer_env($nm, $elector_port_base), %$add_env };
+    &$exec_at($dir,$env,"perl","run.pl","main");
+};
+
+my $serve_demo_jasper = sub{
+    my $dir = "/tools/c4jasper_server";
+    -e $dir and &$exec_at($dir,{},"perl","run.pl","main");
+    sleep 1 while 1;
+};
+
+my $serve_demo_main = sub{
+    my $env = { C4JR => "http://127.0.0.1:1080/" };
+    &$exec_demo_server($env, main => "/tools/c4main");
+};
+my $serve_demo_gate = sub{
+    sleep 1 while so("sh $s3conf_dir/setup");
+    my $dir = "local/$inbox_topic_prefix.snapshots/";
+    my $snapshot_path = $ENV{C4DS_SNAPSHOT_PATH};
+    $snapshot_path and !so("mcl mb $dir") and sy("mcl cp $snapshot_path $dir");
+    &$exec_demo_server({ &$get_gate_env(0) }, gate => "/tools/c4gate")
+};
+
+my $common_service_map = {
     zookeeper => $serve_zookeeper,
     broker => $serve_broker,
-    proxy => $serve_proxy,
-    node => $serve_node,
-    gate => $serve_gate,
-    &$replicas(main => $serve_main, 2),
     minio => $serve_minio,
-    mcl => $serve_mcl,
     &$replicas(elector => $serve_elector, $elector_replicas),
+};
+my $dev_service_map = {
+    build => $serve_build,
+    bloop => $serve_bloop,
+    proxy => $serve_proxy,
+    node  => $serve_node,
+    &$replicas(gate => $serve_gate, 2),
+    &$replicas(main => $serve_main, 2),
+    mcl => $serve_mcl,
+};
+my $demo_service_map = {
+    demo_gate => $serve_demo_gate,
+    demo_main => $serve_demo_main,
+    demo_jasper => $serve_demo_jasper,
 };
 
 my $init_s3 = sub{
@@ -274,31 +329,37 @@ my $init_s3 = sub{
     &$put_text("$s3conf_dir/address",$address);
     &$put_text("$s3conf_dir/key",$key);
     &$put_text("$s3conf_dir/secret",$secret);
+    &$put_text("$s3conf_dir/setup","mcl alias set local $address $key $secret || exit 1");
 };
 
 my $init = sub{
+    my($service_map) = @_;
     &$init_s3();
     &$need_certs("$data_dir/ca", "cu.broker", $data_dir, $data_dir);
     &$need_certs("$data_dir/ca", "cu.def", $data_dir);
     #
-#    my ($services_by_build_dir,$build_dirs) = &$group(
-#        [$repo_dir=>"main"],
-#        [$proto_dir=>"gate"],
-#    );
-#    my @builder_service_lines = map{
-#        my $dir = $_;
-#        my @services = &$services_by_build_dir($dir);
-#        ["build_$services[0]", "build $dir ".join(",",@services)]
-#    } @$build_dirs;
+    #    my ($services_by_build_dir,$build_dirs) = &$group(
+    #        [$repo_dir=>"main"],
+    #        [$proto_dir=>"gate"],
+    #    );
+    #    my @builder_service_lines = map{
+    #        my $dir = $_;
+    #        my @services = &$services_by_build_dir($dir);
+    #        ["build_$services[0]", "build $dir ".join(",",@services)]
+    #    } @$build_dirs;
     my @program_lines = map{(
         "[program:$$_[0]]",
         "command=perl $0 $$_[1]",
         "autorestart=true",
+        "stopasgroup=true",
+        "killasgroup=true",
         $ENV{C4MERGE_LOGS} ? (
-            "stderr_logfile=/dev/stderr",
-            "stderr_logfile_maxbytes=0",
-            "stdout_logfile=/dev/stdout",
-            "stdout_logfile_maxbytes=0",
+            "stdout_syslog=true",
+            "stderr_syslog=true",
+            # "stderr_logfile=/dev/stderr",
+            # "stderr_logfile_maxbytes=0",
+            # "stdout_logfile=/dev/stdout",
+            # "stdout_logfile_maxbytes=0",
         ):()
     )} map{
         [$_,$_]
@@ -320,9 +381,19 @@ my $init = sub{
     &$exec("supervisord","-c","$data_dir/supervisord.conf");
 };
 
+my $init_dev = sub{
+    my $proto_dir = &$get_proto_dir();
+    my $repo_dir = &$get_repo_dir();
+    sy("perl $proto_dir/sync.pl clean_local $repo_dir");
+    &$init({%$common_service_map,%$dev_service_map})
+};
+my $init_demo = sub{ &$init({%$common_service_map,%$demo_service_map}) };
+
 my $cmd_map = {
-    init => $init,
+    %$common_service_map, %$dev_service_map, %$demo_service_map,
+    init_dev  => $init_dev,
+    init_demo => $init_demo,
 };
 
 my ($cmd,@args) = @ARGV;
-($$service_map{$cmd}||$$cmd_map{$cmd})->(@args);
+$$cmd_map{$cmd}->(@args);

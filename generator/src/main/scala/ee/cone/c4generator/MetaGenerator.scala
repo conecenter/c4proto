@@ -92,6 +92,7 @@ class MetaGenerator(statTransformers: List[ProtocolStatsTransformer]) extends Ge
           curr.copy(master = true, masterComment = Some(getString(exprss.flatten.asInstanceOf[Seq[Term]])))
         case mod"@$annot" =>
           curr.copy(anns = wrapAsString(annot.init.syntax) :: curr.anns)
+        case mod"protected[$_]" => curr
       }
       )
       val origTypeKey = ComponentsGenerator.getTypeKey(classDef.nameNode, None)

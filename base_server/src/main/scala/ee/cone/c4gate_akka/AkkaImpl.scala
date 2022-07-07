@@ -41,29 +41,44 @@ import scala.util.control.NonFatal
     "akka.http.client.request-timeout = 600 s",
     "akka.http.parsing.max-to-strict-bytes = infinite",
     "akka.http.server.raw-request-uri-header = on",
-    "akka.http.host-connection-pool.max-connections = 64",
-    "akka.http.host-connection-pool.max-open-requests = 64",
+    "akka.http.host-connection-pool.max-connections = 512",
+    "akka.http.host-connection-pool.max-open-requests = 512",
   ).mkString("\n")
 }
 
-@c4("AkkaGatewayApp") final class AkkaHttpServer(
-  config: Config, handler: FHttpHandler, execution: Execution, akkaMat: AkkaMat,
-  requestPreHandler: AkkaRequestPreHandler
+@c4("AkkaGatewayApp") final class AkkaHttpImpl(
+  execution: Execution, akkaMat: AkkaMat,
 )(
-  port: Int = config.get("C4HTTP_PORT").toInt,
-) extends Executable with Early with LazyLogging {
-  def getHandler(mat: Materializer, http: HttpExt)(implicit ec: ExecutionContext): HttpRequest => Future[HttpResponse] = req => {
-    val method = req.method.value
-    val path = req.uri.path.toString
-    val rHeaders = (`Content-Type`(req.entity.contentType) :: req.headers.toList)
-      .map(h => N_Header(h.name, h.value))
-    logger.debug(s"req init: $method $path")
-    logger.trace(s"req headers: $rHeaders")
-    (for {
+  val httpPromise: Promise[HttpExt] = Promise()
+) extends AkkaHttp with Executable with Early {
+  def run(): Unit = execution.fatal { implicit ec =>
+    for(mat <- akkaMat.get) yield execution.success(httpPromise, Http()(mat.system))
+  }
+  def get: Future[HttpExt] = httpPromise.future
+}
+
+@c4("AkkaGatewayApp") final class DefaultAkkaRequestHandler(
+  handler: FHttpHandler,
+  akkaMat: AkkaMat, akkaHttp: AkkaHttp,
+  requestPreHandler: AkkaRequestPreHandler
+) extends AkkaRequestHandler with LazyLogging {
+  def pathPrefix = ""
+  def handleAsync(req: HttpRequest)(implicit ec: ExecutionContext): Future[HttpResponse] =
+    for {
+      mat <- akkaMat.get
+      http <- akkaHttp.get
       request <- requestPreHandler.handleAsync(req)
       entity <- request.entity.toStrict(Duration(5, MINUTES))(mat)
-      body = ToByteString(entity.getData.toArray)
-      rReq = FHttpRequest(method, path, req.uri.rawQueryString, rHeaders, body)
+      rReq = {
+        val body = ToByteString(entity.getData.toArray)
+        val method = req.method.value
+        val path = req.uri.path.toString
+        val rHeaders = (`Content-Type`(req.entity.contentType) :: req.headers.toList)
+          .map(h => N_Header(h.name, h.value))
+        logger.debug(s"req init: $method")
+        logger.trace(s"req headers: $rHeaders")
+        FHttpRequest(method, path, req.uri.rawQueryString, rHeaders, body)
+      }
       rResp <- handler.handle(rReq)
       response <- {
         val status = Math.toIntExact(rResp.status)
@@ -85,24 +100,38 @@ import scala.util.control.NonFatal
               .via(http.connectionTo(request.uri.authority.host).toPort(request.uri.authority.port).http())
               .toMat(Sink.head)(Keep.right)
           } else {*/
-            logger debug s"Redirecting to $uri"
-            http.singleRequest(HttpRequest(uri = uri))
+          logger debug s"Redirecting to $uri"
+          val nReq = if(uri.startsWith("orig:")) req.withUri(uri.drop(5))
+            else HttpRequest(uri = uri)
+          http.singleRequest(nReq)
           //}
         }
       }
-    } yield response).recover{ case NonFatal(e) =>
-        logger.error("http-handler",e)
-        throw e
-    }
-  }
+    } yield response
+}
+
+@c4("SimpleAkkaGatewayApp") final class AkkaHttpServer(
+  config: Config, execution: Execution, akkaMat: AkkaMat, akkaHttp: AkkaHttp,
+  handlersUnsorted: List[AkkaRequestHandler]
+)(
+  port: Int = config.get("C4HTTP_PORT").toInt,
+  handlers: List[AkkaRequestHandler] = handlersUnsorted.sortBy(_.pathPrefix).reverse
+) extends Executable with Early with LazyLogging {
   def run(): Unit = execution.fatal{ implicit ec =>
     for{
       mat <- akkaMat.get
-      http: HttpExt = Http()(mat.system)
-      handler = getHandler(mat,http)
+      http <- akkaHttp.get
       // to see: MergeHub/PartitionHub.statefulSink solution of the same task vs FHttpHandler
       binding <- http.bindAndHandleAsync(
-        handler = handler,
+        handler = (req: HttpRequest)=>{
+          val path = req.uri.path.toString
+          logger.debug(s"req init: $path")
+          handlers.find(h=>path.startsWith(h.pathPrefix)).get.handleAsync(req)
+            .recover{ case NonFatal(e) =>
+              logger.error("http-handler",e)
+              throw e
+            }
+        },
         interface = "0.0.0.0",
         port = port,
         settings = ServerSettings(mat.system)

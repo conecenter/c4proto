@@ -43,7 +43,10 @@ def common_job(cond,when,stage,needs,script):
 def build_path(fn):
   dir = os.environ["C4CI_BUILD_DIR"]
   return f"{dir}/{fn}"
-def prefix_cond(v): return f"=~ /^{v}\\//"
+def esc_slashes(v): return v.replace("/","\\/")
+def prefix_cond(v):
+    return f"$CI_COMMIT_BRANCH =~ /{esc_slashes(v)}/" if v else "$CI_COMMIT_BRANCH"
+
 def get_aggr_cond(aggr_cond_list):
   aggr_to_cond_list = group_map(aggr_cond_list, ext(lambda aggr, cond: (aggr,cond)))
   aggr_to_cond = { aggr: one(*cond_list) for aggr, cond_list in aggr_to_cond_list.items() }
@@ -53,7 +56,7 @@ build_common_name = "build common"
 build_gate_name = "build gate"
 build_frp_name = "build frp"
 def build_aggr_name(v): return f"{v}.aggr"
-def build_rt_name(v): return f"b {v}.rt"
+def build_rt_name(tag,aggr): return f"b {tag} {aggr} rt"
 stage_build_rt = "develop"
 stage_deploy_de = "develop"
 stage_confirm = "confirm"
@@ -62,67 +65,70 @@ stage_deploy_cl = "deploy"
 
 def get_build_jobs(config_statements):
   def build(cond,stage,needs,arg):
-    return common_job(f"$CI_COMMIT_BRANCH {cond}","on_success",stage,needs,prod(arg))
+    return common_job(cond,"on_success",stage,needs,prod(arg))
   def build_main(cond,arg):
     return build(cond,"build_main",[build_common_name],arg)
-  tag_aggr_list = config_statements["C4TAG_AGGR"]
   (aggr_cond_list, aggr_to_cond) = get_aggr_cond(config_statements["C4AGGR_COND"])
+  tag_aggr_list = config_statements["C4TAG_AGGR"]
   aggr_to_tags = group_map(tag_aggr_list, ext(lambda tag, aggr: (aggr,tag)))
   aggr_jobs = {
     build_aggr_name(aggr): build_main(
       prefix_cond(cond), f"ci_build_aggr {aggr} " + ":".join(aggr_to_tags[aggr])
-    ) for aggr, cond in aggr_cond_list
+    ) for aggr, cond in aggr_cond_list if aggr in aggr_to_tags
   }
   fin_jobs = {
-    build_rt_name(tag): build(
+    build_rt_name(tag,aggr): build(
       prefix_cond(aggr_to_cond[aggr]), stage_build_rt, [build_aggr_name(aggr)], # sorted(aggr_jobs.keys())
       f"ci_build {tag} {aggr}"
     ) for tag, aggr in tag_aggr_list
   }
   return {
     "rebuild": common_job(
-      "$CI_COMMIT_BRANCH","manual","build_main",[build_common_name],
+      prefix_cond(""),"manual","build_main",[build_common_name],
       [handle(f"rebuild $CI_COMMIT_BRANCH")]
     ),
-    build_gate_name: build_main("","ci_build def"),
-    build_frp_name: build_main("","ci_build_frp"),
+    build_gate_name: build_main(prefix_cond(""),"ci_build def"),
+    build_frp_name: build_main(prefix_cond(""),"ci_build_frp"),
     **aggr_jobs, **fin_jobs
   }
 
+# build aggr jobs -- C4AGGR_COND
+# build fin jobs -- C4TAG_AGGR
+# deploy jobs -- C4DEPLOY > C4TAG_AGGR
+
 def get_deploy_jobs(config_statements):
+  def optional_job(name): return { "job":name, "optional":True }
   tag_aggr_list = config_statements["C4TAG_AGGR"]
-  (aggr_cond_list, aggr_to_cond) = get_aggr_cond(config_statements["C4AGGR_COND"])
-  cond_to_aggr = group_map(aggr_cond_list, ext(lambda aggr, cond: (cond,aggr)))
-  cond_to_tags = group_map(tag_aggr_list, ext(lambda tag, aggr: (aggr_to_cond[aggr], tag)))
-  cond_list = sorted(set(cond for aggr, cond in aggr_cond_list))
-  def needs_de(cond): return [build_gate_name,build_frp_name] + ([] if cond == "nil" else [build_aggr_name(aggr) for aggr in cond_to_aggr[cond]])
-  def needs_rt(cond): return [build_gate_name] + [build_rt_name(tag) for tag in cond_to_tags[cond]]
+  aggr_cond_list = config_statements["C4AGGR_COND"]
+  needs_rt = [build_gate_name] + [optional_job(build_rt_name(tag,aggr)) for tag, aggr in tag_aggr_list]
+  needs_de = [build_gate_name,build_frp_name] + [optional_job(build_aggr_name(aggr)) for aggr, cond in aggr_cond_list if cond]
   return {
     key: value
     for env_mask, caption_mask in config_statements["C4DEPLOY"]
-    for mode_mask, arg, proj_mask, opt in [re.findall(r'[^\-]+',env_mask)]
-    for proj_name in (cond_list if proj_mask == "$C4PROJ" else [proj_mask])
-    for cond_re in ["" if proj_name == "nil" else prefix_cond(f"{proj_name}\/release" if arg == "prod" else proj_name)]
-    for cond in [f"$CI_COMMIT_BRANCH {cond_re}"]
-    for mode, stage, needs_fun in (
-      [(mode_mask,stage_deploy_de,needs_de)] if mode_mask == "de" else
-      [(mode_mask,stage_deploy_cl,needs_rt)] if mode_mask == "cl" else
-      [(mode_mask,stage_deploy_sp,needs_rt)]
+    for proj_sub, cond_pre in aggr_cond_list if cond_pre or env_mask.startswith("de-")
+    for cond in [
+      prefix_cond(cond_pre)+" && "+prefix_cond("/release/") if env_mask == "cl-prod" else
+      prefix_cond(cond_pre)
+    ]
+    for stage, needs in (
+      [(stage_deploy_de,needs_de)] if env_mask.startswith("de-") else
+      [(stage_deploy_cl,needs_rt)] if env_mask.startswith("cl-") else
+      [(stage_deploy_sp,needs_rt)]
     )
-    for key_mask in [caption_mask.replace("$C4PROJ",proj_name)]
+    for key_mask in [caption_mask.replace("$C4PROJ_SUB",proj_sub)]
     for script in [[
-      "export C4SUBJ=$(perl -e 's{[^\w/]}{}g,/(\w+)$/&&print$1 for $ENV{CI_COMMIT_BRANCH}')",
-      "export C4USER=$(perl -e 's{[^\w/]}{}g,/(\w+)$/&&print$1 for $ENV{GITLAB_USER_LOGIN}')",
+      "export C4SUBJ=$(perl -e 's{[^a-zA-Z/]}{}g,/(\w+)$/ && print lc $1 for $ENV{CI_COMMIT_BRANCH}')",
+      "export C4USER=$(perl -e 's{[^a-zA-Z/]}{}g,/(\w+)$/ && print lc $1 for $ENV{GITLAB_USER_LOGIN}')",
       "env | grep C4 | sort",
-      handle(f"deploy {mode}-{arg}-{proj_name}-{opt} $CI_COMMIT_BRANCH")
+      handle(f"deploy {env_mask}-{proj_sub} $CI_COMMIT_BRANCH")
     ]]
     for confirm_key in [key_mask.replace("$C4CONFIRM","confirm")]
     for key, value in (
       [
         (confirm_key, common_job(cond,"manual",stage_confirm,[],["echo confirming"])),
-        (key_mask.replace("$C4CONFIRM","deploy"), common_job(cond,"manual",stage,[confirm_key]+needs_fun(proj_name),script)),
+        (key_mask.replace("$C4CONFIRM","deploy"), common_job(cond,"manual",stage,[confirm_key]+needs,script)),
       ] if confirm_key != key_mask else [
-        (key_mask, common_job(cond,"manual",stage,needs_fun(proj_name),script)),
+        (key_mask, common_job(cond,"manual",stage,needs,script)),
       ]
     )
   }
