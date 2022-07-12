@@ -51,7 +51,7 @@ my $serve_sshd = sub{
     #
     my $alias_prod = qq[alias prod="perl $ENV{C4CI_PROTO_DIR}/prod.pl "];
     &$put_text("/c4p_alias.sh", join "", map{"$_\n"}
-        'export PATH=$PATH:/usr/local/bin:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin:/tools:/c4/.bloop',
+        'export PATH=$PATH:/usr/local/bin:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin:/tools',
         'export JAVA_HOME=/tools/jdk',
         'export JAVA_TOOL_OPTIONS="$JAVA_TOOL_OPTIONS -XX:-UseContainerSupport"', #-Xss16m
         "export KUBECONFIG=$ENV{C4KUBECONFIG}", # $C4KUBECONFIG was empty at this stage

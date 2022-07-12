@@ -51,7 +51,8 @@ COPY --chown=c4:c4 --from=c4tools-node /tools/* /tools/node
 COPY --chown=c4:c4 --from=c4tools-kafka /tools/* /tools/kafka
 COPY --chown=c4:c4 --from=c4tools-minio /tools/* /tools/minio
 COPY --chown=c4:c4 --from=c4tools-mcl /tools/* /tools/mcl
-ENV PATH=${PATH}:/tools/jdk/bin:/tools:/tools/node/bin:/tools/kafka/bin:/c4/.bloop
-RUN curl -L https://github.com/scalacenter/bloop/releases/download/v1.3.4/install.py | python
+#ENV PATH=${PATH}:/tools/jdk/bin:/tools:/tools/node/bin:/tools/kafka/bin:/c4/.bloop
+ENV PATH=${PATH}:/tools/jdk/bin:/tools:/tools/node/bin:/tools/kafka/bin
+#RUN curl -L https://github.com/scalacenter/bloop/releases/download/v1.3.4/install.py | python
 COPY init.pl /
 ENTRYPOINT ["perl","/init.pl"]
