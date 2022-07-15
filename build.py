@@ -78,7 +78,7 @@ def to_sbt(src_dirs,ext_dep_list,lib_dep_list,repo_dict):
         for repo in sorted(repo_dict.keys())
     )
     return (
-        f"""scalaVersion in ThisBuild := "2.13.6"\n\n""" +
+        f"""scalaVersion in ThisBuild := "2.13.8"\n\n""" +
         f"""Compile / unmanagedSourceDirectories := Seq(\n{src_dirs_str})\n\n""" +
         wrap_non_empty("libraryDependencies := Seq(\n",ext_dep_str,")\n\n") +
         wrap_non_empty("Compile / unmanagedJars ++= Seq(\n",lib_dep_str,")\n\n") +
@@ -95,7 +95,7 @@ def main(script):
         for k, l in group_map(conf_plain, lambda it: (it[0],it[1:])).items()
     }
     full_dep = lazy_dict(lambda mod,get: sorted({
-        [mod]+[d for dep in get_list(conf,"C4DEP",mod) for d in get(dep)]
+        mod, *(d for dep in get_list(conf,"C4DEP",mod) for d in get(dep))
     }))
     mod_heads = sorted({
         *(".".join(main.split(".")[0:-1]) for main in flat_values(conf["C4TAG"])),

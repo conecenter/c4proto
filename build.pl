@@ -154,8 +154,8 @@ my $gen_app_traits = sub{
 ###
 my $src_dir = syf("pwd")=~/^(\S+)\s*$/ ? $1 : die;
 my $tmp = "$src_dir/.bloop/c4";
-my $proto_prefix = substr($0, 0, -($0=~m{([^/]+)$}?length($1):die));
-sy("python3 $src_dir/${proto_prefix}build.py");
+my $proto_dir = &$single(&$to_parent("$0"));
+sy("python3 $proto_dir/build.py");
 my $dep_content = &$get_text("$tmp/build.json");
 my $build_data = &$json()->decode($dep_content);
 my ($dep_conf) = &$group(map{ my($tp,$from,$to)=@$_; [$tp,[$from,$to]] } grep{ref} @{$$build_data{plain}||die});
@@ -172,10 +172,9 @@ my %is_off_dir = map{($_=>1)} map{"$src_dir/$_"}@{$$build_data{src_dirs_generato
 # handle  $need_update
 #restore wartremover
 # C4EXCL?
-# sbt for idea
 # check ^C
 
-&$changing("$tmp/compile.pl",&$get_text("$src_dir/${proto_prefix}compile.pl"));
+&$changing("$tmp/compile.pl",&$get_text("$proto_dir/compile.pl"));
 
 do{
     print "generation starting\n";

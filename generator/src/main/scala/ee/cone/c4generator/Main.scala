@@ -28,7 +28,7 @@ object Main {
       AppGenerator,
       TagGenerator,
       ProtoChangerGenerator,
-      ProductCheckGenerator,
+      //ProductCheckGenerator,
     ) //,UnBaseGenerator
   }
   def main(args: Array[String]): Unit = new RootGenerator(defaultGenerators(Nil) ::: List(
