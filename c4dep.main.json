@@ -7,6 +7,7 @@
   ["C4TAG", "all", "extra_examples.aggregate.XXX" ],
   ["C4TAG", "noop", "base_server.ee.cone.c4gate_server.NoOpApp" ],
   ["C4TAG", "test-consumer", "base_examples.ee.cone.c4gate.TestConsumerApp" ],
+  ["C4TAG", "test-todo", "base_examples.ee.cone.c4ui.TestTodoApp" ],
 
   ["C4GENERATOR_MAIN", "ee.cone.c4generator.Main", "generator.ee.cone.c4generator" ],
 
@@ -85,6 +86,5 @@
   "#warts to explore: Any, Product, Serializable ",
   "#warts that seems too much: Throw, TraversableOps, OptionPartial, StringPlusAny, DefaultArguments",
   "#warts may be: AsInstanceOf, IsInstanceOf",
-
-  "#"
+  "###"
 ]
