@@ -31,12 +31,11 @@ my $home = $ENV{HOME} || die;
 my $data_dir = $home;
 my $s3conf_dir = "$data_dir/minio-conf";
 
-my $serve_bloop = sub{
-    #-e "$home/.bloop/bloop" or sy("curl -L https://github.com/scalacenter/bloop/releases/download/v1.3.4/install.py | python");
-    &$exec_at(".",{
-        JAVA_TOOL_OPTIONS => '-Xss32m',
-    },"bloop","server");
-};
+#my $serve_b loop = sub{
+#    &$exec_at(".",{
+#        JAVA_TOOL_OPTIONS => '-Xss32m',
+#    },"b loop","server");
+#};
 
 my $serve_zookeeper = sub{
     &$put_text("$data_dir/zookeeper.properties","dataDir=$data_dir/zookeeper\nclientPort=$zoo_port\n");
@@ -150,6 +149,7 @@ my $serve_proxy = sub{
 
 my $serve_node = sub{
     my $repo_dir = &$get_repo_dir();
+    sleep 1 while !-e "$repo_dir/target/gen-ver";
     my $vite_run_dir = "$repo_dir/.bloop/c4/client";
     my $conf_dir = "$vite_run_dir/src/c4f/vite";
     sy("cd $vite_run_dir && cp $conf_dir/package.json $conf_dir/vite.config.js . && npm install");
@@ -309,7 +309,7 @@ my $common_service_map = {
 };
 my $dev_service_map = {
     build => $serve_build,
-    bloop => $serve_bloop,
+    #b loop => $serve_b loop,
     proxy => $serve_proxy,
     node  => $serve_node,
     &$replicas(gate => $serve_gate, 2),

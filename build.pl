@@ -173,6 +173,7 @@ my %is_off_dir = map{($_=>1)} map{"$src_dir/$_"}@{$$build_data{src_dirs_generato
 #restore wartremover
 # C4EXCL?
 # check ^C
+# fix dev_server node
 
 &$changing("$tmp/compile.pl",&$get_text("$proto_dir/compile.pl"));
 
