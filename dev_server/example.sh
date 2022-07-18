@@ -2,7 +2,7 @@ docker stop c4devel
 docker rm c4devel
 export C4DS_BUILD_DIR=/c4repo/c4proto
 export C4REPO_MAIN_CONF=/c4repo/c4proto/c4dep.main.replink
-export C4DEV_SERVER_MAIN=base_examples.ee.cone.c4ui.TestTodoApp
+export C4DEV_SERVER_MAIN=test-todo
 docker build -t c4devel --build-arg C4UID=$(id -u) . || exit 1
 export C4DEV_SERVER_IP="${C4DEV_SERVER_IP:-127.0.0.10}"
 docker run -d --rm --name c4devel \

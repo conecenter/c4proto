@@ -30,9 +30,9 @@ my $repeat = sub{
     @state = &$f(@state) while @state > 0;
 };
 
-my $serve_bloop = sub{
-    &$exec_at(".", { JAVA_TOOL_OPTIONS => "$ENV{JAVA_TOOL_OPTIONS} $ENV{C4BUILD_JAVA_TOOL_OPTIONS}" }, "bloop", "server")
-};
+#my $serve_b l o o p = sub{
+#    &$exec_at(".", { JAVA_TOOL_OPTIONS => "$ENV{JAVA_TOOL_OPTIONS} $ENV{C4BUILD_JAVA_TOOL_OPTIONS}" }, "b l o o p", "server")
+#};
 my $serve_sshd = sub{
     do{
         my $dev_auth_dir = $ENV{C4DEV_AUTH_DIR} || die "no C4DEV_AUTH_DIR";
@@ -120,10 +120,11 @@ my $get_debug_ip = sub{
 my $remake = sub{
     my($build_dir,$droll) = @_;
     my $arg = &$get_text_or_empty("/c4/debug-tag") || $ENV{C4CI_BASE_TAG_ENV} || die "no C4CI_BASE_TAG_ENV";
-    my $tmp = "$build_dir/.bloop/c4";
-    my $to = &$get_text_or_empty("$tmp/tag.$arg.to");
-    my ($nm,$mod,$cl) = $to=~/^(\w+)\.(.+)\.(\w+)$/ ? ($1,"$1.$2","$2.$3") : die "[$to]";
-    so("cd $build_dir && perl $tmp/compile.pl $mod") and return ();
+    my $tmp = "$build_dir/target/c4";
+    my $build_data = JSON::XS->new->decode(&$get_text_or_empty("$tmp/build.json"));
+    my ($nm,$mod,$cl) = map{$$build_data{tag_info}{$arg}{$_}||die} qw[name mod main];
+    my $proto_dir = $ENV{C4CI_PROTO_DIR} || die;
+    so("cd $build_dir && perl $proto_dir/compile.pl $mod") and return ();
     my $build_client = $ENV{C4STEP_BUILD_CLIENT};
     $build_client and so("$build_client dev") and return ();
     #
@@ -192,12 +193,12 @@ my $loop_iteration = sub{
 
 
 my $serve_loop = sub{
-    &$repeat(sub{
-        my @st = @_;
-        so("bloop about") or return ();
-        sleep 1;
-        @st
-    },1);
+#    &$repeat(sub{
+#        my @st = @_;
+#        so("b l o o p about") or return ();
+#        sleep 1;
+#        @st
+#    },1);
     &$repeat($loop_iteration,"");
 };
 #? say Failed
@@ -236,12 +237,12 @@ my $init = sub{
             "stderr_logfile_maxbytes=0",
             "stdout_logfile=/dev/stdout",
             "stdout_logfile_maxbytes=0",
-        )} qw[bloop sshd proxy loop history])
+        )} qw[sshd proxy loop history]) #b l o o p
     );
     &$exec("supervisord","-c","/c4/supervisord.conf")
 };
 my $cmd_map = {
-    bloop => $serve_bloop,
+    #b l o o p => $serve_b l o o p,
     sshd => $serve_sshd,
     proxy => $serve_proxy,
     loop => $serve_loop,

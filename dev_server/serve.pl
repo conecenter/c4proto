@@ -150,7 +150,7 @@ my $serve_proxy = sub{
 my $serve_node = sub{
     my $repo_dir = &$get_repo_dir();
     sleep 1 while !-e "$repo_dir/target/gen-ver";
-    my $vite_run_dir = "$repo_dir/.bloop/c4/client";
+    my $vite_run_dir = "$repo_dir/target/c4/client";
     my $conf_dir = "$vite_run_dir/src/c4f/vite";
     sy("cd $vite_run_dir && cp $conf_dir/package.json $conf_dir/vite.config.js . && npm install");
     &$exec_at($vite_run_dir,{},"npm","run","dev");
@@ -171,8 +171,8 @@ my $get_tag_info = sub{
     my($compilable_service)=@_;
     my $dir = $$compilable_service{dir} || die;
     my $arg = $$compilable_service{main} || die;
-    my $argv = $arg=~/\./ ? $arg : syf("cat $dir/.bloop/c4/tag.$arg.to");
-    $argv=~/^(\w+)\.(.+)\.(\w+)$/ ? ($dir,"$1","$1.$2","$2.$3") : die;
+    my $build_data = JSON::XS->new->decode(syf("cat $dir/target/c4/build.json"));
+    ($dir, map{$$build_data{tag_info}{$arg}{$_}||die} qw[name mod main]);
 };
 
 my $inbox_topic_prefix = "def0";
@@ -217,7 +217,7 @@ my $exec_server = sub{
     my $compilable_service =
         &$single(grep{$$_{name} eq $service_name} @$compilable_services);
     my ($dir,$nm,$mod,$cl) = &$get_tag_info($compilable_service);
-    my $paths = JSON::XS->new->decode(syf("cat $dir/.bloop/c4/mod.$mod.classpath.json"));
+    my $paths = JSON::XS->new->decode(syf("cat $dir/target/c4/mod.$mod.classpath.json"));
     my $env = {
         &$get_consumer_env($nm, $replica>0?$elector_proxy_port_base:$elector_port_base),
         C4APP_CLASS => "ee.cone.c4actor.ParentElectorClientApp",
@@ -246,7 +246,7 @@ my $serve_build = sub{
     }
     for my $compilable_service(@$compilable_services){
         my ($dir,$nm,$mod,$cl) = &$get_tag_info($compilable_service);
-        sy("cd $dir && perl $dir/.bloop/c4/compile.pl $mod");
+        sy("cd $dir && perl $proto_dir/compile.pl $mod");
         sy("supervisorctl restart $$compilable_service{name}$_")
             for @{$$compilable_service{replicas} || die};
     }

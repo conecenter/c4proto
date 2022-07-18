@@ -1481,25 +1481,10 @@ push @tasks, ["ci_check", "", sub{
 my $ci_inner_opt = sub{
     map{$ENV{$_}||die $_} qw[C4CI_BASE_TAG_ENV C4CI_BUILD_DIR C4CI_PROTO_DIR];
 };
+
 push @tasks, ["ci_inner_build","",sub{
     my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
-    sy("perl $proto_dir/bloop_fix.pl");
-    sy("bloop server &");
-    my $find = sub{ syf("jcmd")=~/^(\d+)\s+(\S+\bblp-server|bloop\.Server)\b/ and return "$1" while sleep 1; die };
-    my $pid = &$find();
-    sy("cd $gen_dir && perl $proto_dir/build.pl");
-    my $close = &$start("cd $gen_dir && sh .bloop/c4/tag.$base.compile");
-    print "tracking compiler 0\n";
-    my $n = 0;
-    while(syf("ps -ef")=~/\bbloop\s+compile\b/){
-        my $thread_print = syf("jcmd $pid Thread.print");
-        $n = $thread_print=~/\bBloopHighLevelCompiler\b/ ? 0 : $n+1;
-        sy("kill $pid"), print($thread_print), die if $n > 15;
-        sleep 1;
-    }
-    print "tracking compiler 1\n";
-    &$close();
-    print "tracking compiler 2\n";
+    sy("cd $gen_dir && perl $proto_dir/build.pl && $proto_dir/compile.pl $mod");
 }];
 
 my $client_mode_to_opt = sub{
@@ -1518,7 +1503,7 @@ my $if_changed = sub{
 my $build_client = sub{
     my($gen_dir, $opt)=@_;
     $gen_dir || die;
-    my $dir = "$gen_dir/.bloop/c4/client";
+    my $dir = "$gen_dir/target/c4/client";
     my $build_dir = "$dir/out";
     unlink or die $! for <$build_dir/*>;
     my $conf_dir = &$single_or_undef(grep{-e} map{"$_/webpack"} <$dir/src/*>) || die;
@@ -1540,7 +1525,7 @@ push @tasks, ["build_client","",sub{
 push @tasks, ["build_client_changed","",sub{
     my($dir,$mode)=@_;
     $dir || die;
-    &$if_changed("$dir/.bloop/c4/client-sums-compiled",syf("cat $dir/.bloop/c4/client-sums"),sub{
+    &$if_changed("$dir/target/c4/client-sums-compiled",syf("cat $dir/target/c4/client-sums"),sub{
         &$build_client($dir, &$client_mode_to_opt($mode));
     });
 }];
@@ -1551,8 +1536,9 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     -e $ctx_dir and sy("rm -r $ctx_dir");
     sy("mkdir $ctx_dir");
     &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile");
-    my @add_steps = syl("cat $gen_dir/.bloop/c4/tag.$base.steps");
-    my @from_steps = grep{/^FROM\s/} @add_steps;
+    my $build_data = JSON::XS->new->decode(syf("cat $gen_dir/target/c4/build.json"));
+    my ($add_steps,$mod,$main_cl) = map{$$build_data{tag_info}{$arg}{$_}||die} qw[steps mod main];
+    my @from_steps = grep{/^FROM\s/} @$add_steps;
     &$put_text("$ctx_dir/Dockerfile", join "\n",
         @from_steps ? @from_steps : "FROM ubuntu:18.04",
         &$installer_steps(),
@@ -1563,7 +1549,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
         "RUN perl install.pl curl https://github.com/AdoptOpenJDK/openjdk15-binaries/releases/download/jdk-15.0.1%2B9/OpenJDK15U-jdk_x64_linux_hotspot_15.0.1_9.tar.gz",
         #"RUN perl install.pl curl https://download.bell-sw.com/java/17.0.2+9/bellsoft-jdk17.0.2+9-linux-amd64.tar.gz",
         'ENV PATH=${PATH}:/tools/jdk/bin',
-        (grep{/^RUN\s/} @add_steps),
+        (grep{/^RUN\s/} @$add_steps),
         "ENV JAVA_HOME=/tools/jdk",
         "RUN chown -R c4:c4 /c4",
         "WORKDIR /c4",
@@ -1577,9 +1563,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     sy("cd $ctx_dir && tar -xzf $proto_dir/tools/greys.tar.gz");
     #
     mkdir "$ctx_dir/app";
-    my $mod     = syf("cat $gen_dir/.bloop/c4/tag.$base.mod" )=~/(\S+)/ ? $1 : die;
-    my $main_cl = syf("cat $gen_dir/.bloop/c4/tag.$base.main")=~/(\S+)/ ? $1 : die;
-    my $paths = &$decode(syf("cat $gen_dir/.bloop/c4/mod.$mod.classpath.json"));
+    my $paths = &$decode(syf("cat $gen_dir/target/c4/mod.$mod.classpath.json"));
     my @classpath = $$paths{CLASSPATH}=~/([^\s:]+)/g;
     my @started = map{&$start($_)} map{
         m{([^/]+\.jar)$} ? "cp $_ $ctx_dir/app/$1" :

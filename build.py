@@ -58,7 +58,7 @@ def get_src_dirs(conf,mods):
         for pre in conf["C4SRC"][mod_head]
     ]
 
-def tmp_path(): return build_path() / ".bloop/c4"
+def tmp_path(): return build_path() / "target/c4"
 
 def leave_tmp(dir): return f"""../../../{dir}"""
 
@@ -88,6 +88,14 @@ def to_sbt(src_dirs,ext_dep_list,lib_dep_list,repo_dict):
 def flat_values(d):
     return sorted({to for tos in d.values() for to in tos})
 
+def parse_main(main):
+    parts = main.split(".")
+    return {
+        "mod": ".".join(parts[:-1]),
+        "main": ".".join(parts[1:]),
+        "name": parts[0],
+    }
+
 def main(script):
     conf_plain = load_dep("c4dep.main.json")
     conf = {
@@ -98,7 +106,7 @@ def main(script):
         mod, *(d for dep in get_list(conf,"C4DEP",mod) for d in get(dep))
     }))
     mod_heads = sorted({
-        *(".".join(main.split(".")[0:-1]) for main in flat_values(conf["C4TAG"])),
+        *(parse_main(main)["mod"] for main in flat_values(conf["C4TAG"])),
         *flat_values(conf["C4GENERATOR_MAIN"])
     })
     repo_dict = conf["C4REPO"] if "C4REPO" in conf else {}
@@ -120,12 +128,19 @@ def main(script):
 
     out_conf = {
         "plain": conf_plain,
-        "src_dirs_by_tag": { mod_name: get_src_dirs(conf,full_dep(mod_name)) for mod_name in mod_heads },
+        "src_dirs_by_tag": {
+            mod_name: get_src_dirs(conf,full_dep(mod_name))
+            for mod_name in mod_heads
+        },
         "src_dirs_generator_off": [
             dir
             for mod in get_list(conf,"C4GENERATOR_MODE","OFF")
             for dir in get_src_dirs(conf,full_dep(mod))
         ],
+        "tag_info": {
+            tag: { **parse_main(*mains), "steps": get_list(conf,"C4STEP",tag) }
+            for tag, mains in conf["C4TAG"].items()
+        },
     }
     write_changed(tmp_path() / "build.json", json.dumps(out_conf, sort_keys=True, indent=4))
 

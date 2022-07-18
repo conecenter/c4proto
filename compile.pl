@@ -10,8 +10,8 @@ my $put_text = sub{
 };
 my ($mod) = @ARGV;
 #open FF,'|-','sbt',"$mod/compile"; close FF or die; ### perl during 'system' will not fail on ^C; so we use 'open'
-my $tmp = ".bloop/c4";
-my $sbt = "cd $tmp/mod.$mod.d && sbt";
+my $tmp = "target/c4";
+my $sbt = qq^cd $tmp/mod.$mod.d && JAVA_TOOL_OPTIONS="\$JAVA_TOOL_OPTIONS \$C4BUILD_JAVA_TOOL_OPTIONS" sbt^;
 sy("$sbt compile");
 my $cp = syf("$sbt 'export runtime:fullClasspath'")=~m{(/\S+)\s*$} ? "$1" : die;
 use JSON::XS;
