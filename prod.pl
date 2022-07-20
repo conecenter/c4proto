@@ -1489,8 +1489,9 @@ my $get_tag_info = sub{
 
 push @tasks, ["ci_inner_build","",sub{
     my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
+    sy("cd $gen_dir && perl $proto_dir/build.pl");
     my $mod = &$get_tag_info($gen_dir,$base)->{mod}||die;
-    sy("cd $gen_dir && perl $proto_dir/build.pl && $proto_dir/compile.pl $mod");
+    sy("cd $gen_dir && perl $proto_dir/compile.pl $mod");
 }];
 
 my $client_mode_to_opt = sub{
