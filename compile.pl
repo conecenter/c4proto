@@ -13,7 +13,7 @@ my ($mod) = @ARGV;
 my $tmp = "target/c4";
 my $sbt = qq^cd $tmp/mod.$mod.d && JAVA_TOOL_OPTIONS="\$JAVA_TOOL_OPTIONS \$C4BUILD_JAVA_TOOL_OPTIONS" sbt^;
 sy("$sbt compile");
-my $cp = syf("$sbt 'export runtime:fullClasspath'")=~m{(/\S+)\s*$} ? "$1" : die;
+my $cp = syf("$sbt 'export main/runtime:fullClasspath'")=~m{(/\S+)\s*$} ? "$1" : die;
 use JSON::XS;
 my $json = JSON::XS->new->ascii(1)->canonical(1)->pretty(1);
 my $res = {%{$json->decode(syf("cat $tmp/paths.json"))||die}, CLASSPATH => $cp};

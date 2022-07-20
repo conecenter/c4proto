@@ -60,29 +60,37 @@ def get_src_dirs(conf,mods):
 
 def tmp_path(): return build_path() / "target/c4"
 
-def leave_tmp(dir): return f"""../../../{dir}"""
+def leave_tmp(dir): return f"""../../../../{dir}"""
 
-def to_sbt(src_dirs,ext_dep_list,lib_dep_list,repo_dict):
+def to_sbt_mod(name,dep_name,src_dirs,ext_dep_list,lib_dep_list):
     src_dirs_str = "".join(
-        f"""  baseDirectory.value / "{dir}",\n""" for dir in src_dirs
+        f"""   baseDirectory.value / "{dir}",\n""" for dir in src_dirs
     )
     ext_dep_str = "".join(
-        "  " + "%".join(f""" "{part}" """ for part in dep.split(":")) + ",\n"
+        "   " + "%".join(f""" "{part}" """ for part in dep.split(":")) + ",\n"
         for dep in ext_dep_list
     )
     lib_dep_str = "".join(
-        f"""  baseDirectory.value / "{path}",\n""" for path in lib_dep_list
+        f"""   baseDirectory.value / "{path}",\n""" for path in lib_dep_list
     )
+    return (
+        f"""lazy val {name} = project\n""" +
+        wrap_non_empty(" .dependsOn(",dep_name," )\n") +
+        wrap_non_empty(" .settings(\n",
+            wrap_non_empty("  Compile / unmanagedSourceDirectories := Seq(\n",src_dirs_str,"  ),\n") +
+            wrap_non_empty("  libraryDependencies := Seq(\n",ext_dep_str,"  ),\n") +
+            wrap_non_empty("  Compile / unmanagedJars ++= Seq(\n",lib_dep_str,"  ),\n"),
+        " )\n")
+    )
+
+def to_sbt_common(repo_dict):
     resolvers_inner_str = "".join(
         f"""  ("{repo}" at "{one(*repo_dict[repo])}") ::\n"""
         for repo in sorted(repo_dict.keys())
     )
     return (
-        f"""ThisBuild / scalaVersion := "2.13.8"\n\n""" +
-        f"""Compile / unmanagedSourceDirectories := Seq(\n{src_dirs_str})\n\n""" +
-        wrap_non_empty("libraryDependencies := Seq(\n",ext_dep_str,")\n\n") +
-        wrap_non_empty("Compile / unmanagedJars ++= Seq(\n",lib_dep_str,")\n\n") +
-        wrap_non_empty("resolvers ++=\n",resolvers_inner_str,"  Nil\n\n")
+            f"""ThisBuild / scalaVersion := "2.13.8"\n\n""" +
+            wrap_non_empty("resolvers ++=\n",resolvers_inner_str,"  Nil\n\n")
     )
 
 def flat_values(d):
@@ -105,24 +113,34 @@ def main(script):
     full_dep = lazy_dict(lambda mod,get: sorted({
         mod, *(d for dep in get_list(conf,"C4DEP",mod) for d in get(dep))
     }))
+    mod_stage = lazy_dict(lambda mod,get: max((0,*(get(dep)+1 for dep in get_list(conf,"C4DEP",mod)))))
     mod_heads = sorted({
         *(parse_main(main)["mod"] for main in flat_values(conf["C4TAG"])),
         *flat_values(conf["C4GENERATOR_MAIN"])
     })
-    repo_dict = conf["C4REPO"] if "C4REPO" in conf else {}
+    sbt_common_text = to_sbt_common(conf["C4REPO"] if "C4REPO" in conf else {})
     for mod in mod_heads:
-        mods = full_dep(mod)
-        src_dirs = [leave_tmp(dir) for dir in get_src_dirs(conf,mods)]
-        ext_dep_list = sorted({
-            dep for mod in mods for dep in get_list(conf,"C4EXT",mod)
-        })
-        lib_dep_list = sorted({
-            leave_tmp(dep) for mod in mods for dep in get_list(conf,"C4LIB",mod)
-        })
-        mod_text = to_sbt(src_dirs,ext_dep_list,lib_dep_list,repo_dict)
-        write_changed(tmp_path() / f"mod.{mod}.d" / "build.sbt", mod_text)
-    ide_sbt_text = to_sbt(
-        flat_values(conf["C4SRC"]), flat_values(conf["C4EXT"]), [], repo_dict
+        max_stage_num = mod_stage(mod)
+        sbt_text = sbt_common_text + "".join(
+            to_sbt_mod(
+                "main" if stage_num==max_stage_num else f"s{stage_num}",
+                "" if stage_num==0 else f"s{stage_num-1}",
+                [leave_tmp(dir) for dir in get_src_dirs(conf,mods)],
+                sorted({
+                    dep
+                    for mod in mods for dep in get_list(conf,"C4EXT",mod)
+                }),
+                sorted({
+                    leave_tmp(dep)
+                    for mod in mods for dep in get_list(conf,"C4LIB",mod)
+                })
+            )
+            for stage_num in range(max_stage_num+1)
+            for mods in [[m for m in full_dep(mod) if mod_stage(m)==stage_num]]
+        )
+        write_changed(tmp_path() / f"mod.{mod}.d" / "build.sbt", sbt_text)
+    ide_sbt_text = sbt_common_text + to_sbt_mod(
+        "main", "", flat_values(conf["C4SRC"]), flat_values(conf["C4EXT"]), []
     )
     write_changed(build_path() / "c4gen-generator.sbt", ide_sbt_text)
 
