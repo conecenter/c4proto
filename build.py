@@ -78,7 +78,7 @@ def to_sbt(src_dirs,ext_dep_list,lib_dep_list,repo_dict):
         for repo in sorted(repo_dict.keys())
     )
     return (
-        f"""scalaVersion in ThisBuild := "2.13.8"\n\n""" +
+        f"""ThisBuild / scalaVersion := "2.13.8"\n\n""" +
         f"""Compile / unmanagedSourceDirectories := Seq(\n{src_dirs_str})\n\n""" +
         wrap_non_empty("libraryDependencies := Seq(\n",ext_dep_str,")\n\n") +
         wrap_non_empty("Compile / unmanagedJars ++= Seq(\n",lib_dep_str,")\n\n") +

@@ -1574,7 +1574,8 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     my @classpath = $$paths{CLASSPATH}=~/([^\s:]+)/g;
     my @started = map{&$start($_)} map{
         m{([^/]+\.jar)$} ? "cp $_ $ctx_dir/app/$1" :
-        m{([^/]+)\.classes(-bloop-cli)?$} ? "cd $_ && zip -q -r $ctx_dir/app/$1.jar ." : die $_
+        m{\bclasses\b} ? "cd $_ && zip -q -r $ctx_dir/app/".&$md5_hex($_).".jar ." :
+        die $_
     } @classpath;
     &$_() for @started;
     &$put_text("$ctx_dir/serve.sh", join "\n",
