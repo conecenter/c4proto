@@ -1482,8 +1482,14 @@ my $ci_inner_opt = sub{
     map{$ENV{$_}||die $_} qw[C4CI_BASE_TAG_ENV C4CI_BUILD_DIR C4CI_PROTO_DIR];
 };
 
+my $get_tag_info = sub{
+    my($gen_dir,$tag)=@_;
+    JSON::XS->new->decode(syf("cat $gen_dir/target/c4/build.json"))->{tag_info}{$tag} || die;
+};
+
 push @tasks, ["ci_inner_build","",sub{
     my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
+    my $mod = &$get_tag_info($gen_dir,$base)->{mod}||die;
     sy("cd $gen_dir && perl $proto_dir/build.pl && $proto_dir/compile.pl $mod");
 }];
 
@@ -1536,8 +1542,8 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     -e $ctx_dir and sy("rm -r $ctx_dir");
     sy("mkdir $ctx_dir");
     &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile");
-    my $build_data = JSON::XS->new->decode(syf("cat $gen_dir/target/c4/build.json"));
-    my ($add_steps,$mod,$main_cl) = map{$$build_data{tag_info}{$arg}{$_}||die} qw[steps mod main];
+    my $tag_info = &$get_tag_info($gen_dir,$base);
+    my ($add_steps,$mod,$main_cl) = map{$$tag_info{$_}||die} qw[steps mod main];
     my @from_steps = grep{/^FROM\s/} @$add_steps;
     &$put_text("$ctx_dir/Dockerfile", join "\n",
         @from_steps ? @from_steps : "FROM ubuntu:18.04",
