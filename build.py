@@ -122,7 +122,7 @@ def main(script):
         mod, *(d for dep in get_list(conf,"C4DEP",mod) for d in get(dep))
     }))
     fine_mod_stage = lazy_dict(lambda mod,get: max((0,*(get(dep)+1 for dep in get_list(conf,"C4DEP",mod)))))
-    def mod_stage(mod): return fine_mod_stage(mod) // 4
+    def mod_stage(mod): return fine_mod_stage(mod) // 8
     mod_heads = sorted({
         *(parse_main(main)["mod"] for main in flat_values(conf["C4TAG"])),
         *flat_values(conf["C4GENERATOR_MAIN"])

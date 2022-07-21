@@ -158,6 +158,8 @@ my %is_off_dir = map{($_=>1)} map{"$src_dir/$_"}@{$$build_data{src_dirs_generato
 # C4EXCL?
 # check ^C
 
+# 30s (server,chunks), jdeps, wartremover
+
 do{
     print "generation starting\n";
     my $sum = &$get_sum(join"\n",map{&$get_text($_)} sort grep{/\.scala$/}
