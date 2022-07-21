@@ -97,7 +97,7 @@ def to_sbt_common(repo_dict):
     )
     return (
             f"""ThisBuild / scalaVersion := "2.13.8"\n\n""" +
-            "coursierMaxIterations := 200\n\n" +
+            #"coursierMaxIterations := 200\n\n" +
             wrap_non_empty("resolvers ++=\n",resolvers_inner_str,"  Nil\n\n")
     )
 
@@ -121,7 +121,8 @@ def main(script):
     full_dep = lazy_dict(lambda mod,get: sorted({
         mod, *(d for dep in get_list(conf,"C4DEP",mod) for d in get(dep))
     }))
-    mod_stage = lazy_dict(lambda mod,get: max((0,*(get(dep)+1 for dep in get_list(conf,"C4DEP",mod)))))
+    fine_mod_stage = lazy_dict(lambda mod,get: max((0,*(get(dep)+1 for dep in get_list(conf,"C4DEP",mod)))))
+    def mod_stage(mod): return fine_mod_stage(mod) // 4
     mod_heads = sorted({
         *(parse_main(main)["mod"] for main in flat_values(conf["C4TAG"])),
         *flat_values(conf["C4GENERATOR_MAIN"])
