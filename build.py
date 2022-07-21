@@ -47,8 +47,10 @@ def wrap_non_empty(before,value,after):
     return before + value + after if value else value
 
 def get_list(c, a, k):
-    d = c[a] if a in c else {}
+    d = get_dict(c, a)
     return d[k] if k in d else []
+
+def get_dict(c, a): return c[a] if a in c else {}
 
 def get_src_dirs(conf,mods):
     return [
@@ -62,12 +64,17 @@ def tmp_path(): return build_path() / "target/c4"
 
 def leave_tmp(dir): return f"""../../../../{dir}"""
 
-def to_sbt_mod(name,dep_name,src_dirs,ext_dep_list,lib_dep_list):
+def colon_to_q(joiner,v):
+    return joiner.join(f""" "{part}" """ for part in v.split(":"))
+
+def to_sbt_mod(name,dep_name,src_dirs,ext_dep_list,lib_dep_list,excl):
     src_dirs_str = "".join(
         f"""   baseDirectory.value / "{dir}",\n""" for dir in src_dirs
     )
     ext_dep_str = "".join(
-        "   " + "%".join(f""" "{part}" """ for part in dep.split(":")) + ",\n"
+        "   " + colon_to_q("%",dep) +
+        "".join(" exclude("+colon_to_q(",",e)+")" for e in excl(dep)) +
+        ",\n"
         for dep in ext_dep_list
     )
     lib_dep_str = "".join(
@@ -118,7 +125,7 @@ def main(script):
         *(parse_main(main)["mod"] for main in flat_values(conf["C4TAG"])),
         *flat_values(conf["C4GENERATOR_MAIN"])
     })
-    sbt_common_text = to_sbt_common(conf["C4REPO"] if "C4REPO" in conf else {})
+    sbt_common_text = to_sbt_common(get_dict(conf,"C4REPO"))
     for mod in mod_heads:
         max_stage_num = mod_stage(mod)
         sbt_text = sbt_common_text + "".join(
@@ -133,14 +140,15 @@ def main(script):
                 sorted({
                     leave_tmp(dep)
                     for mod in mods for dep in get_list(conf,"C4LIB",mod)
-                })
+                }),
+                lambda k: get_list(conf,"C4EXT_EXCL",k),
             )
             for stage_num in range(max_stage_num+1)
             for mods in [[m for m in full_dep(mod) if mod_stage(m)==stage_num]]
         )
         write_changed(tmp_path() / f"mod.{mod}.d" / "build.sbt", sbt_text)
     ide_sbt_text = sbt_common_text + to_sbt_mod(
-        "main", "", flat_values(conf["C4SRC"]), flat_values(conf["C4EXT"]), []
+        "main", "", flat_values(conf["C4SRC"]), flat_values(conf["C4EXT"]), [], lambda k: [],
     )
     write_changed(build_path() / "c4gen-generator.sbt", ide_sbt_text)
 
