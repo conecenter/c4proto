@@ -97,6 +97,7 @@ def to_sbt_common(repo_dict):
     )
     return (
             f"""ThisBuild / scalaVersion := "2.13.8"\n\n""" +
+            "coursierMaxIterations := 200\n\n" +
             wrap_non_empty("resolvers ++=\n",resolvers_inner_str,"  Nil\n\n")
     )
 
