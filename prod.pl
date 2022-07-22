@@ -37,7 +37,7 @@ my $run_with_timestamps = sub{
         print "[$t] $_"
     }
     close $fh or die $!;
-}
+};
 
 my @tasks;
 
