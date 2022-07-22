@@ -29,6 +29,15 @@ my $start = sub{
     print "opened\n";
     sub{ close $fh or die $! };
 };
+my $run_with_timestamps = sub{
+    print join " ",@_,"\n";
+    open my $fh, "-|", @_ or die $!;
+    while(<$fh>){
+        my $t = time;
+        print "[$t] $_"
+    }
+    close $fh or die $!;
+}
 
 my @tasks;
 
@@ -1067,7 +1076,7 @@ my $ci_docker_build = sub {
     my $end = &$ci_measure();
     my $remote_dir = &$ci_get_remote_dir("context");
     &$rsync_to($local_dir, $builder_comp, $remote_dir);
-    sy(&$ssh_ctl($builder_comp, "-t", "docker", "build", "-t", $img, $remote_dir));
+    &$run_with_timestamps(&$ssh_ctl($builder_comp, "-t", "docker", "build", "-t", $img, $remote_dir));
     sy(&$ssh_ctl($builder_comp, "rm", "-r", $remote_dir));
     &$end("ci built $img");
     $img;
