@@ -39,11 +39,11 @@ my $lazy_dict = sub{
     return $get = sub{ my($k)=@_; @{$h{$k} ||= [&$f($k,$get)]} };
 };
 my $changing = sub{
-    my($path,$will)=@_;
+    my($path,$will,$then)=@_;
     return 0 if (-e $path) && &$get_text($path) eq $will;
     &$need_path($path);
+    $then && &$then(); # we need to run $then here -- if it fails, state will remain unchanged
     &$put_text($path,$will);
-    1;
 };
 my $get_sum = do{
     my $ver = "013";
@@ -147,25 +147,19 @@ my @src_dirs = &$distinct(&$to(&$dep_conf("C4SRC")));
 my @pub_dirs = &$distinct(&$to(&$dep_conf("C4PUB")));
 my $gen_mod = &$single(&$to(&$dep_conf("C4GENERATOR_MAIN")));
 my $src_list = [grep{!m"/c4gen-[^/]+$"} &$find_files(map{"$src_dir/$_"}@src_dirs,@pub_dirs)];
-my $need_update = &$changing("$tmp/build-json-sum",&$get_sum($dep_content));
+&$changing("$tmp/build-json-sum",&$get_sum($dep_content),0); # my $need_update =
 my $paths = &$calc_main_paths($src_dir,$tmp,$dep_conf);
-&$changing("$tmp/paths.json", &$json()->encode($paths));
+&$changing("$tmp/paths.json", &$json()->encode($paths), 0);
 my %is_off_dir = map{($_=>1)} map{"$src_dir/$_"}@{$$build_data{src_dirs_generator_off}||[]};
-&$changing("$tmp/gen/src", join"\n",grep{ m"/c4gen\.[^/]+$" || !(grep{$is_off_dir{$_}}&$to_parent($_)) }@$src_list);
-
-# handle  $need_update
-#restore wartremover
-# C4EXCL?
-# check ^C
-
-# 30s (server,chunks), jdeps, wartremover
+&$changing("$tmp/gen/src", join("\n",grep{ m"/c4gen\.[^/]+$" || !(grep{$is_off_dir{$_}}&$to_parent($_)) }@$src_list), 0);
 
 do{
     print "generation starting\n";
     my $sum = &$get_sum(join"\n",map{&$get_text($_)} sort grep{/\.scala$/}
         &$find_files(map{"$src_dir/$_"}@{$$build_data{src_dirs_by_tag}{$gen_mod}||die}));
-    &$changing("$tmp/generator-src-sum",$sum)
-        and sy("cd $src_dir && perl $proto_dir/compile.pl $gen_mod");
+    &$changing("$tmp/generator-src-sum",$sum,sub{
+        sy("cd $src_dir && perl $proto_dir/compile.pl $gen_mod");
+    });
     my $main = &$single(&$from(&$dep_conf("C4GENERATOR_MAIN")));
     sy(". $tmp/mod.$gen_mod.classpath.sh && C4GENERATOR_VER=$sum C4GENERATOR_PATH=$tmp/gen java $main");
     print "generation finished\n";

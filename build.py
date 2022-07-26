@@ -67,7 +67,7 @@ def leave_tmp(dir): return f"""../../../../{dir}"""
 def colon_to_q(joiner,v):
     return joiner.join(f""" "{part}" """ for part in v.split(":"))
 
-def to_sbt_mod(name,dep_name,src_dirs,ext_dep_list,lib_dep_list,excl):
+def to_sbt_mod(name,dep_name,src_dirs,ext_dep_list,lib_dep_list,excl,warts):
     src_dirs_str = "".join(
         f"""   baseDirectory.value / "{dir}",\n""" for dir in src_dirs
     )
@@ -80,13 +80,15 @@ def to_sbt_mod(name,dep_name,src_dirs,ext_dep_list,lib_dep_list,excl):
     lib_dep_str = "".join(
         f"""   baseDirectory.value / "{path}",\n""" for path in lib_dep_list
     )
+    warts_str = "".join(f"""   {wart},\n""" for wart in warts)
     return (
         f"""lazy val {name} = project\n""" +
         wrap_non_empty(" .dependsOn(",dep_name," )\n") +
         wrap_non_empty(" .settings(\n",
             wrap_non_empty("  Compile / unmanagedSourceDirectories := Seq(\n",src_dirs_str,"  ),\n") +
-            wrap_non_empty("  libraryDependencies := Seq(\n",ext_dep_str,"  ),\n") +
-            wrap_non_empty("  Compile / unmanagedJars ++= Seq(\n",lib_dep_str,"  ),\n"),
+            wrap_non_empty("  libraryDependencies ++= Seq(\n",ext_dep_str,"  ),\n") +
+            wrap_non_empty("  Compile / unmanagedJars ++= Seq(\n",lib_dep_str,"  ),\n") +
+            wrap_non_empty("  wartremoverErrors ++= Seq(\n",warts_str,"  ),\n"),
         " )\n")
     )
 
@@ -144,13 +146,18 @@ def main(script):
                     for mod in mods for dep in get_list(conf,"C4LIB",mod)
                 }),
                 lambda k: get_list(conf,"C4EXT_EXCL",k),
+                flat_values(get_dict(conf,"C4WART")),
             )
             for stage_num in range(max_stage_num+1)
             for mods in [[m for m in full_dep(mod) if mod_stage(m)==stage_num]]
         )
-        write_changed(tmp_path() / f"mod.{mod}.d" / "build.sbt", sbt_text)
+        proj_path = tmp_path() / f"mod.{mod}.d"
+        write_changed(proj_path / "build.sbt", sbt_text)
+        plugins_text = 'addSbtPlugin("org.wartremover" % "sbt-wartremover" % "3.0.5")'
+        write_changed(proj_path / "project" / "plugins.sbt", plugins_text)
+
     ide_sbt_text = sbt_common_text + to_sbt_mod(
-        "main", "", flat_values(conf["C4SRC"]), flat_values(conf["C4EXT"]), [], lambda k: [],
+        "main", "", flat_values(conf["C4SRC"]), flat_values(conf["C4EXT"]), [], lambda k: [], []
     )
     write_changed(build_path() / "c4gen-generator.sbt", ide_sbt_text)
 
