@@ -114,6 +114,8 @@ def parse_main(main):
         "name": parts[0],
     }
 
+def get_pkg_from_mod(mod): return ".".join(mod.split(".")[1:])
+
 def main(script):
     conf_plain = load_dep("c4dep.main.json")
     conf = {
@@ -124,7 +126,7 @@ def main(script):
         mod, *(d for dep in get_list(conf,"C4DEP",mod) for d in get(dep))
     }))
     fine_mod_stage = lazy_dict(lambda mod,get: max((0,*(get(dep)+1 for dep in get_list(conf,"C4DEP",mod)))))
-    def mod_stage(mod): return fine_mod_stage(mod) // 8
+    def mod_stage(mod): return fine_mod_stage(mod) // 4
     mod_heads = sorted({
         *(parse_main(main)["mod"] for main in flat_values(conf["C4TAG"])),
         *flat_values(conf["C4GENERATOR_MAIN"])
@@ -175,6 +177,12 @@ def main(script):
         "tag_info": {
             tag: { **parse_main(*mains), "steps": get_list(conf,"C4STEP",tag) }
             for tag, mains in conf["C4TAG"].items()
+        },
+        "allow_pkg_dep": {
+            pkg: sorted({ get_pkg_from_mod(dep_mod) for mod in mod_list for dep_mod in full_dep(mod) }-{pkg})
+            for pkg, mod_list in group_map(
+                conf["C4DEP"].keys(), lambda mod: (get_pkg_from_mod(mod),mod)
+            ).items()
         },
     }
     write_changed(tmp_path() / "build.json", json.dumps(out_conf, sort_keys=True, indent=4))
