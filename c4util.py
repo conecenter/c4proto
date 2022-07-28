@@ -1,4 +1,6 @@
 
+import json
+
 def group_map(l,f):
     res = {}
     for it in l:
