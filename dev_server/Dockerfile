@@ -37,6 +37,7 @@ FROM c4downloader
 RUN perl /install.pl apt \
   libjson-xs-perl python \
   python3-pip \
+  python3.8 '#subprocess' \
   haproxy \
   uuid-runtime '#kafka cert gen' \
   mc lsof '#debug'

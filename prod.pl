@@ -233,6 +233,11 @@ my $sync_up = sub{
 };
 
 my $get_proto_dir = sub{ &$mandatory_of(C4CI_PROTO_DIR=>\%ENV) };
+my $py_run = sub{
+    my ($nm,@args) = @_;
+    my $gen_dir = &$get_proto_dir();
+    sy("python3.8","$gen_dir/$nm",@args);
+};
 
 my $main = sub{
     my($cmd,@args)=@_;
@@ -1554,6 +1559,8 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile");
     my $tag_info = &$get_tag_info($gen_dir,$base);
     my ($add_steps,$mod,$main_cl) = map{$$tag_info{$_}||die} qw[steps mod main];
+    my $cp_path = "$gen_dir/target/c4/mod.$mod.classpath.json";
+    &$py_run("chk_pkg_dep.py","$gen_dir/target/c4/build.json", $cp_path);
     my @from_steps = grep{/^FROM\s/} @$add_steps;
     &$put_text("$ctx_dir/Dockerfile", join "\n",
         @from_steps ? @from_steps : "FROM ubuntu:18.04",
@@ -1579,7 +1586,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     sy("cd $ctx_dir && tar -xzf $proto_dir/tools/greys.tar.gz");
     #
     mkdir "$ctx_dir/app";
-    my $paths = &$decode(syf("cat $gen_dir/target/c4/mod.$mod.classpath.json"));
+    my $paths = &$decode(syf("cat $cp_path"));
     my @classpath = $$paths{CLASSPATH}=~/([^\s:]+)/g;
     my @started = map{&$start($_)} map{
         m{([^/]+\.jar)$} ? "cp $_ $ctx_dir/app/$1" :
@@ -1988,12 +1995,6 @@ push @tasks, ["kafka","( topics | offsets <hours> | nodes | sizes <node> | topic
     my $cp = syf("coursier fetch --classpath org.apache.kafka:kafka-clients:2.8.0")=~/(\S+)/ ? $1 : die;
     sy("CLASSPATH=$cp java --source 15 $gen_dir/kafka_info.java ".join" ",@args);
 }];
-
-my $py_run = sub{
-    my ($nm,@args) = @_;
-    my $gen_dir = &$get_proto_dir();
-    sy("python3.8","$gen_dir/$nm",@args);
-};
 
 push @tasks, ["kafka_purge"," ",sub{ &$py_run("kafka_purger.py") }];
 

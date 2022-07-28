@@ -1,25 +1,14 @@
 
-import os
 import json
 import sys
-#import os.path
 import pathlib
+from c4util import group_map, one
 
 ### util
 
 def read_json(path):
     with path.open() as f:
         return json.load(f)
-
-def group_map(l,f):
-    res = {}
-    for it in l:
-        k,v = f(it)
-        if k not in res: res[k] = []
-        res[k].append(v)
-    return res
-
-def one(it): return it
 
 def lazy_dict(f):
     h = {}
@@ -116,7 +105,7 @@ def parse_main(main):
 
 def get_pkg_from_mod(mod): return ".".join(mod.split(".")[1:])
 
-def main(script):
+def main():
     conf_plain = load_dep("c4dep.main.json")
     conf = {
         k: group_map(l, lambda it: (it[0],it[1]))
@@ -187,8 +176,7 @@ def main(script):
     }
     write_changed(tmp_path() / "build.json", json.dumps(out_conf, sort_keys=True, indent=4))
 
-main(*sys.argv)
+main()
 
 #ThisBuild / exportJars := true
-#subProjectID/compile
 #fork := true

@@ -2,27 +2,17 @@
 import json
 import subprocess
 import sys
-import pathlib
-import re
+import os
+from c4util import group_map, parse_table, read_json
 
 ### util
 
-def read_json(path):
-    with path.open() as f:
-        return json.load(f)
+def print_args(args):
+    if "C4PRINT_ARGS" in os.environ: print("running: "+" ".join(args))
+    return args
 
-def group_map(l,f):
-    res = {}
-    for it in l:
-        k,v = f(it)
-        if k not in res: res[k] = []
-        res[k].append(v)
-    return res
-
-
-def build_path(): return pathlib.Path.cwd()
-
-def tmp_path(): return build_path() / "target/c4"
+def run(args):
+    return subprocess.run(print_args(args),capture_output=True,text=True,check=True)
 
 ### main
 
@@ -30,36 +20,34 @@ def get_base(pkg, coll):
     return pkg if (pkg in coll) or not pkg else get_base(".".join(pkg.split(".")[:-1]), coll)
 
 def chk_line(line,allow_pkg_dep):
-    if not line: return True
-    match = re.fullmatch("classes\s+->\s+\S+|\s+(\S+)\s+->\s+(\S+)\s+(\S+)",line)
-    if not match: return False
-    from_pkg, to_pkg, to_a = match.groups()
-    if not to_a or to_a.endswith(".jar") or to_a.startswith("java."): return True
-    if to_a != "classes": return False
-    from_pkg_base = get_base(from_pkg, allow_pkg_dep)
-    #if from_pkg_base!=from_pkg: print(f"from_pkg {from_pkg} / {from_pkg_base}")
+    fr, arrow, *to = line
+    if arrow != "->": return False
+    if fr=="classes": return True
+    to_pkg, to_a = to
+    if to_a != "classes": return to_a.endswith(".jar") or to_a.startswith("java.")
+    from_pkg_base = get_base(fr, allow_pkg_dep)
     if not from_pkg_base: return False
     to_pkg_base = get_base(to_pkg, allow_pkg_dep[from_pkg_base])
     if not to_pkg_base: return False
-    #if to_pkg_base!=to_pkg: print(f"to_pkg {to_pkg} / {to_pkg_base}")
+    #if "kaf" in to_pkg_base : print(line,from_pkg_base,to_pkg_base,allow_pkg_dep[from_pkg_base])
     return True
 
-def main(script,mod):
+def main(build_json_path,cp_path):
     allow_pkg_dep = {
-        k: {k,*l} for k,l in read_json(tmp_path() / "build.json")["allow_pkg_dep"].items()
+        k: {k,*l} for k,l in read_json(build_json_path)["allow_pkg_dep"].items()
     }
-    cp = read_json(tmp_path() / f"mod.{mod}.classpath.json")["CLASSPATH"]
+    cp = read_json(cp_path)["CLASSPATH"]
     cp_by_tp = group_map(cp.split(":"), lambda p: (
         "jar" if p.endswith(".jar") else
         "classes" if p.endswith("/classes") else
         "-"
     ,p))
     if "-" in cp_by_tp: raise cp_by_tp
-    jdeps_cmd = ["jdeps","-cp",cp,*cp_by_tp["classes"]]
-    jdeps_res = subprocess.run(jdeps_cmd,check=True,text=True,capture_output=True).stdout
+    jdeps_res = run(["jdeps","-cp",cp,*cp_by_tp["classes"]]).stdout
     bad = "".join(
-        f"{line}\n" for line in jdeps_res.split("\n") if not chk_line(line,allow_pkg_dep)
+        " ".join(line)+"\n" for line in parse_table(jdeps_res) if not chk_line(line,allow_pkg_dep)
     )
-    if bad: raise Exception(f"bad dep:\n[{bad}]")
+    if bad: raise Exception(f"bad dep:\n{bad}")
 
-main(*sys.argv)
+script, *args = sys.argv
+main(*args)
