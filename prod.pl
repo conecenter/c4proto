@@ -23,6 +23,13 @@ my $put_text = sub{
     my($fn,$content)=@_;
     open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
 };
+my $get_text = sub{
+    my($path)=@_;
+    open FF,"<:encoding(UTF-8)",$path or die "get_text: $path";
+    my $res = join"",<FF>;
+    close FF or die;
+    $res;
+};
 my $start = sub{
     print join " ",@_,"\n";
     open my $fh, "|-", @_ or die $!;
@@ -133,7 +140,7 @@ my $ssh_add  = sub{
 
 my $get_deploy_location = sub{
     my $path = "$ENV{HOME}/.ssh/c4deploy_location";
-    syf("cat $path")=~m{^([\w+\.\-]+):(\d+)(/[\w+\.\-/]+)\s*$} ?
+    &$get_text($path)=~m{^([\w+\.\-]+):(\d+)(/[\w+\.\-/]+)\s*$} ?
         ("$1","$2","$3") : die "bad $path";
 };
 
@@ -376,7 +383,7 @@ my $make_dc_yml = sub{
         $k=~/^(volumes|tty)$/ ? {$1=>$v} : (),
         $k=~/^C4/ && $v=~m{^/c4conf/([\w\.]+)$} ? do{ my $fn=$1; +{
             volumes=>["./$fn:/c4conf/$fn"],
-            environment=>{"$k\_MD5"=>&$md5_hex(syf("cat $tmp_path/$fn"))},
+            environment=>{"$k\_MD5"=>&$md5_hex(&$get_text("$tmp_path/$fn"))},
         }} : (),
         $k=~/^port:(.+)/ ? {ports=>["$1"]} : (),
     )}));
@@ -823,7 +830,7 @@ my $need_ceph = sub{
     my $kubectl = &$get_kubectl($comp);
     my $tmp_dir = &$get_tmp_dir();
     &$secret_to_dir($kubectl,"ceph-client",$tmp_dir);
-    my $get = sub{ syf("cat $tmp_dir/$_[0]") };
+    my $get = sub{ &$get_text("$tmp_dir/$_[0]") };
     my $put = &$rel_put_text($from_path);
     my $conf = &$get_compose($comp);
     &$put("ceph.auth", join "&", map{"$$_[0]=$$_[1]"}
@@ -1116,7 +1123,7 @@ my $ci_docker_push = sub{
     my $local_dir = &$get_tmp_dir();
     &$secret_to_dir($kubectl,"docker",$local_dir);
     my $path = "$local_dir/config.json";
-    &$put_text($path,&$encode(&$merge(map{&$decode(syf("cat $_"))} $path, $add_path)));
+    &$put_text($path,&$encode(&$merge(map{&$decode(&$get_text($_))} $path, $add_path)));
     &$rsync_to($local_dir,$builder_comp,$remote_dir);
     my @config_args = ("--config"=>$remote_dir);
     my @tasks = map{[&$ssh_ctl($builder_comp,"-t","docker",@config_args,"push",$_)]} @$images;
@@ -1413,7 +1420,7 @@ push @tasks, ["ci_setup", "", sub{
     &$ssh_add();
     my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
     my @comps = &$ci_get_compositions($env_comp);
-    my %branch_conf = map{%{&$decode(syf("cat $_"))}} grep{-e} "$local_dir/branch.conf.json";
+    my %branch_conf = map{%{&$decode(&$get_text($_))}} grep{-e} "$local_dir/branch.conf.json";
     my $snapshot_from_key = $branch_conf{ci_snapshot_from};
     my @from_to_comps = map{
         my $from = $snapshot_from_key && &$get_compose($_)->{"snapshot_from:$snapshot_from_key"};
@@ -1498,7 +1505,7 @@ my $ci_inner_opt = sub{
 
 my $get_tag_info = sub{
     my($gen_dir,$tag)=@_;
-    JSON::XS->new->decode(syf("cat $gen_dir/target/c4/build.json"))->{tag_info}{$tag} || die;
+    JSON::XS->new->decode(&$get_text("$gen_dir/target/c4/build.json"))->{tag_info}{$tag} || die;
 };
 
 push @tasks, ["ci_inner_build","",sub{
@@ -1516,7 +1523,7 @@ my $client_mode_to_opt = sub{
 };
 my $if_changed = sub{
     my($path,$will,$then)=@_;
-    return if (-e $path) && syf("cat $path") eq $will;
+    return if (-e $path) && &$get_text($path) eq $will;
     my $res = &$then();
     &$put_text($path,$will);
     $res;
@@ -1528,7 +1535,7 @@ my $build_client = sub{
     my $build_dir = "$dir/out";
     unlink or die $! for <$build_dir/*>;
     my $conf_dir = &$single_or_undef(grep{-e} map{"$_/webpack"} <$dir/src/*>) || die;
-    &$if_changed("$dir/package.json", syf("cat $conf_dir/package.json"), sub{1})
+    &$if_changed("$dir/package.json", &$get_text("$conf_dir/package.json"), sub{1})
         and sy("cd $dir && npm install --no-save");
     sy("cd $dir && cp $conf_dir/webpack.config.js . && cp $conf_dir/tsconfig.json . && node_modules/webpack/bin/webpack.js $opt");# -d
     &$put_text("$build_dir/publish_time",time);
@@ -1546,9 +1553,24 @@ push @tasks, ["build_client","",sub{
 push @tasks, ["build_client_changed","",sub{
     my($dir,$mode)=@_;
     $dir || die;
-    &$if_changed("$dir/target/c4/client-sums-compiled",syf("cat $dir/target/c4/client-sums"),sub{
+    &$if_changed("$dir/target/c4/client-sums-compiled",&$get_text("$dir/target/c4/client-sums"),sub{
         &$build_client($dir, &$client_mode_to_opt($mode));
     });
+}];
+my $get_classpath = sub{
+    my($gen_dir,$mod)=@_;
+    "$gen_dir/target/c4/mod.$mod.classpath.json";
+};
+my $chk_pkg_dep = sub{
+    my($gen_dir,$mod)=@_;
+    my $cp_path = &$get_classpath($gen_dir,$mod);
+    &$py_run("chk_pkg_dep.py","$gen_dir/target/c4/build.json", $cp_path);
+};
+push @tasks, ["chk_pkg_dep"," ",sub{
+    my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
+    my $tag_info = &$get_tag_info($gen_dir,$base);
+    my $mod = $$tag_info{mod} || die;
+    &$chk_pkg_dep($gen_dir,$mod);
 }];
 push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
@@ -1559,8 +1581,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile");
     my $tag_info = &$get_tag_info($gen_dir,$base);
     my ($add_steps,$mod,$main_cl) = map{$$tag_info{$_}||die} qw[steps mod main];
-    my $cp_path = "$gen_dir/target/c4/mod.$mod.classpath.json";
-    &$py_run("chk_pkg_dep.py","$gen_dir/target/c4/build.json", $cp_path);
+    &$chk_pkg_dep($gen_dir,$mod);
     my @from_steps = grep{/^FROM\s/} @$add_steps;
     &$put_text("$ctx_dir/Dockerfile", join "\n",
         @from_steps ? @from_steps : "FROM ubuntu:18.04",
@@ -1586,7 +1607,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     sy("cd $ctx_dir && tar -xzf $proto_dir/tools/greys.tar.gz");
     #
     mkdir "$ctx_dir/app";
-    my $paths = &$decode(syf("cat $cp_path"));
+    my $paths = &$decode(&$get_text(&$get_classpath($gen_dir,$mod)));
     my @classpath = $$paths{CLASSPATH}=~/([^\s:]+)/g;
     my @started = map{&$start($_)} map{
         m{([^/]+\.jar)$} ? "cp $_ $ctx_dir/app/$1" :
@@ -1603,7 +1624,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     my %has_mod = map{m"/mod\.([^/]+)\.classes(-bloop-cli)?$"?($1=>1):()} @classpath;
     my @public_part = map{ my $dir = $_;
         my @pub = map{ !/^(\S+)\s+\S+\s+(\S+)$/ ? die : $has_mod{$1} ? [$_,"$2"] : () }
-            syf("cat $dir/c4gen.ht.links")=~/(.+)/g;
+            &$get_text("$dir/c4gen.ht.links")=~/(.+)/g;
         my $sync = [map{"$$_[1]\n"} @pub];
         my $links = [map{"$$_[0]\n"}@pub];
         @pub ? +{ dir=>$dir, sync=>$sync, links=>$links } : ()
@@ -1916,7 +1937,7 @@ my $add_known_host = sub{
     my $secret_name = &$mandatory_of(C4KNOWN_HOSTS_SECRET_NAME=>\%ENV);
     &$secret_to_dir($kubectl,$secret_name,$dir);
     my $path = "$dir/known_hosts";
-    my $known = syf("cat $path");
+    my $known = &$get_text($path);
     my @add_known = grep{index($known,$_)<0} syl("ssh-keyscan -H $host");
     @add_known or return;
     &$put_text($path,join"",$known,@add_known);

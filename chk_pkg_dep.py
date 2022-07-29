@@ -12,7 +12,11 @@ def print_args(args):
     return args
 
 def run(args):
-    return subprocess.run(print_args(args),capture_output=True,text=True,check=True)
+    proc = subprocess.run(print_args(args),capture_output=True,text=True)
+    if proc.returncode != 0:
+        print(proc.stdout,proc.stderr)
+    proc.check_returncode()
+    return proc
 
 ### main
 
@@ -23,6 +27,8 @@ def chk_line(line,allow_pkg_dep):
     fr, arrow, *to = line
     if arrow != "->": return False
     if fr=="classes": return True
+    if "JDK" in to: return True
+    if len(to) != 2: return False
     to_pkg, to_a = to
     if to_a != "classes": return to_a.endswith(".jar") or to_a.startswith("java.")
     from_pkg_base = get_base(fr, allow_pkg_dep)
@@ -43,7 +49,7 @@ def main(build_json_path,cp_path):
         "-"
     ,p))
     if "-" in cp_by_tp: raise cp_by_tp
-    jdeps_res = run(["jdeps","-cp",cp,*cp_by_tp["classes"]]).stdout
+    jdeps_res = run(["jdeps","--multi-release","16","-cp",cp,*cp_by_tp["classes"]]).stdout
     bad = "".join(
         " ".join(line)+"\n" for line in parse_table(jdeps_res) if not chk_line(line,allow_pkg_dep)
     )
