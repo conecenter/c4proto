@@ -14,6 +14,7 @@ sub sy{
 }
 my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
 my $need_tmp = sub{ -e $_ or mkdir $_ or die for "tmp" };
+my $to_parent = sub{ map{ m{^(.+)/[^/]+$} ? ("$1"):() } @_ };
 
 my @tasks;
 my $main = sub{
@@ -24,8 +25,9 @@ my $main = sub{
 my $exec_server = sub{
     my($arg)=@_;
     my ($nm,$mod,$cl) = $arg=~/^(\w+)\.(.+)\.(\w+)$/ ? ($1,"$1.$2","$2.$3") : die;
-    my $tmp = ".bloop/c4";
-    sy("perl $tmp/compile.pl $mod");
+    my $tmp = "target/c4";
+    my $proto_lib = &$single($to_parent("$0"));
+    sy("perl $proto_lib/compile.pl $mod");
     &$exec(". $tmp/mod.$mod.classpath.sh && C4ELECTOR_CLIENT_ID= C4STATE_TOPIC_PREFIX=$nm C4APP_CLASS=$cl exec java ee.cone.c4actor.ServerMain");
 };
 push @tasks, ["run", $exec_server];
