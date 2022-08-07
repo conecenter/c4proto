@@ -3,7 +3,7 @@ package ee.cone.c4actor
 
 import java.time.Instant
 import ee.cone.c4actor.MetaAttrProtocol.D_TxTransformNameMeta
-import ee.cone.c4actor.QProtocol.N_Update
+import ee.cone.c4actor.QProtocol.{N_Update, N_UpdateFrom}
 import ee.cone.c4actor.Types._
 import ee.cone.c4assemble._
 import ee.cone.c4di.c4
@@ -42,9 +42,17 @@ trait UpdateFlag {
     @Id(0x001C) flags: Long
   )
 
+  case class N_UpdateFrom(
+    @Id(0x0011) srcId: SrcId,
+    @Id(0x0012) valueTypeId: Long,
+    @Id(0x0014) fromValue: okio.ByteString,
+    @Id(0x0013) value: okio.ByteString,
+    @Id(0x001C) flags: Long
+  )
+
   @Id(0x0014) case class S_Updates(
     @Id(0x0011) srcId: SrcId, //dummy
-    @Id(0x0015) updates: List[N_Update]
+    @Id(0x0015) updates: List[N_UpdateFrom]
   )
 
     @Id(0x0016) case class S_Firstborn(
@@ -117,14 +125,16 @@ trait ContextFactory { // for tests only
 
 trait ToUpdate {
   def toUpdate[M<:Product](message: LEvent[M]): N_Update
-  def toBytes(updates: List[N_Update]): (Array[Byte], List[RawHeader])
+  def toBytes(updates: List[N_UpdateFrom]): (Array[Byte], List[RawHeader])
+
   /**
     * Transforms RawEvents to updates, adds TxId and removes ALL flags
     *
     * @param events events from Kafka or Snapshot
     * @return updates
     */
-  def toUpdates(events: List[RawEvent]): List[N_Update]
+  def toUpdates(events: List[RawEvent], hint: String): List[N_UpdateFrom]
+
   /**
     * Transforms RawEvents to updates, adds TxId and keeps ALL but TxId flags
     *
@@ -132,8 +142,9 @@ trait ToUpdate {
     * @return updates
     */
   def toUpdatesWithFlags(events: List[RawEvent]): List[N_Update]
-  def toKey(up: N_Update): N_Update
-  def by(up: N_Update): (TypeId, SrcId)
+
+  def getInnerSize(up: N_UpdateFrom): Long
+  def toUpdateLost(up: N_UpdateFrom): N_Update
 }
 
 object Types {
@@ -144,6 +155,8 @@ object Types {
   type TransientMap = Map[TransientLens[_],Object]
   type NextOffset = String
   type TypeKey = ee.cone.c4di.TypeKey
+  type UpdateKey = (Long,SrcId)
+  type UpdateMap = Map[UpdateKey,N_UpdateFrom]
 }
 
 
@@ -225,14 +238,14 @@ object WithPK {
   def apply[P<:Product](p: P): (SrcId,P) = ToPrimaryKey(p) -> p
 }
 
-trait LTxAdd {
+trait LTxAdd extends Product {
   def add[M<:Product](out: Seq[LEvent[M]]): Context=>Context
 }
 trait RawTxAdd {
   def add(out: Seq[N_Update]): Context=>Context
 }
 trait ReadModelAdd {
-  def add(events: Seq[RawEvent], context: AssembledContext): ReadModel
+  def add(executionContext: OuterExecutionContext, events: Seq[RawEvent]): ReadModel=>ReadModel
 }
 trait GetAssembleOptions {
   def get(assembled: ReadModel): AssembleOptions
@@ -251,7 +264,7 @@ trait TxTransform extends Product {
   def transform(local: Context): Context
 }
 
-case object WriteModelKey extends TransientLens[Queue[N_Update]](Queue.empty)
+case object WriteModelKey extends TransientLens[Queue[N_UpdateFrom]](Queue.empty)
 
 case class RawHeader(key: String, value: String)
 
@@ -339,8 +352,42 @@ trait S3Manager {
   def delete(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Boolean]
 }
 
+trait S3Lister {
+  def parseItems(data: Array[Byte]): List[(String,String)]
+  def parseTime(s: String): Long
+}
+
 trait LOBroker {
   def put(rec: QRecord): QRecord
   def get(events: List[ExtendedRawEvent]): List[ExtendedRawEvent] // this can potentially lead to too big volume in single event list after getting LOB-s
   def bucketPostfix: String
+}
+
+trait Reverting {
+  def getSavepoint: Context=>Option[NextOffset]
+  def revertToSavepoint: Context=>Context
+  def makeSavepoint: Context=>Context
+}
+
+trait UpdateMapping {
+  def add(updates: List[N_UpdateFrom]): UpdateMapping
+  def result: List[N_UpdateFrom]
+}
+
+trait UpdateMapUtil {
+  def startSnapshot(ignore: Set[Long]): UpdateMapping
+  def startRevert(ignore: Set[Long]): UpdateMapping
+  def diff(currentUpdates: List[N_UpdateFrom], targetUpdates: List[N_UpdateFrom], ignore: Set[Long]): List[N_UpdateFrom]
+  def toUpdatesFrom(updates: List[N_Update], getFrom: N_Update=>ByteString): List[N_UpdateFrom]
+  def insert(up: N_Update): N_UpdateFrom
+}
+
+trait GeneralSnapshotPatchIgnore
+class SnapshotPatchIgnore[T<:Product](val cl: Class[T]) extends GeneralSnapshotPatchIgnore
+trait SnapshotPatchIgnoreRegistry {
+  def ignore: Set[Long]
+}
+
+trait UpdateFromUtil {
+  def get(local: Context, updates: Seq[N_Update]): Seq[N_UpdateFrom]
 }

@@ -37,8 +37,9 @@ my $serve_sshd = sub{
     do{
         my $dev_auth_dir = $ENV{C4DEV_AUTH_DIR} || die "no C4DEV_AUTH_DIR";
         my $dir = "/c4/dropbear";
+        sy("mkdir -p $dir && chmod 0700 $dir");
         my $fn = "dropbear_ecdsa_host_key";
-        sy("mkdir -p $dir && cp $dev_auth_dir/$fn $dir/ && chmod 0600 $dir/$fn");
+        sy("cp $dev_auth_dir/$fn $dir/ && chmod 0600 $dir/$fn") if -e "$dev_auth_dir/$fn";
     };
     do{
         my $dir = "/c4/.ssh";
@@ -54,6 +55,7 @@ my $serve_sshd = sub{
         'export JAVA_HOME=/tools/jdk',
         'export JAVA_TOOL_OPTIONS="$JAVA_TOOL_OPTIONS -XX:-UseContainerSupport"', #-Xss16m
         "export KUBECONFIG=$ENV{C4KUBECONFIG}", # $C4KUBECONFIG was empty at this stage
+        "export KUBE_EDITOR=mcedit",
         'eval `ssh-agent`',
         'history -c && history -r /c4/.bash_history_get && export PROMPT_COMMAND="history -a /c4/.bash_history_put"',
     );
@@ -62,6 +64,7 @@ my $serve_sshd = sub{
     &$get_text_or_empty("/c4/.bashrc")=~/alias prod=/ or do{
         sy("echo '$alias_prod' >> /c4/.bashrc");
         sy(q[echo 'alias kc="kubectl --context "' >> /c4/.bashrc]);
+        sy(q[echo 'alias h="history|grep "' >> /c4/.bashrc]);
     };
 
     #
@@ -132,7 +135,8 @@ my $remake = sub{
         &$prep_empty_dir($dir);
         my $debug_int_ip = &$get_debug_ip($$);
         my $paths = JSON::XS->new->decode(&$get_text_or_empty("$tmp/mod.$mod.classpath.json"));
-        my $tool_opt = "-XX:+UseG1GC -XX:GCTimeRatio=1 -XX:MinHeapFreeRatio=15 -XX:MaxHeapFreeRatio=50 $ENV{JAVA_TOOL_OPTIONS} -XX:NativeMemoryTracking=summary";
+        my $tool_opt = "-XX:+UseG1GC -XX:GCTimeRatio=1 -XX:MinHeapFreeRatio=15 -XX:MaxHeapFreeRatio=50 -XX:+UseStringDeduplication $ENV{JAVA_TOOL_OPTIONS}"; #-XX:NativeMemoryTracking=summary
+        ### if need heap >32G keeping 32bit pointers, insert: -XX:ObjectAlignmentInBytes=16 -Xmx45g
         my $env = {
             %$paths,
             (-e "/c4/debug-components") ? (C4DEBUG_COMPONENTS => "1") : (),

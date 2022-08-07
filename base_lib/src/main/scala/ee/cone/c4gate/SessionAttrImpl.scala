@@ -53,7 +53,7 @@ object SessionAttrLens {
     fromMeta: OrigMeta[From],
     toMeta: OrigMeta[To]
   )(of: From => To, set: To => From => From): ProdLens[From, To] =
-    ProdLensStrict(metaList, fromMeta.cl, toMeta.cl, fromMeta.typeKey, toMeta.typeKey)(of, set)
+    CreateProdLens.check(ProdLensStrict(metaList, fromMeta.typeKey, toMeta.typeKey)(fromMeta.cl, toMeta.cl, of, set))
 }
 
 @c4("SessionAttrCompApp") final class SessionAttrAccessFactoryImpl(
@@ -105,7 +105,7 @@ object SessionAttrLens {
 //todo user level with expiration
 /*
 @Id(0x0058) userName: String,
-@Id until: Long
+@Id(0x5473) until: Long
   def joinRaw(
     srcId: SrcId,
     rawDataValues: Values[U_RawSessionData]

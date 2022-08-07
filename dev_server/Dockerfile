@@ -19,8 +19,8 @@ RUN /install.pl curl https://nodejs.org/dist/v14.15.4/node-v14.15.4-linux-x64.ta
 RUN ls -la /tools
 
 FROM c4downloader AS c4tools-kafka
-#RUN /install.pl curl https://downloads.apache.org/kafka/2.7.0/kafka_2.13-2.7.0.tgz
-RUN /install.pl curl https://downloads.apache.org/kafka/3.0.0/kafka_2.13-3.0.0.tgz
+#RUN /install.pl curl https://downloads.apache.org/kafka/3.0.0/kafka_2.13-3.0.0.tgz
+RUN /install.pl curl https://downloads.apache.org/kafka/3.1.0/kafka_2.13-3.1.0.tgz
 RUN ls -la /tools
 
 FROM c4downloader AS c4tools-minio

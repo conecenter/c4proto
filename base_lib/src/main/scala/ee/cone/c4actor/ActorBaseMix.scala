@@ -15,7 +15,7 @@ trait NoAssembleProfilerCompAppBase
 trait NoObserversAppBase
 trait ParallelObserversAppBase
 trait ProtoAppBase
-trait RichDataCompAppBase extends BaseApp with ProtoApp with AssembleApp with CatchNonFatalApp
+trait RichDataCompAppBase extends BaseApp with ProtoApp with AssembleApp with CatchNonFatalApp // with ProductCheckerApp
 trait SerialObserversAppBase
 trait ServerCompAppBase extends RichDataCompApp with ExecutableApp with SnapshotLoaderImplApp with ChildElectorClientApp with LOBrokerApp
 trait SimpleAssembleProfilerCompAppBase
@@ -47,3 +47,7 @@ trait ScalingTestAppBase
 trait S3ManagerAppBase extends HttpClientApp
 
 trait LOBrokerAppBase extends S3ManagerApp
+
+trait S3RawSnapshotLoaderAppBase
+
+trait ProductCheckerAppBase

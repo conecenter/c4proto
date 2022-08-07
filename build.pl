@@ -63,9 +63,10 @@ my $bloop_conf_to_classpath = sub{
     #my $name = $$project{name} || die;
     #(@{$$project{classpath}||die},"$out_dir/bloop-bsp-clients-classes/mod.$name.classes-bloop-cli")
 };
+my $get_dir = sub{ $_[0]=~m"(.+)/[^/]+$"?"$1":die };
 my $calc_bloop_conf = sub{
     my($dir,$tmp,$dep_conf,$coursier_out,$src_list) = @_;
-    my %dir_exists = map{m"(.+)/[^/]+$"?("$1"=>1):die} $src_list=~/([^\n]+)/g;
+    my %dir_exists = map{(&$get_dir($_)=>1)} @$src_list;
     my @mod_names = &$distinct(
         (map{@$_} &$dep_conf("C4DEP")),
         &$from(&$dep_conf("C4EXT")),
@@ -160,7 +161,7 @@ my $calc_bloop_conf = sub{
         my($k,$get)=@_;
         my @own = map{@{$$_{project}{sources}||die}} &$conf_by_name($k);
         my @local_dependencies = &$int_dep_by_from($k);
-        my @res = &$distinct(@own, map{@$_} map{&$get($_)} @local_dependencies);
+        my @res = &$distinct(@own, map{&$get($_)} @local_dependencies);
         @res
     });
     ([@tag2mod,@bloop_will],$src_dirs_by_name);
@@ -276,9 +277,9 @@ my $dep_content = join "\n", map{@$_} &$dep_conf("C4RAW");
 my @src_dirs = &$distinct(&$to(&$dep_conf("C4SRC")));
 my @pub_dirs = &$distinct(&$to(&$dep_conf("C4PUB")));
 my $gen_mod = &$single(&$to(&$dep_conf("C4GENERATOR_MAIN")));
-my $src_list = join"\n", grep{!m"/c4gen-[^/]+$"} &$find_files(map{"$src_dir/$_"}@src_dirs,@pub_dirs);
+my $src_list = [grep{!m"/c4gen-[^/]+$"} &$find_files(map{"$src_dir/$_"}@src_dirs,@pub_dirs)];
 #
-&$if_changed("$tmp/bloop-conf-in-sum",&$get_sum("$dep_content\n$src_list"), sub{
+&$if_changed("$tmp/bloop-conf-in-sum",&$get_sum(join("\n",$dep_content,@$src_list)), sub{
     my $externals = [&$distinct(&$to(&$dep_conf("C4EXT")))];
     my @resolvers = &$dep_conf("C4REPO");
     my @repo_args = sort map{"-r $_"} &$distinct(&$to(@resolvers));
@@ -290,9 +291,11 @@ my $src_list = join"\n", grep{!m"/c4gen-[^/]+$"} &$find_files(map{"$src_dir/$_"}
     my $coursier_out = &$json()->decode(&$get_text($coursier_out_path));
     my ($bloop_will,$src_dirs_by_name) = &$calc_bloop_conf($src_dir,$tmp,$dep_conf,$coursier_out,$src_list);
     &$put_text(&$need_path($$_{fn}),$$_{content}) for @$bloop_will;
+    my ($mod_by_mode) = &$group(&$dep_conf("C4GENERATOR_MODE"));
+    my %is_off_dir = map{($_=>1)} map{ &$src_dirs_by_name($_) } &$mod_by_mode("OFF");
     &$put_text(&$need_path("$tmp/generator-src-dirs"), join " ", &$src_dirs_by_name($gen_mod));
     &$put_text("$src_dir/c4gen-generator.sbt", &$calc_sbt_conf(\@src_dirs,$externals,\@resolvers));
-    &$put_text(&$need_path("$tmp/gen/src"),$src_list);
+    &$put_text(&$need_path("$tmp/gen/src"),join"\n",grep{ m"/c4gen\.[^/]+$" || !$is_off_dir{&$get_dir($_)} }@$src_list);
 });
 #
 

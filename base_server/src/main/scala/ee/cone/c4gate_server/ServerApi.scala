@@ -63,8 +63,3 @@ trait StatefulReceiverFactory {
 trait StatefulReceiver[Message] {
   def send(message: Message): Unit
 }
-
-trait S3Lister {
-  def parseItems(data: Array[Byte]): List[(String,String)]
-  def parseTime(s: String): Long
-}

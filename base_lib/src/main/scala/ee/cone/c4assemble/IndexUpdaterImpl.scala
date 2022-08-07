@@ -1,6 +1,6 @@
 package ee.cone.c4assemble
 
-import ee.cone.c4assemble.Types.{DMap, Index, emptyIndex}
+import ee.cone.c4assemble.Types.{DMap, Index}
 import ee.cone.c4di.c4
 
 import scala.collection.immutable.Seq
@@ -16,7 +16,15 @@ import scala.concurrent.{ExecutionContext, Future}
       u <- update
     } yield u.log ::: log
     val nTaskLog = if(logTask) worldKeys.toList ::: transition.taskLog else transition.taskLog
-    transition.copy(diff=diff,result=next,log=log,taskLog=nTaskLog)
+    new WorldTransition(
+      prev = transition.prev,
+      diff = diff,
+      result = next,
+      profiling = transition.profiling,
+      log = log,
+      executionContext = transition.executionContext,
+      taskLog = nTaskLog
+    )
   }
 }
 

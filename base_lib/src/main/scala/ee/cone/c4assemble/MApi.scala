@@ -9,16 +9,19 @@ import scala.concurrent.{ExecutionContext, Future}
 
 case class AssembleOptions(srcId: String, @deprecated isParallel: Boolean, threadCount: Long)
 
-trait IndexUtil extends Product {
+trait IndexUtil {
   def joinKey(was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String): JoinKey
   def isEmpty(index: Index): Boolean
-  def keySet(index: Index): Set[Any]
+  def valueCount(index: Index): Int
+  def keyCount(index: Index): Int
+  def keyIterator(index: Index): Iterator[Any]
   def mergeIndex(l: DPIterable[Index]): Index
   def zipMergeIndex(aDiffs: Seq[Index])(bDiffs: Seq[Index]): Seq[Index]
+  def zipMergeIndex(aDiffs: Seq[Index], bDiffs: Seq[Index])(implicit ec: ExecutionContext): Future[Seq[Index]]
   def getValues(index: Index, key: Any, warning: String): Values[Product] //m
   def nonEmpty(index: Index, key: Any): Boolean //m
   def removingDiff(pos: Int, index: Index, keys: Iterable[Any]): Iterable[DOut]
-  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): List[MultiForPart]  //m
+  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Array[MultiForPart]  //m
   def mayBePar[V](seq: Seq[V]): DPIterable[V]
   //
   def aggregate(values: Iterable[DOut]): AggrDOut
@@ -32,6 +35,8 @@ trait IndexUtil extends Product {
   //
   def getValue(dOut: DOut): Product
   def addNS(key: AssembledKey, ns: String): AssembledKey
+  //
+  def getNonSingles(index: Index, key: Any): Seq[(Product,Int)]
 }
 
 // ${outKeyName.fold("DOut=>Unit")(_=>"Tuple2[Any,Product]=>Unit")}      ${outKeyName.fold("buffer.add _")(_=>"pair=>buffer.add(outFactory.result(pair))")}  MutableDOutBuffer
@@ -71,13 +76,13 @@ object Types {
   type Each[V] = V
   type DMap[K,V] = Map[K,V] //ParMap[K,V]
   type DPIterable[V] = Iterable[V]
-  trait Index //DMap[Any,DMultiSet]
-  private object EmptyIndex extends Index
+  type Index = RIndex
+
   private object EmptyReadModel extends ReadModelImpl(emptyDMap)
   //
   def emptyDMap[K,V]: DMap[K,V] = Map.empty
   def emptyReadModel: ReadModel = EmptyReadModel
-  def emptyIndex: Index = EmptyIndex//emptyDMap
+  def emptyIndex: Index = EmptyRIndex
   //
   type ProfilingLog = List[Product]
   //
@@ -114,14 +119,14 @@ trait WorldPartExpression extends WorldPartRule {
   def transform(transition: WorldTransition): WorldTransition
 }
 //object WorldTransition { type Diff = Map[AssembledKey[_],IndexDiff[Object,_]] } //Map[AssembledKey[_],Index[Object,_]] //Map[AssembledKey[_],Map[Object,Boolean]]
-case class WorldTransition(
-  prev: Option[WorldTransition],
-  diff: ReadModel,
-  result: ReadModel,
-  profiling: JoiningProfiling,
-  log: Future[ProfilingLog],
-  executionContext: OuterExecutionContext,
-  taskLog: List[AssembledKey]
+class WorldTransition(
+  val prev: Option[WorldTransition],
+  val diff: ReadModel,
+  val result: ReadModel,
+  val profiling: JoiningProfiling,
+  val log: Future[ProfilingLog],
+  val executionContext: OuterExecutionContext,
+  val taskLog: List[AssembledKey]
 )
 
 trait JoiningProfiling extends Product {
@@ -237,4 +242,17 @@ trait EachSubAssemble[R<:Product] extends SubAssemble[R] {
 }
 trait ValuesSubAssemble[R<:Product] extends SubAssemble[R] {
   def call(implicit can: CanCallToValues): Values[R] = throw new Exception("never here")
+}
+
+/*
+we declare, that products has fast x.hashCode and ToPrimaryKey(x),
+  so no extra memory is needed to cache this information
+*/
+
+trait StartUpSpaceProfiler {
+  def out(readModelA: ReadModel): Unit
+}
+
+trait MemoryOptimizing {
+  def indexPower: Int
 }

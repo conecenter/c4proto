@@ -62,3 +62,13 @@ abstract class ArgAdapter[Value] {
 object FieldEncoding {
   val LENGTH_DELIMITED = com.squareup.wire.FieldEncoding.LENGTH_DELIMITED
 }
+
+trait GeneralProtoChanger {
+  def entityClass: Class[_]
+  def attributeClass: Class[_]
+}
+class ProtoChanger[E,A](
+  val entityClass: Class[E],
+  val attributeClass: Class[A],
+  val changePrimaryKey: (E,A)=>E
+) extends GeneralProtoChanger
