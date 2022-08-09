@@ -1608,20 +1608,20 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     #
     mkdir "$ctx_dir/app";
     my $paths = &$decode(&$get_text(&$get_classpath($gen_dir,$mod)));
-    my @classpath = $$paths{CLASSPATH}=~/([^\s:]+)/g;
     my @started = map{&$start($_)} map{
         m{([^/]+\.jar)$} ? "cp $_ $ctx_dir/app/$1" :
         m{\bclasses\b} ? "cd $_ && zip -q -r $ctx_dir/app/".&$md5_hex($_).".jar ." :
         die $_
-    } @classpath;
+    } $$paths{CLASSPATH}=~/([^\s:]+)/g;
     &$_() for @started;
     &$put_text("$ctx_dir/serve.sh", join "\n",
+        "export C4MODULES=$$paths{C4MODULES}",
         "export C4APP_CLASS=ee.cone.c4actor.ParentElectorClientApp",
         "export C4APP_CLASS_INNER=$main_cl",
         "exec java ee.cone.c4actor.ServerMain"
     );
     #
-    my %has_mod = map{m"/mod\.([^/]+)\.classes(-bloop-cli)?$"?($1=>1):()} @classpath;
+    my %has_mod = map{($_=>1)} $$paths{C4MODULES}=~/([^\s:]+)/g;
     my @public_part = map{ my $dir = $_;
         my @pub = map{ !/^(\S+)\s+\S+\s+(\S+)$/ ? die : $has_mod{$1} ? [$_,"$2"] : () }
             &$get_text("$dir/c4gen.ht.links")=~/(.+)/g;

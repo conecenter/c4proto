@@ -154,7 +154,7 @@ def main():
 
     out_conf = {
         "plain": conf_plain,
-        "src_dirs_by_tag": {
+        "src_dirs_by_root_mod": {
             mod_name: get_src_dirs(conf,full_dep(mod_name))
             for mod_name in mod_heads
         },
@@ -173,6 +173,7 @@ def main():
                 conf["C4DEP"].keys(), lambda mod: (get_pkg_from_mod(mod),mod)
             ).items()
         },
+        "modules_by_root_mod": { mod: ":".join(full_dep(mod)) for mod in mod_heads },
     }
     write_changed(tmp_path() / "build.json", json.dumps(out_conf, sort_keys=True, indent=4))
 

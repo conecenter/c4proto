@@ -156,7 +156,7 @@ my %is_off_dir = map{($_=>1)} map{"$src_dir/$_"}@{$$build_data{src_dirs_generato
 do{
     print "generation starting\n";
     my $sum = &$get_sum(join"\n",map{&$get_text($_)} sort grep{/\.scala$/}
-        &$find_files(map{"$src_dir/$_"}@{$$build_data{src_dirs_by_tag}{$gen_mod}||die}));
+        &$find_files(map{"$src_dir/$_"}@{$$build_data{src_dirs_by_root_mod}{$gen_mod}||die}));
     &$changing("$tmp/generator-src-sum",$sum,sub{
         sy("cd $src_dir && perl $proto_dir/compile.pl $gen_mod");
     });

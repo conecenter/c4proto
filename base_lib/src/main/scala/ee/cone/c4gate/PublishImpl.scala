@@ -53,10 +53,9 @@ trait PublicDirProvider {
   config: ListConfig, publicPaths: PublicPaths,
 ) extends PublicDirProvider with LazyLogging {
   def get: List[(String,Path)] = {
-    val Mod = """.+/mod\.([^/]+)\.(classes(-bloop-cli)?|jar)""".r
     val hasMod = (for {
-      classpath <- config.get("CLASSPATH")
-      Mod(m,_,_) <- classpath.split(":")
+      modulesStr <- config.get("C4MODULES")
+      m <- modulesStr.split(":")
     } yield m).toSet
     logger.debug(s"hasMod: $hasMod")
     val Line = """(\S+)\s+(\S+)\s+(\S+)""".r

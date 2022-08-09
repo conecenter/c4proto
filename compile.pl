@@ -16,7 +16,11 @@ sy("$sbt compile");
 my $cp = syf("$sbt 'export main/runtime:fullClasspath'")=~m{(/\S+)\s*$} ? "$1" : die;
 use JSON::XS;
 my $json = JSON::XS->new->ascii(1)->canonical(1)->pretty(1);
-my $res = {%{$json->decode(syf("cat $tmp/paths.json"))||die}, CLASSPATH => $cp};
+my $res = {
+    %{$json->decode(syf("cat $tmp/paths.json"))||die},
+    C4MODULES => ($json->decode(syf("cat $tmp/build.json"))->{modules_by_root_mod}{$mod}||die),
+    CLASSPATH => $cp,
+};
 my $sh = join "", map{"export $_=$$res{$_}\n"} sort keys %$res;
 &$put_text("$tmp/mod.$mod.classpath.json", $json->encode($res));
 &$put_text("$tmp/mod.$mod.classpath.sh", $sh);
