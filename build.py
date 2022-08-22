@@ -56,9 +56,17 @@ def leave_tmp(dir): return f"""../../../../{dir}"""
 def colon_to_q(joiner,v):
     return joiner.join(f""" "{part}" """ for part in v.split(":"))
 
-def to_sbt_mod(name,dep_name,src_dirs,ext_dep_list,lib_dep_list,excl,warts):
+def to_sbt_mod(name,project,dep_name,src_dirs,ext_dep_list,lib_dep_list,excl,get_repo,warts):
     src_dirs_str = "".join(
         f"""   baseDirectory.value / "{dir}",\n""" for dir in src_dirs
+    )
+    repo_str = "".join(
+        f"""   ("{name}_{i}" at "{repo}"),\n"""
+        for i, repo in enumerate(sorted({
+            repo
+            for dep in ext_dep_list
+            for repo in get_repo(dep)
+        }))
     )
     ext_dep_str = "".join(
         "   " + colon_to_q("%",dep) +
@@ -71,25 +79,15 @@ def to_sbt_mod(name,dep_name,src_dirs,ext_dep_list,lib_dep_list,excl,warts):
     )
     warts_str = "".join(f"""   {wart},\n""" for wart in warts)
     return (
-        f"""lazy val {name} = project\n""" +
+        f"""lazy val {name} = {project}\n""" +
         wrap_non_empty(" .dependsOn(",dep_name," )\n") +
         wrap_non_empty(" .settings(\n",
             wrap_non_empty("  Compile / unmanagedSourceDirectories := Seq(\n",src_dirs_str,"  ),\n") +
+            wrap_non_empty("  resolvers ++= Seq(\n",repo_str,"  ),\n") +
             wrap_non_empty("  libraryDependencies ++= Seq(\n",ext_dep_str,"  ),\n") +
             wrap_non_empty("  Compile / unmanagedJars ++= Seq(\n",lib_dep_str,"  ),\n") +
             wrap_non_empty("  wartremoverErrors ++= Seq(\n",warts_str,"  ),\n"),
         " )\n")
-    )
-
-def to_sbt_common(repo_dict):
-    resolvers_inner_str = "".join(
-        f"""  ("{repo}" at "{one(*repo_dict[repo])}") ::\n"""
-        for repo in sorted(repo_dict.keys())
-    )
-    return (
-            f"""ThisBuild / scalaVersion := "2.13.8"\n\n""" +
-            #"coursierMaxIterations := 200\n\n" +
-            wrap_non_empty("resolvers ++=\n",resolvers_inner_str,"  Nil\n\n")
     )
 
 def flat_values(d):
@@ -120,12 +118,16 @@ def main():
         *(parse_main(main)["mod"] for main in flat_values(conf["C4TAG"])),
         *flat_values(conf["C4GENERATOR_MAIN"])
     })
-    sbt_common_text = to_sbt_common(get_dict(conf,"C4REPO"))
+    sbt_common_text = f"""ThisBuild / scalaVersion := "2.13.8"\n\n""" #"coursierMaxIterations := 200\n\n" +
+    def excl(k): return get_list(conf,"C4EXT_EXCL",k)
+    def get_repo(k): return get_list(conf,"C4REPO",k)
+
     for mod in mod_heads:
         max_stage_num = mod_stage(mod)
         sbt_text = sbt_common_text + "".join(
             to_sbt_mod(
                 "main" if stage_num==max_stage_num else f"s{stage_num}",
+                "project",
                 "" if stage_num==0 else f"s{stage_num-1}",
                 [leave_tmp(dir) for dir in get_src_dirs(conf,mods)],
                 sorted({
@@ -136,7 +138,7 @@ def main():
                     leave_tmp(dep)
                     for mod in mods for dep in get_list(conf,"C4LIB",mod)
                 }),
-                lambda k: get_list(conf,"C4EXT_EXCL",k),
+                excl, get_repo,
                 flat_values(get_dict(conf,"C4WART")),
             )
             for stage_num in range(max_stage_num+1)
@@ -148,7 +150,9 @@ def main():
         write_changed(proj_path / "project" / "plugins.sbt", plugins_text)
 
     ide_sbt_text = sbt_common_text + to_sbt_mod(
-        "main", "", flat_values(conf["C4SRC"]), flat_values(conf["C4EXT"]), [], lambda k: [], []
+        "main", """(project in file("."))""", "",
+        flat_values(conf["C4SRC"]), flat_values(conf["C4EXT"]), [],
+        excl, get_repo, []
     )
     write_changed(build_path() / "c4gen-generator.sbt", ide_sbt_text)
 
