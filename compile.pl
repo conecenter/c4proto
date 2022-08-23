@@ -12,7 +12,7 @@ my ($mod) = @ARGV;
 #open FF,'|-','sbt',"$mod/compile"; close FF or die; ### perl during 'system' will not fail on ^C; so we use 'open'
 my $tmp = "target/c4";
 my $sbt = qq^cd $tmp/mod.$mod.d && JAVA_TOOL_OPTIONS="\$JAVA_TOOL_OPTIONS \$C4BUILD_JAVA_TOOL_OPTIONS" sbt^;
-sy("$sbt -Dsbt.color=true compile");
+sy("$sbt -Dsbt.color=true -J-Xmx16G compile");
 my $cp = syf("$sbt 'export main/runtime:fullClasspath'")=~m{(/\S+)\s*$} ? "$1" : die;
 use JSON::XS;
 my $json = JSON::XS->new->ascii(1)->canonical(1)->pretty(1);
