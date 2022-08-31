@@ -30,47 +30,6 @@ my $repeat = sub{
     @state = &$f(@state) while @state > 0;
 };
 
-#my $serve_b l o o p = sub{
-#    &$exec_at(".", { JAVA_TOOL_OPTIONS => "$ENV{JAVA_TOOL_OPTIONS} $ENV{C4BUILD_JAVA_TOOL_OPTIONS}" }, "b l o o p", "server")
-#};
-my $serve_sshd = sub{
-    do{
-        my $dev_auth_dir = $ENV{C4DEV_AUTH_DIR} || die "no C4DEV_AUTH_DIR";
-        my $dir = "/c4/dropbear";
-        sy("mkdir -p $dir && chmod 0700 $dir");
-        my $fn = "dropbear_ecdsa_host_key";
-        sy("cp $dev_auth_dir/$fn $dir/ && chmod 0600 $dir/$fn") if -e "$dev_auth_dir/$fn";
-    };
-    do{
-        my $dir = "/c4/.ssh";
-        my $a_keys = "$dir/authorized_keys";
-        sy("mkdir -p $dir && chmod 0700 $dir");
-        &$put_text($a_keys, $ENV{C4AUTHORIZED_KEYS_CONTENT} || die "no C4AUTHORIZED_KEYS_CONTENT");
-        sy("chmod 0600 $a_keys");
-    };
-    #
-    my $alias_prod = qq[alias prod="perl $ENV{C4CI_PROTO_DIR}/prod.pl "];
-    &$put_text("/c4p_alias.sh", join "", map{"$_\n"}
-        'export PATH=$PATH:/usr/local/bin:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin:/tools',
-        'export JAVA_HOME=/tools/jdk',
-        'export JAVA_TOOL_OPTIONS="$JAVA_TOOL_OPTIONS -XX:-UseContainerSupport"', #-Xss16m
-        "export KUBECONFIG=$ENV{C4KUBECONFIG}", # $C4KUBECONFIG was empty at this stage
-        "export KUBE_EDITOR=mcedit",
-        'eval `ssh-agent`',
-        'history -c && history -r /c4/.bash_history_get && export PROMPT_COMMAND="history -a /c4/.bash_history_put"',
-    );
-    sy("export C4AUTHORIZED_KEYS_CONTENT= ; export -p | grep ' C4' >> /c4p_alias.sh");
-    &$get_text_or_empty("/c4/.profile")=~/c4p_alias/ or sy("echo '. /c4p_alias.sh' >> /c4/.profile");
-    &$get_text_or_empty("/c4/.bashrc")=~/alias prod=/ or do{
-        sy("echo '$alias_prod' >> /c4/.bashrc");
-        sy(q[echo 'alias kc="kubectl --context "' >> /c4/.bashrc]);
-        sy(q[echo 'alias h="history|grep "' >> /c4/.bashrc]);
-    };
-
-    #
-    &$exec('dropbear', '-RFEmwgs', '-p', $ENV{C4SSH_PORT}||die 'no C4SSH_PORT');
-};
-
 my $debug_port = 5005;
 my $serve_proxy = sub{
     my $debug_ext_address = "0.0.0.0:".($ENV{C4DEBUG_PORT} || die "no C4DEBUG_PORT");
@@ -206,6 +165,16 @@ my $serve_loop = sub{
 ####
 
 my $serve_history = sub{
+    &$put_text("/c4/.bashrc", join "\n",
+        &$get_text_or_empty("/c4/.bashrc"), syf("ssh-agent"),
+        "export KUBECONFIG=$ENV{C4KUBECONFIG}", # $C4KUBECONFIG was empty at this stage
+        "export KUBE_EDITOR=mcedit",
+        'history -c && history -r /c4/.bash_history_get && export PROMPT_COMMAND="history -a /c4/.bash_history_put"',
+        qq[alias prod="perl $ENV{C4CI_PROTO_DIR}/prod.pl "],
+        'alias kc="kubectl --context "',
+        'alias h="history|grep "',
+    );
+    #
     my $env = {
         CLASSPATH => (syf("coursier fetch --classpath org.apache.kafka:kafka-clients:2.8.0")=~/(\S+)/ ? $1 : die),
         C4HISTORY_PUT => "/c4/.bash_history_put",
@@ -237,13 +206,11 @@ my $init = sub{
             "stderr_logfile_maxbytes=0",
             "stdout_logfile=/dev/stdout",
             "stdout_logfile_maxbytes=0",
-        )} qw[sshd proxy loop history]) #b l o o p
+        )} qw[proxy loop history]) #b l o o p
     );
     &$exec("supervisord","-c","/c4/supervisord.conf")
 };
 my $cmd_map = {
-    #b l o o p => $serve_b l o o p,
-    sshd => $serve_sshd,
     proxy => $serve_proxy,
     loop => $serve_loop,
     history => $serve_history,

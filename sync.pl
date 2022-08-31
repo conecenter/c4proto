@@ -78,7 +78,7 @@ my $lines = sub{join"",map{"$_\n"}@_};
 
 my $request_remote_dir = sub{
     my $remote_pre = &$get_remote_pre();
-    syf("echo '. /c4p_alias.sh > /dev/null && echo \$C4CI_BUILD_DIR' | $remote_pre sh")=~/^(\S+)\s*$/ ? "$1" : die;
+    syf("$remote_pre 'echo \$C4CI_BUILD_DIR'")=~/^(\S+)\s*$/ ? "$1" : die;
 };
 
 my $distinct_sorted = sub{ sort keys %{+{map{($_=>1)}@_}} };
@@ -158,7 +158,7 @@ push @tasks, ["run","",sub{
     my($dir,$cmd)=@_;
     my $remote_dir = &$request_remote_dir();
     my $remote_pre = &$get_remote_pre();
-    sy("$remote_pre '. /c4p_alias.sh && cd $remote_dir && $cmd'");
+    sy("$remote_pre 'cd $remote_dir && $cmd'");
 }];
 
 my($cmd,@args)=@ARGV;
