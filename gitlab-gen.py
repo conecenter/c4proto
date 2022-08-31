@@ -1,27 +1,13 @@
 
 import os
 import json
-import re
+from c4util import group_map, one, read_json
 
 ### util
-
-def read_json(path):
-  with open(path,'r') as f:
-    return json.load(f)
 
 def write_json(path, value):
   with open(path,"w") as f:
     json.dump(value, f, sort_keys=True, indent=4)
-
-def group_map(l,f):
-  res = {}
-  for it in l:
-    k,v = f(it)
-    if k not in res: res[k] = []
-    res[k].append(v)
-  return res
-
-def one(it): return it
 
 def ext(f): return lambda arg: f(*arg)
 

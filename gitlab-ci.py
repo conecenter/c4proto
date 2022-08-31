@@ -6,6 +6,7 @@ import hashlib
 import json
 import gitlab
 import re
+from c4util import read_json
 
 def get_env(k):
     v = os.environ[k]
@@ -29,10 +30,6 @@ def set_tag(project,tag_name,commit):
 def prod(args):
     proto_dir = get_env("C4CI_PROTO_DIR")
     subprocess.run(["ssh-agent","perl",f"{proto_dir}/prod.pl"] + args).check_returncode()
-
-def read_json(path):
-    with open(path,'r') as f:
-        return json.load(f)
 
 def need_environment(project,slug):
     environments = project.environments.list(all=True)

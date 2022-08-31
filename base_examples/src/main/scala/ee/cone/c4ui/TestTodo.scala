@@ -207,7 +207,7 @@ case object HeaderCSSClassName extends CSSClassName{ def name = "tableHeadContai
         ),
       ).toChildPair[OfDiv],
       gridRoot("todoList",
-        dragCol = NoReceiver,
+        dragCol = TaskNoReceiver,
         dragRow = sortReceiverFactory.create(todoSortHandlerFactory.create(todoSortOrder)),
         rows = todoTasks.map(_.srcId).map(gridRow(_)),
         cols = List(
@@ -270,7 +270,7 @@ case object HeaderCSSClassName extends CSSClassName{ def name = "tableHeadContai
   }
 }
 
-case object NoReceiver extends Receiver[Context] {
+case object TaskNoReceiver extends Receiver[Context] {
   def receive: Handler = _ => throw new Exception
 }
 
