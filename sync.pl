@@ -5,6 +5,8 @@ use Time::HiRes;
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 sub syf{ for(@_){ print "$_\n"; my $r = scalar `$_`; $? && die $?; return $r } }
 
+my $single = sub{ @_==1 ? $_[0] : die };
+
 my $put_text = sub{
     my($fn,$content)=@_;
     open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
@@ -43,9 +45,32 @@ my $find = sub{
         sort `$cmd -type f$prune_str`;
 };
 
-my $get_ssh = sub{ $ENV{C4BUILD_PORT}=~/^(\d+)$/ ? "ssh -p$1" : die "bad C4BUILD_PORT"};
-my $user_host = "c4\@127.0.0.1";
-my $get_remote_pre = sub{ &$get_ssh()." $user_host " };
+my $rsh_path = "/tmp/c4rsh";
+my $pod_path = "/tmp/c4pod";
+my $setup_rsh = sub{
+    my $ctx = $ENV{C4BUILD_CONTEXT}=~/^(\w+)$/ ? $1 : die "bad C4BUILD_CONTEXT";
+    my $user = $ENV{C4USER}=~/^(\w+)$/ ? $1 : die "bad C4USER";
+    my $kubectl = "kubectl --context $ctx";
+    my $find_one_name = sub{
+        my($cmd)=@_;
+        &$single(syf(qq[$cmd -o jsonpath="{.items[*].metadata.name}"])=~/(\S+)/g);
+    };
+    my $fc_comp = &$find_one_name("$kubectl get deploy -l c4env=fc-$user");
+    my $de_comp = $fc_comp=~/^fc-(\S+)$/ ? "de-$1" : die;
+    my $pod = &$find_one_name("$kubectl get po -l app=$de_comp");
+    &$put_text($pod_path,$pod);
+    &$put_text($rsh_path,join"\n",
+        '#!/usr/bin/perl',
+        'use strict;',
+        'my ($pod,@args) = @ARGV;',
+        'my @e_args = @args==1 && $args[0]=~/\s/ ? ("sh","-c",@args) : @args;',
+        'exec "kubectl", "--context", ($ENV{C4BUILD_CONTEXT}||die), "exec", "-i", $pod, "--", @e_args;',
+        'die;'
+    );
+    sy("chmod +x $rsh_path");
+};
+
+my $get_remote_pre = sub{ "$rsh_path ".syf("cat $pod_path")." " };
 
 my $prune = [qw(target .git .idea .bloop node_modules build)];
 
@@ -62,8 +87,7 @@ my $group_by = sub{ my($f,@in)=@_; my %r; push @{$r{&$f($_)}||=[]},$_ for @in; %
 my $sync0 = sub{
     my($dir,$remote_dir,$is_back,$paths,$get_mode)=@_;
     my $remote_pre = &$get_remote_pre();
-    my $ssh = &$get_ssh();
-    my $remote_pre_d = "$user_host:";
+    my $remote_pre_d = syf("cat $pod_path").":";
     my($from_pre_d,$from_dir,$to_pre_d,$to_dir,$to_pre) = $is_back ?
         ($remote_pre_d,$remote_dir,"",$dir,"sh -c ") :
         ("",$dir,$remote_pre_d,$remote_dir,$remote_pre);
@@ -75,7 +99,7 @@ my $sync0 = sub{
     my @del = @{$task_by_mode{del}||[]};
     my $tm = Time::HiRes::time();
     sy("$to_pre 'cd $to_dir && cat > $changed_fn' < ".&$put_temp(changed=>&$lines(@all)));
-    sy("rsync -e '$ssh' -rltDvc --files-from=".&$put_temp(upd=>&$lines(@upd))." $from_pre_d$from_dir/ $to_pre_d$to_dir") if @upd;
+    sy("rsync --blocking-io -e $rsh_path -rltDvc --files-from=".&$put_temp(upd=>&$lines(@upd))." $from_pre_d$from_dir/ $to_pre_d$to_dir") if @upd;
     if(@del){
         my $remover_fn = "target/c4sync-rm.pl";
         sy("$to_pre 'cd $to_dir && cat > $remover_fn' < ".&$put_temp(remover=>&$lines(
@@ -104,6 +128,7 @@ push @tasks, ["clean_local","",sub{
 }];
 push @tasks, ["report_changes","",sub{
     my($dir)=@_; $dir || die "need dir";
+    &$setup_rsh();
     my $changed_path = &$mandatory_of(C4GIT_CHANGED_PATH=>\%ENV);
     my $remote_dir = &$request_remote_dir();
     my $remote_pre = &$get_remote_pre();
