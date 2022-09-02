@@ -48,9 +48,8 @@ my $find = sub{
 my $rsh_path = "/tmp/c4rsh";
 my $pod_path = "/tmp/c4pod";
 my $setup_rsh = sub{
-    my $ctx = $ENV{C4BUILD_CONTEXT}=~/^(\w+)$/ ? $1 : die "bad C4BUILD_CONTEXT";
-    my $user = $ENV{C4USER}=~/^(\w+)$/ ? $1 : die "bad C4USER";
-    my $kubectl = "kubectl --context $ctx";
+    my ($conf_path,$user) = @_;
+    my $kubectl = "kubectl --kubeconfig $conf_path";
     my $find_one_name = sub{
         my($cmd)=@_;
         &$single(syf(qq[$cmd -o jsonpath="{.items[*].metadata.name}"])=~/(\S+)/g);
@@ -63,8 +62,8 @@ my $setup_rsh = sub{
         '#!/usr/bin/perl',
         'use strict;',
         'my ($pod,@args) = @ARGV;',
-        'my @e_args = @args==1 && $args[0]=~/\s/ ? ("sh","-c",@args) : @args;',
-        'exec "kubectl", "--context", ($ENV{C4BUILD_CONTEXT}||die), "exec", "-i", $pod, "--", @e_args;',
+        'my ($mode,@e_args) = @args==0 ? ("-it","bash") : @args==1 && $args[0]=~/\s/ ? ("-i","sh","-c",@args) : ("-i",@args);',
+        'exec "kubectl", "--kubeconfig", "'.$conf_path.'", "exec", $mode, $pod, "--", @e_args;',
         'die;'
     );
     sy("chmod +x $rsh_path");
@@ -126,9 +125,9 @@ push @tasks, ["clean_local","",sub{
         unlink $path or die;
     }
 }];
+push @tasks, ["setup_rsh","",$setup_rsh];
 push @tasks, ["report_changes","",sub{
     my($dir)=@_; $dir || die "need dir";
-    &$setup_rsh();
     my $changed_path = &$mandatory_of(C4GIT_CHANGED_PATH=>\%ENV);
     my $remote_dir = &$request_remote_dir();
     my $remote_pre = &$get_remote_pre();

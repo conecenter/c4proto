@@ -1724,7 +1724,7 @@ push @tasks, ["up-kc_host", "", sub{ # the last multi container kc
             },
             {
                 apiGroups => [""],
-                resources => ["pods/exec"],
+                resources => ["pods/exec","pods/portforward"],
                 verbs => ["create"],
             },
             {
