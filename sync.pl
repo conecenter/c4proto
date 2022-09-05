@@ -11,6 +11,13 @@ my $put_text = sub{
     my($fn,$content)=@_;
     open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
 };
+my $get_text = sub{
+    my($path)=@_;
+    open FF,"<:encoding(UTF-8)",$path or die "get_text: $path";
+    my $res = join"",<FF>;
+    close FF or die;
+    $res;
+};
 
 my $need_path = sub{
     my($dn)=@_;
@@ -45,31 +52,53 @@ my $find = sub{
         sort `$cmd -type f$prune_str`;
 };
 
-my $rsh_path = "/tmp/c4rsh";
 my $pod_path = "/tmp/c4pod";
-my $setup_rsh = sub{
-    my ($conf_path,$user) = @_;
-    my $kubectl = "kubectl --kubeconfig $conf_path";
-    my $find_one_name = sub{
-        my($cmd)=@_;
-        &$single(syf(qq[$cmd -o jsonpath="{.items[*].metadata.name}"])=~/(\S+)/g);
-    };
-    my $fc_comp = &$find_one_name("$kubectl get deploy -l c4env=fc-$user");
-    my $de_comp = $fc_comp=~/^fc-(\S+)$/ ? "de-$1" : die;
-    my $pod = &$find_one_name("$kubectl get po -l app=$de_comp");
-    &$put_text($pod_path,$pod);
-    &$put_text($rsh_path,join"\n",
-        '#!/usr/bin/perl',
-        'use strict;',
-        'my ($pod,@args) = @ARGV;',
-        'my ($mode,@e_args) = @args==0 ? ("-it","bash") : @args==1 && $args[0]=~/\s/ ? ("-i","sh","-c",@args) : ("-i",@args);',
-        'exec "kubectl", "--kubeconfig", "'.$conf_path.'", "exec", $mode, $pod, "--", @e_args;',
-        'die;'
-    );
-    sy("chmod +x $rsh_path");
+
+my $put_bin = sub{
+    my($nm,$content)=@_;
+    my $bin_path = "$ENV{HOME}/bin";
+    my $path = "$bin_path/$nm";
+    return if -e $path and &$get_text($path) eq $content;
+    sy("mkdir -p $bin_path");
+    &$put_text($path,$content);
+    sy("chmod +x $path");
 };
 
-my $get_remote_pre = sub{ "$rsh_path ".syf("cat $pod_path")." " };
+my $setup_rsh = sub{
+    my ($conf_path,$user) = @_;
+    my $perl_exec = sub{ join"\n",'#!/usr/bin/perl','use strict;',@_,'die;' };
+    &$put_bin("kcd",&$perl_exec(
+        'exec "kubectl", "--kubeconfig", "'.$conf_path.'", @ARGV;',
+    ));
+    &$put_bin("c4rsh",&$perl_exec(
+        'my ($pod,@args) = @ARGV ? @ARGV : `cat '.$pod_path.'`||die "no pod";',
+        'my ($mode,@e_args) = @args==0 ? ("-it","bash") : @args==1 && $args[0]=~/\s/ ? ("-i","sh","-c",@args) : ("-i",@args);',
+        'exec "kcd", "exec", $mode, $pod, "--", @e_args;',
+    ));
+    &$put_bin("c4forward",&$perl_exec(
+        'my $pod = $ARGV[0]=~/^([a-z][\w\-]*)$/ ? $1 : die;',
+        'exec "echo -n $pod > '.$pod_path.'";'
+    ));
+};
+
+my $auto_pod = sub{
+    my $find_names = sub{
+        my($subj)=@_;
+        syf(qq[kcd get $subj -o jsonpath="{.items[*].metadata.name}"])=~/(\S+)/g;
+    };
+    return if map{&$find_names("po $_")} map{&$get_text($_)} grep{-e $_} $pod_path;
+    my @pods = map{ &$find_names("po -l app=$_") }
+        grep{/-main$/} &$find_names("deploy -l c4env_group=de-$user");
+    if(@pods>1){
+        print "need c4forward (".join("|",@pods).")\n";
+    } else if(@pods==1){
+        my $pod = &$single(@pods);
+        &$put_text($pod_path,$pod);
+        print "$pod selected\n";
+    }
+};
+
+my $get_remote_pre = sub{ "c4rsh ".&$get_text($pod_path)." " };
 
 my $prune = [qw(target .git .idea .bloop node_modules build)];
 
@@ -86,7 +115,7 @@ my $group_by = sub{ my($f,@in)=@_; my %r; push @{$r{&$f($_)}||=[]},$_ for @in; %
 my $sync0 = sub{
     my($dir,$remote_dir,$is_back,$paths,$get_mode)=@_;
     my $remote_pre = &$get_remote_pre();
-    my $remote_pre_d = syf("cat $pod_path").":";
+    my $remote_pre_d = &$get_text($pod_path).":";
     my($from_pre_d,$from_dir,$to_pre_d,$to_dir,$to_pre) = $is_back ?
         ($remote_pre_d,$remote_dir,"",$dir,"sh -c ") :
         ("",$dir,$remote_pre_d,$remote_dir,$remote_pre);
@@ -98,7 +127,7 @@ my $sync0 = sub{
     my @del = @{$task_by_mode{del}||[]};
     my $tm = Time::HiRes::time();
     sy("$to_pre 'cd $to_dir && cat > $changed_fn' < ".&$put_temp(changed=>&$lines(@all)));
-    sy("rsync --blocking-io -e $rsh_path -rltDvc --files-from=".&$put_temp(upd=>&$lines(@upd))." $from_pre_d$from_dir/ $to_pre_d$to_dir") if @upd;
+    sy("rsync --blocking-io -e c4rsh -rltDvc --files-from=".&$put_temp(upd=>&$lines(@upd))." $from_pre_d$from_dir/ $to_pre_d$to_dir") if @upd;
     if(@del){
         my $remover_fn = "target/c4sync-rm.pl";
         sy("$to_pre 'cd $to_dir && cat > $remover_fn' < ".&$put_temp(remover=>&$lines(
@@ -125,7 +154,10 @@ push @tasks, ["clean_local","",sub{
         unlink $path or die;
     }
 }];
-push @tasks, ["setup_rsh","",$setup_rsh];
+push @tasks, ["setup_rsh","",sub{
+    &$setup_rsh();
+    &$auto_pod();
+}];
 push @tasks, ["report_changes","",sub{
     my($dir)=@_; $dir || die "need dir";
     my $changed_path = &$mandatory_of(C4GIT_CHANGED_PATH=>\%ENV);
@@ -142,7 +174,7 @@ push @tasks, ["start","",sub{
     my($dir)=@_; $dir || die "need dir";
     my $changed_path = &$mandatory_of(C4GIT_CHANGED_PATH=>\%ENV);
     my $remote_dir = &$request_remote_dir();
-    my @changed = syf("cat $changed_path")=~/(\S+)/g;
+    my @changed = &$get_text($changed_path)=~/(\S+)/g;
     &$sync0($dir,$remote_dir,0,\@changed,sub{(-e "$dir/$_[0]")?"upd":"del"});
 }];
 push @tasks, ["back","",sub{

@@ -40,7 +40,6 @@ def get_aggr_cond(aggr_cond_list):
 
 build_common_name = "build common"
 build_gate_name = "build gate"
-build_frp_name = "build frp"
 def build_aggr_name(v): return f"{v}.aggr"
 def build_rt_name(tag,aggr): return f"b {tag} {aggr} rt"
 stage_build_rt = "develop"
@@ -74,7 +73,6 @@ def get_build_jobs(config_statements):
       [handle(f"rebuild $CI_COMMIT_BRANCH")]
     ),
     build_gate_name: build_main(prefix_cond(""),"ci_build def"),
-    build_frp_name: build_main(prefix_cond(""),"ci_build_frp"),
     **aggr_jobs, **fin_jobs
   }
 
@@ -87,7 +85,7 @@ def get_deploy_jobs(config_statements):
   tag_aggr_list = config_statements["C4TAG_AGGR"]
   aggr_cond_list = config_statements["C4AGGR_COND"]
   needs_rt = [build_gate_name] + [optional_job(build_rt_name(tag,aggr)) for tag, aggr in tag_aggr_list]
-  needs_de = [build_gate_name,build_frp_name] + [optional_job(build_aggr_name(aggr)) for aggr, cond in aggr_cond_list if cond]
+  needs_de = [build_gate_name] + [optional_job(build_aggr_name(aggr)) for aggr, cond in aggr_cond_list if cond]
   return {
     key: value
     for env_mask, caption_mask in config_statements["C4DEPLOY"]
@@ -125,10 +123,6 @@ def get_env_jobs():
     **common_job(cond,when,"stop",needs,[handle("down")]),
     "environment": { "name": "$CI_COMMIT_TAG", "action": "stop" }
   }
-  def forward(when): return common_job("$CI_COMMIT_TAG =~ /\\/de-/",when,"start",[],[
-    handle("deploy fc-$(perl -e '/\\bde-(\w+-\w+-\w+)/&&print$1 for $ENV{CI_COMMIT_TAG}') no-branch")
-  ])
-
   start_name = "start"
   check_name = "check"
   testing_name = "testing"
@@ -141,8 +135,6 @@ def get_env_jobs():
     testing_name: common_job(cond_qa,"on_success","testing",[check_name],[handle("qa_run /c4/qa")]),
     "stop": stop("$CI_COMMIT_TAG","manual",[start_name]),
     "auto-stop": stop(cond_qa,"on_success",[testing_name]),
-    "forward": forward("manual"),
-    "auto-forward": forward("on_success"),
   }
 
 def main():
