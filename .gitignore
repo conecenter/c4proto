@@ -38,3 +38,5 @@ c4front
 *.out
 
 __pycache__
+
+.bsp

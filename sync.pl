@@ -53,6 +53,7 @@ my $find = sub{
 };
 
 my $pod_path = "/tmp/c4pod";
+my $dev_context = "dev";
 
 my $put_bin = sub{
     my($nm,$content)=@_;
@@ -65,15 +66,12 @@ my $put_bin = sub{
 };
 
 my $setup_rsh = sub{
-    my ($conf_path) = @_;
     my $perl_exec = sub{ join"\n",'#!/usr/bin/perl','use strict;',@_,'die;' };
-    &$put_bin("kcd",&$perl_exec(
-        'exec "kubectl", "--kubeconfig", "'.$conf_path.'", @ARGV;',
-    ));
+    &$put_bin("kc",&$perl_exec('exec "kubectl", "--context", @ARGV;'));
     &$put_bin("c4rsh",&$perl_exec(
         'my ($pod,@args) = @ARGV ? @ARGV : `cat '.$pod_path.'`||die "no pod";',
         'my ($mode,@e_args) = @args==0 ? ("-it","bash") : @args==1 && $args[0]=~/\s/ ? ("-i","sh","-c",@args) : ("-i",@args);',
-        'exec "kcd", "exec", $mode, $pod, "--", @e_args;',
+        'exec "kc", "'.$dev_context.'", "exec", $mode, $pod, "--", @e_args;',
     ));
     &$put_bin("c4forward",&$perl_exec(
         'my $pod = $ARGV[0]=~/^([a-z][\w\-]*)$/ ? $1 : die;',
@@ -85,7 +83,7 @@ my $auto_pod = sub{
     my ($user) = @_;
     my $jsonpath_names = '-o jsonpath="{.items[*].metadata.name}"';
     my $jsonpath_name = '-o jsonpath="{.metadata.name}"';
-    my $find_names = sub{ my($subj)=@_; syf(qq[kcd get $subj])=~/(\S+)/g };
+    my $find_names = sub{ my($subj)=@_; syf(qq[kc $dev_context get $subj])=~/(\S+)/g };
     return if map{&$find_names("po $_ $jsonpath_name")} map{&$get_text($_)} grep{-e $_} $pod_path;
     my @pods = map{ &$find_names("po -l app=$_ $jsonpath_names") }
         grep{/-main$/} &$find_names("deploy -l c4env_group=de-$user $jsonpath_names");
@@ -155,9 +153,9 @@ push @tasks, ["clean_local","",sub{
     }
 }];
 push @tasks, ["setup_rsh","",sub{
-    my ($conf_path,$user) = @_;
-    &$setup_rsh($conf_path);
-    &$auto_pod($user);
+    my ($user) = @_;
+    &$setup_rsh();
+    &$auto_pod($user), sleep 3 while 1;
 }];
 push @tasks, ["report_changes","",sub{
     my($dir)=@_; $dir || die "need dir";
