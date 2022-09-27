@@ -31,6 +31,10 @@ case class TagParam(
   toElement: Option[String],
 )
 
+object JoinStr {
+  def apply(parts: String*): String = parts.mkString
+}
+
 object TagGenerator extends Generator {
 
   val defaultImports: List[GeneratedImport] =
@@ -85,19 +89,21 @@ object TagGenerator extends Generator {
       res.map(_.getTagClass).map(GeneratedCode) ++
         tParamNameOpt.fold(List.empty[String])(v => List(
           s"\ntrait General$traitName",
-          s"\n$mod final class ${traitName}Provider(tags: $traitName[Nothing]){ " +
-            s"\n  def get[T]: $traitName[T] = tags.asInstanceOf[$traitName[T]] " +
+          JoinStr(
+            s"\n$mod final class ${traitName}Provider(tags: $traitName[Nothing]){ ",
+            s"\n  def get[T]: $traitName[T] = tags.asInstanceOf[$traitName[T]] ",
             s"\n}"
+          )
         )).map(GeneratedCode) ++
-        List(GeneratedCode(
-          s"\n$mod final class ${traitName}Impl(" +
-            "\n  val child: VDomFactory, " +
-            res.flatMap(_.getArg).distinct.mkString +
-            s"\n) extends ${tParamNameOpt.fold(traitName)(v => s"$traitName[Nothing]")} {" +
-            tParamNameOpt.fold("")(v => s"\n  type $v = Nothing") +
-            res.map(_.getDef).mkString +
-            s"\n}"
-        ))
+        List(GeneratedCode(JoinStr(
+          s"\n$mod final class ${traitName}Impl(",
+          "\n  val child: VDomFactory, ",
+          res.flatMap(_.getArg).distinct.mkString,
+          s"\n) extends ${tParamNameOpt.fold(traitName)(v => s"$traitName[Nothing]")} {",
+          tParamNameOpt.fold("")(v => s"\n  type $v = Nothing"),
+          res.map(_.getDef).mkString,
+          s"\n}"
+        )))
     case _ => Nil
   } ::: parseContext.stats.collect { case Defn.Trait(Seq(mod"@c4tagSwitch(...$e)"), Type.Name(traitName), x, y, code) =>
     val mod = mod"@c4(...$e)".syntax
@@ -142,17 +148,17 @@ case class TagStatements(
     else s"$defDef = $tagTypeName" :: Nil
   )
   def quot(v: String): String = '"' + v + '"'
-  def getTagClassInner(tParams: String, extendsStr: String, body: List[String]): String =
-    s"\nfinal case class $tagTypeName$tParams(" +
-      indentStr(args.map { param =>
-        s"${param.paramName}: ${param.paramTypeFullExpr}, "
-      }) +
-      s"\n)(val factory: ${traitName}Impl) extends $outTypeName$extendsStr {" +
-      indentStr(
-        s"def appendJson(builder: MutableJsonBuilder): Unit = factory.${defName}Append(this, builder)" ::
-          body
-      ) +
-      "\n}"
+  def getTagClassInner(tParams: String, extendsStr: String, body: List[String]): String = JoinStr(
+    s"\nfinal case class $tagTypeName$tParams(",
+    indentStr(args.map { param =>
+      s"${param.paramName}: ${param.paramTypeFullExpr}, "
+    }),
+    s"\n)(val factory: ${traitName}Impl) extends $outTypeName$extendsStr {",
+    indentStr(
+      s"def appendJson(builder: MutableJsonBuilder): Unit = factory.${defName}Append(this, builder)" :: body
+    ),
+    "\n}"
+  )
   def getTagClass: String =
     if (outIsChild) {
       val elementArgs = args.filter(_.toElement.nonEmpty)
@@ -183,12 +189,12 @@ case class TagStatements(
       )
     }
     else if (args.nonEmpty) getTagClassInner("", "", Nil)
-    else
-      s"\ncase object ${tagTypeName} extends $outTypeName {" +
-        s"\n  def appendJson(builder: MutableJsonBuilder): Unit = " +
-        s"\n    builder.just.append(${quot(clientType.get)})" +
-        s"\n}"
-
+    else JoinStr(
+      s"\ncase object ${tagTypeName} extends $outTypeName {",
+      s"\n  def appendJson(builder: MutableJsonBuilder): Unit = ",
+      s"\n    builder.just.append(${quot(clientType.get)})",
+      s"\n}"
+    )
   def getAdapter(addBody: List[String]): List[String] =
     s"def ${defName}Append(value: $tagTypeName${if (tParamNameOpt.isEmpty) "" else "[_]"}, builder: MutableJsonBuilder): Unit = {" ::
       indent(
