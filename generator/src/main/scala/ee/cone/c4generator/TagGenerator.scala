@@ -37,11 +37,11 @@ object JoinStr {
 
 object TagGenerator extends Generator {
 
-  val defaultImports: List[GeneratedImport] =
-    GeneratedImport("import ee.cone.c4di._") ::
-      GeneratedImport("import ee.cone.c4vdom.Types._") ::
-      GeneratedImport("import ee.cone.c4vdom._") ::
-      Nil
+  val defaultImports: List[GeneratedImport] = List(
+    GeneratedImport("import ee.cone.c4di._"),
+    GeneratedImport("import ee.cone.c4vdom.Types._"),
+    GeneratedImport("import ee.cone.c4vdom._"),
+  )
 
   def get(parseContext: ParseContext): List[Generated] = parseContext.stats.flatMap {
     case Defn.Trait(Seq(mod"@c4tags(...$e)"), Type.Name(traitName), tParams, y, code) =>
@@ -168,23 +168,27 @@ case class TagStatements(
         val childArgsStr = elementArgs.foldRight("Nil")((param, res) =>
           s"factory.child.addGroup(_key,${quot(param.paramName)},${param.toElement.get},$res)"
         )
-        s"def toChildPair[T]: ChildPair[T] = {" ::
+        Nil :::
+          s"def toChildPair[T]: ChildPair[T] = {" ::
           indent(List(
             s"val _key = key",
             s"val _copy = copy(${elementArgs.map(param => s"${param.paramName}=Nil").mkString(",")})(factory)",
             s"factory.child.create(_key,_copy,$childArgsStr)"
-          )) ::: "}" :: Nil
+          )) :::
+          "}" :: Nil
       }
       tParamNameOpt.fold(getTagClassInner("", " with VDomValue", toChildPairStr))(tParamName =>
         getTagClassInner(
           s"[$tParamName]",
           " with ResolvingVDomValue",
-          s"def resolve(name: String): Option[Resolvable] = (name match { " ::
+          Nil :::
+            s"def resolve(name: String): Option[Resolvable] = (name match { " ::
             indent(
               args.filter(_.isReceiver).map(param => s"case ${quot(param.paramName)} => Option(${param.paramName})") :::
                 "case _ => None" :: Nil
             ) :::
-            "}).collect{ case p: Resolvable => p }" :: toChildPairStr
+            "}).collect{ case p: Resolvable => p }" ::
+            toChildPairStr
         )
       )
     }
@@ -195,21 +199,21 @@ case class TagStatements(
       s"\n    builder.just.append(${quot(clientType.get)})",
       s"\n}"
     )
-  def getAdapter(addBody: List[String]): List[String] =
+  def getAdapter(addBody: List[String]): List[String] = Nil :::
     s"def ${defName}Append(value: $tagTypeName${if (tParamNameOpt.isEmpty) "" else "[_]"}, builder: MutableJsonBuilder): Unit = {" ::
-      indent(
-        "builder.startObject()" ::
-          Option.when(needsPath)("builder.append(\"path\").append(\"I\")").toList :::
-          addBody :::
-          clientType.map(tp => s"builder.append(${quot("tp")}).append(${quot(tp)})").toList :::
-          (for {
-            param <- args
-            opt <- param.toJsonOptions.toList
-            line <- getAdapterBodyArg(param, opt)
-          } yield line) :::
-          "builder.end()" :: Nil
-      ) :::
-      s"}" :: Nil
+    indent(Nil :::
+      "builder.startObject()" ::
+      Option.when(needsPath)("builder.append(\"path\").append(\"I\")").toList :::
+      addBody :::
+      clientType.map(tp => s"builder.append(${quot("tp")}).append(${quot(tp)})").toList :::
+      (for {
+        param <- args
+        opt <- param.toJsonOptions.toList
+        line <- getAdapterBodyArg(param, opt)
+      } yield line) :::
+      "builder.end()" :: Nil
+    ) :::
+    s"}" :: Nil
 
   def optionCondition(isOption: Boolean, valueName: String): List[String] =
     if (isOption) s"$valueName.nonEmpty" :: Nil
