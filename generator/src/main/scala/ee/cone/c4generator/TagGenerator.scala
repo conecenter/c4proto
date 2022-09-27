@@ -88,8 +88,7 @@ object TagGenerator extends Generator {
           s"\n$mod final class ${traitName}Provider(tags: $traitName[Nothing]){ " +
             s"\n  def get[T]: $traitName[T] = tags.asInstanceOf[$traitName[T]] " +
             s"\n}"
-        )
-        ).map(GeneratedCode) ++
+        )).map(GeneratedCode) ++
         List(GeneratedCode(
           s"\n$mod final class ${traitName}Impl(" +
             "\n  val child: VDomFactory, " +
@@ -98,8 +97,7 @@ object TagGenerator extends Generator {
             tParamNameOpt.fold("")(v => s"\n  type $v = Nothing") +
             res.map(_.getDef).mkString +
             s"\n}"
-        )
-        )
+        ))
     case _ => Nil
   } ::: parseContext.stats.collect { case Defn.Trait(Seq(mod"@c4tagSwitch(...$e)"), Type.Name(traitName), x, y, code) =>
     val mod = mod"@c4(...$e)".syntax
@@ -148,8 +146,7 @@ case class TagStatements(
     s"\nfinal case class $tagTypeName$tParams(" +
       indentStr(args.map { param =>
         s"${param.paramName}: ${param.paramTypeFullExpr}, "
-      }
-      ) +
+      }) +
       s"\n)(val factory: ${traitName}Impl) extends $outTypeName$extendsStr {" +
       indentStr(
         s"def appendJson(builder: MutableJsonBuilder): Unit = factory.${defName}Append(this, builder)" ::
@@ -170,8 +167,7 @@ case class TagStatements(
             s"val _key = key",
             s"val _copy = copy(${elementArgs.map(param => s"${param.paramName}=Nil").mkString(",")})(factory)",
             s"factory.child.create(_key,_copy,$childArgsStr)"
-          )
-          ) ::: "}" :: Nil
+          )) ::: "}" :: Nil
       }
       tParamNameOpt.fold(getTagClassInner("", " with VDomValue", toChildPairStr))(tParamName =>
         getTagClassInner(
