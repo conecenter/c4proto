@@ -12,6 +12,7 @@ class c4tags(a: String*) extends StaticAnnotation
 class c4val(a: String*) extends StaticAnnotation
 class c4tagSwitch(a: String*) extends StaticAnnotation
 class c4el(a: String*) extends StaticAnnotation
+class c4elPath(a: String*) extends StaticAnnotation
 
 trait ToChildPair {
   def toChildPair[T]: ChildPair[T]
@@ -49,9 +50,8 @@ trait JsonValueAdapter[-T] extends GeneralJsonValueAdapter {
 
 object Types {
   type VDomKey = String
-  type ViewRes = List[ChildPair[_]]
+  type ViewRes = List[ChildPair[OfDiv]]
   type ElList[T] = List[T]
-  type ChildPairList[T] = List[ChildPair[T]]
 }
 
 trait ChildPair[-C] {
@@ -59,13 +59,13 @@ trait ChildPair[-C] {
 }
 
 trait ChildPairFactory {
-  def apply[C](key: VDomKey, theElement: VDomValue, elements: ViewRes): ChildPair[C]
+  def apply[C](key: VDomKey, theElement: VDomValue, elements: List[ChildPair[_]]): ChildPair[C]
 }
 // do not mix grouped and ungrouped elements: cf(cf.group(...) ::: badUngroupedElements)
 
 trait VDomFactory {
-  def create[C](key: VDomKey, theElement: VDomValue, elements: ViewRes): ChildPair[C]
-  def addGroup(key: String, groupKey: String, elements: Seq[ChildPair[_]] , res: ViewRes): ViewRes
+  def create[C](key: VDomKey, theElement: VDomValue, elements: List[ChildPair[_]]): ChildPair[C]
+  def addGroup(key: String, groupKey: String, elements: Seq[ChildPair[_]] , res: Seq[ChildPair[_]]): List[ChildPair[_]]
   //def addGroup(key: String, groupKey: String, element: ChildPair[_] , res: ViewRes): ViewRes
 }
 

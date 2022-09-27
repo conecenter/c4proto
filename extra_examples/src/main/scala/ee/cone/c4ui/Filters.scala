@@ -52,12 +52,12 @@ case object ContainsCheck extends ConditionCheck[B_Contains,String] {
 }
 
 @c4("CommonFilterApp") final class DateBeforeAccessView(testTags: TestTags[Context]) extends AccessView(classOf[B_DateBefore]) {
-  def view(access: Access[B_DateBefore]): Context=>List[ChildPair[OfDiv]] =
+  def view(access: Access[B_DateBefore]): Context=>ViewRes =
     local => List(/*testTags.dateInput(access to CommonFilterAccess.dateBeforeValue)*/)
 }
 
 @c4("CommonFilterApp") final class ContainsAccessView(testTags: TestTags[Context]) extends AccessView(classOf[B_Contains]) {
-  def view(access: Access[B_Contains]): Context=>List[ChildPair[OfDiv]] =
+  def view(access: Access[B_Contains]): Context=>ViewRes =
     local => List(testTags.input(access to CommonFilterAccess.containsValue))
 }
 

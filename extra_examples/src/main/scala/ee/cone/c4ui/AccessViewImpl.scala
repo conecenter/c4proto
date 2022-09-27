@@ -12,7 +12,7 @@ import ee.cone.c4vdom.{ChildPair, OfDiv}
 @c4("AccessViewApp") final class AccessViewRegistryImpl(
   inner: DeferredSeq[InnerAccessViewRegistry]
 ) extends AccessViewRegistry {
-  def view[P](access: Access[P]): Context=>List[ChildPair[OfDiv]] = local => {
+  def view[P](access: Access[P]): Context=>ViewRes = local => {
     val general: GeneralAccessView =
       Single(inner.value).values(access.initialValue.getClass.getName)
     general.asInstanceOf[AccessView[P]].view(access)(local)
