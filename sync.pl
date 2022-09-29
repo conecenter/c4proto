@@ -2,6 +2,7 @@
 use strict;
 use Time::HiRes;
 
+sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 sub syf{ for(@_){ print "$_\n"; my $r = scalar `$_`; $? && die $?; return $r } }
 
@@ -66,6 +67,7 @@ my $put_bin = sub{
 };
 
 my $setup_rsh = sub{
+    my ($user) = @_;
     my $perl_exec = sub{ join"\n",'#!/usr/bin/perl','use strict;',@_,'die;' };
     &$put_bin("kc",&$perl_exec('exec "kubectl", "--context", @ARGV;'));
     &$put_bin("c4rsh",&$perl_exec(
@@ -73,26 +75,45 @@ my $setup_rsh = sub{
         'my ($mode,@e_args) = @args==0 ? ("-it","bash") : @args==1 && $args[0]=~/\s/ ? ("-i","sh","-c",@args) : ("-i",@args);',
         'exec "kc", "'.$dev_context.'", "exec", $mode, $pod, "--", @e_args;',
     ));
-    &$put_bin("c4forward",&$perl_exec(
-        'my $pod = $ARGV[0]=~/^([a-z][\w\-]*)$/ ? $1 : die;',
-        'exec "echo -n $pod > '.$pod_path.'";'
-    ));
+    my $proto_dir = $ENV{C4CI_PROTO_DIR} || die;
+    &$put_bin("c4forward",&$perl_exec('exec "perl","'.$proto_dir.'/sync.pl","forward","'.$user.'",@ARGV;'));
+};
+
+my $list_pods = sub{
+    my ($user) = @_;
+    my $kc_get = "kc $dev_context get";
+    my $jsonpath_names = '-o jsonpath="{.items[*].metadata.name}"';
+    my $find_names = sub{ my($v)=@_; $v=~/(\S+)/g };
+    map{ &$find_names(syf("$kc_get po -l app=$_ $jsonpath_names")) }
+        grep{/-main$/} &$find_names(syf("$kc_get deploy -l c4env_group=de-$user $jsonpath_names"))
+};
+
+my $do_forward = sub{
+    my $pod = &$single(@_);
+    &$put_text($pod_path,$pod);
+    print "$pod selected\n";
 };
 
 my $auto_pod = sub{
     my ($user) = @_;
-    my $jsonpath_names = '-o jsonpath="{.items[*].metadata.name}"';
-    my $jsonpath_name = '-o jsonpath="{.metadata.name}"';
-    my $find_names = sub{ my($subj)=@_; syf(qq[kc $dev_context get $subj])=~/(\S+)/g };
-    return if map{&$find_names("po $_ $jsonpath_name")} map{&$get_text($_)} grep{-e $_} $pod_path;
-    my @pods = map{ &$find_names("po -l app=$_ $jsonpath_names") }
-        grep{/-main$/} &$find_names("deploy -l c4env_group=de-$user $jsonpath_names");
-    if(@pods>1){
-        print "need c4forward (".join("|",@pods).")\n";
-    } elsif(@pods==1){
-        my $pod = &$single(@pods);
-        &$put_text($pod_path,$pod);
-        print "$pod selected\n";
+    for my $path(grep{-e $_} $pod_path){
+        my $pod = &$get_text($path);
+        so("kc $dev_context wait --for=delete pod/$pod");
+        so("kc $dev_context get pod/$pod") or return;
+    }
+    print "need c4forward ...\n";
+    my @pods = &$list_pods($user);
+    @pods==1 ? &$do_forward(@pods) : sleep 3;
+};
+
+my $forward = sub{
+    my ($user,@args) = @_;
+    my @pods = &$list_pods($user);
+    if(@args==0){
+        print "c4forward $_\n" for @pods;
+    } else {
+        my $pod_arg = &$single(@args);
+        &$do_forward(grep{ $pod_arg eq $_ }@pods);
     }
 };
 
@@ -154,9 +175,10 @@ push @tasks, ["clean_local","",sub{
 }];
 push @tasks, ["setup_rsh","",sub{
     my ($user) = @_;
-    &$setup_rsh();
-    &$auto_pod($user), sleep 3 while 1;
+    &$setup_rsh($user);
+    &$auto_pod($user) while 1;
 }];
+push @tasks, ["forward","",sub{&$forward(@_)}];
 push @tasks, ["report_changes","",sub{
     my($dir)=@_; $dir || die "need dir";
     my $changed_path = &$mandatory_of(C4GIT_CHANGED_PATH=>\%ENV);
@@ -191,5 +213,6 @@ push @tasks, ["run","",sub{
     sy("$remote_pre 'cd $remote_dir && $cmd'");
 }];
 
+$| = 1;
 my($cmd,@args)=@ARGV;
 ($cmd||'') eq $$_[0] and $$_[2]->(@args) for @tasks;

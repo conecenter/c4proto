@@ -18,7 +18,7 @@ object ContextConf {
     upickle.default.read[List[ContextConf]](os.read(path))
 }
 
-case class PublicState(devName: String){
+case class PublicState(devName: String, authTime: Long){
   def save(): Unit = os.write.over(PublicState.path,toJsonString)
   def toJsonString: String = upickle.default.write(this)
 }
@@ -103,7 +103,7 @@ object Main extends UndertowApp with TokenVerifyApp {
     val ChkMail = """(\w+)@.+""".r
     val (context,ChkMail(devName)) = verifyToken(contexts,idToken)
     os.proc("kubectl","config","set-credentials",context.context,"--token",idToken).call()
-    PublicState(devName).save()
+    PublicState(devName,System.currentTimeMillis()).save()
   }
 
   def handleIndexHTML(): String = {
@@ -125,13 +125,13 @@ object Main extends UndertowApp with TokenVerifyApp {
   private def setup = new NonRunningProcess(()=>
     for (st <- PublicState.load()) yield {
       val path = protoDir / "sync.pl"
-      os.Shellable(Seq("perl", s"$path", "setup_rsh", st.devName))
+      Cmd(s"${st.authTime}", Seq("perl", s"$path", "setup_rsh", st.devName))
     }
   )
 
   private def forward = new NonRunningProcess(()=>
-    for(pod <- Load(os.Path("/tmp/c4pod")))
-      yield os.Shellable(Seq("kubectl","--context","dev","port-forward","--address","0.0.0.0",pod,"4005"))
+    for(st <- PublicState.load(); pod <- Load(os.Path("/tmp/c4pod")))
+      yield Cmd(s"${st.authTime}", Seq("kubectl","--context","dev","port-forward","--address","0.0.0.0",pod,"4005"))
   )
 
   def main(args: Array[String]): Unit = {
@@ -149,17 +149,22 @@ object Main extends UndertowApp with TokenVerifyApp {
 
 class Periodic(val activate: ()=>Option[Periodic])
 
-class RunningProcess(getCommand: ()=>Option[os.Shellable], wasCommand: os.Shellable, process: os.SubProcess) extends Periodic(()=>
+case class Cmd(ver: String, value: Seq[String])
+
+class RunningProcess(getCommand: ()=>Option[Cmd], wasCommand: Cmd, process: os.SubProcess) extends Periodic(()=>
   if (!process.isAlive) Option(new NonRunningProcess(getCommand))
   else {
-    if (!getCommand().contains(wasCommand)) process.destroy()
+    if (!getCommand().contains(wasCommand)) {
+      println("will stop",wasCommand)
+      process.destroy()
+    }
     None
   }
 )
 
-class NonRunningProcess(val getCommand: ()=>Option[os.Shellable]) extends Periodic(()=>
+class NonRunningProcess(val getCommand: ()=>Option[Cmd]) extends Periodic(()=>
   getCommand().map{ cmd =>
-    println(cmd)
-    new RunningProcess(getCommand,cmd,os.proc(cmd).spawn())
+    println("will start",cmd)
+    new RunningProcess(getCommand,cmd,os.proc(cmd.value).spawn(stdin=os.Inherit,stdout=os.Inherit))
   }
 )
