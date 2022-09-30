@@ -54,42 +54,58 @@ trait TokenVerifyApp {
   }
 }
 
-trait UndertowApp {
+trait SunServerApp {
   def handleIndexHTML(): String
-  def handleForm(form: Map[String,String]): Unit
+  def handleForm(form: Map[String, String]): Unit
 
-  import scala.jdk.CollectionConverters.IteratorHasAsScala
-  import io.undertow.server.{HttpHandler,HttpServerExchange}
-  import io.undertow.util.Headers
+  import java.nio.charset.StandardCharsets.UTF_8
+  import com.sun.net.httpserver.{HttpServer,HttpHandler,HttpExchange}
+  import java.net.{InetSocketAddress,URLDecoder}
+  import scala.util.control.NonFatal
 
   object Handler extends HttpHandler {
-    def handleRequest(exchange: HttpServerExchange): Unit = {
-      //exchange.dispatch(executor,runnable)
-      val method = exchange.getRequestMethod.toString
-      val path = exchange.getRequestPath
-      (method,path) match {
-        case ("GET","/") =>
-          val content = handleIndexHTML()
-          exchange.getResponseHeaders.put(Headers.CONTENT_TYPE, "text/html; charset=UTF-8")
-          exchange.getResponseSender.send(content)
-        case ("POST","/form") =>
-          val formData = io.undertow.server.handlers.form.FormParserFactory.builder.build().createParser(exchange).parseBlocking()
-          val formMap = formData.iterator().asScala.map(k => k -> formData.get(k).getFirst.getValue).toMap
+    def handle(exchange: HttpExchange): Unit = (
+      exchange.getRequestMethod:String,
+      exchange.getRequestURI.getPath:String,
+      Option(exchange.getRequestHeaders.getFirst("Content-Type")).getOrElse(""):String
+    ) match {
+      case ("GET","/","") =>
+        val data = handleIndexHTML().getBytes(UTF_8)
+        exchange.getResponseHeaders.add("Content-Type", "text/html; charset=UTF-8")
+        exchange.sendResponseHeaders(200, data.length)
+        exchange.getResponseBody().write(data)
+        exchange.close()
+      case ("POST","/form","application/x-www-form-urlencoded") =>
+        try {
+          val content: String = new String(exchange.getRequestBody().readAllBytes(), UTF_8)
+          val formMap: Map[String, String] = content.split("&").map(
+            kvStr => kvStr.split("=").map(URLDecoder.decode(_, UTF_8)) match {
+              case Array(k, v) => k -> v
+            }
+          ).toMap
           handleForm(formMap)
-          exchange.getResponseHeaders.put(Headers.LOCATION, "/")
-          exchange.setStatusCode(301)
-          exchange.endExchange()
-      }
+        } catch {
+          case NonFatal(exception) =>
+            println(exception.getMessage)
+            exception.printStackTrace()
+        }
+        exchange.getResponseHeaders.add("Location", "/")
+        exchange.sendResponseHeaders(301, -1)
+        exchange.close()
+      case t =>
+        println(t)
     }
   }
-  def startServer(): Unit = io.undertow.Undertow.builder
-    .addHttpListener(1979, "0.0.0.0")
-    .setHandler(Handler)
-    .build.start()
+
+  def startServer(): Unit = {
+    val server = HttpServer.create(new InetSocketAddress(1979), 2)
+    server.createContext("/", Handler)
+    server.setExecutor(null)
+    server.start()
+  }
 }
 
-
-object Main extends UndertowApp with TokenVerifyApp {
+object Main extends SunServerApp with TokenVerifyApp {
 
   def protoDir = os.Path(Option(System.getenv("C4CI_PROTO_DIR")).get)
 
