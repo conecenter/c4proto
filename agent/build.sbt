@@ -11,3 +11,7 @@ libraryDependencies ++= Seq(
   "com.auth0" % "java-jwt" % "3.19.1",
   "com.auth0" % "jwks-rsa" % "0.21.1",
 )
+
+val c4build = taskKey[Unit]("c4 build")
+
+c4build := IO.write(baseDirectory.value/"target/c4classpath",(Compile / fullClasspath).value.map(_.data).mkString(":"))

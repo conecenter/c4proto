@@ -3,14 +3,12 @@
 
 import upickle.default.{ReadWriter => RW, macroRW}
 
-import scala.annotation.tailrec
-
 object Load {
   def apply(path: os.Path): Option[String] =
     Option(path).filter(os.exists).map(os.read)
 }
 
-case class ContextConf(context: String, issuer: String, audience: String)
+case class ContextConf(context: String, issuer: String, audience: String, authenticator: String)
 object ContextConf {
   implicit val rw: RW[ContextConf] = macroRW
   def path = os.home / "c4contexts.json"
@@ -105,29 +103,53 @@ trait SunServerApp {
   }
 }
 
-object Main extends SunServerApp with TokenVerifyApp {
-
+object Main extends SunServerApp with TokenVerifyApp with WebApp with BackgroundApp {
   def protoDir = os.Path(Option(System.getenv("C4CI_PROTO_DIR")).get)
 
-  def handleForm(form: Map[String,String]): Unit = form("op") match {
+  def main(args: Array[String]): Unit = {
+    startServer()
+    keepRunning(initialPeriodicSeq)
+  }
+}
+
+trait WebApp {
+  def protoDir: os.Path
+  def verifyToken(contexts: Seq[ContextConf], idToken: String): (ContextConf,String)
+
+  def handleForm(form: Map[String, String]): Unit = form("op") match {
     case "set_token" => setToken(form("id_token"))
   }
 
+  def kubeConfDir: os.Path = os.home / ".kube"
+  def kubeTokenDir: os.Path = kubeConfDir / "tokens"
+  def regenerateKubeConf(): Unit = {
+    os.copy.over(kubeConfDir / "config-template", kubeConfDir / "config")
+    for (path <- os.list(kubeTokenDir))
+      os.proc("kubectl", "config", "set-credentials", s"${path.last}", "--token", os.read(path)).call()
+  }
   def setToken(idToken: String): Unit = {
     val contextsPath = os.home / "c4contexts.json"
     val contexts = ContextConf.load()
     val ChkMail = """(\w+)@.+""".r
-    val (context,ChkMail(devName)) = verifyToken(contexts,idToken)
-    os.proc("kubectl","config","set-credentials",context.context,"--token",idToken).call()
-    PublicState(devName,System.currentTimeMillis()).save()
+    val (context, ChkMail(devName)) = verifyToken(contexts, idToken)
+    os.write.over(kubeTokenDir / context.context, idToken, createFolders = true)
+    regenerateKubeConf()
+    PublicState(devName, System.currentTimeMillis()).save()
   }
 
   def handleIndexHTML(): String = {
     val publicState = PublicState.load()
-    val jsContent = os.read(protoDir / "agent" / "client.js")
-    val script = s"""const publicState = [${publicState.map(_.toJsonString).mkString}]\n${jsContent}"""
+    val script = Seq(
+      s"""const publicState = [${publicState.map(_.toJsonString).mkString}]""",
+      s"""const contexts = ${os.read(ContextConf.path)}""",
+      os.read(protoDir / "agent" / "client.js"),
+    ).mkString("\n")
     s"""<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>c4agent</title></head><body><script type="module">$script</script></body></html>"""
   }
+}
+
+trait BackgroundApp {
+  def protoDir: os.Path
 
   private def checkVer() = {
     val path = protoDir / "agent" / "server.scala"
@@ -150,12 +172,10 @@ object Main extends SunServerApp with TokenVerifyApp {
       yield Cmd(s"${st.authTime}", Seq("kubectl","--context","dev","port-forward","--address","0.0.0.0",pod,"4005"))
   )
 
-  def main(args: Array[String]): Unit = {
-    startServer()
-    keepRunning(Seq(checkVer(),setup,forward))
-  }
+  def initialPeriodicSeq: Seq[Periodic] = Seq(checkVer(), setup, forward)
 
-  @tailrec def keepRunning(was: Seq[Periodic]): Unit = {
+  import scala.annotation.tailrec
+  @tailrec final def keepRunning(was: Seq[Periodic]): Unit = {
     val will = was.map(w=>w.activate().getOrElse(w))
     Thread.sleep(1000)
     keepRunning(will)

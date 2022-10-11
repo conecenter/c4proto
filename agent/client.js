@@ -10,5 +10,6 @@ const text = v => document.createTextNode(v)
 ///
 
 document.body.appendChild(h("div",{},
-    ...publicState.map(st=>h("div",{},text(st.devName)))
+    ...publicState.map(st=>h("div",{},text(st.devName))),
+    ...contexts.map(c=>h("div",{},h("a",{href:c.authenticator},text(c.context))))
 ))
