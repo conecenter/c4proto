@@ -83,7 +83,7 @@ my $remake = sub{
     my $build_data = JSON::XS->new->decode(&$get_text_or_empty("$tmp/build.json"));
     my ($nm,$mod,$cl) = map{$$build_data{tag_info}{$arg}{$_}||die} qw[name mod main];
     my $proto_dir = $ENV{C4CI_PROTO_DIR} || die;
-    sy("KUBECONFIG=$ENV{C4KUBECONFIG} perl $proto_dir/prod.pl remote_compile $build_dir $mod");
+    so("KUBECONFIG=$ENV{C4KUBECONFIG} perl $proto_dir/prod.pl remote_compile $build_dir $mod") and return ();
     my $build_client = $ENV{C4STEP_BUILD_CLIENT};
     $build_client and so("$build_client dev") and return ();
     #

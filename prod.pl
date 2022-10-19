@@ -1713,8 +1713,8 @@ push @tasks, ["remote_compile","",sub{
     my $img = "$repo:sbt.$sys_image_ver";
     sy("perl","$proto_dir/sync_setup.pl");
     local $ENV{PATH} = "$ENV{PATH}:$ENV{HOME}/bin";
-    sy("python3.8", "$proto_dir/build_remote.py", "compile", "--name", $comp, "--context", $build_dir, "--mod", $mod,
-        "--image", $img, "--pull-secret", $secret, "--push-secret", $secret,
+    sy("python3.8", "-u", "$proto_dir/build_remote.py", "compile", "--name", $comp, "--context", $build_dir,
+        "--mod", $mod, "--image", $img, "--pull-secret", $secret, "--push-secret", $secret,
     );
     sy("perl", "$proto_dir/build_env.pl", $build_dir, $mod);
 }];

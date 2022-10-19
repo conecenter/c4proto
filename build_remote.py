@@ -122,7 +122,8 @@ def compile(opt):
     sync_paths = "\n".join(p for p in json.loads(read_text(f"{mod_dir}/c4sync_paths.json")) if pathlib.Path(p).exists())
     write_text(sync_paths_path, sync_paths)
     run(*rsync,"--files-from",sync_paths_path,f"{build_dir}/",f"{pod}:{build_dir}")
-    run(*kex,"sh","-c",f"cd {mod_dir} && sbt c4build")
+    opt = os.environ["C4BUILD_JAVA_TOOL_OPTIONS"]
+    run(*kex,"sh","-c",f"cd {mod_dir} && JAVA_TOOL_OPTIONS='{opt}' sbt c4build")
     run(*rsync,f"{pod}:{cp_path}",cp_path)
     write_text(res_ff_path, read_text(cp_path).replace(":","\n"))
     run(*rsync,"--files-from",res_ff_path,f"{pod}:{build_dir}/",build_dir)
