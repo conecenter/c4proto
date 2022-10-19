@@ -21,7 +21,10 @@ if($cmd eq 'apt'){
     sy('unzip', $_), unlink $_ or die $_ for <*.zip>;
     sy('chown', '-R', 'c4:c4', '/download');
     -e $_ or mkdir $_ or die for "/tools";
-    /^([a-z]+).*/ and rename $_,"/tools/$1" or die $_ for <*>;
+    for(<*>){
+        my $to = /^([a-z]+).*/ ? "/tools/$1" : die "bad name ($_)";
+        rename $_,$to or die "rename [$!][$_][$to]";
+    }
 } elsif($cmd eq 'useradd'){
     sy('useradd --home-dir /c4 --create-home --user-group --uid 1979 --shell /bin/bash c4');
 } else {

@@ -143,12 +143,10 @@ my $single_or_undef = sub{ @_==1 ? $_[0] : undef };
 my $map = sub{ my($opt,$f)=@_; map{&$f($_,$$opt{$_})} sort keys %$opt };
 
 my $resolve = cached{
-    my $dir = "$ENV{HOME}/c4deploy_conf";
-    if(!-e $dir){
-        my $full_repo = &$get_text("$ENV{HOME}/.ssh/c4deploy_conf_repo");
-        sy("git clone $full_repo $dir");
-    }
-    sy("cd $dir && git pull");
+    my $kubectl = &$get_kubectl_raw(&$mandatory_of(C4DEPLOY_CONTEXT=>\%ENV));
+    my $dir = &$get_tmp_dir();
+    &$secret_to_dir($kubectl,"c4dconf-pl",$dir);
+    # no need c4deploy_conf_repo
     my $conf_all = require "$dir/main.pl";
     my @handlers = &$map($conf_all,sub{ my($k,$v)=@_;
         "CODE" eq ref $v ? [$k,$v] : ()
@@ -1333,6 +1331,10 @@ push @tasks, ["chk_pkg_dep"," ",sub{
     my $mod = $$tag_info{mod} || die;
     &$chk_pkg_dep($gen_dir,$mod);
 }];
+my $install_jdk = sub{(
+    "RUN perl install.pl curl https://github.com/AdoptOpenJDK/openjdk15-binaries/releases/download/jdk-15.0.1%2B9/OpenJDK15U-jdk_x64_linux_hotspot_15.0.1_9.tar.gz",
+    #"RUN perl install.pl curl https://download.bell-sw.com/java/17.0.2+9/bellsoft-jdk17.0.2+9-linux-amd64.tar.gz",
+)};
 push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
     my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
     #
@@ -1351,8 +1353,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
         " curl software-properties-common".
         " lsof mc iputils-ping netcat-openbsd fontconfig".
         " openssh-client", #repl
-        "RUN perl install.pl curl https://github.com/AdoptOpenJDK/openjdk15-binaries/releases/download/jdk-15.0.1%2B9/OpenJDK15U-jdk_x64_linux_hotspot_15.0.1_9.tar.gz",
-        #"RUN perl install.pl curl https://download.bell-sw.com/java/17.0.2+9/bellsoft-jdk17.0.2+9-linux-amd64.tar.gz",
+        &$install_jdk(),
         'ENV PATH=${PATH}:/tools/jdk/bin',
         (grep{/^RUN\s/} @$add_steps),
         "ENV JAVA_HOME=/tools/jdk",
@@ -1421,8 +1422,7 @@ push @tasks, ["up-s3client", "", sub{
 }];
 
 my $install_kubectl = sub{
-    "RUN perl install.pl curl https://storage.googleapis.com/kubernetes-release/release/v1.21.0/bin/linux/amd64/kubectl "
-    ."&& chmod +x /tools/kubectl "
+    "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl && chmod +x /tools/kubectl "
 };
 my $install_tini = sub{
     "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini"
@@ -1441,8 +1441,8 @@ push @tasks, ["up-kc_host", "", sub{ # the last multi container kc
         metadata => { name => $run_comp },
         rules => [
             {
-                apiGroups => ["","apps","extensions"],
-                resources => ["statefulsets","secrets","services","deployments","ingresses"],
+                apiGroups => ["","apps","extensions","metrics.k8s.io"],
+                resources => ["statefulsets","secrets","services","deployments","ingresses","pods"],
                 verbs => ["get","create","patch","delete","list"],
             },
             {
@@ -1454,11 +1454,6 @@ push @tasks, ["up-kc_host", "", sub{ # the last multi container kc
                 apiGroups => [""],
                 resources => ["pods/log"],
                 verbs => ["get"],
-            },
-            {
-                apiGroups => ["","metrics.k8s.io"],
-                resources => ["pods"],
-                verbs => ["get","list","delete"],
             },
         ],
     }, {
@@ -1704,6 +1699,24 @@ push @tasks, ["up-resource_tracker","",sub{
         (map{($_=>&$mandatory_of($_=>$conf))} qw[C4RES_TRACKER_OPTIONS C4KUBECONFIG ]),
     };
     &$wrap_deploy($comp,$from_path,$options);
+}];
+
+push @tasks, ["remote_compile","",sub{
+    my($build_dir,$mod) = @_;
+    my $proto_dir = &$get_proto_dir();
+    my $user = $ENV{HOSTNAME}=~/^de-(\w+)-/ ? $1 : die;
+    my $proto_dir = &$get_proto_dir();
+    my $comp = "rb-$sys_image_ver-$user-sbt";
+    my ($context,$pull_secrets,$repo) = &$get_deployer_conf($comp,1,qw[context image_pull_secrets sys_image_repo]);
+    die if $context ne $ENV{C4DEPLOY_CONTEXT};
+    my $secret = $pull_secrets=~/(\S+)/ ? $1 : die; # todo other than 1st and different secrets
+    my $img = "$repo:sbt.$sys_image_ver";
+    sy("perl","$proto_dir/sync_setup.pl");
+    local $ENV{PATH} = "$ENV{PATH}:$ENV{HOME}/bin";
+    sy("python3.8", "$proto_dir/build_remote.py", "compile", "--name", $comp, "--context", $build_dir, "--mod", $mod,
+        "--image", $img, "--pull-secret", $secret, "--push-secret", $secret,
+    );
+    sy("perl", "$proto_dir/build_env.pl", $build_dir, $mod);
 }];
 
 ####

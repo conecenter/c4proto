@@ -83,7 +83,7 @@ my $remake = sub{
     my $build_data = JSON::XS->new->decode(&$get_text_or_empty("$tmp/build.json"));
     my ($nm,$mod,$cl) = map{$$build_data{tag_info}{$arg}{$_}||die} qw[name mod main];
     my $proto_dir = $ENV{C4CI_PROTO_DIR} || die;
-    so("cd $build_dir && perl $proto_dir/compile.pl $mod") and return ();
+    sy("KUBECONFIG=$ENV{C4KUBECONFIG} perl $proto_dir/prod.pl remote_compile $build_dir $mod");
     my $build_client = $ENV{C4STEP_BUILD_CLIENT};
     $build_client and so("$build_client dev") and return ();
     #
@@ -121,10 +121,10 @@ my $remake = sub{
 };
 
 my $loop_iteration = sub{
-    my ($was_ver,@active_pid) = @_;
+    my ($was_active_pid_list) = @_;
     my $build_dir = $ENV{C4CI_BUILD_DIR} || die "no C4CI_BUILD_DIR";
     my $droll = "$build_dir/target/dev-rolling-";
-    @active_pid = grep{
+    my @active_pid = grep{
         my $res = waitpid($_, WNOHANG);
         if($res != 0){
             #my $code = $? >> 8;
@@ -135,10 +135,12 @@ my $loop_iteration = sub{
             print &$colored_line(bright_yellow=>"Child $res ended with status 0x$hex");
         }
         $res == 0;
-    } @active_pid;
+    } @$was_active_pid_list;
     print "active pid list: @active_pid\n" if @active_pid > 1;
     my $last_ready = (grep{ -e "$droll$_/c4is-ready" } @active_pid)[-1];
     my $curr_ver = &$get_text_or_empty("$build_dir/target/gen-ver");
+    my $was_ver = &$get_text_or_empty("$build_dir/target/gen-ver-started");
+    &$put_text("$build_dir/target/gen-ver-started",$curr_ver);
     #
     @active_pid = (@active_pid, $was_ver eq $curr_ver ? () : &$remake($build_dir,$droll));
     my @to_kill = grep{ $last_ready ne $_ } @active_pid[0..@active_pid-2];
@@ -147,7 +149,7 @@ my $loop_iteration = sub{
         kill 'TERM', @to_kill;
     }
     sleep 1;
-    ($curr_ver,@active_pid);
+    [@active_pid];
 };
 
 
@@ -158,7 +160,7 @@ my $serve_loop = sub{
 #        sleep 1;
 #        @st
 #    },1);
-    &$repeat($loop_iteration,"");
+    &$repeat($loop_iteration,[]);
 };
 #? say Failed
 
@@ -171,7 +173,6 @@ my $serve_history = sub{
         "export KUBE_EDITOR=mcedit",
         'history -c && history -r /c4/.bash_history_get && export PROMPT_COMMAND="history -a /c4/.bash_history_put"',
         qq[alias prod="perl $ENV{C4CI_PROTO_DIR}/prod.pl "],
-        'alias kc="kubectl --context "',
         'alias h="history|grep "',
     );
     #

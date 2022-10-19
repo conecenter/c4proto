@@ -23,13 +23,11 @@ def write_changed(path,data):
     if not (path.exists() and data == path.read_text(encoding='utf-8', errors='strict')):
         path.write_text(data, encoding='utf-8', errors='strict')
 
-def build_path(): return pathlib.Path.cwd()
-
-def load_dep(path):
+def load_dep(build_path, path):
     return [
         i_item
-        for o_item in read_json(build_path() / path)
-        for i_item in (load_dep(o_item[2]) if o_item[0] == "C4INC" else [o_item])
+        for o_item in read_json(build_path / path)
+        for i_item in (load_dep(build_path, o_item[2]) if o_item[0] == "C4INC" else [o_item])
     ]
 
 def wrap_non_empty(before,value,after):
@@ -48,8 +46,6 @@ def get_src_dirs(conf,mods):
         for mod_head, *mod_tail in [mod.split(".")]
         for pre in conf["C4SRC"][mod_head]
     ]
-
-def tmp_path(): return build_path() / "target/c4"
 
 def leave_tmp(dir): return f"""../../../../{dir}"""
 
@@ -103,8 +99,10 @@ def parse_main(main):
 
 def get_pkg_from_mod(mod): return ".".join(mod.split(".")[1:])
 
-def main():
-    conf_plain = load_dep("c4dep.main.json")
+def main(build_path_str):
+    build_path = pathlib.Path(build_path_str)
+    tmp_part = "target/c4"
+    conf_plain = load_dep(build_path, "c4dep.main.json")
     conf = {
         k: group_map(l, lambda it: (it[0],it[1]))
         for k, l in group_map(conf_plain, lambda it: (it[0],it[1:])).items()
@@ -118,12 +116,17 @@ def main():
         *(parse_main(main)["mod"] for main in flat_values(conf["C4TAG"])),
         *flat_values(conf["C4GENERATOR_MAIN"])
     })
-    sbt_common_text = f"""ThisBuild / scalaVersion := "2.13.8"\n\n""" #"coursierMaxIterations := 200\n\n" +
+    sbt_common_text = "".join((
+        """ThisBuild / scalaVersion := "2.13.8"\n\n""", #"coursierMaxIterations := 200\n\n" +
+        """val c4build = taskKey[Unit]("c4 build")\n\n""",
+        """c4build := IO.write(baseDirectory.value/"target/c4classpath",(main / Compile / fullClasspath).value.map(_.data).mkString(":"))\n\n"""
+    ))
     def excl(k): return get_list(conf,"C4EXT_EXCL",k)
     def get_repo(k): return get_list(conf,"C4REPO",k)
 
     for mod in mod_heads:
         max_stage_num = mod_stage(mod)
+        modules = full_dep(mod)
         sbt_text = sbt_common_text + "".join(
             to_sbt_mod(
                 "main" if stage_num==max_stage_num else f"s{stage_num}",
@@ -142,26 +145,29 @@ def main():
                 flat_values(get_dict(conf,"C4WART")),
             )
             for stage_num in range(max_stage_num+1)
-            for mods in [[m for m in full_dep(mod) if mod_stage(m)==stage_num]]
+            for mods in [[m for m in modules if mod_stage(m)==stage_num]]
         )
-        proj_path = tmp_path() / f"mod.{mod}.d"
-        write_changed(proj_path / "build.sbt", sbt_text)
+        proj_part = f"{tmp_part}/mod.{mod}.d"
+        build_sbt = f"{proj_part}/build.sbt"
+        plugins_sbt = f"{proj_part}/project/plugins.sbt"
+        write_changed(build_path / build_sbt, sbt_text)
         plugins_text = 'addSbtPlugin("org.wartremover" % "sbt-wartremover" % "3.0.5")'
-        write_changed(proj_path / "project" / "plugins.sbt", plugins_text)
+        write_changed(build_path / plugins_sbt, plugins_text)
+        write_changed(build_path / f"{proj_part}/c4modules", ":".join(modules))
+        write_changed(build_path / f"{proj_part}/c4sync_paths.json", json.dumps([
+            build_sbt, plugins_sbt, *get_src_dirs(conf,modules),
+            *sorted({ dep for m in modules for dep in get_list(conf,"C4LIB",m) })
+        ]))
 
     ide_sbt_text = sbt_common_text + to_sbt_mod(
         "main", """(project in file("."))""", "",
         flat_values(conf["C4SRC"]), flat_values(conf["C4EXT"]), [],
         excl, get_repo, []
     )
-    write_changed(build_path() / "c4gen-generator.sbt", ide_sbt_text)
+    write_changed(build_path / "c4gen-generator.sbt", ide_sbt_text)
 
     out_conf = {
         "plain": conf_plain,
-        "src_dirs_by_root_mod": {
-            mod_name: get_src_dirs(conf,full_dep(mod_name))
-            for mod_name in mod_heads
-        },
         "src_dirs_generator_off": [
             dir
             for mod in get_list(conf,"C4GENERATOR_MODE","OFF")
@@ -177,11 +183,9 @@ def main():
                 conf["C4DEP"].keys(), lambda mod: (get_pkg_from_mod(mod),mod)
             ).items()
         },
-        "modules_by_root_mod": { mod: ":".join(full_dep(mod)) for mod in mod_heads },
     }
-    write_changed(tmp_path() / "build.json", json.dumps(out_conf, sort_keys=True, indent=4))
+    write_changed(build_path / f"{tmp_part}/build.json", json.dumps(out_conf, sort_keys=True, indent=4))
 
-main()
+main(*sys.argv[1:])
 
 #ThisBuild / exportJars := true
-#fork := true

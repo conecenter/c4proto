@@ -3,7 +3,7 @@ import subprocess
 import re
 import os
 
-kubectl_res = subprocess.run(["kubectl","--context","dev","get","deployments"],check=True,capture_output=True,text=True).stdout
+kubectl_res = subprocess.run(["kcd","get","deployments"],check=True,capture_output=True,text=True).stdout
 deployed_prefixes = re.findall(r'\n(qa-\S+)-gate\s',kubectl_res)
 deployed_topics = set(f"{pre}.inbox" for pre in deployed_prefixes)
 proto_dir = os.environ["C4CI_PROTO_DIR"]

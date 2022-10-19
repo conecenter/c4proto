@@ -40,21 +40,19 @@ my $mandatory_of = sub{ my($k,$h)=@_; (exists $$h{$k}) ? $$h{$k} : die "no $k" }
 
 my $to_rel = sub{
     my($pre,$fn)=@_;
-    $pre eq substr $fn, 0, length $pre or die;
+    $pre eq substr $fn, 0, length $pre or die "[$pre][$fn]";
     substr $fn, length $pre;
 };
 
 my $find = sub{
     my($pre,$from,$prune)=@_;
-    my $cmd = "${pre}find $from";
     my $prune_str = join'', map{" -o -name '$_' -prune"} @$prune;
     my %prune_h = map{($_=>1)} @$prune;
     map{ &$to_rel($from,$_)=~m{(.+/|)([^/]+)\n} && !$prune_h{$2} ? "$1$2" : () }
-        sort `$cmd -type f$prune_str`;
+        sort `$pre 'find $from -type f$prune_str'`;
 };
 
 my $pod_path = "/tmp/c4pod";
-my $dev_context = "dev";
 
 my $put_bin = sub{
     my($nm,$content)=@_;
@@ -65,23 +63,11 @@ my $put_bin = sub{
     &$put_text($path,$content);
     sy("chmod +x $path");
 };
-
-my $setup_rsh = sub{
-    my ($user) = @_;
-    my $perl_exec = sub{ join"\n",'#!/usr/bin/perl','use strict;',@_,'die;' };
-    &$put_bin("kc",&$perl_exec('exec "kubectl", "--context", @ARGV;'));
-    &$put_bin("c4rsh",&$perl_exec(
-        'my ($pod,@args) = @ARGV ? @ARGV : `cat '.$pod_path.'`||die "no pod";',
-        'my ($mode,@e_args) = @args==0 ? ("-it","bash") : @args==1 && $args[0]=~/\s/ ? ("-i","sh","-c",@args) : ("-i",@args);',
-        'exec "kc", "'.$dev_context.'", "exec", $mode, $pod, "--", @e_args;',
-    ));
-    my $proto_dir = $ENV{C4CI_PROTO_DIR} || die;
-    &$put_bin("c4forward",&$perl_exec('exec "perl","'.$proto_dir.'/sync.pl","forward","'.$user.'",@ARGV;'));
-};
+my $perl_exec = sub{ join"\n",'#!/usr/bin/perl','use strict;',@_,'die;' };
 
 my $list_pods = sub{
     my ($user) = @_;
-    my $kc_get = "kc $dev_context get";
+    my $kc_get = "kcd get";
     my $jsonpath_names = '-o jsonpath="{.items[*].metadata.name}"';
     my $find_names = sub{ my($v)=@_; $v=~/(\S+)/g };
     map{ &$find_names(syf("$kc_get po -l app=$_ $jsonpath_names")) }
@@ -92,14 +78,17 @@ my $do_forward = sub{
     my $pod = &$single(@_);
     &$put_text($pod_path,$pod);
     print "$pod selected\n";
+    &$put_bin("c4rsh",&$perl_exec('exec "kcd", "exec", "-it", "'.$pod.'", "--", "bash";')); # manual only
 };
 
 my $auto_pod = sub{
     my ($user) = @_;
+    my $proto_dir = $ENV{C4CI_PROTO_DIR} || die;
+    &$put_bin("c4forward",&$perl_exec('exec "perl","'.$proto_dir.'/sync.pl","forward","'.$user.'",@ARGV;')); # manual only
     for my $path(grep{-e $_} $pod_path){
         my $pod = &$get_text($path);
-        so("kc $dev_context wait --for=delete pod/$pod");
-        so("kc $dev_context get pod/$pod") or return;
+        so("kcd wait --for=delete pod/$pod");
+        so("kcd get pod/$pod") or return;
     }
     print "need c4forward ...\n";
     my @pods = &$list_pods($user);
@@ -117,7 +106,7 @@ my $forward = sub{
     }
 };
 
-my $get_remote_pre = sub{ "c4rsh ".&$get_text($pod_path)." " };
+my $get_remote_pre = sub{ "c4rsh_raw ".&$get_text($pod_path)." sh -c " };
 
 my $prune = [qw(target .git .idea .bloop node_modules build)];
 
@@ -146,7 +135,7 @@ my $sync0 = sub{
     my @del = @{$task_by_mode{del}||[]};
     my $tm = Time::HiRes::time();
     sy("$to_pre 'cd $to_dir && cat > $changed_fn' < ".&$put_temp(changed=>&$lines(@all)));
-    sy("rsync --blocking-io -e c4rsh -rltDvc --files-from=".&$put_temp(upd=>&$lines(@upd))." $from_pre_d$from_dir/ $to_pre_d$to_dir") if @upd;
+    sy("c4dsync -rltDvc --files-from=".&$put_temp(upd=>&$lines(@upd))." $from_pre_d$from_dir/ $to_pre_d$to_dir") if @upd;
     if(@del){
         my $remover_fn = "target/c4sync-rm.pl";
         sy("$to_pre 'cd $to_dir && cat > $remover_fn' < ".&$put_temp(remover=>&$lines(
@@ -167,18 +156,14 @@ my @tasks;
 push @tasks, ["clean_local","",sub{
     my($dir)=@_;
     $dir || die;
-    for(grep{m"\bc4gen\b|/target/|/tmp/|/node_modules/|/.bloop/"} map{"/$_"} &$find("","$dir/",[])){
+    for(grep{m"\bc4gen\b|/target/|/tmp/|/node_modules/|/.bloop/"} map{"/$_"} &$find("sh -c ","$dir/",[])){
         my $path = "$dir$_";
         print "deleting $path\n";
         unlink $path or die;
     }
 }];
-push @tasks, ["setup_rsh","",sub{
-    my ($user) = @_;
-    &$setup_rsh($user);
-    &$auto_pod($user) while 1;
-}];
-push @tasks, ["forward","",sub{&$forward(@_)}];
+push @tasks, ["auto_pod","",$auto_pod];
+push @tasks, ["forward","",$forward];
 push @tasks, ["report_changes","",sub{
     my($dir)=@_; $dir || die "need dir";
     my $changed_path = &$mandatory_of(C4GIT_CHANGED_PATH=>\%ENV);

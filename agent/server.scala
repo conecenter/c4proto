@@ -163,13 +163,13 @@ trait BackgroundApp {
   private def setup = new NonRunningProcess(()=>
     for (st <- PublicState.load()) yield {
       val path = protoDir / "sync.pl"
-      Cmd(s"${st.authTime}", Seq("perl", s"$path", "setup_rsh", st.devName))
+      Cmd(s"${st.authTime}", Seq("perl", s"$path", "auto_pod", st.devName))
     }
   )
 
   private def forward = new NonRunningProcess(()=>
     for(st <- PublicState.load(); pod <- Load(os.Path("/tmp/c4pod")))
-      yield Cmd(s"${st.authTime}", Seq("kubectl","--context","dev","port-forward","--address","0.0.0.0",pod,"4005"))
+      yield Cmd(s"${st.authTime}", Seq("kcd","port-forward","--address","0.0.0.0",pod,"4005"))
   )
 
   def initialPeriodicSeq: Seq[Periodic] = Seq(checkVer(), setup, forward)

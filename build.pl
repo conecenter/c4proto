@@ -139,7 +139,7 @@ my $gen_app_traits = sub{
 my $src_dir = syf("pwd")=~/^(\S+)\s*$/ ? $1 : die;
 my $tmp = "$src_dir/target/c4";
 my $proto_dir = &$single(&$to_parent("$0"));
-sy("python3 $proto_dir/build.py");
+sy("python3","$proto_dir/build.py",$src_dir);
 my $dep_content = &$get_text("$tmp/build.json");
 my $build_data = &$json()->decode($dep_content);
 my ($dep_conf) = &$group(map{ my($tp,$from,$to)=@$_; [$tp,[$from,$to]] } grep{ref} @{$$build_data{plain}||die});
@@ -155,8 +155,10 @@ my %is_off_dir = map{($_=>1)} map{"$src_dir/$_"}@{$$build_data{src_dirs_generato
 
 do{
     print "generation starting\n";
-    my $sum = &$get_sum(join"\n",map{&$get_text($_)} sort grep{/\.scala$/}
-        &$find_files(map{"$src_dir/$_"}@{$$build_data{src_dirs_by_root_mod}{$gen_mod}||die}));
+    my $sum = &$get_sum(
+        join"\n", map{&$get_text($_)} sort grep{/\.scala$/}
+        &$find_files(map{"$src_dir/$_"}@{&$json()->decode(&$get_text("$tmp/mod.$gen_mod.d/c4sync_paths.json"))})
+    );
     &$changing("$tmp/generator-src-sum",$sum,sub{
         sy("cd $src_dir && perl $proto_dir/compile.pl $gen_mod");
     });
