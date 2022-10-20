@@ -119,14 +119,14 @@ def compile(opt):
     res_ff_path = f"{mod_dir}/c4res_files_from"
     cp_path = f"{mod_dir}/target/c4classpath"
     sync_paths_path = f"{mod_dir}/c4sync_paths_existing"
-    sync_paths = "\n".join(p for p in json.loads(read_text(f"{mod_dir}/c4sync_paths.json")) if pathlib.Path(p).exists())
-    write_text(sync_paths_path, sync_paths)
-    run(*rsync,"--files-from",sync_paths_path,f"{build_dir}/",f"{pod}:{build_dir}")
+    full_sync_paths = (f"{build_dir}/{part}" for part in json.loads(read_text(f"{mod_dir}/c4sync_paths.json")))
+    write_text(sync_paths_path, "\n".join(path for path in full_sync_paths if pathlib.Path(path).exists()))
+    run(*rsync,"--files-from",sync_paths_path,f"/",f"{pod}:/")
     opt = os.environ["C4BUILD_JAVA_TOOL_OPTIONS"]
     run(*kex,"sh","-c",f"cd {mod_dir} && JAVA_TOOL_OPTIONS='{opt}' sbt c4build")
     run(*rsync,f"{pod}:{cp_path}",cp_path)
     write_text(res_ff_path, read_text(cp_path).replace(":","\n"))
-    run(*rsync,"--files-from",res_ff_path,f"{pod}:{build_dir}/",build_dir)
+    run(*rsync,"--files-from",res_ff_path,f"{pod}:/","/")
 
 def write_text(path_str, text): pathlib.Path(path_str).write_text(text, encoding='utf-8', errors='strict')
 def read_text(path_str): return pathlib.Path(path_str).read_text(encoding='utf-8', errors='strict')
@@ -151,22 +151,3 @@ def main():
     opt.op(opt)
 
 main()
-
-
-
-
-# "command": ["/busybox/sleep", "infinity"],
-#
-# build_image(
-#     context_dir = "ctx",
-#     image = f"registry-kub-prod.edss.ee/c4s:test10",
-#     registry_secret_name = "regcred",
-# )
-
-# def get_phase(*value): return "=".join(("jsonpath={.status.phase}",*value))
-# while subprocess.run(print_args("kcd","wait","--for",get_phase("Succeeded"),"pod",name)).returncode != 0:
-#     phase = subprocess.run(print_args("kcd","get","-o",get_phase()),check=True,capture_output=True,text=True)
-#     if phase != "Running": raise Exception(f"phase {phase}")
-# ready, _, _ = select.select([proc.stdout],[],[],10); res = res + os.read(proc.stdout.fileno(), limit)
-
-
