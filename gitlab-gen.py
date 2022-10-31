@@ -141,34 +141,18 @@ def main():
   config_statements = group_map(read_json(build_path("c4dep.main.json")), lambda it: (it[0],it[1:]))
   out = {
     "variables": { "C4CI_DOCKER_CONFIG": "/tmp/c4-docker-config" },
-    "stages": ["build_replink","build_common","build_main","develop","confirm","deploy","start","check","testing","stop"],
-    "build_replink": {
-      "image": {
-        "name": "gcr.io/kaniko-project/executor:debug",
-        "entrypoint": [ "" ]
-      },
-      "rules": [{"if":"$C4CI_REPLINK"}],
-      "stage": "build_replink",
-      "variables": {
-        "C4DOCKER_CONF": '{"auths":{"$CI_REGISTRY":{"username":"$CI_REGISTRY_USER","password":"$CI_REGISTRY_PASSWORD"}}}'
-      },
-      "script": [
-        "mkdir -p /kaniko/.docker",
-        "echo $C4DOCKER_CONF > /kaniko/.docker/config.json",
-        "cat /kaniko/.docker/config.json",
-        "/kaniko/executor --context $CI_PROJECT_DIR/replink_extra --dockerfile $CI_PROJECT_DIR/replink_extra/Dockerfile --destination $CI_REGISTRY_IMAGE/replink:v2sshk3"
-      ]
-    },
+    "stages": ["build_common","build_main","develop","confirm","deploy","start","check","testing","stop"],
     build_common_name: {
       "rules": [push_rule("$CI_COMMIT_BRANCH")],
       "stage": "build_common",
-      "image": "$CI_REGISTRY_IMAGE/replink:v2sshk3",
+      "image": "ghcr.io/conecenter/c4replink:v3k",
       "script": [
         "export C4CI_BUILD_DIR=$CI_PROJECT_DIR",
         "export C4CI_PROTO_DIR=$C4COMMON_PROTO_DIR",
         "C4REPO_MAIN_CONF=$CI_PROJECT_DIR/c4dep.ci.replink /replink.pl",
         "C4CI_BUILD_DIR=$C4CI_PROTO_DIR C4REPO_MAIN_CONF=$C4CI_PROTO_DIR/c4dep.main.replink /replink.pl",
-        *prod("ci_build_common"),
+        docker_conf(),
+        f"python3 $C4CI_PROTO_DIR/build_remote.py build_common ..."
       ],
     },
     **get_build_jobs(config_statements), **get_deploy_jobs(config_statements), **get_env_jobs()

@@ -8,6 +8,7 @@ import tempfile
 import shutil
 import pathlib
 import argparse
+from c4util import group_map
 
 def print_args(*args):
     print("running: "+" ".join(args))
@@ -16,48 +17,46 @@ def print_args(*args):
 def run(*args):
     subprocess.run(print_args(*args),check=True)
 
-def build_image(opt):
+def construct_pod(opt):
+    option_group_rules = {
+        "name": "metadata", "image": "container", "volumeMounts": "container", "args": "container",
+        "restartPolicy": "spec", "volumes": "spec", "imagePullSecrets": "spec",
+    }
+    groups = group_map(opt.items(), lambda it: (option_group_rules[it[0]],it))
+    return { "apiVersion": "v1", "kind": "Pod", "metadata": dict(groups["metadata"]), "spec": {
+        "containers": [{
+            "name": "main", "securityContext": { "allowPrivilegeEscalation": False }, **dict(groups["container"])
+        }],
+        **dict(groups["spec"])
+    }}
+
+def construct_secret_volumes(volumeMounts):
+    return [{ "name": nm, "secret": { "secretName": nm } } for nm in sorted({m["name"] for m in volumeMounts})]
+
+def get_docker_conf_mount(): return { "subPath": ".dockerconfigjson", "mountPath": "/kaniko/.docker/config.json" }
+def run_kaniko(secret_from_file, get_pod_options):
     name = f"kaniko-{uuid.uuid4()}"
-    context_files = os.listdir(opt.context)
-    run("kcd","create","secret","generic",name,"--from-file",opt.context)
-    apply_manifest({
-        "apiVersion": "v1",
-        "kind": "Pod",
-        "metadata": { "name": name },
-        "spec": {
-            "containers": [{
-                "image": "gcr.io/kaniko-project/executor:debug",
-                "name": "main",
-                "securityContext": { "allowPrivilegeEscalation": False },
-                "volumeMounts": [
-                    { "name": "docker-config", "mountPath": "/kaniko/.docker/" },
-                    *({ "name": "context", "mountPath": f"/workspace/{fn}", "subPath": fn } for fn in context_files)
-                ],
-                "args": ["-d",opt.image],
-            }],
-            "restartPolicy": "Never",
-            "volumes": [
-                {
-                    "name": "docker-config",
-                    "secret": {
-                        "secretName": opt.push_secret,
-                        "items": [
-                            { "key": ".dockerconfigjson", "path": "config.json" }
-                        ]
-                    }
-                },
-                {
-                    "name": "context",
-                    "secret": {
-                        "secretName": name,
-                    }
-                }
-            ]
-        }
-    })
+    run("kcd","create","secret","generic",name,"--from-file",secret_from_file)
+    pod_options = get_pod_options(name)
+    apply_manifest(construct_pod({
+        "name": name,
+        "image": "gcr.io/kaniko-project/executor:debug",
+        "restartPolicy": "Never",
+        "volumes": construct_secret_volumes(pod_options["volumeMounts"]),
+        **pod_options
+    }))
     wait_pod(name,60,("Running","Succeeded"))
     wait_pod(name,60*4,("Succeeded",))
     run("kcd","delete",f"pod/{name}",f"secret/{name}")
+
+def build_image(opt):
+    run_kaniko(opt.context, lambda name: {
+        "args": ["-d",opt.image],
+        "volumeMounts": [
+            { "name": opt.push_secret, **get_docker_conf_mount() },
+            *({ "name": name, "mountPath": f"/workspace/{fn}", "subPath": fn } for fn in os.listdir(opt.context))
+        ]
+    })
 
 def apply_manifest(manifest):
     manifest_str = json.dumps(manifest, sort_keys=True)
@@ -74,9 +73,11 @@ def wait_pod(pod,timeout,phases):
                 return phase_lines[line]
     raise Exception("pod waiting failed")
 
+def get_proto_dir():
+    return os.environ["C4CI_PROTO_DIR"]
+
 def build_compiler_image(opt):
-    proto_dir = os.environ["C4CI_PROTO_DIR"]
-    shutil.copy(f"{proto_dir}/install.pl", opt.context)
+    shutil.copy(f"{get_proto_dir()}/install.pl", opt.context)
     data = "\n".join((
         "FROM ubuntu:22.04",
         "COPY install.pl /",
@@ -98,19 +99,9 @@ def compile(opt):
     if subprocess.run(print_args("kcd","get","pod",pod)).returncode != 0: # todo more relevant condition
         with tempfile.TemporaryDirectory() as from_path_str:
             build_compiler_image(argparse.Namespace(context=from_path_str, image=opt.image, push_secret=opt.push_secret))
-    apply_manifest({
-        "apiVersion": "v1",
-        "kind": "Pod",
-        "metadata": { "name": pod },
-        "spec": {
-            "containers": [{
-                "image": opt.image,
-                "name": "main",
-                "securityContext": { "allowPrivilegeEscalation": False },
-            }],
-            "imagePullSecrets": [{ "name": opt.pull_secret }],
-        }
-    }) # todo to cpu node
+    apply_manifest(construct_pod({
+        "name": pod, "image": opt.image, "imagePullSecrets": [{ "name": opt.pull_secret }],
+    })) # todo to cpu node
     wait_pod(pod,60,("Running",))
     kex = ("kcd","exec",pod,"--")
     rsync = ("c4dsync","-avcr","--del")
@@ -131,23 +122,44 @@ def compile(opt):
 def write_text(path_str, text): pathlib.Path(path_str).write_text(text, encoding='utf-8', errors='strict')
 def read_text(path_str): return pathlib.Path(path_str).read_text(encoding='utf-8', errors='strict')
 
+def never(a): raise Exception(a)
+
+def build_common(opt):
+    #mem_repo_commits(opt.context)
+    u = opt.remote_context
+    ctx = f"git:{u[6:]}" if u[:6] == "https:" else never(u)
+    docker_conf_mount = get_docker_conf_mount()
+    run_kaniko(f"{docker_conf_mount['subPath']}={opt.push_config}", lambda name: {
+        "args": ["-d",opt.image,"-c",ctx,"-f","./build.def.dockerfile"],
+        "volumeMounts": [{ "name": name, **docker_conf_mount }]
+    })
+
+#my $mem_repo_commits = sub{
+#    my($dir)=@_;
+#    my $content = join " ", sort map{
+#        my $commit =
+#            syf("git --git-dir=$_ rev-parse --short HEAD")=~/(\S+)/ ? $1 : die;
+#        my $l_dir = m{^\./(|.*/)\.git$} ? $1 : die;
+#        "$l_dir:$commit";
+#    } syf("cd $dir && find -name .git")=~/(\S+)/g;
+#    &$put_text(&$need_path("$dir/target/c4repo_commits"),$content);
+#};
+
+def setup_parser(commands):
+    main_parser = argparse.ArgumentParser()
+    subparsers = main_parser.add_subparsers()
+    for name, op, args in commands:
+        parser = subparsers.add_parser(name)
+        for a in args: parser.add_argument(a, required=True)
+        parser.set_defaults(op=op)
+    return main_parser
+
 def main():
-    parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers() # dest="op"
-    compile_parser = subparsers.add_parser('compile')
-    compile_parser.add_argument("--name", required=True)
-    compile_parser.add_argument("--image", required=True)
-    compile_parser.add_argument("--pull-secret", required=True)
-    compile_parser.add_argument("--push-secret", required=True)
-    compile_parser.add_argument("--context", required=True)
-    compile_parser.add_argument("--mod", required=True)
-    compile_parser.set_defaults(op=compile)
-    build_image_parser = subparsers.add_parser('build_image')
-    build_image_parser.add_argument("--context", required=True)
-    build_image_parser.add_argument("--image", required=True)
-    build_image_parser.add_argument("--push-secret", required=True)
-    build_image_parser.set_defaults(op=build_image)
-    opt = parser.parse_args()
+    opt = setup_parser((
+        ('compile', compile, ("--name","--image","--pull-secret","--push-secret","--context","--mod")),
+        ('build_image', build_image, ("--context","--image","--push-secret")),
+        ('build_common', build_common, ("--remote-context","--image","--push-config")),
+    )).parse_args()
     opt.op(opt)
 
 main()
