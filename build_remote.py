@@ -51,7 +51,7 @@ def run_kaniko(secret_from_file, get_pod_options):
 
 def build_image(opt):
     run_kaniko(opt.context, lambda name: {
-        "args": ["-d",opt.image],
+        "args": ["--cache","true","-d",opt.image],
         "volumeMounts": [
             { "name": opt.push_secret, **get_docker_conf_mount() },
             *({ "name": name, "mountPath": f"/workspace/{fn}", "subPath": fn } for fn in os.listdir(opt.context))
@@ -130,7 +130,7 @@ def build_common(opt):
     ctx = f"git:{u[6:]}" if u[:6] == "https:" else never(u)
     docker_conf_mount = get_docker_conf_mount()
     run_kaniko(f"{docker_conf_mount['subPath']}={opt.push_config}", lambda name: {
-        "args": ["-d",opt.image,"-c",ctx,"-f",opt.dockerfile],
+        "args": ["--cache","true","-d",opt.image,"-c",ctx,"-f",opt.dockerfile],
         "volumeMounts": [{ "name": name, **docker_conf_mount }]
     })
 
