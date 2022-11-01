@@ -130,7 +130,7 @@ def build_common(opt):
     ctx = f"git:{u[6:]}" if u[:6] == "https:" else never(u)
     docker_conf_mount = get_docker_conf_mount()
     run_kaniko(f"{docker_conf_mount['subPath']}={opt.push_config}", lambda name: {
-        "args": ["-d",opt.image,"-c",ctx,"-f","./build.def.dockerfile"],
+        "args": ["-d",opt.image,"-c",ctx,"-f",opt.dockerfile],
         "volumeMounts": [{ "name": name, **docker_conf_mount }]
     })
 
@@ -158,7 +158,7 @@ def main():
     opt = setup_parser((
         ('compile', compile, ("--name","--image","--pull-secret","--push-secret","--context","--mod")),
         ('build_image', build_image, ("--context","--image","--push-secret")),
-        ('build_common', build_common, ("--remote-context","--image","--push-config")),
+        ('build_common', build_common, ("--remote-context","--image","--push-config","--dockerfile")),
     )).parse_args()
     opt.op(opt)
 
