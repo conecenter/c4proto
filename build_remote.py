@@ -8,6 +8,7 @@ import tempfile
 import shutil
 import pathlib
 import argparse
+import time
 from c4util import group_map
 
 def print_args(*args):
@@ -46,6 +47,7 @@ def run_kaniko(secret_from_file, get_pod_options):
         **pod_options
     }))
     wait_pod(name,60,("Running","Succeeded"))
+    time.sleep(60*20)
     wait_pod(name,60*4,("Succeeded",))
     run("kcd","delete",f"pod/{name}",f"secret/{name}")
 
