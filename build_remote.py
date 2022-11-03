@@ -47,11 +47,11 @@ def build_image(opt):
             elif opt.push_secret[0] == "/":
                 shutil.copy(opt.push_secret, conf_path)
             else: never(f"bad push secret: {opt.push_secret}")
-            run("c4dsync","-ac","--mkpath",f"{conf_dir}/",f"{name}:/kaniko/.docker")
+            run("c4dsync","-ac","--mkpath",f"{conf_dir}/",f"{name}:/kaniko/.docker/")
         run("c4dsync","-ac",f"{opt.context}/",f"{name}:/workspace")
         run("kcd","exec",name,"--","executor","--cache=true","-d",opt.image)
     finally:
-        run("kcd","delete",f"pod/{name}")
+        #run("kcd","delete",f"pod/{name}")
 
 def apply_manifest(manifest):
     manifest_str = json.dumps(manifest, sort_keys=True)
