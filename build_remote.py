@@ -47,7 +47,7 @@ def build_image(opt):
             elif opt.push_secret[0] == "/":
                 shutil.copy(opt.push_secret, conf_path)
             else: never(f"bad push secret: {opt.push_secret}")
-            run("c4dsync","-ac",f"{conf_dir}/",f"{name}:/kaniko/.docker")
+            run("c4dsync","-ac","--mkpath",f"{conf_dir}/",f"{name}:/kaniko/.docker")
         run("c4dsync","-ac",f"{opt.context}/",f"{name}:/workspace")
         run("kcd","exec",name,"--","executor","--cache=true","-d",opt.image)
     finally:
