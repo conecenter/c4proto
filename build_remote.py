@@ -31,28 +31,30 @@ def construct_pod(opt):
     }}
 
 def build_image(opt):
+    conf_path = pathlib.Path(f"{opt.context}/.dockerconfigjson")
+    if conf_path.exists(): never(f"{conf_path} exists")
+    if "/" not in opt.push_secret:
+        cmd = ("kcd","get","secret",opt.push_secret,"-o","json")
+        secret_str = subprocess.run(print_args(*cmd),check=True,text=True,capture_output=True).stdout
+        secret_bytes = base64.b64decode(json.loads(secret_str)["data"][".dockerconfigjson"], validate=True)
+        conf_path.write_bytes(secret_bytes)
+    elif opt.push_secret[0] == "/": shutil.copy(opt.push_secret, conf_path)
+    else: never(f"bad push secret: {opt.push_secret}")
+    #
     name = f"kaniko-{uuid.uuid4()}"
     try:
         apply_manifest(construct_pod({
             "name": name, "image": "gcr.io/kaniko-project/executor:debug", "command": ["/busybox/sleep", "infinity"],
         }))
         wait_pod(name,60,("Running",))
-        with tempfile.TemporaryDirectory() as conf_dir:
-            conf_path = f"{conf_dir}/config.json"
-            if "/" not in opt.push_secret:
-                cmd = ("kcd","get","secret",opt.push_secret,"-o","json")
-                secret_str = subprocess.run(print_args(*cmd),check=True,text=True,capture_output=True).stdout
-                secret_bytes = base64.b64decode(json.loads(secret_str)["data"][".dockerconfigjson"], validate=True)
-                pathlib.Path(conf_path).write_bytes(secret_bytes)
-            elif opt.push_secret[0] == "/":
-                shutil.copy(opt.push_secret, conf_path)
-            else: never(f"bad push secret: {opt.push_secret}")
-            run("c4dsync","-ac","--mkpath",f"{conf_dir}/",f"{name}:/kaniko/.docker/")
-        run("c4dsync","-ac",f"{opt.context}/",f"{name}:/workspace")
+        tar_proc = subprocess.Popen(("tar","-czf-","."), stdout=subprocess.PIPE, cwd=opt.context)
+        subprocess.run(("kcd","exec","-i",name,"--","tar","-xzf-"), stdin=tar_proc.stdout)
+        tar_proc.wait()
+        if tar_proc.returncode != 0: never("tar failed")
+        run("kcd","exec",name,"--","mv",".dockerconfigjson","/kaniko/.docker/config.json")
         run("kcd","exec",name,"--","executor","--cache=true","-d",opt.image)
     finally:
-        pass
-        #run("kcd","delete",f"pod/{name}")
+        run("kcd","delete",f"pod/{name}")
 
 def apply_manifest(manifest):
     manifest_str = json.dumps(manifest, sort_keys=True)
