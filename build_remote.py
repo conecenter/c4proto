@@ -51,6 +51,7 @@ def build_image(opt):
         run("c4dsync","-ac",f"{opt.context}/",f"{name}:/workspace")
         run("kcd","exec",name,"--","executor","--cache=true","-d",opt.image)
     finally:
+        pass
         #run("kcd","delete",f"pod/{name}")
 
 def apply_manifest(manifest):
