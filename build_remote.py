@@ -47,8 +47,8 @@ def build_image(opt):
             "name": name, "image": "gcr.io/kaniko-project/executor:debug", "command": ["/busybox/sleep", "infinity"],
         }))
         wait_pod(name,60,("Running",))
-        tar_proc = subprocess.Popen(("tar","-czf-","."), stdout=subprocess.PIPE, cwd=opt.context)
-        subprocess.run(("kcd","exec","-i",name,"--","tar","-xzf-"), stdin=tar_proc.stdout)
+        tar_proc = subprocess.Popen(print_args("tar","-czf-","."), stdout=subprocess.PIPE, cwd=opt.context)
+        subprocess.run(print_args("kcd","exec","-i",name,"--","tar","-xzf-"), stdin=tar_proc.stdout)
         tar_proc.wait()
         if tar_proc.returncode != 0: never("tar failed")
         run("kcd","exec",name,"--","mv",".dockerconfigjson","/kaniko/.docker/config.json")
