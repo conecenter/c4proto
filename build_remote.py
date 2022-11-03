@@ -27,7 +27,7 @@ def construct_pod(opt):
         "containers": [{
             "name": "main", "securityContext": { "allowPrivilegeEscalation": False }, **dict(groups["container"])
         }],
-        **dict(groups["spec"])
+        **dict(groups.get("spec") or [])
     }}
 
 def build_image(opt):
