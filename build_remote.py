@@ -133,7 +133,7 @@ def ci_build(opt):
         f"export C4CI_BASE_TAG_ENV={opt.proj_tag}",
         " && ".join((
             "$C4STEP_BUILD", "$C4STEP_BUILD_CLIENT", "$C4STEP_CP",
-            f"python3 $C4CI_PROTO_DIR/build_remote.py build_image --context /c4/res --image {rt_img} --push-secret {name}"
+            f"python3.8 -u $C4CI_PROTO_DIR/build_remote.py build_image --context /c4/res --image {rt_img} --push-secret {name}"
         ))
     )))
 
