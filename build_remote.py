@@ -130,9 +130,12 @@ def ci_build(opt):
         "name": name, "image": opt.image, "imagePullSecrets": [{ "name": name }], "command": ["sleep", "infinity"]
     })) # todo to cpu node
     wait_pod(name,60,("Running",))
+    remote_kube_config = "/tmp/.c4-kube-config"
+    run("c4dsync","-a",os.environ["KUBECONFIG"],remote_kube_config) #
     rt_img = f"{opt.image}.{opt.proj_tag}.rt"
     run("kcd","exec",name,"--","sh","-c",";".join((
         f"export C4CI_BASE_TAG_ENV={opt.proj_tag}",
+        f"export KUBECONFIG={remote_kube_config}",
         " && ".join((
             "$C4STEP_BUILD", "$C4STEP_BUILD_CLIENT", "$C4STEP_CP",
             f"python3.8 -u $C4CI_PROTO_DIR/build_remote.py build_image --context /c4/res --image {rt_img} --push-secret {name}"
