@@ -136,11 +136,13 @@ def ci_build(opt):
     run("kcd","exec",name,"--","sh","-c",";".join((
         f"export C4CI_BASE_TAG_ENV={opt.proj_tag}",
         f"export KUBECONFIG={remote_kube_config}",
+        f"export C4DEPLOY_CONTEXT={os.environ['C4DEPLOY_CONTEXT']}",
         " && ".join((
             "$C4STEP_BUILD", "$C4STEP_BUILD_CLIENT", "$C4STEP_CP",
             f"python3.8 -u $C4CI_PROTO_DIR/build_remote.py build_image --context /c4/res --image {rt_img} --push-secret {name}"
         ))
     )))
+
 
 #todo: no ci_build_aggr C4CI_CAN_FAIL .aggr
 #todo: .de "ENV C4CI_BASE_TAG_ENV=$proj_tag", "ENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main",
