@@ -131,7 +131,7 @@ def ci_build(opt):
     })) # todo to cpu node
     wait_pod(name,60,("Running",))
     remote_kube_config = "/tmp/.c4-kube-config"
-    run("c4dsync","-a",os.environ["KUBECONFIG"],remote_kube_config) #
+    run("c4dsync","-a",os.environ["KUBECONFIG"],f"{name}:{remote_kube_config}")
     rt_img = f"{opt.image}.{opt.proj_tag}.rt"
     run("kcd","exec",name,"--","sh","-c",";".join((
         f"export C4CI_BASE_TAG_ENV={opt.proj_tag}",
