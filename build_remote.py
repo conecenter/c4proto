@@ -122,6 +122,25 @@ def read_text(path_str): return pathlib.Path(path_str).read_text(encoding='utf-8
 
 def never(a): raise Exception(a)
 
+def ci_build(opt):
+    #todo prevented double?
+    name = f"cib-{opt.commit}-{opt.proj_tag}"
+    run("kcd","create","secret","generic",name,"--from-file",f".dockerconfigjson={opt.push_secret}","--type","kubernetes.io/dockerconfigjson")
+    apply_manifest(construct_pod({ "name": name, "image": opt.image, "imagePullSecrets": [{ "name": name }] })) # todo to cpu node
+    wait_pod(name,60,("Running",))
+    rt_img = f"{opt.image}.{opt.proj_tag}.rt"
+    run("kcd","exec",name,"--","sh","-c",";".join((
+        f"export C4CI_BASE_TAG_ENV={opt.proj_tag}",
+        " && ".join((
+            "$C4STEP_BUILD", "$C4STEP_BUILD_CLIENT", "$C4STEP_CP",
+            f"python3 $C4CI_PROTO_DIR/build_remote.py build_image --context /c4/res --image {rt_img} --push-secret {name}"
+        ))
+    )))
+
+#todo: no ci_build_aggr C4CI_CAN_FAIL .aggr
+#todo: .de "ENV C4CI_BASE_TAG_ENV=$proj_tag", "ENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main",
+
+#todo:
 #my $mem_repo_commits = sub{
 #    my($dir)=@_;
 #    my $content = join " ", sort map{
@@ -146,6 +165,7 @@ def main():
     opt = setup_parser((
         ('compile', compile, ("--name","--image","--pull-secret","--push-secret","--context","--mod")),
         ('build_image', build_image, ("--context","--image","--push-secret")),
+        ('ci_build', ci_build, ("--commit","--proj-tag","--image","--push-secret")),
     )).parse_args()
     opt.op(opt)
 

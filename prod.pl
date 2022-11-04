@@ -831,32 +831,6 @@ my $ci_measure = sub{
     sub{ print((time-$at)."s =measured= $_[0]\n") }
 };
 
-my $ci_docker_build = sub {
-    my ($local_dir, $builder_comp, $img) = @_;
-    my $end = &$ci_measure();
-    my $remote_dir = &$ci_get_remote_dir("context");
-    &$rsync_to($local_dir, $builder_comp, $remote_dir);
-    &$run_with_timestamps(&$ssh_ctl($builder_comp, "-t", "docker", "build", "-t", $img, $remote_dir));
-    sy(&$ssh_ctl($builder_comp, "rm", "-r", $remote_dir));
-    &$end("ci built $img");
-    $img;
-};
-
-my $ci_docker_build_result = sub{
-    my ($builder_comp, $builder_img, $runtime_img) = @_;
-    my $end = &$ci_measure();
-    my $remote_dir = &$ci_get_remote_dir("context");
-    my $container_name = "c4cp-".&$get_rand_uuid();
-    sy(&$ssh_ctl($builder_comp,@$_)) for (
-        ["docker","create","--name",$container_name,$builder_img],
-        ["docker","cp","$container_name:/c4/res",$remote_dir], #do not mkdir before
-        ["docker","rm","-f",$container_name],
-        ["docker","build","-t",$runtime_img,$remote_dir],
-        ["rm","-r",$remote_dir],
-    );
-    &$end("ci built $runtime_img");
-};
-
 my $make_dir_with_dockerfile = sub{
     my($steps)=@_;
     my $dir = &$get_tmp_dir();
@@ -881,66 +855,6 @@ my $ci_docker_push = sub{
     sy(&$ssh_ctl($builder_comp,"rm","-r",$remote_dir));
     &$end("ci pushed");
 };
-
-my $ci_build = sub{
-    my($mode,@args) = @_;
-    my $end = &$ci_measure();
-    my $builder_comp = &$mandatory_of(C4CI_BUILDER=>\%ENV);
-    my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
-    #
-    my $build_derived = sub{
-        my ($from,$steps,$img) =@_;
-        my $dir = &$make_dir_with_dockerfile(join"\n","FROM $from",@$steps);
-        &$ci_docker_build($dir, $builder_comp, $img);
-    };
-    my $get_build_steps = sub{
-        my($can_fail,$proj_tags)=@_;
-        (
-            "ENV C4CI_CAN_FAIL=$can_fail",
-            (map{(
-                "ENV C4CI_BASE_TAG_ENV=$_",
-                "RUN eval \$C4STEP_BUILD",
-            )}@$proj_tags),
-            "RUN eval \$C4STEP_BUILD_CLIENT"
-        )
-    };
-    my $chk_tag = sub{
-        $_[0]=~/^(\w[\w\-]*\w)$/ ? "$1" : die "bad image postfix ($_[0])"
-    };
-    my $handle_aggr = sub{
-        my($aggr_tag_arg,$proj_tags_arg)=@_;
-        my @proj_tags = $proj_tags_arg=~/([^:]+)/g;
-        my $aggr_tag = &$chk_tag($aggr_tag_arg);
-        my $steps = [&$get_build_steps("1",\@proj_tags)];
-        my $aggr_img = "$common_img.$aggr_tag.aggr";
-        &$build_derived($common_img,$steps,$aggr_img);
-        for(@proj_tags){
-            my $proj_tag = &$chk_tag($_);
-            my $sb_steps = [
-                "ENV C4CI_BASE_TAG_ENV=$proj_tag",
-                "ENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main",
-            ];
-            &$build_derived($aggr_img,$sb_steps,"$common_img.$proj_tag.de");
-        }
-    };
-    my $handle_fin = sub{
-        my($proj_tag,$aggr_tag) = map{&$chk_tag($_)} @_;
-        my $from_img = $aggr_tag ? "$common_img.$aggr_tag.aggr" : $common_img;
-        my $img_pre = "$common_img.$proj_tag";
-        my $cp_steps = [
-            &$get_build_steps("",[$proj_tag]),
-            "RUN \$C4STEP_CP"
-        ];
-        &$build_derived($from_img,$cp_steps,"$img_pre.cp");
-        &$ci_docker_build_result($builder_comp,"$img_pre.cp","$img_pre.rt");
-    };
-    my %handle = (aggr=>$handle_aggr,fin=>$handle_fin);
-    &{$handle{$mode}}(@args);
-    &$end("ci_build");
-};
-
-push @tasks, ["ci_build_aggr", "", sub{ &$ci_build("aggr",@_) }];
-push @tasks, ["ci_build", "", sub{ &$ci_build("fin",@_) }];
 
 my $get_existing_images = sub{
     my($builder_comp,$builder_repo)=@_;
