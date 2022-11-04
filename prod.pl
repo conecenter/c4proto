@@ -541,6 +541,7 @@ my $get_repo = sub{
 };
 
 my $build_remote = sub{
+    my $proto_dir = &$get_proto_dir();
     sy("perl","$proto_dir/sync_setup.pl");
     local $ENV{PATH} = "$ENV{PATH}:$ENV{HOME}/bin";
     sy("python3.8", "-u", "$proto_dir/build_remote.py", @_);
@@ -1525,7 +1526,6 @@ push @tasks, ["remote_compile","",sub{
     my($build_dir,$mod) = @_;
     my $proto_dir = &$get_proto_dir();
     my $user = $ENV{HOSTNAME}=~/^de-(\w+)-/ ? $1 : die;
-    my $proto_dir = &$get_proto_dir();
     my $comp = "rb-$sys_image_ver-$user-sbt";
     my ($repo,$secret) = &$get_repo($comp);
     my $img = "$repo:sbt.$sys_image_ver";
