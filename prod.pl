@@ -542,8 +542,6 @@ my $get_repo = sub{
 
 my $build_remote = sub{
     my $proto_dir = &$get_proto_dir();
-    sy("perl","$proto_dir/sync_setup.pl");
-    local $ENV{PATH} = "$ENV{PATH}:$ENV{HOME}/bin";
     sy("python3.8", "-u", "$proto_dir/build_remote.py", @_);
 };
 
