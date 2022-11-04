@@ -126,7 +126,9 @@ def ci_build(opt):
     #todo prevented double?
     name = f"cib-{opt.commit}-{opt.proj_tag}"
     run("kcd","create","secret","generic",name,"--from-file",f".dockerconfigjson={opt.push_secret}","--type","kubernetes.io/dockerconfigjson")
-    apply_manifest(construct_pod({ "name": name, "image": opt.image, "imagePullSecrets": [{ "name": name }] })) # todo to cpu node
+    apply_manifest(construct_pod({
+        "name": name, "image": opt.image, "imagePullSecrets": [{ "name": name }], "command": ["sleep", "infinity"]
+    })) # todo to cpu node
     wait_pod(name,60,("Running",))
     rt_img = f"{opt.image}.{opt.proj_tag}.rt"
     run("kcd","exec",name,"--","sh","-c",";".join((
