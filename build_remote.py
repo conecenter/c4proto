@@ -129,6 +129,12 @@ def read_text(path_str): return pathlib.Path(path_str).read_text(encoding='utf-8
 
 def never(a): raise Exception(a)
 
+def build_de(opt):
+    with tempfile.TemporaryDirectory() as context:
+        data = "\n".join((f"FROM {opt.image}","ENTRYPOINT exec perl $C4CI_PROTO_DIR/sandbox.pl main"))
+        write_text(f"{context}/Dockerfile", data)
+        build_image(argparse.Namespace(context=context, image=f"{opt.image}.de", push_secret=opt.push_secret))
+
 def build_rt(opt):
     #todo prevented double?
     name = f"cib-{opt.commit}-{opt.proj_tag}"
@@ -179,6 +185,7 @@ def main():
         ('compile', compile, ("--name","--image","--pull-secret","--push-secret","--context","--mod")),
         ('build_image', build_image, ("--context","--image","--push-secret")),
         ('copy_image', copy_image, ("--from-image","--to-image","--push-secret")),
+        ('build_de', build_de, ("--image","--push-secret")),
         ('build_rt', build_rt, ("--commit","--proj-tag","--image","--push-secret")),
     )).parse_args()
     opt.op(opt)
