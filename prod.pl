@@ -820,17 +820,6 @@ push @tasks, ["ci_info", "", sub{
     &$put_text(($out_path||die), &$encode({%out,ci_parts=>\@parts}));
 }];
 
-push @tasks, ["ci_mem_repo_commits", "", sub{
-    my($dir)=@_;
-    my $content = join " ", sort map{
-        my $commit =
-            syf("git --git-dir=$_ rev-parse --short HEAD")=~/(\S+)/ ? $1 : die;
-        my $l_dir = m{^\./(|.*/)\.git$} ? $1 : die;
-        "$l_dir:$commit";
-    } syf("cd $dir && find -name .git")=~/(\S+)/g;
-    &$put_text(&$need_path("$dir/target/c4repo_commits"),$content);
-}];
-
 push @tasks, ["ci_push", "", sub{
     my($env_comp)=@_;
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
