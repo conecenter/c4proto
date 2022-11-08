@@ -829,7 +829,7 @@ push @tasks, ["ci_push", "", sub{
         my $local_dir = &$get_tmp_dir();
         &$secret_to_dir($kubectl,"docker",$local_dir);
         my $path = "$local_dir/config.json";
-        &$put_text($path,&$encode(&$merge(map{&$decode(&$get_text($_))} $path, $add_path)));
+        &$put_text($path,&$encode(&$merge(map{&$decode(&$get_text($_))} $path, $docker_conf_path)));
         $path
     };
     my @comps = &$ci_get_compositions($env_comp);
