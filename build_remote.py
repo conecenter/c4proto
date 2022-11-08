@@ -15,8 +15,11 @@ def print_args(*args):
     print("running: "+" ".join(args))
     return args
 
-def run(*args):
-    subprocess.run(print_args(*args),check=True)
+def kcd_args(*args):
+    return print_args("kubectl","--context",os.environ["C4DEPLOY_CONTEXT"],*args)
+
+def kcd_run(*args):
+    subprocess.run(kcd_args(*args),check=True)
 
 def construct_pod(opt):
     option_group_rules = {
@@ -30,12 +33,16 @@ def construct_pod(opt):
         **dict(groups.get("spec") or [])
     }}
 
+def apply_wait_pod(opt):
+    apply_manifest(construct_pod(opt))
+    wait_pod(opt["name"],60,("Running",))
+
 def build_image(opt):
     conf_path = pathlib.Path(f"{opt.context}/.dockerconfigjson")
     if conf_path.exists(): never(f"{conf_path} exists")
     if "/" not in opt.push_secret:
-        cmd = ("kcd","get","secret",opt.push_secret,"-o","json")
-        secret_str = subprocess.run(print_args(*cmd),check=True,text=True,capture_output=True).stdout
+        cmd = kcd_args("get","secret",opt.push_secret,"-o","json")
+        secret_str = subprocess.run(cmd,check=True,text=True,capture_output=True).stdout
         secret_bytes = base64.b64decode(json.loads(secret_str)["data"][".dockerconfigjson"], validate=True)
         conf_path.write_bytes(secret_bytes)
     elif opt.push_secret[0] == "/": shutil.copy(opt.push_secret, conf_path)
@@ -43,26 +50,27 @@ def build_image(opt):
     #
     name = f"kaniko-{uuid.uuid4()}"
     try:
-        apply_manifest(construct_pod({
+        apply_wait_pod({
             "name": name, "image": "gcr.io/kaniko-project/executor:debug", "command": ["/busybox/sleep", "infinity"],
-        }))
-        wait_pod(name,60,("Running",))
+        })
+        #
         tar_proc = subprocess.Popen(print_args("tar","-czf-","."), stdout=subprocess.PIPE, cwd=opt.context)
-        subprocess.run(print_args("kcd","exec","-i",name,"--","tar","-xzf-"), stdin=tar_proc.stdout)
+        subprocess.run(kcd_args("exec","-i",name,"--","tar","-xzf-"), stdin=tar_proc.stdout)
         tar_proc.wait()
         if tar_proc.returncode != 0: never("tar failed")
-        run("kcd","exec",name,"--","mv",".dockerconfigjson","/kaniko/.docker/config.json")
-        run("kcd","exec",name,"--","executor","--cache=true","-d",opt.image)
+        #
+        kcd_run("exec",name,"--","mv",".dockerconfigjson","/kaniko/.docker/config.json")
+        kcd_run("exec",name,"--","executor","--cache=true","-d",opt.image)
     finally:
-        run("kcd","delete",f"pod/{name}")
+        kcd_run("delete",f"pod/{name}")
 
 def apply_manifest(manifest):
     manifest_str = json.dumps(manifest, sort_keys=True)
-    subprocess.run(print_args("kcd","apply","-f-"),check=True,text=True,input=manifest_str)
+    subprocess.run(kcd_args("apply","-f-"),check=True,text=True,input=manifest_str)
 
 def wait_pod(pod,timeout,phases):
     phase_lines = { f"{phase}\n": phase for phase in phases }
-    args = print_args("kcd","get","pod",pod,"--watch","-o",'jsonpath={.status.phase}{"\\n"}',"--request-timeout",f"{timeout}s")
+    args = kcd_args("get","pod",pod,"--watch","-o",'jsonpath={.status.phase}{"\\n"}',"--request-timeout",f"{timeout}s")
     with subprocess.Popen(args, stdout=subprocess.PIPE,text=True) as proc:
         for line in proc.stdout:
             print(line)
@@ -91,18 +99,17 @@ def build_compiler_image(opt):
     write_text(f"{opt.context}/Dockerfile", data)
     build_image(opt)
 
+def rsync(*args):
+    subprocess.run(print_args("c4dsync","-avcr","--del",*args),check=True)
 
 def compile(opt):
     pod = opt.name
-    if subprocess.run(print_args("kcd","get","pod",pod)).returncode != 0: # todo more relevant condition
+    if subprocess.run(kcd_args("get","pod",pod)).returncode != 0: # todo more relevant condition
         with tempfile.TemporaryDirectory() as from_path_str:
             build_compiler_image(argparse.Namespace(context=from_path_str, image=opt.image, push_secret=opt.push_secret))
-    apply_manifest(construct_pod({
+    apply_wait_pod({
         "name": pod, "image": opt.image, "imagePullSecrets": [{ "name": opt.pull_secret }],
-    })) # todo to cpu node
-    wait_pod(pod,60,("Running",))
-    kex = ("kcd","exec",pod,"--")
-    rsync = ("c4dsync","-avcr","--del")
+    }) # todo to cpu node
     build_dir = opt.context
     mod_dir = f"{build_dir}/target/c4/mod.{opt.mod}.d"
     res_ff_path = f"{mod_dir}/c4res_files_from"
@@ -110,30 +117,29 @@ def compile(opt):
     sync_paths_path = f"{mod_dir}/c4sync_paths_existing"
     full_sync_paths = (f"{build_dir}/{part}" for part in json.loads(read_text(f"{mod_dir}/c4sync_paths.json")))
     write_text(sync_paths_path, "\n".join(path for path in full_sync_paths if pathlib.Path(path).exists()))
-    run(*rsync,"--files-from",sync_paths_path,f"/",f"{pod}:/")
+    rsync("--files-from",sync_paths_path,f"/",f"{pod}:/")
     opt = os.environ["C4BUILD_JAVA_TOOL_OPTIONS"]
-    run(*kex,"sh","-c",f"cd {mod_dir} && JAVA_TOOL_OPTIONS='{opt}' sbt c4build")
-    run(*rsync,f"{pod}:{cp_path}",cp_path)
+    kcd_run("exec",pod,"--","sh","-c",f"cd {mod_dir} && JAVA_TOOL_OPTIONS='{opt}' sbt c4build")
+    rsync(f"{pod}:{cp_path}",cp_path)
     write_text(res_ff_path, read_text(cp_path).replace(":","\n"))
-    run(*rsync,"--files-from",res_ff_path,f"{pod}:/","/")
+    rsync("--files-from",res_ff_path,f"{pod}:/","/")
 
 def write_text(path_str, text): pathlib.Path(path_str).write_text(text, encoding='utf-8', errors='strict')
 def read_text(path_str): return pathlib.Path(path_str).read_text(encoding='utf-8', errors='strict')
 
 def never(a): raise Exception(a)
 
-def ci_build(opt):
+def build_rt(opt):
     #todo prevented double?
     name = f"cib-{opt.commit}-{opt.proj_tag}"
-    run("kcd","create","secret","generic",name,"--from-file",f".dockerconfigjson={opt.push_secret}","--type","kubernetes.io/dockerconfigjson")
-    apply_manifest(construct_pod({
+    kcd_run("create","secret","generic",name,"--from-file",f".dockerconfigjson={opt.push_secret}","--type","kubernetes.io/dockerconfigjson")
+    apply_wait_pod({
         "name": name, "image": opt.image, "imagePullSecrets": [{ "name": name }], "command": ["sleep", "infinity"]
-    })) # todo to cpu node
-    wait_pod(name,60,("Running",))
+    }) # todo to cpu node
     remote_kube_config = "/tmp/.c4-kube-config"
-    run("c4dsync","-a",os.environ["KUBECONFIG"],f"{name}:{remote_kube_config}")
+    kcd_run("cp",os.environ["KUBECONFIG"],f"{name}:{remote_kube_config}")
     rt_img = f"{opt.image}.{opt.proj_tag}.rt"
-    run("kcd","exec",name,"--","sh","-c",";".join((
+    kcd_run("exec",name,"--","sh","-c",";".join((
         f"export C4CI_BASE_TAG_ENV={opt.proj_tag}",
         f"export KUBECONFIG={remote_kube_config}",
         f"export C4DEPLOY_CONTEXT={os.environ['C4DEPLOY_CONTEXT']}",
@@ -143,21 +149,21 @@ def ci_build(opt):
         ))
     )))
 
+def copy_image(opt):
+    name = f"skopeo-{uuid.uuid4()}"
+    try:
+        apply_wait_pod({
+            "name": name, "image": "quay.io/skopeo/stable:v1.10.0", "command": ["sleep", "infinity"]
+        })
+        kcd_run("cp",opt.push_secret,f"{name}:/tmp/auth.json")
+        kcd_run("exec",name,"--","skopeo","copy",f"docker://{opt.from_image}",f"docker://{opt.to_image}")
+    finally:
+        kcd_run("delete",f"pod/{name}")
+
 
 #todo: no ci_build_aggr C4CI_CAN_FAIL .aggr
 #todo: .de "ENV C4CI_BASE_TAG_ENV=$proj_tag", "ENTRYPOINT exec perl \$C4CI_PROTO_DIR/sandbox.pl main",
 
-#todo:
-#my $mem_repo_commits = sub{
-#    my($dir)=@_;
-#    my $content = join " ", sort map{
-#        my $commit =
-#            syf("git --git-dir=$_ rev-parse --short HEAD")=~/(\S+)/ ? $1 : die;
-#        my $l_dir = m{^\./(|.*/)\.git$} ? $1 : die;
-#        "$l_dir:$commit";
-#    } syf("cd $dir && find -name .git")=~/(\S+)/g;
-#    &$put_text(&$need_path("$dir/target/c4repo_commits"),$content);
-#};
 
 def setup_parser(commands):
     main_parser = argparse.ArgumentParser()
@@ -172,7 +178,8 @@ def main():
     opt = setup_parser((
         ('compile', compile, ("--name","--image","--pull-secret","--push-secret","--context","--mod")),
         ('build_image', build_image, ("--context","--image","--push-secret")),
-        ('ci_build', ci_build, ("--commit","--proj-tag","--image","--push-secret")),
+        ('copy_image', copy_image, ("--from-image","--to-image","--push-secret")),
+        ('build_rt', build_rt, ("--commit","--proj-tag","--image","--push-secret")),
     )).parse_args()
     opt.op(opt)
 
