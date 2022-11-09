@@ -99,8 +99,12 @@ def build_compiler_image(opt):
     write_text(f"{opt.context}/Dockerfile", data)
     build_image(opt)
 
-def rsync(*args):
-    subprocess.run(print_args("c4dsync","-avcr","--del",*args),check=True)
+def rsync(files,from_pod,to_pod):
+    with tempfile.TemporaryDirectory() as list_dir:
+        list_path = f"{list_dir}/list"
+        write_text(list_path, files)
+        def to_arg(pod): return f"{pod}:/" if pod else "/"
+        subprocess.run(print_args("c4dsync","-avcr","--del","--files-from",list_path,to_arg(from_pod),to_arg(to_pod)),check=True)
 
 def compile(opt):
     pod = opt.name
@@ -112,17 +116,13 @@ def compile(opt):
     }) # todo to cpu node
     build_dir = opt.context
     mod_dir = f"{build_dir}/target/c4/mod.{opt.mod}.d"
-    res_ff_path = f"{mod_dir}/c4res_files_from"
     cp_path = f"{mod_dir}/target/c4classpath"
-    sync_paths_path = f"{mod_dir}/c4sync_paths_existing"
     full_sync_paths = (f"{build_dir}/{part}" for part in json.loads(read_text(f"{mod_dir}/c4sync_paths.json")))
-    write_text(sync_paths_path, "\n".join(path for path in full_sync_paths if pathlib.Path(path).exists()))
-    rsync("--files-from",sync_paths_path,f"/",f"{pod}:/")
+    rsync("\n".join(path for path in full_sync_paths if pathlib.Path(path).exists()), None, pod)
     opt = os.environ["C4BUILD_JAVA_TOOL_OPTIONS"]
     kcd_run("exec",pod,"--","sh","-c",f"cd {mod_dir} && JAVA_TOOL_OPTIONS='{opt}' sbt c4build")
-    rsync(f"{pod}:{cp_path}",cp_path)
-    write_text(res_ff_path, read_text(cp_path).replace(":","\n"))
-    rsync("--files-from",res_ff_path,f"{pod}:/","/")
+    rsync(cp_path, pod, None)
+    rsync(read_text(cp_path).replace(":","\n"), pod, None)
 
 def write_text(path_str, text): pathlib.Path(path_str).write_text(text, encoding='utf-8', errors='strict')
 def read_text(path_str): return pathlib.Path(path_str).read_text(encoding='utf-8', errors='strict')
