@@ -29,7 +29,7 @@ def set_tag(project,tag_name,commit):
 
 def prod(args):
     proto_dir = get_env("C4CI_PROTO_DIR")
-    subprocess.run(["ssh-agent","perl",f"{proto_dir}/prod.pl"] + args).check_returncode()
+    subprocess.run(["perl",f"{proto_dir}/prod.pl"] + args).check_returncode()
 
 def need_environment(project,slug):
     environments = project.environments.list(all=True)

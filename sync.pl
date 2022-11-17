@@ -156,7 +156,7 @@ my @tasks;
 push @tasks, ["clean_local","",sub{
     my($dir)=@_;
     $dir || die;
-    for(grep{m"\bc4gen\b|/target/|/tmp/|/node_modules/|/.bloop/"} map{"/$_"} &$find("sh -c ","$dir/",[])){
+    for(grep{m"\bc4gen\b|/target/|/tmp/|/node_modules/|/.bloop/"} map{"/$_"} &$find("sh -c ","$dir/",[])){ # will not clear dir-only trees
         my $path = "$dir$_";
         print "deleting $path\n";
         unlink $path or die;

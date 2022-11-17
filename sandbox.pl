@@ -83,7 +83,13 @@ my $remake = sub{
     my $build_data = JSON::XS->new->decode(&$get_text_or_empty("$tmp/build.json"));
     my ($nm,$mod,$cl) = map{$$build_data{tag_info}{$arg}{$_}||die} qw[name mod main];
     my $proto_dir = $ENV{C4CI_PROTO_DIR} || die;
-    so("KUBECONFIG=$ENV{C4KUBECONFIG} perl $proto_dir/prod.pl remote_compile $build_dir $mod") and return ();
+    my $user = $ENV{HOSTNAME}=~/^de-(\w+)-/ ? $1 : die;
+    my $commit = $ENV{C4COMMIT} || die;
+    local $ENV{KUBECONFIG} = $ENV{C4KUBECONFIG};
+    so("python3.8", "-u", "$proto_dir/build_remote.py", "compile",
+        "--commit", $commit, "--proj-tag", $arg, "--user", $user, "--context", $build_dir, "--mod", $mod
+    ) and return ();
+    sy("perl", "$proto_dir/build_env.pl", $build_dir, $mod);
     my $build_client = $ENV{C4STEP_BUILD_CLIENT};
     $build_client and so("$build_client dev") and return ();
     #
@@ -168,7 +174,7 @@ my $serve_loop = sub{
 
 my $serve_history = sub{
     &$put_text("/c4/.bashrc", join "\n",
-        &$get_text_or_empty("/c4/.bashrc"), syf("ssh-agent"),
+        &$get_text_or_empty("/c4/.bashrc"), #syf("ssh-agent"),
         "export KUBECONFIG=$ENV{C4KUBECONFIG}", # $C4KUBECONFIG was empty at this stage
         "export KUBE_EDITOR=mcedit",
         'history -c && history -r /c4/.bash_history_get && export PROMPT_COMMAND="history -a /c4/.bash_history_put"',

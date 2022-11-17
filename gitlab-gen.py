@@ -14,8 +14,6 @@ def ext(f): return lambda arg: f(*arg)
 ###
 
 def docker_conf(): return "python3 $C4CI_PROTO_DIR/gitlab-docker-conf.py"
-def prod(arg):
-  return [docker_conf(),f"ssh-agent perl $C4CI_PROTO_DIR/prod.pl {arg}"]
 def handle(arg):
   return f"python3 $C4CI_PROTO_DIR/gitlab-ci.py {arg}"
 def push_rule(cond):
@@ -40,40 +38,30 @@ def get_aggr_cond(aggr_cond_list):
 
 build_common_name = "build common"
 build_gate_name = "build gate"
-def build_aggr_name(v): return f"{v}.aggr"
+build_aggr_name = "build de"
 def build_rt_name(tag,aggr): return f"b {tag} {aggr} rt"
-stage_build_rt = "develop"
 stage_deploy_de = "develop"
 stage_confirm = "confirm"
 stage_deploy_sp = "confirm"
 stage_deploy_cl = "deploy"
 
 def get_build_jobs(config_statements):
-  def build(cond,stage,needs,arg):
-    return common_job(cond,"on_success",stage,needs,prod(arg))
-  def build_main(cond,arg):
-    return build(cond,"build_main",[build_common_name],arg)
   (aggr_cond_list, aggr_to_cond) = get_aggr_cond(config_statements["C4AGGR_COND"])
   tag_aggr_list = config_statements["C4TAG_AGGR"]
-  aggr_to_tags = group_map(tag_aggr_list, ext(lambda tag, aggr: (aggr,tag)))
-  aggr_jobs = {
-    build_aggr_name(aggr): build_main(
-      prefix_cond(cond), f"ci_build_aggr {aggr} " + ":".join(aggr_to_tags[aggr])
-    ) for aggr, cond in aggr_cond_list if aggr in aggr_to_tags
-  }
-  fin_jobs = {
-    build_rt_name(tag,aggr): build(
-      prefix_cond(aggr_to_cond[aggr]), stage_build_rt, [build_aggr_name(aggr)], # sorted(aggr_jobs.keys())
-      f"ci_build {tag} {aggr}"
-    ) for tag, aggr in tag_aggr_list
-  }
+  def build(cond,args):
+    return common_job(prefix_cond(cond),"on_success","build_main",[build_common_name],[
+      docker_conf(),
+      f"python3.8 -u $C4CI_PROTO_DIR/build_remote.py {args} --image $C4COMMON_IMAGE --push-secret $C4CI_DOCKER_CONFIG"
+    ])
+  def build_rt(cond,tag): return build(cond,f"build_rt --commit $CI_COMMIT_SHORT_SHA --proj-tag {tag}")
   return {
     "rebuild": common_job(
       prefix_cond(""),"manual","build_main",[build_common_name],
       [handle(f"rebuild $CI_COMMIT_BRANCH")]
     ),
-    build_gate_name: build_main(prefix_cond(""),"ci_build def"),
-    **aggr_jobs, **fin_jobs
+    build_aggr_name: build("","build_de"),
+    build_gate_name: build_rt("","def"),
+    **{ build_rt_name(tag,aggr): build_rt(aggr_to_cond[aggr], tag) for tag, aggr in tag_aggr_list }
   }
 
 # build aggr jobs -- C4AGGR_COND
@@ -85,7 +73,7 @@ def get_deploy_jobs(config_statements):
   tag_aggr_list = config_statements["C4TAG_AGGR"]
   aggr_cond_list = config_statements["C4AGGR_COND"]
   needs_rt = [build_gate_name] + [optional_job(build_rt_name(tag,aggr)) for tag, aggr in tag_aggr_list]
-  needs_de = [build_gate_name] + [optional_job(build_aggr_name(aggr)) for aggr, cond in aggr_cond_list if cond]
+  needs_de = [build_gate_name,build_aggr_name]
   return {
     key: value
     for env_mask, caption_mask in config_statements["C4DEPLOY"]
@@ -128,7 +116,9 @@ def get_env_jobs():
   testing_name = "testing"
   return {
     start_name: {
-      **common_job("$CI_COMMIT_TAG","on_success","start",[],[docker_conf(),handle("up $CI_ENVIRONMENT_SLUG")]),
+      **common_job("$CI_COMMIT_TAG","on_success","start",[],[
+        docker_conf(), "export C4COMMIT=$CI_COMMIT_SHORT_SHA", handle("up $CI_ENVIRONMENT_SLUG")
+      ]),
       "environment": { "name": "$CI_COMMIT_TAG", "action": "start", "on_stop": "stop" }
     },
     check_name: common_job("$CI_COMMIT_TAG","on_success","check",[start_name],[handle("check")]),
@@ -141,34 +131,22 @@ def main():
   config_statements = group_map(read_json(build_path("c4dep.main.json")), lambda it: (it[0],it[1:]))
   out = {
     "variables": { "C4CI_DOCKER_CONFIG": "/tmp/c4-docker-config" },
-    "stages": ["build_replink","build_common","build_main","develop","confirm","deploy","start","check","testing","stop"],
-    "build_replink": {
-      "image": {
-        "name": "gcr.io/kaniko-project/executor:debug",
-        "entrypoint": [ "" ]
-      },
-      "rules": [{"if":"$C4CI_REPLINK"}],
-      "stage": "build_replink",
-      "variables": {
-        "C4DOCKER_CONF": '{"auths":{"$CI_REGISTRY":{"username":"$CI_REGISTRY_USER","password":"$CI_REGISTRY_PASSWORD"}}}'
-      },
-      "script": [
-        "mkdir -p /kaniko/.docker",
-        "echo $C4DOCKER_CONF > /kaniko/.docker/config.json",
-        "cat /kaniko/.docker/config.json",
-        "/kaniko/executor --context $CI_PROJECT_DIR/replink_extra --dockerfile $CI_PROJECT_DIR/replink_extra/Dockerfile --destination $CI_REGISTRY_IMAGE/replink:v2sshk3"
-      ]
-    },
+    "stages": ["build_common","build_main","develop","confirm","deploy","start","check","testing","stop"],
     build_common_name: {
       "rules": [push_rule("$CI_COMMIT_BRANCH")],
       "stage": "build_common",
-      "image": "$CI_REGISTRY_IMAGE/replink:v2sshk3",
+      "image": "ghcr.io/conecenter/c4replink:v3k",
       "script": [
         "export C4CI_BUILD_DIR=$CI_PROJECT_DIR",
         "export C4CI_PROTO_DIR=$C4COMMON_PROTO_DIR",
         "C4REPO_MAIN_CONF=$CI_PROJECT_DIR/c4dep.ci.replink /replink.pl",
         "C4CI_BUILD_DIR=$C4CI_PROTO_DIR C4REPO_MAIN_CONF=$C4CI_PROTO_DIR/c4dep.main.replink /replink.pl",
-        *prod("ci_build_common"),
+        docker_conf(),
+        "mkdir -p $C4CI_BUILD_DIR/target",
+        "perl $C4CI_PROTO_DIR/sync_mem.pl $C4CI_BUILD_DIR",
+        "cp $C4CI_PROTO_DIR/.dockerignore $C4CI_BUILD_DIR/.dockerignore",
+        "cp $C4CI_BUILD_DIR/build.def.dockerfile $C4CI_BUILD_DIR/Dockerfile",
+        "python3 $C4CI_PROTO_DIR/build_remote.py build_image --context $C4CI_BUILD_DIR --image $C4COMMON_IMAGE --push-secret $C4CI_DOCKER_CONFIG",
       ],
     },
     **get_build_jobs(config_statements), **get_deploy_jobs(config_statements), **get_env_jobs()
