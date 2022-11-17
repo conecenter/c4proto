@@ -130,8 +130,9 @@ trait WebApp {
   def setToken(idToken: String): Unit = {
     val contextsPath = os.home / "c4contexts.json"
     val contexts = ContextConf.load()
-    val ChkMail = """(\w+)@.+""".r
-    val (context, ChkMail(devName)) = verifyToken(contexts, idToken)
+    val (context, mail) = verifyToken(contexts, idToken)
+    val devName = mail.split('@')(0).replaceAll("[^A-Za-z]+", "")
+    if(devName.isEmpty) throw new Exception("bad user name")
     os.write.over(kubeTokenDir / context.context, idToken, createFolders = true)
     regenerateKubeConf()
     PublicState(devName, System.currentTimeMillis()).save()
