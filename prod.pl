@@ -510,7 +510,10 @@ my $remote_build = sub{
     my $type = &$get_compose($comp)->{type} || die;
     my ($repo,$secret) = &$get_repo($comp);
     my $tag = "$repo:$type.$sys_image_ver";
-    &$build_remote("build_image", "--context", $dir, "--image", $tag, "--push-secret", $secret);
+    my $kubectl = &$get_kubectl($comp);
+    my $auth_dir = &$get_tmp_dir();
+    &$secret_to_dir($kubectl,$secret,$auth_dir);
+    &$build_remote("build_image", "--context", $dir, "--image", $tag, "--push-secret", "$auth_dir/.dockerconfigjson");
     $tag;
 };
 
@@ -1029,7 +1032,13 @@ push @tasks, ["ci_inner_build","",sub{
     my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
     sy("cd $gen_dir && perl $proto_dir/build.pl");
     my $mod = &$get_tag_info($gen_dir,$base)->{mod}||die;
-    sy("cd $gen_dir && perl $proto_dir/compile.pl $mod");
+    &$build_remote("compile_push",
+        "--commit", &$mandatory_of(C4COMMIT => \%ENV),
+        "--image", &$mandatory_of(C4COMMON_IMAGE => \%ENV),
+        "--java-options", &$mandatory_of(C4BUILD_JAVA_TOOL_OPTIONS => \%ENV),
+        "--proj-tag", $base, "--context", $gen_dir, "--mod", $mod
+    );
+    sy("perl", "$proto_dir/build_env.pl", $gen_dir, $mod);
 }];
 
 my $client_mode_to_opt = sub{

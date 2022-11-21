@@ -53,7 +53,8 @@ def get_build_jobs(config_statements):
       docker_conf(),
       f"python3.8 -u $C4CI_PROTO_DIR/build_remote.py {args} --image $C4COMMON_IMAGE --push-secret $C4CI_DOCKER_CONFIG"
     ])
-  def build_rt(cond,tag): return build(cond,f"build_rt --commit $CI_COMMIT_SHORT_SHA --proj-tag {tag}")
+  def build_rt(cond,tag):
+    return build(cond,f"build_rt --commit $CI_COMMIT_SHORT_SHA --proj-tag {tag} --java-options \"$C4BUILD_JAVA_TOOL_OPTIONS\" ")
   return {
     "rebuild": common_job(
       prefix_cond(""),"manual","build_main",[build_common_name],

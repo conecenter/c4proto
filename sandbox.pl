@@ -29,10 +29,11 @@ my $repeat = sub{
     my ($f,@state) = @_;
     @state = &$f(@state) while @state > 0;
 };
+my $mandatory_of = sub{ my($k,$h)=@_; (exists $$h{$k}) ? $$h{$k} : die "no $k" };
 
 my $debug_port = 5005;
 my $serve_proxy = sub{
-    my $debug_ext_address = "0.0.0.0:".($ENV{C4DEBUG_PORT} || die "no C4DEBUG_PORT");
+    my $debug_ext_address = "0.0.0.0:".&$mandatory_of(C4DEBUG_PORT => \%ENV);
     my $debug_int_address = &$get_text_or_empty("/c4/haproxy.to");
     $debug_ext_address && $debug_int_address or &$exec("sleep","infinity");
     my $ha_cfg_path = "/c4/haproxy.cfg";
@@ -78,16 +79,18 @@ my $get_debug_ip = sub{
 
 my $remake = sub{
     my($build_dir,$droll) = @_;
-    my $arg = &$get_text_or_empty("/c4/debug-tag") || $ENV{C4CI_BASE_TAG_ENV} || die "no C4CI_BASE_TAG_ENV";
+    my $arg = &$get_text_or_empty("/c4/debug-tag") || &$mandatory_of(C4CI_BASE_TAG_ENV => \%ENV);
     my $tmp = "$build_dir/target/c4";
     my $build_data = JSON::XS->new->decode(&$get_text_or_empty("$tmp/build.json"));
     my ($nm,$mod,$cl) = map{$$build_data{tag_info}{$arg}{$_}||die} qw[name mod main];
-    my $proto_dir = $ENV{C4CI_PROTO_DIR} || die;
+    my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR => \%ENV);
     my $user = $ENV{HOSTNAME}=~/^de-(\w+)-/ ? $1 : die;
-    my $commit = $ENV{C4COMMIT} || die;
     local $ENV{KUBECONFIG} = $ENV{C4KUBECONFIG};
     so("python3.8", "-u", "$proto_dir/build_remote.py", "compile",
-        "--commit", $commit, "--proj-tag", $arg, "--user", $user, "--context", $build_dir, "--mod", $mod
+        "--commit", &$mandatory_of(C4COMMIT => \%ENV),
+        "--image", &$mandatory_of(C4COMMON_IMAGE => \%ENV),
+        "--java-options", &$mandatory_of(C4BUILD_JAVA_TOOL_OPTIONS => \%ENV),
+        "--proj-tag", $arg, "--user", $user, "--context", $build_dir, "--mod", $mod
     ) and return ();
     sy("perl", "$proto_dir/build_env.pl", $build_dir, $mod);
     my $build_client = $ENV{C4STEP_BUILD_CLIENT};
@@ -128,7 +131,7 @@ my $remake = sub{
 
 my $loop_iteration = sub{
     my ($was_active_pid_list) = @_;
-    my $build_dir = $ENV{C4CI_BUILD_DIR} || die "no C4CI_BUILD_DIR";
+    my $build_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
     my $droll = "$build_dir/target/dev-rolling-";
     my @active_pid = grep{
         my $res = waitpid($_, WNOHANG);
