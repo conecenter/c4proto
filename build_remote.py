@@ -56,10 +56,6 @@ def construct_pod(opt):
         **dict(groups.get("spec") or [])
     }}
 
-def apply_wait_pod(opt):
-    apply_manifest(construct_pod(opt))
-    wait_pod(opt["name"],60,("Running",))
-
 def build_image(opt):
     copy_to_non_existed(opt.push_secret, f"{opt.context}/.dockerconfigjson")
     with temp_dev_pod({ "image": "gcr.io/kaniko-project/executor:debug", "command": ["/busybox/sleep", "infinity"] }) as name:
@@ -98,10 +94,9 @@ def get_remote_kube_config(): return "/tmp/.c4-kube-config"
 def kcd_env():
     return (f"KUBECONFIG={get_remote_kube_config()}",f"C4DEPLOY_CONTEXT={os.environ['C4DEPLOY_CONTEXT']}")
 
-def need_pod(opt):
-    if run_no_die(kcd_args("get","pod",opt["name"])): return True
-    apply_wait_pod(opt)
-    return False
+def need_pod(name, get_opt):
+    if not run_no_die(kcd_args("get","pod",name)): apply_manifest(construct_pod({ **get_opt(), "name": name }))
+    wait_pod(name,60,("Running",))
 
 def sbt_args(mod_dir,java_opt):
     return ("env","-C",mod_dir,f"JAVA_TOOL_OPTIONS={java_opt}","sbt","c4build")
@@ -114,7 +109,7 @@ def compile(opt):
     mod_dir, cache_pod_name, cache_path = get_more_compile_options(opt)
     pod = get_cb_name(f"u{opt.user}")
     cp_path = f"{mod_dir}/target/c4classpath"
-    need_pod({ "name": pod, "image": opt.image, **opt_compiler() })
+    need_pod(pod, lambda: { "image": opt.image, **opt_compiler() })
     def init():
         if not run_no_die(kcd_args("exec",pod,"--","rm","-r",mod_dir)):
             print("cache rm failed")
@@ -136,7 +131,7 @@ def compile(opt):
 def compile_push(opt):
     mod_dir, cache_pod_name, cache_path = get_more_compile_options(opt)
     run(sbt_args(mod_dir,opt.java_options))
-    need_pod({ "name": cache_pod_name, "image": opt.image, **opt_compiler() }) # todo: opt_cache_node
+    need_pod(cache_pod_name, lambda: { "image": opt.image, **opt_compiler() }) # todo: opt_cache_node
     cache_tmp_path = f"{cache_path}-{uuid.uuid4()}"
     pipe_ok = run_pipe_no_die(
         ("tar","-C","/","-czf-",mod_dir), kcd_args("exec","-i",cache_pod_name,"--","sh","-c",f"cat > {cache_tmp_path}")
@@ -191,8 +186,9 @@ def copy_image(opt):
 @contextlib.contextmanager
 def temp_dev_pod(opt):
     name = f"tb-{uuid.uuid4()}"
-    apply_wait_pod({ **opt, "name": name })
+    apply_manifest(construct_pod({ **opt, "name": name }))
     try:
+        wait_pod(name,60,("Running",))
         yield name
     finally:
         kcd_run("delete",f"pod/{name}")
