@@ -53,7 +53,7 @@ trait TokenVerifyApp {
 }
 
 trait SunServerApp {
-  def handleIndexHTML(): String
+  def handleGet(path: String): (Int, String, String)
   def handleForm(form: Map[String, String]): Unit
 
   import java.nio.charset.StandardCharsets.UTF_8
@@ -67,10 +67,11 @@ trait SunServerApp {
       exchange.getRequestURI.getPath:String,
       Option(exchange.getRequestHeaders.getFirst("Content-Type")).getOrElse(""):String
     ) match {
-      case ("GET","/","") =>
-        val data = handleIndexHTML().getBytes(UTF_8)
-        exchange.getResponseHeaders.add("Content-Type", "text/html; charset=UTF-8")
-        exchange.sendResponseHeaders(200, data.length)
+      case ("GET",url,"") =>
+        val (code, contentType, content) = handleGet(url)
+        val data = content.getBytes(UTF_8)
+        exchange.getResponseHeaders.add("Content-Type", contentType)
+        exchange.sendResponseHeaders(code, data.length)
         exchange.getResponseBody().write(data)
         exchange.close()
       case ("POST","/form","application/x-www-form-urlencoded") =>
@@ -108,6 +109,7 @@ object Main extends SunServerApp with TokenVerifyApp with WebApp with Background
 
   def main(args: Array[String]): Unit = {
     startServer()
+    new RThread(PodLister).start()
     keepRunning(initialPeriodicSeq)
   }
 }
@@ -118,6 +120,7 @@ trait WebApp {
 
   def handleForm(form: Map[String, String]): Unit = form("op") match {
     case "set_token" => setToken(form("id_token"))
+    case "forward_to_pod" => ForwardToPod.set(form("pod"))
   }
 
   def kubeConfDir: os.Path = os.home / ".kube"
@@ -138,15 +141,38 @@ trait WebApp {
     PublicState(devName, System.currentTimeMillis()).save()
   }
 
+  def handleGet(path: String): (Int, String, String) = path match {
+    case "/" => (200, "text/html; charset=UTF-8", handleIndexHTML())
+    case "/state.json" => (200, "application/json; charset=UTF-8", handleGetState())
+    case p => (404, "text/plain", s"bad path: ${p}")
+  }
+
+  def handleGetState(): String = {
+    val auth = PublicState.load().map(_.toJsonString).mkString("[",",","]")
+    val pods = PodLister.loadString()
+    val forwardToPods = PodLister.podListToJson(Load(os.Path("/tmp/c4pod")).toSeq)
+    s"""{ "auth": $auth, "pods": $pods, "forwardToPods": $forwardToPods }"""
+  }
+
   def handleIndexHTML(): String = {
-    val publicState = PublicState.load()
     val script = Seq(
-      s"""const publicState = [${publicState.map(_.toJsonString).mkString}]""",
       s"""const contexts = ${os.read(ContextConf.path)}""",
       os.read(protoDir / "agent" / "client.js"),
     ).mkString("\n")
     s"""<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>c4agent</title></head><body><script type="module">$script</script></body></html>"""
   }
+}
+
+object ForwardToPod {
+  def path = os.Path("/tmp/c4pod")
+
+  def set(pod: String): Unit = {
+    val pods = PodLister.load()
+    if (!pods.contains(pod)) throw new Exception("bad pod name")
+    os.write.over(path, pod)
+  }
+
+  def get(): Option[String] = Load(path)
 }
 
 trait BackgroundApp {
@@ -161,19 +187,12 @@ trait BackgroundApp {
     })
   }
 
-  private def setup = new NonRunningProcess(()=>
-    for (st <- PublicState.load()) yield {
-      val path = protoDir / "sync.pl"
-      Cmd(s"${st.authTime}", Seq("perl", s"$path", "auto_pod", st.devName))
-    }
-  )
-
   private def forward = new NonRunningProcess(()=>
-    for(st <- PublicState.load(); pod <- Load(os.Path("/tmp/c4pod")))
+    for(st <- PublicState.load(); pod <- ForwardToPod.get())
       yield Cmd(s"${st.authTime}", Seq("kcd","port-forward","--address","0.0.0.0",pod,"4005"))
   )
 
-  def initialPeriodicSeq: Seq[Periodic] = Seq(checkVer(), setup, forward)
+  def initialPeriodicSeq: Seq[Periodic] = Seq(checkVer(), /*setup,*/ forward)
 
   import scala.annotation.tailrec
   @tailrec final def keepRunning(was: Seq[Periodic]): Unit = {
@@ -205,3 +224,72 @@ class NonRunningProcess(val getCommand: ()=>Option[Cmd]) extends Periodic(()=>
     new RunningProcess(getCommand,cmd,os.proc(cmd.value).spawn(stdin=os.Inherit,stdout=os.Inherit))
   }
 )
+
+object PodLister extends Runnable {
+  import java.io.DataInput
+  import scala.annotation.tailrec
+
+  def loadString(): String = Load(path).getOrElse("[]")
+
+  def load(): Seq[String] = upickle.default.read[Seq[String]](loadString())
+
+  private def path = os.home / "c4pod_list.json"
+
+  def podListToJson(l: Seq[String]): String = upickle.default.write[Seq[String]](l)
+  def save(pods: Set[String]): Set[String] = {
+    os.write.over(path, podListToJson(pods.toSeq.sorted))
+    pods
+  }
+
+  @tailrec private def readLine(stream: DataInput, prefix: String, pods: Set[String]): Unit = {
+    val willPods = Option(stream.readLine()).get.split(" +").toList match {
+      case "ADDED" :: pod :: _ if pod.startsWith(prefix) => save(pods + pod)
+      case "DELETED" :: pod :: _ if pod.startsWith(prefix) => save(pods - pod)
+      case _ => pods
+    }
+    readLine(stream, prefix, willPods)
+  }
+
+  @tailrec private def getPrefix(): String = {
+    val devName = PublicState.load().fold("")(_.devName)
+    if(devName.isEmpty){
+      print("pod lister waits for auth")
+      Thread.sleep(1000)
+      getPrefix()
+    } else s"de-${devName}-"
+  }
+
+  def run(): Unit = {
+    val prefix = getPrefix()
+    val proc = os.proc(Seq("kcd","get","pod","--watch","--output-watch-events")).spawn(stdin=os.Inherit)
+    try {
+      readLine(proc.stdout, prefix, Set.empty)
+    } finally {
+      proc.destroy()
+    }
+  }
+
+}
+
+class RThread(runnable: Runnable) {
+  import java.lang.Thread.UncaughtExceptionHandler
+  import scala.util.control.NonFatal
+
+  class ExceptionHandler(inner: UncaughtExceptionHandler) extends UncaughtExceptionHandler {
+    def uncaughtException(thread: Thread, throwable: Throwable): Unit =
+      try {
+        inner.uncaughtException(thread, throwable)
+        val NonFatal(e) = throwable
+        Thread.sleep(1000)
+        start()
+      } catch {
+        case _: Throwable => System.exit(1)
+      }
+  }
+
+  def start(): Unit = {
+    val thread = new Thread(runnable)
+    thread.setUncaughtExceptionHandler(new ExceptionHandler(thread.getUncaughtExceptionHandler))
+    thread.start()
+  }
+}

@@ -30,4 +30,5 @@ do{ # agent and de
     &$put_bin("kcd",&$perl_exec($kcd.'@ARGV;')); # manual and code
     &$put_bin("c4rsh_raw",&$perl_exec('my ($pod,@args) = @ARGV; '.$kcd.'"exec", "-i", $pod, "--", @args;')); # code
     &$put_bin("c4dsync",&$perl_exec('exec "rsync","--blocking-io","-e","c4rsh_raw",@ARGV;')); # code
+    &$put_bin("c4rsh",&$perl_exec($kcd.'"exec", "-it", (scalar(`cat /tmp/c4pod`)||die "no pod"), "--", "bash";')); # manual only
 };

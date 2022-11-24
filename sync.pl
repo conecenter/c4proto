@@ -6,8 +6,6 @@ sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 sub syf{ for(@_){ print "$_\n"; my $r = scalar `$_`; $? && die $?; return $r } }
 
-my $single = sub{ @_==1 ? $_[0] : die };
-
 my $put_text = sub{
     my($fn,$content)=@_;
     open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
@@ -53,58 +51,6 @@ my $find = sub{
 };
 
 my $pod_path = "/tmp/c4pod";
-
-my $put_bin = sub{
-    my($nm,$content)=@_;
-    my $bin_path = "$ENV{HOME}/bin";
-    my $path = "$bin_path/$nm";
-    return if -e $path and &$get_text($path) eq $content;
-    sy("mkdir -p $bin_path");
-    &$put_text($path,$content);
-    sy("chmod +x $path");
-};
-my $perl_exec = sub{ join"\n",'#!/usr/bin/perl','use strict;',@_,'die;' };
-
-my $list_pods = sub{
-    my ($user) = @_;
-    my $kc_get = "kcd get";
-    my $jsonpath_names = '-o jsonpath="{.items[*].metadata.name}"';
-    my $find_names = sub{ my($v)=@_; $v=~/(\S+)/g };
-    map{ &$find_names(syf("$kc_get po -l app=$_ $jsonpath_names")) }
-        grep{/-main$/} &$find_names(syf("$kc_get deploy -l c4env_group=de-$user $jsonpath_names"))
-};
-
-my $do_forward = sub{
-    my $pod = &$single(@_);
-    &$put_text($pod_path,$pod);
-    print "$pod selected\n";
-    &$put_bin("c4rsh",&$perl_exec('exec "kcd", "exec", "-it", "'.$pod.'", "--", "bash";')); # manual only
-};
-
-my $auto_pod = sub{
-    my ($user) = @_;
-    my $proto_dir = $ENV{C4CI_PROTO_DIR} || die;
-    &$put_bin("c4forward",&$perl_exec('exec "perl","'.$proto_dir.'/sync.pl","forward","'.$user.'",@ARGV;')); # manual only
-    for my $path(grep{-e $_} $pod_path){
-        my $pod = &$get_text($path);
-        so("kcd wait --for=delete pod/$pod");
-        so("kcd get pod/$pod") or return;
-    }
-    print "need c4forward ...\n";
-    my @pods = &$list_pods($user);
-    @pods==1 ? &$do_forward(@pods) : sleep 3;
-};
-
-my $forward = sub{
-    my ($user,@args) = @_;
-    my @pods = &$list_pods($user);
-    if(@args==0){
-        print "c4forward $_\n" for @pods;
-    } else {
-        my $pod_arg = &$single(@args);
-        &$do_forward(grep{ $pod_arg eq $_ }@pods);
-    }
-};
 
 my $get_remote_pre = sub{ "c4rsh_raw ".&$get_text($pod_path)." sh -c " };
 
@@ -162,8 +108,6 @@ push @tasks, ["clean_local","",sub{
         unlink $path or die;
     }
 }];
-push @tasks, ["auto_pod","",$auto_pod];
-push @tasks, ["forward","",$forward];
 push @tasks, ["report_changes","",sub{
     my($dir)=@_; $dir || die "need dir";
     my $changed_path = &$mandatory_of(C4GIT_CHANGED_PATH=>\%ENV);

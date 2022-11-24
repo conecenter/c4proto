@@ -111,7 +111,9 @@ def compile(opt):
     cp_path = f"{mod_dir}/target/c4classpath"
     need_pod(pod, lambda: { "image": opt.image, **opt_compiler() })
     def init():
-        if not run_no_die(kcd_args("exec",pod,"--","rm","-r",mod_dir)):
+        if not run_no_die(kcd_args("exec",pod,"--","test","-e",mod_dir)):
+            print("cache does not exist")
+        elif not run_no_die(kcd_args("exec",pod,"--","rm","-r",mod_dir)):
             print("cache rm failed")
             return
         pipe_ok = run_pipe_no_die(
@@ -192,9 +194,6 @@ def temp_dev_pod(opt):
         yield name
     finally:
         kcd_run("delete",f"pod/{name}")
-
-
-#todo: no ci_build_aggr C4CI_CAN_FAIL .aggr
 
 def setup_parser(commands):
     main_parser = argparse.ArgumentParser()
