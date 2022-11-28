@@ -99,7 +99,7 @@ def need_pod(name, get_opt):
     wait_pod(name,60,("Running",))
 
 def sbt_args(mod_dir,java_opt):
-    return ("env","-C",mod_dir,f"JAVA_TOOL_OPTIONS={java_opt}","sbt","c4build")
+    return ("env","-C",mod_dir,f"JAVA_TOOL_OPTIONS={java_opt}","sbt","-Dsbt.color=true","c4build")
 
 def get_cb_name(v): return f"cb-v0-{v}"
 def get_more_compile_options(opt):
