@@ -132,7 +132,7 @@ def get_env_jobs():
 def main():
   config_statements = group_map(read_json(build_path("c4dep.main.json")), lambda it: (it[0],it[1:]))
   out = {
-    "variables": { "C4CI_DOCKER_CONFIG": "/tmp/c4-docker-config" },
+    "variables": { "C4CI_DOCKER_CONFIG": "/tmp/c4-docker-config", "GIT_DEPTH": 10 },
     "stages": ["build_common","build_main","develop","confirm","deploy","start","check","testing","stop"],
     build_common_name: {
       "rules": [push_rule("$CI_COMMIT_BRANCH")],

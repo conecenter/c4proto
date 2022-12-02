@@ -59,7 +59,7 @@ def construct_pod(opt):
 def build_image(opt):
     copy_to_non_existed(opt.push_secret, f"{opt.context}/.dockerconfigjson")
     with temp_dev_pod({ "image": "gcr.io/kaniko-project/executor:debug", "command": ["/busybox/sleep", "infinity"] }) as name:
-        if not run_pipe_no_die(("tar","-C",opt.context,"-czf-","."), kcd_args("exec","-i",name,"--","tar","-xzf-")):
+        if not run_pipe_no_die(("tar","--exclude",".git","-C",opt.context,"-czf-","."), kcd_args("exec","-i",name,"--","tar","-xzf-")):
             never("tar failed")
         kcd_run("exec",name,"--","mv",".dockerconfigjson","/kaniko/.docker/config.json")
         kcd_run("exec",name,"--","executor","--cache=true","-d",opt.image)
@@ -193,7 +193,7 @@ def temp_dev_pod(opt):
         wait_pod(name,60,("Running",))
         yield name
     finally:
-        kcd_run("delete",f"pod/{name}")
+        kcd_run("delete","--wait","false",f"pod/{name}")
 
 def setup_parser(commands):
     main_parser = argparse.ArgumentParser()
