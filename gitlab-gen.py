@@ -44,7 +44,7 @@ stage_deploy_de = "develop"
 stage_confirm = "confirm"
 stage_deploy_sp = "confirm"
 stage_deploy_cl = "deploy"
-timestamps = "python3 -u $C4CI_PROTO_DIR/run_with_timestamps.py"
+timestamps = "-u $C4CI_PROTO_DIR/run_with_timestamps.py"
 
 def get_build_jobs(config_statements):
   (aggr_cond_list, aggr_to_cond) = get_aggr_cond(config_statements["C4AGGR_COND"])
@@ -52,7 +52,7 @@ def get_build_jobs(config_statements):
   def build(cond,args):
     return common_job(prefix_cond(cond),"on_success","build_main",[build_common_name],[
       docker_conf(),
-      f"{timestamps} python3.8 -u $C4CI_PROTO_DIR/build_remote.py {args} --image $C4COMMON_IMAGE --push-secret $C4CI_DOCKER_CONFIG"
+      f"python3.8 {timestamps} python3.8 -u $C4CI_PROTO_DIR/build_remote.py {args} --image $C4COMMON_IMAGE --push-secret $C4CI_DOCKER_CONFIG"
     ])
   def build_rt(cond,tag):
     return build(cond,f"build_rt --commit $CI_COMMIT_SHORT_SHA --proj-tag {tag} --java-options \"$C4BUILD_JAVA_TOOL_OPTIONS\" ")
@@ -148,7 +148,7 @@ def main():
         "perl $C4CI_PROTO_DIR/sync_mem.pl $C4CI_BUILD_DIR",
         "cp $C4CI_PROTO_DIR/.dockerignore $C4CI_BUILD_DIR/.dockerignore",
         "cp $C4CI_BUILD_DIR/build.def.dockerfile $C4CI_BUILD_DIR/Dockerfile",
-        f"{timestamps} python3 $C4CI_PROTO_DIR/build_remote.py build_image --context $C4CI_BUILD_DIR --image $C4COMMON_IMAGE --push-secret $C4CI_DOCKER_CONFIG",
+        f"python3 {timestamps} python3 -u $C4CI_PROTO_DIR/build_remote.py build_image --context $C4CI_BUILD_DIR --image $C4COMMON_IMAGE --push-secret $C4CI_DOCKER_CONFIG",
       ],
     },
     **get_build_jobs(config_statements), **get_deploy_jobs(config_statements), **get_env_jobs()
