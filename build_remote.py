@@ -193,7 +193,7 @@ def temp_dev_pod(opt):
         wait_pod(name,60,("Running",))
         yield name
     finally:
-        kcd_run("delete","--wait","false",f"pod/{name}")
+        kcd_run("delete","--wait=false",f"pod/{name}")
 
 def setup_parser(commands):
     main_parser = argparse.ArgumentParser()
