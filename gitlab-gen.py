@@ -41,7 +41,7 @@ stage_deploy_sp = "confirm"
 stage_deploy_cl = "deploy"
 
 def build_remote(python,args):
-  f"{python} -u $C4CI_PROTO_DIR/run_with_timestamps.py {python} -u $C4CI_PROTO_DIR/build_remote.py {args}"
+  return f"{python} -u $C4CI_PROTO_DIR/run_with_timestamps.py {python} -u $C4CI_PROTO_DIR/build_remote.py {args}"
 def build_rt_script(commit,image,tag,context,build_client): return [docker_conf(), build_remote(
   "python3.8",
   f"build_rt --commit {commit} --image {image} --proj-tag {tag} --context {context} --build-client '{build_client}'"+
