@@ -131,7 +131,7 @@ def main(build_path):
   config_statements = group_map(read_json(f"{build_path}/c4dep.main.json"), lambda it: (it[0],it[1:]))
   rl_fn = "c4dep.ci.replink"
   link = one(*(line for line in read_text(f"{build_path}/{rl_fn}").split("\n") if line.startswith("C4REL c4proto/")))
-  commit = link.sptit()[-1]
+  commit = link.split()[-1]
   proto_image = f"$CI_REGISTRY_IMAGE:c4p.{commit}"
   replink = f"C4CI_BUILD_DIR=$CI_PROJECT_DIR C4REPO_MAIN_CONF=$CI_PROJECT_DIR/{rl_fn} /replink.pl"
   out = {
