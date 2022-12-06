@@ -9,7 +9,7 @@ import shutil
 import pathlib
 import argparse
 import contextlib
-from c4util import group_map, one
+from c4util import group_map, path_exists, read_text, changing_text
 
 def run(args, **opt):
     print("running: "+" ".join(args))
@@ -29,9 +29,6 @@ def run_pipe_no_die(from_args, to_args):
     from_proc.wait()
     to_proc.wait()
     return from_proc.returncode == 0 and to_proc.returncode == 0
-
-def path_exists(path):
-    return pathlib.Path(path).exists()
 
 def copy_to_non_existed(from_path, to_path):
     if path_exists(to_path): never(f"{to_path} exists")
@@ -89,11 +86,6 @@ def rsync_args(from_pod, to_pod): return ("c4dsync","-acr","--del","--files-from
 def rsync(from_pod, to_pod, files):
     run(rsync_args(from_pod, to_pod), text=True, input="\n".join(files))
 
-def get_remote_kube_config(): return "/tmp/.c4-kube-config"
-
-def kcd_env():
-    return (f"KUBECONFIG={get_remote_kube_config()}",f"C4DEPLOY_CONTEXT={os.environ['C4DEPLOY_CONTEXT']}")
-
 def need_pod(name, get_opt):
     if not run_no_die(kcd_args("get","pod",name)): apply_manifest(construct_pod({ **get_opt(), "name": name }))
     wait_pod(name,60,("Running",))
@@ -149,36 +141,54 @@ def opt_cpu_node(): return {
 }
 def opt_compiler(): return { **opt_pull_secret(), **opt_sleep(), **opt_cpu_node() }
 
-def changing_text(path, will, then):
-    if path_exists(path) and read_text(path) == will: return
-    if then : then() # we need to run then() here -- if it fails, state will remain unchanged
-    write_text(path, will)
-def write_text(path_str, text): pathlib.Path(path_str).write_text(text, encoding='utf-8', errors='strict')
-def read_text(path_str): return pathlib.Path(path_str).read_text(encoding='utf-8', errors='strict')
-
 def never(a): raise Exception(a)
 
-def build_de(opt):
+def build_proto(opt):
+    content = f"ARG C4CI_BUILD_DIR_ARG={opt.build_dir}\n" + read_text(f"{opt.context}/build.def.dockerfile")
+    changing_text(f"{opt.context}/Dockerfile", content, None)
+    build_image(opt)
+
+def crane_append(from_dir, to_dir, base_image, target_image):
+    run_pipe_no_die(
+        ("tar","-cf-","--exclude",".git",f"--transform",f"s,^,{to_dir}/,","-C",from_dir,"."),
+        ("crane","append","-f-","-b",base_image,"-t",target_image)
+    ) or never("crane append")
+
+def build_common(opt):
+    pathlib.Path(f"{opt.context}/target").mkdir()
+    run(("perl",f"{get_proto_dir()}/sync_mem.pl",opt.context))
+    run(("crane","auth","login","-u",opt.user,"-p",opt.password,opt.registry))
+    crane_append(opt.context, opt.build_dir, opt.base_image, opt.image)
     with tempfile.TemporaryDirectory() as context:
-        data = "\n".join((f"FROM {opt.image}","ENTRYPOINT exec perl $C4CI_PROTO_DIR/sandbox.pl main"))
-        write_text(f"{context}/Dockerfile", data)
-        build_image(argparse.Namespace(context=context, image=f"{opt.image}.de", push_secret=opt.push_secret))
+        changing_text(f"{context}/c4serve.pl", "ENTRYPOINT exec perl $C4CI_PROTO_DIR/sandbox.pl main", None)
+        crane_append(context, "/c4", opt.image, f"{opt.image}.de")
+
+# argparse.Namespace
 
 def build_rt(opt):
     with temp_dev_pod({ "image": opt.image, **opt_compiler() }) as name:
         remote_push_config = "/tmp/.c4-push-config"
+        remote_kube_config = "/tmp/.c4-kube-config"
+        kcd_env = (f"KUBECONFIG={remote_kube_config}",f"C4DEPLOY_CONTEXT={os.environ['C4DEPLOY_CONTEXT']}")
         kcd_run("cp",opt.push_secret,f"{name}:{remote_push_config}")
-        kcd_run("cp",os.environ["KUBECONFIG"],f"{name}:{get_remote_kube_config()}")
+        kcd_run("cp",os.environ["KUBECONFIG"],f"{name}:{remote_kube_config}")
+        #
         rt_img = f"{opt.image}.{opt.proj_tag}.rt"
-        kcd_run("exec", name, "--", "env", f"C4CI_BASE_TAG_ENV={opt.proj_tag}", *kcd_env(),
-            f"C4COMMIT={opt.commit}", f"C4COMMON_IMAGE={opt.image}", f"C4BUILD_JAVA_TOOL_OPTIONS={opt.java_options}",
-            "sh", "-c", "$C4STEP_BUILD"
-        )
-        kcd_run("exec", name, "--", "env", f"C4CI_BASE_TAG_ENV={opt.proj_tag}", "sh", "-c", "$C4STEP_BUILD_CLIENT")
-        kcd_run("exec", name, "--", "env", f"C4CI_BASE_TAG_ENV={opt.proj_tag}", "sh", "-c", "$C4STEP_CP")
-        kcd_run("exec", name, "--", "env", *kcd_env(), f"python3.8", "-u", f"{get_proto_dir()}/build_remote.py",
+        prod = ("perl",f"{get_proto_dir()}/prod.pl")
+        kcd_run("exec", name, "--", "env", *kcd_env, *prod, "ci_inner_build", *(
+            "--context", opt.context, "--proj-tag", opt.proj_tag,
+            "--commit", opt.commit, "--image", opt.image, "--java-options", opt.java_options,
+        ))
+        if opt.build_client:
+            kcd_run("exec", name, "--", "env", *prod, "build_client_changed", opt.context)
+        kcd_run("exec", name, "--", "env", *prod, "ci_inner_cp", *(
+            "--context", opt.context, "--proj-tag", opt.proj_tag,
+        ))
+        kcd_run("exec", name, "--", "env", *kcd_env, f"python3.8", "-u", f"{get_proto_dir()}/build_remote.py",
             "build_image", "--context", "/c4/res", "--image", rt_img, "--push-secret", remote_push_config
         )
+# todo gate c4e tag
+# todo build_rt args
 
 def copy_image(opt):
     with temp_dev_pod({ "image": "quay.io/skopeo/stable:v1.10.0", **opt_sleep() }) as name:
@@ -210,8 +220,9 @@ def main():
         ('compile_push', compile_push, ("--commit","--proj-tag","--image","--context","--mod","--java-options")),
         ('build_image', build_image, ("--context","--image","--push-secret")),
         ('copy_image', copy_image, ("--from-image","--to-image","--push-secret")),
-        ('build_de', build_de, ("--image","--push-secret")),
-        ('build_rt', build_rt, ("--commit","--proj-tag","--image","--push-secret","--java-options")),
+        ('build_rt', build_rt, ("--context","--commit","--proj-tag","--image","--push-secret","--java-options","--build-client")),
+        ('build_proto', build_proto, ("--context","--image","--push-secret","--build-dir")),
+        ('build_common', build_common, ("--user","--password","--registry","--context","--base-image","--image","--build-dir")),
     )).parse_args()
     opt.op(opt)
 

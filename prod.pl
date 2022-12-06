@@ -1029,15 +1029,13 @@ my $get_tag_info = sub{
 };
 
 push @tasks, ["ci_inner_build","",sub{
-    my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
+    my %opt = @_;
+    my $base = &$mandatory_of("--proj-tag", \%opt);
+    my $gen_dir = &$mandatory_of("--context", \%opt);
+    my $proto_dir = &$get_proto_dir();
     sy("cd $gen_dir && perl $proto_dir/build.pl");
     my $mod = &$get_tag_info($gen_dir,$base)->{mod}||die;
-    &$build_remote("compile_push",
-        "--commit", &$mandatory_of(C4COMMIT => \%ENV),
-        "--image", &$mandatory_of(C4COMMON_IMAGE => \%ENV),
-        "--java-options", &$mandatory_of(C4BUILD_JAVA_TOOL_OPTIONS => \%ENV),
-        "--proj-tag", $base, "--context", $gen_dir, "--mod", $mod
-    );
+    &$build_remote("compile_push", %opt, "--mod", $mod);
     sy("perl", "$proto_dir/build_env.pl", $gen_dir, $mod);
 }];
 
@@ -1103,7 +1101,10 @@ my $install_jdk = sub{(
     #"RUN perl install.pl curl https://download.bell-sw.com/java/17.0.2+9/bellsoft-jdk17.0.2+9-linux-amd64.tar.gz",
 )};
 push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
-    my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
+    my %opt = @_;
+    my $base = &$mandatory_of("--proj-tag", \%opt);
+    my $gen_dir = &$mandatory_of("--context", \%opt);
+    my $proto_dir = &$get_proto_dir();
     #
     my $ctx_dir = "/c4/res";
     -e $ctx_dir and sy("rm -r $ctx_dir");
