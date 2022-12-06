@@ -10,7 +10,7 @@ def ext(f): return lambda arg: f(*arg)
 
 ###
 
-def docker_conf(): return "python3 $C4CI_PROTO_DIR/gitlab-docker-conf.py"
+def docker_conf(proto_dir): return f"python3 {proto_dir}/gitlab-docker-conf.py"
 def handle(arg):
   return f"python3 $C4CI_PROTO_DIR/gitlab-ci.py {arg}"
 def push_rule(cond):
@@ -40,13 +40,15 @@ stage_confirm = "confirm"
 stage_deploy_sp = "confirm"
 stage_deploy_cl = "deploy"
 
-def build_remote(python,args):
-  return f"{python} -u $C4CI_PROTO_DIR/run_with_timestamps.py {python} -u $C4CI_PROTO_DIR/build_remote.py {args}"
-def build_rt_script(commit,image,tag,context,build_client): return [docker_conf(), build_remote(
-  "python3.8",
-  f"build_rt --commit {commit} --image {image} --proj-tag {tag} --context {context} --build-client '{build_client}'"+
-  " --push-secret $C4CI_DOCKER_CONFIG --java-options \"$C4BUILD_JAVA_TOOL_OPTIONS\" "
-)]
+def build_remote(python,proto_dir,args):
+  return f"{python} -u {proto_dir}/run_with_timestamps.py {python} -u {proto_dir}/build_remote.py {args}"
+def build_rt_script(commit,image,tag,context,build_client):
+  proto_dir = "$C4CI_PROTO_DIR"
+  return [docker_conf(proto_dir), build_remote(
+    "python3.8", proto_dir,
+    f"build_rt --commit {commit} --image {image} --proj-tag {tag} --context {context} --build-client '{build_client}'"+
+    " --push-secret $C4CI_DOCKER_CONFIG --java-options \"$C4BUILD_JAVA_TOOL_OPTIONS\" "
+  )]
 
 def get_build_jobs(config_statements):
   (aggr_cond_list, aggr_to_cond) = get_aggr_cond(config_statements["C4AGGR_COND"])
@@ -117,7 +119,7 @@ def get_env_jobs():
   return {
     start_name: {
       **common_job("$CI_COMMIT_TAG","on_success","start",[],[
-        docker_conf(), "export C4COMMIT=$CI_COMMIT_SHORT_SHA", handle("up $CI_ENVIRONMENT_SLUG")
+        docker_conf("$C4CI_PROTO_DIR"), "export C4COMMIT=$CI_COMMIT_SHORT_SHA", handle("up $CI_ENVIRONMENT_SLUG")
       ]),
       "environment": { "name": "$CI_COMMIT_TAG", "action": "start", "on_stop": "stop" }
     },
@@ -142,8 +144,8 @@ def main(build_path):
       "image": "ghcr.io/conecenter/c4replink:v3k", "variables": {"GIT_STRATEGY": "none" },
       "script": [
         f"echo '{link}' > $CI_PROJECT_DIR/{rl_fn}",
-        replink, docker_conf(),
-        build_remote("python3",
+        replink, docker_conf("$C4COMMON_PROTO_DIR"),
+        build_remote("python3", "$C4COMMON_PROTO_DIR",
           f"build_proto --build-dir $C4CI_BUILD_DIR --image {proto_image} --push-secret $C4CI_DOCKER_CONFIG --context $C4COMMON_PROTO_DIR"
         )
       ]
@@ -158,8 +160,8 @@ def main(build_path):
       "image": proto_image,
       "script": [
         replink,
-        build_remote("python3.8", "build_common" +
-          " --user $CI_REGISTRY_USER --password $CI_REGISTRY_PASSWORD --registry $CI_REGISTRY" +
+        build_remote("python3.8", "$C4CI_PROTO_DIR",
+          "build_common --user $CI_REGISTRY_USER --password $CI_REGISTRY_PASSWORD --registry $CI_REGISTRY" +
           f" --context $CI_PROJECT_DIR --base-image {proto_image} --image $C4COMMON_IMAGE --build-dir $C4CI_BUILD_DIR"
         )
       ],
