@@ -167,6 +167,8 @@ def build_common(opt):
     with tempfile.TemporaryDirectory() as temp_root:
         changing_text(need_dir(f"{temp_root}/c4")+"/c4serve.pl", "ENTRYPOINT exec perl $C4CI_PROTO_DIR/sandbox.pl main", None)
         crane_append(temp_root, opt.image, f"{opt.image}.de")
+        print("?")
+    print("build_common ok")
 
 # argparse.Namespace
 

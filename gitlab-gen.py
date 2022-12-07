@@ -163,7 +163,9 @@ def main(build_path):
       "rules": [push_rule(prefix_cond(""))], "stage": "build_common",
       "image": proto_image,
       "script": [
+        "date",
         replink("$CI_PROJECT_DIR",rl_fn),
+        "date",
         build_remote("python3.8", "$C4CI_PROTO_DIR",
           "build_common --user $CI_REGISTRY_USER --password $CI_REGISTRY_PASSWORD --registry $CI_REGISTRY" +
           f" --context $CI_PROJECT_DIR --base-image {proto_image} --image $C4COMMON_IMAGE --build-dir $C4CI_BUILD_DIR"
