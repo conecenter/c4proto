@@ -129,13 +129,15 @@ def get_env_jobs():
     "auto-stop": stop(cond_qa,"on_success",[testing_name]),
   }
 
+def replink(dir,fn):
+  return f"C4CI_BUILD_DIR={dir} C4REPO_MAIN_CONF={dir}/{fn} /replink.pl"
+
 def main(build_path):
   config_statements = group_map(read_json(f"{build_path}/c4dep.main.json"), lambda it: (it[0],it[1:]))
   rl_fn = "c4dep.ci.replink"
   link = one(*(line for line in read_text(f"{build_path}/{rl_fn}").split("\n") if line.startswith("C4REL c4proto/")))
   commit = link.split()[-1]
   proto_image = f"$CI_REGISTRY_IMAGE:c4p.{commit}"
-  replink = f"C4CI_BUILD_DIR=$CI_PROJECT_DIR C4REPO_MAIN_CONF=$CI_PROJECT_DIR/{rl_fn} /replink.pl"
   out = {
     "variables": { "C4CI_DOCKER_CONFIG": "/tmp/c4-docker-config", "GIT_DEPTH": 10 },
     "stages": ["build_common","build_main","develop","confirm","deploy","start","check","testing","stop"],
@@ -144,7 +146,9 @@ def main(build_path):
       "image": "ghcr.io/conecenter/c4replink:v3k", "variables": {"GIT_STRATEGY": "none" },
       "script": [
         f"echo '{link}' > $CI_PROJECT_DIR/{rl_fn}",
-        replink, docker_conf("$C4COMMON_PROTO_DIR"),
+        replink("$CI_PROJECT_DIR",rl_fn),
+        replink("$C4COMMON_PROTO_DIR","c4dep.main.replink"),
+        docker_conf("$C4COMMON_PROTO_DIR"),
         build_remote("python3", "$C4COMMON_PROTO_DIR",
           f"build_proto --build-dir $C4CI_BUILD_DIR --image {proto_image} --push-secret $C4CI_DOCKER_CONFIG --context $C4COMMON_PROTO_DIR"
         )
@@ -159,7 +163,7 @@ def main(build_path):
       "rules": [push_rule(prefix_cond(""))], "stage": "build_common",
       "image": proto_image,
       "script": [
-        replink,
+        replink("$CI_PROJECT_DIR",rl_fn),
         build_remote("python3.8", "$C4CI_PROTO_DIR",
           "build_common --user $CI_REGISTRY_USER --password $CI_REGISTRY_PASSWORD --registry $CI_REGISTRY" +
           f" --context $CI_PROJECT_DIR --base-image {proto_image} --image $C4COMMON_IMAGE --build-dir $C4CI_BUILD_DIR"
