@@ -148,21 +148,25 @@ def build_proto(opt):
     changing_text(f"{opt.context}/Dockerfile", content, None)
     build_image(opt)
 
-def crane_append(from_dir, to_dir, base_image, target_image):
+def crane_append(dir, base_image, target_image):
     #run(("ls","-la",from_dir))
-    run_pipe_no_die(
-        ("tar","-cf-","--exclude",".git",f"--transform",f"s,^,{to_dir}/,","--owner","c4","--group","c4","-C",from_dir,"."),
-        ("crane","append","-f-","-b",base_image,"-t",target_image)
-    ) or never("crane append")
+    #("tar","-cf-","--exclude",".git",f"--transform",f"s,^,{to_dir}/,","--owner","c4","--group","c4","-C",from_dir,"."), # skips parent dirs, so bad grants on unpack
+    run_pipe_no_die(("tar","-cf-","-C",dir,"."), ("crane","append","-f-","-b",base_image,"-t",target_image)) or never("crane append")
+
+def need_dir(dir):
+    pathlib.Path(dir).mkdir(parents=True, exist_ok=True)
+    return dir
 
 def build_common(opt):
     pathlib.Path(f"{opt.context}/target").mkdir()
     run(("perl",f"{get_proto_dir()}/sync_mem.pl",opt.context))
     run(("crane","auth","login","-u",opt.user,"-p",opt.password,opt.registry))
-    crane_append(opt.context, opt.build_dir, opt.base_image, opt.image)
-    with tempfile.TemporaryDirectory() as context:
-        changing_text(f"{context}/c4serve.pl", "ENTRYPOINT exec perl $C4CI_PROTO_DIR/sandbox.pl main", None)
-        crane_append(context, "/c4", opt.image, f"{opt.image}.de")
+    with tempfile.TemporaryDirectory() as temp_root:
+        run(("rsync","-a","--exclude",".git",f"{opt.context}/", need_dir(f"{temp_root}{opt.build_dir}"))) #shutil.copytree seems to be slower
+        crane_append(temp_root, opt.base_image, opt.image)
+    with tempfile.TemporaryDirectory() as temp_root:
+        changing_text(need_dir(f"{temp_root}/c4")+"/c4serve.pl", "ENTRYPOINT exec perl $C4CI_PROTO_DIR/sandbox.pl main", None)
+        crane_append(temp_root, opt.image, f"{opt.image}.de")
 
 # argparse.Namespace
 
