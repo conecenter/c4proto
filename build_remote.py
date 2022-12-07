@@ -149,6 +149,7 @@ def build_proto(opt):
     build_image(opt)
 
 def crane_append(from_dir, to_dir, base_image, target_image):
+    run(("ls","-la",from_dir))
     run_pipe_no_die(
         ("tar","-cf-","--exclude",".git",f"--transform",f"s,^,{to_dir}/,","-C",from_dir,"."),
         ("crane","append","-f-","-b",base_image,"-t",target_image)
