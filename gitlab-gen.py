@@ -10,7 +10,7 @@ def ext(f): return lambda arg: f(*arg)
 
 ###
 
-def docker_conf(proto_env): return f"{proto_env}python3 $C4CI_PROTO_DIR/gitlab-docker-conf.py"
+def docker_conf(): return f"python3 $C4CI_PROTO_DIR/gitlab-docker-conf.py"
 def handle(arg):
   return f"python3 $C4CI_PROTO_DIR/gitlab-ci.py {arg}"
 def push_rule(cond):
@@ -39,10 +39,10 @@ stage_confirm = "confirm"
 stage_deploy_sp = "confirm"
 stage_deploy_cl = "deploy"
 
-def build_remote(proto_env,python,args):
+def build_remote(python,args):
   return [
-    docker_conf(proto_env),
-    f"{proto_env}{python} -u $C4CI_PROTO_DIR/run_with_timestamps.py {python} -u $C4CI_PROTO_DIR/build_remote.py {args}"
+    docker_conf(),
+    f"{python} -u $C4CI_PROTO_DIR/run_with_timestamps.py {python} -u $C4CI_PROTO_DIR/build_remote.py {args}"
   ]
 
 def get_build_jobs(config_statements):
@@ -56,13 +56,13 @@ def get_build_jobs(config_statements):
     ),
     build_gate_name: common_job(
       prefix_cond(""), "on_success", "build_main", [build_common_name],
-      build_remote("","python3.8", f"build_gate {add_args}")
+      build_remote("python3.8", f"build_gate {add_args}")
     ),
     **{
       build_rt_name(tag,aggr): common_job(
         prefix_cond(aggr_to_cond[aggr]), "on_success", "build_main", [build_common_name],
         build_remote(
-          "","python3.8",
+          "python3.8",
           f"build_rt --commit $CI_COMMIT_SHORT_SHA --proj-tag {tag} --context $C4CI_BUILD_DIR --build-client '1' {add_args}"
         )
       ) for tag, aggr in tag_aggr_list
@@ -122,7 +122,7 @@ def get_env_jobs():
   return {
     start_name: {
       **common_job("$CI_COMMIT_TAG","on_success","start",[],[
-        docker_conf(""), "export C4COMMIT=$CI_COMMIT_SHORT_SHA", handle("up $CI_ENVIRONMENT_SLUG")
+        docker_conf(), "export C4COMMIT=$CI_COMMIT_SHORT_SHA", handle("up $CI_ENVIRONMENT_SLUG")
       ]),
       "environment": { "name": "$CI_COMMIT_TAG", "action": "start", "on_stop": "stop" }
     },
@@ -146,8 +146,9 @@ def main(build_path):
       "script": [
         "date", replink("$CI_PROJECT_DIR","c4dep.ci.replink"),
         "date", replink("$C4COMMON_PROTO_DIR","c4dep.main.replink"),
-        "date", *build_remote(
-          "C4CI_PROTO_DIR=$C4COMMON_PROTO_DIR ", "python3",
+        "date", "export C4CI_PROTO_DIR=$C4COMMON_PROTO_DIR",
+        *build_remote(
+          "python3",
           f"build_common --build-dir $C4CI_BUILD_DIR --push-secret $C4CI_DOCKER_CONFIG " +
           f" --context $CI_PROJECT_DIR --image $C4COMMON_IMAGE"
         )
