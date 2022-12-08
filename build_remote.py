@@ -212,7 +212,10 @@ def build_gate(opt):
     proto_postfix = get_proto_postfix(opt.context)
     proto_dir = get_proto_dir()
     link = one(*(line for line in read_text(f"{opt.context}/c4dep.ci.replink").splitlines() if line.startswith(f"C4REL {proto_postfix}/")))
-    build_rt(argparse.Namespace(**opt, commit=link.split()[-1], proj_tag="def", context=proto_dir, build_client=""))
+    build_rt(argparse.Namespace(
+        image=opt.image, push_secret=opt.push_secret, java_options=opt.java_options,
+        commit=link.split()[-1], proj_tag="def", context=proto_dir, build_client=""
+    ))
 
 def copy_image(opt):
     with temp_dev_pod({ "image": "quay.io/skopeo/stable:v1.10.0", **opt_sleep() }) as name:
