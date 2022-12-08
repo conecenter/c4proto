@@ -9,7 +9,7 @@ import shutil
 import pathlib
 import argparse
 import contextlib
-from c4util import group_map, path_exists, read_text, changing_text
+from c4util import group_map, path_exists, read_text, changing_text, read_json, sha256, one
 
 def run(args, **opt):
     print("running: "+" ".join(args))
@@ -143,11 +143,6 @@ def opt_compiler(): return { **opt_pull_secret(), **opt_sleep(), **opt_cpu_node(
 
 def never(a): raise Exception(a)
 
-def build_proto(opt):
-    content = f"ARG C4CI_BUILD_DIR_ARG={opt.build_dir}\n" + read_text(f"{opt.context}/build.def.dockerfile")
-    changing_text(f"{opt.context}/Dockerfile", content, None)
-    build_image(opt)
-
 def crane_append(dir, base_image, target_image):
     #run(("ls","-la",from_dir))
     #("tar","-cf-","--exclude",".git",f"--transform",f"s,^,{to_dir}/,","--owner","c4","--group","c4","-C",from_dir,"."), # skips parent dirs, so bad grants on unpack
@@ -160,17 +155,21 @@ def need_dir(dir):
 def build_common(opt):
     pathlib.Path(f"{opt.context}/target").mkdir()
     run(("perl",f"{get_proto_dir()}/sync_mem.pl",opt.context))
-    run(("crane","auth","login","-u",opt.user,"-p",opt.password,opt.registry))
+    for registry, c in read_json(opt.push_secret)["auths"].items():
+        run(("crane","auth","login","-u",c["user"],"-p",c["password"],registry))
+    base_content = f"ARG C4CI_BUILD_DIR_ARG={opt.build_dir}\n" + read_text(f"{opt.context}/build.def.dockerfile")
+    base_image = get_sibling_image(opt.image, f"c4b.{sha256(base_content)[:8]}")
+    if not run_no_die(("crane","manifest",base_image)):
+        with tempfile.TemporaryDirectory() as temp_root:
+            changing_text(f"{temp_root}/Dockerfile", base_content, None)
+            build_image(argparse.Namespace(context=temp_root, image=base_image, push_secret=opt.push_secret))
     with tempfile.TemporaryDirectory() as temp_root:
+        run(("perl",f"{get_proto_dir()}/sync_setup.pl"), env={**os.environ,"HOME":temp_root})
         run(("rsync","-a","--exclude",".git",f"{opt.context}/", need_dir(f"{temp_root}{opt.build_dir}"))) #shutil.copytree seems to be slower
-        crane_append(temp_root, opt.base_image, opt.image)
+        crane_append(temp_root, base_image, opt.image)
     with tempfile.TemporaryDirectory() as temp_root:
         changing_text(need_dir(f"{temp_root}/c4")+"/c4serve.pl", "ENTRYPOINT exec perl $C4CI_PROTO_DIR/sandbox.pl main", None)
         crane_append(temp_root, opt.image, f"{opt.image}.de")
-        print("?")
-    print("build_common ok")
-
-# argparse.Namespace
 
 def build_rt(opt):
     with temp_dev_pod({ "image": opt.image, **opt_compiler() }) as name:
@@ -194,8 +193,14 @@ def build_rt(opt):
         kcd_run("exec", name, "--", "env", *kcd_env, f"python3.8", "-u", f"{get_proto_dir()}/build_remote.py",
             "build_image", "--context", "/c4/res", "--image", rt_img, "--push-secret", remote_push_config
         )
-# todo gate c4e tag
-# todo build_rt args
+
+def get_sibling_image(image,tag):
+    parts = image.rpartition(":")
+    return f"{parts[0]}{parts[1]}{tag}"
+
+def build_gate(opt):
+    link = one(*(line for line in read_text(f"{opt.context}/c4dep.ci.replink").splitlines() if line.startswith("C4REL c4proto/")))
+    build_rt(argparse.Namespace(**opt, commit=link.split()[-1], proj_tag="def", context=get_proto_dir(), build_client=""))
 
 def copy_image(opt):
     with temp_dev_pod({ "image": "quay.io/skopeo/stable:v1.10.0", **opt_sleep() }) as name:
@@ -228,8 +233,8 @@ def main():
         ('build_image', build_image, ("--context","--image","--push-secret")),
         ('copy_image', copy_image, ("--from-image","--to-image","--push-secret")),
         ('build_rt', build_rt, ("--context","--commit","--proj-tag","--image","--push-secret","--java-options","--build-client")),
-        ('build_proto', build_proto, ("--context","--image","--push-secret","--build-dir")),
-        ('build_common', build_common, ("--user","--password","--registry","--context","--base-image","--image","--build-dir")),
+        ('build_common', build_common, ("--context","--image","--push-secret","--build-dir")),
+        ('build_gate', build_gate, ("--image","--push-secret","--java-options")),
     )).parse_args()
     opt.op(opt)
 

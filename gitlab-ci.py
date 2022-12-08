@@ -2,11 +2,10 @@
 import sys
 import os
 import subprocess
-import hashlib
 import json
 import gitlab
 import re
-from c4util import read_json
+from c4util import read_json, sha256
 
 def get_env(k):
     v = os.environ[k]
@@ -70,9 +69,6 @@ def handle_deploy(base,branch):
     set_tag(project,tag_name,commit)
     prod(["ci_check_images",name])
     #prod(["ci_check",name])
-
-def sha256(v):
-    return hashlib.sha256(v.encode('utf-8')).hexdigest()
 
 def get_c4env_from_tag():
     return re.findall(r'[^/]+',get_env("CI_COMMIT_TAG"))[1] + "-env"
