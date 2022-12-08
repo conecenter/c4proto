@@ -156,7 +156,7 @@ def build_common(opt):
     pathlib.Path(f"{opt.context}/target").mkdir()
     run(("perl",f"{get_proto_dir()}/sync_mem.pl",opt.context))
     for registry, c in read_json(opt.push_secret)["auths"].items():
-        run(("crane","auth","login","-u",c["user"],"-p",c["password"],registry))
+        run(("crane","auth","login","-u",c["username"],"-p",c["password"],registry))
     base_content = f"ARG C4CI_BUILD_DIR_ARG={opt.build_dir}\n" + read_text(f"{opt.context}/build.def.dockerfile")
     base_image = get_sibling_image(opt.image, f"c4b.{sha256(base_content)[:8]}")
     if not run_no_die(("crane","manifest",base_image)):
