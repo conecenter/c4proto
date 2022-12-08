@@ -48,7 +48,7 @@ def build_remote(python,args):
 def get_build_jobs(config_statements):
   (aggr_cond_list, aggr_to_cond) = get_aggr_cond(config_statements["C4AGGR_COND"])
   tag_aggr_list = config_statements["C4TAG_AGGR"]
-  add_args = " --image $C4COMMON_IMAGE --push-secret $C4CI_DOCKER_CONFIG --java-options \"$C4BUILD_JAVA_TOOL_OPTIONS\" "
+  add_args = " --context $C4CI_BUILD_DIR --image $C4COMMON_IMAGE --push-secret $C4CI_DOCKER_CONFIG --java-options \"$C4BUILD_JAVA_TOOL_OPTIONS\" "
   return {
     "rebuild": common_job(
       prefix_cond(""),"manual","build_main",[build_common_name],
@@ -61,10 +61,7 @@ def get_build_jobs(config_statements):
     **{
       build_rt_name(tag,aggr): common_job(
         prefix_cond(aggr_to_cond[aggr]), "on_success", "build_main", [build_common_name],
-        build_remote(
-          "python3.8",
-          f"build_rt --commit $CI_COMMIT_SHORT_SHA --proj-tag {tag} --context $C4CI_BUILD_DIR --build-client '1' {add_args}"
-        )
+        build_remote("python3.8", f"build_rt --commit $CI_COMMIT_SHORT_SHA --proj-tag {tag} --build-client '1' {add_args}")
       ) for tag, aggr in tag_aggr_list
     }
   }

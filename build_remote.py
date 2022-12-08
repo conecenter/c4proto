@@ -158,8 +158,7 @@ def build_common(opt):
     run(("perl",f"{proto_dir}/sync_mem.pl",opt.context))
     for registry, c in read_json(opt.push_secret)["auths"].items():
         run(("crane","auth","login","-u",c["username"],"-p",c["password"],registry))
-    proto_prefix, _, proto_postfix = proto_dir.rpartition("/")
-    if proto_prefix != opt.context: never(f"proto ({proto_dir}) out of context ({opt.context})")
+    proto_postfix = get_proto_postfix(opt.context)
     d_from_file = read_text(f"{proto_dir}/build.def.dockerfile")
     build_dir = opt.build_dir
     base_content = f"{d_from_file}\nENV C4CI_BUILD_DIR={build_dir}\nENV C4CI_PROTO_DIR={build_dir}/{proto_postfix}\n"
@@ -199,13 +198,21 @@ def build_rt(opt):
             "build_image", "--context", "/c4/res", "--image", rt_img, "--push-secret", remote_push_config
         )
 
+def get_proto_postfix(context):
+    proto_dir = get_proto_dir()
+    proto_prefix, _, proto_postfix = proto_dir.rpartition("/")
+    if proto_prefix != context: never(f"proto ({proto_dir}) out of context ({context})")
+    return proto_postfix
+
 def get_sibling_image(image,tag):
     parts = image.rpartition(":")
     return f"{parts[0]}{parts[1]}{tag}"
 
 def build_gate(opt):
-    link = one(*(line for line in read_text(f"{opt.context}/c4dep.ci.replink").splitlines() if line.startswith("C4REL c4proto/")))
-    build_rt(argparse.Namespace(**opt, commit=link.split()[-1], proj_tag="def", context=get_proto_dir(), build_client=""))
+    proto_postfix = get_proto_postfix(opt.context)
+    proto_dir = get_proto_dir()
+    link = one(*(line for line in read_text(f"{opt.context}/c4dep.ci.replink").splitlines() if line.startswith(f"C4REL {proto_postfix}/")))
+    build_rt(argparse.Namespace(**opt, commit=link.split()[-1], proj_tag="def", context=proto_dir, build_client=""))
 
 def copy_image(opt):
     with temp_dev_pod({ "image": "quay.io/skopeo/stable:v1.10.0", **opt_sleep() }) as name:
@@ -239,7 +246,7 @@ def main():
         ('copy_image', copy_image, ("--from-image","--to-image","--push-secret")),
         ('build_rt', build_rt, ("--context","--commit","--proj-tag","--image","--push-secret","--java-options","--build-client")),
         ('build_common', build_common, ("--context","--image","--push-secret","--build-dir")),
-        ('build_gate', build_gate, ("--image","--push-secret","--java-options")),
+        ('build_gate', build_gate, ("--context","--image","--push-secret","--java-options")),
     )).parse_args()
     opt.op(opt)
 
