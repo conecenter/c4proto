@@ -93,8 +93,7 @@ my $remake = sub{
         "--proj-tag", $arg, "--user", $user, "--context", $build_dir, "--mod", $mod
     ) and return ();
     sy("perl", "$proto_dir/build_env.pl", $build_dir, $mod);
-    my $build_client = $ENV{C4STEP_BUILD_CLIENT};
-    $build_client and so("$build_client dev") and return ();
+    so("perl", "$proto_dir/prod.pl", "build_client_changed", $build_dir, "dev") and return ();
     #
     my $ppid = $$;
     my $pid = fork();

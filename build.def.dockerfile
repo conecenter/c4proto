@@ -35,8 +35,5 @@ ENV JAVA_HOME=/tools/jdk
 # pre-installing just to optimize:
 RUN mkdir -p /c4/c4client_prep && cd /c4/c4client_prep && npm install node-sass@4.13.1
 # setup build steps:
-ENV C4CI_BUILD_DIR=$C4CI_BUILD_DIR_ARG
-ENV C4CI_PROTO_DIR=$C4CI_BUILD_DIR/c4proto
-ENV C4STEP_BUILD_CLIENT="perl $C4CI_BUILD_DIR/ci-step.pl client"
 RUN echo 'exec "bash", @ARGV; die' > /c4/c4serve.pl
 ENTRYPOINT ["perl","/c4/c4serve.pl"]

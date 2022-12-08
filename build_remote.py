@@ -153,19 +153,24 @@ def need_dir(dir):
     return dir
 
 def build_common(opt):
+    proto_dir = get_proto_dir()
     pathlib.Path(f"{opt.context}/target").mkdir()
-    run(("perl",f"{get_proto_dir()}/sync_mem.pl",opt.context))
+    run(("perl",f"{proto_dir}/sync_mem.pl",opt.context))
     for registry, c in read_json(opt.push_secret)["auths"].items():
         run(("crane","auth","login","-u",c["username"],"-p",c["password"],registry))
-    base_content = f"ARG C4CI_BUILD_DIR_ARG={opt.build_dir}\n" + read_text(f"{get_proto_dir()}/build.def.dockerfile")
+    proto_prefix, _, proto_postfix = proto_dir.rpartition("/")
+    if proto_prefix != opt.context: never(f"proto ({proto_dir}) out of context ({opt.context})")
+    d_from_file = read_text(f"{proto_dir}/build.def.dockerfile")
+    build_dir = opt.build_dir
+    base_content = f"{d_from_file}\nENV C4CI_BUILD_DIR={build_dir}\nENV C4CI_PROTO_DIR={build_dir}/{proto_postfix}\n"
     base_image = get_sibling_image(opt.image, f"c4b.{sha256(base_content)[:8]}")
     if not run_no_die(("crane","manifest",base_image)):
         with tempfile.TemporaryDirectory() as temp_root:
             changing_text(f"{temp_root}/Dockerfile", base_content, None)
             build_image(argparse.Namespace(context=temp_root, image=base_image, push_secret=opt.push_secret))
     with tempfile.TemporaryDirectory() as temp_root:
-        run(("perl",f"{get_proto_dir()}/sync_setup.pl"), env={**os.environ,"HOME":temp_root})
-        run(("rsync","-a","--exclude",".git",f"{opt.context}/", need_dir(f"{temp_root}{opt.build_dir}"))) #shutil.copytree seems to be slower
+        run(("perl",f"{proto_dir}/sync_setup.pl"), env={**os.environ,"HOME":temp_root})
+        run(("rsync","-a","--exclude",".git",f"{opt.context}/", need_dir(f"{temp_root}{build_dir}"))) #shutil.copytree seems to be slower
         crane_append(temp_root, base_image, opt.image)
     with tempfile.TemporaryDirectory() as temp_root:
         changing_text(need_dir(f"{temp_root}/c4")+"/c4serve.pl", "ENTRYPOINT exec perl $C4CI_PROTO_DIR/sandbox.pl main", None)
