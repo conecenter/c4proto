@@ -206,11 +206,11 @@ def build_rt(opt):
         kcd_env = (f"KUBECONFIG={remote_kube_config}",f"C4DEPLOY_CONTEXT={os.environ['C4DEPLOY_CONTEXT']}")
         kcd_run("cp",opt.push_secret,f"{name}:{remote_push_config}")
         kcd_run("cp",os.environ["KUBECONFIG"],f"{name}:{remote_kube_config}")
-        kcd_run("exec", name, "--", "env", *kcd_env, f"python3.8", "-u", f"{get_proto_dir()}/build_remote.py",*(
-            "--context", opt.context, "--proj-tag", opt.proj_tag,
+        kcd_run("exec", name, "--", "env", *kcd_env, f"python3.8", "-u", f"{get_proto_dir()}/build_remote.py",
+            "build_rt_inner", "--context", opt.context, "--proj-tag", opt.proj_tag,
             "--commit", opt.commit, "--image", opt.image, "--java-options", opt.java_options,
             "--build-client", opt.build_client, "--push-secret", remote_push_config
-        ))
+        )
 
 def build_rt_inner(opt):
     rt_img = f"{opt.image}.{opt.proj_tag}.rt"
