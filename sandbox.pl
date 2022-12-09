@@ -90,7 +90,7 @@ my $remake = sub{
         "--commit", &$mandatory_of(C4COMMIT => \%ENV),
         "--image", &$mandatory_of(C4COMMON_IMAGE => \%ENV),
         "--java-options", &$mandatory_of(C4BUILD_JAVA_TOOL_OPTIONS => \%ENV),
-        "--proj-tag", $arg, "--user", $user, "--context", $build_dir, "--mod", $mod
+        "--proj-tag", $arg, "--user", $user, "--context", $build_dir,
     ) and return ();
     sy("perl", "$proto_dir/build_env.pl", $build_dir, $mod);
     so("perl", "$proto_dir/prod.pl", "build_client_changed", $build_dir, "dev") and return ();

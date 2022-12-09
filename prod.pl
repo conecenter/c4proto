@@ -1100,19 +1100,17 @@ my $install_jdk = sub{(
     "RUN perl install.pl curl https://github.com/AdoptOpenJDK/openjdk15-binaries/releases/download/jdk-15.0.1%2B9/OpenJDK15U-jdk_x64_linux_hotspot_15.0.1_9.tar.gz",
     #"RUN perl install.pl curl https://download.bell-sw.com/java/17.0.2+9/bellsoft-jdk17.0.2+9-linux-amd64.tar.gz",
 )};
-push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
+
+push @tasks, ["ci_rt_chk","",sub{ &$chk_pkg_dep(@_) }];
+push @tasks, ["ci_rt_base","",sub{
     my %opt = @_;
     my $base = &$mandatory_of("--proj-tag", \%opt);
     my $gen_dir = &$mandatory_of("--context", \%opt);
-    my $proto_dir = &$get_proto_dir();
-    #
-    my $ctx_dir = "/c4/res";
-    -e $ctx_dir and sy("rm -r $ctx_dir");
-    sy("mkdir $ctx_dir");
-    &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile");
+    my $ctx_dir = &$mandatory_of("--out-context", \%opt);
     my $tag_info = &$get_tag_info($gen_dir,$base);
-    my ($add_steps,$mod,$main_cl) = map{$$tag_info{$_}||die} qw[steps mod main];
-    &$chk_pkg_dep($gen_dir,$mod);
+    my $add_steps = &$mandatory_of(steps => $tag_info);
+    my $proto_dir = &$get_proto_dir();
+    &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile");
     my @from_steps = grep{/^FROM\s/} @$add_steps;
     &$put_text("$ctx_dir/Dockerfile", join "\n",
         @from_steps ? @from_steps : "FROM ubuntu:18.04",
@@ -1133,9 +1131,19 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
         "RUN cd /tools/greys && bash ./install-local.sh",
         'ENTRYPOINT ["perl","run.pl"]',
     );
-    sy("cp $proto_dir/$_ $ctx_dir/$_") for "install.pl", "run.pl";
+    sy("cp $proto_dir/install.pl $ctx_dir/");
     sy("cd $ctx_dir && tar -xzf $proto_dir/tools/greys.tar.gz");
-    #
+}];
+push @tasks, ["ci_rt_over","",sub{
+    my %opt = @_;
+    my $base = &$mandatory_of("--proj-tag", \%opt);
+    my $gen_dir = &$mandatory_of("--context", \%opt);
+    my $ctx_dir = &$mandatory_of("--out-context", \%opt)."/c4";
+    my $proto_dir = &$get_proto_dir();
+    my $tag_info = &$get_tag_info($gen_dir,$base);
+    my ($mod,$main_cl) = map{$$tag_info{$_}||die} qw[mod main];
+    sy("mkdir $ctx_dir");
+    sy("cp $proto_dir/run.pl $ctx_dir/");
     mkdir "$ctx_dir/app";
     my $paths = &$decode(&$get_text(&$get_classpath($gen_dir,$mod)));
     my @started = map{&$start($_)} map{
