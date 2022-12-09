@@ -176,7 +176,8 @@ def build_cached_by_content(context, sibling_image, push_secret):
     files = sorted(run(("find","-type","f"),cwd=context,text=True,capture_output=True).stdout.splitlines())
     sums = run(("sha256sum","--",*files),cwd=context,text=True,capture_output=True).stdout
     image = get_sibling_image(sibling_image, f"c4b.{sha256(sums)[:8]}")
-    build_image(argparse.Namespace(context=context, image=image, push_secret=push_secret))
+    if not run_no_die(("crane","manifest",image)):
+        build_image(argparse.Namespace(context=context, image=image, push_secret=push_secret))
     return image
 
 def build_common(opt):
@@ -224,13 +225,13 @@ def build_rt_inner(opt):
     run(("perl",f"{get_proto_dir()}/build_env.pl", opt.context, mod))
     if opt.build_client:
         run((*prod, "build_client_changed", opt.context))
+    crane_login(opt.push_secret)
     run((*prod, "ci_rt_chk", opt.context, mod))
     with tempfile.TemporaryDirectory() as temp_root:
         run((*prod, "ci_rt_base", "--context", opt.context, "--proj-tag", opt.proj_tag, "--out-context", temp_root))
         base_image = build_cached_by_content(temp_root, opt.image, opt.push_secret)
     with tempfile.TemporaryDirectory() as temp_root:
         run((*prod, "ci_rt_over", "--context", opt.context, "--proj-tag", opt.proj_tag, "--out-context", temp_root))
-        crane_login(opt.push_secret)
         crane_append(temp_root, base_image, rt_img)
 
 def get_proto_postfix(context):
