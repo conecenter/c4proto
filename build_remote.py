@@ -3,6 +3,7 @@
 import subprocess
 import json
 import os
+import typing
 import uuid
 import tempfile
 import shutil
@@ -95,19 +96,18 @@ def sbt_args(mod_dir,java_opt):
 
 def get_cb_name(v): return f"cb-v0-{v}"
 
-class CompileOptions:
+class CompileOptions(typing.NamedTuple):
     mod: str
     mod_dir: str
     cache_pod_name: str
     cache_path: str
 
 def get_more_compile_options(context, commit, proj_tag):
-    res = CompileOptions()
-    res.mod = read_json(f"{context}/target/c4/build.json")["tag_info"][proj_tag]["mod"]
-    res.mod_dir = f"{context}/target/c4/mod.{res.mod}.d"
-    res.cache_pod_name = get_cb_name("cache")
-    res.cache_path = f"/tmp/c4cache-{commit}-{proj_tag}"
-    return res
+    mod = read_json(f"{context}/target/c4/build.json")["tag_info"][proj_tag]["mod"]
+    mod_dir = f"{context}/target/c4/mod.{mod}.d"
+    cache_pod_name = get_cb_name("cache")
+    cache_path = f"/tmp/c4cache-{commit}-{proj_tag}"
+    return CompileOptions(mod, mod_dir, cache_pod_name, cache_path)
 
 def compile(opt):
     compile_options = get_more_compile_options(opt.context, opt.commit, opt.proj_tag)
