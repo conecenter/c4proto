@@ -1028,17 +1028,6 @@ my $get_tag_info = sub{
     JSON::XS->new->decode(&$get_text("$gen_dir/target/c4/build.json"))->{tag_info}{$tag} || die;
 };
 
-push @tasks, ["ci_inner_build","",sub{
-    my %opt = @_;
-    my $base = &$mandatory_of("--proj-tag", \%opt);
-    my $gen_dir = &$mandatory_of("--context", \%opt);
-    my $proto_dir = &$get_proto_dir();
-    sy("cd $gen_dir && perl $proto_dir/build.pl");
-    my $mod = &$get_tag_info($gen_dir,$base)->{mod}||die;
-    &$build_remote("compile_push", %opt, "--mod", $mod);
-    sy("perl", "$proto_dir/build_env.pl", $gen_dir, $mod);
-}];
-
 my $client_mode_to_opt = sub{
     my($mode)=@_;
     $mode eq "fast" ? "--color --env.fast=true --mode development" :
@@ -1231,6 +1220,11 @@ push @tasks, ["up-kc_host", "", sub{ # the last multi container kc
                 resources => ["pods/log"],
                 verbs => ["get"],
             },
+            {
+                apiGroups => [""],
+                resources => ["nodes"],
+                verbs => ["list"],
+            }
         ],
     }, {
         apiVersion => "v1",
