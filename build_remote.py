@@ -197,7 +197,8 @@ def build_common(opt):
         run(("rsync","-a","--exclude",".git",f"{opt.context}/", need_dir(f"{temp_root}{build_dir}"))) #shutil.copytree seems to be slower
         crane_append(temp_root, base_image, opt.image)
     with tempfile.TemporaryDirectory() as temp_root:
-        changing_text(need_dir(f"{temp_root}/c4")+"/c4serve.pl", "exec perl $C4CI_PROTO_DIR/sandbox.pl main", None)
+        changing_text(need_dir(f"{temp_root}/c4")+"/c4serve.pl", 'exec "perl","$ENV{C4CI_PROTO_DIR}/sandbox.pl","main";die', None)
+        'exec "bash", @ARGV; die'
         crane_append(temp_root, opt.image, f"{opt.image}.de")
 
 def build_rt(opt):
