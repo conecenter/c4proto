@@ -42,7 +42,7 @@ stage_deploy_cl = "deploy"
 def build_remote(python,args):
   return [
     docker_conf(),
-    f"{python} -u $C4CI_PROTO_DIR/run_with_timestamps.py {python} -u $C4CI_PROTO_DIR/build_remote.py {args}"
+    f"{python} -u $C4CI_PROTO_DIR/run_with_prefix.py time {python} -u $C4CI_PROTO_DIR/build_remote.py {args}"
   ]
 
 def get_build_jobs(config_statements):

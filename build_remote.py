@@ -24,12 +24,15 @@ def Popen(args, **opt):
     print("starting: "+" ".join(args))
     return subprocess.Popen(args, **opt)
 
+def wait_processes(processes):
+    for proc in processes:
+        proc.wait()
+    return all(proc.returncode == 0 for proc in processes)
+
 def run_pipe_no_die(from_args, to_args):
     from_proc = Popen(from_args, stdout=subprocess.PIPE)
     to_proc = Popen(to_args, stdin=from_proc.stdout)
-    from_proc.wait()
-    to_proc.wait()
-    return from_proc.returncode == 0 and to_proc.returncode == 0
+    return wait_processes((from_proc, to_proc))
 
 def copy_to_non_existed(from_path, to_path):
     if path_exists(to_path): never(f"{to_path} exists")
@@ -215,19 +218,21 @@ def build_rt(opt):
         )
 
 def build_rt_inner(opt):
+    proto_dir = get_proto_dir()
     rt_img = f"{opt.image}.{opt.proj_tag}.rt"
-    prod = ("perl",f"{get_proto_dir()}/prod.pl")
-    run(("perl",f"{get_proto_dir()}/build.pl"), cwd=opt.context)
+    prod = ("perl",f"{proto_dir}/prod.pl")
+    pre = ("python3.8", "-u", f"{proto_dir}/run_with_prefix.py")
+    run(("perl",f"{proto_dir}/build.pl"), cwd=opt.context)
     compile_options = get_more_compile_options(opt.context, opt.commit, opt.proj_tag)
     mod = compile_options.mod
     mod_dir = compile_options.mod_dir
     run(sbt_args(mod_dir,opt.java_options))
+    run(("perl",f"{proto_dir}/build_env.pl", opt.context, mod))
+    check_proc = Popen((*pre, "=check=", *prod, "ci_rt_chk", opt.context, mod))
+    client_proc_opt = (Popen((*pre, "=client=", *prod, "build_client_changed", opt.context)),) if opt.build_client else ()
     push_compilation_cache(compile_options, opt.image)
-    run(("perl",f"{get_proto_dir()}/build_env.pl", opt.context, mod))
-    if opt.build_client:
-        run((*prod, "build_client_changed", opt.context))
+    wait_processes((check_proc, *client_proc_opt)) or never("build failed")
     crane_login(opt.push_secret)
-    run((*prod, "ci_rt_chk", opt.context, mod))
     with tempfile.TemporaryDirectory() as temp_root:
         run((*prod, "ci_rt_base", "--context", opt.context, "--proj-tag", opt.proj_tag, "--out-context", temp_root))
         base_image = build_cached_by_content(temp_root, opt.image, opt.push_secret)
