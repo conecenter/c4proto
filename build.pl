@@ -175,6 +175,9 @@ do{
     print "generation finished\n";
 };
 do{
+    if(!-e "$tmp/client"){
+        sy("cp -r $ENV{HOME}/c4client_prep $tmp/client");
+    }
     my @parts = &$dep_conf("C4CLIENT");
     my @dirs = grep{$_} &$to(@parts);
 #    for my $path(@dirs){

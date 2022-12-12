@@ -1,19 +1,16 @@
 
-import os
+import sys
 import json
-from c4util import group_map, one, read_json
+from c4util import group_map, one, read_json, changing_text
 
 ### util
 
-def write_json(path, value):
-  with open(path,"w") as f:
-    json.dump(value, f, sort_keys=True, indent=4)
 
 def ext(f): return lambda arg: f(*arg)
 
 ###
 
-def docker_conf(): return "python3 $C4CI_PROTO_DIR/gitlab-docker-conf.py"
+def docker_conf(): return f"python3 $C4CI_PROTO_DIR/gitlab-docker-conf.py"
 def handle(arg):
   return f"python3 $C4CI_PROTO_DIR/gitlab-ci.py {arg}"
 def push_rule(cond):
@@ -24,9 +21,7 @@ def common_job(cond,when,stage,needs,script):
     "image": "$C4COMMON_IMAGE", "variables": {"GIT_STRATEGY": "none" },
     "stage": stage, "needs": needs, "script": script
   }
-def build_path(fn):
-  dir = os.environ["C4CI_BUILD_DIR"]
-  return f"{dir}/{fn}"
+
 def esc_slashes(v): return v.replace("/","\\/")
 def prefix_cond(v):
     return f"$CI_COMMIT_BRANCH =~ /{esc_slashes(v)}/" if v else "$CI_COMMIT_BRANCH"
@@ -38,32 +33,37 @@ def get_aggr_cond(aggr_cond_list):
 
 build_common_name = "build common"
 build_gate_name = "build gate"
-build_aggr_name = "build de"
 def build_rt_name(tag,aggr): return f"b {tag} {aggr} rt"
 stage_deploy_de = "develop"
 stage_confirm = "confirm"
 stage_deploy_sp = "confirm"
 stage_deploy_cl = "deploy"
-timestamps = "-u $C4CI_PROTO_DIR/run_with_timestamps.py"
+
+def build_remote(python,args):
+  return [
+    docker_conf(),
+    f"{python} -u $C4CI_PROTO_DIR/run_with_prefix.py time {python} -u $C4CI_PROTO_DIR/build_remote.py {args}"
+  ]
 
 def get_build_jobs(config_statements):
   (aggr_cond_list, aggr_to_cond) = get_aggr_cond(config_statements["C4AGGR_COND"])
   tag_aggr_list = config_statements["C4TAG_AGGR"]
-  def build(cond,args):
-    return common_job(prefix_cond(cond),"on_success","build_main",[build_common_name],[
-      docker_conf(),
-      f"python3.8 {timestamps} python3.8 -u $C4CI_PROTO_DIR/build_remote.py {args} --image $C4COMMON_IMAGE --push-secret $C4CI_DOCKER_CONFIG"
-    ])
-  def build_rt(cond,tag):
-    return build(cond,f"build_rt --commit $CI_COMMIT_SHORT_SHA --proj-tag {tag} --java-options \"$C4BUILD_JAVA_TOOL_OPTIONS\" ")
+  add_args = " --context $C4CI_BUILD_DIR --image $C4COMMON_IMAGE --push-secret $C4CI_DOCKER_CONFIG --java-options \"$C4BUILD_JAVA_TOOL_OPTIONS\" "
   return {
     "rebuild": common_job(
       prefix_cond(""),"manual","build_main",[build_common_name],
       [handle(f"rebuild $CI_COMMIT_BRANCH")]
     ),
-    build_aggr_name: build("","build_de"),
-    build_gate_name: build_rt("","def"),
-    **{ build_rt_name(tag,aggr): build_rt(aggr_to_cond[aggr], tag) for tag, aggr in tag_aggr_list }
+    build_gate_name: common_job(
+      prefix_cond(""), "on_success", "build_main", [build_common_name],
+      build_remote("python3.8", f"build_gate {add_args}")
+    ),
+    **{
+      build_rt_name(tag,aggr): common_job(
+        prefix_cond(aggr_to_cond[aggr]), "on_success", "build_main", [build_common_name],
+        build_remote("python3.8", f"build_rt --commit $CI_COMMIT_SHORT_SHA --proj-tag {tag} --build-client '1' {add_args}")
+      ) for tag, aggr in tag_aggr_list
+    }
   }
 
 # build aggr jobs -- C4AGGR_COND
@@ -74,8 +74,8 @@ def get_deploy_jobs(config_statements):
   def optional_job(name): return { "job":name, "optional":True }
   tag_aggr_list = config_statements["C4TAG_AGGR"]
   aggr_cond_list = config_statements["C4AGGR_COND"]
-  needs_rt = [build_gate_name] + [optional_job(build_rt_name(tag,aggr)) for tag, aggr in tag_aggr_list]
-  needs_de = [build_gate_name,build_aggr_name]
+  needs_rt = [optional_job(build_rt_name(tag,aggr)) for tag, aggr in tag_aggr_list]
+  needs_de = [build_common_name]
   return {
     key: value
     for env_mask, caption_mask in config_statements["C4DEPLOY"]
@@ -129,32 +129,32 @@ def get_env_jobs():
     "auto-stop": stop(cond_qa,"on_success",[testing_name]),
   }
 
-def main():
-  config_statements = group_map(read_json(build_path("c4dep.main.json")), lambda it: (it[0],it[1:]))
+def replink(dir,fn):
+  return f"C4CI_BUILD_DIR={dir} C4REPO_MAIN_CONF={dir}/{fn} /replink.pl"
+
+def main(build_path):
+  config_statements = group_map(read_json(f"{build_path}/c4dep.main.json"), lambda it: (it[0],it[1:]))
   out = {
     "variables": { "C4CI_DOCKER_CONFIG": "/tmp/c4-docker-config", "GIT_DEPTH": 10 },
     "stages": ["build_common","build_main","develop","confirm","deploy","start","check","testing","stop"],
     build_common_name: {
-      "rules": [push_rule("$CI_COMMIT_BRANCH")],
-      "stage": "build_common",
-      "image": "ghcr.io/conecenter/c4replink:v3k",
+      "rules": [push_rule(prefix_cond(""))], "stage": "build_common",
+      "image": "ghcr.io/conecenter/c4replink:v3kc",
       "script": [
-        "export C4CI_BUILD_DIR=$CI_PROJECT_DIR",
-        "export C4CI_PROTO_DIR=$C4COMMON_PROTO_DIR",
-        "C4REPO_MAIN_CONF=$CI_PROJECT_DIR/c4dep.ci.replink /replink.pl",
-        "C4CI_BUILD_DIR=$C4CI_PROTO_DIR C4REPO_MAIN_CONF=$C4CI_PROTO_DIR/c4dep.main.replink /replink.pl",
-        docker_conf(),
-        "mkdir -p $C4CI_BUILD_DIR/target",
-        "perl $C4CI_PROTO_DIR/sync_mem.pl $C4CI_BUILD_DIR",
-        "cp $C4CI_PROTO_DIR/.dockerignore $C4CI_BUILD_DIR/.dockerignore",
-        "cp $C4CI_BUILD_DIR/build.def.dockerfile $C4CI_BUILD_DIR/Dockerfile",
-        f"python3 {timestamps} python3 -u $C4CI_PROTO_DIR/build_remote.py build_image --context $C4CI_BUILD_DIR --image $C4COMMON_IMAGE --push-secret $C4CI_DOCKER_CONFIG",
+        "date", replink("$CI_PROJECT_DIR","c4dep.ci.replink"),
+        "date", replink("$C4COMMON_PROTO_DIR","c4dep.main.replink"),
+        "date", "export C4CI_PROTO_DIR=$C4COMMON_PROTO_DIR",
+        *build_remote(
+          "python3",
+          f"build_common --build-dir $C4CI_BUILD_DIR --push-secret $C4CI_DOCKER_CONFIG " +
+          f" --context $CI_PROJECT_DIR --image $C4COMMON_IMAGE"
+        )
       ],
     },
     **get_build_jobs(config_statements), **get_deploy_jobs(config_statements), **get_env_jobs()
   }
-  write_json(build_path("gitlab-ci-generated.yml"), out)
+  changing_text(f"{build_path}/gitlab-ci-generated.yml", json.dumps(out, sort_keys=True, indent=4), None)
 
-main()
+main(*sys.argv[1:])
 
 #docker run --rm -v $PWD:/build_dir -e C4CI_BUILD_DIR=/build_dir python:3.8 python3 /build_dir/c4proto/gitlab-gen.py

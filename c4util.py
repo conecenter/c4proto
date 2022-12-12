@@ -1,5 +1,7 @@
 
 import json
+import pathlib
+import hashlib
 
 def group_map(l,f):
     res = {}
@@ -17,6 +19,17 @@ def parse_table(data):
 def read_json(path):
     with open(path,'r') as f:
         return json.load(f)
+
+def path_exists(path):
+    return pathlib.Path(path).exists()
+def changing_text(path, will, then):
+    if path_exists(path) and read_text(path) == will: return
+    if then : then() # we need to run then() here -- if it fails, state will remain unchanged
+    pathlib.Path(path).write_text(will, encoding='utf-8', errors='strict')
+def read_text(path_str): return pathlib.Path(path_str).read_text(encoding='utf-8', errors='strict')
+
+def sha256(v):
+    return hashlib.sha256(v.encode('utf-8')).hexdigest()
 
 # suggest: read_json, subprocess.run
 #
