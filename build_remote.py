@@ -222,16 +222,16 @@ def build_rt_inner(opt):
     rt_img = f"{opt.image}.{opt.proj_tag}.rt"
     prod = ("perl",f"{proto_dir}/prod.pl")
     pre = ("python3.8", "-u", f"{proto_dir}/run_with_prefix.py")
-    run(("perl",f"{proto_dir}/build.pl"), cwd=opt.context)
     compile_options = get_more_compile_options(opt.context, opt.commit, opt.proj_tag)
     mod = compile_options.mod
     mod_dir = compile_options.mod_dir
+    run(("perl",f"{proto_dir}/build.pl"), cwd=opt.context)
+    client_proc_opt = (Popen((*pre, "=client=", *prod, "build_client_changed", opt.context)),) if opt.build_client else ()  # after build.pl
     run(sbt_args(mod_dir,opt.java_options))
     run(("perl",f"{proto_dir}/build_env.pl", opt.context, mod))
-    check_proc = Popen((*pre, "=check=", *prod, "ci_rt_chk", opt.context, mod))
-    client_proc_opt = (Popen((*pre, "=client=", *prod, "build_client_changed", opt.context)),) if opt.build_client else ()
+    check_proc = Popen((*pre, "=check=", *prod, "ci_rt_chk", opt.context, mod))  # after build_env.pl
     push_compilation_cache(compile_options, opt.image)
-    wait_processes((check_proc, *client_proc_opt)) or never("build failed")
+    wait_processes((check_proc, *client_proc_opt)) or never("build failed")  # before ci_rt_base?
     crane_login(opt.push_secret)
     with tempfile.TemporaryDirectory() as temp_root:
         run((*prod, "ci_rt_base", "--context", opt.context, "--proj-tag", opt.proj_tag, "--out-context", temp_root))
