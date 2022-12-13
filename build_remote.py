@@ -222,10 +222,10 @@ def build_rt_inner(opt):
     rt_img = f"{opt.image}.{opt.proj_tag}.rt"
     prod = ("perl",f"{proto_dir}/prod.pl")
     pre = ("python3.8", "-u", f"{proto_dir}/run_with_prefix.py")
-    compile_options = get_more_compile_options(opt.context, opt.commit, opt.proj_tag)
+    run(("perl",f"{proto_dir}/build.pl"), cwd=opt.context)
+    compile_options = get_more_compile_options(opt.context, opt.commit, opt.proj_tag)  # after build.pl
     mod = compile_options.mod
     mod_dir = compile_options.mod_dir
-    run(("perl",f"{proto_dir}/build.pl"), cwd=opt.context)
     client_proc_opt = (Popen((*pre, "=client=", *prod, "build_client_changed", opt.context)),) if opt.build_client else ()  # after build.pl
     run(sbt_args(mod_dir,opt.java_options))
     run(("perl",f"{proto_dir}/build_env.pl", opt.context, mod))
