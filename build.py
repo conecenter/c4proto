@@ -149,16 +149,16 @@ def main(build_path_str):
         # )
         sbt_text = sbt_common_text + "".join(
             to_sbt_mod(
-                f"`{mod}`",
+                "main" if m == mod else f"`{m}`",
                 "project",
-                ",".join(f"`{dep}`" for dep in get_list(conf,"C4DEP",mod)),
-                [leave_tmp(dir) for dir in get_src_dirs(conf,(mod,))],
-                get_list(conf,"C4EXT",mod),
-                get_list(conf,"C4LIB",mod),
+                ",".join(f"`{dep}`" for dep in get_list(conf,"C4DEP",m)),
+                [leave_tmp(dir) for dir in get_src_dirs(conf,(m,))],
+                get_list(conf,"C4EXT",m),
+                get_list(conf,"C4LIB",m),
                 excl, get_repo,
                 flat_values(get_dict(conf,"C4WART")),
             )
-            for mod in modules
+            for m in modules
         )
         proj_part = f"{tmp_part}/mod.{mod}.d"
         build_sbt = f"{proj_part}/build.sbt"
