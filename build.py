@@ -118,10 +118,11 @@ def main(build_path_str):
         *(parse_main(main)["mod"] for main in flat_values(conf["C4TAG"])),
         *flat_values(conf["C4GENERATOR_MAIN"])
     })
+    debug = """println("AvailableProcessors",java.lang.Runtime.getRuntime.availableProcessors);"""
     sbt_common_text = "".join((
         """ThisBuild / scalaVersion := "2.13.8"\n\n""", #"coursierMaxIterations := 200\n\n" +
         """val c4build = taskKey[Unit]("c4 build")\n\n""",
-        """c4build := IO.write(baseDirectory.value/"target/c4classpath",(main / Compile / fullClasspath).value.map(_.data).mkString(":"))\n\n"""
+        f"""c4build := {{{debug}IO.write(baseDirectory.value/"target/c4classpath",(main / Compile / fullClasspath).value.map(_.data).mkString(":"))}}\n\n"""
     ))
     def excl(k): return get_list(conf,"C4EXT_EXCL",k)
     def get_repo(k): return get_list(conf,"C4REPO",k)
