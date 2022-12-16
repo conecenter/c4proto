@@ -13,7 +13,8 @@ RUN /install.pl curl https://git.io/coursier-cli-linux \
  && chmod +x /tools/coursier
 
 FROM c4downloader AS c4tools-sbt
-RUN /install.pl curl https://github.com/sbt/sbt/releases/download/v1.6.2/sbt-1.6.2.tgz
+#RUN /install.pl curl https://github.com/sbt/sbt/releases/download/v1.6.2/sbt-1.6.2.tgz
+RUN /install.pl curl https://github.com/sbt/sbt/releases/download/v1.8.0/sbt-1.8.0.tgz
 
 FROM c4downloader AS c4tools-node
 RUN perl install.pl apt xz-utils

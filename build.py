@@ -127,25 +127,38 @@ def main(build_path_str):
     for mod in mod_heads:
         max_stage_num = mod_stage(mod)
         modules = full_dep(mod)
+        # sbt_text = sbt_common_text + "".join(
+        #     to_sbt_mod(
+        #         "main" if stage_num==max_stage_num else f"s{stage_num}",
+        #         "project",
+        #         "" if stage_num==0 else f"s{stage_num-1}",
+        #         [leave_tmp(dir) for dir in get_src_dirs(conf,mods)],
+        #         sorted({
+        #             dep
+        #             for mod in mods for dep in get_list(conf,"C4EXT",mod)
+        #         }),
+        #         sorted({
+        #             leave_tmp(dep)
+        #             for mod in mods for dep in get_list(conf,"C4LIB",mod)
+        #         }),
+        #         excl, get_repo,
+        #         flat_values(get_dict(conf,"C4WART")),
+        #     )
+        #     for stage_num in range(max_stage_num+1)
+        #     for mods in [[m for m in modules if mod_stage(m)==stage_num]]
+        # )
         sbt_text = sbt_common_text + "".join(
             to_sbt_mod(
-                "main" if stage_num==max_stage_num else f"s{stage_num}",
+                f"`{mod}`",
                 "project",
-                "" if stage_num==0 else f"s{stage_num-1}",
-                [leave_tmp(dir) for dir in get_src_dirs(conf,mods)],
-                sorted({
-                    dep
-                    for mod in mods for dep in get_list(conf,"C4EXT",mod)
-                }),
-                sorted({
-                    leave_tmp(dep)
-                    for mod in mods for dep in get_list(conf,"C4LIB",mod)
-                }),
+                ",".join(f"`{dep}`" for dep in get_list(conf,"C4DEP",mod)),
+                [leave_tmp(dir) for dir in get_src_dirs(conf,(mod,))],
+                get_list(conf,"C4EXT",mod),
+                get_list(conf,"C4LIB",mod),
                 excl, get_repo,
                 flat_values(get_dict(conf,"C4WART")),
             )
-            for stage_num in range(max_stage_num+1)
-            for mods in [[m for m in modules if mod_stage(m)==stage_num]]
+            for mod in modules
         )
         proj_part = f"{tmp_part}/mod.{mod}.d"
         build_sbt = f"{proj_part}/build.sbt"
