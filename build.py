@@ -147,6 +147,7 @@ def main(build_path_str):
         #     for stage_num in range(max_stage_num+1)
         #     for mods in [[m for m in modules if mod_stage(m)==stage_num]]
         # )
+        print(mod)
         sbt_text = sbt_common_text + "".join(
             to_sbt_mod(
                 "main" if m == mod else f"`{m}`",
