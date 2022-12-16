@@ -97,6 +97,8 @@ def parse_main(main):
         "name": parts[0],
     }
 
+def to_id(m): return "mod_" + m.replace(".","_")
+
 def get_pkg_from_mod(mod): return ".".join(mod.split(".")[1:])
 
 def main(build_path_str):
@@ -147,12 +149,13 @@ def main(build_path_str):
         #     for stage_num in range(max_stage_num+1)
         #     for mods in [[m for m in modules if mod_stage(m)==stage_num]]
         # )
-        print(mod)
+        if len(modules) != len({ to_id(m) for m in modules }):
+            raise Exception("bad mod names")
         sbt_text = sbt_common_text + "".join(
             to_sbt_mod(
-                "main" if m == mod else f"`{m}`",
+                "main" if m == mod else to_id(m),
                 "project",
-                ",".join(f"`{dep}`" for dep in get_list(conf,"C4DEP",m)),
+                ",".join(to_id(dep) for dep in get_list(conf,"C4DEP",m)),
                 [leave_tmp(dir) for dir in get_src_dirs(conf,(m,))],
                 get_list(conf,"C4EXT",m),
                 get_list(conf,"C4LIB",m),
