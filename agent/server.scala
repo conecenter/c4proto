@@ -253,7 +253,7 @@ object PodLister extends Runnable {
   @tailrec private def getPrefix(): String = {
     val devName = PublicState.load().fold("")(_.devName)
     if(devName.isEmpty){
-      print("pod lister waits for auth")
+      println("pod lister waits for auth")
       Thread.sleep(1000)
       getPrefix()
     } else s"de-${devName}-"
