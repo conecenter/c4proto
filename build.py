@@ -190,23 +190,26 @@ def get_mod_groups_1(mod, deps, modules):
     #print(replaced_deps)
     rels = group_map(replaced_deps, lambda ft: ft)
     groups = group_map(modules, lambda m: (replace(m),m))
-    return *((
+    return (*((
         "main" if group_id == mod else to_id(group_id),
         sorted(groups[group_id]),
         sorted(to_id(d) for d in rels.get(group_id, []))
-    ) for group_id in sorted(groups.keys())),
+    ) for group_id in sorted(groups.keys())),)
 
-def get_mod_groups_0(mod, deps, modules):
-    rels = group_map(deps, lambda ft: ft)
-    return *((
-        "main" if m == mod else to_id(m),
-        (m,),
-        sorted(to_id(d) for d in rels.get(m, []))
-    ) for m in modules),
 
 main(*sys.argv[1:])
 
 #ThisBuild / exportJars := true
+
+### mod 1-to-1:
+# def get_mod_groups_0(mod, deps, modules):
+#     rels = group_map(deps, lambda ft: ft)
+#     return *((
+#         "main" if m == mod else to_id(m),
+#         (m,),
+#         sorted(to_id(d) for d in rels.get(m, []))
+#     ) for m in modules),
+#
 
 ### mod stage-groups:
 #fine_mod_stage = lazy_dict(lambda mod,get: max((0,*(get(dep)+1 for dep in get_list(conf,"C4DEP",mod)))))
