@@ -184,9 +184,10 @@ def get_mod_groups_1(mod, deps, modules):
         if more <= 0:
             return (replace, replaced_deps)
         revs = group_map(replaced_deps, lambda ft: (ft[1],ft[0]))
-        add_replaces = { t: one(*fs) for t, fs in revs.items() if len(fs)==1 }
+        used_by_one = { t: one(*fs) for t, fs in revs.items() if len(fs)==1 }
+        add_replaces = { t: f for t, f in used_by_one.items() if f not in used_by_one }
         return reduce_deps({**replaces, **add_replaces}, more - 1)
-    replace, replaced_deps = reduce_deps({},1)
+    replace, replaced_deps = reduce_deps({},3)
     #print(replaced_deps)
     rels = group_map(replaced_deps, lambda ft: ft)
     groups = group_map(modules, lambda m: (replace(m),m))
