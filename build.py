@@ -34,10 +34,7 @@ def wrap_non_empty(before,value,after):
     return before + value + after if value else value
 
 def get_list(c, a, k):
-    d = get_dict(c, a)
-    return d[k] if k in d else []
-
-def get_dict(c, a): return c[a] if a in c else {}
+    return c.get(a, {}).get(k, [])
 
 def get_src_dirs(conf,mods):
     return [
@@ -97,6 +94,8 @@ def parse_main(main):
         "name": parts[0],
     }
 
+def to_id(m): return "mod_" + m.replace(".","_")
+
 def get_pkg_from_mod(mod): return ".".join(mod.split(".")[1:])
 
 def main(build_path_str):
@@ -110,42 +109,34 @@ def main(build_path_str):
     full_dep = lazy_dict(lambda mod,get: sorted({
         mod, *(d for dep in get_list(conf,"C4DEP",mod) for d in get(dep))
     }))
-    fine_mod_stage = lazy_dict(lambda mod,get: max((0,*(get(dep)+1 for dep in get_list(conf,"C4DEP",mod)))))
-    def mod_stage(mod): return fine_mod_stage(mod) // 4
+    full_dep_edges = lazy_dict(lambda mod,get: {
+        rel for to in get_list(conf,"C4DEP",mod) for rel in ((mod,to), *get(to))
+    })
     mod_heads = sorted({
         *(parse_main(main)["mod"] for main in flat_values(conf["C4TAG"])),
         *flat_values(conf["C4GENERATOR_MAIN"])
     })
+    debug = """println("AvailableProcessors",java.lang.Runtime.getRuntime.availableProcessors);"""
     sbt_common_text = "".join((
         """ThisBuild / scalaVersion := "2.13.8"\n\n""", #"coursierMaxIterations := 200\n\n" +
         """val c4build = taskKey[Unit]("c4 build")\n\n""",
-        """c4build := IO.write(baseDirectory.value/"target/c4classpath",(main / Compile / fullClasspath).value.map(_.data).mkString(":"))\n\n"""
+        f"""c4build := {{{debug}IO.write(baseDirectory.value/"target/c4classpath",(main / Compile / fullClasspath).value.map(_.data).mkString(":"))}}\n\n"""
     ))
     def excl(k): return get_list(conf,"C4EXT_EXCL",k)
     def get_repo(k): return get_list(conf,"C4REPO",k)
 
     for mod in mod_heads:
-        max_stage_num = mod_stage(mod)
         modules = full_dep(mod)
+        if len(modules) != len({ to_id(m) for m in modules }):
+            raise Exception("bad mod names")
         sbt_text = sbt_common_text + "".join(
             to_sbt_mod(
-                "main" if stage_num==max_stage_num else f"s{stage_num}",
-                "project",
-                "" if stage_num==0 else f"s{stage_num-1}",
-                [leave_tmp(dir) for dir in get_src_dirs(conf,mods)],
-                sorted({
-                    dep
-                    for mod in mods for dep in get_list(conf,"C4EXT",mod)
-                }),
-                sorted({
-                    leave_tmp(dep)
-                    for mod in mods for dep in get_list(conf,"C4LIB",mod)
-                }),
-                excl, get_repo,
-                flat_values(get_dict(conf,"C4WART")),
+                group_id, "project", ",".join(group_deps), [leave_tmp(dir) for dir in get_src_dirs(conf,group_mods)],
+                sorted({ dep for m in group_mods for dep in get_list(conf,"C4EXT",m) }),
+                sorted({ leave_tmp(dep) for m in group_mods for dep in get_list(conf,"C4LIB",mod) }),
+                excl, get_repo, flat_values(conf.get("C4WART",{})),
             )
-            for stage_num in range(max_stage_num+1)
-            for mods in [[m for m in modules if mod_stage(m)==stage_num]]
+            for group_id, group_mods, group_deps in get_mod_groups_1(mod, full_dep_edges(mod), modules)
         )
         proj_part = f"{tmp_part}/mod.{mod}.d"
         build_sbt = f"{proj_part}/build.sbt"
@@ -186,6 +177,77 @@ def main(build_path_str):
     }
     write_changed(build_path / f"{tmp_part}/build.json", json.dumps(out_conf, sort_keys=True, indent=4))
 
+def get_mod_groups_1(mod, deps, modules):
+    def reduce_deps(replaces, more):
+        replace = lambda k: replace(replaces[k]) if k in replaces else k
+        replaced_deps = { (f,t) for f, t in ((replace(f),replace(t)) for f, t in deps) if f != t }
+        if more <= 0:
+            return (replace, replaced_deps)
+        revs = group_map(replaced_deps, lambda ft: (ft[1],ft[0]))
+        single_from_set = { one(*fs) for t, fs in revs.items() if len(fs)==1 }
+        add_replaces = { t: one(*fs) for t, fs in revs.items() if len(fs)==1 and t not in single_from_set }
+        return reduce_deps({**replaces, **add_replaces}, more - 1)
+    replace, replaced_deps = reduce_deps({},2)
+    #print(replaced_deps)
+    rels = group_map(replaced_deps, lambda ft: ft)
+    groups = group_map(modules, lambda m: (replace(m),m))
+    return (*((
+        "main" if group_id == mod else to_id(group_id),
+        sorted(groups[group_id]),
+        sorted(to_id(d) for d in rels.get(group_id, []))
+    ) for group_id in sorted(groups.keys())),)
+
+
 main(*sys.argv[1:])
 
 #ThisBuild / exportJars := true
+
+### mod 1-to-1:
+# def get_mod_groups_0(mod, deps, modules):
+#     rels = group_map(deps, lambda ft: ft)
+#     return *((
+#         "main" if m == mod else to_id(m),
+#         (m,),
+#         sorted(to_id(d) for d in rels.get(m, []))
+#     ) for m in modules),
+#
+
+### mod stage-groups:
+#fine_mod_stage = lazy_dict(lambda mod,get: max((0,*(get(dep)+1 for dep in get_list(conf,"C4DEP",mod)))))
+#def mod_stage(mod): return fine_mod_stage(mod) // 4
+#max_stage_num = mod_stage(mod)
+# sbt_text = sbt_common_text + "".join(
+#     to_sbt_mod(
+#         "main" if stage_num==max_stage_num else f"s{stage_num}",
+#         "project",
+#         "" if stage_num==0 else f"s{stage_num-1}",
+#         [leave_tmp(dir) for dir in get_src_dirs(conf,mods)],
+#         sorted({
+#             dep
+#             for mod in mods for dep in get_list(conf,"C4EXT",mod)
+#         }),
+#         sorted({
+#             leave_tmp(dep)
+#             for mod in mods for dep in get_list(conf,"C4LIB",mod)
+#         }),
+#         excl, get_repo,
+#         flat_values(get_dict(conf,"C4WART")),
+#     )
+#     for stage_num in range(max_stage_num+1)
+#     for mods in [[m for m in modules if mod_stage(m)==stage_num]]
+# )
+
+### mod one-to-one:
+# sbt_text = sbt_common_text + "".join(
+#     to_sbt_mod(
+#         "main" if m == mod else to_id(m),
+#         "project",
+#         ",".join(to_id(dep) for dep in get_list(conf,"C4DEP",m)),
+#         [leave_tmp(dir) for dir in get_src_dirs(conf,(m,))],
+#         get_list(conf,"C4EXT",m),
+#         ? get_list(conf,"C4LIB",m),
+#         excl, get_repo,
+#         flat_values(get_dict(conf,"C4WART")),
+#     )
+#     for m in modules
+# )
