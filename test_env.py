@@ -29,8 +29,9 @@ def get_test_env_image(repository, push_secret_from_k8s):
                 "FROM ubuntu:22.04",
                 "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
                 "RUN perl install.pl useradd 1979",
-                "RUN perl install.pl apt rsync openjdk-17-jdk-headless maven",
-                "#0",
+                "RUN perl install.pl apt curl ca-certificates rsync openjdk-17-jdk-headless maven",
+                "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini"+
+                " && chmod +x /tools/tini",
                 "USER c4",
             ))
             changing_text(f"{temp_root}/Dockerfile", content, None)
@@ -39,7 +40,7 @@ def get_test_env_image(repository, push_secret_from_k8s):
 def handle_sync(opt):
     name = get_pod_name(opt.user_config, opt.env_id)
     need_pod(name, lambda: {
-        "command": ["sleep", "infinity"],
+        "command": ["/tools/tini", "--", "sleep", "infinity"],
         "imagePullSecrets": [{ "name": opt.pull_secret_name }],
         "image": get_test_env_image(opt.repository, opt.push_secret_from_k8s)
     })
