@@ -6,11 +6,19 @@ import uuid
 import shutil
 import argparse
 import contextlib
+import time
 from c4util import group_map, path_exists, read_json, sha256
 
 def run(args, **opt):
-    print("running: "+" ".join(args))
-    return subprocess.run(args, check=True, **opt)
+    print("running: " + " ".join(args))
+    started = time.monotonic()
+    res = subprocess.run(args, check=True, **opt)
+    print(f"{time.monotonic() - started}s for {args[0]}")
+    return res
+
+# def run(args, **opt):
+#     print("running: "+" ".join(args))
+#     return subprocess.run(args, check=True, **opt)
 
 def run_no_die(args, **opt):
     print("running: "+" ".join(args))
@@ -110,3 +118,31 @@ def setup_parser(commands):
         parser.set_defaults(op=op)
     return main_parser
 
+def git_head(cwd):
+    return run(
+        ("git", "rev-parse", "HEAD"),
+        cwd=cwd, text=True, capture_output=True
+    ).stdout.strip()
+
+def git_status(cwd):
+    return [
+        fn
+        for line in run(
+            ("git", "status", "--porcelain=v1", "--no-renames"),
+            cwd=cwd, text=True, capture_output=True
+        ).stdout.splitlines()
+        for st, fn in [line.split()]
+    ]
+
+def git_sync(from_dir, to_dir):
+    rsync_pre = ("rsync", "-acr", "--del")
+    from_to = (f"{from_dir}/", to_dir)
+    if git_head(from_dir) == git_head(to_dir):
+        files = "\n".join(sorted({*git_status(from_dir), *git_status(to_dir)}))
+        #print(files)
+        run(
+            (*rsync_pre, "--delete-missing-args", "-v", "--files-from", "-", *from_to),
+            text=True, input=files
+        )
+    else:
+        run((*rsync_pre, *from_to))

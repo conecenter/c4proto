@@ -4,7 +4,9 @@ import tempfile
 import base64
 import pathlib
 from c4util import read_json, changing_text
-from build_util import run, kcd_args, kcd_run, need_pod, build_cached_by_content, setup_parser
+from build_util import run, kcd_args, kcd_run, need_pod, \
+    build_cached_by_content, setup_parser, git_sync
+
 
 ###
 
@@ -38,15 +40,15 @@ def get_test_env_image(repository, push_secret_from_k8s):
             return build_cached_by_content(temp_root, repository, push_secret)
 
 def handle_sync(opt):
+    git_sync(opt.from_dir, opt.to_dir)
     name = get_pod_name(opt.user_config, opt.env_id)
     need_pod(name, lambda: {
         "command": ["/tools/tini", "--", "sleep", "infinity"],
         "imagePullSecrets": [{ "name": opt.pull_secret_name }],
         "image": get_test_env_image(opt.repository, opt.push_secret_from_k8s)
     })
-    files = ("src",)
     #run(("c4dsync","-acr","--del","--files-from","-",f"{opt.from_dir}/",f"{name}:{opt.to_dir}"), text=True, input="\n".join(files))
-    run(("c4dsync","-acr","--del","--exclude",".git/",f"{opt.from_dir}/",f"{name}:{opt.to_dir}"))
+    run(("c4dsync","-acr","--del","--exclude",".git/",f"{opt.to_dir}/",f"{name}:{opt.to_dir}"))
 
 def handle_rm(opt):
     name = get_pod_name(opt.user_config, opt.env_id)
