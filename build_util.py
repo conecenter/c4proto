@@ -7,6 +7,7 @@ import shutil
 import argparse
 import contextlib
 import time
+import pathlib
 from c4util import group_map, path_exists, read_json, sha256
 
 def run(args, **opt):
@@ -37,6 +38,10 @@ def run_pipe_no_die(from_args, to_args):
     from_proc = Popen(from_args, stdout=subprocess.PIPE)
     to_proc = Popen(to_args, stdin=from_proc.stdout)
     return wait_processes((from_proc, to_proc))
+
+def need_dir(dir):
+    pathlib.Path(dir).mkdir(parents=True, exist_ok=True)
+    return dir
 
 def copy_to_non_existed(from_path, to_path):
     if path_exists(to_path): never(f"{to_path} exists")
@@ -117,32 +122,3 @@ def setup_parser(commands):
         for a in args: parser.add_argument(a, required=True)
         parser.set_defaults(op=op)
     return main_parser
-
-def git_head(cwd):
-    return run(
-        ("git", "rev-parse", "HEAD"),
-        cwd=cwd, text=True, capture_output=True
-    ).stdout.strip()
-
-def git_status(cwd):
-    return [
-        fn
-        for line in run(
-            ("git", "status", "--porcelain=v1", "--no-renames"),
-            cwd=cwd, text=True, capture_output=True
-        ).stdout.splitlines()
-        for st, fn in [line.split()]
-    ]
-
-def git_sync(from_dir, to_dir):
-    rsync_pre = ("rsync", "-acr", "--del")
-    from_to = (f"{from_dir}/", to_dir)
-    if git_head(from_dir) == git_head(to_dir):
-        files = "\n".join(sorted({*git_status(from_dir), *git_status(to_dir)}))
-        #print(files)
-        run(
-            (*rsync_pre, "--delete-missing-args", "-v", "--files-from", "-", *from_to),
-            text=True, input=files
-        )
-    else:
-        run((*rsync_pre, *from_to))

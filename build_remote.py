@@ -6,8 +6,9 @@ import uuid
 import tempfile
 import pathlib
 import argparse
-from c4util import path_exists, read_text, changing_text, read_json, one
-from build_util import never, run, run_no_die, run_pipe_no_die, Popen, wait_processes, kcd_args, kcd_run, need_pod, temp_dev_pod, build_cached_by_content, setup_parser
+from c4util import path_exists, read_text, changing_text, read_json, one, \
+    changing_text_observe
+from build_util import never, run, run_no_die, run_pipe_no_die, Popen, wait_processes, need_dir, kcd_args, kcd_run, need_pod, temp_dev_pod, build_cached_by_content, setup_parser
 
 def get_proto_dir():
     return os.environ["C4CI_PROTO_DIR"]
@@ -46,7 +47,7 @@ def compile(opt):
     pod = get_cb_name(f"u{opt.user}")
     cp_path = f"{mod_dir}/target/c4classpath"
     need_pod(pod, lambda: { "image": opt.image, **opt_compiler() })
-    def init():
+    for save in changing_text_observe(f"{opt.context}/target/c4/compile_cache_ver", cache_path):
         if not run_no_die(kcd_args("exec",pod,"--","test","-e",mod_dir)):
             print("cache does not exist")
         elif not run_no_die(kcd_args("exec",pod,"--","rm","-r",mod_dir)):
@@ -59,7 +60,7 @@ def compile(opt):
             print("cache get failed")
             return
         print("cache get ok")
-    changing_text(f"{opt.context}/target/c4/compile_cache_ver", cache_path, init)
+        save()
     full_sync_paths = (f"{opt.context}/{part}" for part in json.loads(read_text(f"{mod_dir}/c4sync_paths.json")))
     rsync(None, pod, [path for path in full_sync_paths if path_exists(path)])
     kcd_run("exec",pod,"--",*sbt_args(mod_dir,opt.java_options))
@@ -91,13 +92,9 @@ def crane_append(dir, base_image, target_image):
     #("tar","-cf-","--exclude",".git",f"--transform",f"s,^,{to_dir}/,","--owner","c4","--group","c4","-C",from_dir,"."), # skips parent dirs, so bad grants on unpack
     run_pipe_no_die(("tar","-cf-","-C",dir,"."), ("crane","append","-f-","-b",base_image,"-t",target_image)) or never("crane append")
 
-def need_dir(dir):
-    pathlib.Path(dir).mkdir(parents=True, exist_ok=True)
-    return dir
-
 def build_image(opt):
     image = build_cached_by_content(opt.context, opt.repository, opt.push_secret)
-    changing_text(opt.name_out, image, None)
+    changing_text(opt.name_out, image)
 
 def build_common(opt):
     proto_dir = get_proto_dir()
@@ -108,14 +105,14 @@ def build_common(opt):
         proto_postfix = get_proto_postfix(opt.context)
         d_from_file = read_text(f"{proto_dir}/build.def.dockerfile")
         base_content = f"{d_from_file}\nENV C4CI_BUILD_DIR={build_dir}\nENV C4CI_PROTO_DIR={build_dir}/{proto_postfix}\n"
-        changing_text(f"{temp_root}/Dockerfile", base_content, None)
+        changing_text(f"{temp_root}/Dockerfile", base_content)
         base_image = build_cached_by_content(temp_root, get_repo(opt.image), opt.push_secret)
     with tempfile.TemporaryDirectory() as temp_root:
         run(("perl",f"{proto_dir}/sync_setup.pl"), env={**os.environ,"HOME":temp_root})
         run(("rsync","-a","--exclude",".git",f"{opt.context}/", need_dir(f"{temp_root}{build_dir}"))) #shutil.copytree seems to be slower
         crane_append(temp_root, base_image, opt.image)
     with tempfile.TemporaryDirectory() as temp_root:
-        changing_text(need_dir(f"{temp_root}/c4")+"/c4serve.pl", 'exec "perl","$ENV{C4CI_PROTO_DIR}/sandbox.pl","main";die', None)
+        changing_text(need_dir(f"{temp_root}/c4")+"/c4serve.pl", 'exec "perl","$ENV{C4CI_PROTO_DIR}/sandbox.pl","main";die')
         'exec "bash", @ARGV; die'
         crane_append(temp_root, opt.image, f"{opt.image}.de")
 
