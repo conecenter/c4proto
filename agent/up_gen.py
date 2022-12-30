@@ -62,7 +62,7 @@ def gen_sync(context, repo_name):
     write_text(f"{context}/sync.bat", "\n".join((
         f"docker exec -e C4REPO_MAIN_CONF=/c4repo/{repo_name}/{replink} c4agent_kc /replink.pl",
         *git_lines,
-        "docker exec c4agent_kc c4p sync local" +
+        "docker exec c4agent_kc c4py sync local" +
         f" --from-dir /c4repo/{repo_name} --to-dir /c4/{repo_name}" +
         f" --rels {':'.join(rels)}" +
         " && docker exec c4agent_kc c4sync_remote"
