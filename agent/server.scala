@@ -53,6 +53,7 @@ trait TokenVerifyApp {
 }
 
 trait SunServerApp {
+  def serveIP: String
   def handleGet(path: String): (Int, String, String)
   def handleForm(form: Map[String, String]): Unit
 
@@ -97,7 +98,7 @@ trait SunServerApp {
   }
 
   def startServer(): Unit = {
-    val server = HttpServer.create(new InetSocketAddress(1979), 2)
+    val server = HttpServer.create(new InetSocketAddress(serveIP, 1979), 2)
     server.createContext("/", Handler)
     server.setExecutor(null)
     server.start()
@@ -106,6 +107,7 @@ trait SunServerApp {
 
 object Main extends SunServerApp with TokenVerifyApp with WebApp with BackgroundApp {
   def protoDir = os.Path(Option(System.getenv("C4CI_PROTO_DIR")).get)
+  def serveIP: String = Option(System.getenv("C4AGENT_IP")).get
 
   def main(args: Array[String]): Unit = {
     startServer()
@@ -177,6 +179,7 @@ object ForwardToPod {
 
 trait BackgroundApp {
   def protoDir: os.Path
+  def serveIP: String
 
   private def checkVer() = {
     val path = protoDir / "agent" / "server.scala"
@@ -189,7 +192,7 @@ trait BackgroundApp {
 
   private def forward = new NonRunningProcess(()=>
     for(st <- PublicState.load(); pod <- ForwardToPod.get())
-      yield Cmd(s"${st.authTime}", Seq("kcd","port-forward","--address","0.0.0.0",pod,"4005"))
+      yield Cmd(s"${st.authTime}", Seq("kcd","port-forward","--address",serveIP,pod,"4005"))
   )
 
   def initialPeriodicSeq: Seq[Periodic] = Seq(checkVer(), /*setup,*/ forward)
@@ -241,22 +244,22 @@ object PodLister extends Runnable {
     pods
   }
 
-  @tailrec private def readLine(stream: DataInput, prefix: String, pods: Set[String]): Unit = {
+  @tailrec private def readLine(stream: DataInput, prefix: Seq[String], pods: Set[String]): Unit = {
     val willPods = Option(stream.readLine()).get.split(" +").toList match {
-      case "ADDED" :: pod :: _ if pod.startsWith(prefix) => save(pods + pod)
-      case "DELETED" :: pod :: _ if pod.startsWith(prefix) => save(pods - pod)
+      case "ADDED" :: pod :: _ if prefix.exists(pod.startsWith(_)) => save(pods + pod)
+      case "DELETED" :: pod :: _ if prefix.exists(pod.startsWith(_)) => save(pods - pod)
       case _ => pods
     }
     readLine(stream, prefix, willPods)
   }
 
-  @tailrec private def getPrefix(): String = {
+  @tailrec private def getPrefix(): Seq[String] = {
     val devName = PublicState.load().fold("")(_.devName)
     if(devName.isEmpty){
       println("pod lister waits for auth")
       Thread.sleep(1000)
       getPrefix()
-    } else s"de-${devName}-"
+    } else Seq(s"de-${devName}-",s"te-${devName}-")
   }
 
   def run(): Unit = {

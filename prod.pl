@@ -507,14 +507,17 @@ my $build_remote = sub{
 
 my $remote_build = sub{
     my($comp,$dir)=@_;
-    my $type = &$get_compose($comp)->{type} || die;
     my ($repo,$secret) = &$get_repo($comp);
-    my $tag = "$repo:$type.$sys_image_ver";
+    &$put_text("$dir/c4image_ver", $sys_image_ver);
     my $kubectl = &$get_kubectl($comp);
     my $auth_dir = &$get_tmp_dir();
     &$secret_to_dir($kubectl,$secret,$auth_dir);
-    &$build_remote("build_image", "--context", $dir, "--image", $tag, "--push-secret", "$auth_dir/.dockerconfigjson");
-    $tag;
+    my $out = &$get_tmp_dir()."/name";
+    &$build_remote("build_image",
+        "--context", $dir, "--repository", $repo,
+        "--push-secret", "$auth_dir/.dockerconfigjson", "--name-out", $out,
+    );
+    &$get_text($out)
 };
 
 my $all_consumer_options = sub{(
