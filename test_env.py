@@ -2,12 +2,21 @@ import json
 import tempfile
 import base64
 import pathlib
-from c4util import read_json, changing_text
-from build_util import run, kcd_args, kcd_run, need_pod, \
-    build_cached_by_content, setup_parser
+import typing
+from .c4util import read_json, changing_text
+from .build_util import run, kcd_args, kcd_run, need_pod, \
+    build_cached_by_content
 
 
-def get_pod_name(user_config, i):
+class SyncOptions(typing.NamedTuple):
+    context: str
+    user_config: str
+    repository: str
+    pull_secret_name: str
+    push_secret_from_k8s: str
+
+
+def get_pod_name(user_config: str, i: int):
     user = read_json(user_config)["devName"]
     return f"te-{user}-v0-i{int(i)}"
 
@@ -39,8 +48,8 @@ def get_test_env_image(repository, push_secret_from_k8s):
             return build_cached_by_content(temp_root, repository, push_secret)
 
 
-def handle_sync(opt):
-    name = get_pod_name(opt.user_config, opt.env_id)
+def sync(opt: SyncOptions, env_id: int):
+    name = get_pod_name(opt.user_config, env_id)
     need_pod(name, lambda: {
         "command": ["/tools/tini", "--", "sleep", "infinity"],
         "imagePullSecrets": [{"name": opt.pull_secret_name}],
@@ -53,20 +62,11 @@ def handle_sync(opt):
     ))
 
 
-def handle_rm(opt):
-    name = get_pod_name(opt.user_config, opt.env_id)
+def delete(opt: SyncOptions, env_id: int):
+    name = get_pod_name(opt.user_config, env_id)
     kcd_run("delete", "pod", name)
 
 
-def main():
-    opt = setup_parser((
-        ("sync", handle_sync, (
-            "--context", "--user-config", "--env-id",
-            "--repository", "--pull-secret-name", "--push-secret-from-k8s",
-        )),
-        ("rm", handle_rm, ("--user-config", "--env-id"))
-    )).parse_args()
-    opt.op(opt)
-
-
-main()
+def run_in_env(opt: SyncOptions, env_id: int, args):
+    name = get_pod_name(opt.user_config, env_id)
+    kcd_run("exec", name, "--", *args)

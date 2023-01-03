@@ -10,14 +10,14 @@ def write_text(path, content):
 
 def never(a): raise Exception(a)
 
-def gen_conf(context,path,comment,uid,home,setup,arch_name,repo_name,network):
+def gen_conf(context,path,comment,line_wrap,uid,home,setup,arch_name,repo_name,network):
     full_context = f"{home}/{repo_name}/{context}"
     write_text(f"{context}/{path}", "\n".join((
         f"{comment}### THIS FILE IS GENERATED ###",
         "docker stop c4agent_kc",
         "docker rm c4agent_kc",
         *setup,
-        " && ".join([
+        f" {line_wrap}\n && ".join([
             f"docker build -t c4agent_kc --build-arg C4UID={uid} -f {full_context}/{path}.dockerfile {full_context}",
             " ".join([
                 "docker run -d -t  --restart unless-stopped --init",
@@ -46,7 +46,7 @@ def gen_conf(context,path,comment,uid,home,setup,arch_name,repo_name,network):
         "ENV PATH=${PATH}:/c4/bin:/tools:/tools/sbt/bin",
     )))
 
-def gen_sync(context, repo_name):
+def gen_sync(context, path, repo_name, comment, line_wrap, run):
     replink = f"c4dep.ci.replink"
     rels = ("", *(
         local
@@ -59,22 +59,32 @@ def gen_sync(context, repo_name):
         f"git -C ./{rel} rev-parse HEAD > target/c4sync-head-{rel}",
         f"git -C ./{rel} status --porcelain=v1 --no-renames > target/c4sync-stat-{rel}",
     )]
-    write_text(f"{context}/sync.bat", "\n".join((
-        f"docker exec -e C4REPO_MAIN_CONF=/c4repo/{repo_name}/{replink} c4agent_kc /replink.pl",
-        *git_lines,
-        "docker exec c4agent_kc c4py sync local" +
-        f" --from-dir /c4repo/{repo_name} --to-dir /c4/{repo_name}" +
-        f" --rels {':'.join(rels)}" +
-        " && docker exec c4agent_kc c4sync_remote"
+    write_text(f"{context}/{path}", "\n".join((
+        f"{comment}### THIS FILE IS GENERATED ###",
+        f" {line_wrap}\n && ".join((
+            f"docker exec -e C4REPO_MAIN_CONF=/c4repo/{repo_name}/{replink} c4agent_kc /replink.pl",
+            *git_lines,
+            "docker exec c4agent_kc c4py sync local" +
+            f" --from-dir /c4repo/{repo_name} --to-dir /c4/{repo_name}" +
+            f" --rels {':'.join(rels)}",
+            *run
+        ))
     )))
 
 def main(repo_name):
     context = "agent"
     ports = "-p 127.0.0.1:1979:1979 -p 127.0.0.1:4005:4005 -e C4AGENT_IP=0.0.0.0"
-    gen_conf(context,"up"    ,"","$(id -u)","$HOME/c4repo",["mkdir -p $HOME/c4repo"],"amd64",repo_name,"--network host -e C4AGENT_IP=127.0.0.1")
-    gen_conf(context,"up-arm","","$(id -u)","$HOME/c4repo",["mkdir -p $HOME/c4repo"],"arm64",repo_name,ports)
-    gen_conf(context,"up.bat","REM ","1000","%c4repo-path%",["set c4repo-path=c:/c4repo","REM change c4repo-path to your own"],"amd64",repo_name,ports)
-    gen_sync(context, repo_name)
+    gen_conf(context,"up"    ,"### ","\\","$(id -u)","$HOME/c4repo",["mkdir -p $HOME/c4repo"],"amd64",repo_name,"--network host -e C4AGENT_IP=127.0.0.1")
+    gen_conf(context,"up-arm","### ","\\","$(id -u)","$HOME/c4repo",["mkdir -p $HOME/c4repo"],"arm64",repo_name,ports)
+    gen_conf(context,"up.bat","REM ","^","1000","%c4repo-path%",["set c4repo-path=c:/c4repo","REM change c4repo-path to your own"],"amd64",repo_name,ports)
+    gen_sync(context,"sync.bat",repo_name,"REM ","^",[f"docker exec c4agent_kc c4run %*"])
+    #gen_sync(context,"sync_test.sh",repo_name,"#!/bin/sh\n","\\",[])
+    write_text(f"{context}/run", "\n".join((
+        "#!/usr/bin/perl",
+        f"""system 'docker','exec','c4agent_kc','perl','-e','"/c4repo/{repo_name}" eq readlink "/c4/{repo_name}" or symlink "/c4repo/{repo_name}", "/c4/{repo_name}" or die' and die;""",
+        "exec 'docker','exec','c4agent_kc','c4run',@ARGV;",
+        "die"
+    )))
 
 script, *args = sys.argv
 main(*args)
