@@ -3,12 +3,12 @@ import tempfile
 import base64
 import pathlib
 import typing
-from .c4util import read_json, changing_text
-from .c4util.build import run, kcd_args, kcd_run, need_pod, build_cached_by_content
+from .c4util import read_json, changing_text, read_text
+from .c4util.build import run, kcd_args, kcd_run, need_pod, \
+    build_cached_by_content
 
 
-class SyncOptions(typing.NamedTuple):
-    context: str
+class Options(typing.NamedTuple):
     user_config: str
     repository: str
     pull_secret_name: str
@@ -47,25 +47,30 @@ def get_test_env_image(repository, push_secret_from_k8s):
             return build_cached_by_content(temp_root, repository, push_secret)
 
 
-def sync(opt: SyncOptions, env_id: int):
+def need_env(opt: Options, env_id: int):
     name = get_pod_name(opt.user_config, env_id)
     need_pod(name, lambda: {
         "command": ["/tools/tini", "--", "sleep", "infinity"],
         "imagePullSecrets": [{"name": opt.pull_secret_name}],
         "image": get_test_env_image(opt.repository, opt.push_secret_from_k8s)
     })
-    # run(("c4dsync","-acr","--del","--files-from","-",f"{opt.from_dir}/",f"{name}:{opt.to_dir}"), text=True, input="\n".join(files))
+    return name
+
+
+def sync(context: str, pod_name: str):
     run((
         "c4dsync", "-acr", "--del", "--exclude", ".git/",
-        f"{opt.context}/", f"{name}:{opt.context}"
+        f"{context}/", f"{pod_name}:{context}"
     ))
 
 
-def delete(opt: SyncOptions, env_id: int):
-    name = get_pod_name(opt.user_config, env_id)
-    kcd_run("delete", "pod", name)
+def get_selected():
+    return read_text("/tmp/c4pod")
 
 
-def run_in_env(opt: SyncOptions, env_id: int, args):
-    name = get_pod_name(opt.user_config, env_id)
-    kcd_run("exec", name, "--", *args)
+def delete(pod_name: str):
+    kcd_run("delete", "pod", pod_name)
+
+
+def run_in_env(pod_name: str, args):
+    kcd_run("exec", pod_name, "--", *args)
