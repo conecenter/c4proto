@@ -8,7 +8,7 @@ import argparse
 import contextlib
 import time
 import pathlib
-from .c4util import group_map, path_exists, read_json, sha256
+from . import group_map, path_exists, read_json, sha256
 
 def run(args, **opt):
     print("running: " + " ".join(args))

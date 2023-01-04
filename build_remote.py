@@ -8,7 +8,7 @@ import pathlib
 import argparse
 from c4util import path_exists, read_text, changing_text, read_json, one, \
     changing_text_observe
-from build_util import never, run, run_no_die, run_pipe_no_die, Popen, wait_processes, need_dir, kcd_args, kcd_run, need_pod, temp_dev_pod, build_cached_by_content, setup_parser
+from c4util.build import never, run, run_no_die, run_pipe_no_die, Popen, wait_processes, need_dir, kcd_args, kcd_run, need_pod, temp_dev_pod, build_cached_by_content, setup_parser
 
 def get_proto_dir():
     return os.environ["C4CI_PROTO_DIR"]

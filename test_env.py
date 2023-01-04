@@ -4,8 +4,7 @@ import base64
 import pathlib
 import typing
 from .c4util import read_json, changing_text
-from .build_util import run, kcd_args, kcd_run, need_pod, \
-    build_cached_by_content
+from .c4util.build import run, kcd_args, kcd_run, need_pod, build_cached_by_content
 
 
 class SyncOptions(typing.NamedTuple):
