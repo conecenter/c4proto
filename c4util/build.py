@@ -8,6 +8,7 @@ import argparse
 import contextlib
 import time
 import pathlib
+import base64
 from . import group_map, path_exists, read_json, sha256
 
 def run(args, **opt):
@@ -122,3 +123,15 @@ def setup_parser(commands):
         for a in args: parser.add_argument(a, required=True)
         parser.set_defaults(op=op)
     return main_parser
+
+def secret_to_dir(name, dir):
+    dir_path = pathlib.Path(dir)
+    args = kcd_args("get", "secret", name, "-o", "json")
+    secret = json.loads(run(args, text=True, capture_output=True).stdout)
+    for key, value in secret["data"].items():
+        (dir_path / key).write_bytes(base64.b64decode(value))
+
+def secret_to_dir_path(k8s_path, auth_dir):
+    push_secret_name, secret_fn = k8s_path.split("/")
+    secret_to_dir(push_secret_name, auth_dir)
+    return f"{auth_dir}/{secret_fn}"

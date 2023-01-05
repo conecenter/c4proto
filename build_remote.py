@@ -8,7 +8,10 @@ import pathlib
 import argparse
 from c4util import path_exists, read_text, changing_text, read_json, one, \
     changing_text_observe
-from c4util.build import never, run, run_no_die, run_pipe_no_die, Popen, wait_processes, need_dir, kcd_args, kcd_run, need_pod, temp_dev_pod, build_cached_by_content, setup_parser
+from c4util.build import never, run, run_no_die, run_pipe_no_die, Popen, \
+    wait_processes, need_dir, kcd_args, kcd_run, need_pod, temp_dev_pod, \
+    build_cached_by_content, setup_parser, secret_to_dir_path
+
 
 def get_proto_dir():
     return os.environ["C4CI_PROTO_DIR"]
@@ -93,8 +96,10 @@ def crane_append(dir, base_image, target_image):
     run_pipe_no_die(("tar","-cf-","-C",dir,"."), ("crane","append","-f-","-b",base_image,"-t",target_image)) or never("crane append")
 
 def build_image(opt):
-    image = build_cached_by_content(opt.context, opt.repository, opt.push_secret)
-    changing_text(opt.name_out, image)
+    with tempfile.TemporaryDirectory() as auth_dir:
+        push_secret = secret_to_dir_path(opt.push_secret_from_k8s, auth_dir)
+        image = build_cached_by_content(opt.context, opt.repository, push_secret)
+        changing_text(opt.name_out, image)
 
 def build_common(opt):
     proto_dir = get_proto_dir()
@@ -182,7 +187,7 @@ def main():
         ('build_gate'    , build_gate    , ("--context","--image","--push-secret","--java-options")),
         ('build_rt'      , build_rt      , ("--context","--image","--push-secret","--commit","--proj-tag","--java-options","--build-client")),
         ('build_rt_inner', build_rt_inner, ("--context","--image","--push-secret","--commit","--proj-tag","--java-options","--build-client")),
-        ('build_image'   , build_image   , ("--context","--repository","--push-secret","--name-out")),
+        ('build_image'   , build_image   , ("--context","--repository","--push-secret-from-k8s","--name-out")),
         ('compile'       , compile       , ("--context","--image","--user","--commit","--proj-tag","--java-options")),
         ('copy_image'    , copy_image    , ("--from-image","--to-image","--push-secret")),
     )).parse_args()

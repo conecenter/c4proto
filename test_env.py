@@ -1,11 +1,9 @@
-import json
+
 import tempfile
-import base64
-import pathlib
 import typing
 from .c4util import read_json, changing_text, read_text
-from .c4util.build import run, kcd_args, kcd_run, need_pod, \
-    build_cached_by_content
+from .c4util.build import run, kcd_run, need_pod, \
+    build_cached_by_content, secret_to_dir_path
 
 
 class Options(typing.NamedTuple):
@@ -20,19 +18,9 @@ def get_pod_name(user_config: str, i: int):
     return f"te-{user}-v0-i{int(i)}"
 
 
-def secret_to_dir(name, dir):
-    dir_path = pathlib.Path(dir)
-    args = kcd_args("get", "secret", name, "-o", "json")
-    secret = json.loads(run(args, text=True, capture_output=True).stdout)
-    for key, value in secret["data"].items():
-        (dir_path / key).write_bytes(base64.b64decode(value))
-
-
 def get_test_env_image(repository, push_secret_from_k8s):
     with tempfile.TemporaryDirectory() as auth_dir:
-        push_secret_name, secret_fn = push_secret_from_k8s.split("/")
-        push_secret = f"{auth_dir}/{secret_fn}"
-        secret_to_dir(push_secret_name, auth_dir)
+        push_secret = secret_to_dir_path(push_secret_from_k8s, auth_dir)
         with tempfile.TemporaryDirectory() as temp_root:
             content = "\n".join((
                 "FROM ubuntu:22.04",
