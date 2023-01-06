@@ -1,9 +1,9 @@
-
 import tempfile
+import time
 import typing
-from .c4util import read_json, changing_text, read_text
+from .c4util import read_json, changing_text, read_text, path_exists
 from .c4util.build import run, kcd_run, need_pod, \
-    build_cached_by_content, secret_to_dir_path
+    build_cached_by_content, secret_to_dir_path, never, Popen
 
 
 class Options(typing.NamedTuple):
@@ -13,9 +13,9 @@ class Options(typing.NamedTuple):
     push_secret_from_k8s: str
 
 
-def get_pod_name(user_config: str, i: int):
+def get_pod_name_prefix(user_config: str):
     user = read_json(user_config)["devName"]
-    return f"te-{user}-v0-i{int(i)}"
+    return f"te-{user}-v01-i"
 
 
 def get_test_env_image(repository, push_secret_from_k8s):
@@ -26,7 +26,7 @@ def get_test_env_image(repository, push_secret_from_k8s):
                 "FROM ubuntu:22.04",
                 "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
                 "RUN perl install.pl useradd 1979",
-                "RUN perl install.pl apt curl ca-certificates rsync openjdk-17-jdk-headless maven",
+                "RUN perl install.pl apt curl ca-certificates rsync openjdk-17-jdk-headless maven python3",
                 "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
                 " && chmod +x /tools/tini",
                 "USER c4",
@@ -36,7 +36,7 @@ def get_test_env_image(repository, push_secret_from_k8s):
 
 
 def need_env(opt: Options, env_id: int):
-    name = get_pod_name(opt.user_config, env_id)
+    name = get_pod_name_prefix(opt.user_config) + str(int(env_id))
     need_pod(name, lambda: {
         "command": ["/tools/tini", "--", "sleep", "infinity"],
         "imagePullSecrets": [{"name": opt.pull_secret_name}],
@@ -60,5 +60,39 @@ def delete(pod_name: str):
     kcd_run("delete", "pod", pod_name)
 
 
-def run_in_env(pod_name: str, args):
-    kcd_run("exec", pod_name, "--", *args)
+is_digit_set = set("0123456789")
+
+
+def is_digits(value):
+    return all(c in is_digit_set for c in value)
+
+
+def check_env_id(opt: Options, pod_name: str):
+    dummy, prefix, env_id = pod_name.partition(
+        get_pod_name_prefix(opt.user_config)
+    )
+    if dummy or not (prefix and env_id and is_digits(env_id)):
+        never(f"bad env version: {dummy} {prefix} {env_id}")
+
+
+def run_py_in_env(pod_name: str, args):
+    kcd_run("exec", pod_name, "--", "python3", "-u", *args)
+
+
+def find_java_pid():
+    lines = run(("jcmd",), text=True, capture_output=True).stdout.splitlines()
+    return next((int(l.split()[0]) for l in lines if "jcmd" not in l), None)
+
+
+def need_java_task_tail(start_stm, log):
+    pid = find_java_pid()
+    if pid:
+        print(f"{pid} is active")
+    else:
+        run(("bash", "-c", start_stm))
+    tail_proc = Popen(("tail", "-F", "-n", "+0", log))
+    while True:
+        time.sleep(1 if pid else 2)
+        pid = pid if pid and path_exists(f"/proc/{pid}") else find_java_pid()
+        if not pid:
+            break
