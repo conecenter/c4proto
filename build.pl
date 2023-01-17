@@ -126,7 +126,7 @@ my $gen_app_traits = sub{
         my $content = join "\n",
             "package $pkg",
             "object ${id}AutoMixer extends ee.cone.c4di.AutoMixer(",
-            "  $comp_content,",
+            "  () => $comp_content,",
             (map{"  $$_{stm} ::"} @deps),
             "  Nil",
             ")";

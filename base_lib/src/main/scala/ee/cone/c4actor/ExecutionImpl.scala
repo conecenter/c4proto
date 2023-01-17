@@ -168,7 +168,9 @@ abstract class BaseServerMain(app: ExecutableApp){
     Trace { // keep Trace here <-- execution construction may silently fail
       //ExecutionRun(app)
       println("this should be instant (actually not)")
-      app.execution.run()
+      val execution = app.execution
+      println("before run")
+      execution.run()
       //println("main is about to sleep")
       Thread.sleep(Long.MaxValue) //ctx.serving.get()
     }
