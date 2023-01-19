@@ -51,3 +51,5 @@ trait LOBrokerAppBase extends S3ManagerApp
 trait S3RawSnapshotLoaderAppBase
 
 trait ProductCheckerAppBase
+
+trait StartUpSnapshotAppBase
