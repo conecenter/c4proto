@@ -147,7 +147,7 @@ def main(build_path):
         *build_remote(
           "python3",
           f"build_common --build-dir $C4CI_BUILD_DIR --push-secret $C4CI_DOCKER_CONFIG " +
-          f" --context $CI_PROJECT_DIR --image $C4COMMON_IMAGE"
+          f" --context $CI_PROJECT_DIR --image $C4COMMON_IMAGE --commit $CI_COMMIT_SHORT_SHA"
         )
       ],
     },

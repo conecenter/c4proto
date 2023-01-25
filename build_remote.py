@@ -103,6 +103,9 @@ def build_image(opt):
 def perl_exec(line):
     return "\n".join(('#!/usr/bin/perl','use strict;',line,'die;'))
 
+def perl_env(k,v):
+    return f'$ENV{{{k}}} ||= {json.dumps(v)};'
+
 def build_common(opt):
     proto_dir = get_proto_dir()
     pathlib.Path(f"{opt.context}/target").mkdir()
@@ -127,7 +130,9 @@ def build_common(opt):
         tmp_c4ci = f"{tmp_bin}/c4ci"
         changing_text(f"{tmp_home}/c4serve.pl", 'exec "sleep","infinity";die')
         changing_text(tmp_c4ci, perl_exec("\n".join((
-            *(f'$ENV{{{nm}}} ||= {json.dumps(os.environ[nm])};' for nm in ("C4COMMON_IMAGE","C4COMMIT","C4DEPLOY_CONTEXT")),
+            perl_env("C4COMMON_IMAGE",opt.image),
+            perl_env("C4COMMIT",opt.commit),
+            perl_env("C4DEPLOY_CONTEXT",os.environ['C4DEPLOY_CONTEXT']),
             'exec "python3","-u","$ENV{C4CI_PROTO_DIR}/ci.py",@ARGV;'
         ))))
         run(("chmod","+x",tmp_c4ci))
@@ -192,7 +197,7 @@ def copy_image(opt):
 
 def main():
     opt = setup_parser((
-        ('build_common'  , build_common  , ("--context","--image","--push-secret","--build-dir")),
+        ('build_common'  , build_common  , ("--context","--image","--push-secret","--commit","--build-dir")),
         ('build_gate'    , build_gate    , ("--context","--image","--push-secret","--java-options")),
         ('build_rt'      , build_rt      , ("--context","--image","--push-secret","--commit","--proj-tag","--java-options","--build-client")),
         ('build_rt_inner', build_rt_inner, ("--context","--image","--push-secret","--commit","--proj-tag","--java-options","--build-client")),
