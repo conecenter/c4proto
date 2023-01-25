@@ -3,7 +3,7 @@ import time
 import typing
 from .c4util import read_json, changing_text, read_text, path_exists
 from .c4util.build import run, kcd_run, need_pod, \
-    build_cached_by_content, secret_to_dir_path, never, Popen
+    build_cached_by_content, secret_part_to_text, never, Popen
 
 
 class Options(typing.NamedTuple):
@@ -19,20 +19,19 @@ def get_pod_name_prefix(user_config: str):
 
 
 def get_test_env_image(repository, push_secret_from_k8s):
-    with tempfile.TemporaryDirectory() as auth_dir:
-        push_secret = secret_to_dir_path(push_secret_from_k8s, auth_dir)
-        with tempfile.TemporaryDirectory() as temp_root:
-            content = "\n".join((
-                "FROM ubuntu:22.04",
-                "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
-                "RUN perl install.pl useradd 1979",
-                "RUN perl install.pl apt curl ca-certificates rsync openjdk-17-jdk-headless maven python3",
-                "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
-                " && chmod +x /tools/tini",
-                "USER c4",
-            ))
-            changing_text(f"{temp_root}/Dockerfile", content)
-            return build_cached_by_content(temp_root, repository, push_secret)
+    push_secret = secret_part_to_text(push_secret_from_k8s)
+    with tempfile.TemporaryDirectory() as temp_root:
+        content = "\n".join((
+            "FROM ubuntu:22.04",
+            "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
+            "RUN perl install.pl useradd 1979",
+            "RUN perl install.pl apt curl ca-certificates rsync openjdk-17-jdk-headless maven python3",
+            "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
+            " && chmod +x /tools/tini",
+            "USER c4",
+        ))
+        changing_text(f"{temp_root}/Dockerfile", content)
+        return build_cached_by_content(temp_root, repository, push_secret)
 
 
 def need_env(opt: Options, env_id: int):
