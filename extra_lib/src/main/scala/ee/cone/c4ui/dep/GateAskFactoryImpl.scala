@@ -8,7 +8,7 @@ import ee.cone.c4actor.time.{CurrentTime, T_Time, TimeGetters}
 import ee.cone.c4di.{c4, provide}
 import ee.cone.c4gate.SessionDataProtocol.{N_RawDataNode, U_RawSessionData}
 import ee.cone.c4gate.deep_session.DeepSessionDataProtocol.{U_RawRoleData, U_RawUserData}
-import ee.cone.c4gate.deep_session.{DeepRawSessionData, DeepSessionAttrAccessFactoryUtils, TxDeepRawDataLensFactory, UserLevelAttr}
+import ee.cone.c4gate.deep_session.{CurrentUserIdKey, DeepRawSessionData, DeepSessionAttrAccessFactoryUtils, RoleLevelAttr, TxDeepRawDataLensFactory, UserLevelAttr}
 import ee.cone.c4gate.{KeyGenerator, SessionAttr}
 import ee.cone.c4proto._
 import okio.ByteString
@@ -178,10 +178,12 @@ import okio.ByteString
       )
 
     import commonRequestFactory._
+    def userIdAsk: Dep[UserId] = if (attr.metaList.contains(RoleLevelAttr)) depFactory.resolvedRequestDep("") else askUserId
+
     for {
       contextId <- askContextId
       rawSession <- rawDataAsk.option(genPK(rawSessionData(contextId), rawDataAdapter))
-      userId <- userIdOpt.map(depFactory.resolvedRequestDep).getOrElse(askUserId)
+      userId <- userIdOpt.map(depFactory.resolvedRequestDep).getOrElse(userIdAsk)
       rawUser <- rawUserDataAsk.option(genPK(rawUserData(userId), rawUserAdapter))
       roleId <- roleIdOpt.map(depFactory.resolvedRequestDep).getOrElse(askRoleId)
       rawRole <- rawRoleDataAsk.option(genPK(rawRoleData(roleId), rawRoleAdapter))

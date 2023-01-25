@@ -15,3 +15,5 @@ case object CurrentUserIdKey extends TransientLens[SrcId]("")
 case object CurrentRoleIdKey extends TransientLens[SrcId]("")
 
 case object UserLevelAttr extends AbstractMetaAttr
+
+case object RoleLevelAttr extends AbstractMetaAttr
