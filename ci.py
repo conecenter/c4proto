@@ -1,6 +1,7 @@
+import json
 import os
 import typing
-from c4util.build import kcd_run, run, setup_parser, need_pod
+from c4util.build import kcd_run, run, setup_parser, need_pod, temp_dev_pod, apply_manifest, kcd_args
 
 
 class Options(typing.NamedTuple):
@@ -22,35 +23,61 @@ def sync_kube_conf(pod_name):
     run(("c4dsync", "-acr", "--files-from", "-", "/", f"{pod_name}:/"), text=True, input=f"{os.environ['HOME']}/.kube")
 
 
+def get_pod_options(image):
+    return {"imagePullSecrets": [{"name": "c4pull"}], "image": f"{image}.ce"}
+
+
+def get_secret_name(env_name):
+    return f"c4envopt-{env_name}"
+
+
+def get_env_image(env_name):
+    secret_name = get_secret_name(env_name)
+    args = kcd_args("get", "secret", secret_name, "-o", "json")
+    secret = json.loads(run(args, text=True, capture_output=True).stdout)
+    return secret["metadata"]["annotations"]["c4image"]
+
+
+def set_env_image(env_name, image):
+    if image:
+        apply_manifest({
+            "apiVersion": "v1", "kind": "Secret", "data": {},
+            "metadata": {"name": get_secret_name(env_name), "annotations": {"c4image": image}}
+        })
+    else:
+        kcd_run("delete", "secret", get_secret_name(env_name))
+
+
 def handle_up(opt):
-    pod_name = f"ce-{opt.app}"
-    need_pod(pod_name, lambda: {"imagePullSecrets": [{"name": "c4pull"}], "image": f"{opt.image}.ce"})
-    sync_kube_conf(pod_name)
-    kcd_run("exec", pod_name, "--", "c4ci", "up_inner", "--app", opt.app)
+    with temp_dev_pod(get_pod_options(opt.image)) as pod_name:
+        sync_kube_conf(pod_name)
+        kcd_run("exec", pod_name, "--", "c4ci", "up_inner", "--env-name", opt.env_name)
+        set_env_image(opt.env_name, opt.iimage)
 
 
 def handle_up_inner(opt):
-    prod(("ci_up", f"{opt.app}-env"))
-    prod(("ci_check", f"{opt.app}-env"))
+    prod(("ci_up", f"{opt.env_name}-env"))
+    prod(("ci_check", f"{opt.env_name}-env"))
 
 
 def handle_down(opt):
-    pod_name = f"ce-{opt.app}"
-    sync_kube_conf(pod_name)
-    kcd_run("exec", pod_name, "--", "c4ci", "down_inner", "--app", opt.app)
-    kcd_run("delete", "pod", pod_name)
+    image = get_env_image(opt.env_name)
+    with temp_dev_pod(get_pod_options(image)) as pod_name:
+        sync_kube_conf(pod_name)
+        kcd_run("exec", pod_name, "--", "c4ci", "down_inner", "--env-name", opt.env_name)
+        set_env_image(opt.env_name, None)
 
 
 def handle_down_inner(opt):
-    prod(("ci_down", f"{opt.app}-env"))
+    prod(("ci_down", f"{opt.env_name}-env"))
 
 
 def main():
     opt = setup_parser((
-        ('up', handle_up, ("--image", "--app")),
-        ('up_inner', handle_up_inner, ("--app",)),
-        ('down', handle_down, ("--app",)),
-        ('down', handle_down_inner, ("--app",)),
+        ('up', handle_up, ("--image", "--env-name")),
+        ('up_inner', handle_up_inner, ("--env-name",)),
+        ('down', handle_down, ("--env-name",)),
+        ('down_inner', handle_down_inner, ("--env-name",)),
     )).parse_args()
     opt.op(opt)
 

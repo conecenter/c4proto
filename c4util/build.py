@@ -76,6 +76,7 @@ def wait_pod(pod,timeout,phases):
                 return phase_lines[line]
     never("pod waiting failed")
 
+# need_pod: image/versions/attrs need to be encoded in name
 def need_pod(name, get_opt):
     if not run_no_die(kcd_args("get","pod",name)): apply_manifest(construct_pod({ **get_opt(), "name": name }))
     wait_pod(name,60,("Running",))
