@@ -108,14 +108,14 @@ def get_deploy_jobs(config_statements):
   }
 
 def get_env_jobs():
-  cond_qa = "$CI_COMMIT_TAG =~ /\\/qa-/"
+  #cond_qa = "$CI_COMMIT_TAG =~ /\\/qa-/"
   def stop(cond,when,needs): return {
     **common_job(cond,when,"stop",needs,[handle("down")]),
     "environment": { "name": "$CI_COMMIT_TAG", "action": "stop" }
   }
   start_name = "start"
-  check_name = "check"
-  testing_name = "testing"
+  #check_name = "check"
+  #testing_name = "testing"
   return {
     start_name: {
       **common_job("$CI_COMMIT_TAG","on_success","start",[],[
@@ -123,10 +123,10 @@ def get_env_jobs():
       ]),
       "environment": { "name": "$CI_COMMIT_TAG", "action": "start", "on_stop": "stop" }
     },
-    check_name: common_job("$CI_COMMIT_TAG","on_success","check",[start_name],[handle("check")]),
-    testing_name: common_job(cond_qa,"on_success","testing",[check_name],[handle("qa_run /c4/qa")]),
+    #check_name: common_job("$CI_COMMIT_TAG","on_success","check",[start_name],[handle("check")]),
+    #testing_name: common_job(cond_qa,"on_success","testing",[check_name],[handle("qa_run /c4/qa")]),
     "stop": stop("$CI_COMMIT_TAG","manual",[start_name]),
-    "auto-stop": stop(cond_qa,"on_success",[testing_name]),
+    #"auto-stop": stop(cond_qa,"on_success",[testing_name]),
   }
 
 def replink(dir,fn):

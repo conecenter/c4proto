@@ -133,7 +133,7 @@ def build_common(opt):
             perl_env("C4COMMON_IMAGE",opt.image),
             perl_env("C4COMMIT",opt.commit),
             perl_env("C4DEPLOY_CONTEXT",os.environ['C4DEPLOY_CONTEXT']),
-            'exec "python3","-u","$ENV{C4CI_PROTO_DIR}/ci.py",@ARGV;'
+            'exec "perl","$ENV{C4CI_PROTO_DIR}/prod.pl",@ARGV;'
         ))))
         run(("chmod","+x",tmp_c4ci))
         crane_append(temp_root, opt.image, f"{opt.image}.ce")

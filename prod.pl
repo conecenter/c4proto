@@ -930,38 +930,21 @@ my $ci_parallel = sub{
 };
 
 push @tasks, ["ci_setup", "", sub{
-    my($env_comp)=@_;
+    my %opt = @_;
+    my $to_gates = sub{ grep{ &$get_compose($_)->{type} eq "gate" } map{ &$ci_get_compositions($_)} @_ };
+    my $from_comp = &$single(&$to_gates(&$mandatory_of("--from"=>\%opt)));
+    my @to_comps = &$to_gates(split ",", &$mandatory_of("--to"=>\%opt));
     my $end = &$ci_measure();
-    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
-    my @comps = &$ci_get_compositions($env_comp);
-    my %branch_conf = map{%{&$decode(&$get_text($_))}} grep{-e} "$local_dir/branch.conf.json";
-    my $snapshot_from_key = $branch_conf{ci_snapshot_from};
-    my @from_to_comps = map{
-        my $from = $snapshot_from_key && &$get_compose($_)->{"snapshot_from:$snapshot_from_key"};
-        $from ? [$from,$_] : ()
-    } @comps;
-    my $to_by_from_comp = &$merge_list({}, map{
-        my($from,$to) = @$_;
-        +{$from=>[$to]}
-    } @from_to_comps);
-    my @to_comps = map{$$_[1]}@from_to_comps;
-    my $tasks = &$merge_list({},&$map($to_by_from_comp,sub{ my($from_comp,$to_comp_list)=@_;
-        my ($ls_stm,$cat) = &$snapshot_get_statements($from_comp);
-        my $fn = &$snapshot_name(&$snapshot_parse_last(syf($ls_stm))) || die "bad or no snapshot name";
-        my ($from_fn,$to_fn) = @$fn;
-        my @put_tasks = map{"$_ || $_ || $_"} map{ my $to_comp = $_;
+    my ($ls_stm,$cat) = &$snapshot_get_statements($from_comp);
+    my $fn = &$snapshot_name(&$snapshot_parse_last(syf($ls_stm))) || die "bad or no snapshot name";
+    my ($from_fn,$to_fn) = @$fn;
+    sy(&$cat($from_fn,$to_fn));
+    &$ci_wait(@to_comps);
+    &$ci_parallel(map{"$_ || $_ || $_"} map{ my $to_comp = $_;
             my $host = &$get_hostname($to_comp) || die;
             my $address = "https://$host";
             join " ", &$snapshot_put(&$need_auth_path($to_comp),$to_fn,$address);
-        } @$to_comp_list;
-        +{
-            get => { $to_fn => [&$cat($from_fn,$to_fn)] },
-            put => \@put_tasks,
-        }
-    }));
-    &$ci_parallel(sort map{$$_[0]} values %{$$tasks{get}||{}});
-    &$ci_wait(@to_comps);
-    &$ci_parallel(@{$$tasks{put}||[]});
+    } @to_comps);
     &$ci_wait(@to_comps);
     &$end("ci_setup");
 }];
@@ -1000,13 +983,6 @@ push @tasks, ["ci_check_images", "", sub {
             sleep 2;
         }
     }
-}];
-
-push @tasks, ["ci_check", "", sub{
-    my($env_comp)=@_;
-    my @comps = &$ci_get_compositions($env_comp);
-    my $kubectl = &$get_kubectl($env_comp);
-    sy("$kubectl rollout status deployments/$_") for @comps;
 }];
 
 ########
