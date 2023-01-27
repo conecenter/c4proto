@@ -938,12 +938,13 @@ push @tasks, ["ci_setup", "", sub{
     my ($ls_stm,$cat) = &$snapshot_get_statements($from_comp);
     my $fn = &$snapshot_name(&$snapshot_parse_last(syf($ls_stm))) || die "bad or no snapshot name";
     my ($from_fn,$to_fn) = @$fn;
-    sy(&$cat($from_fn,$to_fn));
+    my $to_path = &$get_tmp_dir()."/$to_fn";
+    sy(&$cat($from_fn,$to_path));
     &$ci_wait(@to_comps);
     &$ci_parallel(map{"$_ || $_ || $_"} map{ my $to_comp = $_;
             my $host = &$get_hostname($to_comp) || die;
             my $address = "https://$host";
-            join " ", &$snapshot_put(&$need_auth_path($to_comp),$to_fn,$address);
+            join " ", &$snapshot_put(&$need_auth_path($to_comp),$to_path,$address);
     } @to_comps);
     &$ci_wait(@to_comps);
     &$end("ci_setup");

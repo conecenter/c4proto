@@ -1,7 +1,6 @@
 import json
 import os
 
-from c4proto.c4util import one
 from c4util.build import kcd_run, run, setup_parser, temp_dev_pod, kcd_args
 
 
@@ -35,13 +34,13 @@ def handle_down(opt):
 
 def get_env_image(env_name):
     args = kcd_args("get", "deploy", "-l", f"c4env={env_name}", "-o", "json")
-    res = json.loads(run(args, text=True, capture_output=True).stdout)
-    return one(*set(
+    r, = set(
         e["value"]
-        for d in res["items"]
+        for d in json.loads(run(args, text=True, capture_output=True).stdout)["items"]
         for c in d["spec"]["template"]["spec"]["containers"]
         for e in c["env"] if e["name"] == "C4COMMON_IMAGE"
-    ))
+    )
+    return r
 
 
 def get_names_from_ids(template, ids):
@@ -49,14 +48,15 @@ def get_names_from_ids(template, ids):
 
 
 def handle_clones_up(opt):
-    from_env, *to_env_names = get_names_from_ids(f"{opt.env_name}-env", ("", *opt.clone_ids))
-    with temp_dev_pod(get_pod_options(get_env_image(opt.env_name))) as pod_name:
+    to_env_names = get_names_from_ids(f"{opt.env_name}-env", opt.clone_ids)
+    from_env, = get_names_from_ids(opt.env_name, ("",))
+    with temp_dev_pod(get_pod_options(get_env_image(from_env))) as pod_name:
         sync_kube_conf(pod_name)
         for to_env in to_env_names:
             run_inner(pod_name, "ci_up", to_env)
         for to_env in to_env_names:
             run_inner(pod_name, "ci_check_images", to_env)
-        run_inner(pod_name, "ci_setup", "--from", from_env, "--to", ",".join(to_env_names))
+        run_inner(pod_name, "ci_setup", "--from", f"{from_env}-env", "--to", ",".join(to_env_names))
 
 
 def handle_clones_down(opt):
