@@ -821,7 +821,7 @@ push @tasks, ["ci_wait_images", "", sub{
     my @comps = &$ci_get_compositions($env_comp);
     for my $part_comp(@comps){
         my($from_img,$to_img) = &$ci_get_image($common_img,$part_comp);
-        &$build_remote("wait_image", "--image", $from_img, "--secret-from-k8s", "docker/config.json");
+        &$build_remote("wait_image", "--image", $from_img, "--secret-from-k8s", "c4pull/.dockerconfigjson");
     }
 }];
 
