@@ -1,9 +1,11 @@
+import json
+import os
 import tempfile
 import time
 import typing
 from .c4util import read_json, changing_text, read_text, path_exists
 from .c4util.build import run, kcd_run, need_pod, \
-    build_cached_by_content, secret_part_to_text, never, Popen
+    build_cached_by_content, secret_part_to_text, never, Popen, temp_dev_pod, kcd_args
 
 
 class Options(typing.NamedTuple):
@@ -95,3 +97,53 @@ def need_java_task_tail(start_stm, log):
         pid = pid if pid and path_exists(f"/proc/{pid}") else find_java_pid()
         if not pid:
             break
+
+
+def sync_kube_conf(pod_name):
+    run(("c4dsync", "-acr", "--files-from", "-", "/", f"{pod_name}:/"), text=True, input=f"{os.environ['HOME']}/.kube")
+
+
+def get_pod_options(image):
+    return {"imagePullSecrets": [{"name": "c4pull"}], "image": f"{image}.ce"}
+
+
+def run_inner(pod_name, *args):
+    kcd_run("exec", pod_name, "--", "c4ci", *args)
+
+
+def make_down(env_name):
+    with temp_dev_pod(get_pod_options(get_env_image(env_name))) as pod_name:
+        sync_kube_conf(pod_name)
+        run_inner(pod_name, "ci_down", f"{env_name}-env")
+
+
+def get_env_image(env_name):
+    args = kcd_args("get", "deploy", "-l", f"c4env={env_name}", "-o", "json")
+    r, = set(
+        e["value"]
+        for d in json.loads(run(args, text=True, capture_output=True).stdout)["items"]
+        for c in d["spec"]["template"]["spec"]["containers"]
+        for e in c["env"] if e["name"] == "C4COMMON_IMAGE"
+    )
+    return r
+
+
+def get_names_from_ids(template, ids):
+    return [template.replace("%i", str(i)) for i in ids]
+
+
+def clones_up(env_template, clone_ids):
+    to_env_names = get_names_from_ids(f"{env_template}-env", clone_ids)
+    from_env, = get_names_from_ids(env_template, ("",))
+    with temp_dev_pod(get_pod_options(get_env_image(from_env))) as pod_name:
+        sync_kube_conf(pod_name)
+        for to_env in to_env_names:
+            run_inner(pod_name, "ci_up", to_env)
+        for to_env in to_env_names:
+            run_inner(pod_name, "ci_check_images", to_env)
+        run_inner(pod_name, "ci_setup", "--from", f"{from_env}-env", "--to", ",".join(to_env_names))
+
+
+def clones_down(env_template, clone_ids):
+    for env_name in get_names_from_ids(env_template, clone_ids):
+        make_down(env_name)
