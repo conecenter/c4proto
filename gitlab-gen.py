@@ -70,24 +70,20 @@ def get_build_jobs(config_statements):
 # build fin jobs -- C4TAG_AGGR
 # deploy jobs -- C4DEPLOY > C4TAG_AGGR
 
+#def optional_job(name): return { "job":name, "optional":True }
 def get_deploy_jobs(config_statements):
-  def optional_job(name): return { "job":name, "optional":True }
-  tag_aggr_list = config_statements["C4TAG_AGGR"]
-  aggr_cond_list = config_statements["C4AGGR_COND"]
-  needs_rt = [optional_job(build_rt_name(tag,aggr)) for tag, aggr in tag_aggr_list]
-  needs_de = [build_common_name]
   return {
     key: value
     for env_mask, caption_mask in config_statements["C4DEPLOY"]
-    for proj_sub, cond_pre in aggr_cond_list if cond_pre or env_mask.startswith("de-")
+    for proj_sub, cond_pre in config_statements["C4AGGR_COND"] if cond_pre or env_mask.startswith("de-")
     for cond in [
       prefix_cond(cond_pre)+" && "+prefix_cond("/release/") if env_mask == "cl-prod" else
       prefix_cond(cond_pre)
     ]
-    for stage, needs in (
-      [(stage_deploy_de,needs_de)] if env_mask.startswith("de-") else
-      [(stage_deploy_cl,needs_rt)] if env_mask.startswith("cl-") else
-      [(stage_deploy_sp,needs_rt)]
+    for stage in (
+      [stage_deploy_de] if env_mask.startswith("de-") else
+      [stage_deploy_cl] if env_mask.startswith("cl-") else
+      [stage_deploy_sp]
     )
     for key_mask in [caption_mask.replace("$C4PROJ_SUB",proj_sub)]
     for script in [[
@@ -100,9 +96,9 @@ def get_deploy_jobs(config_statements):
     for key, value in (
       [
         (confirm_key, common_job(cond,"manual",stage_confirm,[],["echo confirming"])),
-        (key_mask.replace("$C4CONFIRM","deploy"), common_job(cond,"manual",stage,[confirm_key]+needs,script)),
+        (key_mask.replace("$C4CONFIRM","deploy"), common_job(cond,"manual",stage,[confirm_key,build_common_name],script)),
       ] if confirm_key != key_mask else [
-        (key_mask, common_job(cond,"manual",stage,needs,script)),
+        (key_mask, common_job(cond,"manual",stage,[build_common_name],script)),
       ]
     )
   }

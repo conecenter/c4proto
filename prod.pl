@@ -815,6 +815,16 @@ push @tasks, ["ci_info", "", sub{
     &$put_text(($out_path||die), &$encode({%out,ci_parts=>\@parts}));
 }];
 
+push @tasks, ["ci_wait_images", "", sub{
+    my($env_comp)=@_;
+    my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
+    my @comps = &$ci_get_compositions($env_comp);
+    for my $part_comp(@comps){
+        my($from_img,$to_img) = &$ci_get_image($common_img,$part_comp);
+        &$build_remote("wait_image", "--image", $from_img, "--secret-from-k8s", "docker/config.json");
+    }
+}];
+
 push @tasks, ["ci_push", "", sub{
     my($env_comp)=@_;
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);

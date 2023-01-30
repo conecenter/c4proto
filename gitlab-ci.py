@@ -52,6 +52,7 @@ def handle_deploy(base,branch):
     commit = get_env("CI_COMMIT_SHA")
     project_url = get_env("CI_PROJECT_URL")
     name = f"{base}-env"
+    prod(["ci_wait_images", name])
     info = query_ci_info(name)
     slug = get_slug(info)
     project = get_project()

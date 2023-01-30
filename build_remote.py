@@ -1,6 +1,7 @@
 
 import json
 import os
+import time
 import typing
 import uuid
 import tempfile
@@ -10,7 +11,7 @@ from c4util import path_exists, read_text, changing_text, read_json, one, \
     changing_text_observe
 from c4util.build import never, run, run_no_die, run_pipe_no_die, Popen, \
     wait_processes, need_dir, kcd_args, kcd_run, need_pod, temp_dev_pod, \
-    build_cached_by_content, setup_parser, secret_part_to_text, get_repo
+    build_cached_by_content, setup_parser, secret_part_to_text, get_repo, crane_login
 
 
 def get_proto_dir():
@@ -195,6 +196,16 @@ def copy_image(opt):
         kcd_run("cp",opt.push_secret,f"{name}:/tmp/auth.json")
         kcd_run("exec",name,"--","skopeo","copy",f"docker://{opt.from_image}",f"docker://{opt.to_image}")
 
+def wait_image(opt):
+    secret = secret_part_to_text(opt.secret_from_k8s)
+    crane_login(secret)
+    started = time.monotonic()
+    while not run_no_die(("crane","manifest",opt.image)):
+        if time.monotonic() - started < 60*30:
+            time.sleep(5)
+        else:
+            never("timeout")
+
 def main():
     opt = setup_parser((
         ('build_common'  , build_common  , ("--context","--image","--push-secret","--commit","--build-dir")),
@@ -204,6 +215,7 @@ def main():
         ('build_image'   , build_image   , ("--context","--repository","--push-secret-from-k8s","--name-out")),
         ('compile'       , compile       , ("--context","--image","--user","--commit","--proj-tag","--java-options")),
         ('copy_image'    , copy_image    , ("--from-image","--to-image","--push-secret")),
+        ('wait_image'    , wait_image    , ("--image","--secret-from-k8s"))
     )).parse_args()
     opt.op(opt)
 
