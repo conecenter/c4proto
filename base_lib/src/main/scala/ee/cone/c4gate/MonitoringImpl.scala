@@ -123,14 +123,14 @@ case class AvailabilityTx(srcId: SrcId, updatePeriod: Long, timeout: Long)(
   responseSeenTxFactory: ResponseSeenTxFactory
 ){
   type SeenKey = SrcId
-  def snapshotAck(
+  def toSeen(
     key: SrcId,
     httpPublication: Each[ByPathHttpPublication]
   ): Values[(SeenKey, ByPathHttpPublication)] =
     if(httpPublication.path.startsWith("/response/"))
       List(s"/seen/${httpPublication.path}"->httpPublication) else Nil
 
-  def snapshotAck(
+  def toTx(
     key: SrcId,
     @by[SeenKey] needHttpPublication: Each[ByPathHttpPublication],
     httpPublications: Values[ByPathHttpPublication],
