@@ -138,7 +138,7 @@ case class AvailabilityTx(srcId: SrcId, updatePeriod: Long, timeout: Long)(
     if(httpPublications.nonEmpty) Nil else List(WithPK(responseSeenTxFactory.create(needHttpPublication.path)))
 }
 
-@c4multi("AvailabilityApp") case class ResponseSeenTx(path: String)(
+@c4multi("AvailabilityApp") final case class ResponseSeenTx(path: String)(
   publisher: Publisher,
   txAdd: LTxAdd,
 ) extends TxTransform {
