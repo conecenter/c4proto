@@ -956,7 +956,6 @@ push @tasks, ["ci_setup", "", sub{
             my $address = "https://$host";
             join " ", &$snapshot_put(&$need_auth_path($to_comp),$to_path,$address);
     } @to_comps);
-    &$ci_wait(@to_comps);
     &$end("ci_setup");
 }];
 
