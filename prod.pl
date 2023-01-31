@@ -705,7 +705,7 @@ my $snapshot_put = sub{
     my $gen_dir = &$get_proto_dir();
     my $data_fn = $data_path=~m{([^/]+)$} ? $1 : die "bad file path";
     -e $auth_path or die "no gate auth";
-    ("python3","$gen_dir/req.py",$auth_path,$data_path,$addr,"/put-snapshot","/put-snapshot","snapshots/$data_fn");
+    ("python3","-u","$gen_dir/req.py",$auth_path,$data_path,$addr,"/put-snapshot","/put-snapshot","snapshots/$data_fn");
 };
 
 my $need_auth_path = sub{
@@ -935,7 +935,7 @@ my $ci_parallel = sub{
     my @task_stm_list = @_;
     my $end = &$ci_measure();
     my $gen_dir = &$get_proto_dir();
-    sy("python3 $gen_dir/parallel.py 4 < ".&$put_temp("tasks",join "",map{"$_\n"}@task_stm_list));
+    sy("python3 -u $gen_dir/parallel.py 4 < ".&$put_temp("tasks",join "",map{"$_\n"}@task_stm_list));
     &$end("ci parallel");
 };
 
