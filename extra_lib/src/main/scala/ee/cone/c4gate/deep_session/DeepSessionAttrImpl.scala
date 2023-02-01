@@ -51,7 +51,7 @@ trait DeepSessionAttrAccessFactoryUtils {
   lazy val rawRoleAdapter = qAdapterRegistry.byName(classOf[U_RawRoleData].getName)
 
   def to[P <: Product](attr: SessionAttr[P]): Context => Option[Access[P]] =
-    if (attr.metaList.contains(UserLevelAttr)) {
+    if (!attr.metaList.contains(UserLevelAttr)) {
       sessionAttrAccessFactory.to(attr)
     } else {
       toUser(attr)
