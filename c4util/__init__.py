@@ -22,10 +22,12 @@ def read_json(path):
 
 def path_exists(path):
     return pathlib.Path(path).exists()
-def changing_text(path, will, then):
-    if path_exists(path) and read_text(path) == will: return
-    if then : then() # we need to run then() here -- if it fails, state will remain unchanged
-    pathlib.Path(path).write_text(will, encoding='utf-8', errors='strict')
+def changing_text_observe(path, will): # we need to return save -- if code before save fails, state will remain unchanged
+    return () if path_exists(path) and read_text(path) == will else (lambda:(
+        pathlib.Path(path).write_text(will, encoding='utf-8', errors='strict')
+    ),)
+def changing_text(path, will):
+    for save in changing_text_observe(path, will): save()
 def read_text(path_str): return pathlib.Path(path_str).read_text(encoding='utf-8', errors='strict')
 
 def sha256(v):

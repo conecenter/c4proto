@@ -133,7 +133,7 @@ def main(build_path_str):
             to_sbt_mod(
                 group_id, "project", ",".join(group_deps), [leave_tmp(dir) for dir in get_src_dirs(conf,group_mods)],
                 sorted({ dep for m in group_mods for dep in get_list(conf,"C4EXT",m) }),
-                sorted({ leave_tmp(dep) for m in group_mods for dep in get_list(conf,"C4LIB",mod) }),
+                sorted({ leave_tmp(dep) for m in group_mods for dep in get_list(conf,"C4LIB",m) }),
                 excl, get_repo, flat_values(conf.get("C4WART",{})),
             )
             for group_id, group_mods, group_deps in get_mod_groups_1(mod, full_dep_edges(mod), modules)

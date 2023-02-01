@@ -153,7 +153,7 @@ def main(build_path):
     },
     **get_build_jobs(config_statements), **get_deploy_jobs(config_statements), **get_env_jobs()
   }
-  changing_text(f"{build_path}/gitlab-ci-generated.yml", json.dumps(out, sort_keys=True, indent=4), None)
+  changing_text(f"{build_path}/gitlab-ci-generated.yml", json.dumps(out, sort_keys=True, indent=4))
 
 main(*sys.argv[1:])
 

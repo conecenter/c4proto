@@ -68,6 +68,7 @@ import scala.concurrent.duration.Duration
     val isActiveOrig: Set[AssembledKey] = activeOrigKeyRegistry.values
     val outFactory = composes.createOutFactory(0, +1)
     implicit val ec: ExecutionContext = executionContext.value
+    logger.debug("toTreeReplace indexGroups before")
     val indexGroups = for {
       tpPair <- updates.groupBy(_.valueTypeId)
       (valueTypeId, tpUpdates) = tpPair : (Long,Seq[N_Update])
@@ -91,6 +92,7 @@ import scala.concurrent.duration.Duration
         } yield composes.addNS(wKey,nsName) -> buildIndex(nsChanges)
       } yield (wKey->buildIndex(changes)) :: partitionedIndexFList
     }
+    logger.debug("toTreeReplace indexGroups after")
     for {
       indexes <- Future.sequence(indexGroups)
       diff = readModelUtil.create(CheckedMap(indexes.toSeq.flatten))
@@ -150,7 +152,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   actorName: ActorName,
   catchNonFatal: CatchNonFatal,
   getAssembleOptions: GetAssembleOptions,
-) extends ReadModelAdd {
+) extends ReadModelAdd with LazyLogging {
   // read model part:
   private def reduce(
     wasAssembled: ReadModel, updates: Seq[N_Update],
@@ -167,7 +169,9 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   } yield toUpdate.toUpdate(lEvent)
   def add(executionContext: OuterExecutionContext, events: Seq[RawEvent]): ReadModel=>ReadModel = assembled => catchNonFatal {
     val options = getAssembleOptions.get(assembled)
+    logger.debug("starting toUpdate")
     val updates: List[N_Update] = offset(events) ::: toUpdate.toUpdates(events.toList,"rma").map(toUpdate.toUpdateLost)
+    logger.debug("done toUpdate")
     reduce(assembled, updates, options, executionContext)
   }("reduce"){ e => // ??? exception to record
     if(events.size == 1){
@@ -206,7 +210,13 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   updateProcessor: Option[UpdateProcessor],
   processors: List[UpdatesPreprocessor],
   getAssembleOptions: GetAssembleOptions,
-) extends RawTxAdd {
+) extends RawTxAdd with Executable with Early with LazyLogging {
+  def run(): Unit = {
+    logger.info("assemble-preload start")
+    ignorePreloadedUtil(utilOpt.value)
+    logger.info("assemble-preload end")
+  } // we just want to load assemble-components in parallel with RootConsumer start
+  private def ignorePreloadedUtil[T](value: Seq[AssemblerUtil]): Unit = ()
   // other parts:
   def add(out: Seq[N_Update]): Context => Context =
     if (out.isEmpty) identity[Context]

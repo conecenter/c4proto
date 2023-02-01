@@ -57,7 +57,7 @@ object ExecutionRun {
   def apply(app: AbstractComponents): Unit = ComponentRegistry(app).resolveSingle(classOf[Execution])
 }*/
 
-abstract class AutoMixer(val components: List[Component], val dependencies: List[AutoMixer])
+abstract class AutoMixer(val getComponents: ()=>List[Component], val dependencies: List[AutoMixer])
 
 trait GeneralC4Factory0
 trait GeneralC4Factory1

@@ -162,13 +162,15 @@ class SkippingFutureImpl[T](inner: Future[T], isNotLast: Promise[Unit])(implicit
   //f[scala.concurrent.impl.Promise.Transformation]
 }
 
-
 abstract class BaseServerMain(app: ExecutableApp){
   def main(args: Array[String]): Unit = try {
     Trace { // keep Trace here <-- execution construction may silently fail
       //ExecutionRun(app)
       println("this should be instant (actually not)")
-      app.execution.run()
+      Option(app).collect{ case pApp: PrepareApp => pApp }.foreach{ pApp => pApp.prepare() }
+      val execution = app.execution
+      println("before run")
+      execution.run()
       //println("main is about to sleep")
       Thread.sleep(Long.MaxValue) //ctx.serving.get()
     }

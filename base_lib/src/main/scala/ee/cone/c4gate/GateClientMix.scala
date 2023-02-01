@@ -29,6 +29,12 @@ trait HttpUtilAppBase
 
 trait MergingSnapshotAppBase extends SnapshotLoaderFactoryImplApp with RemoteRawSnapshotLoaderImplApp
 trait RemoteRawSnapshotAppBase extends TaskSignerApp with ConfigSimpleSignerApp with RemoteRawSnapshotLoaderImplApp//?SnapshotUtilImplApp
+  with PrepareApp {
+    def prepare(): Unit = (
+      new RichDataCompApp with ExecutableApp with VMExecutionApp with EnvConfigCompApp with NoAssembleProfilerCompApp
+        with StartUpSnapshotApp with RemoteRawSnapshotApp
+    ).execution.run()
+  }
 trait RemoteRawSnapshotLoaderImplAppBase extends HttpUtilApp
 
 trait DefaultMetricsAppBase
