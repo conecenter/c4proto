@@ -39,6 +39,10 @@ def run_pipe_no_die(from_args, to_args):
     to_proc = Popen(to_args, stdin=from_proc.stdout)
     return wait_processes((from_proc, to_proc))
 
+def run_text_out(args, **opt):
+    print("running: "+" ".join(args))
+    return subprocess.run(args, check=True, text=True, capture_output=True, **opt).stdout
+
 def need_dir(dir):
     pathlib.Path(dir).mkdir(parents=True, exist_ok=True)
     return dir
@@ -94,8 +98,8 @@ def crane_login(push_secret):
 
 def build_cached_by_content(context, repository, push_secret):
     crane_login(push_secret)
-    files = sorted(run(("find","-type","f"),cwd=context,text=True,capture_output=True).stdout.splitlines())
-    sums = run(("sha256sum","--",*files),cwd=context,text=True,capture_output=True).stdout
+    files = sorted(run_text_out(("find","-type","f"),cwd=context).splitlines())
+    sums = run_text_out(("sha256sum","--",*files),cwd=context)
     image = f"{repository}:c4b.{sha256(sums)[:8]}"
     if not run_no_die(("crane","manifest",image)):
         with temp_dev_pod({ "image": "gcr.io/kaniko-project/executor:debug", "command": ["/busybox/sleep", "infinity"] }) as name:
@@ -126,13 +130,20 @@ def setup_parser(commands):
 
 def decode(bs): return bs.decode(encoding='utf-8', errors='strict')
 
+def get_secret_data(secret_name):
+    secret = json.loads(run_text_out(kcd_args("get", "secret", secret_name, "-o", "json")))
+    return lambda secret_fn: base64.b64decode(secret["data"][secret_fn])
 def secret_part_to_text(k8s_path):
     secret_name, secret_fn = k8s_path.split("/")
-    args = kcd_args("get", "secret", secret_name, "-o", "json")
-    secret = json.loads(run(args, text=True, capture_output=True).stdout)
-    return decode(base64.b64decode(secret["data"][secret_fn]))
+    return decode(get_secret_data(secret_name)(secret_fn))
 
 def get_repo(image):
     res = image.rpartition(":")[0]
     if not res: never(image)
     return res
+
+def get_env_values_from_deployments(env_key, deployments):
+    return {
+        e["value"] for d in deployments for c in d["spec"]["template"]["spec"]["containers"]
+        for e in c.get("env",[]) if e["name"] == env_key
+    }
