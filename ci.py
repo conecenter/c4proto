@@ -5,7 +5,7 @@ import tempfile
 
 from c4util import parse_table
 from c4util.build import kcd_args, run_text_out, never, run, get_env_values_from_deployments, setup_parser, \
-    wait_processes, Popen, get_secret_data
+    wait_processes, Popen, get_secret_data, decode
 
 
 def filter_parts(check_prefix, postfix_set, values):
@@ -58,11 +58,12 @@ def kafka_purge(need_rm):
         kafka_auth = get_secret_data("kafka-auth")
         kafka_certs = get_secret_data("kafka-certs")
         kafka_env = {
+            **os.environ,
             "CLASSPATH": classpath,
             "C4STORE_PASS_PATH": secret_part_as_file(kafka_auth, "kafka.store.auth", temp_dir),
             "C4KEYSTORE_PATH": secret_part_as_file(kafka_certs, "kafka.keystore.jks", temp_dir),
             "C4TRUSTSTORE_PATH": secret_part_as_file(kafka_certs, "kafka.truststore.jks", temp_dir),
-            "C4BOOTSTRAP_SERVERS": secret_part_as_file(kafka_auth, "bootstrap_servers", temp_dir),
+            "C4BOOTSTRAP_SERVERS": decode(kafka_auth("bootstrap_servers")),
         }
         proto_dir = os.environ["C4CI_PROTO_DIR"]
         kafka_cmd = ["java", "--source", "15", "-cp", classpath, f"{proto_dir}/kafka_info.java"]

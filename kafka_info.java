@@ -125,7 +125,8 @@ class KafkaApp {
                 }
             }
         } catch(Exception e){
-            System.exit(1);
+            //System.exit(1);
+            throw new RuntimeException(e);
         }
     }
 }
