@@ -66,7 +66,7 @@ def kafka_purge(need_rm):
             "C4BOOTSTRAP_SERVERS": decode(kafka_auth("bootstrap_servers")),
         }
         proto_dir = os.environ["C4CI_PROTO_DIR"]
-        kafka_cmd = ["java", "--source", "15", "-cp", classpath, f"{proto_dir}/kafka_info.java"]
+        kafka_cmd = ["java", "--source", "15", f"{proto_dir}/kafka_info.java"]
         topics_res = run_text_out((*kafka_cmd, "topics"), env=kafka_env)
         topics = [cells[1] for cells in parse_table(topics_res) if cells[0] == "topic"]
         topics_to_rm = filter_parts(need_rm, {"inbox", }, topics)
