@@ -174,7 +174,7 @@ my $get_proto_dir = sub{ &$mandatory_of(C4CI_PROTO_DIR=>\%ENV) };
 my $py_run = sub{
     my ($nm,@args) = @_;
     my $gen_dir = &$get_proto_dir();
-    sy("python3.8","$gen_dir/$nm",@args);
+    sy("python3.8","-u","$gen_dir/$nm",@args);
 };
 
 my $main = sub{
@@ -277,7 +277,7 @@ my $make_kc_yml = sub{
     my($name,$tmp_path,$opt) = @_;
     my @unknown = &$map($opt,sub{ my($k)=@_;
         $k=~/^([A-Z]|host:|port:|ingress:|path:|label:)/ ||
-        $k=~/^(tty|image|noderole)$/ ? () : $k
+        $k=~/^(tty|image|noderole|image_pull_secrets|ingress_secret_name|need_pod_ip|replicas|req_cpu|req_mem|ca)$/ ? () : $k
     });
     @unknown and warn "unknown conf keys: ".join(" ",@unknown);
     my $nm = "main";
