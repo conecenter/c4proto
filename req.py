@@ -54,5 +54,5 @@ try:
     signed_req(salt,responseKey,args,{ "url": host+url, "data": data })
 except Exception as e:
     raise Exception(f"Signed request error ({host+url}) at ({time.time()})") from e
-retry_loop_url(host+"/seen/response/"+responseKey)
-print(f"req to {host+url} was seen at ({time.time()})")
+#retry_loop_url(host+"/seen/response/"+responseKey)
+#print(f"req to {host+url} was seen at ({time.time()})")

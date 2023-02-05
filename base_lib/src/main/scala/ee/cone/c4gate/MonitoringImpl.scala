@@ -119,29 +119,29 @@ case class AvailabilityTx(srcId: SrcId, updatePeriod: Long, timeout: Long)(
 * We need to ensure main observes data from put-snapshot, so it publishes /seen/response/...
 * */
 
-@c4assemble("AvailabilityApp") class SnapshotPutAckAssembleBase(
-  responseSeenTxFactory: ResponseSeenTxFactory
-){
-  type SeenKey = SrcId
-  def toSeen(
-    key: SrcId,
-    httpPublication: Each[ByPathHttpPublication]
-  ): Values[(SeenKey, ByPathHttpPublication)] =
-    if(httpPublication.path.startsWith("/response/"))
-      List(s"/seen/${httpPublication.path}"->httpPublication) else Nil
-
-  def toTx(
-    key: SrcId,
-    @by[SeenKey] needHttpPublication: Each[ByPathHttpPublication],
-    httpPublications: Values[ByPathHttpPublication],
-  ): Values[(SrcId, TxTransform)] =
-    if(httpPublications.nonEmpty) Nil else List(WithPK(responseSeenTxFactory.create(needHttpPublication.path)))
-}
-
-@c4multi("AvailabilityApp") final case class ResponseSeenTx(path: String)(
-  publisher: Publisher,
-  txAdd: LTxAdd,
-) extends TxTransform {
-  def transform(local: Context): Context =
-    txAdd.add(publisher.publish(ByPathHttpPublication(path, Nil, ByteString.EMPTY), _ + 1000 * 60 * 15))(local)
-}
+//@c4assemble("AvailabilityApp") class SnapshotPutAckAssembleBase(
+//  responseSeenTxFactory: ResponseSeenTxFactory
+//){
+//  type SeenKey = SrcId
+//  def toSeen(
+//    key: SrcId,
+//    httpPublication: Each[ByPathHttpPublication]
+//  ): Values[(SeenKey, ByPathHttpPublication)] =
+//    if(httpPublication.path.startsWith("/response/"))
+//      List(s"/seen/${httpPublication.path}"->httpPublication) else Nil
+//
+//  def toTx(
+//    key: SrcId,
+//    @by[SeenKey] needHttpPublication: Each[ByPathHttpPublication],
+//    httpPublications: Values[ByPathHttpPublication],
+//  ): Values[(SrcId, TxTransform)] =
+//    if(httpPublications.nonEmpty) Nil else List(WithPK(responseSeenTxFactory.create(needHttpPublication.path)))
+//}
+//
+//@c4multi("AvailabilityApp") final case class ResponseSeenTx(path: String)(
+//  publisher: Publisher,
+//  txAdd: LTxAdd,
+//) extends TxTransform {
+//  def transform(local: Context): Context =
+//    txAdd.add(publisher.publish(ByPathHttpPublication(path, Nil, ByteString.EMPTY), _ + 1000 * 60 * 15))(local)
+//}
