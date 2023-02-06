@@ -46,7 +46,7 @@ import ee.cone.c4gate.HttpProtocol._
   }
 }
 
-@c4assemble("PublisherApp") class PublicationByPathAssembleBase(
+@c4assemble("PublisherApp") class PublicationByPathAssembleBase(idGenUtil: IdGenUtil)(
   val max: Values[S_HttpPublicationV2] => Option[S_HttpPublicationV2] =
     _.maxByOption(p => (p.time, p.srcId))
 ) {
@@ -55,8 +55,10 @@ import ee.cone.c4gate.HttpProtocol._
   def mapListedByPath(
     key: SrcId,
     manifest: Each[S_Manifest]
-  ): Values[(ByPath,ByPathHttpPublicationUntil)] =
-    manifest.paths.map(p=>WithPK(ByPathHttpPublicationUntil(p,manifest.until)))
+  ): Values[(ByPath,ByPathHttpPublicationUntil)] = {
+    val untilStr = manifest.until.toString
+    manifest.paths.map(p=>WithPK(ByPathHttpPublicationUntil(idGenUtil.srcIdFromStrings(p,untilStr),p,manifest.until)))
+  }
 
   def selectMaxUntil(
     key: SrcId,

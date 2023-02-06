@@ -1,5 +1,6 @@
 package ee.cone.c4gate
 
+import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.{Compressor, Context, LEvent}
 import ee.cone.c4gate.HttpProtocol.N_Header
 import okio.ByteString
@@ -17,7 +18,7 @@ class PublishFullCompressor(val value: Compressor)
 ////
 
 case class ByPathHttpPublication(path: String, headers: List[N_Header], body: ByteString)
-case class ByPathHttpPublicationUntil(path: String, until: Long)
+case class ByPathHttpPublicationUntil(srcId: SrcId, path: String, until: Long)
 
 trait Publisher {
   def publish(publication: ByPathHttpPublication, until: Long=>Long): Seq[LEvent[Product]]
