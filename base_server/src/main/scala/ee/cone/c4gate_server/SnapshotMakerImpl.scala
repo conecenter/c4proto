@@ -106,6 +106,7 @@ case class RequestedSnapshotMakingTx(
     respond(authorizedResponses, nonAuthorizedResponses)(local)
   }("make-snapshot"){ e =>
     val message = e.getMessage
+    e.printStackTrace()
     respond(Nil,requests.map(_ -> message))(local)
   }
 }

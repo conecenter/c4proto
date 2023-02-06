@@ -174,7 +174,7 @@ my $get_proto_dir = sub{ &$mandatory_of(C4CI_PROTO_DIR=>\%ENV) };
 my $py_run = sub{
     my ($nm,@args) = @_;
     my $gen_dir = &$get_proto_dir();
-    sy("python3.8","$gen_dir/$nm",@args);
+    sy("python3.8","-u","$gen_dir/$nm",@args);
 };
 
 my $main = sub{
@@ -276,8 +276,8 @@ my $spaced_list = sub{ map{ ref($_) ? @$_ : /(\S+)/g } @_ };
 my $make_kc_yml = sub{
     my($name,$tmp_path,$opt) = @_;
     my @unknown = &$map($opt,sub{ my($k)=@_;
-        $k=~/^([A-Z]|host:|port:|ingress:|path:)/ ||
-        $k=~/^(tty|image|noderole)$/ ? () : $k
+        $k=~/^([A-Z]|host:|port:|ingress:|path:|label:)/ ||
+        $k=~/^(tty|image|noderole|image_pull_secrets|ingress_secret_name|need_pod_ip|replicas|req_cpu|req_mem|ca)$/ ? () : $k
     });
     @unknown and warn "unknown conf keys: ".join(" ",@unknown);
     my $nm = "main";
@@ -372,7 +372,10 @@ my $make_kc_yml = sub{
             selector => { matchLabels => { app => $name } },
             template => {
                 metadata => {
-                    labels => { app => $name },
+                    labels => {
+                        &$map($opt,sub{ my($k,$v)=@_; $k=~/^label:(c4\w+)$/ ? ("$1"=>$v) : () }),
+                        app => $name,
+                    },
                 },
                 spec => {
                     containers => [$container],
@@ -705,7 +708,7 @@ my $snapshot_put = sub{
     my $gen_dir = &$get_proto_dir();
     my $data_fn = $data_path=~m{([^/]+)$} ? $1 : die "bad file path";
     -e $auth_path or die "no gate auth";
-    ("python3","$gen_dir/req.py",$auth_path,$data_path,$addr,"/put-snapshot","/put-snapshot","snapshots/$data_fn");
+    ("python3","-u","$gen_dir/req.py",$auth_path,$data_path,$addr,"/put-snapshot","/put-snapshot","snapshots/$data_fn");
 };
 
 my $need_auth_path = sub{
@@ -815,6 +818,16 @@ push @tasks, ["ci_info", "", sub{
     &$put_text(($out_path||die), &$encode({%out,ci_parts=>\@parts}));
 }];
 
+push @tasks, ["ci_wait_images", "", sub{
+    my($env_comp)=@_;
+    my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
+    my @comps = &$ci_get_compositions($env_comp);
+    for my $part_comp(@comps){
+        my($from_img,$to_img) = &$ci_get_image($common_img,$part_comp);
+        &$build_remote("wait_image", "--image", $from_img, "--secret-from-k8s", "c4pull/.dockerconfigjson");
+    }
+}];
+
 push @tasks, ["ci_push", "", sub{
     my($env_comp)=@_;
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
@@ -911,59 +924,16 @@ push @tasks, ["ci_down","",sub{
     sy("$kubectl delete -l c4env=$env_name $kinds");
 }];
 
-my $ci_wait = sub{
-    my @comps = @_;
-    my $end = &$ci_measure();
-    for my $comp(@comps){
-        my $host = &$get_hostname($comp) || next;
-        sleep 1 while so("curl -f https://$host/availability");
-    }
-    &$end("ci wait");
+my $get_prefix_list_from_env_list = sub{
+    map{&$mandatory_of(C4INBOX_TOPIC_PREFIX=>$_)} grep{$$_{type} eq "gate"} map{&$get_compose($_)}
+        map{&$ci_get_compositions($_)} @_
 };
 
-my $ci_parallel = sub{
-    my @task_stm_list = @_;
-    my $end = &$ci_measure();
-    my $gen_dir = &$get_proto_dir();
-    sy("python3 $gen_dir/parallel.py 4 < ".&$put_temp("tasks",join "",map{"$_\n"}@task_stm_list));
-    &$end("ci parallel");
-};
-
-push @tasks, ["ci_setup", "", sub{
-    my($env_comp)=@_;
-    my $end = &$ci_measure();
-    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
-    my @comps = &$ci_get_compositions($env_comp);
-    my %branch_conf = map{%{&$decode(&$get_text($_))}} grep{-e} "$local_dir/branch.conf.json";
-    my $snapshot_from_key = $branch_conf{ci_snapshot_from};
-    my @from_to_comps = map{
-        my $from = $snapshot_from_key && &$get_compose($_)->{"snapshot_from:$snapshot_from_key"};
-        $from ? [$from,$_] : ()
-    } @comps;
-    my $to_by_from_comp = &$merge_list({}, map{
-        my($from,$to) = @$_;
-        +{$from=>[$to]}
-    } @from_to_comps);
-    my @to_comps = map{$$_[1]}@from_to_comps;
-    my $tasks = &$merge_list({},&$map($to_by_from_comp,sub{ my($from_comp,$to_comp_list)=@_;
-        my ($ls_stm,$cat) = &$snapshot_get_statements($from_comp);
-        my $fn = &$snapshot_name(&$snapshot_parse_last(syf($ls_stm))) || die "bad or no snapshot name";
-        my ($from_fn,$to_fn) = @$fn;
-        my @put_tasks = map{"$_ || $_ || $_"} map{ my $to_comp = $_;
-            my $host = &$get_hostname($to_comp) || die;
-            my $address = "https://$host";
-            join " ", &$snapshot_put(&$need_auth_path($to_comp),$to_fn,$address);
-        } @$to_comp_list;
-        +{
-            get => { $to_fn => [&$cat($from_fn,$to_fn)] },
-            put => \@put_tasks,
-        }
-    }));
-    &$ci_parallel(sort map{$$_[0]} values %{$$tasks{get}||{}});
-    &$ci_wait(@to_comps);
-    &$ci_parallel(@{$$tasks{put}||[]});
-    &$ci_wait(@to_comps);
-    &$end("ci_setup");
+push @tasks, ["ci_clone", "--from env --to env,env", sub{
+    my %opt = @_;
+    my $to = join(",", &$get_prefix_list_from_env_list(split ",", &$mandatory_of("--to"=>\%opt))) || die;
+    my $from = &$single(&$get_prefix_list_from_env_list(&$mandatory_of("--from"=>\%opt)));
+    &$py_run("ci.py", "clone_last_to_prefix_list", "--from-prefix", $from, "--to", $to);
 }];
 
 push @tasks, ["ci_check_images", "", sub {
@@ -1000,13 +970,6 @@ push @tasks, ["ci_check_images", "", sub {
             sleep 2;
         }
     }
-}];
-
-push @tasks, ["ci_check", "", sub{
-    my($env_comp)=@_;
-    my @comps = &$ci_get_compositions($env_comp);
-    my $kubectl = &$get_kubectl($env_comp);
-    sy("$kubectl rollout status deployments/$_") for @comps;
 }];
 
 ########
@@ -1172,7 +1135,7 @@ push @tasks, ["up-s3client", "", sub{
         &$remote_build($comp,$from_path);
     };
     my $options = {
-        image => $img, C4S3_CONF_DIR => "/c4conf-ceph-client", @req_small,
+        image => $img, C4S3_CONF_DIR => "/c4conf-ceph-client", @req_small, "label:c4s3client" => "1"
     };
     my $from_path = &$get_tmp_dir();
     &$wrap_deploy($comp,$from_path,$options);
@@ -1389,7 +1352,9 @@ push @tasks, ["kafka","( topics | offsets <hours> | nodes | sizes <node> | topic
     sy("CLASSPATH=$cp java --source 15 $gen_dir/kafka_info.java ".join" ",@args);
 }];
 
-push @tasks, ["kafka_purge"," ",sub{ &$py_run("kafka_purger.py") }];
+push @tasks, ["purge_mode_list","--list <list>",sub{ &$py_run("ci.py","purge_mode_list",@_) }];
+
+push @tasks, ["purge_prefix_list","--list <list>",sub{ &$py_run("ci.py","purge_prefix_list",@_) }];
 
 push @tasks, ["resources","( top <ctx> <search_str> | suggest <ctx> <level (ex 70)> )",sub{
     &$py_run("resources.py",@_)

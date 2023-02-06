@@ -79,8 +79,10 @@ def main(repo_name):
     gen_conf(context,"up.bat","REM ","^","1000","%c4repo-path%",["set c4repo-path=c:/c4repo","REM change c4repo-path to your own"],"amd64",repo_name,ports)
     gen_sync(context,"sync.bat",repo_name,"REM ","^",[f"docker exec c4agent_kc c4run %*"])
     #gen_sync(context,"sync_test.sh",repo_name,"#!/bin/sh\n","\\",[])
+    replink = f"c4dep.ci.replink"
     write_text(f"{context}/run", "\n".join((
         "#!/usr/bin/perl",
+        f"system 'docker', 'exec', '-e', 'C4REPO_MAIN_CONF=/c4repo/{repo_name}/{replink}', 'c4agent_kc', '/replink.pl' and die;",
         f"""system 'docker','exec','c4agent_kc','perl','-e','"/c4repo/{repo_name}" eq readlink "/c4/{repo_name}" or symlink "/c4repo/{repo_name}", "/c4/{repo_name}" or die' and die;""",
         "exec 'docker','exec','c4agent_kc','c4run',@ARGV;",
         "die"

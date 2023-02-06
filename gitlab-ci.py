@@ -52,6 +52,7 @@ def handle_deploy(base,branch):
     commit = get_env("CI_COMMIT_SHA")
     project_url = get_env("CI_PROJECT_URL")
     name = f"{base}-env"
+    prod(["ci_wait_images", name])
     info = query_ci_info(name)
     slug = get_slug(info)
     project = get_project()
@@ -84,20 +85,20 @@ def handle_up(s_slug):
     prod(["ci_push",name])
     prod(["ci_up",name])
 
-def handle_qa_run(dir):
-    name = get_c4env_from_tag()
-    prod(["ci_setup",name])
-    info = query_ci_info(name)
-    subprocess.run(["cat",ci_info_path()]).check_returncode()
-    qa_run = info["qa_run"]
-    subprocess.run(["git","clone",get_env("C4QA_REPO"),dir]).check_returncode()
-    subprocess.run(["git","checkout",info["qa_ref"]],cwd=dir).check_returncode()
-    subprocess.run(["chmod","+x",f"./{qa_run}"],cwd=dir).check_returncode()
-    subprocess.run([f"./{qa_run}",ci_info_path()],cwd=dir).check_returncode()
+# def handle_qa_run(dir):
+#     name = get_c4env_from_tag()
+#     prod(["ci_setup",name])
+#     info = query_ci_info(name)
+#     subprocess.run(["cat",ci_info_path()]).check_returncode()
+#     qa_run = info["qa_run"]
+#     subprocess.run(["git","clone",get_env("C4QA_REPO"),dir]).check_returncode()
+#     subprocess.run(["git","checkout",info["qa_ref"]],cwd=dir).check_returncode()
+#     subprocess.run(["chmod","+x",f"./{qa_run}"],cwd=dir).check_returncode()
+#     subprocess.run([f"./{qa_run}",ci_info_path()],cwd=dir).check_returncode()
 
-def handle_check():
-    name = get_c4env_from_tag()
-    prod(["ci_check",name])
+# def handle_check():
+#     name = get_c4env_from_tag()
+#     prod(["ci_check",name])
 
 def handle_rebuild(branch_arg):
     commit = get_env("CI_COMMIT_SHA")
@@ -139,8 +140,8 @@ def handle_rebuild(branch_arg):
 handle = {
     "deploy": handle_deploy,
     "up": handle_up,
-    "check": handle_check,
-    "qa_run": handle_qa_run,
+    #"check": handle_check,
+    #"qa_run": handle_qa_run,
     "down": handle_down,
     "rebuild": handle_rebuild
 }

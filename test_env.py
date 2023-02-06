@@ -1,9 +1,12 @@
+import json
+import os
 import tempfile
 import time
 import typing
 from .c4util import read_json, changing_text, read_text, path_exists
 from .c4util.build import run, kcd_run, need_pod, \
-    build_cached_by_content, secret_to_dir_path, never, Popen
+    build_cached_by_content, secret_part_to_text, never, Popen, temp_dev_pod, kcd_args, run_text_out, \
+    get_env_values_from_deployments
 
 
 class Options(typing.NamedTuple):
@@ -19,20 +22,19 @@ def get_pod_name_prefix(user_config: str):
 
 
 def get_test_env_image(repository, push_secret_from_k8s):
-    with tempfile.TemporaryDirectory() as auth_dir:
-        push_secret = secret_to_dir_path(push_secret_from_k8s, auth_dir)
-        with tempfile.TemporaryDirectory() as temp_root:
-            content = "\n".join((
-                "FROM ubuntu:22.04",
-                "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
-                "RUN perl install.pl useradd 1979",
-                "RUN perl install.pl apt curl ca-certificates rsync openjdk-17-jdk-headless maven python3",
-                "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
-                " && chmod +x /tools/tini",
-                "USER c4",
-            ))
-            changing_text(f"{temp_root}/Dockerfile", content)
-            return build_cached_by_content(temp_root, repository, push_secret)
+    push_secret = secret_part_to_text(push_secret_from_k8s)
+    with tempfile.TemporaryDirectory() as temp_root:
+        content = "\n".join((
+            "FROM ubuntu:22.04",
+            "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
+            "RUN perl install.pl useradd 1979",
+            "RUN perl install.pl apt curl ca-certificates rsync openjdk-17-jdk-headless maven python3",
+            "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
+            " && chmod +x /tools/tini",
+            "USER c4",
+        ))
+        changing_text(f"{temp_root}/Dockerfile", content)
+        return build_cached_by_content(temp_root, repository, push_secret)
 
 
 def need_env(opt: Options, env_id: int):
@@ -80,7 +82,7 @@ def run_py_in_env(pod_name: str, args):
 
 
 def find_java_pid():
-    lines = run(("jcmd",), text=True, capture_output=True).stdout.splitlines()
+    lines = run_text_out(("jcmd",)).splitlines()
     return next((int(l.split()[0]) for l in lines if "jcmd" not in l), None)
 
 
@@ -96,3 +98,50 @@ def need_java_task_tail(start_stm, log):
         pid = pid if pid and path_exists(f"/proc/{pid}") else find_java_pid()
         if not pid:
             break
+
+
+def sync_kube_conf(pod_name):
+    run(("c4dsync", "-acr", "--files-from", "-", "/", f"{pod_name}:/"), text=True, input=f"{os.environ['HOME']}/.kube")
+
+
+def get_pod_options(image):
+    return {"imagePullSecrets": [{"name": "c4pull"}], "image": f"{image}.ce"}
+
+
+def run_inner(pod_name, *args):
+    kcd_run("exec", pod_name, "--", "c4ci", *args)
+
+
+def get_env_images(env_name):
+    deployments = json.loads(run_text_out(kcd_args("get", "deploy", "-l", f"c4env={env_name}", "-o", "json")))["items"]
+    images = sorted(get_env_values_from_deployments("C4COMMON_IMAGE", deployments))
+    if len(images) > 1: never("bad image")
+    return images
+
+
+def get_names_from_ids(template, ids):
+    return [template.replace("%i", str(i)) for i in ids]
+
+
+def clones_up(env_template, clone_ids):
+    clones_down(env_template, clone_ids)
+    to_env_names = get_names_from_ids(f"{env_template}-env", clone_ids)
+    from_env, = get_names_from_ids(env_template, ("",))
+    image, = get_env_images(from_env)
+    with temp_dev_pod(get_pod_options(image)) as pod_name:
+        sync_kube_conf(pod_name)
+        run_inner(pod_name, "ci_clone", "--from", f"{from_env}-env", "--to", ",".join(to_env_names))
+        for to_env in to_env_names:
+            run_inner(pod_name, "ci_up", to_env)
+        for to_env in to_env_names:
+            run_inner(pod_name, "ci_check_images", to_env)
+        # for to_env in to_env_names:
+        #     run_inner(pod_name, "ci_check_availability", to_env)
+
+
+def clones_down(env_template, clone_ids):
+    for env_name in get_names_from_ids(env_template, clone_ids):
+        for image in get_env_images(env_name):
+            with temp_dev_pod(get_pod_options(image)) as pod_name:
+                sync_kube_conf(pod_name)
+                run_inner(pod_name, "ci_down", f"{env_name}-env")

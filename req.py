@@ -20,6 +20,14 @@ def md5s(data):
 def get_file(fn):
     return pathlib.Path(fn).read_bytes()
 
+def retry_loop_url(url):
+    while True:
+        try:
+            return urllib.request.urlopen(urllib.request.Request(url=url))
+        except:
+            time.sleep(1)
+            print(".")
+
 def signed_req(salt,responseKey,args,opt):
     until = [str(int((time.time()+3600)*1000)).encode("utf-8")]
     uData = until + [s.encode("utf-8") for s in args]
@@ -32,15 +40,7 @@ def signed_req(salt,responseKey,args,opt):
     print(f"req ({opt['url']}) urlopen ok")
     if postResp.status!=200:
         raise Exception("req sending failed")
-    resp = None
-    while resp is None:
-        time.sleep(1)
-        print(".")
-        req = urllib.request.Request(url = host+"/response/"+responseKey)
-        try:
-            resp = urllib.request.urlopen(req)
-        except:
-            pass
+    resp = retry_loop_url(host+"/response/"+responseKey)
     err = resp.getheader("x-r-error-message")
     if not (err is None or err == ""):
         raise Exception("post handling failed: "+err)
@@ -54,3 +54,5 @@ try:
     signed_req(salt,responseKey,args,{ "url": host+url, "data": data })
 except Exception as e:
     raise Exception(f"Signed request error ({host+url}) at ({time.time()})") from e
+#retry_loop_url(host+"/seen/response/"+responseKey)
+#print(f"req to {host+url} was seen at ({time.time()})")

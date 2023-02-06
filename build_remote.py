@@ -1,6 +1,7 @@
 
 import json
 import os
+import time
 import typing
 import uuid
 import tempfile
@@ -10,7 +11,7 @@ from c4util import path_exists, read_text, changing_text, read_json, one, \
     changing_text_observe
 from c4util.build import never, run, run_no_die, run_pipe_no_die, Popen, \
     wait_processes, need_dir, kcd_args, kcd_run, need_pod, temp_dev_pod, \
-    build_cached_by_content, setup_parser, secret_to_dir_path
+    build_cached_by_content, setup_parser, secret_part_to_text, get_repo, crane_login
 
 
 def get_proto_dir():
@@ -96,10 +97,15 @@ def crane_append(dir, base_image, target_image):
     run_pipe_no_die(("tar","-cf-","-C",dir,"."), ("crane","append","-f-","-b",base_image,"-t",target_image)) or never("crane append")
 
 def build_image(opt):
-    with tempfile.TemporaryDirectory() as auth_dir:
-        push_secret = secret_to_dir_path(opt.push_secret_from_k8s, auth_dir)
-        image = build_cached_by_content(opt.context, opt.repository, push_secret)
-        changing_text(opt.name_out, image)
+    push_secret = secret_part_to_text(opt.push_secret_from_k8s)
+    image = build_cached_by_content(opt.context, opt.repository, push_secret)
+    changing_text(opt.name_out, image)
+
+def perl_exec(line):
+    return "\n".join(('#!/usr/bin/perl','use strict;',line,'die;'))
+
+def perl_env(k,v):
+    return f'$ENV{{{k}}} ||= {json.dumps(v)};'
 
 def build_common(opt):
     proto_dir = get_proto_dir()
@@ -111,15 +117,29 @@ def build_common(opt):
         d_from_file = read_text(f"{proto_dir}/build.def.dockerfile")
         base_content = f"{d_from_file}\nENV C4CI_BUILD_DIR={build_dir}\nENV C4CI_PROTO_DIR={build_dir}/{proto_postfix}\n"
         changing_text(f"{temp_root}/Dockerfile", base_content)
-        base_image = build_cached_by_content(temp_root, get_repo(opt.image), opt.push_secret)
+        base_image = build_cached_by_content(temp_root, get_repo(opt.image), read_text(opt.push_secret))
     with tempfile.TemporaryDirectory() as temp_root:
         run(("perl",f"{proto_dir}/sync_setup.pl"), env={**os.environ,"HOME":temp_root})
         run(("rsync","-a","--exclude",".git",f"{opt.context}/", need_dir(f"{temp_root}{build_dir}"))) #shutil.copytree seems to be slower
         crane_append(temp_root, base_image, opt.image)
     with tempfile.TemporaryDirectory() as temp_root:
-        changing_text(need_dir(f"{temp_root}/c4")+"/c4serve.pl", 'exec "perl","$ENV{C4CI_PROTO_DIR}/sandbox.pl","main";die')
-        'exec "bash", @ARGV; die'
+        changing_text(need_dir(f"{temp_root}/c4")+"/c4serve.pl", perl_exec('exec "perl","$ENV{C4CI_PROTO_DIR}/sandbox.pl","main";'))
         crane_append(temp_root, opt.image, f"{opt.image}.de")
+    with tempfile.TemporaryDirectory() as temp_root:
+        tmp_home = need_dir(f"{temp_root}/c4")
+        tmp_bin = need_dir(f"{tmp_home}/bin")
+        tmp_c4ci = f"{tmp_bin}/c4ci"
+        changing_text(f"{tmp_home}/c4serve.pl", 'exec "sleep","infinity";die')
+        changing_text(tmp_c4ci, perl_exec("\n".join((
+            perl_env("C4COMMON_IMAGE",opt.image),
+            perl_env("C4COMMIT",opt.commit),
+            perl_env("C4DEPLOY_CONTEXT",os.environ['C4DEPLOY_CONTEXT']),
+            'exec "perl","$ENV{C4CI_PROTO_DIR}/prod.pl",@ARGV;'
+        ))))
+        run(("chmod","+x",tmp_c4ci))
+        crane_append(temp_root, opt.image, f"{opt.image}.ce")
+        #print(f"### To control deployment:")
+        #print(f"c4py ci up --image {opt.image} --app sp-xxx-xxx-xxx")
 
 def build_rt(opt):
     with temp_dev_pod({ "image": opt.image, **opt_compiler() }) as name:
@@ -151,7 +171,7 @@ def build_rt_inner(opt):
     wait_processes((check_proc, *client_proc_opt)) or never("build failed")  # before ci_rt_base?
     with tempfile.TemporaryDirectory() as temp_root:
         run((*prod, "ci_rt_base", "--context", opt.context, "--proj-tag", opt.proj_tag, "--out-context", temp_root))
-        base_image = build_cached_by_content(temp_root, get_repo(opt.image), opt.push_secret)
+        base_image = build_cached_by_content(temp_root, get_repo(opt.image), read_text(opt.push_secret))
     with tempfile.TemporaryDirectory() as temp_root:
         run((*prod, "ci_rt_over", "--context", opt.context, "--proj-tag", opt.proj_tag, "--out-context", temp_root))
         crane_append(temp_root, base_image, rt_img)
@@ -161,11 +181,6 @@ def get_proto_postfix(context):
     proto_prefix, _, proto_postfix = proto_dir.rpartition("/")
     if proto_prefix != context: never(f"proto ({proto_dir}) out of context ({context})")
     return proto_postfix
-
-def get_repo(image):
-    res = image.rpartition(":")[0]
-    if not res: never(image)
-    return res
 
 def build_gate(opt):
     proto_postfix = get_proto_postfix(opt.context)
@@ -181,15 +196,26 @@ def copy_image(opt):
         kcd_run("cp",opt.push_secret,f"{name}:/tmp/auth.json")
         kcd_run("exec",name,"--","skopeo","copy",f"docker://{opt.from_image}",f"docker://{opt.to_image}")
 
+def wait_image(opt):
+    secret = secret_part_to_text(opt.secret_from_k8s)
+    crane_login(secret)
+    started = time.monotonic()
+    while not run_no_die(("crane","manifest",opt.image)):
+        if time.monotonic() - started < 60*30:
+            time.sleep(5)
+        else:
+            never("timeout")
+
 def main():
     opt = setup_parser((
-        ('build_common'  , build_common  , ("--context","--image","--push-secret","--build-dir")),
+        ('build_common'  , build_common  , ("--context","--image","--push-secret","--commit","--build-dir")),
         ('build_gate'    , build_gate    , ("--context","--image","--push-secret","--java-options")),
         ('build_rt'      , build_rt      , ("--context","--image","--push-secret","--commit","--proj-tag","--java-options","--build-client")),
         ('build_rt_inner', build_rt_inner, ("--context","--image","--push-secret","--commit","--proj-tag","--java-options","--build-client")),
         ('build_image'   , build_image   , ("--context","--repository","--push-secret-from-k8s","--name-out")),
         ('compile'       , compile       , ("--context","--image","--user","--commit","--proj-tag","--java-options")),
         ('copy_image'    , copy_image    , ("--from-image","--to-image","--push-secret")),
+        ('wait_image'    , wait_image    , ("--image","--secret-from-k8s"))
     )).parse_args()
     opt.op(opt)
 

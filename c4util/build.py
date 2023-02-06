@@ -3,13 +3,12 @@ import subprocess
 import json
 import os
 import uuid
-import shutil
 import argparse
 import contextlib
 import time
 import pathlib
 import base64
-from . import group_map, path_exists, read_json, sha256
+from . import group_map, read_json, sha256
 
 def run(args, **opt):
     print("running: " + " ".join(args))
@@ -40,13 +39,13 @@ def run_pipe_no_die(from_args, to_args):
     to_proc = Popen(to_args, stdin=from_proc.stdout)
     return wait_processes((from_proc, to_proc))
 
+def run_text_out(args, **opt):
+    print("running: "+" ".join(args))
+    return subprocess.run(args, check=True, text=True, capture_output=True, **opt).stdout
+
 def need_dir(dir):
     pathlib.Path(dir).mkdir(parents=True, exist_ok=True)
     return dir
-
-def copy_to_non_existed(from_path, to_path):
-    if path_exists(to_path): never(f"{to_path} exists")
-    shutil.copy(from_path, to_path)
 
 def kcd_args(*args):
     return ("kubectl","--context",os.environ["C4DEPLOY_CONTEXT"],*args)
@@ -81,6 +80,7 @@ def wait_pod(pod,timeout,phases):
                 return phase_lines[line]
     never("pod waiting failed")
 
+# need_pod: image/versions/attrs need to be encoded in name
 def need_pod(name, get_opt):
     if not run_no_die(kcd_args("get","pod",name)): apply_manifest(construct_pod({ **get_opt(), "name": name }))
     wait_pod(name,60,("Running",))
@@ -88,20 +88,24 @@ def need_pod(name, get_opt):
 def never(a): raise Exception(a)
 
 def crane_login(push_secret):
-    for registry, c in read_json(push_secret)["auths"].items():
-        run(("crane","auth","login","-u",c["username"],"--password-stdin",registry), text=True, input=c["password"])
+    for registry, c in json.loads(push_secret)["auths"].items():
+        username, password = (
+            (c["username"],c["password"]) if "username" in c and "password" in c else
+            base64.b64decode(c["auth"]).decode(encoding='utf-8', errors='strict').split(":") if "auth" in c else
+            never("bad auth")
+        )
+        run(("crane","auth","login","-u",username,"--password-stdin",registry), text=True, input=password)
 
 def build_cached_by_content(context, repository, push_secret):
     crane_login(push_secret)
-    files = sorted(run(("find","-type","f"),cwd=context,text=True,capture_output=True).stdout.splitlines())
-    sums = run(("sha256sum","--",*files),cwd=context,text=True,capture_output=True).stdout
+    files = sorted(run_text_out(("find","-type","f"),cwd=context).splitlines())
+    sums = run_text_out(("sha256sum","--",*files),cwd=context)
     image = f"{repository}:c4b.{sha256(sums)[:8]}"
     if not run_no_die(("crane","manifest",image)):
-        copy_to_non_existed(push_secret, f"{context}/.dockerconfigjson")
         with temp_dev_pod({ "image": "gcr.io/kaniko-project/executor:debug", "command": ["/busybox/sleep", "infinity"] }) as name:
             if not run_pipe_no_die(("tar","--exclude",".git","-C",context,"-czf-","."), kcd_args("exec","-i",name,"--","tar","-xzf-")):
                 never("tar failed")
-            kcd_run("exec",name,"--","mv",".dockerconfigjson","/kaniko/.docker/config.json")
+            run(kcd_args("exec","-i",name,"--","sh","-c","cat > /kaniko/.docker/config.json"), text=True, input=push_secret)
             kcd_run("exec",name,"--","executor","--cache=true","-d",image)
     return image
 
@@ -124,14 +128,22 @@ def setup_parser(commands):
         parser.set_defaults(op=op)
     return main_parser
 
-def secret_to_dir(name, dir):
-    dir_path = pathlib.Path(dir)
-    args = kcd_args("get", "secret", name, "-o", "json")
-    secret = json.loads(run(args, text=True, capture_output=True).stdout)
-    for key, value in secret["data"].items():
-        (dir_path / key).write_bytes(base64.b64decode(value))
+def decode(bs): return bs.decode(encoding='utf-8', errors='strict')
 
-def secret_to_dir_path(k8s_path, auth_dir):
-    push_secret_name, secret_fn = k8s_path.split("/")
-    secret_to_dir(push_secret_name, auth_dir)
-    return f"{auth_dir}/{secret_fn}"
+def get_secret_data(secret_name):
+    secret = json.loads(run_text_out(kcd_args("get", "secret", secret_name, "-o", "json")))
+    return lambda secret_fn: base64.b64decode(secret["data"][secret_fn])
+def secret_part_to_text(k8s_path):
+    secret_name, secret_fn = k8s_path.split("/")
+    return decode(get_secret_data(secret_name)(secret_fn))
+
+def get_repo(image):
+    res = image.rpartition(":")[0]
+    if not res: never(image)
+    return res
+
+def get_env_values_from_deployments(env_key, deployments):
+    return {
+        e["value"] for d in deployments for c in d["spec"]["template"]["spec"]["containers"]
+        for e in c.get("env",[]) if e["name"] == env_key
+    }
