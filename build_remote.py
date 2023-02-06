@@ -138,8 +138,8 @@ def build_common(opt):
         ))))
         run(("chmod","+x",tmp_c4ci))
         crane_append(temp_root, opt.image, f"{opt.image}.ce")
-        print(f"### To control deployment:")
-        print(f"c4py ci up --image {opt.image} --app sp-xxx-xxx-xxx")
+        #print(f"### To control deployment:")
+        #print(f"c4py ci up --image {opt.image} --app sp-xxx-xxx-xxx")
 
 def build_rt(opt):
     with temp_dev_pod({ "image": opt.image, **opt_compiler() }) as name:
