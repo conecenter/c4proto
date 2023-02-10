@@ -68,13 +68,13 @@ case class MjpegCamConf(
 
   def createRoom(will: String, killSwitch: SharedKillSwitch): Flow[ByteString,ByteString,NotUsed] = {
     val commonSourcePromise = Promise[Source[ByteString,NotUsed]]
+    val ConfLineValues = """\s*(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s*""".r // do not put this line into execution.fatal; config may be bad
+    val ConfLineValues(host, uri, username, password) = will
     execution.fatal{ implicit ec =>
       for{
         mat <- akkaMat.get
         http <- akkaHttp.get
         ignoredOK <- {
-          val ConfLineValues = """\s*(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s*""".r
-          val ConfLineValues(host,uri,username,password) = will
           val connFlow = http.outgoingConnection(host)
           val canFailSource = Source.single(HttpRequest(uri=uri))
             .via(connFlow)
