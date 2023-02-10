@@ -59,13 +59,14 @@ object Rooms {
         if(wasOpt.map(_.conf)==willConfOpt) st else {
           for(was<-wasOpt){
             was.killSwitch.shutdown()
-            println(s"shutdown $path")
+            println(s"shutdown: $path")
           }
           willConfOpt.fold(st - path){ conf =>
             val killSwitch = KillSwitches.shared(s"room-$path")
             val roomFactory = Single(roomFactoryList.filter(roomF=>path.startsWith(roomF.pathPrefix)))
+            println(s"creating: $path")
             val flow = roomFactory.createRoom(conf,killSwitch)
-            println(s"created $path")
+            println(s"created: $path")
             st + (path -> new RoomAccess(conf,flow,killSwitch))
           }
         }
