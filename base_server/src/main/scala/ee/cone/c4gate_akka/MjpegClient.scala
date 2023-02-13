@@ -12,7 +12,7 @@ import akka.stream.scaladsl.{Flow, Keep, MergeHub, Sink, Source, BroadcastHub, R
 import akka.http.scaladsl.HttpExt
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse, ResponseEntity}
 
-import akka.http.scaladsl.model.headers.{Authorization,GenericHttpCredentials,HttpChallenge,`WWW-Authenticate`}
+import akka.http.scaladsl.model.headers.{Authorization,GenericHttpCredentials,HttpChallenge,`WWW-Authenticate`,BasicHttpCredentials}
 
 import ee.cone.c4di._
 import ee.cone.c4actor.Execution
@@ -31,20 +31,23 @@ case class MjpegCamConf(
   def md5(v: String): String = okio.ByteString.encodeUtf8(v).md5().hex()
 
   def getAuthReq(resp: HttpResponse, uri: String, username: String, password: String): HttpRequest = {
-    val Seq(HttpChallenge("Digest",realm,challengeArgs)) =
-      resp.headers[`WWW-Authenticate`].flatMap(_.challenges)
-    val nonce = challengeArgs("nonce")
-    val ha1 = md5(s"$username:$realm:$password")
-    val ha2 = md5(s"GET:$uri")
-    val response = md5(s"$ha1:$nonce:$ha2")
-    val cred = GenericHttpCredentials("Digest","",Map(
-      "username" -> username,
-      "realm" -> realm,
-      "nonce" -> nonce,
-      "uri" -> uri,
-      "response" -> response,
-    ))
-    val headers = Seq(Authorization(cred))
+    val headers = resp.headers[`WWW-Authenticate`].flatMap(_.challenges) match {
+      case Seq(HttpChallenge("Digest",realm,challengeArgs)) =>
+        val nonce = challengeArgs("nonce")
+        val ha1 = md5(s"$username:$realm:$password")
+        val ha2 = md5(s"GET:$uri")
+        val response = md5(s"$ha1:$nonce:$ha2")
+        val cred = GenericHttpCredentials("Digest","",Map(
+          "username" -> username,
+          "realm" -> realm,
+          "nonce" -> nonce,
+          "uri" -> uri,
+          "response" -> response,
+        ))
+        Seq(Authorization(cred))
+      case Seq(HttpChallenge("Basic",realm,challengeArgs)) =>
+        Seq(Authorization(BasicHttpCredentials(username,password)))
+    }
     HttpRequest(uri=uri,headers=headers)
   }
 
