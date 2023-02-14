@@ -56,13 +56,13 @@ def compile(opt):
             print("cache does not exist")
         elif not run_no_die(kcd_args("exec",pod,"--","rm","-r",mod_dir)):
             print("cache rm failed")
-            return
+            break
         pipe_ok = run_pipe_no_die(
             kcd_args("exec",cache_pod_name,"--","cat",cache_path), kcd_args("exec","-i",pod,"--","tar","-C","/","-xzf-")
         )
         if not pipe_ok:
             print("cache get failed")
-            return
+            break
         print("cache get ok")
         save()
     full_sync_paths = (f"{opt.context}/{part}" for part in json.loads(read_text(f"{mod_dir}/c4sync_paths.json")))
