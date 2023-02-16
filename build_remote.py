@@ -206,6 +206,21 @@ def wait_image(opt):
         else:
             never("timeout")
 
+def add_history(opt):
+    if not path_exists(opt.context) or path_exists(f"{opt.context}/.git"): never("bad context")
+    with tempfile.TemporaryDirectory() as temp_root:
+        if run_no_die(("git", "clone", "-b", opt.branch, "--depth", "1", "--", opt.repo, "."), cwd=temp_root):
+            run(("mv", f"{temp_root}/.git", opt.context))
+        else:
+            run(("git", "init"), cwd=opt.context)
+            run(("git", "remote", "add", "origin", opt.repo), cwd=opt.context)
+            run(("git", "checkout", "-b", opt.branch), cwd=opt.context)
+    run(("git", "add", "."), cwd=opt.context)
+    run(("git", "config", "user.email", "ci@c4proto"), cwd=opt.context)
+    run(("git", "config", "user.name", "ci@c4proto"), cwd=opt.context)
+    run(("git", "commit", "-m", opt.message), cwd=opt.context)
+    run(("git", "push", "--set-upstream", "origin", opt.branch), cwd=opt.context)
+
 def main():
     opt = setup_parser((
         ('build_common'  , build_common  , ("--context","--image","--push-secret","--commit","--build-dir")),
@@ -215,7 +230,8 @@ def main():
         ('build_image'   , build_image   , ("--context","--repository","--push-secret-from-k8s","--name-out")),
         ('compile'       , compile       , ("--context","--image","--user","--commit","--proj-tag","--java-options")),
         ('copy_image'    , copy_image    , ("--from-image","--to-image","--push-secret")),
-        ('wait_image'    , wait_image    , ("--image","--secret-from-k8s"))
+        ('wait_image'    , wait_image    , ("--image","--secret-from-k8s")),
+        ('add_history'   , add_history   , ("--context","--repo","--branch","--message")),
     )).parse_args()
     opt.op(opt)
 

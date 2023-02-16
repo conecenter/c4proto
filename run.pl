@@ -5,9 +5,26 @@ use strict;
 
 my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
 
+my $put_text = sub{
+    my($fn,$content)=@_;
+    open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
+};
+my $get_text = sub{
+    my($path)=@_;
+    open FF,"<:encoding(UTF-8)",$path or die "get_text: $path";
+    my $res = join"",<FF>;
+    close FF or die;
+    $res;
+};
+
 my @tasks;
 
 my $serve = sub{
+    my $ceph_auth_path = $ENV{C4CEPH_AUTH};
+    $ceph_auth_path eq "/tmp/ceph.auth" and &$put_text($ceph_auth_path, join "&", map{"$$_[0]=$$_[1]"}
+        (map{[$$_[0]=>&$get_text(($ENV{C4S3_CONF_DIR}||die)."/$$_[1]")]} [url=>"address"],[id=>"key"],[pass=>"secret"]),
+        [bucket=>$ENV{C4INBOX_TOPIC_PREFIX}||die]
+    );
     $ENV{JAVA_TOOL_OPTIONS} = join " ", $ENV{JAVA_TOOL_OPTIONS},
         "-XX:+ExitOnOutOfMemoryError",
         "-XX:+UnlockDiagnosticVMOptions", "-XX:GCLockerRetryAllocationCount=8",
@@ -20,10 +37,8 @@ my $serve = sub{
     local $ENV{CLASSPATH} = join ":", sort <app/*.jar>;
     &$exec("sh", "serve.sh");
 };
-push @tasks, [main=>sub{
-    m{([^/]+)$} and (-e $1 or symlink $_,$1) or die for </c4conf/*>; # gate do not need
-    &$serve();
-}];
+
+push @tasks, [main=>sub{&$serve()}];
 
 my($cmd,@args)=@ARGV;
 $cmd eq $$_[0] and $$_[1]->(@args) for @tasks;
