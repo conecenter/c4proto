@@ -664,7 +664,7 @@ push @tasks, ["snapshot_put", "<pod|$composes_txt> <file_path|nil> [to_address]"
             die "need le_hostname or domain_zone for $comp or address";
         my $kubectl = &$get_kubectl($comp);
         my $auth_path = &$get_tmp_dir()."/auth";
-        sy(qq[$kubectl exec $pod -- sh -c 'cat \$C4AUTH_KEY_FILE' > $auth_path])
+        sy(qq[$kubectl exec $pod -- sh -c 'cat \$C4AUTH_KEY_FILE' > $auth_path]);
         sy(&$snapshot_put($auth_path,$data_path,$address));
     });
 }];
