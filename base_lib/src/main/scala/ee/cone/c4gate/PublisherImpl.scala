@@ -46,6 +46,8 @@ import ee.cone.c4gate.HttpProtocol._
   }
 }
 
+case class ByPathHttpPublicationUntilCase(srcId: SrcId, path: String, until: Long)
+
 @c4assemble("PublisherApp") class PublicationByPathAssembleBase(idGenUtil: IdGenUtil)(
   val max: Values[S_HttpPublicationV2] => Option[S_HttpPublicationV2] =
     _.maxByOption(p => (p.time, p.srcId))
@@ -55,16 +57,18 @@ import ee.cone.c4gate.HttpProtocol._
   def mapListedByPath(
     key: SrcId,
     manifest: Each[S_Manifest]
-  ): Values[(ByPath,ByPathHttpPublicationUntil)] = {
+  ): Values[(ByPath,ByPathHttpPublicationUntilCase)] = {
     val untilStr = manifest.until.toString
-    manifest.paths.map(p=>WithPK(ByPathHttpPublicationUntil(idGenUtil.srcIdFromStrings(p,untilStr),p,manifest.until)))
+    manifest.paths.map(p=>p->ByPathHttpPublicationUntilCase(idGenUtil.srcIdFromStrings(p,untilStr),p,manifest.until))
   }
 
   def selectMaxUntil(
     key: SrcId,
-    @by[ByPath] listed: Values[ByPathHttpPublicationUntil],
-  ): Values[(SrcId,ByPathHttpPublicationUntil)] =
-    List(WithPK(listed.maxBy(_.until)))
+    @by[ByPath] listed: Values[ByPathHttpPublicationUntilCase],
+  ): Values[(SrcId,ByPathHttpPublicationUntil)] = {// SrcId here is path
+    val maxCase = listed.maxBy(_.until)
+    List(WithPK(ByPathHttpPublicationUntil(maxCase.path, maxCase.until)))
+  }
 
   ///
 
