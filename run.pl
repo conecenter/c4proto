@@ -5,26 +5,19 @@ use strict;
 
 my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
 
-my $put_text = sub{
-    my($fn,$content)=@_;
-    open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
-};
-my $get_text = sub{
-    my($path)=@_;
-    open FF,"<:encoding(UTF-8)",$path or die "get_text: $path";
-    my $res = join"",<FF>;
-    close FF or die;
-    $res;
-};
+sub syf{ for(@_){ print "$_\n"; my $r = scalar `$_`; $? && die $?; return $r } }
 
 my @tasks;
 
 my $serve = sub{
     my $ceph_auth_path = $ENV{C4CEPH_AUTH};
-    $ceph_auth_path eq "/tmp/ceph.auth" and &$put_text($ceph_auth_path, join "&", map{"$$_[0]=$$_[1]"}
-        (map{[$$_[0]=>&$get_text(($ENV{C4S3_CONF_DIR}||die)."/$$_[1]")]} [url=>"address"],[id=>"key"],[pass=>"secret"]),
-        [bucket=>$ENV{C4INBOX_TOPIC_PREFIX}||die]
-    );
+    if($ceph_auth_path eq "/tmp/ceph.auth"){
+        my $conf_dir = $ENV{C4S3_CONF_DIR}||die;
+        my $content = join "&", map{"$$_[0]=$$_[1]"}
+            (map{[$$_[0]=>syf("cat $conf_dir/$$_[1]")]} [url=>"address"],[id=>"key"],[pass=>"secret"]),
+            [bucket=>$ENV{C4INBOX_TOPIC_PREFIX}||die];
+        open FF,">",$ceph_auth_path and print FF $content and close FF or die "put_text($!)($ceph_auth_path)";
+    }
     $ENV{JAVA_TOOL_OPTIONS} = join " ", $ENV{JAVA_TOOL_OPTIONS},
         "-XX:+ExitOnOutOfMemoryError",
         "-XX:+UnlockDiagnosticVMOptions", "-XX:GCLockerRetryAllocationCount=8",
