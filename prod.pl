@@ -828,13 +828,13 @@ push @tasks, ["ci_up", "", sub{
     &$end("ci_up");
 }];
 
-push @tasks, ["hist_revert","<env-comp> <hist-item>", sub{
-    my($env_comp,$hist_item)=@_;
-    my ($kubectl,$env_name,$env_group) = &$ci_env_name($env_comp);
-    my $tmp_dir = &$get_tmp_dir();
-    &$secret_to_dir($kubectl,$hist_item,$tmp_dir);
-    &$ci_apply($kubectl,$env_name,"$tmp_dir/value");
-}];
+my $get_image_from_deployment = sub{ #.spec.template.spec.containers[*].image
+    my ($deployment) = @_;
+    my ($curr_img,@more) = map{$$_{image}} map{@$_} map{$$_{containers}||{}}
+        map{$$_{spec}||{}} map{$$_{template}||{}} map{$$_{spec}||{}} $deployment;
+    die if @more;
+    $curr_img
+};
 
 push @tasks, ["ci_down","",sub{
     my($env_comp)=@_;
