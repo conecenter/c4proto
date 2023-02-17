@@ -220,7 +220,7 @@ def add_history(opt):
     run(("git", "config", "user.name", "ci@c4proto"), cwd=opt.context)
     if run_no_die(("git", "commit", "-m", opt.message), cwd=opt.context):
         run(("git", "push", "--set-upstream", "origin", opt.branch), cwd=opt.context)
-    elif len(run_text_out(("git", "status", "--porcelain=v1")).strip()) > 0:
+    elif len(run_text_out(("git", "status", "--porcelain=v1"), cwd=opt.context).strip()) > 0:
         never("can not commit")
     else:
         print("unchanged")
