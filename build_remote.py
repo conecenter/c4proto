@@ -11,7 +11,7 @@ from c4util import path_exists, read_text, changing_text, read_json, one, \
     changing_text_observe
 from c4util.build import never, run, run_no_die, run_pipe_no_die, Popen, \
     wait_processes, need_dir, kcd_args, kcd_run, need_pod, temp_dev_pod, \
-    build_cached_by_content, setup_parser, secret_part_to_text, get_repo, crane_login
+    build_cached_by_content, setup_parser, secret_part_to_text, get_repo, crane_login, run_text_out
 
 
 def get_proto_dir():
@@ -218,8 +218,13 @@ def add_history(opt):
     run(("git", "add", "."), cwd=opt.context)
     run(("git", "config", "user.email", "ci@c4proto"), cwd=opt.context)
     run(("git", "config", "user.name", "ci@c4proto"), cwd=opt.context)
-    run(("git", "commit", "-m", opt.message), cwd=opt.context)
-    run(("git", "push", "--set-upstream", "origin", opt.branch), cwd=opt.context)
+    if run_no_die(("git", "commit", "-m", opt.message), cwd=opt.context):
+        run(("git", "push", "--set-upstream", "origin", opt.branch), cwd=opt.context)
+    elif len(run_text_out(("git", "status", "--porcelain=v1")).strip()) > 0:
+        never("can not commit")
+    else:
+        print("unchanged")
+
 
 def main():
     opt = setup_parser((
