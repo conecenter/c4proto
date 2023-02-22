@@ -10,7 +10,7 @@ sub syf{ for(@_){ print "$_\n"; my $r = scalar `$_`; $? && die $?; return $r } }
 my @tasks;
 
 my $serve = sub{
-    sy("python3","vault.py")
+    sy("python3","vault.py");
     my $ceph_auth_path = $ENV{C4CEPH_AUTH};
     if($ceph_auth_path eq "/tmp/ceph.auth"){
         my $conf_dir = $ENV{C4S3_CONF_DIR}||die;
