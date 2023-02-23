@@ -274,7 +274,7 @@ my $md5_hex = sub{ md5_hex(@_) };
 my $spaced_list = sub{ map{ ref($_) ? @$_ : /(\S+)/g } @_ };
 
 my $make_kc_yml = sub{
-    my($name,$tmp_path,$opt) = @_;
+    my($name,$opt) = @_;
     my @unknown = &$map($opt,sub{ my($k)=@_;
         $k=~/^([A-Z]|host:|port:|ingress:|path:|label:)/ ||
         $k=~/^(tty|image|noderole|image_pull_secrets|ingress_secret_name|need_pod_ip|replicas|req_cpu|req_mem|ca)$/ ? () : $k
@@ -287,17 +287,10 @@ my $make_kc_yml = sub{
         &$map($ip2aliases, sub{ my($k,$v)=@_; +{ip=>$k, hostnames=>$v} });
     };
     #
-    my @int_secrets = do{
-        my @files = &$map($opt,sub{ my($k,$v)=@_;
-            $k=~/^C4/ && $v=~m{^/c4conf/([\w\.]+)$} ? "$1" : ()
-        });
-        @files ? ({ secret => "$name-$nm", path=>"/c4conf", files => \@files }) : ();
-    };
-    my @ext_secrets = &$map($opt,sub{ my($k,$v)=@_;
+    &$map($opt,sub{ my($k,$v)=@_; $k=~/^C4/ && $v=~m{^/c4conf/} and die "internal secrets are not supported" });
+    my @all_secrets = &$map($opt,sub{ my($k,$v)=@_;
         $k=~/^C4/ && "$v/"=~m{^(/c4conf-([\w\-]+))/} ? {secret=>"$2",path=>"$1"} : ()
     });
-
-    my @all_secrets = (@int_secrets,@ext_secrets);
     my @secret_volumes = &$map(
         +{map{(&$mandatory_of(secret=>$_)=>1)} @all_secrets},
         sub{ my($secret)=@_;
@@ -473,12 +466,7 @@ my $make_kc_yml = sub{
         } : ();
     };
     #
-    my @secrets_yml = map{
-        my %data = map{($_=>"$tmp_path/$_")} @{$$_{files}||die};
-        &$secret_yml_from_files(&$mandatory_of(secret=>$_), \%data);
-    } @int_secrets;
-    #
-    [@secrets_yml, @service_yml, @ingress_yml, $stateful_set_yml];
+    [@service_yml, @ingress_yml, $stateful_set_yml];
 };
 
 my $add_image_pull_secrets = sub{
@@ -488,8 +476,8 @@ my $add_image_pull_secrets = sub{
 };
 
 my $wrap_deploy = sub{
-    my($name,$tmp_path,$options) = @_;
-    my $yml = &$make_kc_yml($name,$tmp_path,&$add_image_pull_secrets($name,$options));
+    my($name,$options) = @_;
+    my $yml = &$make_kc_yml($name,&$add_image_pull_secrets($name,$options));
     my $yml_str = join "\n", map{&$encode($_)} @$yml;
     my $kubectl = &$get_kubectl($name);
     sy("$kubectl apply -f ".&$put_temp("up.yml",$yml_str));
@@ -512,24 +500,6 @@ my $remote_build = sub{
     &$get_text($out)
 };
 
-my $all_consumer_options = sub{(
-    tty => "true",
-    JAVA_TOOL_OPTIONS => "-XX:-UseContainerSupport ", # -XX:ActiveProcessorCount=36
-    C4LOGBACK_XML => "/c4conf/logback.xml",
-    C4AUTH_KEY_FILE => "/c4conf/simple.auth", #gate does no symlinks
-)};
-
-my $need_deploy_cert = sub{
-    my($comp,$from_path)=@_;
-    my $kubectl = &$get_kubectl($comp);
-    my $tmp_dir = &$get_tmp_dir();
-    &$secret_to_dir($kubectl,"simple-seed",$tmp_dir);
-    my $seed = &$get_text("$tmp_dir/value");
-    my $path = "$from_path/simple.auth";
-    &$put_text($path,&$md5_hex("$seed$comp"));
-    $path
-};
-
 my @lim_small = (lim_mem=>"100Mi",lim_cpu=>"250m"); # use rarely, on lim_mem child processes inside container can be killed, and parent get mad
 my @req_small = (req_mem=>"100Mi",req_cpu=>"250m");
 my @req_big = (req_mem=>"10Gi",req_cpu=>"1000m");
@@ -541,18 +511,11 @@ my $elector_port = 1080;
 my $up_client = sub{
     my($run_comp,$img)=@_;
     my $conf = &$get_compose($run_comp);
-    my $from_path = &$get_tmp_dir();
-    ($from_path, {
+    +{
         image => $img,
         tty => "true", JAVA_TOOL_OPTIONS => "-XX:-UseContainerSupport",
         @req_small, %$conf,
-    });
-};
-
-my $need_logback = sub{
-    my ($comp,$from_path) = @_;
-    my $put = &$rel_put_text($from_path);
-    &$put("logback.xml","");
+    };
 };
 
 my $get_consumer_options = sub{
@@ -561,7 +524,9 @@ my $get_consumer_options = sub{
     my $prefix = $$conf{C4INBOX_TOPIC_PREFIX};
     my ($bootstrap_servers,$elector) = &$get_deployer_conf($comp,1,qw[bootstrap_servers elector]);
     (
-        &$all_consumer_options(),
+        tty                  => "true",
+        JAVA_TOOL_OPTIONS    => "-XX:-UseContainerSupport ", # -XX:ActiveProcessorCount=36
+        C4AUTH_KEY_FILE      => "/c4conf-simple-seed/value",
         C4INBOX_TOPIC_PREFIX => ($prefix || die "no C4INBOX_TOPIC_PREFIX"),
         C4STORE_PASS_PATH    => "/c4conf-kafka-auth/kafka.store.auth",
         C4KEYSTORE_PATH      => "/c4conf-kafka-certs/kafka.keystore.jks",
@@ -574,44 +539,22 @@ my $get_consumer_options = sub{
     )
 };
 
-my $need_ceph = sub{
-    my ($comp,$from_path) = @_;
-    my $kubectl = &$get_kubectl($comp);
-    my $tmp_dir = &$get_tmp_dir();
-    &$secret_to_dir($kubectl,"ceph-client",$tmp_dir);
-    my $get = sub{ &$get_text("$tmp_dir/$_[0]") };
-    my $put = &$rel_put_text($from_path);
-    my $conf = &$get_compose($comp);
-    &$put("ceph.auth", join "&", map{"$$_[0]=$$_[1]"}
-        [url=>&$get("address")],
-        [id=>&$get("key")],
-        [pass=>&$get("secret")],
-        [bucket=>&$mandatory_of("C4INBOX_TOPIC_PREFIX"=>$conf)]
-    );
-};
-
 my $up_consumer = sub{
     my($run_comp,$img)=@_;
     my $conf = &$get_compose($run_comp);
     my $gate_comp = $$conf{ca} || die "no ca";
     my %consumer_options = &$get_consumer_options($gate_comp);
-    my $from_path = &$get_tmp_dir();
-    &$need_deploy_cert($gate_comp,$from_path);
-    &$need_ceph($gate_comp,$from_path);
-    &$need_logback($run_comp,$from_path);
+    my %fix_ceph = $$conf{C4CEPH_AUTH} eq "/c4conf/ceph.auth" ? (C4CEPH_AUTH=>"/tmp/ceph.auth") : ();
     my %de_env = $$conf{image_type} eq "de" ? (C4CI_BASE_TAG_ENV=>$$conf{project}) : ();
-    ($from_path, { image => $img, %consumer_options, @req_big, %de_env, %$conf });
+    +{ image => $img, %consumer_options, @req_big, %de_env, %$conf, %fix_ceph };
 };
 my $up_gate = sub{
     my($run_comp,$img)=@_;
     my %consumer_options = &$get_consumer_options($run_comp);
-    my $from_path = &$get_tmp_dir();
-    &$need_deploy_cert($run_comp,$from_path);
-    &$need_logback($run_comp,$from_path);
     my $hostname = &$get_hostname($run_comp) || die "no le_hostname";
     my ($ingress_secret_name) = &$get_deployer_conf($run_comp,0,qw[ingress_secret_name]);
     my $conf = &$get_compose($run_comp);
-    ($from_path, {
+    +{
         image => $img, %consumer_options,
         C4STATE_TOPIC_PREFIX => "gate",
         C4STATE_REFRESH_SECONDS => 1000,
@@ -625,7 +568,7 @@ my $up_gate = sub{
         C4SSE_PORT => $inner_sse_port,
         need_pod_ip => 1,
         (map{($_=>&$mandatory_of($_=>$conf))} qw[C4KEEP_SNAPSHOTS replicas]),
-    });
+    };
 };
 
 my $installer_steps = sub{(
@@ -711,20 +654,19 @@ my $snapshot_put = sub{
     ("python3","-u","$gen_dir/req.py",$auth_path,$data_path,$addr,"/put-snapshot","/put-snapshot","snapshots/$data_fn");
 };
 
-my $need_auth_path = sub{
-    my($comp)=@_;
-    my $from_path = &$get_tmp_dir();
-    return &$need_deploy_cert($comp,$from_path);
-};
-
-push @tasks, ["snapshot_put", "$composes_txt <file_path|nil> [to_address]", sub{
-    my($comp,$data_path_arg,$address_arg)=@_;
-    my $host = &$get_hostname($comp);
-    my $address = $address_arg || $host && "https://$host" ||
-        die "need le_hostname or domain_zone for $comp or address";
+push @tasks, ["snapshot_put", "<pod|$composes_txt> <file_path|nil> [to_address]", sub{
+    my($arg, $data_path_arg, $address_arg)=@_;
     my $data_path = $data_path_arg ne "nil" ? $data_path_arg :
         &$put_temp("0000000000000000-d41d8cd9-8f00-3204-a980-0998ecf8427e","");
-    sy(&$snapshot_put(&$need_auth_path($comp),$data_path,$address));
+    &$for_comp_pod($arg,sub{ my ($comp,$pod) = @_;
+        my $host = &$get_hostname($comp);
+        my $address = $address_arg || $host && "https://$host" ||
+            die "need le_hostname or domain_zone for $comp or address";
+        my $kubectl = &$get_kubectl($comp);
+        my $auth_path = &$get_tmp_dir()."/auth";
+        sy(qq[$kubectl exec $pod -- sh -c 'cat \$C4AUTH_KEY_FILE' > $auth_path]);
+        sy(&$snapshot_put($auth_path,$data_path,$address));
+    });
 }];
 
 ###
@@ -868,22 +810,21 @@ push @tasks, ["ci_up", "", sub{
         my $l_comp = $_;
         my($from_img,$to_img) = &$ci_get_image($common_img,$l_comp);
         &$ignore($from_img);
-        my ($tmp_path,$options) = &$find_handler(ci_up=>$l_comp)->($l_comp,$to_img);
+        my $options = &$find_handler(ci_up=>$l_comp)->($l_comp,$to_img);
         my $commit = &$mandatory_of(C4COMMIT=>\%ENV);
-        @{&$make_kc_yml($l_comp,$tmp_path,&$add_image_pull_secrets($l_comp,{
+        @{&$make_kc_yml($l_comp,&$add_image_pull_secrets($l_comp,{
             C4COMMON_IMAGE=>$common_img, C4COMMIT=>$commit, %$options
         }))};
     } @comps;
     #
-    my $secret_name = "hist-".&$get_rand_uuid();
-    my $hist_yml = &$put_temp("hist.yml",&$encode(&$merge_list(
-        &$secret_yml_from_files($secret_name, {value=>&$put_temp("value",$yml_str)}),
-        {metadata=>{
-            labels=>{"c4target-env"=>$env_name}, annotations=>{c4img=>$common_img},
-        }},
-    )));
-    sy("$kubectl apply -f $hist_yml");
-    &$ci_apply($kubectl,$env_name,&$put_temp("up.yml",$yml_str));
+    my $tmp_dir = &$get_tmp_dir();
+    my $yml_path = "$tmp_dir/up.yml";
+    &$put_text($yml_path, $yml_str);
+    &$build_remote("add_history",
+        "--repo", &$mandatory_of(C4OUT_REPO=>\%ENV), "--context", $tmp_dir,
+        "--branch", "deploy/$env_name", "--message", "$env_comp $common_img"
+    );
+    &$ci_apply($kubectl,$env_name,$yml_path);
     &$end("ci_up");
 }];
 
@@ -894,28 +835,6 @@ my $get_image_from_deployment = sub{ #.spec.template.spec.containers[*].image
     die if @more;
     $curr_img
 };
-
-push @tasks, ["hist_ls","<env-comp>", sub{
-    my($env_comp)=@_;
-    my ($kubectl,$env_name,$env_group) = &$ci_env_name($env_comp);
-    my $deploy_res = syf("$kubectl get deployment -l c4env=$env_name -o json");
-    my $hist_res = syf("$kubectl get secrets -l c4target-env=$env_name -o json");
-    print "Current deployment images:\n";
-    print "\t".&$get_image_from_deployment($_)."\n"
-        for @{&$decode($deploy_res)->{items}||die};
-    print "History:\n";
-    print for sort
-        map{"\t$$_{creationTimestamp} $$_{name} $$_{annotations}{c4img}\n"}
-        map{$$_{metadata}} @{&$decode($hist_res)->{items}||die};
-}];
-
-push @tasks, ["hist_revert","<env-comp> <hist-item>", sub{
-    my($env_comp,$hist_item)=@_;
-    my ($kubectl,$env_name,$env_group) = &$ci_env_name($env_comp);
-    my $tmp_dir = &$get_tmp_dir();
-    &$secret_to_dir($kubectl,$hist_item,$tmp_dir);
-    &$ci_apply($kubectl,$env_name,"$tmp_dir/value");
-}];
 
 push @tasks, ["ci_down","",sub{
     my($env_comp)=@_;
@@ -1062,7 +981,8 @@ push @tasks, ["ci_rt_base","",sub{
         "RUN perl install.pl apt".
         " curl software-properties-common".
         " lsof mc iputils-ping netcat-openbsd fontconfig".
-        " openssh-client", #repl
+        " openssh-client". #repl
+        " python3", #vault
         &$install_jdk(),
         'ENV PATH=${PATH}:/tools/jdk/bin',
         (grep{/^RUN\s/} @$add_steps),
@@ -1087,7 +1007,7 @@ push @tasks, ["ci_rt_over","",sub{
     my $tag_info = &$get_tag_info($gen_dir,$base);
     my ($mod,$main_cl) = map{$$tag_info{$_}||die} qw[mod main];
     sy("mkdir $ctx_dir");
-    sy("cp $proto_dir/run.pl $ctx_dir/");
+    sy("cp $proto_dir/run.pl $proto_dir/vault.py $ctx_dir/");
     mkdir "$ctx_dir/app";
     my $paths = &$decode(&$get_text(&$get_classpath($gen_dir,$mod)));
     my @started = map{&$start($_)} map{
@@ -1137,8 +1057,7 @@ push @tasks, ["up-s3client", "", sub{
     my $options = {
         image => $img, C4S3_CONF_DIR => "/c4conf-ceph-client", @req_small, "label:c4s3client" => "1"
     };
-    my $from_path = &$get_tmp_dir();
-    &$wrap_deploy($comp,$from_path,$options);
+    &$wrap_deploy($comp,$options);
 }];
 
 my $install_kubectl = sub{
@@ -1276,13 +1195,12 @@ push @tasks, ["up-elector","",sub{
         );
         &$remote_build($comp,$from_path);
     };
-    my $from_path = &$get_tmp_dir();
     my $options = {
         image => $img, tty => "true", headless => 1, replicas => 3,
         C4HTTP_PORT => $elector_port, "port:$elector_port:$elector_port"=>"",
         @req_small, @lim_small,
     };
-    &$wrap_deploy($comp,$from_path,$options);
+    &$wrap_deploy($comp,$options);
 }];
 
 my $dir_to_secret = sub{
@@ -1385,14 +1303,13 @@ push @tasks, ["up-resource_tracker","",sub{
         );
         &$remote_build($comp,$from_path);
     };
-    my $from_path = &$get_tmp_dir();
     my $conf = &$get_compose($comp);
     my $options = {
         image => $img, tty => "true",
         @req_small,
         (map{($_=>&$mandatory_of($_=>$conf))} qw[C4RES_TRACKER_OPTIONS C4KUBECONFIG ]),
     };
-    &$wrap_deploy($comp,$from_path,$options);
+    &$wrap_deploy($comp,$options);
 }];
 
 ####
