@@ -10,7 +10,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 import scala.annotation.tailrec
 
 object StartUpSnapshotUtil {
-  def path(config: Config): Path = Paths.get("/tmp/c4snapshot-list-"+config.get("C4PARENT_PID"))
+  def path(config: Config): Path = Paths.get("/tmp/c4snapshot-"+config.get("C4PARENT_PID"))
 }
 
 @c4("StartUpSnapshotApp") final class StartUpSnapshotRequestSender(
@@ -22,7 +22,7 @@ object StartUpSnapshotUtil {
   def run(): Unit = {
     logger.info("Making snapshot start")
     write("")
-    write(snapshotMaker.make(NextSnapshotTask(None)).map(_.relativePath).mkString("\n"))
+    write(snapshotMaker.make(NextSnapshotTask(None)).head.relativePath)
     logger.info("Making snapshot end")
   }
 }
@@ -38,20 +38,20 @@ object StartUpSnapshotUtil {
   config: Config,
 ) extends Executable with Early with LazyLogging {
   //noinspection AccessorLikeMethodIsEmptyParen
-  @tailrec private def getSnapshotList(): LazyList[RawSnapshot] = {
+  @tailrec private def getSnapshot(): RawSnapshot = {
     val path = StartUpSnapshotUtil.path(config)
     if(!Files.exists(path)){
       logger.debug("Making snapshot")
-      snapshotMaker.make(NextSnapshotTask(None)).to(LazyList)
+      snapshotMaker.make(NextSnapshotTask(None)).head
     } else {
       val content = new String(Files.readAllBytes(path), UTF_8)
       if (content.nonEmpty) {
-        logger.debug("Snapshot list found")
-        content.split("\n").map(RawSnapshot).to(LazyList)
+        logger.debug("Snapshot found")
+        RawSnapshot(content)
       } else {
         logger.debug("Waiting for snapshot")
         Thread.sleep(1000)
-        getSnapshotList()
+        getSnapshot()
       }
     }
   }
@@ -59,27 +59,18 @@ object StartUpSnapshotUtil {
   def run(): Unit = concurrent.blocking { //ck mg
     logger.info(s"Starting RootConsumer...")
     GCLog("before loadRecent")
-    val initialRawWorld: RichContext =
-      (for{
-        snapshot <- getSnapshotList()
-        event <- {
-          logger.debug(s"Loading $snapshot")
-          loader.load(snapshot)
-        }
-        world <- {
-          logger.debug(s"Reducing $snapshot")
-          Option(reducer.reduce(None,List(event)))
-        }
-        if getS_FailedUpdates.ofA(world).isEmpty
-      } yield {
-        logger.info(s"Snapshot reduced without failures [${snapshot.relativePath}]")
-        world
-      }).head
+    val snapshot = getSnapshot()
+    logger.debug(s"Loading $snapshot")
+    val Some(event) = loader.load(snapshot)
+    logger.debug(s"Reducing $snapshot")
+    val world = reducer.reduce(None,List(event))
+    if(getS_FailedUpdates.ofA(world).nonEmpty) throw new Exception(s"Snapshot reduce failed $snapshot")
+    logger.info(s"Snapshot reduced without failures $snapshot")
     GCLog("after loadRecent")
-    startUpSpaceProfiler.out(initialRawWorld.assembled)
-    consuming.process(initialRawWorld.offset, consumer => {
+    startUpSpaceProfiler.out(world.assembled)
+    consuming.process(world.offset, consumer => {
       val initialRawObserver = progressObserverFactory.create(consumer.endOffset)
-      iteration(consumer, initialRawWorld, initialRawObserver)
+      iteration(consumer, world, initialRawObserver)
     })
   }
   @tailrec private def iteration(
