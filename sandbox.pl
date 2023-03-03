@@ -193,6 +193,10 @@ my $serve_history = sub{
 };
 
 my $init = sub{
+    my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR => \%ENV);
+    sy("python3","-u","$proto_dir/vault.py");
+    sy("perl","$proto_dir/ceph.pl");
+    #
     my $sock = "/c4/supervisor.sock";
     &$put_text("/c4/supervisord.conf", join '', map{"$_\n"}
         "[supervisord]",

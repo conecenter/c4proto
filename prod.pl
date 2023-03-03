@@ -1007,7 +1007,7 @@ push @tasks, ["ci_rt_over","",sub{
     my $tag_info = &$get_tag_info($gen_dir,$base);
     my ($mod,$main_cl) = map{$$tag_info{$_}||die} qw[mod main];
     sy("mkdir $ctx_dir");
-    sy("cp $proto_dir/run.pl $proto_dir/vault.py $ctx_dir/");
+    sy("cp $proto_dir/run.pl $proto_dir/vault.py $proto_dir/ceph.pl $ctx_dir/");
     mkdir "$ctx_dir/app";
     my $paths = &$decode(&$get_text(&$get_classpath($gen_dir,$mod)));
     my @started = map{&$start($_)} map{
