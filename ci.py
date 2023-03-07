@@ -11,7 +11,8 @@ from c4util.build import kcd_args, run_text_out, never, run, get_env_values_from
 def filter_parts(check_prefix, postfix_set, values):
     return [
         value for value in values
-        for parts in [value.split(".")] if len(parts) == 2 and parts[1] in postfix_set and check_prefix(parts[0])
+        for parts in [value.split(".")]
+        if len(parts) >= 2 and parts[-1] in postfix_set and check_prefix(".".join(parts[:-1]))
     ]
 
 
