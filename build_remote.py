@@ -53,17 +53,20 @@ def compile(opt):
     need_pod(pod, lambda: { "image": opt.image, **opt_compiler() })
     for save in changing_text_observe(f"{opt.context}/target/c4/compile_cache_ver", cache_path):
         if not run_no_die(kcd_args("exec",pod,"--","test","-e",mod_dir)):
-            print("cache does not exist")
+            print("private cache does not exist")
         elif not run_no_die(kcd_args("exec",pod,"--","rm","-r",mod_dir)):
-            print("cache rm failed")
+            print("private cache rm failed")
             break
-        pipe_ok = run_pipe_no_die(
-            kcd_args("exec",cache_pod_name,"--","cat",cache_path), kcd_args("exec","-i",pod,"--","tar","-C","/","-xzf-")
-        )
-        if not pipe_ok:
-            print("cache get failed")
-            break
-        print("cache get ok")
+        if not run_no_die(kcd_args("exec",cache_pod_name,"--","test","-e",cache_path)):
+            print("shared cache does not exist")
+        else:
+            pipe_ok = run_pipe_no_die(
+                kcd_args("exec",cache_pod_name,"--","cat",cache_path), kcd_args("exec","-i",pod,"--","tar","-C","/","-xzf-")
+            )
+            if not pipe_ok:
+                print("cache get failed")
+                break
+            print("cache get ok")
         save()
     full_sync_paths = (f"{opt.context}/{part}" for part in json.loads(read_text(f"{mod_dir}/c4sync_paths.json")))
     rsync(None, pod, [path for path in full_sync_paths if path_exists(path)])
