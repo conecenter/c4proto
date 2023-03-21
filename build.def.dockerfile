@@ -19,7 +19,7 @@ RUN /install.pl apt \
     '#1'
 # build tools:
 RUN /install.pl curl https://github.com/AdoptOpenJDK/openjdk15-binaries/releases/download/jdk-15.0.1%2B9/OpenJDK15U-jdk_x64_linux_hotspot_15.0.1_9.tar.gz
-RUN /install.pl curl https://git.io/coursier-cli-linux && chmod +x /tools/coursier
+RUN /install.pl curl https://github.com/coursier/launchers/raw/master/coursier && chmod +x /tools/coursier
 #RUN /install.pl curl https://github.com/sbt/sbt/releases/download/v1.6.2/sbt-1.6.2.tgz
 RUN /install.pl curl https://github.com/sbt/sbt/releases/download/v1.8.0/sbt-1.8.0.tgz
 RUN /install.pl curl https://nodejs.org/dist/v14.15.4/node-v14.15.4-linux-x64.tar.xz
