@@ -41,8 +41,9 @@ import ee.cone.c4gate.HttpProtocol._
     val manSrcId = s"${actorName.value}-PublishingManifest-$man"
     val manifest = S_Manifest(manSrcId,paths,Long.MaxValue)
     val manEvents = updateIfChanged.updateSimple(getS_Manifest)(local)(Seq(manifest))
-    logger.debug(s"publish $man finishing")
-    manEvents ++ pubEvents
+    val res = manEvents ++ pubEvents
+    logger.debug(s"publish $man finishing, ${res.size} changes")
+    res
   }
 }
 
