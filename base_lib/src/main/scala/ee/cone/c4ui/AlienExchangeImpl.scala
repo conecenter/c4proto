@@ -13,7 +13,7 @@ import ee.cone.c4gate.AlienProtocol.{U_FromAlienConnected, U_FromAlienState, U_T
 import ee.cone.c4gate.HttpProtocol.S_HttpRequest
 import ee.cone.c4gate.LocalHttpConsumer
 import ee.cone.c4di.c4
-
+import okio.ByteString
 import scala.collection.immutable.Seq
 
 case object ToAlienPriorityKey extends TransientLens[java.lang.Long](0L)
