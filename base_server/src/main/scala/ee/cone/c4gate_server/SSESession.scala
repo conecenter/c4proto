@@ -64,7 +64,7 @@ trait RoPongRegistry {
           val session = U_FromAlienState(
             sessionKey,
             headers("x-r-location"),
-            headers("x-r-connection"),
+            headers("x-r-reload"),
             Option(aSession).map(_.userName).filter(_.nonEmpty)
           )
           val now = Instant.now

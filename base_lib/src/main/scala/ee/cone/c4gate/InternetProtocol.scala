@@ -78,7 +78,7 @@ import ee.cone.c4proto._
   @Id(0x0036) case class U_FromAlienState(
     @Id(0x0032) sessionKey: String,
     @Id(0x0037) location: String,
-    @Id(0x0039) connectionKey: String, // we need to affect branchKey
+    @Id(0x0036) reloadKey: String, // we need to affect branchKey
     @Id(0x003A) userName: Option[String]
   )
 
