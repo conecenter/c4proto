@@ -9,6 +9,7 @@ export default function Feedback(sessionStorage,location,fetch,setTimeout){
             url: state.pongURL,
             options: {
                 headers: {
+                    "x-r-reload": state.reloadKey||never(),
                     "x-r-connection": state.connectionKey,
                     "x-r-location": location+""
                 }
@@ -20,7 +21,10 @@ export default function Feedback(sessionStorage,location,fetch,setTimeout){
     }
     const connect = (data,modify) => {
         const [connectionKey,pongURL] = data.split(" ")
-        modify("CONNECT", state => pong(true,modify)({...state,connectionKey,pongURL}))
+        modify("CONNECT", state => {
+            const reloadKey = state.reloadKey || connectionKey // .loadKey exists, but it's created later for session
+            return pong(true,modify)({...state,connectionKey,pongURL,reloadKey})
+        })
     }
     const ping = (data,modify) => modify("PING",
         state => state.connectionKey === data ? pong(false,modify)(state) : state// was not reconnected
