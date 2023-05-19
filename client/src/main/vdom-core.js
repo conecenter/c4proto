@@ -91,10 +91,10 @@ export function VDomCore(log,activeTransforms,getRootElement){
     })
 
     const SyncInputRoot = activeTransforms.tp.SyncInputRoot
-    const rendering = ifInputsChanged(log)("renderedFrom", {incoming:1,ack:1,rootNativeElement:1}, changed => state => {
+    const rendering = ifInputsChanged(log)("renderedFrom", {incoming:1,ack:1,rootNativeElement:1,isRoot:1}, changed => state => {
         if(state.incoming && state.rootNativeElement){
             const rootVirtualElement =
-                createElement(SyncInputRoot,{ack:state.ack,incoming:state.incoming})
+                createElement(SyncInputRoot,{ack:state.ack,incoming:state.incoming,isRoot:state.isRoot})
             ReactDOM.render(rootVirtualElement, state.rootNativeElement)
         }
         return changed(state)
@@ -241,8 +241,8 @@ export function VDomAttributes(sender){
             return parseInt(sent["x-r-index"])
         },
     }
-    function SyncInputRoot({incoming,ack}){
-        return createSyncProviders({ ack, sender: inpSender, children: elementWeakCache(incoming) })
+    function SyncInputRoot({incoming,ack,isRoot}){
+        return createSyncProviders({ ack, isRoot, sender: inpSender, children: elementWeakCache(incoming) })
     }
 
     const sendThen = ctx => event => {
