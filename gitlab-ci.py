@@ -54,7 +54,7 @@ def handle_deploy(base,*dummy):
     hostnames = [c["hostname"] for c in info["ci_parts"] if "hostname" in c]
     print("hostnames",hostnames)
     env_group = info["env_group"]
-    tag_name = f"{env_group}/{name}"
+    tag_name = f"{env_group}/{base}/env"
     environment = need_environment(project, tag_name)
     if len(hostnames) > 0: environment.external_url = f"https://{min(hostnames)}"
     environment.save()
