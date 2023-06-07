@@ -3,7 +3,7 @@ COPY install.pl /
 RUN perl install.pl useradd
 RUN perl install.pl apt curl unzip libyaml-libyaml-perl libjson-xs-perl rsync python zip
 RUN perl install.pl curl https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.5%2B10/OpenJDK11U-jdk_x64_linux_hotspot_11.0.5_10.tar.gz
-RUN perl install.pl curl https://git.io/coursier-cli-linux && chmod +x /tools/coursier
+RUN /install.pl curl https://github.com/coursier/launchers/raw/master/coursier && chmod +x /tools/coursier
 RUN perl install.pl curl https://nodejs.org/dist/v8.9.1/node-v8.9.1-linux-x64.tar.xz
 USER c4
 ENV PATH=${PATH}:/tools/jdk/bin:/tools:/tools/node/bin:/c4/wrap
@@ -17,8 +17,5 @@ ENV C4CI_BUILD_DIR=/c4/c4proto
 COPY --chown=c4:c4 . /c4repo/c4proto
 RUN perl /c4repo/c4proto/sync.pl start /c4repo/c4proto /c4/c4proto 0
 RUN ls -la /tools
-RUN coursier --help
-RUN coursier fetch ch.qos.logback:logback-classic:1.2.3
-RUN coursier fetch -j /c4/c4proto/.bloop/c4/coursier-out.json ch.qos.logback:logback-classic:1.2.3 com.lihaoyi:ammonite-sshd_2.13.1:2.0.4 com.squareup.wire:wire-runtime:3.2.2 com.typesafe.akka:akka-http-core_2.13:10.1.10 com.typesafe.akka:akka-stream_2.13:2.5.25 com.typesafe.scala-logging:scala-logging_2.13:3.9.2 io.minio:minio:6.0.11 org.apache.kafka:kafka-clients:2.3.0 org.scalameta:scalameta_2.13:4.2.3 org.wartremover:wartremover_2.13:2.4.7
 RUN perl /c4/c4proto/prod.pl ci_inner_build
 RUN perl /c4/c4proto/prod.pl ci_inner_cp
