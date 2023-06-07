@@ -2,10 +2,9 @@
 import sys
 import os
 import subprocess
-import json
 import gitlab
 import re
-from c4util import read_json, sha256
+from c4util import read_json
 
 def get_env(k):
     v = os.environ[k]
@@ -30,10 +29,10 @@ def prod(args):
     proto_dir = get_env("C4CI_PROTO_DIR")
     subprocess.run(["perl",f"{proto_dir}/prod.pl"] + args).check_returncode()
 
-def need_environment(project,slug):
+def need_environment(project,name):
     environments = project.environments.list(all=True)
-    found = [e for e in environments if e.slug == slug]
-    return found[0] if len(found)==1 else project.environments.create({"name":slug}) if len(found)==0 else None
+    found = [e for e in environments if e.name == name]
+    return found[0] if len(found)==1 else project.environments.create({"name": name}) if len(found)==0 else None
 
 def ci_info_path():
     return "/tmp/c4ci-info.json"
@@ -43,25 +42,20 @@ def query_ci_info(name):
     prod(["ci_info",name,path])
     return read_json(path)
 
-def get_slug(info):
-    return "c4-"+sha256(info["env"])[0:8]
-
 # re.findall(r'[^/]+',arg_raw)[-1]  re.sub(r'\W+','',arg_raw_last)  sha256(v)[0:5]  re.fullmatch("(\w+)/(.+)",branch).groups()
 # f"{mode}-{arg}-{proj_name}-{opt}"
-def handle_deploy(base,branch):
+def handle_deploy(base,*dummy):
     commit = get_env("CI_COMMIT_SHA")
     project_url = get_env("CI_PROJECT_URL")
     name = f"{base}-env"
     prod(["ci_wait_images", name])
     info = query_ci_info(name)
-    slug = get_slug(info)
     project = get_project()
     hostnames = [c["hostname"] for c in info["ci_parts"] if "hostname" in c]
     print("hostnames",hostnames)
     env_group = info["env_group"]
-    tag_name = f"{env_group}/{base}/{branch}"
-    environment = need_environment(project,slug)
-    environment.name = tag_name
+    tag_name = f"{env_group}/{name}"
+    environment = need_environment(project, tag_name)
     if len(hostnames) > 0: environment.external_url = f"https://{min(hostnames)}"
     environment.save()
     environment_url = f"{project_url}/-/environments/{environment.get_id()}"
@@ -77,11 +71,8 @@ def get_c4env_from_tag():
 def handle_down():
     prod(["ci_down",get_c4env_from_tag()])
 
-def handle_up(s_slug):
+def handle_up(*dummy):
     name = get_c4env_from_tag()
-    info = query_ci_info(name)
-    f_slug = get_slug(info)
-    if s_slug != f_slug: raise Exception(f"{s_slug} != {f_slug}")
     prod(["ci_push",name])
     prod(["ci_up",name])
 

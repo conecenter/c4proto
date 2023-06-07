@@ -90,7 +90,7 @@ def get_deploy_jobs(config_statements):
       "export C4SUBJ=$(perl -e 's{[^a-zA-Z/]}{}g,/(\w+)$/ && print lc $1 for $ENV{CI_COMMIT_BRANCH}')",
       "export C4USER=$(perl -e 's{[^a-zA-Z/]}{}g,/(\w+)$/ && print lc $1 for $ENV{GITLAB_USER_LOGIN}')",
       "env | grep C4 | sort",
-      handle(f"deploy {env_mask}-{proj_sub} $CI_COMMIT_BRANCH")
+      handle(f"deploy {env_mask}-{proj_sub}")
     ]]
     for confirm_key in [key_mask.replace("$C4CONFIRM","confirm")]
     for key, value in (
@@ -115,7 +115,7 @@ def get_env_jobs():
   return {
     start_name: {
       **common_job("$CI_COMMIT_TAG","on_success","start",[],[
-        docker_conf(), "export C4COMMIT=$CI_COMMIT_SHORT_SHA", handle("up $CI_ENVIRONMENT_SLUG")
+        docker_conf(), "export C4COMMIT=$CI_COMMIT_SHORT_SHA", handle("up")
       ]),
       "environment": { "name": "$CI_COMMIT_TAG", "action": "start", "on_stop": "stop" }
     },
