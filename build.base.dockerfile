@@ -16,6 +16,7 @@ ENV C4CI_BUILD_DIR=/c4/c4proto
 #
 COPY --chown=c4:c4 . /c4repo/c4proto
 RUN perl /c4repo/c4proto/sync.pl start /c4repo/c4proto /c4/c4proto 0
+RUN ls -la /tools
 RUN coursier --help
 RUN coursier fetch ch.qos.logback:logback-classic:1.2.3
 RUN coursier fetch -j /c4/c4proto/.bloop/c4/coursier-out.json ch.qos.logback:logback-classic:1.2.3 com.lihaoyi:ammonite-sshd_2.13.1:2.0.4 com.squareup.wire:wire-runtime:3.2.2 com.typesafe.akka:akka-http-core_2.13:10.1.10 com.typesafe.akka:akka-stream_2.13:2.5.25 com.typesafe.scala-logging:scala-logging_2.13:3.9.2 io.minio:minio:6.0.11 org.apache.kafka:kafka-clients:2.3.0 org.scalameta:scalameta_2.13:4.2.3 org.wartremover:wartremover_2.13:2.4.7
