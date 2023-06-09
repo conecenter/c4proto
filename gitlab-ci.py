@@ -60,7 +60,7 @@ def handle_deploy(base,branch):
 def handle_down():
     prod(["ci_down",get_env('C4CI_ENV_NAME')])
 
-def handle_up(*dummy):
+def handle_up():
     name = get_env('C4CI_ENV_NAME')
     prod(["ci_push",name])
     prod(["ci_up",name])

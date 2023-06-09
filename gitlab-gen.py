@@ -109,9 +109,7 @@ def env_job(when, stage, action, add_env, script):
         "rules": [{"if": f"$CI_PIPELINE_SOURCE == \"api\" && $C4CI_ENV_NAME", "when": when}],
         "image": "$C4COMMON_IMAGE", "variables": {"GIT_STRATEGY": "none"},
         "stage": stage, "needs": [], "script": script,
-        "environment": {
-            "name": "$C4CI_ENV_GROUP/$C4CI_ENV_NAME", "environment_url": "$C4CI_ENV_URL", "action": action, **add_env
-        }
+        "environment": {"name": "$C4CI_ENV_GROUP/$C4CI_ENV_NAME", "url": "$C4CI_ENV_URL", "action": action, **add_env}
     }
 def get_env_jobs():
     return {
