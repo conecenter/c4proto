@@ -90,7 +90,7 @@ def get_deploy_jobs(config_statements):
       "export C4SUBJ=$(perl -e 's{[^a-zA-Z/]}{}g,/(\w+)$/ && print lc $1 for $ENV{CI_COMMIT_BRANCH}')",
       "export C4USER=$(perl -e 's{[^a-zA-Z/]}{}g,/(\w+)$/ && print lc $1 for $ENV{GITLAB_USER_LOGIN}')",
       "env | grep C4 | sort",
-      handle(f"deploy {env_mask}-{proj_sub}")
+      handle(f"deploy {env_mask}-{proj_sub} $CI_COMMIT_BRANCH")
     ]]
     for confirm_key in [key_mask.replace("$C4CONFIRM","confirm")]
     for key, value in (
@@ -103,27 +103,23 @@ def get_deploy_jobs(config_statements):
     )
   }
 
+
+def env_job(when, stage, action, add_env, script):
+    return {
+        "rules": [{"if": f"$CI_PIPELINE_SOURCE == \"api\" && $C4CI_ENV_NAME", "when": when}],
+        "image": "$C4COMMON_IMAGE", "variables": {"GIT_STRATEGY": "none"},
+        "stage": stage, "needs": [], "script": script,
+        "environment": {
+            "name": "$C4CI_ENV_GROUP/$C4CI_ENV_NAME", "environment_url": "$C4CI_ENV_URL", "action": action, **add_env
+        }
+    }
 def get_env_jobs():
-  #cond_qa = "$CI_COMMIT_TAG =~ /\\/qa-/"
-  def stop(cond,when,needs): return {
-    **common_job(cond,when,"stop",needs,[handle("down")]),
-    "environment": { "name": "$CI_COMMIT_TAG", "action": "stop" }
-  }
-  start_name = "start"
-  #check_name = "check"
-  #testing_name = "testing"
-  return {
-    start_name: {
-      **common_job("$CI_COMMIT_TAG","on_success","start",[],[
-        docker_conf(), "export C4COMMIT=$CI_COMMIT_SHORT_SHA", handle("up")
-      ]),
-      "environment": { "name": "$CI_COMMIT_TAG", "action": "start", "on_stop": "stop" }
-    },
-    #check_name: common_job("$CI_COMMIT_TAG","on_success","check",[start_name],[handle("check")]),
-    #testing_name: common_job(cond_qa,"on_success","testing",[check_name],[handle("qa_run /c4/qa")]),
-    "stop": stop("$CI_COMMIT_TAG","manual",[start_name]),
-    #"auto-stop": stop(cond_qa,"on_success",[testing_name]),
-  }
+    return {
+        "start": env_job("on_success", "start", "start", {"on_stop": "stop"}, [
+            docker_conf(), "export C4COMMIT=$CI_COMMIT_SHORT_SHA", handle("up")
+        ]),
+        "stop": env_job("manual", "stop", "stop", {}, [handle("down")])
+    }
 
 def replink(dir,fn):
   return f"C4CI_BUILD_DIR={dir} C4REPO_MAIN_CONF={dir}/{fn} /replink.pl"

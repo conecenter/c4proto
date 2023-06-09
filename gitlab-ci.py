@@ -29,11 +29,6 @@ def prod(args):
     proto_dir = get_env("C4CI_PROTO_DIR")
     subprocess.run(["perl",f"{proto_dir}/prod.pl"] + args).check_returncode()
 
-def need_environment(project,name):
-    environments = project.environments.list(all=True)
-    found = [e for e in environments if e.name == name]
-    return found[0] if len(found)==1 else project.environments.create({"name": name}) if len(found)==0 else None
-
 def ci_info_path():
     return "/tmp/c4ci-info.json"
 
@@ -44,7 +39,7 @@ def query_ci_info(name):
 
 # re.findall(r'[^/]+',arg_raw)[-1]  re.sub(r'\W+','',arg_raw_last)  sha256(v)[0:5]  re.fullmatch("(\w+)/(.+)",branch).groups()
 # f"{mode}-{arg}-{proj_name}-{opt}"
-def handle_deploy(base,*dummy):
+def handle_deploy(base,branch):
     commit = get_env("CI_COMMIT_SHA")
     project_url = get_env("CI_PROJECT_URL")
     name = f"{base}-env"
@@ -52,27 +47,21 @@ def handle_deploy(base,*dummy):
     info = query_ci_info(name)
     project = get_project()
     hostnames = [c["hostname"] for c in info["ci_parts"] if "hostname" in c]
-    print("hostnames",hostnames)
     env_group = info["env_group"]
-    tag_name = f"{env_group}/{base}/env"
-    environment = need_environment(project, tag_name)
-    if len(hostnames) > 0: environment.external_url = f"https://{min(hostnames)}"
-    environment.save()
-    environment_url = f"{project_url}/-/environments/{environment.get_id()}"
-    print(f"deploy environment: {environment_url}")
-    #prod(["ci_push",name])
-    set_tag(project,tag_name,commit)
+    tag_name = f"t4/{branch}.{get_env('CI_COMMIT_SHORT_SHA')}"
+    set_tag(project, tag_name, commit)
+    project.pipelines.create({'ref': tag_name, 'variables': [
+        {'key': 'C4CI_ENV_GROUP', 'value': env_group},
+        {'key': 'C4CI_ENV_NAME', 'value': name},
+        {'key': 'C4CI_ENV_URL', 'value': f"https://{min(hostnames)}" if hostnames else ""},
+    ]})
     prod(["ci_check_images",name])
-    #prod(["ci_check",name])
-
-def get_c4env_from_tag():
-    return re.findall(r'[^/]+',get_env("CI_COMMIT_TAG"))[1] + "-env"
 
 def handle_down():
-    prod(["ci_down",get_c4env_from_tag()])
+    prod(["ci_down",get_env('C4CI_ENV_NAME')])
 
 def handle_up(*dummy):
-    name = get_c4env_from_tag()
+    name = get_env('C4CI_ENV_NAME')
     prod(["ci_push",name])
     prod(["ci_up",name])
 
