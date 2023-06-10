@@ -743,21 +743,12 @@ my $ci_get_compositions = sub{
     @comps
 };
 
-my $ci_get_attributes = sub{
-    my($conf)=@_;
-    &$map($conf,sub{ my($k,$v)=@_; $k=~/^ci:(.*)$/ ? ($1=>$v) : () });
-};
-
-push @tasks, ["ci_info", "", sub{
-    my($env_comp,$out_path)=@_;
-    my $conf = &$get_compose($env_comp);
-    my %out = &$ci_get_attributes($conf);
-    my @comps = &$ci_get_compositions($env_comp);
-    my @parts = map{
-        my %res = &$ci_get_attributes(&$get_compose($_));
-        %res ? \%res : ()
-    } @comps;
-    &$put_text(($out_path||die), &$encode({%out,ci_parts=>\@parts}));
+push @tasks, ["ci_get", "", sub{
+    my(%tasks)=@_;
+    for my $out_path (sort keys %tasks){
+        my ($comp,$k) = $tasks{$out_path}=~m{^([^/]+)/([^/]+)$} ? ($1,$2) : die;
+        &$put_text(($out_path||die), &$get_compose($comp)->{$k});
+    }
 }];
 
 push @tasks, ["ci_wait_images", "", sub{
