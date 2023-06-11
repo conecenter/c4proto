@@ -1,7 +1,7 @@
 
 import json
 import base64
-from c4util import group_map, one, read_json
+from c4util import group_map, read_json
 
 ### util
 
@@ -14,14 +14,11 @@ def docker_conf(): return call("C4GITLAB_DOCKER_CONF_BODY")+" > $C4CI_DOCKER_CON
 def call(var): return f"echo ${var} | base64 -d | python3 -u"
 def define(lines): return base64.b64encode("\n".join(lines).encode('utf-8')).decode('utf-8')
 
-def push_rule(cond):
+def def_push_rule(cond):
   return { "if": f"$CI_PIPELINE_SOURCE == \"push\" && {cond}" }
-def common_job(cond,when,stage,needs,script):
-  return {
-    "rules": [{ **push_rule(cond), "when": when }],
-    "image": "$C4COMMON_IMAGE", "variables": {"GIT_STRATEGY": "none" },
-    "stage": stage, "needs": needs, "script": script
-  }
+
+def use_push_rule(proj_sub, cond_id, when):
+  return f".push_rule.{proj_sub}.{cond_id}.{when}"
 
 def esc_slashes(v): return v.replace("/","\\/")
 def prefix_cond(v):
@@ -35,70 +32,44 @@ stage_deploy_sp = "confirm"
 stage_deploy_cl = "deploy"
 
 
-def get_build_jobs(config_statements):
-  aggr_cond_list = config_statements["C4AGGR_COND"]
-  aggr_to_cond_list = group_map(aggr_cond_list, ext(lambda aggr, cond: (aggr,cond)))
-  aggr_to_cond = { aggr: one(*cond_list) for aggr, cond_list in aggr_to_cond_list.items() }
-  return {
-    f"b {tag} {aggr} rt": common_job(
-        prefix_cond(aggr_to_cond[aggr]), "on_success", "build_main", [build_common_name],
-        [docker_conf(), f"c4ci build --proj-tag {tag} --push-secret $C4CI_DOCKER_CONFIG"]
-      ) for tag, aggr in config_statements["C4TAG_AGGR"]
-  }
+# def get_build_jobs(config_statements):
+#   #aggr_cond_list = config_statements["C4AGGR_COND"]
+#   #aggr_to_cond_list = group_map(aggr_cond_list, ext(lambda aggr, cond: (aggr,cond)))
+#   #aggr_to_cond = { aggr: one(*cond_list) for aggr, cond_list in aggr_to_cond_list.items() }
+#   return
+
+
 
 # build aggr jobs -- C4AGGR_COND
 # build fin jobs -- C4TAG_AGGR
 # deploy jobs -- C4DEPLOY > C4TAG_AGGR
 
 #def optional_job(name): return { "job":name, "optional":True }
-def get_deploy_jobs(config_statements):
-  return {
-    key: value
-    for env_mask, caption_mask in config_statements["C4DEPLOY"]
-    for proj_sub, cond_pre in config_statements["C4AGGR_COND"] if cond_pre or env_mask.startswith("de-")
-    for cond in [
-      prefix_cond(cond_pre)+" && "+prefix_cond("/release/") if env_mask == "cl-prod" else
-      prefix_cond(cond_pre)
+def get_deploy_jobs(env_mask, caption_mask, proj_sub):
+    rule = use_push_rule(proj_sub, "prod" if env_mask == "cl-prod" else "any", "manual")
+    stage = (
+      stage_deploy_de if env_mask.startswith("de-") else
+      stage_deploy_cl if env_mask.startswith("cl-") else
+      stage_deploy_sp
+    )
+    key_mask = caption_mask.replace("$C4PROJ_SUB", proj_sub)
+    confirm_key = key_mask.replace("$C4CONFIRM", "confirm")
+    confirm_key_opt = [confirm_key] if confirm_key != key_mask else []
+    confirm_job_opt = [(k, {"extends": [".confirm", rule]}) for k in confirm_key_opt]
+    return [
+        *confirm_job_opt,
+        (key_mask.replace("$C4CONFIRM", "deploy"), {
+           "extends": [".deploy", rule], "variables": {"C4CI_ENV_MASK": f"{env_mask}-{proj_sub}"},
+           **need(stage, [*confirm_key_opt, build_common_name]),
+        })
     ]
-    for stage in (
-      [stage_deploy_de] if env_mask.startswith("de-") else
-      [stage_deploy_cl] if env_mask.startswith("cl-") else
-      [stage_deploy_sp]
-    )
-    for key_mask in [caption_mask.replace("$C4PROJ_SUB",proj_sub)]
-    for script in [[
-      docker_conf(),
-      "export C4SUBJ=$(perl -e 's{[^a-zA-Z/]}{}g,/(\w+)$/ && print lc $1 for $ENV{CI_COMMIT_BRANCH}')",
-      "export C4USER=$(perl -e 's{[^a-zA-Z/]}{}g,/(\w+)$/ && print lc $1 for $ENV{GITLAB_USER_LOGIN}')",
-      f"export C4CI_ENV_NAME={env_mask}-{proj_sub}-env",
-      "c4ci ci_wait_images $C4CI_ENV_NAME",
-      "c4ci ci_push $C4CI_ENV_NAME",
-      f"c4ci ci_get /tmp/c4ci-env_group $C4CI_ENV_NAME/ci:env_group /tmp/c4ci-hostname {env_mask}-{proj_sub}-gate/ci:hostname",
-      "export C4CI_ENV_GROUP=$(cat /tmp/c4ci-env_group)",
-      "export C4CI_ENV_URL=https://$(cat /tmp/c4ci-hostname)",
-      call("C4GITLAB_DEPLOY_BODY"),
-      f"c4ci ci_check_images $C4CI_ENV_NAME",
-    ]]
-    for confirm_key in [key_mask.replace("$C4CONFIRM","confirm")]
-    for key, value in (
-      [
-        (confirm_key, common_job(cond,"manual",stage_confirm,[],["echo confirming"])),
-        (key_mask.replace("$C4CONFIRM","deploy"), common_job(cond,"manual",stage,[confirm_key,build_common_name],script)),
-      ] if confirm_key != key_mask else [
-        (key_mask, common_job(cond,"manual",stage,[build_common_name],script)),
-      ]
-    )
-  }
 
 
-def env_job(when, stage, action, add_env, ci_act):
-    return {
-        "rules": [{"if": f"$CI_PIPELINE_SOURCE == \"api\" && $C4CI_ENV_NAME", "when": when}],
-        "image": "$C4COMMON_IMAGE", "variables": {"GIT_STRATEGY": "none"},
-        "stage": stage, "needs": [], "script": [f"c4ci {ci_act} $C4CI_ENV_NAME"],
-        "environment": {"name": "$C4CI_ENV_GROUP/$C4CI_ENV_NAME", "url": "$C4CI_ENV_URL", "action": action, **add_env}
-    }
+def need(stage, needs):
+    return {"stage": stage, "needs": needs}
 
+def common_job(script):
+    return {"image": "$C4COMMON_IMAGE", "variables": {"GIT_STRATEGY": "none"}, "script": script}
 
 def main():
   config_statements = group_map(read_json("/dev/stdin"), lambda it: (it[0], it[1:]))
@@ -121,17 +92,72 @@ def main():
         'args = ("C4CI_ENV_GROUP","C4CI_ENV_NAME","C4CI_ENV_URL")',
         'project.pipelines.create({"ref": tag_name, "variables": [{"key": k, "value": e[k]} for k in args]})',
       )),
+      "C4GITLAB_PAR_USER_BODY": define((
+        'from os import environ as e',
+        'print(e["C4CI_ENV_MASK"].replace("{C4SUBJ}",e["C4SUBJ"]).replace("{C4USER}",e["C4USER"]))',
+      ))
     },
     "stages": ["build_common", "build_main", "develop", "confirm", "deploy", "start", "stop"],
     build_common_name: {
-      "extends": [".build_common"], "rules": [push_rule(prefix_cond(""))], "stage": "build_common",
+      "extends": [".build_common"], "rules": [def_push_rule(prefix_cond(""))], **need("build_common", []),
       "image": "$C4COMMON_BUILDER_IMAGE", "script": [docker_conf(), "$C4COMMON_BUILDER_CMD"],
     },
-    **get_build_jobs(config_statements), **get_deploy_jobs(config_statements),
-    "start": env_job("on_success", "start", "start", {"on_stop": "stop"}, "ci_up"),
-    "stop": env_job("manual", "stop", "stop", {}, "ci_down")
+    ".build_rt": {
+      **common_job([docker_conf(), f"c4ci build --proj-tag $C4CI_PROJ_TAG --push-secret $C4CI_DOCKER_CONFIG"]),
+      **need("build_main", [build_common_name]),
+    },
+    **{
+      f"b {tag} {aggr} rt": {
+        "extends": [".build_rt", use_push_rule(aggr, "any", "on_success")], "variables": {"C4CI_PROJ_TAG": tag}
+      }
+      for tag, aggr in config_statements["C4TAG_AGGR"]
+    },
+    ".confirm": {**common_job(["echo confirming"]), **need("confirm", [build_common_name])},
+    ".deploy": {
+      **common_job([
+        docker_conf(),
+        "export C4SUBJ=$(perl -e 's{[^a-zA-Z/]}{}g,/(\w+)$/ && print lc $1 for $ENV{CI_COMMIT_BRANCH}')",
+        "export C4USER=$(perl -e 's{[^a-zA-Z/]}{}g,/(\w+)$/ && print lc $1 for $ENV{GITLAB_USER_LOGIN}')",
+        "export C4CI_ENV_BASE=$("+call("C4GITLAB_PAR_USER_BODY")+")",
+        f"export C4CI_ENV_NAME=$C4CI_ENV_BASE-env",
+        "c4ci ci_wait_images $C4CI_ENV_NAME",
+        "c4ci ci_push $C4CI_ENV_NAME",
+        f"c4ci ci_get /tmp/c4ci-env_group $C4CI_ENV_NAME/ci:env_group /tmp/c4ci-hostname $C4CI_ENV_BASE-gate/ci:hostname",
+        "export C4CI_ENV_GROUP=$(cat /tmp/c4ci-env_group)",
+        "export C4CI_ENV_URL=https://$(cat /tmp/c4ci-hostname)",
+        call("C4GITLAB_DEPLOY_BODY"),
+        f"c4ci ci_check_images $C4CI_ENV_NAME",
+      ]),
+    },
+    **{
+      key: value
+      for env_mask, caption_mask in config_statements["C4DEPLOY"]
+      for proj_sub, cond_pre in config_statements["C4AGGR_COND"] if cond_pre
+      for key, value in get_deploy_jobs(env_mask, caption_mask, proj_sub)
+    },
+    **{
+      action: {
+        **common_job([f"c4ci {ci_act} $C4CI_ENV_NAME"]), **need(action, []),
+        "rules": [{"if": f"$CI_PIPELINE_SOURCE == \"api\" && $C4CI_ENV_NAME", "when": when}],
+        "environment": {"name": "$C4CI_ENV_GROUP/$C4CI_ENV_NAME", "action": action, **add_env}
+      }
+      for (when, action, add_env, ci_act) in (
+        ("on_success", "start", {"on_stop": "stop", "url": "$C4CI_ENV_URL"}, "ci_up"),
+        ("manual", "stop", {}, "ci_down"),
+      )
+    },
+    **{
+        use_push_rule(proj_sub, cond_id, when): {"rules": [{**def_push_rule(cond), "when": when}]}
+        for proj_sub, cond_pre in config_statements["C4AGGR_COND"] if cond_pre
+        for when, cond_id, cond in (
+            ("on_success", "any", prefix_cond(cond_pre)),
+            ("manual", "any", prefix_cond(cond_pre)),
+            ("manual", "prod", prefix_cond(cond_pre)+" && "+prefix_cond("/release/"))
+        )
+    },
   }
   print(json.dumps(out, sort_keys=True, indent=4))
+
 
 
 main()
