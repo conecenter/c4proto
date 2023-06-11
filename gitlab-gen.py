@@ -27,14 +27,8 @@ def esc_slashes(v): return v.replace("/","\\/")
 def prefix_cond(v):
     return f"$CI_COMMIT_BRANCH =~ /{esc_slashes(v)}/" if v else "$CI_COMMIT_BRANCH"
 
-def get_aggr_cond(aggr_cond_list):
-  aggr_to_cond_list = group_map(aggr_cond_list, ext(lambda aggr, cond: (aggr,cond)))
-  aggr_to_cond = { aggr: one(*cond_list) for aggr, cond_list in aggr_to_cond_list.items() }
-  return (aggr_cond_list, aggr_to_cond)
 
 build_common_name = "build common"
-build_gate_name = "build gate"
-def build_rt_name(tag,aggr): return f"b {tag} {aggr} rt"
 stage_deploy_de = "develop"
 stage_confirm = "confirm"
 stage_deploy_sp = "confirm"
@@ -42,19 +36,14 @@ stage_deploy_cl = "deploy"
 
 
 def get_build_jobs(config_statements):
-  (aggr_cond_list, aggr_to_cond) = get_aggr_cond(config_statements["C4AGGR_COND"])
-  tag_aggr_list = config_statements["C4TAG_AGGR"]
+  aggr_cond_list = config_statements["C4AGGR_COND"]
+  aggr_to_cond_list = group_map(aggr_cond_list, ext(lambda aggr, cond: (aggr,cond)))
+  aggr_to_cond = { aggr: one(*cond_list) for aggr, cond_list in aggr_to_cond_list.items() }
   return {
-    build_gate_name: common_job(
-      prefix_cond(""), "on_success", "build_main", [build_common_name],
-      [docker_conf(), f"c4ci build --proj-tag def --push-secret $C4CI_DOCKER_CONFIG"]
-    ),
-    **{
-      build_rt_name(tag,aggr): common_job(
+    f"b {tag} {aggr} rt": common_job(
         prefix_cond(aggr_to_cond[aggr]), "on_success", "build_main", [build_common_name],
         [docker_conf(), f"c4ci build --proj-tag {tag} --push-secret $C4CI_DOCKER_CONFIG"]
-      ) for tag, aggr in tag_aggr_list
-    }
+      ) for tag, aggr in config_statements["C4TAG_AGGR"]
   }
 
 # build aggr jobs -- C4AGGR_COND
@@ -109,14 +98,6 @@ def env_job(when, stage, action, add_env, ci_act):
         "stage": stage, "needs": [], "script": [f"c4ci {ci_act} $C4CI_ENV_NAME"],
         "environment": {"name": "$C4CI_ENV_GROUP/$C4CI_ENV_NAME", "url": "$C4CI_ENV_URL", "action": action, **add_env}
     }
-def get_env_jobs():
-    return {
-        "start": env_job("on_success", "start", "start", {"on_stop": "stop"}, "ci_up"),
-        "stop": env_job("manual", "stop", "stop", {}, "ci_down")
-    }
-
-def replink(dir,fn):
-  return f"C4CI_BUILD_DIR={dir} C4REPO_MAIN_CONF={dir}/{fn} /replink.pl"
 
 
 def main():
@@ -146,7 +127,9 @@ def main():
       "extends": [".build_common"], "rules": [push_rule(prefix_cond(""))], "stage": "build_common",
       "image": "$C4COMMON_BUILDER_IMAGE", "script": [docker_conf(), "$C4COMMON_BUILDER_CMD"],
     },
-    **get_build_jobs(config_statements), **get_deploy_jobs(config_statements), **get_env_jobs()
+    **get_build_jobs(config_statements), **get_deploy_jobs(config_statements),
+    "start": env_job("on_success", "start", "start", {"on_stop": "stop"}, "ci_up"),
+    "stop": env_job("manual", "stop", "stop", {}, "ci_down")
   }
   print(json.dumps(out, sort_keys=True, indent=4))
 
