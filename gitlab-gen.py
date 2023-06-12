@@ -37,10 +37,10 @@ def get_deploy_jobs(env_mask, key_mask):
     confirm_key_opt = [confirm_key] if confirm_key != key_mask else []
     return [
         *[(k, {
-            "extends": [".common_job", rule], "variables": {"C4GITLAB_OP": "confirm"}, "stage": "confirm"
+            "extends": [".common_job", rule], "script": ["c4gitlab confirm"], "stage": "confirm"
         }) for k in confirm_key_opt],
         (key_mask.replace("$C4CONFIRM", "deploy"), {
-            "extends": [".common_job", rule], "variables": {"C4GITLAB_OP": "deploy", "C4CI_ENV_MASK": env_mask},
+            "extends": [".common_job", rule], "script": [f"c4gitlab deploy '{env_mask}'"],
             "stage": deploy_stages[env_mask.partition("-")[0]], "needs": confirm_key_opt
         })
     ]
@@ -48,28 +48,30 @@ def get_deploy_jobs(env_mask, key_mask):
 
 def handle_generate():
     conf = load(sys.stdin)
-    script_body = base64.b64encode(read_text(sys.argv[0]).encode('utf-8')).decode('utf-8')
+    script_body = read_text(sys.argv[0]).replace("'"+"C4GITLAB_CONFIG_JSON"+"'", dumps(conf))
+    script_body_encoded = base64.b64encode(script_body.encode('utf-8')).decode('utf-8')
     stages = ["develop", "confirm", "deploy", "start", "stop"]
     cond_push = "$CI_PIPELINE_SOURCE == \"push\""
     env_gr_name = "$C4CI_ENV_GROUP/$C4CI_ENV_NAME"
     jobs = {
-        ".handler": {"script": [f"echo '{script_body}' | base64 -d | python3 -u - $C4GITLAB_OP"]},
+        ".handler": {"before_script": [
+            f"echo '{script_body_encoded}' | base64 -d >> c4gitlab", "alias c4gitlab='python3.8 -u c4gitlab'"
+        ]},
         ".rule.build.common": {"rules": [{"if": f"{cond_push} && $CI_COMMIT_BRANCH"}]},
         ".rule.build.rt": {"rules": [{"if": "$C4CI_BUILD_RT"}]},
         ".rule.deploy.any": {"rules": [{"when": "manual", "if": f"{cond_push} && $CI_COMMIT_TAG"}]},
         ".rule.deploy.prod": {"rules": [{"when": "manual", "if": f"{cond_push} && $CI_COMMIT_TAG =~ /\\/release\\//"}]},
         ".rule.env.start": {"rules": [{"if": f"$C4CI_ENV_NAME"}]},
         ".rule.env.stop": {"rules": [{"when": "manual", "if": f"$C4CI_ENV_NAME"}]},
-        ".build_common": {
-            "extends": ".handler", "image": "$C4COMMON_BUILDER_IMAGE",
-            "variables": {"GIT_DEPTH": 10, "C4GITLAB_CONFIG_JSON": dumps(conf), "C4GITLAB_OP": "build_common"}
+        ".build_common": {"extends": ".handler", "image": "$C4COMMON_BUILDER_IMAGE", "variables": {"GIT_DEPTH": 10}},
+        "build common": {
+            "extends": [".build_common", ".rule.build_common"], "script": ["c4gitlab build_common"], "stage": "develop"
         },
-        "build common": {"extends": [".build_common", ".rule.build_common"], "stage": "develop"},
         ".common_job": {
             "extends": ".handler", "image": "$C4COMMON_IMAGE", "variables": {"GIT_STRATEGY": "none"}, "needs": []
         },
         "build rt": {
-            "extends": [".common_job", ".rule.build.rt"], "variables": {"C4GITLAB_OP": "build_rt"}, "stage": "develop",
+            "extends": [".common_job", ".rule.build.rt"], "script": ["c4gitlab build_rt"], "stage": "develop",
         },
         **{
             key: value
@@ -77,11 +79,11 @@ def handle_generate():
             for key, value in get_deploy_jobs(env_mask, caption_mask)
         },
         "start": {
-            "extends": [".common_job", ".rule.env.start"], "variables": {"C4GITLAB_OP": "start"}, "stage": "start",
+            "extends": [".common_job", ".rule.env.start"], "script": ["c4gitlab start"], "stage": "start",
             "environment": {"name": env_gr_name, "action": "start", "on_stop": "stop", "url": "$C4CI_ENV_URL"}
         },
         "stop": {
-            "extends": [".common_job", ".rule.env.stop"], "variables": {"C4GITLAB_OP": "stop"}, "stage": "stop",
+            "extends": [".common_job", ".rule.env.stop"], "script": ["c4gitlab stop"], "stage": "stop",
             "environment": {"name": env_gr_name, "action": "stop"}
         },
     }
@@ -91,7 +93,7 @@ def handle_generate():
 def handle_build_common():
     push_secret = write_docker_conf()
     run(("sh", "-c", e["C4COMMON_BUILDER_CMD"]), env={**e, "C4CI_DOCKER_CONFIG": push_secret})
-    conf = loads(e["C4GITLAB_CONFIG_JSON"])
+    conf = 'C4GITLAB_CONFIG_JSON'
     tag_name_by_aggr = {
         aggr: "t4/"+e["CI_COMMIT_BRANCH"]+"."+e["CI_COMMIT_SHORT_SHA"]+"."+aggr
         for op, aggr, cond in conf if op == "C4AGGR_COND" and search(cond, e["CI_COMMIT_BRANCH"])
@@ -105,11 +107,11 @@ def handle_build_common():
         post("pipeline", {"ref": tag_name, "variables": [{"key": "C4CI_BUILD_RT", "value": tag}]})
 
 
-def handle_deploy():
+def handle_deploy(env_mask):
     subj_raw, proj_sub = match(".+/([^/]+)\\.\\w+\\.([\\w\\-]+)", e["CI_COMMIT_TAG"]).groups
     subj = sub("\\W", "", subj_raw.lower())
     user = sub("\\W", "", e["GITLAB_USER_LOGIN"].lower())
-    env_base = e["C4CI_ENV_MASK"].replace("{C4SUBJ}", subj).replace("{C4USER}", user) + "-" + proj_sub
+    env_base = env_mask.replace("{C4SUBJ}", subj).replace("{C4USER}", user) + "-" + proj_sub
     env_name = f"{env_base}-env"
     group_path, hostname_path = "/tmp/c4ci-env_group", "/tmp/c4ci-hostname"
     push_secret = write_docker_conf()
@@ -133,7 +135,7 @@ handle = {
     "start": lambda: run(("c4ci", "ci_up", e["C4CI_ENV_NAME"])),
     "stop": lambda: run(("c4ci", "ci_down", e["C4CI_ENV_NAME"])),
 }
-handle[sys.argv[1]]()
+handle[sys.argv[1]](sys.argv[2:])
 
 #def optional_job(name): return { "job":name, "optional":True }
 
