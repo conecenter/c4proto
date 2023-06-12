@@ -135,7 +135,7 @@ handle = {
     "start": lambda: run(("c4ci", "ci_up", e["C4CI_ENV_NAME"])),
     "stop": lambda: run(("c4ci", "ci_down", e["C4CI_ENV_NAME"])),
 }
-handle[sys.argv[1]](sys.argv[2:])
+handle[sys.argv[1]](*sys.argv[2:])
 
 #def optional_job(name): return { "job":name, "optional":True }
 
