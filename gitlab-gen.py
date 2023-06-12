@@ -47,7 +47,7 @@ def get_deploy_jobs(env_mask, key_mask):
 
 
 def handle_generate():
-    conf = load("/dev/stdin")
+    conf = load(sys.stdin)
     script_body = base64.b64encode(read_text(sys.argv[0]).encode('utf-8')).decode('utf-8')
     stages = ["develop", "confirm", "deploy", "start", "stop"]
     cond_push = "$CI_PIPELINE_SOURCE == \"push\""
