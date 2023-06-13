@@ -6,18 +6,58 @@ from os import environ as e
 from json import dumps, dump, loads, load
 import subprocess
 from pathlib import Path
+import http.client
+
+
+def sorted_items(d): return sorted(d.items())
+
+
+def never(a): raise Exception(a)
+
+
+def debug(text):
+    print(text, file=sys.stderr)
 
 
 def run(args, **opt):
-    print("running: " + " ".join(args), file=sys.stderr)
+    debug("running: " + " ".join(args))
     return subprocess.run(args, check=True, **opt)
 
 
-def post(res, data):
-    headers = ("-H", "PRIVATE-TOKEN: "+e["C4CI_TOKEN"], "-H", "Content-Type: application/json")
-    url = e["CI_API_V4_URL"]+"/projects/"+e["CI_PROJECT_ID"]+"/"+res
-    cmd = ("curl", "-X", "POST", *headers, url, "-d", dumps(data))
-    run(cmd)
+def connect():
+    conn = http.client.HTTPSConnection(e["CI_SERVER_HOST"], e["CI_SERVER_PORT"])
+    project_url = "/api/v4/projects/" + e["CI_PROJECT_ID"]
+    return conn, project_url
+
+
+def exchange(conn_url, method, resource, data):
+    conn, project_url = conn_url
+    token_header = {"PRIVATE-TOKEN": e["C4CI_TOKEN"]}
+    headers = {"Content-Type": "application/json", **token_header} if data else token_header
+    conn.request(method, project_url + "/" + resource, dumps(data) if data else None, headers)
+    resp = conn.getresponse()
+    return resp.status, loads(resp.read())
+
+
+def need_tag(conn_url, tag_name):
+    status, res = exchange(conn_url, "POST", "repository/tags", {"tag_name": tag_name, "ref": e['CI_COMMIT_SHA']})
+    if status == 201:
+        debug(f"tag created: {tag_name}")
+        return
+    status, res = exchange(conn_url, "GET", "repository/tags/"+tag_name, None)
+    if status == 200 and res["target"] == e['CI_COMMIT_SHA']:
+        debug(f"tag exists: {tag_name}")
+        return
+    never((status, res))
+
+
+def post_pipeline(conn_url, tag_name, variables):
+    variables_list = [{"key": k, "value": v} for k, v in sorted_items(variables)]
+    status, res = exchange(conn_url, "POST", "pipeline", {"ref": tag_name, "variables": variables_list})
+    if status == 201:
+        debug(f"pipeline created: {res['web_url']}")
+        return
+    never((status, res))
 
 
 def write_docker_conf():
@@ -32,7 +72,7 @@ def read_text(path): return Path(path).read_text(encoding='utf-8', errors='stric
 
 def get_deploy_jobs(env_mask, key_mask):
     rule = ".rule.deploy.prod" if env_mask == "cl-prod" else ".rule.deploy.any"
-    deploy_stages = {"de": "develop", "sp": "confirm", "cl": "deploy"}
+    deploy_stages = {"de": "develop", "sp": "develop", "cl": "deploy"}
     confirm_key = key_mask.replace("$C4CONFIRM", "confirm")
     confirm_key_opt = [confirm_key] if confirm_key != key_mask else []
     return [
@@ -95,8 +135,8 @@ def handle_generate():
 
 
 def handle_build_common():
-    push_secret = write_docker_conf()
-    run(("sh", "-c", e["C4COMMON_BUILDER_CMD"]), env={**e, "C4CI_DOCKER_CONFIG": push_secret})
+    run(("sh", "-c", e["C4COMMON_BUILDER_INSTALL_CMD"]))
+    run(("c4ci", "build_common", "--push-secret", write_docker_conf()))
     conf = 'C4GITLAB_CONFIG_JSON'
     tag_name_by_aggr = {
         aggr: "t4/"+e["CI_COMMIT_BRANCH"]+"."+e["CI_COMMIT_SHORT_SHA"]+"."+aggr
@@ -105,10 +145,11 @@ def handle_build_common():
     tag_name_by_proj_tag = {
         tag: tag_name_by_aggr[aggr] for op, tag, aggr in conf if op == "C4TAG_AGGR" and aggr in tag_name_by_aggr
     }
-    for aggr, tag_name in sorted(tag_name_by_aggr.items()):
-        post("repository/tags", {"tag_name": tag_name, "ref": e['CI_COMMIT_SHA']})
-    for tag, tag_name in sorted(tag_name_by_proj_tag.items()):
-        post("pipeline", {"ref": tag_name, "variables": [{"key": "C4CI_BUILD_RT", "value": tag}]})
+    conn_url = connect()
+    for aggr, tag_name in sorted_items(tag_name_by_aggr):
+        need_tag(conn_url, tag_name)
+    for tag, tag_name in sorted_items(tag_name_by_proj_tag):
+        post_pipeline(conn_url, tag_name, {"C4CI_BUILD_RT": tag})
 
 
 def handle_deploy(env_mask):
@@ -122,11 +163,10 @@ def handle_deploy(env_mask):
     run(("c4ci", "ci_wait_images", env_name))
     run(("c4ci", "ci_push", env_name), env={**e, "C4CI_DOCKER_CONFIG": push_secret})
     run(("c4ci", "ci_get", group_path, f"{env_name}/ci:env_group", hostname_path, f"{env_base}-gate/ci:hostname"))
-    post("pipeline", {"ref": e["CI_COMMIT_TAG"], "variables": [
-        {"key": "C4CI_ENV_GROUP", "value": read_text(group_path)},
-        {"key": "C4CI_ENV_NAME", "value": env_name},
-        {"key": "C4CI_ENV_URL", "value": "https://"+read_text(hostname_path)}
-    ]})
+    group, hostname = read_text(group_path), read_text(hostname_path)
+    conn_url = connect()
+    variables = {"C4CI_ENV_GROUP": group, "C4CI_ENV_NAME": env_name, "C4CI_ENV_URL": "https://"+hostname}
+    post_pipeline(conn_url, e["CI_COMMIT_TAG"], variables)
     run(("c4ci", "ci_check_images", env_name))
 
 
