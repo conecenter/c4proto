@@ -31,7 +31,7 @@ def prod(args):
     proto_dir = get_env("C4CI_PROTO_DIR")
     subprocess.run(["ssh-agent","perl",f"{proto_dir}/prod.pl"] + args).check_returncode()
 
-def need_environment(project,need):
+def need_environment(project,name):
     environments = project.environments.list(all=True)
     found = [e for e in environments if e.name == name]
     return found[0] if len(found)==1 else project.environments.create({"name": name}) if len(found)==0 else None
