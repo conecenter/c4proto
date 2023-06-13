@@ -33,6 +33,7 @@ RUN echo en_DK.UTF-8 UTF-8 >> /etc/locale.gen && locale-gen
 USER c4
 ENV PATH=${PATH}:/usr/local/bin:/tools/jdk/bin:/tools:/tools/node/bin:/tools/sbt/bin:/tools/apache/bin:/c4/bin
 ENV JAVA_HOME=/tools/jdk
+ENV C4PYTHON=/usr/bin/python3.8
 # pre-installing just to optimize:
 RUN mkdir -p /c4/c4client_prep && cd /c4/c4client_prep && npm install node-sass@4.13.1
 # setup build steps:
