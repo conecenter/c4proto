@@ -31,10 +31,10 @@ def prod(args):
     proto_dir = get_env("C4CI_PROTO_DIR")
     subprocess.run(["ssh-agent","perl",f"{proto_dir}/prod.pl"] + args).check_returncode()
 
-def need_environment(project,slug):
+def need_environment(project,need):
     environments = project.environments.list(all=True)
-    found = [e for e in environments if e.slug == slug]
-    return found[0] if len(found)==1 else project.environments.create({"name":slug}) if len(found)==0 else None
+    found = [e for e in environments if e.name == name]
+    return found[0] if len(found)==1 else project.environments.create({"name": name}) if len(found)==0 else None
 
 def ci_info_path():
     return "/tmp/c4ci-info.json"
@@ -59,9 +59,8 @@ def handle_deploy(base,branch):
     hostnames = [c["hostname"] for c in info["ci_parts"] if "hostname" in c]
     print("hostnames",hostnames)
     env_group = info["env_group"]
-    tag_name = f"{env_group}/{base}/{branch}"
-    environment = need_environment(project,slug)
-    environment.name = tag_name
+    tag_name = f"{env_group}/{base}/env"
+    environment = need_environment(project, tag_name)
     if len(hostnames) > 0: environment.external_url = f"https://{min(hostnames)}"
     environment.save()
     environment_url = f"{project_url}/-/environments/{environment.get_id()}"
@@ -82,9 +81,6 @@ def handle_down():
 
 def handle_up(s_slug):
     name = get_c4env_from_tag()
-    info = query_ci_info(name)
-    f_slug = get_slug(info)
-    if s_slug != f_slug: raise Exception(f"{s_slug} != {f_slug}")
     prod(["ci_push",name])
     prod(["ci_up",name])
 
