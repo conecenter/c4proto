@@ -65,7 +65,7 @@ def handle_generate():
         ".rule.env.stop": {"rules": [{"when": "manual", "if": f"$C4CI_ENV_NAME"}]},
         ".build_common": {"extends": ".handler", "image": "$C4COMMON_BUILDER_IMAGE", "variables": {"GIT_DEPTH": 10}},
         "build common": {
-            "extends": [".build_common", ".rule.build_common"], "script": ["c4gitlab build_common"], "stage": "develop"
+            "extends": [".build_common", ".rule.build.common"], "script": ["c4gitlab build_common"], "stage": "develop"
         },
         ".common_job": {
             "extends": ".handler", "image": "$C4COMMON_IMAGE", "variables": {"GIT_STRATEGY": "none"}, "needs": []
