@@ -96,10 +96,10 @@ def handle_generate():
     jobs = {
         ".handler": {"before_script": [
             "mkdir -p $CI_PROJECT_DIR/c4gitlab",
+            "export PATH=$PATH:$CI_PROJECT_DIR/c4gitlab",
             "echo \"#!$C4PYTHON -u\" > $CI_PROJECT_DIR/c4gitlab/c4gitlab",
             f"echo '{script_body_encoded}' | base64 -d >> $CI_PROJECT_DIR/c4gitlab/c4gitlab",
             "chmod +x $CI_PROJECT_DIR/c4gitlab/c4gitlab",
-            "export PATH=$PATH:$CI_PROJECT_DIR/c4gitlab",
         ]},
         ".rule.build.common": {"rules": [{"if": f"{cond_push} && $CI_COMMIT_BRANCH"}]},
         ".rule.build.rt": {"rules": [{"if": "$C4CI_BUILD_RT"}]},
@@ -135,7 +135,11 @@ def handle_generate():
 
 
 def handle_build_common():
-    run(("sh", "-c", e["C4COMMON_BUILDER_INSTALL_CMD"]))
+    script_encoded = e["C4COMMON_BUILDER_ENCODED"]
+    if script_encoded:
+        builder_path = e["CI_PROJECT_DIR"]+"/c4gitlab/c4ci"
+        Path(builder_path).write_bytes(base64.b64decode(script_encoded))
+        run(("chmod", "+x", builder_path))
     run(("c4ci", "build_common", "--push-secret", write_docker_conf()))
     conf = 'C4GITLAB_CONFIG_JSON'
     tag_name_by_aggr = {

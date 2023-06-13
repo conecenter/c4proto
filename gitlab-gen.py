@@ -41,9 +41,8 @@ def handle_build_common(script, op, *args):
 
 def handle_generate(script, build_path):
     script_body = read_text(script)
-    script_body_encoded = base64.b64encode(script_body.encode('utf-8')).decode('utf-8')
-    cmd = f"echo '{script_body_encoded}' | base64 -d > /tools/c4ci && chmod +x /tools/c4ci"
-    variables = {"C4PYTHON": "/usr/bin/python3", "C4COMMON_BUILDER_INSTALL_CMD": cmd}
+    script_encoded = base64.b64encode(script_body.encode('utf-8')).decode('utf-8')
+    variables = {"C4PYTHON": "/usr/bin/python3", "C4COMMON_BUILDER_ENCODED": script_encoded}
     out = {".build_common": {"image": "ghcr.io/conecenter/c4replink:v3kc", "variables": variables}}
     out_path = f"{build_path}/gitlab-ci-generated.yml"
     Path(out_path).write_text(dumps(out, sort_keys=True, indent=4), encoding='utf-8', errors='strict')
