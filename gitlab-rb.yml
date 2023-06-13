@@ -1,6 +1,6 @@
 .build_common:
+  image: ghcr.io/conecenter/c4replink:v3kc
   variables:
-    C4COMMON_BUILDER_IMAGE: "ghcr.io/conecenter/c4replink:v3kc"
     C4COMMON_BUILDER_CMD: >
       C4CI_BUILD_DIR=$CI_PROJECT_DIR C4REPO_MAIN_CONF=$CI_PROJECT_DIR/c4dep.ci.replink /replink.pl
       && C4CI_BUILD_DIR=$C4COMMON_PROTO_DIR C4REPO_MAIN_CONF=$C4COMMON_PROTO_DIR/c4dep.main.replink /replink.pl

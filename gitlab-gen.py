@@ -63,7 +63,7 @@ def handle_generate():
         ".rule.deploy.prod": {"rules": [{"when": "manual", "if": f"{cond_push} && $CI_COMMIT_TAG =~ /\\/release\\//"}]},
         ".rule.env.start": {"rules": [{"if": f"$C4CI_ENV_NAME"}]},
         ".rule.env.stop": {"rules": [{"when": "manual", "if": f"$C4CI_ENV_NAME"}]},
-        ".build_common": {"extends": ".handler", "image": "$C4COMMON_BUILDER_IMAGE", "variables": {"GIT_DEPTH": 10}},
+        ".build_common": {"extends": ".handler", "variables": {"GIT_DEPTH": 10}},
         "build common": {
             "extends": [".build_common", ".rule.build.common"], "script": ["c4gitlab build_common"], "stage": "develop"
         },
