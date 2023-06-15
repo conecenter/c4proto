@@ -121,7 +121,7 @@ def temp_dev_pod(opt):
 
 def setup_parser(commands):
     main_parser = argparse.ArgumentParser()
-    subparsers = main_parser.add_subparsers()
+    subparsers = main_parser.add_subparsers(required=True)
     for name, op, args in commands:
         parser = subparsers.add_parser(name)
         for a in args: parser.add_argument(a, required=True)

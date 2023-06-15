@@ -143,8 +143,8 @@ def build_common(opt):
         changing_text(f"{temp_root}/c4build_common", perl_exec("\n".join((
             'my %opt = @ARGV;', 'my $context = $opt{"--context"}||die "no --context";',
             f'my $proto_dir = "$context/{proto_postfix}";',
-            f'system "C4CI_BUILD_DIR=$context C4REPO_MAIN_CONF=$context/{replink} /replink.pl" and die;',
-            f'system "C4CI_BUILD_DIR=$proto_dir C4REPO_MAIN_CONF=$proto_dir/c4dep.main.replink /replink.pl" and die;',
+            f'system "C4REPO_MAIN_CONF=$context/{replink} /replink.pl" and die;',
+            f'system "C4REPO_MAIN_CONF=$proto_dir/c4dep.main.replink /replink.pl" and die;',
             perl_env("C4CI_PROTO_DIR", "$proto_dir"),
             'exec "python3.8","-u","$proto_dir/build_remote.py", "build_common", @ARGV;',
         ))))
