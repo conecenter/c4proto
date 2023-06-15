@@ -120,26 +120,23 @@ def get_commits(context):
     return dict(re.findall("(\\S*):(\\S*)", read_text(f"{context}/target/c4repo_commits")))
 
 
+def get_plain_option(plain_conf, k):
+    return one(*(line[2] for line in plain_conf if line[0] == k))
+
+
 def build_common(opt):
     proto_postfix = get_proto_postfix(opt.context)
     proto_dir = get_proto_dir()
-    pathlib.Path(f"{opt.context}/target").mkdir()
-    run(("perl",f"{proto_dir}/sync_mem.pl",opt.context))
     plain_conf = read_json(f"{opt.context}/c4dep.main.json")
-    build_dir = one(*(line[2] for line in plain_conf if line[0] == "C4CI_BUILD_DIR"))
-    image_prefix = one(*(line[2] for line in plain_conf if line[0] == "C4COMMON_IMAGE_PREFIX"))
-    replink = one(*(line[2] for line in plain_conf if line[0] == "C4REPLINK"))
-    commits = get_commits(opt.context)  # after sync_mem
-    image = f"{image_prefix}.{commits['']}"
-    changing_text(opt.out, json.dumps({"image": image}))
+    image_prefix = get_plain_option(plain_conf, "C4COMMON_IMAGE_PREFIX")
+    d_from_file = read_text(f"{proto_dir}/build.def.dockerfile")
+    env_dc = f"ENV C4DEPLOY_CONTEXT={os.environ['C4DEPLOY_CONTEXT']}"
+    push_secret = secret_part_to_text("c4push/.dockerconfigjson")
     with tempfile.TemporaryDirectory() as temp_root:
-        d_from_file = read_text(f"{proto_dir}/build.def.dockerfile")
-        base_content = "\n".join((
-            d_from_file, "COPY c4build_common /tools", "RUN chmod +x /tools/c4build_common",
-            f"ENV C4DEPLOY_CONTEXT={os.environ['C4DEPLOY_CONTEXT']}",
-            f"ENV C4CI_BUILD_DIR={build_dir}", f"ENV C4CI_PROTO_DIR={build_dir}/{proto_postfix}",
-        ))
-        changing_text(f"{temp_root}/Dockerfile", base_content)
+        changing_text(f"{temp_root}/Dockerfile", "\n".join((
+            d_from_file, env_dc, "COPY c4build_common /tools", "RUN chmod +x /tools/c4build_common"
+        )))
+        replink = get_plain_option(plain_conf, "C4REPLINK")
         changing_text(f"{temp_root}/c4build_common", perl_exec("\n".join((
             'my %opt = @ARGV;', 'my $context = $opt{"--context"}||die "no --context";',
             f'my $proto_dir = "$context/{proto_postfix}";',
@@ -148,9 +145,18 @@ def build_common(opt):
             perl_env("C4CI_PROTO_DIR", "$proto_dir"),
             'exec "python3.8","-u","$proto_dir/build_remote.py", "build_common", @ARGV;',
         ))))
-        push_secret = secret_part_to_text("c4push/.dockerconfigjson")
-        base_image = build_cached_by_content(temp_root, get_repo(image), push_secret)
-        print(f"IMAGE FOR BUILDER CAN BE: {base_image}")
+        build_common_image = build_cached_by_content(temp_root, get_repo(image_prefix), push_secret)
+        print(f"IMAGE FOR BUILDER CAN BE: {build_common_image}")
+    build_dir = get_plain_option(plain_conf, "C4CI_BUILD_DIR")
+    with tempfile.TemporaryDirectory() as temp_root:
+        changing_text(f"{temp_root}/Dockerfile", "\n".join((
+            d_from_file, env_dc, f"ENV C4CI_BUILD_DIR={build_dir}", f"ENV C4CI_PROTO_DIR={build_dir}/{proto_postfix}",
+        )))
+        base_image = build_cached_by_content(temp_root, get_repo(image_prefix), push_secret)
+    pathlib.Path(f"{opt.context}/target").mkdir()
+    run(("perl",f"{proto_dir}/sync_mem.pl", opt.context))
+    commits = get_commits(opt.context)  # after sync_mem
+    image = f"{image_prefix}.{commits['']}"
     with tempfile.TemporaryDirectory() as temp_root:
         run(("perl",f"{proto_dir}/sync_setup.pl"), env={**os.environ,"HOME":temp_root})
         run(("rsync","-a","--exclude",".git",f"{opt.context}/", need_dir(f"{temp_root}{build_dir}"))) #shutil.copytree seems to be slower
@@ -175,8 +181,8 @@ def build_common(opt):
     with tempfile.TemporaryDirectory() as temp_root:
         changing_text(need_dir(f"{temp_root}/c4")+"/c4serve.pl", perl_exec('exec "sleep","infinity";'))
         crane_append(temp_root, image, f"{image}.ce")
-        #print(f"### To control deployment:")
-        #print(f"c4py ci up --ima ge {opt.ima ge} --app sp-xxx-xxx-xxx")
+    changing_text(opt.out, json.dumps({"image": image}))
+
 
 #argparse.Namespace
 
