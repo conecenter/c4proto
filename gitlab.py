@@ -1,3 +1,4 @@
+#!/usr/bin/python3 -u
 
 import base64
 from re import search, sub, match
@@ -76,7 +77,7 @@ def get_deploy_jobs(env_mask, key_mask):
             "extends": [".common_job", rule], "script": ["c4gitlab confirm"], "stage": "confirm"
         }) for k in confirm_key_opt],
         (key_mask.replace("$C4CONFIRM", "deploy"), {
-            "extends": [".common_job", rule], "script": [f"c4gitlab deploy '{env_mask}'"],
+            "extends": [".common_job", rule], "script": [f"c4gitlab measure deploy '{env_mask}'"],
             "stage": deploy_stages[env_mask.partition("-")[0]], "needs": confirm_key_opt
         })
     ]
@@ -92,8 +93,7 @@ def handle_generate():
         ".handler": {"before_script": [
             "mkdir -p $CI_PROJECT_DIR/c4gitlab",
             "export PATH=$PATH:$CI_PROJECT_DIR/c4gitlab",
-            "echo \"#!$C4PYTHON -u\" > $CI_PROJECT_DIR/c4gitlab/c4gitlab",
-            f"echo '{script_body_encoded}' | base64 -d >> $CI_PROJECT_DIR/c4gitlab/c4gitlab",
+            f"echo '{script_body_encoded}' | base64 -d > $CI_PROJECT_DIR/c4gitlab/c4gitlab",
             "chmod +x $CI_PROJECT_DIR/c4gitlab/c4gitlab",
         ]},
         ".rule.build.common": {"rules": [{"if": f"$CI_PIPELINE_SOURCE == \"push\" && $CI_COMMIT_BRANCH"}]},
@@ -105,13 +105,14 @@ def handle_generate():
         ".rule.env.stop": {"rules": [{"when": "manual", "if": f"$C4GITLAB_ENV_NAME"}]},
         ".build_common": {"extends": ".handler", "variables": {"GIT_DEPTH": 10}},
         "build common": {
-            "extends": [".build_common", ".rule.build.common"], "script": ["c4gitlab build_common"], "stage": "develop"
+            "extends": [".build_common", ".rule.build.common"], "script": ["c4gitlab measure build_common"],
+            "stage": "develop"
         },
         ".common_job": {
             "extends": ".handler", "image": "$C4GITLAB_IMAGE", "variables": {"GIT_STRATEGY": "none"}, "needs": []
         },
         "build rt": {
-            "extends": [".common_job", ".rule.build.rt"], "script": ["c4gitlab build_rt"], "stage": "develop",
+            "extends": [".common_job", ".rule.build.rt"], "script": ["c4gitlab measure build_rt"], "stage": "develop",
         },
         **{
             key: value
@@ -119,11 +120,11 @@ def handle_generate():
             for key, value in get_deploy_jobs(env_mask, caption_mask)
         },
         "start": {
-            "extends": [".common_job", ".rule.env.start"], "script": ["c4gitlab start"], "stage": "start",
+            "extends": [".common_job", ".rule.env.start"], "script": ["c4gitlab measure start"], "stage": "start",
             "environment": {"name": env_gr_name, "action": "start", "on_stop": "stop", "url": "$C4GITLAB_ENV_URL"}
         },
         "stop": {
-            "extends": [".common_job", ".rule.env.stop"], "script": ["c4gitlab stop"], "stage": "stop",
+            "extends": [".common_job", ".rule.env.stop"], "script": ["c4gitlab measure stop"], "stage": "stop",
             "environment": {"name": env_gr_name, "action": "stop"}
         },
     }
@@ -181,19 +182,20 @@ def handle_deploy(env_mask):
         sleep(5)
 
 
-def main_outer(script, *args):
+def handle_measure(script, *args):
     started = monotonic()
-    inner_cmd = (script, "inner", *args)
+    inner_cmd = (e["C4PYTHON"], "-u", script, "inner", *args)
     with subprocess.Popen(inner_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True) as proc:
         for line in proc.stdout:
-            print(f"{str(int(time.monotonic()-started)).zfill(5)} {line}",end="")
+            print(f"{str(int(monotonic()-started)).zfill(5)} {line}", end="")
         proc.wait()
     sys.exit(proc.returncode)
 
 
-def main_inner(script, inner, op, *args):
+def main(script, op, *args):
     {
         "generate": handle_generate,
+        "measure": lambda *a: handle_measure(script, *a),
         "build_common": handle_build_common,
         "build_rt": lambda: run(("c4build_rt", e["C4GITLAB_PROJ_TAG"])),
         "confirm": lambda: (),
@@ -203,7 +205,7 @@ def main_inner(script, inner, op, *args):
     }[op](*args)
 
 
-(main_inner if sys.argv[1] == "inner" else main_outer)(*sys.argv)
+main(*sys.argv)
 
 
 # m, s = divmod(int(time.monotonic()-started), 60)
