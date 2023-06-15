@@ -87,7 +87,6 @@ my $remake = sub{
     my $user = $ENV{HOSTNAME}=~/^de-(\w+)-/ ? $1 : die;
     local $ENV{KUBECONFIG} = $ENV{C4KUBECONFIG};
     so("python3.8", "-u", "$proto_dir/build_remote.py", "compile",
-        "--commit", &$mandatory_of(C4COMMIT => \%ENV),
         "--image", &$mandatory_of(C4COMMON_IMAGE => \%ENV),
         "--java-options", &$mandatory_of(C4BUILD_JAVA_TOOL_OPTIONS => \%ENV),
         "--proj-tag", $arg, "--user", $user, "--context", $build_dir,

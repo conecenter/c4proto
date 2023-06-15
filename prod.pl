@@ -743,36 +743,10 @@ my $ci_get_compositions = sub{
     @comps
 };
 
-push @tasks, ["ci_get", "", sub{
-    my(%tasks)=@_;
-    for my $out_path (sort keys %tasks){
-        my ($comp,$k) = $tasks{$out_path}=~m{^([^/]+)/([^/]+)$} ? ($1,$2) : die;
-        &$put_text(($out_path||die), &$get_compose($comp)->{$k});
-    }
-}];
-
-push @tasks, ["ci_wait_images", "", sub{
-    my($env_comp)=@_;
-    my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
-    my @comps = &$ci_get_compositions($env_comp);
-    for my $part_comp(@comps){
-        my($from_img,$to_img) = &$ci_get_image($common_img,$part_comp);
-        &$build_remote("wait_image", "--image", $from_img, "--secret-from-k8s", "c4pull/.dockerconfigjson");
-    }
-}];
-
-push @tasks, ["ci_push", "", sub{
-    my($env_comp)=@_;
-    my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
-    my $kubectl = &$get_kubectl_raw(&$mandatory_of(C4DEPLOY_CONTEXT=>\%ENV));
-    my $auth_dir = &$get_tmp_dir();
-    &$secret_to_dir($kubectl,"docker",$auth_dir);
-    my @comps = &$ci_get_compositions($env_comp);
-    for my $part_comp(@comps){
-        my($from_img,$to_img) = &$ci_get_image($common_img,$part_comp);
-        &$build_remote("copy_image","--from-image",$from_img,"--to-image",$to_img,"--push-secret","$auth_dir/auth.json")
-            if $from_img ne $to_img;
-    }
+push @tasks, ["ci_info_list", "", sub{
+    my(%opt)=@_;
+    my @comps = map{&$get_compose($_)} &$decode(&$mandatory_of("--names",\%opt));
+    &$put_text(&$mandatory_of("--out",\%opt), &$encode(\@comps));
 }];
 
 my $ci_env_name = sub{
@@ -790,11 +764,16 @@ my $ci_apply = sub{
     sy("$kubectl apply -f $tmp --prune -l c4env=$env_name $whitelist");
 };
 
-push @tasks, ["ci_up", "", sub{
+my $ci_up = sub{
     my($env_comp)=@_;
     my $end = &$ci_measure();
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
     my @comps = &$ci_get_compositions($env_comp);
+    my @secret_opt = ("--secret-from-k8s","c4pull/.dockerconfigjson","--push-secret-from-k8s","docker/auth.json");
+    for my $part_comp(@comps){
+        my($from_img,$to_img) = &$ci_get_image($common_img,$part_comp);
+        &$build_remote("copy_image","--from-image",$from_img,"--to-image",$to_img,@secret_opt);
+    }
     my ($kubectl,$env_name,$env_group) = &$ci_env_name($env_comp);
     my $labeled = {metadata=>{labels=>{c4env=>$env_name,c4env_group=>$env_group}}};
     my $yml_str = join "\n", map{ &$encode(&$merge_list($_,$labeled)) } map{
@@ -802,22 +781,18 @@ push @tasks, ["ci_up", "", sub{
         my($from_img,$to_img) = &$ci_get_image($common_img,$l_comp);
         &$ignore($from_img);
         my $options = &$find_handler(ci_up=>$l_comp)->($l_comp,$to_img);
-        my $commit = &$mandatory_of(C4COMMIT=>\%ENV);
-        @{&$make_kc_yml($l_comp,&$add_image_pull_secrets($l_comp,{
-            C4COMMON_IMAGE=>$common_img, C4COMMIT=>$commit, %$options
-        }))};
+        @{&$make_kc_yml($l_comp,&$add_image_pull_secrets($l_comp,{ C4COMMON_IMAGE=>$common_img, %$options }))};
     } @comps;
     #
     my $tmp_dir = &$get_tmp_dir();
     my $yml_path = "$tmp_dir/up.yml";
     &$put_text($yml_path, $yml_str);
-    &$build_remote("add_history",
-        "--repo", &$mandatory_of(C4OUT_REPO=>\%ENV), "--context", $tmp_dir,
-        "--branch", "deploy/$env_name", "--message", "$env_comp $common_img"
+    &$build_remote(
+        "add_history", "--context", $tmp_dir, "--branch", "deploy/$env_name", "--message", "$env_comp $common_img"
     );
     &$ci_apply($kubectl,$env_name,$yml_path);
     &$end("ci_up");
-}];
+};
 
 my $get_image_from_deployment = sub{ #.spec.template.spec.containers[*].image
     my ($deployment) = @_;
@@ -846,7 +821,7 @@ push @tasks, ["ci_clone", "--from env --to env,env", sub{
     &$py_run("ci.py", "clone_last_to_prefix_list", "--from-prefix", $from, "--to", $to);
 }];
 
-push @tasks, ["ci_check_images", "", sub {
+my $ci_check_images = sub{
     my ($env_comp) = @_;
     my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
     my @comps = &$ci_get_compositions($env_comp);
@@ -880,7 +855,11 @@ push @tasks, ["ci_check_images", "", sub {
             sleep 2;
         }
     }
-}];
+};
+
+push @tasks, ["ci_up", "", $ci_up];
+push @tasks, ["ci_check_images", "", $ci_check_images];
+push @tasks, ["ci_up_blocking", "", sub{ &$ci_up(@_); &$ci_check_images(@_) }];
 
 ########
 
