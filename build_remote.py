@@ -192,14 +192,14 @@ def build_rt(opt):
     with temp_dev_pod({"image": os.environ["C4COMMON_IMAGE"], **opt_compiler()}) as name:
         remote_kube_config = "/tmp/.c4-kube-config"
         kcd_run("cp", os.environ["KUBECONFIG"], f"{name}:{remote_kube_config}")
-        kcd_run("exec", name, "--", "env", f"KUBECONFIG={remote_kube_config}", "c4ci", "build_rt_inner", opt.proj_tag)
+        kcd_run("exec", name, "--", "env", f"KUBECONFIG={remote_kube_config}", "c4build_rt_inner", opt.proj_tag)
 
 
 def build_rt_inner(opt):
     proj_tag = opt.proj_tag
     build_dir = os.environ["C4CI_BUILD_DIR"]
     image = os.environ["C4COMMON_IMAGE"]
-    commits = get_commits()
+    commits = get_commits(build_dir)
     proto_postfix = get_proto_postfix(build_dir)
     proto_dir = get_proto_dir()
     context, commit, build_client = (
