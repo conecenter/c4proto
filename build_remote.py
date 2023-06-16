@@ -171,7 +171,8 @@ def build_common(opt):
         )
         for cmd, content in aliases:
             changing_text(f"{tmp_bin}/{cmd}", perl_exec("\n".join((
-                perl_env("C4COMMON_IMAGE", image), f'exec {content}, @ARGV;',
+                perl_env("C4COMMON_IMAGE", image),
+                'my $proto_dir = $ENV{C4CI_PROTO_DIR}||die "no C4CI_PROTO_DIR";', f'exec {content}, @ARGV;',
             ))))
         run(("chmod", "+x", *(f"{tmp_bin}/{cmd}" for cmd, content in aliases)))
         crane_append(temp_root, base_image, image)
