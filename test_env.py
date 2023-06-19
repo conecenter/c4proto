@@ -130,7 +130,7 @@ def clones_up(env_template, clone_ids):
     image, = get_env_images(from_env)
     with temp_dev_pod(get_pod_options(image)) as pod_name:
         sync_kube_conf(pod_name)
-        run_inner(pod_name, "ci_clone", "--from", f"{from_env}-env", "--to", ",".join(to_env_names))
+        run_inner(pod_name, "ci_clone", "--from", f"{from_env}-env", "--to", ",".join(to_env_names)) # todo restore ci_clone
         for to_env in to_env_names:
             run_inner(pod_name, "ci_up", to_env)
         for to_env in to_env_names:

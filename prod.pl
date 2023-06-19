@@ -707,18 +707,18 @@ push @tasks, ["log_debug","<pod|$composes_txt> [class]",sub{ # ee.cone
 
 #################
 
-my $get_rand_uuid = sub{ syf("uuidgen")=~/(\S+)/ ? "$1" : die };
+#my $get_rand_uuid = sub{ syf("uuidgen")=~/(\S+)/ ? "$1" : die };
 
-my $ci_measure = sub{
-    my $at = time;
-    sub{ print((time-$at)."s =measured= $_[0]\n") }
-};
+#my $ci_measure = sub{
+#    my $at = time;
+#    sub{ print((time-$at)."s =measured= $_[0]\n") }
+#};
 
-my @kinds = (
-    [qw[core v1 Secret]],[qw[core v1 Service]],
-    [qw[apps v1 Deployment]],[qw[apps v1 StatefulSet]],
-    [qw[extensions v1beta1 Ingress]],
-);
+#my @kinds = (
+#    [qw[core v1 Secret]],[qw[core v1 Service]],
+#    [qw[apps v1 Deployment]],[qw[apps v1 StatefulSet]],
+#    [qw[extensions v1beta1 Ingress]],
+#);
 
 my $ci_get_image = sub{
     my($common_img,$comp) = @_;
@@ -731,135 +731,154 @@ my $ci_get_image = sub{
         die;
     my($prod_repo,$allow_source_repo) =
         &$get_deployer_conf($comp,0,qw[sys_image_repo allow_source_repo]);
-    $allow_source_repo ? ($img,$img) :
-        $prod_repo && $img=~/:([^:]+)$/ ? ($img,"$prod_repo:$1") :
-            die "source deploy to alien environment was denied";
+    my $to_img = $allow_source_repo ? $img : $prod_repo && $img=~/:([^:]+)$/ ? "$prod_repo:$1" :
+        die "source deploy to alien environment was denied";
+    +{ from_image=>$img, to_image=>$to_img, project=>$proj_tag, image_type=>$image_type }
 };
 
-my $ci_get_compositions = sub{
-    my($env_comp) = @_;
+push @tasks, ["ci_deploy_info", "", sub{
+    my ($env_comp) = @_;
+    my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
     my @comps = &$spaced_list(&$get_compose($env_comp)->{parts}||[$env_comp]);
     &$get_deployer($env_comp) eq &$get_deployer($_) || die "deployers do not match" for @comps;
-    @comps
-};
-
-push @tasks, ["ci_info_list", "", sub{
-    my(%opt)=@_;
-    my @comps = map{&$get_compose($_)} &$decode(&$mandatory_of("--names",\%opt));
-    &$put_text(&$mandatory_of("--out",\%opt), &$encode(\@comps));
-}];
-
-my $ci_env_name = sub{
-    my($env_comp)=@_;
     my $conf = &$get_compose($env_comp);
     my $env_name = &$mandatory_of("ci:env"=>$conf);
     my $env_group = &$mandatory_of("ci:env_group"=>$conf);
-    my $kubectl = &$get_kubectl($env_comp);
-    ($kubectl,$env_name,$env_group)
-};
-
-my $ci_apply = sub{
-    my ($kubectl,$env_name,$tmp) = @_;
-    my $whitelist = join " ", map{"--prune-whitelist $$_[0]/$$_[1]/$$_[2]"} @kinds;
-    sy("$kubectl apply -f $tmp --prune -l c4env=$env_name $whitelist");
-};
-
-my $ci_up = sub{
-    my($env_comp)=@_;
-    my $end = &$ci_measure();
-    my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
-    my @comps = &$ci_get_compositions($env_comp);
-    my @secret_opt = ("--secret-from-k8s","c4pull/.dockerconfigjson","--push-secret-from-k8s","docker/auth.json");
-    for my $part_comp(@comps){
-        my($from_img,$to_img) = &$ci_get_image($common_img,$part_comp);
-        &$build_remote("copy_image","--from-image",$from_img,"--to-image",$to_img,@secret_opt);
-    }
-    my ($kubectl,$env_name,$env_group) = &$ci_env_name($env_comp);
-    my $labeled = {metadata=>{labels=>{c4env=>$env_name,c4env_group=>$env_group}}};
-    my $yml_str = join "\n", map{ &$encode(&$merge_list($_,$labeled)) } map{
+    my ($context) = &$get_deployer_conf($env_comp,1,qw[context]);
+    my @parts = map{
         my $l_comp = $_;
-        my($from_img,$to_img) = &$ci_get_image($common_img,$l_comp);
-        &$ignore($from_img);
-        my $options = &$find_handler(ci_up=>$l_comp)->($l_comp,$to_img);
-        @{&$make_kc_yml($l_comp,&$add_image_pull_secrets($l_comp,{ C4COMMON_IMAGE=>$common_img, %$options }))};
+        my $img_info = &$ci_get_image($common_img,$l_comp);
+        my $options = &$find_handler(ci_up=>$l_comp)->($l_comp,$$img_info{to_image}||die);
+        @manifests = @{&$make_kc_yml($l_comp,&$add_image_pull_secrets($l_comp, $options))};
+        +{ %$img_info, manifests => \@manifests, hostname=> &$get_compose($l_comp)->{"ci:hostname"} }
     } @comps;
-    #
-    my $tmp_dir = &$get_tmp_dir();
-    my $yml_path = "$tmp_dir/up.yml";
-    &$put_text($yml_path, $yml_str);
-    &$build_remote(
-        "add_history", "--context", $tmp_dir, "--branch", "deploy/$env_name", "--message", "$env_comp $common_img"
-    );
-    &$ci_apply($kubectl,$env_name,$yml_path);
-    &$end("ci_up");
-};
-
-my $get_image_from_deployment = sub{ #.spec.template.spec.containers[*].image
-    my ($deployment) = @_;
-    my ($curr_img,@more) = map{$$_{image}} map{@$_} map{$$_{containers}||{}}
-        map{$$_{spec}||{}} map{$$_{template}||{}} map{$$_{spec}||{}} $deployment;
-    die if @more;
-    $curr_img
-};
-
-push @tasks, ["ci_down","",sub{
-    my($env_comp)=@_;
-    my ($kubectl,$env_name,$env_group) = &$ci_env_name($env_comp);
-    my $kinds = join ",",map{$$_[2]}@kinds;
-    sy("$kubectl delete -l c4env=$env_name $kinds");
+    my $out = { parts=>\@parts, env_name=>$env_name, env_group=>$env_group, context=>$context };
+    &$put_text(&$mandatory_of("--out",\%opt), &$encode($out));
 }];
 
-my $get_prefix_list_from_env_list = sub{
-    map{&$mandatory_of(C4INBOX_TOPIC_PREFIX=>$_)} grep{$$_{type} eq "gate"} map{&$get_compose($_)}
-        map{&$ci_get_compositions($_)} @_
-};
+#push @tasks, ["ci_info_list", "", sub{
+#    my(%opt)=@_;
+#    my @comps = map{&$get_compose($_)} &$decode(&$mandatory_of("--names",\%opt));
+#    &$put_text(&$mandatory_of("--out",\%opt), &$encode(\@comps));
+#}];
 
-push @tasks, ["ci_clone", "--from env --to env,env", sub{
-    my %opt = @_;
-    my $to = join(",", &$get_prefix_list_from_env_list(split ",", &$mandatory_of("--to"=>\%opt))) || die;
-    my $from = &$single(&$get_prefix_list_from_env_list(&$mandatory_of("--from"=>\%opt)));
-    &$py_run("ci.py", "clone_last_to_prefix_list", "--from-prefix", $from, "--to", $to);
-}];
 
-my $ci_check_images = sub{
-    my ($env_comp) = @_;
-    my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
-    my @comps = &$ci_get_compositions($env_comp);
-    my $kubectl = &$get_kubectl($env_comp);
-    for my $comp(@comps){
-        while(1){
-            my $stm = qq[$kubectl get deployment -o jsonpath="{.items[*].metadata.name}"];
-            last if grep{$_ eq $comp} &$spaced_list(syf($stm));
-            sleep 2;
-        }
-        my ($from_img, $to_img) = &$ci_get_image($common_img, $comp);
-        print "target image:     $to_img\n";
-        while(1){
-            my $resp = &$decode(syf(qq[$kubectl get deployment $comp -o json]));
-            my $curr_img = &$get_image_from_deployment($resp);
-            print "deployment image: $curr_img\n";
-            last if $curr_img eq $to_img;
-            sleep 2;
-        }
-        while(1){
-            my $resp = &$decode(syf("$kubectl get po -l app=$comp -ojson"));
-            my @statuses = map{@$_} map{$$_{containerStatuses}||[]}
-                map{$$_{status}||{}} map{@$_} map{$$_{items}||[]} $resp;
-            if(@statuses){
-                my @others = grep{$_ ne $to_img} map{$$_{image}} @statuses;
-                print "other images: $_\n" for @others;
-                my @not_ready = map{$$_{ready}?():$$_{state}} @statuses;
-                print "not ready: ".&$encode($_)."\n" for @not_ready;
-                @others or @not_ready or last;
-            }
-            sleep 2;
-        }
-    }
-};
 
-push @tasks, ["ci_up", "", $ci_up];
-push @tasks, ["ci_check_images", "", $ci_check_images];
-push @tasks, ["ci_up_blocking", "", sub{ &$ci_up(@_); &$ci_check_images(@_) }];
+#my $ci_env_name = sub{
+#    my($env_comp)=@_;
+#    my $conf = &$get_compose($env_comp);
+#    my $env_name = &$mandatory_of("ci:env"=>$conf);
+#    my $env_group = &$mandatory_of("ci:env_group"=>$conf);
+#    my $kubectl = &$get_kubectl($env_comp);
+#    ($kubectl,$env_name,$env_group)
+#};
+
+#my $ci_apply = sub{
+#    my ($kubectl,$env_name,$tmp) = @_;
+#    my $whitelist = join " ", map{"--prune-whitelist $$_[0]/$$_[1]/$$_[2]"} @kinds;
+#    sy("$kubectl apply -f $tmp --prune -l c4env=$env_name $whitelist");
+#};
+
+#my $ci_up = sub{
+#    my($env_comp)=@_;
+#    my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
+#    my @comps = &$spaced_list(&$get_compose($env_comp)->{parts}||[$env_comp]);
+#    &$get_deployer($env_comp) eq &$get_deployer($_) || die "deployers do not match" for @comps;
+#    my $conf = &$get_compose($env_comp);
+#    my $env_name = &$mandatory_of("ci:env"=>$conf);
+#    my $env_group = &$mandatory_of("ci:env_group"=>$conf);
+#    my ($context) = &$get_deployer_conf($env_comp,1,qw[context]);
+
+#    my @secret_opt = ("--secret-from-k8s","c4pull/.dockerconfigjson","--push-secret-from-k8s","docker/auth.json");
+#    for my $part_comp(@comps){
+#        my($from_img,$to_img) = &$ci_get_image($common_img,$part_comp);
+#        &$build_remote("copy_image","--from-image",$from_img,"--to-image",$to_img,@secret_opt);
+#    }
+#    my ($kubectl,$env_name,$env_group) = &$ci_env_name($env_comp);
+#    my $labeled = {metadata=>{labels=>{c4env=>$env_name}}};
+#    my $yml_str = map{ &$merge_list($_,$labeled) } map{
+#        my $l_comp = $_;
+#        my($from_img,$to_img) = &$ci_get_image($common_img,$l_comp);
+#        my $options = &$find_handler(ci_up=>$l_comp)->($l_comp,$to_img);
+#        @{&$make_kc_yml($l_comp,&$add_image_pull_secrets($l_comp, $options))};
+#    } @comps;
+
+#    my $tmp_dir = &$get_tmp_dir();
+#    my $yml_path = "$tmp_dir/up.yml";
+#    &$put_text($yml_path, $yml_str);
+#    &$build_remote(
+#        "add_history", "--context", $tmp_dir, "--branch", "deploy/$env_name", "--message", "$env_comp $common_img"
+#    );
+#    &$ci_apply($kubectl,$env_name,$yml_path);
+#    &$end("ci_up");
+#};
+
+#my $get_image_from_deployment = sub{ #.spec.template.spec.containers[*].image
+#    my ($deployment) = @_;
+#    my ($curr_img,@more) = map{$$_{image}} map{@$_} map{$$_{containers}||{}}
+#        map{$$_{spec}||{}} map{$$_{template}||{}} map{$$_{spec}||{}} $deployment;
+#    die if @more;
+#    $curr_img
+#};
+
+#push @tasks, ["ci_down","",sub{
+#    my($env_comp)=@_;
+#    my ($kubectl,$env_name,$env_group) = &$ci_env_name($env_comp);
+#    my $kinds = join ",",map{$$_[2]}@kinds;
+#    sy("$kubectl delete -l c4env=$env_name $kinds");
+#}];
+
+#my $get_prefix_list_from_env_list = sub{
+#    map{&$mandatory_of(C4INBOX_TOPIC_PREFIX=>$_)} grep{$$_{type} eq "gate"} map{&$get_compose($_)}
+#        map{&$ci_get_compositions($_)} @_
+#};
+
+#push @tasks, ["ci_clone", "--from env --to env,env", sub{
+#    my %opt = @_;
+#    my $to = join(",", &$get_prefix_list_from_env_list(split ",", &$mandatory_of("--to"=>\%opt))) || die;
+#    my $from = &$single(&$get_prefix_list_from_env_list(&$mandatory_of("--from"=>\%opt)));
+#    &$py_run("ci.py", "clone_last_to_prefix_list", "--from-prefix", $from, "--to", $to);
+#}];
+
+#my $ci_check_images = sub{
+#    my ($env_comp) = @_;
+#    my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
+#    my @comps = &$ci_get_compositions($env_comp);
+#    my $kubectl = &$get_kubectl($env_comp);
+#    for my $comp(@comps){
+#        while(1){
+#            my $stm = qq[$kubectl get deployment -o jsonpath="{.items[*].metadata.name}"];
+#            last if grep{$_ eq $comp} &$spaced_list(syf($stm));
+#            sleep 2;
+#        }
+#        my ($from_img, $to_img) = &$ci_get_image($common_img, $comp);
+#        print "target image:     $to_img\n";
+#        while(1){
+#            my $resp = &$decode(syf(qq[$kubectl get deployment $comp -o json]));
+#            my $curr_img = &$get_image_from_deployment($resp);
+#            print "deployment image: $curr_img\n";
+#            last if $curr_img eq $to_img;
+#            sleep 2;
+#        }
+#        while(1){
+#            my $resp = &$decode(syf("$kubectl get po -l app=$comp -ojson"));
+#            my @statuses = map{@$_} map{$$_{containerStatuses}||[]}
+#                map{$$_{status}||{}} map{@$_} map{$$_{items}||[]} $resp;
+#            if(@statuses){
+#                my @others = grep{$_ ne $to_img} map{$$_{image}} @statuses;
+#                print "other images: $_\n" for @others;
+#                my @not_ready = map{$$_{ready}?():$$_{state}} @statuses;
+#                print "not ready: ".&$encode($_)."\n" for @not_ready;
+#                @others or @not_ready or last;
+#            }
+#            sleep 2;
+#        }
+#    }
+#};
+
+#push @tasks, ["ci_up", "", $ci_up];
+#push @tasks, ["ci_check_images", "", $ci_check_images];
+#push @tasks, ["ci_up_blocking", "", sub{ &$ci_up(@_); &$ci_check_images(@_) }];
 
 ########
 

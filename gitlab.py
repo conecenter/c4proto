@@ -67,29 +67,12 @@ def post_pipeline(conn_url, tag_name, image, variables):
 def read_text(path): return Path(path).read_text(encoding='utf-8', errors='strict')
 
 
-def get_deploy_jobs(env_mask, key_mask):
-    rule = ".rule.deploy.prod" if env_mask == "cl-prod" else ".rule.deploy.any"
-    deploy_stages = {"de": "develop", "sp": "develop", "cl": "deploy"}
-    confirm_key = key_mask.replace("$C4CONFIRM", "confirm")
-    confirm_key_opt = [confirm_key] if confirm_key != key_mask else []
-    return [
-        *[(k, {
-            "extends": [".common_job", rule], "script": ["c4gitlab confirm"], "stage": "confirm"
-        }) for k in confirm_key_opt],
-        (key_mask.replace("$C4CONFIRM", "deploy"), {
-            "extends": [".common_job", rule], "script": [f"c4gitlab measure deploy '{env_mask}'"],
-            "stage": deploy_stages[env_mask.partition("-")[0]], "needs": confirm_key_opt
-        })
-    ]
-
-
 def handle_generate():
     conf = load(sys.stdin)
     script_body = read_text(sys.argv[0]).replace("'"+"C4GITLAB_CONFIG_JSON"+"'", dumps(conf))
     script_body_encoded = base64.b64encode(script_body.encode('utf-8')).decode('utf-8')
-    stages = ["develop", "confirm", "deploy", "start", "stop"]
-    env_gr_name = "$C4GITLAB_ENV_GROUP/$C4GITLAB_ENV_NAME"
-    jobs = {
+    out = {
+        "stages": ["develop", "deploy", "start", "stop"],
         ".handler": {"before_script": [
             "mkdir -p $CI_PROJECT_DIR/c4gitlab",
             "export PATH=$PATH:$CI_PROJECT_DIR/c4gitlab",
@@ -101,7 +84,10 @@ def handle_generate():
         ".rule.deploy.any": {"rules": [{"when": "manual", "if": f"$C4GITLAB_AGGR"}]},
         ".rule.deploy.prod":
             {"rules": [{"when": "manual", "if": f"$C4GITLAB_AGGR && $CI_COMMIT_TAG =~ /\\/release\\//"}]},
-        ".rule.env.start": {"rules": [{"if": f"$C4GITLAB_ENV_NAME"}]},
+        ".rule.env.start": {"rules": [
+            {"if": f"$C4GITLAB_ENV_NAME =~ /^cl-/", "when": "manual"},
+            {"if": f"$C4GITLAB_ENV_NAME"}
+        ]},
         ".rule.env.stop": {"rules": [{"when": "manual", "if": f"$C4GITLAB_ENV_NAME"}]},
         ".build_common": {"extends": ".handler", "variables": {"GIT_DEPTH": 10}},
         "build common": {
@@ -115,20 +101,27 @@ def handle_generate():
             "extends": [".common_job", ".rule.build.rt"], "script": ["c4gitlab measure build_rt"], "stage": "develop",
         },
         **{
-            key: value
-            for op, env_mask, caption_mask in conf if op == "C4DEPLOY"
-            for key, value in get_deploy_jobs(env_mask, caption_mask)
+            caption_mask: {
+                "extends": [".common_job", ".rule.deploy.prod" if env_mask == "cl-prod" else ".rule.deploy.any"],
+                "script": [f"c4gitlab measure deploy '{env_mask}'"],
+                "stage": {"de": "develop", "sp": "develop", "cl": "deploy"}[env_mask.partition("-")[0]],
+            } for op, env_mask, caption_mask in conf if op == "C4DEPLOY"
         },
         "start": {
             "extends": [".common_job", ".rule.env.start"], "script": ["c4gitlab measure start"], "stage": "start",
-            "environment": {"name": env_gr_name, "action": "start", "on_stop": "stop", "url": "$C4GITLAB_ENV_URL"}
+            "environment": {
+                "name": "$C4GITLAB_ENV_GROUP/$C4GITLAB_ENV_NAME", "action": "start",
+                "on_stop": "stop", "url": "$C4GITLAB_ENV_URL"
+            }
         },
         "stop": {
             "extends": [".common_job", ".rule.env.stop"], "script": ["c4gitlab measure stop"], "stage": "stop",
-            "environment": {"name": env_gr_name, "action": "stop"}
+            "environment": {
+                "name": "$C4GITLAB_ENV_GROUP/$C4GITLAB_ENV_NAME", "action": "stop"
+            }
         },
     }
-    dump({"stages": stages, **jobs}, sys.stdout, sort_keys=True, indent=4)
+    dump(out, sys.stdout, sort_keys=True, indent=4)
 
 
 def ci_run_out(cmd):
@@ -162,11 +155,10 @@ def handle_build_common():
 def handle_deploy(env_mask):
     user = sub("[^a-z]", "", e["GITLAB_USER_LOGIN"].lower())
     env_base = env_mask.replace("{C4SUBJ}", e["C4GITLAB_SUBJ"]).replace("{C4USER}", user)+"-"+e["C4GITLAB_AGGR"]
+
     env_name = f"{env_base}-env"
-    env_comp, = ci_run_out(("c4ci_info", "--names", dumps([env_name])))
-    group = env_comp["ci:env_group"]
-    part_comps = ci_run_out(("c4ci_info", "--names", dumps(env_comp["parts"])))
-    env_url = next(sorted(f"https://{h}" for c in part_comps for h in [c.get("ci:hostname")] if h), "")
+
+
     conn_url = connect()
     variables = {"C4GITLAB_ENV_GROUP": group, "C4GITLAB_ENV_NAME": env_name, "C4GITLAB_ENV_URL": env_url}
     pipeline_id = post_pipeline(conn_url, e["CI_COMMIT_TAG"], e["C4GITLAB_IMAGE"], variables)
@@ -198,7 +190,6 @@ def main(script, op, *args):
         "measure": lambda *a: handle_measure(script, *a),
         "build_common": handle_build_common,
         "build_rt": lambda: run(("c4build_rt", e["C4GITLAB_PROJ_TAG"])),
-        "confirm": lambda: (),
         "deploy": handle_deploy,
         "start": lambda: run(("c4ci_up", e["C4GITLAB_ENV_NAME"])),
         "stop": lambda: run(("c4ci_down", e["C4GITLAB_ENV_NAME"])),

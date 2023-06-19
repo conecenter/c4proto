@@ -96,12 +96,17 @@ def crane_login(push_secret):
         )
         run(("crane","auth","login","-u",username,"--password-stdin",registry), text=True, input=password)
 
+
+def crane_image_exists(image):
+    return run_no_die(("crane", "manifest", image))
+
+
 def build_cached_by_content(context, repository, push_secret):
     crane_login(push_secret)
     files = sorted(run_text_out(("find","-type","f"),cwd=context).splitlines())
     sums = run_text_out(("sha256sum","--",*files),cwd=context)
     image = f"{repository}:c4b.{sha256(sums)[:8]}"
-    if not run_no_die(("crane","manifest",image)):
+    if not crane_image_exists(image):
         with temp_dev_pod({ "image": "gcr.io/kaniko-project/executor:debug", "command": ["/busybox/sleep", "infinity"] }) as name:
             if not run_pipe_no_die(("tar","--exclude",".git","-C",context,"-czf-","."), kcd_args("exec","-i",name,"--","tar","-xzf-")):
                 never("tar failed")

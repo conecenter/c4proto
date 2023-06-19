@@ -1,6 +1,7 @@
 
 [
   ["C4INC", "#", "c4dep.all.json" ],
+  ["C4INC", "#", "c4dep.gate.json" ],
 
   ["C4TAG", "def", "base_server.ee.cone.c4gate_akka.SimpleAkkaGatewayApp" ],
   ["C4TAG", "s3def", "base_server.ee.cone.c4gate_akka_s3.AkkaMinioGatewayApp" ],
@@ -25,25 +26,10 @@
 
   ["C4SRC", "front", "c4front/src/sapi"],
 
-  ["C4EXT", "base_server.ee.cone.c4gate_akka", "com.typesafe.akka:akka-stream_2.13:2.5.25" ],
-  ["C4EXT", "base_server.ee.cone.c4gate_akka", "com.typesafe.akka:akka-http-core_2.13:10.1.10" ],
-  ["#C4EXT", "base_server.ee.cone.c4gate_akka", "com.typesafe.akka:akka-stream_2.13:2.6.3" ],
-  ["#C4EXT", "base_server.ee.cone.c4gate_akka", "com.typesafe.akka:akka-http-core_2.13:10.1.11" ],
-
   ["C4EXT", "extra_examples.ee.cone.c4actor", "org.scalameta:scalameta_2.13:4.2.3" ],
   ["#C4EXT", "extra_examples.ee.cone.c4actor", "org.scalameta:scalameta_2.13:4.3.0" ],
 
   "# com.lihaoyi % ammonite-sshd % 1.6.9 cross CrossVersion.full",
-
-  ["C4DEP", "base_server.ee.cone.c4gate_server", "base_lib.ee.cone.c4actor_xml" ],
-  ["C4DEP", "base_server.ee.cone.c4gate_server", "base_lib.ee.cone.c4gate" ],
-  ["C4DEP", "base_server.ee.cone.c4gate_server", "base_lib.ee.cone.c4actor_kafka_impl" ],
-  ["C4DEP", "base_server.ee.cone.c4gate_server", "base_lib.ee.cone.c4actor_logback_impl" ],
-  ["C4DEP", "base_server.ee.cone.c4gate_akka", "base_server.ee.cone.c4gate_server" ],
-  ["C4DEP", "base_server.ee.cone.c4gate_akka", "base_lib.ee.cone.c4actor_repl_impl" ],
-  ["C4DEP", "base_server.ee.cone.c4gate_akka_s3", "base_server.ee.cone.c4gate_akka" ],
-  ["C4DEP", "base_server.ee.cone.c4gate_akka_s3", "base_server.ee.cone.c4gate_server" ],
-  ["C4DEP", "base_server.ee.cone.c4gate_akka_s3", "base_lib.ee.cone.c4actor_s3_minio" ],
 
   ["C4DEP", "front.ee.cone.c4ui", "base_lib.ee.cone.c4ui"],
 
