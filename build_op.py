@@ -41,26 +41,29 @@ def handle_prep(context, env_state, info_out):
     proto_postfix, = get_plain_options(plain_conf, "C4PROTO_POSTFIX")
     deploy_context, = get_plain_options(plain_conf, "C4DEPLOY_CONTEXT")
     dir = TemporaryDirectory()
-    run(("git", "clone", "--depth", "1", context, dir))
-    run(("/replink.pl",), env={"C4REPO_MAIN_CONF": f"{dir}/{replink}"})
-    args = ("--context", dir, "--env-state", env_state, "--info-out", info_out)
-    cmd = ("python3", "-u", f"{dir}/{proto_postfix}/build_remote.py", "ci_prep", *args)
+    run(("git", "clone", context, dir.name))
+    run(("/replink.pl",), env={"C4REPO_MAIN_CONF": f"{dir.name}/{replink}"})
+    args = ("--context", dir.name, "--env-state", env_state, "--info-out", info_out)
+    cmd = ("python3", "-u", f"{dir.name}/{proto_postfix}/build_remote.py", "ci_prep", *args)
     run(cmd, env={"C4DEPLOY_CONTEXT": deploy_context})
 
 
 def main():
     main_parser = ArgumentParser()
-    add_parser = main_parser.add_subparsers(required=True).add_parser
+    add_parser = main_parser.add_subparsers(required=True, dest="cmd").add_parser
     prep_parser = add_parser("prep")
     prep_parser.add_argument("--context", required=True)
     prep_parser.add_argument("--env-state", required=True)
     prep_parser.add_argument("--info-out", required=True)
     prep_parser.set_defaults(op=lambda: handle_prep(opt.context, opt.env_state, opt.info_out))
     up_parser = add_parser("up")
-    up_parser.add_argument("info", required=True, type=read_json)
+    up_parser.add_argument("info", type=read_json)
     up_parser.set_defaults(op=lambda: handle_up(opt.info))
     down_parser = add_parser("down")
-    down_parser.add_argument("info", required=True, type=read_json)
+    down_parser.add_argument("info", type=read_json)
     down_parser.set_defaults(op=lambda: handle_down(opt.info))
     opt = main_parser.parse_args()
     opt.op()
+
+
+main()
