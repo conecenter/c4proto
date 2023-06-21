@@ -162,14 +162,6 @@ my $find_handler = sub{
     &$single_or_undef(map{$$_[0] eq $nm ? $$_[2] : ()} @tasks) || die "no handler: $nm,$comp";
 };
 
-my $rel_put_text = sub{
-    my($base_path) = @_;
-    sub{
-        my($add_path,$cont)=@_;
-        &$put_text(&$need_path("$base_path/$add_path"),$cont);
-    };
-};
-
 my $get_proto_dir = sub{ &$mandatory_of(C4CI_PROTO_DIR=>\%ENV) };
 my $py_run = sub{
     my ($nm,@args) = @_;
@@ -250,224 +242,9 @@ push @tasks, ["pods_del","$composes_txt",sub{
 
 #### composer
 
-my %merge;
-my $merge = sub{&{$merge{join "-",map{ref}@_}||sub{$_[$#_]}}};
-$merge{"HASH-HASH"} = sub{
-    my($p,$o)=@_;
-    +{map{
-        my $k = $_;
-        ($k=>&$merge(map{(exists $$_{$k})?$$_{$k}:()} $p,$o));
-    } keys %{+{%$p,%$o}}};
-};
-$merge{"ARRAY-ARRAY"} = sub{[map{@$_}@_]};
-
-use List::Util qw(reduce);
-
-my $merge_list = sub{ reduce{ &$merge($a,$b) } @_ };
-my $single = sub{ @_==1 ? $_[0] : die };
-
 my $md5_hex = sub{ md5_hex(@_) };
 
-#todo: affinity for headless, replicas 3
-#todo securityContext/runAsUser auto?
-
 my $spaced_list = sub{ map{ ref($_) ? @$_ : /(\S+)/g } @_ };
-
-my $make_kc_yml = sub{
-    my($name,$opt) = @_;
-    my @unknown = &$map($opt,sub{ my($k)=@_;
-        $k=~/^([A-Z]|host:|port:|ingress:|path:|label:)/ ||
-        $k=~/^(tty|image|noderole|image_pull_secrets|ingress_secret_name|need_pod_ip|replicas|req_cpu|req_mem|ca)$/ ? () : $k
-    });
-    @unknown and warn "unknown conf keys: ".join(" ",@unknown);
-    my $nm = "main";
-    #
-    my @host_aliases = do{
-        my $ip2aliases = &$merge_list({},&$map($opt,sub{ my($k,$v)=@_; $k=~/^host:(.+)/ ? {$v=>["$1"]} : () }));
-        &$map($ip2aliases, sub{ my($k,$v)=@_; +{ip=>$k, hostnames=>$v} });
-    };
-    #
-    &$map($opt,sub{ my($k,$v)=@_; $k=~/^C4/ && $v=~m{^/c4conf/} and die "internal secrets are not supported" });
-    my @all_secrets = &$map($opt,sub{ my($k,$v)=@_;
-        $k=~/^C4/ && "$v/"=~m{^(/c4conf-([\w\-]+))/} ? {secret=>"$2",path=>"$1"} : ()
-    });
-    my @secret_volumes = &$map(
-        +{map{(&$mandatory_of(secret=>$_)=>1)} @all_secrets},
-        sub{ my($secret)=@_;
-            +{ name => "$secret-secret", secret => { secretName => $secret } }
-        }
-    );
-    my @secret_mounts = &$map(
-        &$merge_list({},map{
-            +{&$mandatory_of(path=>$_)=>{&$mandatory_of(secret=>$_)=>1}}
-        } @all_secrets),
-        sub{ my($path,$v)=@_;
-            my $secret = &$single(keys %$v);
-            +{ name => "$secret-secret", mountPath => $path }
-        }
-    );
-    #
-    my %affinity = !$$opt{noderole} ? () : (affinity=>{ nodeAffinity=>{
-        preferredDuringSchedulingIgnoredDuringExecution=> [{
-            weight=> 1,
-            preference=> { matchExpressions=> [
-                { key=> "noderole", operator=> "In", values=> [$$opt{noderole}] }
-            ]},
-        }]
-    }});
-    #
-    my %host_path_to_name = &$map($opt,sub{ my($k,$v)=@_;
-        $k=~m{^path:} ? ($v=>"host-vol-".&$md5_hex($v)) : ()
-    });
-    my @host_volumes = &$map(\%host_path_to_name, sub{ my($k,$v)=@_;
-        +{ name=>$v, hostPath=>{ path=>$k } }
-    });
-    my @host_mounts = &$map($opt,sub{ my($k,$v)=@_;
-        my $path = $k=~m{^path:(.*)$} ? $1 : undef;
-        $path ? { mountPath=>$path, name=> &$mandatory_of($v=>\%host_path_to_name) } : ();
-    });
-
-    #
-
-    my @env = &$map($opt,sub{ my($k,$v)=@_;
-        $k=~/^([A-Z].+)/ ? {name=>$1,value=>"$v"} : ()
-    });
-
-    my $container = {
-            name => $nm, args=>[$nm], image => &$mandatory_of(image=>$opt),
-            env=>[
-                $$opt{need_pod_ip} ? {name=>"C4POD_IP",valueFrom=>{fieldRef=>{fieldPath=>"status.podIP"}}} : (),
-                @env
-            ],
-            volumeMounts=>[@secret_mounts,@host_mounts],
-            $$opt{tty} ? (tty=>$$opt{tty}) : (),
-            securityContext => { allowPrivilegeEscalation => "false" },
-            resources => {
-                limits => {
-                    cpu => $$opt{lim_cpu} || "64",
-                    memory => $$opt{lim_mem} || "64Gi",
-                },
-                requests => {
-                    cpu => &$mandatory_of(req_cpu=>$opt),
-                    memory => &$mandatory_of(req_mem=>$opt),
-                },
-            },
-            $$opt{C4READINESS_PATH} ? (
-                readinessProbe => {
-                    periodSeconds => 3,
-                    exec => { command => ["cat",$$opt{C4READINESS_PATH}] },
-                },
-            ):(),
-    };
-    #
-    my $spec = {
-            (exists $$opt{replicas}) ? (replicas=>$$opt{replicas}) : (),
-            selector => { matchLabels => { app => $name } },
-            template => {
-                metadata => {
-                    labels => {
-                        &$map($opt,sub{ my($k,$v)=@_; $k=~/^label:(c4\w+)$/ ? ("$1"=>$v) : () }),
-                        app => $name,
-                    },
-                },
-                spec => {
-                    containers => [$container],
-                    volumes => [@secret_volumes, @host_volumes],
-                    hostAliases => \@host_aliases,
-                    imagePullSecrets => [
-                        map{+{name=>$_}}
-                            &$spaced_list(&$mandatory_of(image_pull_secrets=>$opt))
-                    ],
-                    securityContext => {
-                        runAsUser => 1979,
-                        runAsGroup => 1979,
-                        fsGroup => 1979,
-                        runAsNonRoot => "true",
-                    },
-                    #$$opt{is_deployer} ? (serviceAccountName => "deployer") : (),
-                    %affinity,
-                },
-            },
-    };
-    my $stateful_set_yml = !$$opt{headless} ? {
-            apiVersion => "apps/v1",
-            kind => "Deployment",
-            metadata => { name => $name },
-            spec => $spec,
-    } : {
-            apiVersion => "apps/v1",
-            kind => "StatefulSet",
-            metadata => { name => $name },
-            spec => {
-                %$spec,
-                serviceName => $name,
-            },
-    };
-    #
-    my @service_yml = do{
-        my @ports = &$map($opt,sub{ my($k)=@_;
-            $k=~/^port:(\d+):(\d+)$/ ? {
-                #$all{is_deployer} ? (nodePort => $1-0) : (),
-                port => $1-0,
-                targetPort => $2-0,
-                name => "c4-$2"
-            } : ()
-        });
-        @ports ? {
-            apiVersion => "v1",
-            kind => "Service",
-            metadata => { name => $name },
-            spec => {
-                selector => { app => $name },
-                ports => \@ports,
-                $$opt{headless} ? (clusterIP=>"None") : (),
-            },
-        } : ();
-    };
-    #
-    my @ingress_yml = do{
-        my $by_host = &$merge_list({},&$map($opt,sub{ my($k,$v)=@_;
-            $k=~m{^ingress:([^/]+)(.*)$} ? {$1=>[{path=>$2,port=>$v-0}]} : ()
-        }));
-        my @hosts = &$map($by_host,sub{ my($host)=@_; $host });
-        my $disable_tls = 0; #make option when required
-        my $ingress_secret_name = $$opt{ingress_secret_name};
-        my @tls_annotations = $disable_tls || $ingress_secret_name ? () :
-            ("cert-manager.io/cluster-issuer" => "letsencrypt-prod");
-        my @tls = $disable_tls ? () : (tls=>[{
-            hosts => \@hosts,
-            secretName => $ingress_secret_name || "$name-tls",
-        }]);
-        my @rules = &$map($by_host,sub{ my($host,$v)=@_; +{
-            host => $host,
-            http => {
-                paths => [map{+{
-                    backend => {
-                        serviceName => $name,
-                        servicePort => $$_{port},
-                    },
-                    $$_{path} ? (path=>$$_{path}) : (),
-                }}@$v],
-            },
-        }});
-        @rules ? {
-            apiVersion => "extensions/v1beta1",
-            kind => "Ingress",
-            metadata => {
-                name => $name,
-                annotations=>{
-                    "kubernetes.io/ingress.class" => "nginx",
-                    "nginx.ingress.kubernetes.io/proxy-read-timeout" => "150",
-                    "nginx.ingress.kubernetes.io/proxy-send-timeout" => "150",
-                    @tls_annotations,
-                },
-            },
-            spec => { rules => \@rules, @tls },
-        } : ();
-    };
-    #
-    [@service_yml, @ingress_yml, $stateful_set_yml];
-};
 
 my $add_image_pull_secrets = sub{
     my ($name,$options) = @_;
@@ -476,28 +253,22 @@ my $add_image_pull_secrets = sub{
 };
 
 my $wrap_deploy = sub{
-    my($name,$options) = @_;
-    my $yml = &$make_kc_yml($name,&$add_image_pull_secrets($name,$options));
-    my $yml_str = join "\n", map{&$encode($_)} @$yml;
-    my $kubectl = &$get_kubectl($name);
-    sy("$kubectl apply -f ".&$put_temp("up.yml",$yml_str));
-};
-
-my $build_remote = sub{
+    my($name,$lines,$scripts,$options) = @_;
     my $proto_dir = &$get_proto_dir();
-    sy("python3.8", "-u", "$proto_dir/build_remote.py", @_);
-};
-
-my $remote_build = sub{
-    my($comp,$dir)=@_;
-    my ($repo) = &$get_deployer_conf($comp,1,qw[sys_image_repo]);
+    my $dir = &$get_tmp_dir();
+    &$put_text("$dir/Dockerfile", join "\n", @$lines);
+    sy("cp $proto_dir/$_ $dir/") for @$scripts;
     &$put_text("$dir/c4image_ver", $sys_image_ver);
     my $out = &$get_tmp_dir()."/name";
-    &$build_remote("build_image",
-        "--context", $dir, "--repository", $repo,
-        "--push-secret-from-k8s", "docker/config.json", "--name-out", $out,
+    my ($repo) = &$get_deployer_conf($name,1,qw[sys_image_repo]);
+    sy("python3.8", "-u", "$proto_dir/build_remote.py", "build_image",
+        "--context", $dir, "--repository", $repo, "--push-secret-from-k8s", "docker/config.json", "--name-out", $out,
     );
-    &$get_text($out)
+    my $img = &$get_text($out)
+    my $full_options = {%{&$add_image_pull_secrets($name,$options)||die}, image=>$img, name=>$name};
+    sy("perl", "make_manifests.pl", "--values", &$encode([$full_options]), "--out", $out);
+    my $kubectl = &$get_kubectl($name);
+    sy("$kubectl apply -f $out");
 };
 
 my @lim_small = (lim_mem=>"100Mi",lim_cpu=>"250m"); # use rarely, on lim_mem child processes inside container can be killed, and parent get mad
@@ -509,10 +280,9 @@ my $inner_sse_port = 8068;
 my $elector_port = 1080;
 
 my $up_client = sub{
-    my($run_comp,$img)=@_;
+    my($run_comp)=@_;
     my $conf = &$get_compose($run_comp);
     +{
-        image => $img,
         tty => "true", JAVA_TOOL_OPTIONS => "-XX:-UseContainerSupport",
         @req_small, %$conf,
     };
@@ -540,22 +310,22 @@ my $get_consumer_options = sub{
 };
 
 my $up_consumer = sub{
-    my($run_comp,$img)=@_;
+    my($run_comp)=@_;
     my $conf = &$get_compose($run_comp);
     my $gate_comp = $$conf{ca} || die "no ca";
     my %consumer_options = &$get_consumer_options($gate_comp);
     my %fix_ceph = $$conf{C4CEPH_AUTH} eq "/c4conf/ceph.auth" ? (C4CEPH_AUTH=>"/tmp/ceph.auth") : ();
     my %de_env = $$conf{image_type} eq "de" ? (C4CI_BASE_TAG_ENV=>$$conf{project}) : ();
-    +{ image => $img, %consumer_options, @req_big, %de_env, %$conf, %fix_ceph };
+    +{ %consumer_options, @req_big, %de_env, %$conf, %fix_ceph };
 };
 my $up_gate = sub{
-    my($run_comp,$img)=@_;
+    my($run_comp)=@_;
     my %consumer_options = &$get_consumer_options($run_comp);
     my $hostname = &$get_hostname($run_comp) || die "no le_hostname";
     my ($ingress_secret_name) = &$get_deployer_conf($run_comp,0,qw[ingress_secret_name]);
     my $conf = &$get_compose($run_comp);
     +{
-        image => $img, %consumer_options,
+        %consumer_options,
         C4STATE_TOPIC_PREFIX => "gate",
         C4STATE_REFRESH_SECONDS => 1000,
         req_mem => "4Gi", req_cpu => "1000m",
@@ -567,7 +337,8 @@ my $up_gate = sub{
         C4HTTP_PORT => $inner_http_port,
         C4SSE_PORT => $inner_sse_port,
         need_pod_ip => 1,
-        (map{($_=>&$mandatory_of($_=>$conf))} qw[C4KEEP_SNAPSHOTS replicas]),
+        (map{($_=>&$mandatory_of($_=>$conf))} qw[C4KEEP_SNAPSHOTS replicas project]),
+        (map{ $$conf{$_} ? ($_=>$$conf{$_}) : () } qw[image_type ci:hostname]),
     };
 };
 
@@ -707,180 +478,24 @@ push @tasks, ["log_debug","<pod|$composes_txt> [class]",sub{ # ee.cone
 
 #################
 
-#my $get_rand_uuid = sub{ syf("uuidgen")=~/(\S+)/ ? "$1" : die };
-
-#my $ci_measure = sub{
-#    my $at = time;
-#    sub{ print((time-$at)."s =measured= $_[0]\n") }
-#};
-
-#my @kinds = (
-#    [qw[core v1 Secret]],[qw[core v1 Service]],
-#    [qw[apps v1 Deployment]],[qw[apps v1 StatefulSet]],
-#    [qw[extensions v1beta1 Ingress]],
-#);
-
-my $ci_get_image = sub{
-    my($common_img,$comp) = @_;
-    my $conf = &$get_compose($comp);
-    my $proj_tag = &$mandatory_of(project=>$conf);
-    my $image_type = $$conf{image_type} || "rt";
-    my $img =
-        $image_type eq "rt" ? "$common_img.$proj_tag.$image_type" :
-        $image_type eq "de" ? "$common_img.de" :
-        die;
-    my($prod_repo,$allow_source_repo) =
-        &$get_deployer_conf($comp,0,qw[sys_image_repo allow_source_repo]);
-    my $to_img = $allow_source_repo ? $img : $prod_repo && $img=~/:([^:]+)$/ ? "$prod_repo:$1" :
-        die "source deploy to alien environment was denied";
-    +{ from_image=>$img, to_image=>$to_img, project=>$proj_tag, image_type=>$image_type }
-};
-
 push @tasks, ["ci_deploy_info", "", sub{
-    my ($env_comp) = @_;
-    my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
+    my(%opt)=@_;
+    my $env_comp = &$mandatory_of("--env-state",\%opt);
     my @comps = &$spaced_list(&$get_compose($env_comp)->{parts}||[$env_comp]);
     &$get_deployer($env_comp) eq &$get_deployer($_) || die "deployers do not match" for @comps;
     my $conf = &$get_compose($env_comp);
     my $env_name = &$mandatory_of("ci:env"=>$conf);
     my $env_group = &$mandatory_of("ci:env_group"=>$conf);
     my ($context) = &$get_deployer_conf($env_comp,1,qw[context]);
+    my ($allow_source_repo) = &$get_deployer_conf($env_comp,0,qw[allow_source_repo]);
+    my ($to_repo) = $allow_source_repo ? ("") : &$get_deployer_conf($env_comp,0,qw[sys_image_repo]);
     my @parts = map{
         my $l_comp = $_;
-        my $img_info = &$ci_get_image($common_img,$l_comp);
-        my $options = &$find_handler(ci_up=>$l_comp)->($l_comp,$$img_info{to_image}||die);
-        @manifests = @{&$make_kc_yml($l_comp,&$add_image_pull_secrets($l_comp, $options))};
-        +{ %$img_info, manifests => \@manifests, hostname=> &$get_compose($l_comp)->{"ci:hostname"} }
+        +{%{&$add_image_pull_secrets($l_comp, &$find_handler(ci_up=>$l_comp)->($l_comp)) }, name=>$l_comp}
     } @comps;
-    my $out = { parts=>\@parts, env_name=>$env_name, env_group=>$env_group, context=>$context };
+    my $out = { parts=>\@parts, name=>$env_name, group=>$env_group, context=>$context, to_repo=>$to_repo };
     &$put_text(&$mandatory_of("--out",\%opt), &$encode($out));
 }];
-
-#push @tasks, ["ci_info_list", "", sub{
-#    my(%opt)=@_;
-#    my @comps = map{&$get_compose($_)} &$decode(&$mandatory_of("--names",\%opt));
-#    &$put_text(&$mandatory_of("--out",\%opt), &$encode(\@comps));
-#}];
-
-
-
-#my $ci_env_name = sub{
-#    my($env_comp)=@_;
-#    my $conf = &$get_compose($env_comp);
-#    my $env_name = &$mandatory_of("ci:env"=>$conf);
-#    my $env_group = &$mandatory_of("ci:env_group"=>$conf);
-#    my $kubectl = &$get_kubectl($env_comp);
-#    ($kubectl,$env_name,$env_group)
-#};
-
-#my $ci_apply = sub{
-#    my ($kubectl,$env_name,$tmp) = @_;
-#    my $whitelist = join " ", map{"--prune-whitelist $$_[0]/$$_[1]/$$_[2]"} @kinds;
-#    sy("$kubectl apply -f $tmp --prune -l c4env=$env_name $whitelist");
-#};
-
-#my $ci_up = sub{
-#    my($env_comp)=@_;
-#    my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
-#    my @comps = &$spaced_list(&$get_compose($env_comp)->{parts}||[$env_comp]);
-#    &$get_deployer($env_comp) eq &$get_deployer($_) || die "deployers do not match" for @comps;
-#    my $conf = &$get_compose($env_comp);
-#    my $env_name = &$mandatory_of("ci:env"=>$conf);
-#    my $env_group = &$mandatory_of("ci:env_group"=>$conf);
-#    my ($context) = &$get_deployer_conf($env_comp,1,qw[context]);
-
-#    my @secret_opt = ("--secret-from-k8s","c4pull/.dockerconfigjson","--push-secret-from-k8s","docker/auth.json");
-#    for my $part_comp(@comps){
-#        my($from_img,$to_img) = &$ci_get_image($common_img,$part_comp);
-#        &$build_remote("copy_image","--from-image",$from_img,"--to-image",$to_img,@secret_opt);
-#    }
-#    my ($kubectl,$env_name,$env_group) = &$ci_env_name($env_comp);
-#    my $labeled = {metadata=>{labels=>{c4env=>$env_name}}};
-#    my $yml_str = map{ &$merge_list($_,$labeled) } map{
-#        my $l_comp = $_;
-#        my($from_img,$to_img) = &$ci_get_image($common_img,$l_comp);
-#        my $options = &$find_handler(ci_up=>$l_comp)->($l_comp,$to_img);
-#        @{&$make_kc_yml($l_comp,&$add_image_pull_secrets($l_comp, $options))};
-#    } @comps;
-
-#    my $tmp_dir = &$get_tmp_dir();
-#    my $yml_path = "$tmp_dir/up.yml";
-#    &$put_text($yml_path, $yml_str);
-#    &$build_remote(
-#        "add_history", "--context", $tmp_dir, "--branch", "deploy/$env_name", "--message", "$env_comp $common_img"
-#    );
-#    &$ci_apply($kubectl,$env_name,$yml_path);
-#    &$end("ci_up");
-#};
-
-#my $get_image_from_deployment = sub{ #.spec.template.spec.containers[*].image
-#    my ($deployment) = @_;
-#    my ($curr_img,@more) = map{$$_{image}} map{@$_} map{$$_{containers}||{}}
-#        map{$$_{spec}||{}} map{$$_{template}||{}} map{$$_{spec}||{}} $deployment;
-#    die if @more;
-#    $curr_img
-#};
-
-#push @tasks, ["ci_down","",sub{
-#    my($env_comp)=@_;
-#    my ($kubectl,$env_name,$env_group) = &$ci_env_name($env_comp);
-#    my $kinds = join ",",map{$$_[2]}@kinds;
-#    sy("$kubectl delete -l c4env=$env_name $kinds");
-#}];
-
-#my $get_prefix_list_from_env_list = sub{
-#    map{&$mandatory_of(C4INBOX_TOPIC_PREFIX=>$_)} grep{$$_{type} eq "gate"} map{&$get_compose($_)}
-#        map{&$ci_get_compositions($_)} @_
-#};
-
-#push @tasks, ["ci_clone", "--from env --to env,env", sub{
-#    my %opt = @_;
-#    my $to = join(",", &$get_prefix_list_from_env_list(split ",", &$mandatory_of("--to"=>\%opt))) || die;
-#    my $from = &$single(&$get_prefix_list_from_env_list(&$mandatory_of("--from"=>\%opt)));
-#    &$py_run("ci.py", "clone_last_to_prefix_list", "--from-prefix", $from, "--to", $to);
-#}];
-
-#my $ci_check_images = sub{
-#    my ($env_comp) = @_;
-#    my $common_img = &$mandatory_of(C4COMMON_IMAGE=>\%ENV);
-#    my @comps = &$ci_get_compositions($env_comp);
-#    my $kubectl = &$get_kubectl($env_comp);
-#    for my $comp(@comps){
-#        while(1){
-#            my $stm = qq[$kubectl get deployment -o jsonpath="{.items[*].metadata.name}"];
-#            last if grep{$_ eq $comp} &$spaced_list(syf($stm));
-#            sleep 2;
-#        }
-#        my ($from_img, $to_img) = &$ci_get_image($common_img, $comp);
-#        print "target image:     $to_img\n";
-#        while(1){
-#            my $resp = &$decode(syf(qq[$kubectl get deployment $comp -o json]));
-#            my $curr_img = &$get_image_from_deployment($resp);
-#            print "deployment image: $curr_img\n";
-#            last if $curr_img eq $to_img;
-#            sleep 2;
-#        }
-#        while(1){
-#            my $resp = &$decode(syf("$kubectl get po -l app=$comp -ojson"));
-#            my @statuses = map{@$_} map{$$_{containerStatuses}||[]}
-#                map{$$_{status}||{}} map{@$_} map{$$_{items}||[]} $resp;
-#            if(@statuses){
-#                my @others = grep{$_ ne $to_img} map{$$_{image}} @statuses;
-#                print "other images: $_\n" for @others;
-#                my @not_ready = map{$$_{ready}?():$$_{state}} @statuses;
-#                print "not ready: ".&$encode($_)."\n" for @not_ready;
-#                @others or @not_ready or last;
-#            }
-#            sleep 2;
-#        }
-#    }
-#};
-
-#push @tasks, ["ci_up", "", $ci_up];
-#push @tasks, ["ci_check_images", "", $ci_check_images];
-#push @tasks, ["ci_up_blocking", "", sub{ &$ci_up(@_); &$ci_check_images(@_) }];
-
-########
 
 my $ci_inner_opt = sub{
     map{$ENV{$_}||die $_} qw[C4CI_BASE_TAG_ENV C4CI_BUILD_DIR C4CI_PROTO_DIR];
@@ -1030,23 +645,16 @@ push @tasks, ["ci_rt_over","",sub{
 
 push @tasks, ["up-s3client", "", sub{
     my ($comp) = @_;
-    my $img = do{
-        my $from_path = &$get_tmp_dir();
-        my $put = &$rel_put_text($from_path);
-        &$put("Dockerfile", join "\n",
-            "ARG C4UID=1979",
-            "FROM ghcr.io/conecenter/c4replink:v2",
-            "USER root",
-            "RUN perl install.pl apt curl ca-certificates",
-            "RUN /install.pl curl https://dl.min.io/client/mc/release/linux-amd64/mc && chmod +x /tools/mc",
-            q{ENTRYPOINT /tools/mc alias set def $(cat $C4S3_CONF_DIR/address) $(cat $C4S3_CONF_DIR/key) $(cat $C4S3_CONF_DIR/secret) && exec sleep infinity }
-        );
-        &$remote_build($comp,$from_path);
-    };
-    my $options = {
-        image => $img, C4S3_CONF_DIR => "/c4conf-ceph-client", @req_small, "label:c4s3client" => "1"
-    };
-    &$wrap_deploy($comp,$options);
+    my $lines = [
+        "ARG C4UID=1979",
+        "FROM ghcr.io/conecenter/c4replink:v2",
+        "USER root",
+        "RUN perl install.pl apt curl ca-certificates",
+        "RUN /install.pl curl https://dl.min.io/client/mc/release/linux-amd64/mc && chmod +x /tools/mc",
+        q{ENTRYPOINT /tools/mc alias set def $(cat $C4S3_CONF_DIR/address) $(cat $C4S3_CONF_DIR/key) $(cat $C4S3_CONF_DIR/secret) && exec sleep infinity }
+    ];
+    my $options = { C4S3_CONF_DIR => "/c4conf-ceph-client", @req_small, "label:c4s3client" => "1" };
+    &$wrap_deploy($comp,$lines,[],$options);
 }];
 
 my $install_kubectl = sub{
@@ -1168,28 +776,21 @@ push @tasks, ["exec_install","<pod|$composes_txt> <tgz>",sub{
 
 push @tasks, ["up-elector","",sub{
     my ($comp) = @_;
-    my $img = do{
-        my $gen_dir = &$get_proto_dir();
-        my $from_path = &$get_tmp_dir();
-        my $put = &$rel_put_text($from_path);
-        sy("cp $gen_dir/install.pl $gen_dir/elector.js $from_path/");
-        &$put("Dockerfile", join "\n",
-            &$base_image_steps(),
-            "RUN perl install.pl apt curl ca-certificates xz-utils", #xz-utils for node
-            "RUN perl install.pl curl $dl_node_url",
-            &$install_tini(),
-            "COPY elector.js /",
-            "USER c4",
-            'ENTRYPOINT ["/tools/tini","--","/tools/node/bin/node","/elector.js"]',
-        );
-        &$remote_build($comp,$from_path);
-    };
+    my $lines = [
+        &$base_image_steps(),
+        "RUN perl install.pl apt curl ca-certificates xz-utils", #xz-utils for node
+        "RUN perl install.pl curl $dl_node_url",
+        &$install_tini(),
+        "COPY elector.js /",
+        "USER c4",
+        'ENTRYPOINT ["/tools/tini","--","/tools/node/bin/node","/elector.js"]',
+    ];
     my $options = {
-        image => $img, tty => "true", headless => 1, replicas => 3,
+        tty => "true", headless => 1, replicas => 3,
         C4HTTP_PORT => $elector_port, "port:$elector_port:$elector_port"=>"",
         @req_small, @lim_small,
     };
-    &$wrap_deploy($comp,$options);
+    &$wrap_deploy($comp, $lines, ["install.pl", "elector.js"], $options);
 }];
 
 my $dir_to_secret = sub{
@@ -1222,9 +823,8 @@ push @tasks, ["secret_add_arg","$composes_txt <secret-content>",sub{
     my $hash = &$md5_hex($secret_content);
     my $secret_name = "c4hash-$hash";
     my $dir = &$get_tmp_dir();
-    my $put = &$rel_put_text($dir);
     my $fn = "value";
-    &$put($fn,$secret_content);
+    &$put_text("$dir/$fn",$secret_content);
     &$dir_to_secret($kubectl,$secret_name,$dir);
     print qq[ADD TO CONFIG: "/c4conf-$secret_name/$fn"\n];
 }];
@@ -1275,30 +875,21 @@ push @tasks, ["resources_set","$composes_txt <cpu=n|memory=nGi>",sub{
 
 push @tasks, ["up-resource_tracker","",sub{
     my ($comp) = @_;
-    my $img = do{
-        my $gen_dir = &$get_proto_dir();
-        my $from_path = &$get_tmp_dir();
-        my $put = &$rel_put_text($from_path);
-        sy("cp $gen_dir/install.pl $gen_dir/resources.py $from_path/");
-        &$put("Dockerfile", join "\n",
-            &$base_image_steps(),
-            "RUN perl install.pl apt curl ca-certificates python3.8",
-            &$install_kubectl(),
-            &$install_tini(),
-            "COPY resources.py /",
-            "USER c4",
-            'ENV PATH=${PATH}:/tools',
-            'ENTRYPOINT ["/tools/tini","--","python3.8","/resources.py","tracker"]',
-        );
-        &$remote_build($comp,$from_path);
-    };
+    my $lines = [
+        &$base_image_steps(),
+        "RUN perl install.pl apt curl ca-certificates python3.8",
+        &$install_kubectl(),
+        &$install_tini(),
+        "COPY resources.py /",
+        "USER c4",
+        'ENV PATH=${PATH}:/tools',
+        'ENTRYPOINT ["/tools/tini","--","python3.8","/resources.py","tracker"]',
+    ];
     my $conf = &$get_compose($comp);
     my $options = {
-        image => $img, tty => "true",
-        @req_small,
-        (map{($_=>&$mandatory_of($_=>$conf))} qw[C4RES_TRACKER_OPTIONS C4KUBECONFIG ]),
+        tty => "true", @req_small, (map{($_=>&$mandatory_of($_=>$conf))} qw[C4RES_TRACKER_OPTIONS C4KUBECONFIG ]),
     };
-    &$wrap_deploy($comp,$options);
+    &$wrap_deploy($comp,$lines,["install.pl","resources.py"],$options);
 }];
 
 ####

@@ -8,7 +8,8 @@ import contextlib
 import time
 import pathlib
 import base64
-from . import group_map, read_json, sha256
+import typing
+from . import group_map, read_json, sha256, one
 
 def run(args, **opt):
     print("running: " + " ".join(args))
@@ -101,7 +102,8 @@ def crane_image_exists(image):
     return run_no_die(("crane", "manifest", image))
 
 
-def build_cached_by_content(context, repository, push_secret):
+def build_cached_by_content(context, repository, push_secret_name):
+    push_secret = secret_part_to_text(push_secret_name)
     crane_login(push_secret)
     files = sorted(run_text_out(("find","-type","f"),cwd=context).splitlines())
     sums = run_text_out(("sha256sum","--",*files),cwd=context)
@@ -124,6 +126,22 @@ def temp_dev_pod(opt):
     finally:
         kcd_run("delete","--wait=false",f"pod/{name}")
 
+
+def _temp_dev_pod_generator(opt):
+    name = f"tb-{uuid.uuid4()}"
+    apply_manifest(construct_pod({**opt, "name": name}))
+    try:
+        wait_pod(name, 60, ("Running",))
+        yield name
+    finally:
+        kcd_run("delete", "--wait=false", f"pod/{name}")
+
+
+def get_temp_dev_pod(opt):
+    generator = _temp_dev_pod_generator(opt)
+    (generator, next(generator))
+
+
 def setup_parser(commands):
     main_parser = argparse.ArgumentParser()
     subparsers = main_parser.add_subparsers(required=True)
@@ -142,13 +160,13 @@ def secret_part_to_text(k8s_path):
     secret_name, secret_fn = k8s_path.split("/")
     return decode(get_secret_data(secret_name)(secret_fn))
 
-def get_repo(image):
-    res = image.rpartition(":")[0]
-    if not res: never(image)
-    return res
 
 def get_env_values_from_deployments(env_key, deployments):
     return {
         e["value"] for d in deployments for c in d["spec"]["template"]["spec"]["containers"]
         for e in c.get("env",[]) if e["name"] == env_key
     }
+
+def get_main_conf(context):
+    main_conf = group_map(read_json(f"{context}/c4dep.main.json"), lambda it: (it[0], it[1:]))
+    return lambda k: one(*main_conf[k])[2]

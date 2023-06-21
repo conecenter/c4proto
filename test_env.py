@@ -5,7 +5,7 @@ import time
 import typing
 from .c4util import read_json, changing_text, read_text, path_exists
 from .c4util.build import run, kcd_run, need_pod, \
-    build_cached_by_content, secret_part_to_text, never, Popen, temp_dev_pod, kcd_args, run_text_out, \
+    build_cached_by_content, never, Popen, temp_dev_pod, kcd_args, run_text_out, \
     get_env_values_from_deployments
 
 
@@ -22,7 +22,6 @@ def get_pod_name_prefix(user_config: str):
 
 
 def get_test_env_image(repository, push_secret_from_k8s):
-    push_secret = secret_part_to_text(push_secret_from_k8s)
     with tempfile.TemporaryDirectory() as temp_root:
         content = "\n".join((
             "FROM ubuntu:22.04",
@@ -34,7 +33,7 @@ def get_test_env_image(repository, push_secret_from_k8s):
             "USER c4",
         ))
         changing_text(f"{temp_root}/Dockerfile", content)
-        return build_cached_by_content(temp_root, repository, push_secret)
+        return build_cached_by_content(temp_root, repository, push_secret_from_k8s)
 
 
 def need_env(opt: Options, env_id: int):
@@ -109,7 +108,7 @@ def get_pod_options(image):
 
 
 def run_inner(pod_name, *args):
-    kcd_run("exec", pod_name, "--", "c4ci", *args)
+    kcd_run("exec", pod_name, "--", "c4ci", *args) # todo restore
 
 
 def get_env_images(env_name):
@@ -132,9 +131,9 @@ def clones_up(env_template, clone_ids):
         sync_kube_conf(pod_name)
         run_inner(pod_name, "ci_clone", "--from", f"{from_env}-env", "--to", ",".join(to_env_names)) # todo restore ci_clone
         for to_env in to_env_names:
-            run_inner(pod_name, "ci_up", to_env)
+            run_inner(pod_name, "ci_up", to_env) # todo restore
         for to_env in to_env_names:
-            run_inner(pod_name, "ci_check_images", to_env)
+            run_inner(pod_name, "ci_check_images", to_env) # todo restore
         # for to_env in to_env_names:
         #     run_inner(pod_name, "ci_check_availability", to_env)
 
@@ -144,4 +143,4 @@ def clones_down(env_template, clone_ids):
         for image in get_env_images(env_name):
             with temp_dev_pod(get_pod_options(image)) as pod_name:
                 sync_kube_conf(pod_name)
-                run_inner(pod_name, "ci_down", f"{env_name}-env")
+                run_inner(pod_name, "ci_down", f"{env_name}-env") # todo restore

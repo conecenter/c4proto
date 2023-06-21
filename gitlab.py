@@ -54,10 +54,9 @@ def need_tag(conn_url, tag_name):
     never((status, res))
 
 
-def post_pipeline(conn_url, tag_name, image, variables):
+def post_pipeline(conn_url, tag_name, variables):
     variables_list = [{"key": k, "value": v} for k, v in sorted_items(variables)]
-    variables_list_all = [{"key": "C4GITLAB_IMAGE", "value": image}, *variables_list]
-    status, res = exchange(conn_url, "POST", "pipeline", {"ref": tag_name, "variables": variables_list_all})
+    status, res = exchange(conn_url, "POST", "pipeline", {"ref": tag_name, "variables": variables_list})
     if status == 201:
         debug(f"pipeline created: {res['web_url']}")
         return res["id"]
@@ -67,20 +66,24 @@ def post_pipeline(conn_url, tag_name, image, variables):
 def read_text(path): return Path(path).read_text(encoding='utf-8', errors='strict')
 
 
+def b64encode_text(text): return base64.b64encode(text.encode('utf-8')).decode('utf-8')
+
+
 def handle_generate():
     conf = load(sys.stdin)
     script_body = read_text(sys.argv[0]).replace("'"+"C4GITLAB_CONFIG_JSON"+"'", dumps(conf))
-    script_body_encoded = base64.b64encode(script_body.encode('utf-8')).decode('utf-8')
     out = {
         "stages": ["develop", "deploy", "start", "stop"],
-        ".handler": {"before_script": [
-            "mkdir -p $CI_PROJECT_DIR/c4gitlab",
-            "export PATH=$PATH:$CI_PROJECT_DIR/c4gitlab",
-            f"echo '{script_body_encoded}' | base64 -d > $CI_PROJECT_DIR/c4gitlab/c4gitlab",
-            "chmod +x $CI_PROJECT_DIR/c4gitlab/c4gitlab",
-        ]},
+        ".handler": {
+            "before_script": [
+                "mkdir -p $CI_PROJECT_DIR/c4gitlab",
+                "export PATH=$PATH:$CI_PROJECT_DIR/c4gitlab",
+                f"echo '{b64encode_text(script_body)}' | base64 -d > $CI_PROJECT_DIR/c4gitlab/c4gitlab",
+                "chmod +x $CI_PROJECT_DIR/c4gitlab/c4gitlab",
+            ],
+            "variables": {"GIT_DEPTH": 10}, "needs": [],
+        },
         ".rule.build.common": {"rules": [{"if": f"$CI_PIPELINE_SOURCE == \"push\" && $CI_COMMIT_BRANCH"}]},
-        ".rule.build.rt": {"rules": [{"if": "$C4GITLAB_PROJ_TAG"}]},
         ".rule.deploy.any": {"rules": [{"when": "manual", "if": f"$C4GITLAB_AGGR"}]},
         ".rule.deploy.prod":
             {"rules": [{"when": "manual", "if": f"$C4GITLAB_AGGR && $CI_COMMIT_TAG =~ /\\/release\\//"}]},
@@ -89,33 +92,29 @@ def handle_generate():
             {"if": f"$C4GITLAB_ENV_NAME"}
         ]},
         ".rule.env.stop": {"rules": [{"when": "manual", "if": f"$C4GITLAB_ENV_NAME"}]},
-        ".build_common": {"extends": ".handler", "variables": {"GIT_DEPTH": 10}},
-        "build common": {
-            "extends": [".build_common", ".rule.build.common"], "script": ["c4gitlab measure build_common"],
+        "init": {
+            "extends": [".handler", ".rule.build.common"], "script": ["c4gitlab measure init"],
             "stage": "develop"
         },
-        ".common_job": {
-            "extends": ".handler", "image": "$C4GITLAB_IMAGE", "variables": {"GIT_STRATEGY": "none"}, "needs": []
-        },
-        "build rt": {
-            "extends": [".common_job", ".rule.build.rt"], "script": ["c4gitlab measure build_rt"], "stage": "develop",
-        },
+        ".no_git": {"variables": {"GIT_STRATEGY": "none"}},
         **{
             caption_mask: {
-                "extends": [".common_job", ".rule.deploy.prod" if env_mask == "cl-prod" else ".rule.deploy.any"],
+                "extends": [".handler", ".rule.deploy.prod" if env_mask == "cl-prod" else ".rule.deploy.any"],
                 "script": [f"c4gitlab measure deploy '{env_mask}'"],
                 "stage": {"de": "develop", "sp": "develop", "cl": "deploy"}[env_mask.partition("-")[0]],
             } for op, env_mask, caption_mask in conf if op == "C4DEPLOY"
         },
         "start": {
-            "extends": [".common_job", ".rule.env.start"], "script": ["c4gitlab measure start"], "stage": "start",
+            "extends": [".handler", ".rule.env.start", ".no_git"],
+            "script": ["c4gitlab measure start"], "stage": "start",
             "environment": {
                 "name": "$C4GITLAB_ENV_GROUP/$C4GITLAB_ENV_NAME", "action": "start",
                 "on_stop": "stop", "url": "$C4GITLAB_ENV_URL"
             }
         },
         "stop": {
-            "extends": [".common_job", ".rule.env.stop"], "script": ["c4gitlab measure stop"], "stage": "stop",
+            "extends": [".handler", ".rule.env.stop", ".no_git"],
+            "script": ["c4gitlab measure stop"], "stage": "stop",
             "environment": {
                 "name": "$C4GITLAB_ENV_GROUP/$C4GITLAB_ENV_NAME", "action": "stop"
             }
@@ -124,44 +123,41 @@ def handle_generate():
     dump(out, sys.stdout, sort_keys=True, indent=4)
 
 
-def ci_run_out(cmd):
-    with tempfile.TemporaryDirectory() as temp_root:
-        out_path = f"{temp_root}/out.json"
-        run((*cmd, "--out", out_path))
-        return loads(read_text(out_path))
-
-
-def handle_build_common():
-    build_common_res = ci_run_out(("c4build_common", "--context", e["CI_PROJECT_DIR"]))
-    image = build_common_res["image"]
+def handle_init():
     conf = 'C4GITLAB_CONFIG_JSON'  # this line will be preprocessed
     branch = e["CI_COMMIT_BRANCH"]
     tag_name_by_aggr = {
         aggr: "t4/"+branch+"."+e["CI_COMMIT_SHORT_SHA"]+"."+aggr
         for op, aggr, cond in conf if op == "C4AGGR_COND" and search(cond, branch)
     }
-    tag_name_by_proj_tag = {
-        tag: tag_name_by_aggr[aggr] for op, tag, aggr in conf if op == "C4TAG_AGGR" and aggr in tag_name_by_aggr
-    }
     subj = sub("[^a-z]", "", branch.rpartition("/")[-1].lower())
     conn_url = connect()
     for aggr, tag_name in sorted_items(tag_name_by_aggr):
         need_tag(conn_url, tag_name)
-        post_pipeline(conn_url, tag_name, image, {"C4GITLAB_AGGR": aggr})
-    for tag, tag_name in sorted_items(tag_name_by_proj_tag):
-        post_pipeline(conn_url, tag_name, image, {"C4GITLAB_PROJ_TAG": tag, "C4GITLAB_SUBJ": subj})
+        post_pipeline(conn_url, tag_name, {"C4GITLAB_AGGR": aggr, "C4GITLAB_SUBJ": subj})
+
+
+def env_action(op):
+    temp_root = tempfile.TemporaryDirectory()
+    out_path = f"{temp_root.name}/out.json"
+    Path(out_path).write_bytes(base64.b64decode(e["C4GITLAB_ENV_INFO"].encode('utf-8')))
+    run(("c4op", op, out_path))
 
 
 def handle_deploy(env_mask):
     user = sub("[^a-z]", "", e["GITLAB_USER_LOGIN"].lower())
     env_base = env_mask.replace("{C4SUBJ}", e["C4GITLAB_SUBJ"]).replace("{C4USER}", user)+"-"+e["C4GITLAB_AGGR"]
-
-    env_name = f"{env_base}-env"
-
-
+    temp_root = tempfile.TemporaryDirectory()
+    out_path = f"{temp_root.name}/out.json"
+    run(("c4op", "prep", "--context", e["CI_PROJECT_DIR"], "--env-state", f"{env_base}-env", "--info-out", out_path))
+    out_raw = read_text(out_path)
+    info = loads(out_raw)
     conn_url = connect()
-    variables = {"C4GITLAB_ENV_GROUP": group, "C4GITLAB_ENV_NAME": env_name, "C4GITLAB_ENV_URL": env_url}
-    pipeline_id = post_pipeline(conn_url, e["CI_COMMIT_TAG"], e["C4GITLAB_IMAGE"], variables)
+    variables = {
+        "C4GITLAB_ENV_GROUP": info["group"], "C4GITLAB_ENV_NAME": info["name"], "C4GITLAB_ENV_URL": info["url"],
+        "C4GITLAB_ENV_INFO": b64encode_text(out_raw)
+    }
+    pipeline_id = post_pipeline(conn_url, e["CI_COMMIT_TAG"], variables)
     while True:
         status, jobs = exchange(conn_url, "GET", f"pipelines/{pipeline_id}/jobs", None)
         job = next((j for j in jobs if j["name"] == "start"), None)
@@ -188,18 +184,11 @@ def main(script, op, *args):
     {
         "generate": handle_generate,
         "measure": lambda *a: handle_measure(script, *a),
-        "build_common": handle_build_common,
-        "build_rt": lambda: run(("c4build_rt", e["C4GITLAB_PROJ_TAG"])),
+        "init": handle_init,
         "deploy": handle_deploy,
-        "start": lambda: run(("c4ci_up", e["C4GITLAB_ENV_NAME"])),
-        "stop": lambda: run(("c4ci_down", e["C4GITLAB_ENV_NAME"])),
+        "start": lambda: env_action("up"),
+        "stop": lambda: env_action("down"),
     }[op](*args)
 
 
 main(*sys.argv)
-
-
-# m, s = divmod(int(time.monotonic()-started), 60)
-# def optional_job(name): return { "job":name, "optional":True }
-# python3 c4proto/gitlab.py generate < c4dep.main.json > gitlab-ci-generated.0.yml
-# docker run --rm -v $PWD:/build_dir -e C4CI_BUILD_DIR=/build_dir python:3.8 python3 /build_dir/c4proto/gitlab.py
