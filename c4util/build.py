@@ -139,7 +139,7 @@ def _temp_dev_pod_generator(opt):
 
 def get_temp_dev_pod(opt):
     generator = _temp_dev_pod_generator(opt)
-    (generator, next(generator))
+    return generator, next(generator)
 
 
 def setup_parser(commands):

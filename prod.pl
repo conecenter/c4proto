@@ -264,7 +264,7 @@ my $wrap_deploy = sub{
     sy("python3.8", "-u", "$proto_dir/build_remote.py", "build_image",
         "--context", $dir, "--repository", $repo, "--push-secret-from-k8s", "docker/config.json", "--name-out", $out,
     );
-    my $img = &$get_text($out)
+    my $img = &$get_text($out);
     my $full_options = {%{&$add_image_pull_secrets($name,$options)||die}, image=>$img, name=>$name};
     sy("perl", "make_manifests.pl", "--values", &$encode([$full_options]), "--out", $out);
     my $kubectl = &$get_kubectl($name);

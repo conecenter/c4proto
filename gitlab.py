@@ -172,8 +172,7 @@ def handle_deploy(env_mask):
 
 def handle_measure(script, *args):
     started = monotonic()
-    inner_cmd = (e["C4PYTHON"], "-u", script, "inner", *args)
-    with subprocess.Popen(inner_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True) as proc:
+    with subprocess.Popen((script, *args), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True) as proc:
         for line in proc.stdout:
             print(f"{str(int(monotonic()-started)).zfill(5)} {line}", end="")
         proc.wait()
