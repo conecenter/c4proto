@@ -169,7 +169,4 @@ def get_env_values_from_deployments(env_key, deployments):
 
 def get_main_conf(context):
     main_conf = group_map(read_json(f"{context}/c4dep.main.json"), lambda it: (it[0], it[1:]))
-    def get(k):
-        print(one(*main_conf[k]))
-        return one(*main_conf[k])[2]
-    return get
+    return lambda k: one(*main_conf[k])[1]
