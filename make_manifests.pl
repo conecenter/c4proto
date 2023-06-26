@@ -118,16 +118,12 @@ my $make_kc_yml = sub{
             ):(),
     };
     #
+    my @labels = &$map($opt,sub{ my($k,$v)=@_; $k=~/^label:(c4\w+)$/ ? ("$1"=>$v) : () });
     my $spec = {
             (exists $$opt{replicas}) ? (replicas=>$$opt{replicas}) : (),
             selector => { matchLabels => { app => $name } },
             template => {
-                metadata => {
-                    labels => {
-                        &$map($opt,sub{ my($k,$v)=@_; $k=~/^label:(c4\w+)$/ ? ("$1"=>$v) : () }),
-                        app => $name,
-                    },
-                },
+                metadata => { labels => { @labels, app => $name } },
                 spec => {
                     containers => [$container],
                     volumes => [@secret_volumes, @host_volumes],
@@ -150,12 +146,10 @@ my $make_kc_yml = sub{
     my $stateful_set_yml = !$$opt{headless} ? {
             apiVersion => "apps/v1",
             kind => "Deployment",
-            metadata => { name => $name },
             spec => $spec,
     } : {
             apiVersion => "apps/v1",
             kind => "StatefulSet",
-            metadata => { name => $name },
             spec => {
                 %$spec,
                 serviceName => $name,
@@ -174,7 +168,6 @@ my $make_kc_yml = sub{
         @ports ? {
             apiVersion => "v1",
             kind => "Service",
-            metadata => { name => $name },
             spec => {
                 selector => { app => $name },
                 ports => \@ports,
@@ -212,7 +205,6 @@ my $make_kc_yml = sub{
             apiVersion => "extensions/v1beta1",
             kind => "Ingress",
             metadata => {
-                name => $name,
                 annotations=>{
                     "kubernetes.io/ingress.class" => "nginx",
                     "nginx.ingress.kubernetes.io/proxy-read-timeout" => "150",
@@ -224,7 +216,8 @@ my $make_kc_yml = sub{
         } : ();
     };
     #
-    [@service_yml, @ingress_yml, $stateful_set_yml];
+    my $metadata = { name => $name, labels => {@labels} };
+    [map{&$merge_list($_,{metadata=>$metadata})} @service_yml, @ingress_yml, $stateful_set_yml];
 };
 
 my $decode = sub{ JSON::XS->new->decode(@_) };
@@ -242,8 +235,8 @@ my $put_text = sub{
 
 my $main = sub{
     my %opt = @_;
-    my @out = map{&$make_kc_yml($_)} @{&$decode(&$mandatory_of("--values",\%opt))};
-    &$put_text(&$mandatory_of("--out",\%opt), join "\n", map{&$encode($_)} @out);
+    my ($o_values,$o_out) = map{&$mandatory_of($_,\%opt)} "--values", "--out";
+    &$put_text($o_out, &$encode([map{&$make_kc_yml($_)} @{&$decode($o_values)}]));
 };
 
 &$main(@ARGV);

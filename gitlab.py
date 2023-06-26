@@ -8,7 +8,7 @@ from json import dumps, dump, loads, load
 import subprocess
 from pathlib import Path
 import http.client
-import tempfile
+from tempfile import TemporaryDirectory
 from time import sleep, monotonic
 
 
@@ -28,7 +28,7 @@ def run(args, **opt):
 
 
 def connect():
-    conn = http.client.HTTPSConnection(e["CI_SERVER_HOST"], e["CI_SERVER_PORT"])
+    conn = http.client.HTTPSConnection(e["CI_SERVER_HOST"], int(e["CI_SERVER_PORT"]))
     project_url = "/api/v4/projects/" + e["CI_PROJECT_ID"]
     return conn, project_url
 
@@ -66,7 +66,7 @@ def post_pipeline(conn_url, tag_name, variables):
 def read_text(path): return Path(path).read_text(encoding='utf-8', errors='strict')
 
 
-def b64encode_text(text): return base64.b64encode(text.encode('utf-8')).decode('utf-8')
+def over_bytes(f, text): return f(text.encode('utf-8')).decode('utf-8')
 
 
 def handle_generate():
@@ -78,7 +78,7 @@ def handle_generate():
             "before_script": [
                 "mkdir -p $CI_PROJECT_DIR/c4gitlab",
                 "export PATH=$PATH:$CI_PROJECT_DIR/c4gitlab",
-                f"echo '{b64encode_text(script_body)}' | base64 -d > $CI_PROJECT_DIR/c4gitlab/c4gitlab",
+                f"echo '{over_bytes(base64.b64encode, script_body)}' | base64 -d > $CI_PROJECT_DIR/c4gitlab/c4gitlab",
                 "chmod +x $CI_PROJECT_DIR/c4gitlab/c4gitlab",
             ],
             "variables": {"GIT_DEPTH": 10}, "needs": [],
@@ -137,25 +137,33 @@ def handle_init():
         post_pipeline(conn_url, tag_name, {"C4GITLAB_AGGR": aggr, "C4GITLAB_SUBJ": subj})
 
 
-def env_action(op):
-    temp_root = tempfile.TemporaryDirectory()
+def env_action(key):
+    temp_root = TemporaryDirectory()
     out_path = f"{temp_root.name}/out.json"
-    Path(out_path).write_bytes(base64.b64decode(e["C4GITLAB_ENV_INFO"].encode('utf-8')))
-    run(("c4op", op, out_path))
+    Path(out_path).write_bytes(base64.b64decode(e[key].encode('utf-8')))
+    run(("c4op", "up", out_path))
 
 
 def handle_deploy(env_mask):
-    user = sub("[^a-z]", "", e["GITLAB_USER_LOGIN"].lower())
-    env_base = env_mask.replace("{C4SUBJ}", e["C4GITLAB_SUBJ"]).replace("{C4USER}", user)+"-"+e["C4GITLAB_AGGR"]
-    temp_root = tempfile.TemporaryDirectory()
+    env_state = (
+        env_mask.replace("{C4USER}", sub("[^a-z]", "", e["GITLAB_USER_LOGIN"].lower()))
+        .replace("{C4SUBJ}", e["C4GITLAB_SUBJ"]).replace("{C4AGGR}", e["C4GITLAB_AGGR"])
+    )
+    temp_root = TemporaryDirectory()
     out_path = f"{temp_root.name}/out.json"
-    run(("c4op", "prep", "--context", e["CI_PROJECT_DIR"], "--env-state", f"{env_base}-env", "--info-out", out_path))
-    out_raw = read_text(out_path)
-    info = loads(out_raw)
+    run(("c4op", "prep", "--context", e["CI_PROJECT_DIR"], "--env-state", env_state, "--info-out", out_path))
+    start_info_raw = read_text(out_path)
+    info = loads(start_info_raw)
+    stop_info_raw = dumps({**info, "state": "c4-off", "manifests": []}, sort_keys=True)
     conn_url = connect()
+    mans = info["manifests"]
+    name, = {man["metadata"]["labels"]["c4env"] for man in mans}
+    group, = {man["metadata"]["labels"]["c4env_group"] for man in mans}
+    urls = [f"https://{h}" for man in mans if man["kind"] == "Ingress" for h in man["spec"]["tls"]["hosts"]]
     variables = {
-        "C4GITLAB_ENV_GROUP": info["group"], "C4GITLAB_ENV_NAME": info["name"], "C4GITLAB_ENV_URL": info["url"],
-        "C4GITLAB_ENV_INFO": b64encode_text(out_raw)
+        "C4GITLAB_ENV_GROUP": group, "C4GITLAB_ENV_NAME": name, "C4GITLAB_ENV_URL": max([""]+urls),
+        "C4GITLAB_ENV_INFO_START": over_bytes(base64.b64encode, start_info_raw),
+        "C4GITLAB_ENV_INFO_STOP": over_bytes(base64.b64encode, stop_info_raw),
     }
     pipeline_id = post_pipeline(conn_url, e["CI_COMMIT_TAG"], variables)
     while True:
@@ -185,8 +193,8 @@ def main(script, op, *args):
         "measure": lambda *a: handle_measure(script, *a),
         "init": handle_init,
         "deploy": handle_deploy,
-        "start": lambda: env_action("up"),
-        "stop": lambda: env_action("down"),
+        "start": lambda: env_action("C4GITLAB_ENV_INFO_START"),
+        "stop": lambda: env_action("C4GITLAB_ENV_INFO_STOP"),
     }[op](*args)
 
 

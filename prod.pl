@@ -156,12 +156,6 @@ my $get_deployer_conf = sub{
     map{$$n_conf{$_} || $chk && die "$deployer has no $_"} @k;
 };
 
-my $find_handler = sub{
-    my($ev,$comp)=@_;
-    my $nm = "$ev-".&$get_compose($comp)->{type};
-    &$single_or_undef(map{$$_[0] eq $nm ? $$_[2] : ()} @tasks) || die "no handler: $nm,$comp";
-};
-
 my $get_proto_dir = sub{ &$mandatory_of(C4CI_PROTO_DIR=>\%ENV) };
 my $py_run = sub{
     my ($nm,@args) = @_;
@@ -246,30 +240,7 @@ my $md5_hex = sub{ md5_hex(@_) };
 
 my $spaced_list = sub{ map{ ref($_) ? @$_ : /(\S+)/g } @_ };
 
-my $add_image_pull_secrets = sub{
-    my ($name,$options) = @_;
-    my ($image_pull_secrets) = &$get_deployer_conf($name,1,qw[image_pull_secrets]);
-    +{image_pull_secrets=>$image_pull_secrets,%$options}
-};
-
-my $wrap_deploy = sub{
-    my($name,$lines,$scripts,$options) = @_;
-    my $proto_dir = &$get_proto_dir();
-    my $dir = &$get_tmp_dir();
-    &$put_text("$dir/Dockerfile", join "\n", @$lines);
-    sy("cp $proto_dir/$_ $dir/") for @$scripts;
-    &$put_text("$dir/c4image_ver", $sys_image_ver);
-    my $out = &$get_tmp_dir()."/name";
-    my ($repo) = &$get_deployer_conf($name,1,qw[sys_image_repo]);
-    sy("python3.8", "-u", "$proto_dir/build_remote.py", "build_image",
-        "--context", $dir, "--repository", $repo, "--push-secret-from-k8s", "docker/config.json", "--name-out", $out,
-    );
-    my $img = &$get_text($out);
-    my $full_options = {%{&$add_image_pull_secrets($name,$options)||die}, image=>$img, name=>$name};
-    sy("perl", "make_manifests.pl", "--values", &$encode([$full_options]), "--out", $out);
-    my $kubectl = &$get_kubectl($name);
-    sy("$kubectl apply -f $out");
-};
+###
 
 my @lim_small = (lim_mem=>"100Mi",lim_cpu=>"250m"); # use rarely, on lim_mem child processes inside container can be killed, and parent get mad
 my @req_small = (req_mem=>"100Mi",req_cpu=>"250m");
@@ -306,6 +277,7 @@ my $get_consumer_options = sub{
         C4HTTP_SERVER        => "http://$comp:$inner_http_port",
         C4ELECTOR_SERVERS    => join(",", map {"http://$elector-$_.$elector:$elector_port"} 0, 1, 2),
         C4READINESS_PATH     => "/c4/c4is-ready",
+        image_type           => "rt",
     )
 };
 
@@ -315,8 +287,7 @@ my $up_consumer = sub{
     my $gate_comp = $$conf{ca} || die "no ca";
     my %consumer_options = &$get_consumer_options($gate_comp);
     my %fix_ceph = $$conf{C4CEPH_AUTH} eq "/c4conf/ceph.auth" ? (C4CEPH_AUTH=>"/tmp/ceph.auth") : ();
-    my %de_env = $$conf{image_type} eq "de" ? (C4CI_BASE_TAG_ENV=>$$conf{project}) : ();
-    +{ %consumer_options, @req_big, %de_env, %$conf, %fix_ceph };
+    +{ %consumer_options, @req_big, %$conf, %fix_ceph };
 };
 my $up_gate = sub{
     my($run_comp)=@_;
@@ -338,40 +309,35 @@ my $up_gate = sub{
         C4SSE_PORT => $inner_sse_port,
         need_pod_ip => 1,
         (map{($_=>&$mandatory_of($_=>$conf))} qw[C4KEEP_SNAPSHOTS replicas project]),
-        (map{ $$conf{$_} ? ($_=>$$conf{$_}) : () } qw[image_type ci:hostname]),
+    };
+};
+my $up_s3client = sub{
+    +{
+        image_type => "s3client", project => "def",
+        C4S3_CONF_DIR => "/c4conf-ceph-client", @req_small, "label:c4s3client" => "1"
+    };
+};
+my $up_elector = sub{
+    +{
+        image_type => "elector", project => "def",
+        tty => "true", headless => 1, replicas => 3,
+        C4HTTP_PORT => $elector_port, "port:$elector_port:$elector_port"=>"",
+        @req_small, @lim_small,
+    };
+};
+my $up_resource_tracker = sub{
+    my ($comp) = @_;
+    my $conf = &$get_compose($comp);
+    +{
+        image_type => "resource_tracker", project => "def",
+        tty => "true", @req_small, (map{($_=>&$mandatory_of($_=>$conf))} qw[C4RES_TRACKER_OPTIONS C4KUBECONFIG ])
     };
 };
 
-my $installer_steps = sub{(
-    "COPY install.pl /",
-    "RUN perl install.pl useradd",
-)};
-
-my $base_image_steps = sub{(
-    "FROM ubuntu:20.04",
-    &$installer_steps(),
-)};
-
-my $dl_node_url = "https://nodejs.org/dist/v14.15.4/node-v14.15.4-linux-x64.tar.xz";
-
-# m  h g b z -- m-h m-b  h-g g-b b-z l-h l-g l-b l-z
-# dc:
-# kc:
-
-push @tasks, ["ci_up-consumer", "", $up_consumer];
-push @tasks, ["ci_up-gate", "", $up_gate];
-push @tasks, ["ci_up-client", "", $up_client];
-
-# deploy-time, conf-arity, easy-conf, restart-fail-independ -- gate|main|exch (or more, try min);
-# dc easy net -- single
-# kc safe net max -- broker-zoo|gate|haproxy|main|exch
-
-# zoo: netty, runit, * custom pod
-
-push @tasks, ["up","$composes_txt",sub{
-    my($comp)=@_;
-    &$find_handler(up=>$comp||die)->($comp);
-}];
+my $conf_handler = {
+    "consumer"=>$up_consumer, "gate"=>$up_gate, "client"=>$up_client,
+    "s3client"=>$up_s3client, "elector"=>$up_elector, "resource_tracker"=>$up_resource_tracker,
+};
 
 ### snapshot op-s
 
@@ -480,26 +446,15 @@ push @tasks, ["log_debug","<pod|$composes_txt> [class]",sub{ # ee.cone
 
 push @tasks, ["ci_deploy_info", "", sub{
     my(%opt)=@_;
-    my $env_comp = &$mandatory_of("--env-state",\%opt);
-    my @comps = &$spaced_list(&$get_compose($env_comp)->{parts}||[$env_comp]);
-    &$get_deployer($env_comp) eq &$get_deployer($_) || die "deployers do not match" for @comps;
-    my $conf = &$get_compose($env_comp);
-    my $env_name = &$mandatory_of("ci:env"=>$conf);
-    my $env_group = &$mandatory_of("ci:env_group"=>$conf);
-    my ($context) = &$get_deployer_conf($env_comp,1,qw[context]);
-    my ($allow_source_repo) = &$get_deployer_conf($env_comp,0,qw[allow_source_repo]);
-    my ($to_repo) = $allow_source_repo ? ("") : &$get_deployer_conf($env_comp,0,qw[sys_image_repo]);
-    my @parts = map{
-        my $l_comp = $_;
-        +{%{&$add_image_pull_secrets($l_comp, &$find_handler(ci_up=>$l_comp)->($l_comp)) }, name=>$l_comp}
-    } @comps;
-    my $out = { parts=>\@parts, name=>$env_name, group=>$env_group, context=>$context, to_repo=>$to_repo };
-    &$put_text(&$mandatory_of("--out",\%opt), &$encode($out));
+    &$put_text(&$mandatory_of("--out",\%opt), &$encode([map{
+        my $comp = $_;
+        my ($context, $image_pull_secrets) = &$get_deployer_conf($comp,1,qw[context image_pull_secrets]);
+        my ($allow_src, $to_repo_prop) = &$get_deployer_conf($comp,0,qw[allow_source_repo sys_image_repo]);
+        my $to_repo = $allow_src ? "" : $to_repo_prop;
+        my $options = &{$$conf_handler{&$get_compose($comp)->{type}} || die "no handler"}($comp);
+        +{ context=>$context, to_repo=>$to_repo, image_pull_secrets=>$image_pull_secrets, %$options, name=>$comp }
+    } map{ &$spaced_list(&$get_compose($_)->{parts}||[$_]) } &$mandatory_of("--env-state",\%opt)]));
 }];
-
-my $ci_inner_opt = sub{
-    map{$ENV{$_}||die $_} qw[C4CI_BASE_TAG_ENV C4CI_BUILD_DIR C4CI_PROTO_DIR];
-};
 
 my $get_tag_info = sub{
     my($gen_dir,$tag)=@_;
@@ -558,7 +513,9 @@ my $chk_pkg_dep = sub{
     &$py_run("chk_pkg_dep.py","$gen_dir/target/c4/build.json", $cp_path);
 };
 push @tasks, ["chk_pkg_dep"," ",sub{
-    my ($base,$gen_dir,$proto_dir) = &$ci_inner_opt();
+    my $gen_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
+    my $proto_dir = &$get_proto_dir();
+    my $base = &$get_text("/c4/debug-tag");
     my $tag_info = &$get_tag_info($gen_dir,$base);
     my $mod = $$tag_info{mod} || die;
     &$chk_pkg_dep($gen_dir,$mod);
@@ -577,11 +534,11 @@ push @tasks, ["ci_rt_base","",sub{
     my $tag_info = &$get_tag_info($gen_dir,$base);
     my $add_steps = &$mandatory_of(steps => $tag_info);
     my $proto_dir = &$get_proto_dir();
-    &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile");
     my @from_steps = grep{/^FROM\s/} @$add_steps;
     &$put_text("$ctx_dir/Dockerfile", join "\n",
         @from_steps ? @from_steps : "FROM ubuntu:18.04",
-        &$installer_steps(),
+        "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
+        "RUN perl install.pl useradd",
         "RUN perl install.pl apt".
         " curl software-properties-common".
         " lsof mc iputils-ping netcat-openbsd fontconfig".
@@ -593,15 +550,11 @@ push @tasks, ["ci_rt_base","",sub{
         "ENV JAVA_HOME=/tools/jdk",
         "RUN chown -R c4:c4 /c4",
         "WORKDIR /c4",
-        "RUN ln -s /c4/greys /tools/greys",
         "USER c4",
-        "COPY --chown=c4:c4 . /c4",
-        "RUN cd /tools/greys && bash ./install-local.sh",
         'ENTRYPOINT ["perl","run.pl"]',
     );
-    sy("cp $proto_dir/install.pl $ctx_dir/");
-    sy("cd $ctx_dir && tar -xzf $proto_dir/tools/greys.tar.gz");
 }];
+
 push @tasks, ["ci_rt_over","",sub{
     my %opt = @_;
     my $base = &$mandatory_of("--proj-tag", \%opt);
@@ -643,29 +596,7 @@ push @tasks, ["ci_rt_over","",sub{
     @public_part and &$put_text("$ctx_dir/htdocs/c4gen.ht.links",join"",map{@{$$_{links}||die}}@public_part);
 }];
 
-push @tasks, ["up-s3client", "", sub{
-    my ($comp) = @_;
-    my $lines = [
-        "ARG C4UID=1979",
-        "FROM ghcr.io/conecenter/c4replink:v2",
-        "USER root",
-        "RUN perl install.pl apt curl ca-certificates",
-        "RUN /install.pl curl https://dl.min.io/client/mc/release/linux-amd64/mc && chmod +x /tools/mc",
-        q{ENTRYPOINT /tools/mc alias set def $(cat $C4S3_CONF_DIR/address) $(cat $C4S3_CONF_DIR/key) $(cat $C4S3_CONF_DIR/secret) && exec sleep infinity }
-    ];
-    my $options = { C4S3_CONF_DIR => "/c4conf-ceph-client", @req_small, "label:c4s3client" => "1" };
-    &$wrap_deploy($comp,$lines,[],$options);
-}];
-
-my $install_kubectl = sub{
-    "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl && chmod +x /tools/kubectl "
-};
-my $install_tini = sub{
-    "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini"
-    ."&& chmod +x /tools/tini"
-};
-
-push @tasks, ["up-kc_host", "", sub{ # the last multi container kc
+push @tasks, ["up_kc_host", "", sub{ # the last multi container kc
     my ($comp) = @_;
     my $conf = &$get_compose($comp);
     my $ns = &$mandatory_of(ns=>$conf);
@@ -751,46 +682,34 @@ push @tasks, ["exec_repl","<pod|$composes_txt>",sub{
         sy(&$kj_exec($comp,$pod,"-it","test -e /c4/.ssh/id_rsa || ssh-keygen;ssh localhost -p22222"));
     });
 }];
-push @tasks, ["greys_local","<pid>",sub{
-    my($pid)=@_;
-    $pid || die;
-    if(!-e "$ENV{HOME}/.greys"){
-        my $gen_dir = &$get_proto_dir();
-        sy("cd $ENV{HOME} && tar -xzf $gen_dir/tools/greys.tar.gz");
-        sy("cd $ENV{HOME}/greys && bash ./install-local.sh");
-    }
-    sy("$ENV{HOME}/greys/greys.sh $pid");
-}];
-push @tasks, ["greys","<pod|$composes_txt>",sub{
-    my($arg)=@_;
-    &$for_comp_pod($arg, sub{ my ($comp, $pod) = @_;
-        sy(&$kj_exec($comp,$pod,"-it","/tools/greys/greys.sh 1"));
-    });
-}];
+
+# todo restore greys
+#"RUN ln -s /c4/greys /tools/greys",
+#"USER c4",
+#"COPY --chown=c4:c4 . /c4",
+#"RUN cd /tools/greys && bash ./install-local.sh",
+#sy("cd $ctx_dir && tar -xzf $proto_dir/tools/greys.tar.gz");
+#push @tasks, ["greys_local","<pid>",sub{
+#    my($pid)=@_;
+#    $pid || die;
+#    if(!-e "$ENV{HOME}/.greys"){
+#        my $gen_dir = &$get_proto_dir();
+#        sy("cd $ENV{HOME} && tar -xzf $gen_dir/tools/greys.tar.gz");
+#        sy("cd $ENV{HOME}/greys && bash ./install-local.sh");
+#    }
+#    sy("$ENV{HOME}/greys/greys.sh $pid");
+#}];
+#push @tasks, ["greys","<pod|$composes_txt>",sub{
+#    my($arg)=@_;
+#    &$for_comp_pod($arg, sub{ my ($comp, $pod) = @_;
+#        sy(&$kj_exec($comp,$pod,"-it","/tools/greys/greys.sh 1"));
+#    });
+#}];
 
 push @tasks, ["exec_install","<pod|$composes_txt> <tgz>",sub{
     my($arg,$tgz)=@_;
     my ($comp,@pods) = &$get_comp_pods($arg);
     sy(&$kj_exec($comp,$_,"-i","tar -xz")." < $tgz") for @pods;
-}];
-
-push @tasks, ["up-elector","",sub{
-    my ($comp) = @_;
-    my $lines = [
-        &$base_image_steps(),
-        "RUN perl install.pl apt curl ca-certificates xz-utils", #xz-utils for node
-        "RUN perl install.pl curl $dl_node_url",
-        &$install_tini(),
-        "COPY elector.js /",
-        "USER c4",
-        'ENTRYPOINT ["/tools/tini","--","/tools/node/bin/node","/elector.js"]',
-    ];
-    my $options = {
-        tty => "true", headless => 1, replicas => 3,
-        C4HTTP_PORT => $elector_port, "port:$elector_port:$elector_port"=>"",
-        @req_small, @lim_small,
-    };
-    &$wrap_deploy($comp, $lines, ["install.pl", "elector.js"], $options);
 }];
 
 my $dir_to_secret = sub{
@@ -871,25 +790,6 @@ push @tasks, ["resources_set","$composes_txt <cpu=n|memory=nGi>",sub{
     my ($comp,$res) = @_;
     my ($context) = &$get_deployer_conf($comp,1,qw[context]);
     &$py_run("resources.py","set",$context,$comp,$res);
-}];
-
-push @tasks, ["up-resource_tracker","",sub{
-    my ($comp) = @_;
-    my $lines = [
-        &$base_image_steps(),
-        "RUN perl install.pl apt curl ca-certificates python3.8",
-        &$install_kubectl(),
-        &$install_tini(),
-        "COPY resources.py /",
-        "USER c4",
-        'ENV PATH=${PATH}:/tools',
-        'ENTRYPOINT ["/tools/tini","--","python3.8","/resources.py","tracker"]',
-    ];
-    my $conf = &$get_compose($comp);
-    my $options = {
-        tty => "true", @req_small, (map{($_=>&$mandatory_of($_=>$conf))} qw[C4RES_TRACKER_OPTIONS C4KUBECONFIG ]),
-    };
-    &$wrap_deploy($comp,$lines,["install.pl","resources.py"],$options);
 }];
 
 ####

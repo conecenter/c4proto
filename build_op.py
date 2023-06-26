@@ -22,18 +22,15 @@ def get_plain_options(plain_conf, k):
     return [line[2] for line in plain_conf if line[0] == k]
 
 
-def handle_down(info):
-    run(("helm", "delete", "--kube-context", info["context"], info["name"]))
-
-
 def handle_up(info):
-    dir = TemporaryDirectory()
-    templates = [(f"{dir.name}/templates", f"{i}.yaml", d) for i, d in enumerate(info["manifests"])]
-    chart = (dir.name, "Chart.yaml", {"apiVersion": "v2", "name": "c4chart", "version": "0"})
-    for subdir, fn, j in [chart, *templates]:
-        Path(subdir).mkdir(exist_ok=True)
-        Path(f"{subdir}/{fn}").write_text(dumps(j, sort_keys=True), encoding="utf-8", errors="strict")
-    run(("helm", "upgrade", "--install", "--wait", "--kube-context", info["context"], info["name"], dir.name))
+    tmp = TemporaryDirectory()
+    chart = {"apiVersion": "v2", "name": info["state"], "version": "0"}
+    Path(f"{tmp.name}/templates").mkdir()
+    Path(f"{tmp.name}/Chart.yaml").write_text(dumps(chart, sort_keys=True), encoding="utf-8", errors="strict")
+    Path(f"{tmp.name}/templates/identity.yaml").write_bytes(b"{{range .Values.manifests}}\n---\n{{toYaml .}}{{end}}")
+    name, = {man["metadata"]["labels"]["c4env"] for man in info["manifests"]}
+    cmd = ("helm", "upgrade", "--install", "--wait", "--kube-context", info["context"], name, tmp.name, "-f-")
+    run(cmd, text=True, input=dumps(info, sort_keys=True, indent=4))
 
 
 def handle_prep(context, env_state, info_out):
@@ -67,9 +64,6 @@ def main():
     up_parser = add_parser("up")
     up_parser.add_argument("info", type=read_json)
     up_parser.set_defaults(op=lambda: handle_up(opt.info))
-    down_parser = add_parser("down")
-    down_parser.add_argument("info", type=read_json)
-    down_parser.set_defaults(op=lambda: handle_down(opt.info))
     opt = main_parser.parse_args()
     opt.op()
 

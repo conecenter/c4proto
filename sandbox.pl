@@ -79,7 +79,7 @@ my $get_debug_ip = sub{
 
 my $remake = sub{
     my($build_dir,$droll) = @_;
-    my $arg = &$get_text_or_empty("/c4/debug-tag") || &$mandatory_of(C4CI_BASE_TAG_ENV => \%ENV);
+    my $arg = &$get_text_or_empty("/c4/debug-tag") || die;
     my $tmp = "$build_dir/target/c4";
     my $build_data = JSON::XS->new->decode(&$get_text_or_empty("$tmp/build.json"));
     my ($nm,$mod,$cl) = map{$$build_data{tag_info}{$arg}{$_}||die} qw[name mod main];

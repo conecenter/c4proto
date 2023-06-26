@@ -167,6 +167,20 @@ def get_env_values_from_deployments(env_key, deployments):
         for e in c.get("env",[]) if e["name"] == env_key
     }
 
+
 def get_main_conf(context):
-    main_conf = group_map(read_json(f"{context}/c4dep.main.json"), lambda it: (it[0], it[1:]))
-    return lambda k: one(*main_conf[k])[1]
+    main_conf = group_map(read_json(f"{context}/c4dep.main.json"), lambda it: (it[0], it[2]))
+    return lambda k: one(*main_conf[k])
+
+
+def get_proto(context, get_plain_option):
+    proto_postfix = get_plain_option("C4PROTO_POSTFIX")
+    proto_dir = f"{context}/{proto_postfix}"
+    return proto_postfix, proto_dir
+
+
+def get_image_conf(get_plain_option):
+    repo = get_plain_option("C4CI_IMAGE_REPO")
+    image_tag_prefix = get_plain_option("C4CI_IMAGE_TAG_PREFIX")
+    return repo, image_tag_prefix
+
