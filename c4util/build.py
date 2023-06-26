@@ -99,7 +99,7 @@ def crane_login(push_secret):
 
 
 def crane_image_exists(image):
-    res = run_no_die(("crane", "manifest", image), stdout=subprocess.DEVNULL)
+    res = run_no_die(("crane", "manifest", image), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, text=True)
     print("image found" if res else "image not found")
     return res
 

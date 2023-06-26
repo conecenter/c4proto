@@ -191,7 +191,7 @@ def build_some_parts(parts, get_plain_option, context, proto_postfix, image_repo
             "exec", name, "--", "env", f"KUBECONFIG={remote_conf}", f"C4DEPLOY_CONTEXT={deploy_context}",
             "python3.8", "-u", f"{proto_dir}/build_remote.py",
             "build_inner", "--context", context, "--proj-tag", part["project"], "--image-type", part["image_type"]
-        ), stdout=subprocess.PIPE)]
+        ), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)]
     ]
     print("To view logs:\n"+"\n".join(f"  ={part_name}= {log_cmd}" for part_name, b_proc, log_cmd, l_proc in processes))
     info("waiting images ...")
