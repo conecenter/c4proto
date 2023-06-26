@@ -99,7 +99,9 @@ def crane_login(push_secret):
 
 
 def crane_image_exists(image):
-    return run_no_die(("crane", "manifest", image))
+    res = run_no_die(("crane", "manifest", image), stdout=subprocess.DEVNULL)
+    print("image found" if res else "image not found")
+    return res
 
 
 def build_cached_by_content(context, repository, push_secret_name):

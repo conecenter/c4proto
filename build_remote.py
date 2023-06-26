@@ -1,6 +1,7 @@
 
 import json
 import os
+import subprocess
 import sys
 import time
 import typing
@@ -128,7 +129,7 @@ def ci_prep(context, env_state, info_out):
     info("getting commit info ...")
     need_dir(f"{context}/target")
     run(("perl", f"{proto_dir}/sync_mem.pl", context))
-    commit = get_commit(context) # after sync_mem
+    commit = get_commit(context)  # after sync_mem
     #
     info("making deploy info ...")
     out_path = f"{temp_root.name}/out"
@@ -170,7 +171,8 @@ def build_some_parts(parts, get_plain_option, context, proto_postfix, image_repo
     changing_text(f"{temp_root.name}/Dockerfile", read_text(f"{proto_dir}/build.def.dockerfile"))
     base_image = build_cached_by_content(temp_root.name, image_repo, "c4push/.dockerconfigjson")
     info("starting build tasks for images ...")
-    need_pod(get_cb_name("cache"), lambda: {"image": base_image, **opt_compiler()})  # todo: opt_cache_node
+    cache_pod_nm = get_cb_name("cache")
+    need_pod(cache_pod_nm, lambda: {"image": base_image, **opt_compiler()})  # todo: opt_cache_node
     build_pods = [(part, *get_temp_dev_pod({"image": base_image, **opt_compiler()})) for part in parts]
     remote_conf = "/tmp/.c4-kube-config"
     deploy_context = get_plain_option("C4DEPLOY_CONTEXT")
@@ -178,20 +180,27 @@ def build_some_parts(parts, get_plain_option, context, proto_postfix, image_repo
         run(("c4dsync", "-ac", "--del", "--exclude", ".git", f"{context}/", f"{name}:{context}/"))
         # syncing just '/' does not work, because can not change time for '/tmp'
         cat_secret_to_pod(name, remote_conf, get_plain_option("C4DEPLOY_CONFIG"))
-    processes = [Popen(kcd_args(
-        "exec", name, "--",
-        "env", f"KUBECONFIG={remote_conf}", f"C4DEPLOY_CONTEXT={deploy_context}",
-        "python3.8", "-u", f"{proto_dir}/run_with_prefix.py", f"={part['name']}=",
-        "python3.8", "-u", f"{proto_dir}/build_remote.py",
-        "build_inner", "--context", context, "--proj-tag", part["project"], "--image-type", part["image_type"]
-    )) for part, life, name in build_pods]
+    processes = [
+        (
+            part_name, build_proc, " ".join(kcd_args("exec", cache_pod_nm, "--", "tail", "-f", log_path)),
+            Popen(kcd_args("exec", "-i", cache_pod_nm, "--", "sh", "-c", f"cat > {log_path}"), stdin=build_proc.stdout)
+        )
+        for part, life, name in build_pods
+        for part_name, log_path in [(part['name'], f"/tmp/c4log-{name}")]
+        for build_proc in [Popen(kcd_args(
+            "exec", name, "--", "env", f"KUBECONFIG={remote_conf}", f"C4DEPLOY_CONTEXT={deploy_context}",
+            "python3.8", "-u", f"{proto_dir}/build_remote.py",
+            "build_inner", "--context", context, "--proj-tag", part["project"], "--image-type", part["image_type"]
+        ), stdout=subprocess.PIPE)]
+    ]
+    print("To view logs:\n"+"\n".join(f"  ={part_name}= {log_cmd}" for part_name, b_proc, log_cmd, l_proc in processes))
     info("waiting images ...")
     started = time.monotonic()
     for part in parts:
         while not crane_image_exists(part["from_image"]):
-            for proc in processes:
-                if proc.poll():
-                    never(part["name"])
+            for part_name, build_proc, log_cmd, log_proc in processes:
+                if build_proc.poll() or log_proc.poll():
+                    never(part_name)
             if time.monotonic() - started > 60*30:
                 never("timeout")
             time.sleep(5)
@@ -214,8 +223,8 @@ def build_type_elector(context, out):
     build_micro(context, out, ["elector.js"], [
         "FROM ubuntu:20.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
-        "RUN perl install.pl useradd",
-        "RUN perl install.pl apt curl ca-certificates xz-utils", #xz-utils for node
+        "RUN perl install.pl useradd 1979",
+        "RUN perl install.pl apt curl ca-certificates xz-utils",  # xz-utils for node
         "RUN perl install.pl curl https://nodejs.org/dist/v14.15.4/node-v14.15.4-linux-x64.tar.xz",
         "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
         " && chmod +x /tools/tini",
@@ -228,7 +237,7 @@ def build_type_resource_tracker(context, out):
     build_micro(context, out, ["resources.py"], [
         "FROM ubuntu:20.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
-        "RUN perl install.pl useradd",
+        "RUN perl install.pl useradd 1979",
         "RUN perl install.pl apt curl ca-certificates python3.8",
         "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl && chmod +x /tools/kubectl",
         "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
@@ -246,7 +255,8 @@ def build_type_s3client(context, out):
         "USER root",
         "RUN perl install.pl apt curl ca-certificates",
         "RUN /install.pl curl https://dl.min.io/client/mc/release/linux-amd64/mc && chmod +x /tools/mc",
-        'ENTRYPOINT /tools/mc alias set def $(cat $C4S3_CONF_DIR/address) $(cat $C4S3_CONF_DIR/key) $(cat $C4S3_CONF_DIR/secret) && exec sleep infinity '
+        'ENTRYPOINT /tools/mc alias set def' +
+        ' $(cat $C4S3_CONF_DIR/address) $(cat $C4S3_CONF_DIR/key) $(cat $C4S3_CONF_DIR/secret) && exec sleep infinity '
     ])
 
 
@@ -288,7 +298,10 @@ def build_type_rt(proj_tag, context, out):
         "PATH": os.environ["PATH"],  # sbt
         "HOME": os.environ["HOME"],  # c4client_prep
     })
-    client_proc_opt = (Popen((*pre, "=client=", *prod, "build_client_changed", context)),) if proj_tag != "def" else ()  # after build.pl
+    client_proc_opt = (
+        (Popen((*pre, "=client=", *prod, "build_client_changed", context)),) if proj_tag != "def" else
+        ()  # after build.pl
+    )
     compile_options = get_more_compile_options(context, get_commit(context), proj_tag)  # after build.pl
     mod = compile_options.mod
     mod_dir = compile_options.mod_dir
@@ -312,7 +325,11 @@ def main():
     }
     opt = setup_parser((
         ('ci_prep', lambda o: ci_prep(o.context, o.env_state, o.info_out), ("--context", "--env-state", "--info-out")),
-        ('build_inner', lambda o: build_inner(handlers, o.context, o.image_type, o.proj_tag), ('--context', "--image-type", '--proj-tag')),
+        (
+            'build_inner',
+            lambda o: build_inner(handlers, o.context, o.image_type, o.proj_tag),
+            ('--context', "--image-type", '--proj-tag')
+        ),
         #
         ('compile', compile, ("--context", "--image", "--user", "--proj-tag", "--java-options")),
     )).parse_args()

@@ -538,7 +538,7 @@ push @tasks, ["ci_rt_base","",sub{
     &$put_text("$ctx_dir/Dockerfile", join "\n",
         @from_steps ? @from_steps : "FROM ubuntu:18.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
-        "RUN perl install.pl useradd",
+        "RUN perl install.pl useradd 1979",
         "RUN perl install.pl apt".
         " curl software-properties-common".
         " lsof mc iputils-ping netcat-openbsd fontconfig".
