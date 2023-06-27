@@ -5,7 +5,7 @@ import sys
 import os
 from tempfile import TemporaryDirectory
 from pathlib import Path
-from json import dumps, loads
+from json import loads
 from argparse import ArgumentParser
 
 
@@ -22,18 +22,13 @@ def get_plain_options(plain_conf, k):
     return [line[2] for line in plain_conf if line[0] == k]
 
 
-def handle_up(info):
-    tmp = TemporaryDirectory()
-    chart = {"apiVersion": "v2", "name": info["state"], "version": "0"}
-    Path(f"{tmp.name}/templates").mkdir()
-    Path(f"{tmp.name}/Chart.yaml").write_text(dumps(chart, sort_keys=True), encoding="utf-8", errors="strict")
-    Path(f"{tmp.name}/templates/identity.yaml").write_bytes(b"{{range .Values.manifests}}\n---\n{{toYaml .}}{{end}}")
-    name, = {man["metadata"]["labels"]["c4env"] for man in info["manifests"]}
-    cmd = ("helm", "upgrade", "--install", "--wait", "--kube-context", info["context"], name, tmp.name, "-f-")
-    run(cmd, text=True, input=dumps(info, sort_keys=True, indent=4))
-
-
-def handle_prep(context, env_state, info_out):
+def main():
+    parser = ArgumentParser()
+    parser.add_argument("--context", required=True)
+    parser.add_argument("--env-state", required=True)
+    parser.add_argument("--info-out", required=True)
+    opt = parser.parse_args()
+    context, env_state, info_out = opt.context, opt.env_state, opt.info_out
     plain_conf = read_json(f"{context}/c4dep.main.json")
     replink, = get_plain_options(plain_conf, "C4REPLINK")
     proto_postfix, = get_plain_options(plain_conf, "C4PROTO_POSTFIX")
@@ -51,21 +46,6 @@ def handle_prep(context, env_state, info_out):
         "PATH": os.environ["PATH"],
         "KUBECONFIG": os.environ["HOME"]+"/.kube/config"
     })
-
-
-def main():
-    main_parser = ArgumentParser()
-    add_parser = main_parser.add_subparsers(required=True, dest="cmd").add_parser
-    prep_parser = add_parser("prep")
-    prep_parser.add_argument("--context", required=True)
-    prep_parser.add_argument("--env-state", required=True)
-    prep_parser.add_argument("--info-out", required=True)
-    prep_parser.set_defaults(op=lambda: handle_prep(opt.context, opt.env_state, opt.info_out))
-    up_parser = add_parser("up")
-    up_parser.add_argument("info", type=read_json)
-    up_parser.set_defaults(op=lambda: handle_up(opt.info))
-    opt = main_parser.parse_args()
-    opt.op()
 
 
 main()

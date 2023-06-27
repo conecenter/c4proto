@@ -46,35 +46,36 @@ def get_more_compile_options(context, commit, proj_tag):
     return CompileOptions(mod, mod_dir, cache_pod_name, cache_path, java_options)
 
 
-def compile(opt):
-    commit = get_commit(opt.context)
-    compile_options = get_more_compile_options(opt.context, commit, opt.proj_tag)
+def remote_compile(context, user, proj_tag):
+    commit = get_commit(context)
+    compile_options = get_more_compile_options(context, commit, proj_tag)
     mod_dir = compile_options.mod_dir
     cache_pod_name = compile_options.cache_pod_name
     cache_path = compile_options.cache_path
-    pod = get_cb_name(f"u{opt.user}")
+    pod = get_cb_name(f"u{user}")
     cp_path = f"{mod_dir}/target/c4classpath"
-    need_pod(pod, lambda: { "image": opt.image, **opt_compiler() })
-    for save in changing_text_observe(f"{opt.context}/target/c4/compile_cache_ver", cache_path):
-        if not run_no_die(kcd_args("exec",pod,"--","test","-e",mod_dir)):
+    need_pod(pod, lambda: {"image": need_base_image(context, get_main_conf(context)), **opt_compiler()})
+    for save in changing_text_observe(f"{context}/target/c4/compile_cache_ver", cache_path):
+        if not run_no_die(kcd_args("exec", pod, "--", "test", "-e", mod_dir)):
             print("private cache does not exist")
-        elif not run_no_die(kcd_args("exec",pod,"--","rm","-r",mod_dir)):
+        elif not run_no_die(kcd_args("exec", pod, "--", "rm", "-r", mod_dir)):
             print("private cache rm failed")
             break
-        if not run_no_die(kcd_args("exec",cache_pod_name,"--","test","-e",cache_path)):
+        if not run_no_die(kcd_args("exec", cache_pod_name, "--", "test", "-e", cache_path)):
             print("shared cache does not exist")
         else:
             pipe_ok = run_pipe_no_die(
-                kcd_args("exec",cache_pod_name,"--","cat",cache_path), kcd_args("exec","-i",pod,"--","tar","-C","/","-xzf-")
+                kcd_args("exec", cache_pod_name, "--", "cat", cache_path),
+                kcd_args("exec", "-i", pod, "--", "tar", "-C", "/", "-xzf-")
             )
             if not pipe_ok:
                 print("cache get failed")
                 break
             print("cache get ok")
         save()
-    full_sync_paths = (f"{opt.context}/{part}" for part in json.loads(read_text(f"{mod_dir}/c4sync_paths.json")))
+    full_sync_paths = (f"{context}/{part}" for part in json.loads(read_text(f"{mod_dir}/c4sync_paths.json")))
     rsync(None, pod, [path for path in full_sync_paths if path_exists(path)])
-    kcd_run("exec",pod,"--",*sbt_args(mod_dir,opt.java_options))
+    kcd_run("exec", pod, "--", *sbt_args(mod_dir, compile_options.java_options))
     rsync(pod, None, [cp_path])
     rsync(pod, None, read_text(cp_path).split(":"))
 
@@ -150,7 +151,7 @@ def ci_prep(context, env_state, info_out):
     #
     build_parts = [part for part in parts if not crane_image_exists(part["from_image"])]
     if build_parts:
-        build_some_parts(build_parts, get_plain_option, context, proto_postfix, image_repo)
+        build_some_parts(build_parts, context, get_plain_option)
     #
     info("coping images to external registry ...")
     cp_parts = [part for part in parts if part["from_image"] != part["image"] and not crane_image_exists(part["image"])]
@@ -164,12 +165,18 @@ def ci_prep(context, env_state, info_out):
             kcd_run("exec", name, "--", "skopeo", "copy", f"docker://"+part["from_image"], f"docker://"+part["image"])
 
 
-def build_some_parts(parts, get_plain_option, context, proto_postfix, image_repo):
-    proto_dir = f"{context}/{proto_postfix}"
-    info("making base builder image ...")
+def need_base_image(context, get_plain_option):
+    proto_postfix, proto_dir = get_proto(context, get_plain_option)
+    image_repo, image_tag_prefix = get_image_conf(get_plain_option)
     temp_root = tempfile.TemporaryDirectory()
     changing_text(f"{temp_root.name}/Dockerfile", read_text(f"{proto_dir}/build.def.dockerfile"))
-    base_image = build_cached_by_content(temp_root.name, image_repo, "c4push/.dockerconfigjson")
+    return build_cached_by_content(temp_root.name, image_repo, "c4push/.dockerconfigjson")
+
+
+def build_some_parts(parts, context, get_plain_option):
+    proto_postfix, proto_dir = get_proto(context, get_plain_option)
+    info("making base builder image ...")
+    base_image = need_base_image(context, get_plain_option)
     info("starting build tasks for images ...")
     cache_pod_nm = get_cb_name("cache")
     need_pod(cache_pod_nm, lambda: {"image": base_image, **opt_compiler()})  # todo: opt_cache_node
@@ -331,7 +338,7 @@ def main():
             ('--context', "--image-type", '--proj-tag')
         ),
         #
-        ('compile', compile, ("--context", "--image", "--user", "--proj-tag", "--java-options")),
+        ('compile', lambda o: remote_compile(o.context, o.user, o.proj_tag), ("--context", "--user", "--proj-tag")),
     )).parse_args()
     opt.op(opt)
 

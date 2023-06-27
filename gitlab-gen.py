@@ -11,14 +11,15 @@ def main(build_path):
         get_plain_option = get_main_conf(build_path)
         proto_postfix, proto_dir = get_proto(build_path, get_plain_option)
         repo, image_tag_prefix = get_image_conf(get_plain_option)
-        changing_text(f"{temp_root}/c4op", read_text(f"{proto_dir}/build_op.py"))
+        changing_text(f"{temp_root}/c4ci_prep", read_text(f"{proto_dir}/ci_prep.py"))
+        changing_text(f"{temp_root}/c4ci_up", read_text(f"{proto_dir}/ci_up.py"))
         steps = "\n".join((
             "FROM ubuntu:22.04",
             "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /replink.pl /",
             "RUN perl install.pl useradd 1979",
             "RUN perl install.pl apt curl ca-certificates",
             "RUN perl install.pl curl https://get.helm.sh/helm-v3.12.1-linux-amd64.tar.gz",
-            "COPY c4op /tools", "RUN chmod +x /tools/c4op",
+            "COPY c4ci_prep c4ci_up /tools", "RUN chmod +x /tools/c4ci_prep /tools/c4ci_up",
             "ENV PATH=${PATH}:/tools/linux",
         ))
         changing_text(f"{temp_root}/Dockerfile", steps)

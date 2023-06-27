@@ -217,7 +217,7 @@ my $make_kc_yml = sub{
     };
     #
     my $metadata = { name => $name, labels => {@labels} };
-    [map{&$merge_list($_,{metadata=>$metadata})} @service_yml, @ingress_yml, $stateful_set_yml];
+    map{&$merge_list($_,{metadata=>$metadata})} @service_yml, @ingress_yml, $stateful_set_yml;
 };
 
 my $decode = sub{ JSON::XS->new->decode(@_) };

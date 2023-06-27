@@ -32,5 +32,6 @@ do{ # agent and de
     &$put_bin("c4dsync",&$perl_exec('exec "rsync","--blocking-io","-e","c4rsh_raw",@ARGV;')); # code
     &$put_bin("c4rsh",&$perl_exec($kcd.'"exec", "-it", (scalar(`cat /tmp/c4pod`)||die "no pod"), "--", "bash";')); # manual only
     &$put_bin("c4py",&$perl_exec('my ($op,@args) = @ARGV; $op eq "sync" || die; exec "python3","-u","$ENV{C4CI_PROTO_DIR}/sync.py",@args;'));
-    &$put_bin("c4op",&$perl_exec('exec "python3","-u","$ENV{C4CI_PROTO_DIR}/build_op.py",@ARGV;'));
+    &$put_bin("c4ci_prep",&$perl_exec('exec "python3","-u","$ENV{C4CI_PROTO_DIR}/ci_prep.py",@ARGV;'));
+    &$put_bin("c4ci_up",&$perl_exec('exec "python3","-u","$ENV{C4CI_PROTO_DIR}/ci_up.py",@ARGV;'));
 };

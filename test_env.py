@@ -113,7 +113,7 @@ def run_inner(pod_name, *args):
 
 def get_env_images(env_name):
     deployments = json.loads(run_text_out(kcd_args("get", "deploy", "-l", f"c4env={env_name}", "-o", "json")))["items"]
-    images = sorted(get_env_values_from_deployments("C4COMMON_IMAGE", deployments))
+    images = sorted(get_env_values_from_deployments("C4COMMON_IMAGE", deployments))  # no more C4COMMON_IMAGE
     if len(images) > 1: never("bad image")
     return images
 

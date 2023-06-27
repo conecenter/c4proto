@@ -137,13 +137,6 @@ def handle_init():
         post_pipeline(conn_url, tag_name, {"C4GITLAB_AGGR": aggr, "C4GITLAB_SUBJ": subj})
 
 
-def env_action(key):
-    temp_root = TemporaryDirectory()
-    out_path = f"{temp_root.name}/out.json"
-    Path(out_path).write_bytes(base64.b64decode(e[key].encode('utf-8')))
-    run(("c4op", "up", out_path))
-
-
 def handle_deploy(env_mask):
     env_state = (
         env_mask.replace("{C4USER}", sub("[^a-z]", "", e["GITLAB_USER_LOGIN"].lower()))
@@ -151,7 +144,7 @@ def handle_deploy(env_mask):
     )
     temp_root = TemporaryDirectory()
     out_path = f"{temp_root.name}/out.json"
-    run(("c4op", "prep", "--context", e["CI_PROJECT_DIR"], "--env-state", env_state, "--info-out", out_path))
+    run(("c4ci_prep", "--context", e["CI_PROJECT_DIR"], "--env-state", env_state, "--info-out", out_path))
     start_info_raw = read_text(out_path)
     info = loads(start_info_raw)
     stop_info_raw = dumps({**info, "state": "c4-off", "manifests": []}, sort_keys=True)
@@ -193,8 +186,8 @@ def main(script, op, *args):
         "measure": lambda *a: handle_measure(script, *a),
         "init": handle_init,
         "deploy": handle_deploy,
-        "start": lambda: env_action("C4GITLAB_ENV_INFO_START"),
-        "stop": lambda: env_action("C4GITLAB_ENV_INFO_STOP"),
+        "start": lambda: run(("c4ci_up",), text=True, input=over_bytes(base64.b64decode, e["C4GITLAB_ENV_INFO_START"])),
+        "stop": lambda: run(("c4ci_up",), text=True, input=over_bytes(base64.b64decode, e["C4GITLAB_ENV_INFO_STOP"])),
     }[op](*args)
 
 
