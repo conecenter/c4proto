@@ -44,15 +44,17 @@ def exchange(conn_url, method, resource, data):
 
 def need_tag(conn_url, tag_name):
     status, res = exchange(conn_url, "POST", "repository/tags", {"tag_name": tag_name, "ref": e['CI_COMMIT_SHA']})
-    if status == 201:
-        debug(f"tag created: {tag_name}")
-        return
     debug((status, res))
-    status, res = exchange(conn_url, "GET", "repository/tags/"+tag_name, None)
-    if status == 200 and res["target"] == e['CI_COMMIT_SHA']:
-        debug(f"tag exists: {tag_name}")
-        return
-    never((status, res))
+    # if status == 201:
+    #     debug(f"tag created: {tag_name}")
+    #     return
+    # # we get 400 already exists
+    # status, res = exchange(conn_url, "GET", "repository/tags/"+tag_name, None)
+    # if status == 200 and res["target"] == e['CI_COMMIT_SHA']:
+    #     debug(f"tag exists: {tag_name}")
+    #     return
+    # never((status, res))
+    # # we get 404 Not Found -- let pipeline fail later
 
 
 def post_pipeline(conn_url, tag_name, variables):
