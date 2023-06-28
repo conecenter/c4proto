@@ -8,7 +8,7 @@ import typing
 import uuid
 import tempfile
 import re
-from c4util import path_exists, read_text, changing_text, read_json, changing_text_observe
+from c4util import path_exists, read_text, changing_text, read_json, changing_text_observe, one
 from c4util.build import never, run, run_no_die, run_pipe_no_die, Popen, \
     wait_processes, need_dir, kcd_args, kcd_run, need_pod, get_main_conf, get_temp_dev_pod, \
     build_cached_by_content, setup_parser, secret_part_to_text, crane_image_exists, get_proto, get_image_conf
@@ -139,7 +139,7 @@ def cat_secret_to_pod(name, path, secret_nm):
     run(kcd_args("exec", "-i", name, "--", "sh", "-c", f"cat >{path}"), text=True, input=secret_part_to_text(secret_nm))
 
 
-def ci_prep(context, env_state, info_out):
+def ci_prep(context, c4env, env_state, info_out):
     temp_root = tempfile.TemporaryDirectory()
     info("reading general build settings ...")
     get_plain_option = get_main_conf(context)
@@ -152,7 +152,7 @@ def ci_prep(context, env_state, info_out):
     #
     info("making deploy info ...")
     out_path = f"{temp_root.name}/out"
-    run(("perl", f"{proto_dir}/prod.pl", "ci_deploy_info", "--env-state", env_state, "--out", out_path))
+    run(("perl", f"{proto_dir}/prod.pl", "ci_deploy_info", "--env-state", f"{c4env}-{env_state}", "--out", out_path))
     parts = [
         {
             **part, "from_image": f"{image_repo}:{image_tag_prefix}.{commit}.{part['project']}.{part['image_type']}",
@@ -164,7 +164,9 @@ def ci_prep(context, env_state, info_out):
     manifests = read_json(out_path)
     out_state = f"{image_tag_prefix}.{commit}.{env_state}"
     kube_context, = {part["context"] for part in parts}
-    out = {"context": kube_context, "manifests": manifests, "state": out_state}
+    if c4env != one(*{man["metadata"]["labels"]["c4env"] for man in manifests}):
+        never("bad c4env name")
+    out = {"kube-context": kube_context, "manifests": manifests, "state": out_state, "c4env": c4env}
     changing_text(info_out, json.dumps(out, sort_keys=True, indent=4))
     #
     build_parts = [part for part in parts if not crane_image_exists(part["from_image"])]
@@ -348,7 +350,11 @@ def main():
         "build_type-s3client": lambda proj_tag: build_type_s3client,
     }
     opt = setup_parser((
-        ('ci_prep', lambda o: ci_prep(o.context, o.env_state, o.info_out), ("--context", "--env-state", "--info-out")),
+        (
+            'ci_prep',
+            lambda o: ci_prep(o.context, o.c4env, o.state, o.info_out),
+            ("--context", "--c4env", "--state", "--info-out")
+        ),
         (
             'build_inner',
             lambda o: build_inner(handlers, o.context, o.image_type, o.proj_tag),

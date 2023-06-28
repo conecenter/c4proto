@@ -25,10 +25,11 @@ def get_plain_options(plain_conf, k):
 def main():
     parser = ArgumentParser()
     parser.add_argument("--context", required=True)
-    parser.add_argument("--env-state", required=True)
+    parser.add_argument("--c4env", required=True)
+    parser.add_argument("--state", required=True)
     parser.add_argument("--info-out", required=True)
     opt = parser.parse_args()
-    context, env_state, info_out = opt.context, opt.env_state, opt.info_out
+    context = opt.context
     plain_conf = read_json(f"{context}/c4dep.main.json")
     replink, = get_plain_options(plain_conf, "C4REPLINK")
     proto_postfix, = get_plain_options(plain_conf, "C4PROTO_POSTFIX")
@@ -40,7 +41,7 @@ def main():
     else:
         run(("git", "clone", context, dir_nm))
     run(("/replink.pl",), env={"C4REPO_MAIN_CONF": f"{dir_nm}/{replink}"})
-    args = ("--context", dir_nm, "--env-state", env_state, "--info-out", info_out)
+    args = ("--context", dir_nm, "--c4env", opt.c4env, "--state", opt.state, "--info-out", opt.info_out)
     run(("python3", "-u", f"{dir_nm}/{proto_postfix}/build_remote.py", "ci_prep", *args), env={
         "C4DEPLOY_CONTEXT": deploy_context, "PATH": os.environ["PATH"], "KUBECONFIG": os.environ["KUBECONFIG"]
     })

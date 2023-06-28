@@ -1,10 +1,38 @@
 #!/usr/bin/python3 -u
 
+###############
+# This script is self-contained implementation of gitlab integration with an abstract target project.
+# So deploy to dynamic number of environments can be done in a few clicks without job/pipeline arguments manual editing.
+# Command `./gitlab.py generate $TO_REPO $BRANCH < $CONF`
+# will generate gitlab config (that can be included into the target project's config) and push it to the given repo.
+# $CONF is json array with 2 kind of statements:
+#    ["C4AGGR_COND", "my-subproject", "^my-branch-re-"],
+#    ["C4DEPLOY","sandbox-{C4USER}-{C4AGGR}=main","sandbox personal"],
+# Also the target project should provide "image" for ".handler" job.
+# This image should contain executables: `c4ci_prep` and `c4ci_up`.
+# `c4ci_prep` is responsible for building/pushing images and making kubernetes manifests.
+# `c4ci_up` is responsible for applying manifests to the cluster.
+# When `my-branch-re-*` is pushed, additional pipeline will be created with  manual deploy-jobs for "my-subproject".
+# When user Bob will activate "sandbox personal" job, gitlab.py will run command like:
+# c4ci_prep --context $CI_PROJECT_DIR --c4env sandbox-bob-my-subproject --state main --info-out temp123-install.json
+# `c4ci_prep` generates installation-json `temp123-install.json` like:
+# { "c4env": "sandbox-bob-my-subproject", "state": "tp-12345678-main", "kube-context": "dev", "manifests": [...] }
+# where environment `sandbox-bob-my-subproject`
+# will go to the `main` operational state with images built from commit `12345678` of the target project.
+# Then pipeline will be created with start/stop environment jobs for this deploy, and installation-json passed to it.
+# Gitlab environment name is also defined by every manifest label "c4env_group".
+# Environment URL can be taken from "Ingress" "tls" settings.
+# Start-job will run command like `c4ci_up < temp123-install.json`
+# `c4ci_up` will apply "manifests" and can remember them in history with "state" in title.
+# Stop-job will run the same `c4ci_up` with json, where some keys are void-ed:
+# { "c4env": "sandbox-bob-my-subproject", "state": "c4-off", "kube-context": "dev", "manifests": [] }
+###############
+
 import base64
-from re import search, sub, match
+from re import search, sub
 import sys
 from os import environ as e
-from json import dumps, dump, loads, load
+from json import dumps, loads, load
 import subprocess
 from pathlib import Path
 import http.client
@@ -12,19 +40,36 @@ from tempfile import TemporaryDirectory
 from time import sleep, monotonic
 
 
-def sorted_items(d): return sorted(d.items())
+def debug_args(hint, args):
+    print(hint+" "+" ".join(args), file=sys.stderr)
+    return args
 
 
-def never(a): raise Exception(a)
+def run(args, **opt): return subprocess.run(debug_args("running:", args), check=True, **opt)
 
 
-def debug(text):
-    print(text, file=sys.stderr)
+def run_no_die(args, **opt): return subprocess.run(debug_args("running:", args), **opt).returncode == 0
 
 
-def run(args, **opt):
-    debug("running: " + " ".join(args))
-    return subprocess.run(args, check=True, **opt)
+def git_add(context, repo, branch, message):
+    if not Path(context).exists() or Path(f"{context}/.git").exists():
+        raise Exception("bad context")
+    with TemporaryDirectory() as temp_root:
+        if run_no_die(("git", "clone", "-b", branch, "--depth", "1", "--", repo, "."), cwd=temp_root):
+            run(("mv", f"{temp_root}/.git", context))
+        else:
+            run(("git", "init"), cwd=context)
+            run(("git", "remote", "add", "origin", repo), cwd=context)
+            run(("git", "checkout", "-b", branch), cwd=context)
+    run(("git", "add", "."), cwd=context)
+    run(("git", "config", "user.email", "ci@c4proto"), cwd=context)
+    run(("git", "config", "user.name", "ci@c4proto"), cwd=context)
+    if run_no_die(("git", "commit", "-m", message), cwd=context):
+        run(("git", "push", "--set-upstream", "origin", branch), cwd=context)
+    elif len(run(("git", "status", "--porcelain=v1"), cwd=context, text=True, capture_output=True).stdout.strip()) > 0:
+        raise Exception("can not commit")
+    else:
+        print("unchanged")
 
 
 def connect():
@@ -44,26 +89,16 @@ def exchange(conn_url, method, resource, data):
 
 def need_tag(conn_url, tag_name):
     status, res = exchange(conn_url, "POST", "repository/tags", {"tag_name": tag_name, "ref": e['CI_COMMIT_SHA']})
-    debug((status, res))
-    # if status == 201:
-    #     debug(f"tag created: {tag_name}")
-    #     return
-    # # we get 400 already exists
-    # status, res = exchange(conn_url, "GET", "repository/tags/"+tag_name, None)
-    # if status == 200 and res["target"] == e['CI_COMMIT_SHA']:
-    #     debug(f"tag exists: {tag_name}")
-    #     return
-    # never((status, res))
-    # # we get 404 Not Found -- let pipeline fail later
+    debug_args("need_tag", (status, res))
 
 
 def post_pipeline(conn_url, tag_name, variables):
-    variables_list = [{"key": k, "value": v} for k, v in sorted_items(variables)]
+    variables_list = [{"key": k, "value": v} for k, v in sorted(variables.items())]
     status, res = exchange(conn_url, "POST", "pipeline", {"ref": tag_name, "variables": variables_list})
     if status == 201:
-        debug(f"pipeline created: {res['web_url']}")
-        return res["id"]
-    never((status, res))
+        pipeline_id, pipeline_web_url = debug_args(f"pipeline created:", (res["id"], res["web_url"]))
+        return pipeline_id
+    raise Exception((status, res))
 
 
 def read_text(path): return Path(path).read_text(encoding='utf-8', errors='strict')
@@ -72,7 +107,7 @@ def read_text(path): return Path(path).read_text(encoding='utf-8', errors='stric
 def over_bytes(f, text): return f(text.encode('utf-8')).decode('utf-8')
 
 
-def handle_generate():
+def handle_generate(repo, branch):
     conf = load(sys.stdin)
     script_body = read_text(sys.argv[0]).replace("'"+"C4GITLAB_CONFIG_JSON"+"'", dumps(conf))
     out = {
@@ -123,7 +158,10 @@ def handle_generate():
             }
         },
     }
-    dump(out, sys.stdout, sort_keys=True, indent=4)
+    temp_root = TemporaryDirectory()
+    res = dumps(out, sort_keys=True, indent=4)
+    Path(f"{temp_root}/gitlab-ci-generated.yml").write_text(res, encoding='utf-8', errors='strict')
+    git_add(temp_root, repo, branch, "gitlab conf generated")
 
 
 def handle_init():
@@ -135,25 +173,25 @@ def handle_init():
     }
     subj = sub("[^a-z]", "", branch.rpartition("/")[-1].lower())
     conn_url = connect()
-    for aggr, tag_name in sorted_items(tag_name_by_aggr):
+    for aggr, tag_name in sorted(tag_name_by_aggr.items()):
         need_tag(conn_url, tag_name)
         post_pipeline(conn_url, tag_name, {"C4GITLAB_AGGR": aggr, "C4GITLAB_SUBJ": subj})
 
 
-def handle_deploy(env_mask):
-    env_state = (
+def handle_deploy(env_state_mask):
+    env_mask, state = env_state_mask.split("=")
+    c4env = (
         env_mask.replace("{C4USER}", sub("[^a-z]", "", e["GITLAB_USER_LOGIN"].lower()))
         .replace("{C4SUBJ}", e["C4GITLAB_SUBJ"]).replace("{C4AGGR}", e["C4GITLAB_AGGR"])
     )
     temp_root = TemporaryDirectory()
     out_path = f"{temp_root.name}/out.json"
-    run(("c4ci_prep", "--context", e["CI_PROJECT_DIR"], "--env-state", env_state, "--info-out", out_path))
+    run(("c4ci_prep", "--context", e["CI_PROJECT_DIR"], "--c4env", c4env, "--state", state, "--info-out", out_path))
     start_info_raw = read_text(out_path)
     info = loads(start_info_raw)
-    stop_info_raw = dumps({**info, "state": "c4-off", "manifests": []}, sort_keys=True)
+    stop_info_raw = dumps({**info, "state": "off", "manifests": []}, sort_keys=True)
     conn_url = connect()
-    mans = info["manifests"]
-    name, = {man["metadata"]["labels"]["c4env"] for man in mans}
+    mans, name = info["manifests"], info["c4env"]
     group, = {man["metadata"]["labels"]["c4env_group"] for man in mans}
     urls = [
         f"https://{h}"
@@ -168,12 +206,11 @@ def handle_deploy(env_mask):
     while True:
         status, jobs = exchange(conn_url, "GET", f"pipelines/{pipeline_id}/jobs", None)
         job = next((j for j in jobs if j["name"] == "start"), None)
-        job_status = job["status"]
-        debug(f'{job_status} {job["web_url"]}')
+        job_status, job_web_url = debug_args("env job:", (job["status"], job["web_url"]))
         if job_status == "success":
             break
         if job_status == "failed" or job_status == "canceled":
-            never(job_status)
+            raise Exception(job_status)
         sleep(5)
 
 
