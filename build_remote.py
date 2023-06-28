@@ -14,9 +14,16 @@ from c4util.build import never, run, run_no_die, run_pipe_no_die, Popen, \
     build_cached_by_content, setup_parser, secret_part_to_text, crane_image_exists, get_proto, get_image_conf
 
 
+def perl_exec(*lines):
+    return "\n".join(('#!/usr/bin/perl', 'use strict;', *lines, 'die;'))
+
+
 def c4dsync(kube_ctx):
     rsh_raw = f"/tmp/c4rsh_raw-{kube_ctx}"
-    content = f'my ($pod,@args) = @ARGV; exec "kubectl", "--context", "{kube_ctx}", "exec", "-i", $pod, "--", @args;'
+    content = perl_exec(
+        f'my ($pod,@args) = @ARGV;',
+        f'exec "kubectl", "--context", "{kube_ctx}", "exec", "-i", $pod, "--", @args;'
+    )
     for save in changing_text_observe(rsh_raw, content):
         save()
         run(("chmod", "+x", rsh_raw))
@@ -300,9 +307,8 @@ def build_type_de(proj_tag, context, out):
     run(("perl", f"{proto_dir}/sync_setup.pl", need_dir(f"{out}/tools")))
     run(("rsync", "-a", "--exclude", ".git", f"{context}/", need_dir(f"{out}{build_dir}")))
     # shutil.copytree seems to be slower
-    changing_text(need_dir(f"{out}/c4")+"/c4serve.pl", "\n".join(
-        ('#!/usr/bin/perl', 'use strict;', 'exec "perl","$ENV{C4CI_PROTO_DIR}/sandbox.pl","main";', 'die;')
-    ))
+    need_dir(f"{out}/c4")
+    changing_text(f"{out}/c4/c4serve.pl", perl_exec('exec "perl","$ENV{C4CI_PROTO_DIR}/sandbox.pl","main";'))
     changing_text(f"{out}/c4/debug-tag", proj_tag)
 
 
