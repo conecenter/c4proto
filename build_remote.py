@@ -14,14 +14,23 @@ from c4util.build import never, run, run_no_die, run_pipe_no_die, Popen, \
     build_cached_by_content, setup_parser, secret_part_to_text, crane_image_exists, get_proto, get_image_conf
 
 
-def rsync_args(from_pod, to_pod): return ("c4dsync", "-acr", "--del", "--files-from", "-", *(
+def c4dsync(kube_ctx):
+    rsh_raw = f"/tmp/c4rsh_raw-{kube_ctx}"
+    content = f'my ($pod,@args) = @ARGV; exec "kubectl", "--context", "{kube_ctx}", "exec", "-i", $pod, "--", @args;'
+    for save in changing_text_observe(rsh_raw, content):
+        save()
+        run(("chmod", "+x", rsh_raw))
+    return "rsync", "--blocking-io", "-e", rsh_raw
+
+
+def rsync_args(kube_ctx, from_pod, to_pod): return (*c4dsync(kube_ctx), "-acr", "--del", "--files-from", "-", *(
     (f"{from_pod}:/", "/") if from_pod and not to_pod else
     ("/", f"{to_pod}:/") if not from_pod and to_pod else never("bad args")
 ))
 
 
-def rsync(from_pod, to_pod, files):
-    run(rsync_args(from_pod, to_pod), text=True, input="\n".join(files))
+def rsync(kube_ctx, from_pod, to_pod, files):
+    run(rsync_args(from_pod, to_pod, kube_ctx), text=True, input="\n".join(files))
 
 
 def sbt_args(mod_dir,java_opt):
@@ -35,6 +44,7 @@ class CompileOptions(typing.NamedTuple):
     cache_pod_name: str
     cache_path: str
     java_options: str
+    deploy_context: str
 
 def get_more_compile_options(context, commit, proj_tag):
     build_conf = read_json(f"{context}/target/c4/build.json")
@@ -43,7 +53,8 @@ def get_more_compile_options(context, commit, proj_tag):
     mod_dir = f"{context}/target/c4/mod.{mod}.d"
     cache_pod_name = get_cb_name("cache")
     cache_path = f"/tmp/c4cache-{commit}-{proj_tag}"
-    return CompileOptions(mod, mod_dir, cache_pod_name, cache_path, java_options)
+    deploy_context, = {line[2] for line in build_conf["plain"] if line[0] == "C4DEPLOY_CONTEXT"}
+    return CompileOptions(mod, mod_dir, cache_pod_name, cache_path, java_options, deploy_context)
 
 
 def remote_compile(context, user, proj_tag):
@@ -74,10 +85,10 @@ def remote_compile(context, user, proj_tag):
             print("cache get ok")
         save()
     full_sync_paths = (f"{context}/{part}" for part in json.loads(read_text(f"{mod_dir}/c4sync_paths.json")))
-    rsync(None, pod, [path for path in full_sync_paths if path_exists(path)])
+    rsync(compile_options.deploy_context, None, pod, [path for path in full_sync_paths if path_exists(path)])
     kcd_run("exec", pod, "--", *sbt_args(mod_dir, compile_options.java_options))
-    rsync(pod, None, [cp_path])
-    rsync(pod, None, read_text(cp_path).split(":"))
+    rsync(compile_options.deploy_context, pod, None, [cp_path])
+    rsync(compile_options.deploy_context, pod, None, read_text(cp_path).split(":"))
 
 
 def push_compilation_cache(compile_options):
@@ -184,7 +195,7 @@ def build_some_parts(parts, context, get_plain_option):
     remote_conf = "/tmp/.c4-kube-config"
     deploy_context = get_plain_option("C4DEPLOY_CONTEXT")
     for part, life, name in build_pods:
-        run(("c4dsync", "-ac", "--del", "--exclude", ".git", f"{context}/", f"{name}:{context}/"))
+        run((*c4dsync(deploy_context), "-ac", "--del", "--exclude", ".git", f"{context}/", f"{name}:{context}/"))
         # syncing just '/' does not work, because can not change time for '/tmp'
         cat_secret_to_pod(name, remote_conf, get_plain_option("C4DEPLOY_CONFIG"))
     processes = [
@@ -286,7 +297,7 @@ def build_type_de(proj_tag, context, out):
         f"ENV C4CI_BUILD_DIR={build_dir}",
         f"ENV C4CI_PROTO_DIR={build_dir}/{proto_postfix}",
     )))
-    run(("perl", f"{proto_dir}/sync_setup.pl"), env={**os.environ, "HOME": out})
+    run(("perl", f"{proto_dir}/sync_setup.pl", need_dir(f"{out}/tools")))
     run(("rsync", "-a", "--exclude", ".git", f"{context}/", need_dir(f"{out}{build_dir}")))
     # shutil.copytree seems to be slower
     changing_text(need_dir(f"{out}/c4")+"/c4serve.pl", "\n".join(
