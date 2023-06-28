@@ -17,7 +17,7 @@ def main(build_path):
             "FROM ubuntu:22.04",
             "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /replink.pl /",
             "RUN perl install.pl useradd 1979",
-            "RUN perl install.pl apt curl ca-certificates python3 git libjson-xs-perl",
+            "RUN perl install.pl apt curl ca-certificates python3 git libjson-xs-perl rsync",
             "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl" +
             " && chmod +x /tools/kubectl",
             "RUN perl install.pl curl https://get.helm.sh/helm-v3.12.1-linux-amd64.tar.gz",
