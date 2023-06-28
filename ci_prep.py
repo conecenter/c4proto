@@ -42,11 +42,7 @@ def main():
     run(("/replink.pl",), env={"C4REPO_MAIN_CONF": f"{dir_nm}/{replink}"})
     args = ("--context", dir_nm, "--env-state", env_state, "--info-out", info_out)
     run(("python3", "-u", f"{dir_nm}/{proto_postfix}/build_remote.py", "ci_prep", *args), env={
-        "C4DEPLOY_CONTEXT": deploy_context,
-        "PATH": os.environ["PATH"],
-        "HOME": os.environ["HOME"],
-        # "KUBECONFIG": os.environ["HOME"]+"/.kube/config"
+        "C4DEPLOY_CONTEXT": deploy_context, "PATH": os.environ["PATH"], "KUBECONFIG": os.environ["KUBECONFIG"]
     })
-
 
 main()
