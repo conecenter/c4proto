@@ -44,6 +44,7 @@ def main():
     run(("python3", "-u", f"{dir_nm}/{proto_postfix}/build_remote.py", "ci_prep", *args), env={
         "C4DEPLOY_CONTEXT": deploy_context,
         "PATH": os.environ["PATH"],
+        "HOME": os.environ["HOME"],
         # "KUBECONFIG": os.environ["HOME"]+"/.kube/config"
     })
 
