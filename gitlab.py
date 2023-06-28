@@ -152,7 +152,10 @@ def handle_deploy(env_mask):
     mans = info["manifests"]
     name, = {man["metadata"]["labels"]["c4env"] for man in mans}
     group, = {man["metadata"]["labels"]["c4env_group"] for man in mans}
-    urls = [f"https://{h}" for man in mans if man["kind"] == "Ingress" for h in man["spec"]["tls"]["hosts"]]
+    urls = [
+        f"https://{h}"
+        for man in mans if man["kind"] == "Ingress" for tls in man["spec"].get("tls", []) for h in tls["hosts"]
+    ]
     variables = {
         "C4GITLAB_ENV_GROUP": group, "C4GITLAB_ENV_NAME": name, "C4GITLAB_ENV_URL": max([""]+urls),
         "C4GITLAB_ENV_INFO_START": over_bytes(base64.b64encode, start_info_raw),
