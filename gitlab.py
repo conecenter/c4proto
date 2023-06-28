@@ -41,7 +41,7 @@ from time import sleep, monotonic
 
 
 def debug_args(hint, args):
-    print(hint+" "+" ".join(args), file=sys.stderr)
+    print(hint+" "+" ".join(str(a) for a in args), file=sys.stderr)
     return args
 
 
