@@ -611,7 +611,7 @@ push @tasks, ["up_kc_host", "", sub{ # the last multi container kc
             {
                 apiGroups => ["","apps","extensions","metrics.k8s.io"],
                 resources => ["statefulsets","secrets","services","deployments","ingresses","pods","replicasets"],
-                verbs => ["get","create","patch","delete","list","watch"],
+                verbs => ["get","create","patch","delete","update","list","watch"],
             },
             {
                 apiGroups => [""],
