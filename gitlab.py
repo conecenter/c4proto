@@ -160,8 +160,8 @@ def handle_generate(repo, branch):
     }
     temp_root = TemporaryDirectory()
     res = dumps(out, sort_keys=True, indent=4)
-    Path(f"{temp_root}/gitlab-ci-generated.yml").write_text(res, encoding='utf-8', errors='strict')
-    git_add(temp_root, repo, branch, "gitlab conf generated")
+    Path(f"{temp_root.name}/gitlab-ci-generated.yml").write_text(res, encoding='utf-8', errors='strict')
+    git_add(temp_root.name, repo, branch, "gitlab conf generated")
 
 
 def handle_init():
