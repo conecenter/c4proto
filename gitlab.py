@@ -47,6 +47,7 @@ def need_tag(conn_url, tag_name):
     if status == 201:
         debug(f"tag created: {tag_name}")
         return
+    debug((status, res))
     status, res = exchange(conn_url, "GET", "repository/tags/"+tag_name, None)
     if status == 200 and res["target"] == e['CI_COMMIT_SHA']:
         debug(f"tag exists: {tag_name}")
