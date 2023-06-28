@@ -17,10 +17,12 @@ def main(build_path):
             "FROM ubuntu:22.04",
             "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /replink.pl /",
             "RUN perl install.pl useradd 1979",
-            "RUN perl install.pl apt curl ca-certificates",
+            "RUN perl install.pl apt curl ca-certificates python3 git libjson-xs-perl",
+            "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl" +
+            " && chmod +x /tools/kubectl",
             "RUN perl install.pl curl https://get.helm.sh/helm-v3.12.1-linux-amd64.tar.gz",
-            "COPY c4ci_prep c4ci_up /tools", "RUN chmod +x /tools/c4ci_prep /tools/c4ci_up",
-            "ENV PATH=${PATH}:/tools/linux",
+            "COPY c4ci_prep c4ci_up /tools/", "RUN chmod +x /tools/c4ci_prep /tools/c4ci_up",
+            "ENV PATH=${PATH}:/tools:/tools/linux",
         ))
         changing_text(f"{temp_root}/Dockerfile", steps)
         image = build_cached_by_content(temp_root, repo, "c4push/.dockerconfigjson")

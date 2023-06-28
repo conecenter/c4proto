@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3 -u
 import sys
 import subprocess
 from tempfile import TemporaryDirectory
