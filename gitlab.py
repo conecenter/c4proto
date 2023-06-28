@@ -169,7 +169,7 @@ def handle_deploy(env_mask):
         status, jobs = exchange(conn_url, "GET", f"pipelines/{pipeline_id}/jobs", None)
         job = next((j for j in jobs if j["name"] == "start"), None)
         job_status = job["status"]
-        debug((job_status, job["web_url"]))
+        debug(f'{job_status} {job["web_url"]}')
         if job_status == "success":
             break
         if job_status == "failed" or job_status == "canceled":

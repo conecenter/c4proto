@@ -610,7 +610,7 @@ push @tasks, ["up_kc_host", "", sub{ # the last multi container kc
         rules => [
             {
                 apiGroups => ["","apps","extensions","metrics.k8s.io"],
-                resources => ["statefulsets","secrets","services","deployments","ingresses","pods"],
+                resources => ["statefulsets","secrets","services","deployments","ingresses","pods","replicasets"],
                 verbs => ["get","create","patch","delete","list","watch"],
             },
             {
