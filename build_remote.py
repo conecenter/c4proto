@@ -11,7 +11,8 @@ import re
 from c4util import path_exists, read_text, changing_text, read_json, changing_text_observe, one
 from c4util.build import never, run, run_no_die, run_pipe_no_die, Popen, \
     wait_processes, need_dir, kcd_args, kcd_run, need_pod, get_main_conf, get_temp_dev_pod, \
-    build_cached_by_content, setup_parser, secret_part_to_text, crane_image_exists, get_proto, get_image_conf
+    build_cached_by_content, setup_parser, secret_part_to_text, crane_image_exists, get_proto, get_image_conf, \
+    crane_login
 
 
 def perl_exec(*lines):
@@ -37,13 +38,15 @@ def rsync_args(kube_ctx, from_pod, to_pod): return (*c4dsync(kube_ctx), "-acr", 
 
 
 def rsync(kube_ctx, from_pod, to_pod, files):
-    run(rsync_args(from_pod, to_pod, kube_ctx), text=True, input="\n".join(files))
+    run(rsync_args(kube_ctx, from_pod, to_pod), text=True, input="\n".join(files))
 
 
-def sbt_args(mod_dir,java_opt):
-    return ("env","-C",mod_dir,f"JAVA_TOOL_OPTIONS={java_opt}","sbt","-Dsbt.color=true","c4build")
+def sbt_args(mod_dir, java_opt):
+    return "env", "-C", mod_dir, f"JAVA_TOOL_OPTIONS={java_opt}", "sbt", "-Dsbt.color=true", "c4build"
+
 
 def get_cb_name(v): return f"cb-v0-{v}"
+
 
 class CompileOptions(typing.NamedTuple):
     mod: str
@@ -52,6 +55,7 @@ class CompileOptions(typing.NamedTuple):
     cache_path: str
     java_options: str
     deploy_context: str
+
 
 def get_more_compile_options(context, commit, proj_tag):
     build_conf = read_json(f"{context}/target/c4/build.json")
@@ -139,6 +143,9 @@ def cat_secret_to_pod(name, path, secret_nm):
     run(kcd_args("exec", "-i", name, "--", "sh", "-c", f"cat >{path}"), text=True, input=secret_part_to_text(secret_nm))
 
 
+def push_secret_name(): return "c4push/.dockerconfigjson"
+
+
 def ci_prep(context, c4env, env_state, info_out):
     temp_root = tempfile.TemporaryDirectory()
     info("reading general build settings ...")
@@ -169,6 +176,7 @@ def ci_prep(context, c4env, env_state, info_out):
     out = {"kube-context": kube_context, "manifests": manifests, "state": out_state, "c4env": c4env}
     changing_text(info_out, json.dumps(out, sort_keys=True, indent=4))
     #
+    crane_login(secret_part_to_text(push_secret_name()))
     build_parts = [part for part in parts if not crane_image_exists(part["from_image"])]
     if build_parts:
         build_some_parts(build_parts, context, get_plain_option)
@@ -178,7 +186,7 @@ def ci_prep(context, c4env, env_state, info_out):
     allowed = {"rt", "sy"}
     if cp_parts:
         pod_life, name = get_temp_dev_pod({"image": "quay.io/skopeo/stable:v1.10.0", **opt_sleep()})
-        cat_secret_to_pod(name, "/tmp/auth.json", "c4push/.dockerconfigjson")
+        cat_secret_to_pod(name, "/tmp/auth.json", push_secret_name())
         for part in cp_parts:
             if part["image_type"] not in allowed:
                 never("source deploy to alien repo is not allowed")
@@ -190,7 +198,7 @@ def need_base_image(context, get_plain_option):
     image_repo, image_tag_prefix = get_image_conf(get_plain_option)
     temp_root = tempfile.TemporaryDirectory()
     changing_text(f"{temp_root.name}/Dockerfile", read_text(f"{proto_dir}/build.def.dockerfile"))
-    return build_cached_by_content(temp_root.name, image_repo, "c4push/.dockerconfigjson")
+    return build_cached_by_content(temp_root.name, image_repo, push_secret_name())
 
 
 def build_some_parts(parts, context, get_plain_option):
@@ -242,7 +250,7 @@ def build_inner(handlers, context, image_type, proj_tag):
     handlers[f"build_type-{image_type}"](proj_tag)(context, out_context.name)
     temp_root_pre = tempfile.TemporaryDirectory()
     run(("mv", f"{out_context.name}/Dockerfile", temp_root_pre.name))
-    pre_image = build_cached_by_content(temp_root_pre.name, image_repo, "c4push/.dockerconfigjson")
+    pre_image = build_cached_by_content(temp_root_pre.name, image_repo, push_secret_name())
     crane_append(out_context.name, pre_image, res_image)
 
 
