@@ -1,5 +1,5 @@
 
-import {createElement,useState,useCallback,useEffect,memo} from "react"
+import {createElement,useState,useCallback,memo} from "react"
 import ReactDOM      from 'react-dom'
 import {splitFirst,spreadAll,oValues}    from "../main/util.js"
 import {ifInputsChanged,dictKeys,branchByKey,rootCtx,ctxToPath,chain,someKeys} from "../main/vdom-util.js"
@@ -195,7 +195,7 @@ export function useSyncInput(identity,incomingValue,deferSend){
 const SyncInput = memo(function SyncInput({value,onChange,...props}){
     const {identity,deferSend} = onChange
     const patch = useSyncInput(identity,value,deferSend)
-    return props.children({...props, ...patch})
+    return props.children({identity, ...props, ...patch})
 })
 
 /********* traverse ***********************************************************/
@@ -240,6 +240,7 @@ export function VDomAttributes(sender){
             const sent = sender.send(identityCtx,patch)
             return parseInt(sent["x-r-index"])
         },
+        ctxToPath
     }
     function SyncInputRoot({incoming,ack,isRoot}){
         return createSyncProviders({ ack, isRoot, sender: inpSender, children: elementWeakCache(incoming) })
