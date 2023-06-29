@@ -86,7 +86,7 @@ def remote_compile(context, user, proj_tag):
         if not run_no_die(kcd_args("exec", cache_pod_name, "--", "test", "-e", cache_path)):
             print("shared cache does not exist")
         else:
-            need_dir(mod_dir)
+            kcd_run("exec", pod, "--", "mkdir", "-p", mod_dir)
             pipe_ok = run_pipe_no_die(
                 kcd_args("exec", cache_pod_name, "--", "cat", cache_path),
                 kcd_args("exec", "-i", pod, "--", "tar", "-C", mod_dir, "-xzf-")
