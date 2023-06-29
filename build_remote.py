@@ -186,12 +186,11 @@ def ci_prep(context, c4env, env_state, info_out):
     #
     info("coping images to external registry ...")
     cp_parts = [part for part in parts if part["from_image"] != part["image"] and not crane_image_exists(part["image"])]
-    allowed = {"rt", "sy"}
     if cp_parts:
         pod_life, name = get_temp_dev_pod({"image": "quay.io/skopeo/stable:v1.10.0", **opt_sleep()})
         cat_secret_to_pod(name, "/tmp/auth.json", push_secret_name())
         for part in cp_parts:
-            if part["image_type"] not in allowed:
+            if part.get("only_source_repo"):
                 never("source deploy to alien repo is not allowed")
             kcd_run("exec", name, "--", "skopeo", "copy", f"docker://"+part["from_image"], f"docker://"+part["image"])
 
