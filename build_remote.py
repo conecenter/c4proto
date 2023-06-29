@@ -86,9 +86,10 @@ def remote_compile(context, user, proj_tag):
         if not run_no_die(kcd_args("exec", cache_pod_name, "--", "test", "-e", cache_path)):
             print("shared cache does not exist")
         else:
+            need_dir(mod_dir)
             pipe_ok = run_pipe_no_die(
                 kcd_args("exec", cache_pod_name, "--", "cat", cache_path),
-                kcd_args("exec", "-i", pod, "--", "tar", "-C", "/", "-xzf-")
+                kcd_args("exec", "-i", pod, "--", "tar", "-C", mod_dir, "-xzf-")
             )
             if not pipe_ok:
                 print("cache get failed")
@@ -108,10 +109,12 @@ def push_compilation_cache(compile_options):
     cache_path = compile_options.cache_path
     cache_tmp_path = f"{cache_path}-{uuid.uuid4()}"
     pipe_ok = run_pipe_no_die(
-        ("tar","-C","/","-czf-",mod_dir), kcd_args("exec","-i",cache_pod_name,"--","sh","-c",f"cat > {cache_tmp_path}")
+        ("tar", "-C", mod_dir, "-czf-", "."),
+        kcd_args("exec", "-i", cache_pod_name, "--", "sh", "-c", f"cat > {cache_tmp_path}")
     )
-    if not pipe_ok: never("cache put failed")
-    run(kcd_args("exec",cache_pod_name,"--","mv",cache_tmp_path,cache_path))
+    if not pipe_ok:
+        never("cache put failed")
+    run(kcd_args("exec", cache_pod_name, "--", "mv", cache_tmp_path, cache_path))
 
 def opt_sleep(): return { "command": ["sleep", "infinity"] }
 def opt_pull_secret(): return { "imagePullSecrets": [{ "name": "c4pull" }] }
