@@ -179,7 +179,7 @@ def ci_prep(context, c4env, env_state, info_out):
     out = {"kube-context": kube_context, "manifests": manifests, "state": out_state, "c4env": c4env}
     changing_text(info_out, json.dumps(out, sort_keys=True, indent=4))
     #
-    crane_login(secret_part_to_text(push_secret_name()))
+    crane_login(secret_part_to_text(push_secret_name()), "")
     build_parts = [part for part in parts if not crane_image_exists(part["from_image"])]
     if build_parts:
         build_some_parts(build_parts, context, get_plain_option)

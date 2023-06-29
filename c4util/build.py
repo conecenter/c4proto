@@ -88,14 +88,16 @@ def need_pod(name, get_opt):
 
 def never(a): raise Exception(a)
 
-def crane_login(push_secret):
+
+def crane_login(push_secret, repository):
     for registry, c in json.loads(push_secret)["auths"].items():
-        username, password = (
-            (c["username"],c["password"]) if "username" in c and "password" in c else
-            base64.b64decode(c["auth"]).decode(encoding='utf-8', errors='strict').split(":") if "auth" in c else
-            never("bad auth")
-        )
-        run(("crane","auth","login","-u",username,"--password-stdin",registry), text=True, input=password)
+        if registry in repository:
+            username, password = (
+                (c["username"], c["password"]) if "username" in c and "password" in c else
+                base64.b64decode(c["auth"]).decode(encoding='utf-8', errors='strict').split(":") if "auth" in c else
+                never("bad auth")
+            )
+            run(("crane", "auth", "login", "-u", username, "--password-stdin", registry), text=True, input=password)
 
 
 def crane_image_exists(image):
@@ -106,7 +108,7 @@ def crane_image_exists(image):
 
 def build_cached_by_content(context, repository, push_secret_name):
     push_secret = secret_part_to_text(push_secret_name)
-    crane_login(push_secret)
+    crane_login(push_secret, repository)
     files = sorted(run_text_out(("find","-type","f"),cwd=context).splitlines())
     sums = run_text_out(("sha256sum","--",*files),cwd=context)
     image = f"{repository}:c4b.{sha256(sums)[:8]}"

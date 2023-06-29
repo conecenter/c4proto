@@ -139,7 +139,7 @@ push @tasks, ["run","",sub{
     my($dir,$cmd)=@_;
     my $remote_dir = &$request_remote_dir();
     my $remote_pre = &$get_remote_pre();
-    sy("$remote_pre 'cd $remote_dir && $cmd'");
+    sy("$remote_pre 'cd $remote_dir && export KUBECONFIG=\$C4KUBECONFIG && $cmd'");
 }];
 
 $| = 1;
