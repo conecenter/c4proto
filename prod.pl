@@ -312,12 +312,6 @@ my $up_gate = sub{
         &$map($conf, sub{ my($k,$v)=@_; $k=~/^label:/ ? ($k,$v):() }),
     };
 };
-my $up_s3client = sub{
-    +{
-        image_type => "s3client", project => "def",
-        C4S3_CONF_DIR => "/c4conf-ceph-client", @req_small, "label:c4s3client" => "1"
-    };
-};
 my $up_elector = sub{
     +{
         image_type => "elector", project => "def",
@@ -337,7 +331,7 @@ my $up_resource_tracker = sub{
 
 my $conf_handler = {
     "consumer"=>$up_consumer, "gate"=>$up_gate, "client"=>$up_client,
-    "s3client"=>$up_s3client, "elector"=>$up_elector, "resource_tracker"=>$up_resource_tracker,
+    "s3client"=>sub{&$get_compose(@_)}, "elector"=>$up_elector, "resource_tracker"=>$up_resource_tracker,
 };
 
 ### snapshot op-s
