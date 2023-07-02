@@ -1,90 +1,120 @@
 
 import json
 import os
+import subprocess
+import sys
 import time
 import typing
 import uuid
 import tempfile
-import pathlib
-import argparse
-from c4util import path_exists, read_text, changing_text, read_json, one, \
-    changing_text_observe
+import re
+from c4util import path_exists, read_text, changing_text, read_json, changing_text_observe, one
 from c4util.build import never, run, run_no_die, run_pipe_no_die, Popen, \
-    wait_processes, need_dir, kcd_args, kcd_run, need_pod, temp_dev_pod, \
-    build_cached_by_content, setup_parser, secret_part_to_text, get_repo, crane_login, run_text_out
+    wait_processes, need_dir, kcd_args, kcd_run, need_pod, get_main_conf, get_temp_dev_pod, \
+    build_cached_by_content, setup_parser, secret_part_to_text, crane_image_exists, get_proto, get_image_conf, \
+    crane_login
 
 
-def get_proto_dir():
-    return os.environ["C4CI_PROTO_DIR"]
+def perl_exec(*lines):
+    return "\n".join(('#!/usr/bin/perl', 'use strict;', *lines, 'die;'))
 
-def rsync_args(from_pod, to_pod): return ("c4dsync","-acr","--del","--files-from","-",*(
-    (f"{from_pod}:/","/") if from_pod and not to_pod else
-    ("/",f"{to_pod}:/") if not from_pod and to_pod else never("bad args")
+
+def c4dsync(kube_ctx):
+    rsh_raw = f"/tmp/c4rsh_raw-{kube_ctx}"
+    content = perl_exec(
+        f'my ($pod,@args) = @ARGV;',
+        f'exec "kubectl", "--context", "{kube_ctx}", "exec", "-i", $pod, "--", @args;'
+    )
+    for save in changing_text_observe(rsh_raw, content):
+        save()
+        run(("chmod", "+x", rsh_raw))
+    return "rsync", "--blocking-io", "-e", rsh_raw
+
+
+def rsync_args(kube_ctx, from_pod, to_pod): return (*c4dsync(kube_ctx), "-acr", "--del", "--files-from", "-", *(
+    (f"{from_pod}:/", "/") if from_pod and not to_pod else
+    ("/", f"{to_pod}:/") if not from_pod and to_pod else never("bad args")
 ))
 
-def rsync(from_pod, to_pod, files):
-    run(rsync_args(from_pod, to_pod), text=True, input="\n".join(files))
 
-def sbt_args(mod_dir,java_opt):
-    return ("env","-C",mod_dir,f"JAVA_TOOL_OPTIONS={java_opt}","sbt","-Dsbt.color=true","c4build")
+def rsync(kube_ctx, from_pod, to_pod, files):
+    run(rsync_args(kube_ctx, from_pod, to_pod), text=True, input="\n".join(files))
+
+
+def sbt_args(mod_dir, java_opt):
+    return "env", "-C", mod_dir, f"JAVA_TOOL_OPTIONS={java_opt}", "sbt", "-Dsbt.color=true", "c4build"
+
 
 def get_cb_name(v): return f"cb-v0-{v}"
+
 
 class CompileOptions(typing.NamedTuple):
     mod: str
     mod_dir: str
     cache_pod_name: str
     cache_path: str
+    java_options: str
+    deploy_context: str
+
 
 def get_more_compile_options(context, commit, proj_tag):
-    mod = read_json(f"{context}/target/c4/build.json")["tag_info"][proj_tag]["mod"]
+    build_conf = read_json(f"{context}/target/c4/build.json")
+    mod = build_conf["tag_info"][proj_tag]["mod"]
+    java_options = " ".join((line[2] for line in build_conf["plain"] if line[0] == "C4BUILD_JAVA_TOOL_OPTIONS"))
     mod_dir = f"{context}/target/c4/mod.{mod}.d"
     cache_pod_name = get_cb_name("cache")
     cache_path = f"/tmp/c4cache-{commit}-{proj_tag}"
-    return CompileOptions(mod, mod_dir, cache_pod_name, cache_path)
+    deploy_context, = {line[2] for line in build_conf["plain"] if line[0] == "C4DEPLOY_CONTEXT"}
+    return CompileOptions(mod, mod_dir, cache_pod_name, cache_path, java_options, deploy_context)
 
-def compile(opt):
-    compile_options = get_more_compile_options(opt.context, opt.commit, opt.proj_tag)
+
+def remote_compile(context, user, proj_tag):
+    commit = get_commit(context)
+    compile_options = get_more_compile_options(context, commit, proj_tag)
     mod_dir = compile_options.mod_dir
     cache_pod_name = compile_options.cache_pod_name
     cache_path = compile_options.cache_path
-    pod = get_cb_name(f"u{opt.user}")
+    pod = get_cb_name(f"u{user}")
     cp_path = f"{mod_dir}/target/c4classpath"
-    need_pod(pod, lambda: { "image": opt.image, **opt_compiler() })
-    for save in changing_text_observe(f"{opt.context}/target/c4/compile_cache_ver", cache_path):
-        if not run_no_die(kcd_args("exec",pod,"--","test","-e",mod_dir)):
+    need_pod(pod, lambda: {"image": need_base_image(context, get_main_conf(context)), **opt_compiler()})
+    for save in changing_text_observe(f"{context}/target/c4/compile_cache_ver", cache_path):
+        if not run_no_die(kcd_args("exec", pod, "--", "test", "-e", mod_dir)):
             print("private cache does not exist")
-        elif not run_no_die(kcd_args("exec",pod,"--","rm","-r",mod_dir)):
+        elif not run_no_die(kcd_args("exec", pod, "--", "rm", "-r", mod_dir)):
             print("private cache rm failed")
             break
-        if not run_no_die(kcd_args("exec",cache_pod_name,"--","test","-e",cache_path)):
+        if not run_no_die(kcd_args("exec", cache_pod_name, "--", "test", "-e", cache_path)):
             print("shared cache does not exist")
         else:
+            kcd_run("exec", pod, "--", "mkdir", "-p", mod_dir)
             pipe_ok = run_pipe_no_die(
-                kcd_args("exec",cache_pod_name,"--","cat",cache_path), kcd_args("exec","-i",pod,"--","tar","-C","/","-xzf-")
+                kcd_args("exec", cache_pod_name, "--", "cat", cache_path),
+                kcd_args("exec", "-i", pod, "--", "tar", "-C", mod_dir, "-xzf-")
             )
             if not pipe_ok:
                 print("cache get failed")
                 break
             print("cache get ok")
         save()
-    full_sync_paths = (f"{opt.context}/{part}" for part in json.loads(read_text(f"{mod_dir}/c4sync_paths.json")))
-    rsync(None, pod, [path for path in full_sync_paths if path_exists(path)])
-    kcd_run("exec",pod,"--",*sbt_args(mod_dir,opt.java_options))
-    rsync(pod, None, [cp_path])
-    rsync(pod, None, read_text(cp_path).split(":"))
+    full_sync_paths = (f"{context}/{part}" for part in json.loads(read_text(f"{mod_dir}/c4sync_paths.json")))
+    rsync(compile_options.deploy_context, None, pod, [path for path in full_sync_paths if path_exists(path)])
+    kcd_run("exec", pod, "--", *sbt_args(mod_dir, compile_options.java_options))
+    rsync(compile_options.deploy_context, pod, None, [cp_path])
+    rsync(compile_options.deploy_context, pod, None, read_text(cp_path).split(":"))
 
-def push_compilation_cache(compile_options, image):
+
+def push_compilation_cache(compile_options):
     mod_dir = compile_options.mod_dir
     cache_pod_name = compile_options.cache_pod_name
     cache_path = compile_options.cache_path
-    need_pod(cache_pod_name, lambda: { "image": image, **opt_compiler() }) # todo: opt_cache_node
     cache_tmp_path = f"{cache_path}-{uuid.uuid4()}"
     pipe_ok = run_pipe_no_die(
-        ("tar","-C","/","-czf-",mod_dir), kcd_args("exec","-i",cache_pod_name,"--","sh","-c",f"cat > {cache_tmp_path}")
+        ("tar", "-C", mod_dir, "-czf-", "."),
+        kcd_args("exec", "-i", cache_pod_name, "--", "sh", "-c", f"cat > {cache_tmp_path}")
     )
-    if not pipe_ok: never("cache put failed")
-    run(kcd_args("exec",cache_pod_name,"--","mv",cache_tmp_path,cache_path))
+    if not pipe_ok:
+        never("cache put failed")
+    run(kcd_args("exec", cache_pod_name, "--", "mv", cache_tmp_path, cache_path))
 
 def opt_sleep(): return { "command": ["sleep", "infinity"] }
 def opt_pull_secret(): return { "imagePullSecrets": [{ "name": "c4pull" }] }
@@ -99,148 +129,254 @@ def crane_append(dir, base_image, target_image):
     #("tar","-cf-","--exclude",".git",f"--transform",f"s,^,{to_dir}/,","--owner","c4","--group","c4","-C",from_dir,"."), # skips parent dirs, so bad grants on unpack
     run_pipe_no_die(("tar","-cf-","-C",dir,"."), ("crane","append","-f-","-b",base_image,"-t",target_image)) or never("crane append")
 
-def build_image(opt):
-    push_secret = secret_part_to_text(opt.push_secret_from_k8s)
-    image = build_cached_by_content(opt.context, opt.repository, push_secret)
-    changing_text(opt.name_out, image)
 
-def perl_exec(line):
-    return "\n".join(('#!/usr/bin/perl','use strict;',line,'die;'))
+def get_commits(context):
+    return dict(re.findall("(\\S*):(\\S*)", read_text(f"{context}/target/c4repo_commits")))
 
-def perl_env(k,v):
-    return f'$ENV{{{k}}} ||= {json.dumps(v)};'
 
-def build_common(opt):
-    proto_dir = get_proto_dir()
-    pathlib.Path(f"{opt.context}/target").mkdir()
-    run(("perl",f"{proto_dir}/sync_mem.pl",opt.context))
-    build_dir = opt.build_dir
-    with tempfile.TemporaryDirectory() as temp_root:
-        proto_postfix = get_proto_postfix(opt.context)
-        d_from_file = read_text(f"{proto_dir}/build.def.dockerfile")
-        base_content = f"{d_from_file}\nENV C4CI_BUILD_DIR={build_dir}\nENV C4CI_PROTO_DIR={build_dir}/{proto_postfix}\n"
-        changing_text(f"{temp_root}/Dockerfile", base_content)
-        base_image = build_cached_by_content(temp_root, get_repo(opt.image), read_text(opt.push_secret))
-    with tempfile.TemporaryDirectory() as temp_root:
-        run(("perl",f"{proto_dir}/sync_setup.pl"), env={**os.environ,"HOME":temp_root})
-        run(("rsync","-a","--exclude",".git",f"{opt.context}/", need_dir(f"{temp_root}{build_dir}"))) #shutil.copytree seems to be slower
-        crane_append(temp_root, base_image, opt.image)
-    with tempfile.TemporaryDirectory() as temp_root:
-        changing_text(need_dir(f"{temp_root}/c4")+"/c4serve.pl", perl_exec('exec "perl","$ENV{C4CI_PROTO_DIR}/sandbox.pl","main";'))
-        crane_append(temp_root, opt.image, f"{opt.image}.de")
-    with tempfile.TemporaryDirectory() as temp_root:
-        tmp_home = need_dir(f"{temp_root}/c4")
-        tmp_bin = need_dir(f"{tmp_home}/bin")
-        tmp_c4ci = f"{tmp_bin}/c4ci"
-        changing_text(f"{tmp_home}/c4serve.pl", 'exec "sleep","infinity";die')
-        changing_text(tmp_c4ci, perl_exec("\n".join((
-            perl_env("C4COMMON_IMAGE",opt.image),
-            perl_env("C4COMMIT",opt.commit),
-            perl_env("C4DEPLOY_CONTEXT",os.environ['C4DEPLOY_CONTEXT']),
-            'exec "perl","$ENV{C4CI_PROTO_DIR}/prod.pl",@ARGV;'
-        ))))
-        run(("chmod","+x",tmp_c4ci))
-        crane_append(temp_root, opt.image, f"{opt.image}.ce")
-        #print(f"### To control deployment:")
-        #print(f"c4py ci up --image {opt.image} --app sp-xxx-xxx-xxx")
+def get_commit(context):
+    return get_commits(context)[""]
 
-def build_rt(opt):
-    with temp_dev_pod({ "image": opt.image, **opt_compiler() }) as name:
-        remote_push_config = "/tmp/.c4-push-config"
-        remote_kube_config = "/tmp/.c4-kube-config"
-        kcd_env = (f"KUBECONFIG={remote_kube_config}",f"C4DEPLOY_CONTEXT={os.environ['C4DEPLOY_CONTEXT']}")
-        kcd_run("cp",opt.push_secret,f"{name}:{remote_push_config}")
-        kcd_run("cp",os.environ["KUBECONFIG"],f"{name}:{remote_kube_config}")
-        kcd_run("exec", name, "--", "env", *kcd_env, f"python3.8", "-u", f"{get_proto_dir()}/build_remote.py",
-            "build_rt_inner", "--context", opt.context, "--proj-tag", opt.proj_tag,
-            "--commit", opt.commit, "--image", opt.image, "--java-options", opt.java_options,
-            "--build-client", opt.build_client, "--push-secret", remote_push_config
+
+def info(text):
+    print(f"[[{time.monotonic()}]] {text}", file=sys.stderr)
+
+
+def cat_secret_to_pod(name, path, secret_nm):
+    run(kcd_args("exec", "-i", name, "--", "sh", "-c", f"cat >{path}"), text=True, input=secret_part_to_text(secret_nm))
+
+
+def push_secret_name(): return "c4push/.dockerconfigjson"
+
+
+def ci_prep(context, c4env, env_state, info_out):
+    temp_root = tempfile.TemporaryDirectory()
+    info("reading general build settings ...")
+    get_plain_option = get_main_conf(context)
+    proto_postfix, proto_dir = get_proto(context, get_plain_option)
+    image_repo, image_tag_prefix = get_image_conf(get_plain_option)
+    info("getting commit info ...")
+    need_dir(f"{context}/target")
+    run(("perl", f"{proto_dir}/sync_mem.pl", context))
+    commit = get_commit(context)  # after sync_mem
+    #
+    info("making deploy info ...")
+    out_path = f"{temp_root.name}/out"
+    run(("perl", f"{proto_dir}/prod.pl", "ci_deploy_info", "--env-state", f"{c4env}-{env_state}", "--out", out_path))
+    parts = [
+        {
+            **part, "from_image": f"{image_repo}:{image_tag_prefix}.{commit}.{part['project']}.{part['image_type']}",
+            "image":
+                f"{part['to_repo'] or image_repo}:{image_tag_prefix}.{commit}.{part['project']}.{part['image_type']}",
+        } for part in read_json(out_path)
+    ]
+    run(("perl", f"{proto_dir}/make_manifests.pl", "--values", json.dumps(parts), "--out", out_path))
+    manifests = read_json(out_path)
+    out_state = f"{image_tag_prefix}.{commit}.{env_state}"
+    kube_context, = {part["context"] for part in parts}
+    if c4env != one(*{man["metadata"]["labels"]["c4env"] for man in manifests}):
+        never("bad c4env name")
+    out = {"kube-context": kube_context, "manifests": manifests, "state": out_state, "c4env": c4env}
+    changing_text(info_out, json.dumps(out, sort_keys=True, indent=4))
+    #
+    crane_login(secret_part_to_text(push_secret_name()), "")
+    build_parts = [part for part in parts if not crane_image_exists(part["from_image"])]
+    if build_parts:
+        build_some_parts(build_parts, context, get_plain_option)
+    #
+    info("coping images to external registry ...")
+    cp_parts = [part for part in parts if part["from_image"] != part["image"] and not crane_image_exists(part["image"])]
+    if cp_parts:
+        pod_life, name = get_temp_dev_pod({"image": "quay.io/skopeo/stable:v1.10.0", **opt_sleep()})
+        cat_secret_to_pod(name, "/tmp/auth.json", push_secret_name())
+        for part in cp_parts:
+            if part.get("only_source_repo"):
+                never("source deploy to alien repo is not allowed")
+            kcd_run("exec", name, "--", "skopeo", "copy", f"docker://"+part["from_image"], f"docker://"+part["image"])
+
+
+def need_base_image(context, get_plain_option):
+    proto_postfix, proto_dir = get_proto(context, get_plain_option)
+    image_repo, image_tag_prefix = get_image_conf(get_plain_option)
+    temp_root = tempfile.TemporaryDirectory()
+    changing_text(f"{temp_root.name}/Dockerfile", read_text(f"{proto_dir}/build.def.dockerfile"))
+    return build_cached_by_content(temp_root.name, image_repo, push_secret_name())
+
+
+def build_some_parts(parts, context, get_plain_option):
+    proto_postfix, proto_dir = get_proto(context, get_plain_option)
+    info("making base builder image ...")
+    base_image = need_base_image(context, get_plain_option)
+    info("starting build tasks for images ...")
+    cache_pod_nm = get_cb_name("cache")
+    need_pod(cache_pod_nm, lambda: {"image": base_image, **opt_compiler()})  # todo: opt_cache_node
+    build_pods = [(part, *get_temp_dev_pod({"image": base_image, **opt_compiler()})) for part in parts]
+    remote_conf = "/tmp/.c4-kube-config"
+    deploy_context = get_plain_option("C4DEPLOY_CONTEXT")
+    for part, life, name in build_pods:
+        run((*c4dsync(deploy_context), "-ac", "--del", "--exclude", ".git", f"{context}/", f"{name}:{context}/"))
+        # syncing just '/' does not work, because can not change time for '/tmp'
+        cat_secret_to_pod(name, remote_conf, get_plain_option("C4DEPLOY_CONFIG"))
+    processes = [
+        (
+            part_name, build_proc, " ".join(kcd_args("exec", cache_pod_nm, "--", "tail", "-f", log_path)),
+            Popen(kcd_args("exec", "-i", cache_pod_nm, "--", "sh", "-c", f"cat > {log_path}"), stdin=build_proc.stdout)
         )
+        for part, life, name in build_pods
+        for part_name, log_path in [(part['name'], f"/tmp/c4log-{name}")]
+        for build_proc in [Popen(kcd_args(
+            "exec", name, "--", "env", f"KUBECONFIG={remote_conf}", f"C4DEPLOY_CONTEXT={deploy_context}",
+            "python3.8", "-u", f"{proto_dir}/build_remote.py",
+            "build_inner", "--context", context, "--proj-tag", part["project"], "--image-type", part["image_type"]
+        ), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)]
+    ]
+    print("To view logs:\n"+"\n".join(f"  ={part_name}= {log_cmd}" for part_name, b_proc, log_cmd, l_proc in processes))
+    info("waiting images ...")
+    started = time.monotonic()
+    for part in parts:
+        while not crane_image_exists(part["from_image"]):
+            for part_name, build_proc, log_cmd, log_proc in processes:
+                if build_proc.poll() or log_proc.poll():
+                    never(part_name)
+            if time.monotonic() - started > 60*30:
+                never("timeout")
+            time.sleep(5)
 
-def build_rt_inner(opt):
-    proto_dir = get_proto_dir()
-    rt_img = f"{opt.image}.{opt.proj_tag}.rt"
-    prod = ("perl",f"{proto_dir}/prod.pl")
+
+def build_inner(handlers, context, image_type, proj_tag):
+    get_plain_option = get_main_conf(context)
+    image_repo, image_tag_prefix = get_image_conf(get_plain_option)
+    commit = get_commit(context)
+    res_image = f"{image_repo}:{image_tag_prefix}.{commit}.{proj_tag}.{image_type}"
+    out_context = tempfile.TemporaryDirectory()
+    handlers[f"build_type-{image_type}"](proj_tag)(context, out_context.name)
+    temp_root_pre = tempfile.TemporaryDirectory()
+    run(("mv", f"{out_context.name}/Dockerfile", temp_root_pre.name))
+    pre_image = build_cached_by_content(temp_root_pre.name, image_repo, push_secret_name())
+    crane_append(out_context.name, pre_image, res_image)
+
+
+def build_type_elector(context, out):
+    build_micro(context, out, ["elector.js"], [
+        "FROM ubuntu:20.04",
+        "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
+        "RUN perl install.pl useradd 1979",
+        "RUN perl install.pl apt curl ca-certificates xz-utils",  # xz-utils for node
+        "RUN perl install.pl curl https://nodejs.org/dist/v14.15.4/node-v14.15.4-linux-x64.tar.xz",
+        "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
+        " && chmod +x /tools/tini",
+        "USER c4",
+        'ENTRYPOINT ["/tools/tini","--","/tools/node/bin/node","/elector.js"]',
+    ])
+
+
+def build_type_resource_tracker(context, out):
+    build_micro(context, out, ["resources.py"], [
+        "FROM ubuntu:20.04",
+        "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
+        "RUN perl install.pl useradd 1979",
+        "RUN perl install.pl apt curl ca-certificates python3.8",
+        "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl && chmod +x /tools/kubectl",
+        "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
+        " && chmod +x /tools/tini",
+        "USER c4",
+        'ENV PATH=${PATH}:/tools',
+        'ENTRYPOINT ["/tools/tini","--","python3.8","/resources.py","tracker"]',
+    ])
+
+
+def build_type_s3client(context, out):
+    build_micro(context, out, [], [
+        "ARG C4UID=1979",
+        "FROM ghcr.io/conecenter/c4replink:v2",
+        "USER root",
+        "RUN perl install.pl apt curl ca-certificates",
+        "RUN /install.pl curl https://dl.min.io/client/mc/release/linux-amd64/mc && chmod +x /tools/mc",
+        'ENTRYPOINT /tools/mc alias set def' +
+        ' $(cat $C4S3_CONF_DIR/address) $(cat $C4S3_CONF_DIR/key) $(cat $C4S3_CONF_DIR/secret) && exec sleep infinity '
+    ])
+
+
+def build_micro(context, out, scripts, lines):
+    get_plain_option = get_main_conf(context)
+    proto_postfix, proto_dir = get_proto(context, get_plain_option)
+    changing_text(f"{out}/Dockerfile", "\n".join(lines))
+    for script in scripts:
+        changing_text(f"{out}/{script}", read_text(f"{proto_dir}/{script}"))
+
+
+def build_type_de(proj_tag, context, out):
+    get_plain_option = get_main_conf(context)
+    proto_postfix, proto_dir = get_proto(context, get_plain_option)
+    build_dir = get_plain_option("C4CI_BUILD_DIR")
+    deploy_context = get_plain_option("C4DEPLOY_CONTEXT")
+    changing_text(f"{out}/Dockerfile", "\n".join((
+        read_text(f"{proto_dir}/build.def.dockerfile"),
+        f"ENV C4DEPLOY_CONTEXT={deploy_context}",
+        f"ENV C4CI_BUILD_DIR={build_dir}",
+        f"ENV C4CI_PROTO_DIR={build_dir}/{proto_postfix}",
+    )))
+    run(("perl", f"{proto_dir}/sync_setup.pl", need_dir(f"{out}/tools")))
+    run(("rsync", "-a", "--exclude", ".git", f"{context}/", need_dir(f"{out}{build_dir}")))
+    # shutil.copytree seems to be slower
+    need_dir(f"{out}/c4")
+    changing_text(f"{out}/c4/c4serve.pl", perl_exec('exec "perl","$ENV{C4CI_PROTO_DIR}/sandbox.pl","main";'))
+    changing_text(f"{out}/c4/debug-tag", proj_tag)
+
+
+def build_type_rt(proj_tag, context, out):
+    get_plain_option = get_main_conf(context)
+    proto_postfix, proto_dir = get_proto(context, get_plain_option)
+    prod = ("perl", f"{proto_dir}/prod.pl")
     pre = ("python3.8", "-u", f"{proto_dir}/run_with_prefix.py")
-    run(("perl",f"{proto_dir}/build.pl"), cwd=opt.context)
-    compile_options = get_more_compile_options(opt.context, opt.commit, opt.proj_tag)  # after build.pl
+    run(("perl", f"{proto_dir}/build.pl"), cwd=context, env={
+        "C4CI_PROTO_DIR": proto_dir,
+        "PATH": os.environ["PATH"],  # sbt
+        "HOME": os.environ["HOME"],  # c4client_prep
+    })
+    client_proc_opt = (
+        (Popen((*pre, "=client=", *prod, "build_client_changed", context)),) if proj_tag != "def" else
+        ()  # after build.pl
+    )
+    compile_options = get_more_compile_options(context, get_commit(context), proj_tag)  # after build.pl
     mod = compile_options.mod
     mod_dir = compile_options.mod_dir
-    client_proc_opt = (Popen((*pre, "=client=", *prod, "build_client_changed", opt.context)),) if opt.build_client else ()  # after build.pl
-    run(sbt_args(mod_dir,opt.java_options))
-    run(("perl",f"{proto_dir}/build_env.pl", opt.context, mod))
-    check_proc = Popen((*pre, "=check=", *prod, "ci_rt_chk", opt.context, mod))  # after build_env.pl
-    push_compilation_cache(compile_options, opt.image)
+    run((*pre, f"=sbt=", *sbt_args(mod_dir, compile_options.java_options)))
+    run(("perl", f"{proto_dir}/build_env.pl", context, mod))
+    pr_env = {"C4CI_PROTO_DIR": proto_dir, "PATH": os.environ["PATH"]}
+    check_proc = Popen((*pre, "=check=", *prod, "ci_rt_chk", context, mod), env=pr_env)  # after build_env.pl
+    push_compilation_cache(compile_options)
     wait_processes((check_proc, *client_proc_opt)) or never("build failed")  # before ci_rt_base?
-    with tempfile.TemporaryDirectory() as temp_root:
-        run((*prod, "ci_rt_base", "--context", opt.context, "--proj-tag", opt.proj_tag, "--out-context", temp_root))
-        base_image = build_cached_by_content(temp_root, get_repo(opt.image), read_text(opt.push_secret))
-    with tempfile.TemporaryDirectory() as temp_root:
-        run((*prod, "ci_rt_over", "--context", opt.context, "--proj-tag", opt.proj_tag, "--out-context", temp_root))
-        crane_append(temp_root, base_image, rt_img)
-
-def get_proto_postfix(context):
-    proto_dir = get_proto_dir()
-    proto_prefix, _, proto_postfix = proto_dir.rpartition("/")
-    if proto_prefix != context: never(f"proto ({proto_dir}) out of context ({context})")
-    return proto_postfix
-
-def build_gate(opt):
-    proto_postfix = get_proto_postfix(opt.context)
-    proto_dir = get_proto_dir()
-    link = one(*(line for line in read_text(f"{opt.context}/c4dep.ci.replink").splitlines() if line.startswith(f"C4REL {proto_postfix}/")))
-    build_rt(argparse.Namespace(
-        image=opt.image, push_secret=opt.push_secret, java_options=opt.java_options,
-        commit=link.split()[-1], proj_tag="def", context=proto_dir, build_client=""
-    ))
-
-def copy_image(opt):
-    with temp_dev_pod({ "image": "quay.io/skopeo/stable:v1.10.0", **opt_sleep() }) as name:
-        kcd_run("cp",opt.push_secret,f"{name}:/tmp/auth.json")
-        kcd_run("exec",name,"--","skopeo","copy",f"docker://{opt.from_image}",f"docker://{opt.to_image}")
-
-def wait_image(opt):
-    secret = secret_part_to_text(opt.secret_from_k8s)
-    crane_login(secret)
-    started = time.monotonic()
-    while not run_no_die(("crane","manifest",opt.image)):
-        if time.monotonic() - started < 60*30:
-            time.sleep(5)
-        else:
-            never("timeout")
-
-def add_history(opt):
-    if not path_exists(opt.context) or path_exists(f"{opt.context}/.git"): never("bad context")
-    with tempfile.TemporaryDirectory() as temp_root:
-        if run_no_die(("git", "clone", "-b", opt.branch, "--depth", "1", "--", opt.repo, "."), cwd=temp_root):
-            run(("mv", f"{temp_root}/.git", opt.context))
-        else:
-            run(("git", "init"), cwd=opt.context)
-            run(("git", "remote", "add", "origin", opt.repo), cwd=opt.context)
-            run(("git", "checkout", "-b", opt.branch), cwd=opt.context)
-    run(("git", "add", "."), cwd=opt.context)
-    run(("git", "config", "user.email", "ci@c4proto"), cwd=opt.context)
-    run(("git", "config", "user.name", "ci@c4proto"), cwd=opt.context)
-    if run_no_die(("git", "commit", "-m", opt.message), cwd=opt.context):
-        run(("git", "push", "--set-upstream", "origin", opt.branch), cwd=opt.context)
-    elif len(run_text_out(("git", "status", "--porcelain=v1"), cwd=opt.context).strip()) > 0:
-        never("can not commit")
-    else:
-        print("unchanged")
+    run((*prod, "ci_rt_base", "--context", context, "--proj-tag", proj_tag, "--out-context", out), env=pr_env)
+    run((*prod, "ci_rt_over", "--context", context, "--proj-tag", proj_tag, "--out-context", out), env=pr_env)
 
 
 def main():
+    handlers = {
+        "build_type-rt": lambda proj_tag: (lambda *args: build_type_rt(proj_tag, *args)),
+        "build_type-de": lambda proj_tag: (lambda *args: build_type_de(proj_tag, *args)),
+        "build_type-elector": lambda proj_tag: build_type_elector,
+        "build_type-resource_tracker": lambda proj_tag: build_type_resource_tracker,
+        "build_type-s3client": lambda proj_tag: build_type_s3client,
+    }
     opt = setup_parser((
-        ('build_common'  , build_common  , ("--context","--image","--push-secret","--commit","--build-dir")),
-        ('build_gate'    , build_gate    , ("--context","--image","--push-secret","--java-options")),
-        ('build_rt'      , build_rt      , ("--context","--image","--push-secret","--commit","--proj-tag","--java-options","--build-client")),
-        ('build_rt_inner', build_rt_inner, ("--context","--image","--push-secret","--commit","--proj-tag","--java-options","--build-client")),
-        ('build_image'   , build_image   , ("--context","--repository","--push-secret-from-k8s","--name-out")),
-        ('compile'       , compile       , ("--context","--image","--user","--commit","--proj-tag","--java-options")),
-        ('copy_image'    , copy_image    , ("--from-image","--to-image","--push-secret")),
-        ('wait_image'    , wait_image    , ("--image","--secret-from-k8s")),
-        ('add_history'   , add_history   , ("--context","--repo","--branch","--message")),
+        (
+            'ci_prep',
+            lambda o: ci_prep(o.context, o.c4env, o.state, o.info_out),
+            ("--context", "--c4env", "--state", "--info-out")
+        ),
+        (
+            'build_inner',
+            lambda o: build_inner(handlers, o.context, o.image_type, o.proj_tag),
+            ('--context', "--image-type", '--proj-tag')
+        ),
+        #
+        ('compile', lambda o: remote_compile(o.context, o.user, o.proj_tag), ("--context", "--user", "--proj-tag")),
     )).parse_args()
     opt.op(opt)
 
+
 main()
+
+# argparse.Namespace
+# "docker/config.json"

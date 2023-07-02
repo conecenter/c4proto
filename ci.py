@@ -122,7 +122,7 @@ def main():
     opt = setup_parser((
         ("purge_mode_list", handle_purge_mode_list, ("--list",)),
         ("purge_prefix_list", handle_purge_prefix_list, ("--list",)),
-        ("clone_last_to_prefix_list", handle_clone_last_to_prefix_list, ("--from-prefix", "--to")),
+        ("clone_last_to_prefix_list", handle_clone_last_to_prefix_list, ("--from-prefix", "--to")),  # todo restore caller
     )).parse_args()
     opt.op(opt)
 

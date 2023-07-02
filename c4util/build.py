@@ -8,7 +8,8 @@ import contextlib
 import time
 import pathlib
 import base64
-from . import group_map, read_json, sha256
+import typing
+from . import group_map, read_json, sha256, one
 
 def run(args, **opt):
     print("running: " + " ".join(args))
@@ -87,21 +88,31 @@ def need_pod(name, get_opt):
 
 def never(a): raise Exception(a)
 
-def crane_login(push_secret):
-    for registry, c in json.loads(push_secret)["auths"].items():
-        username, password = (
-            (c["username"],c["password"]) if "username" in c and "password" in c else
-            base64.b64decode(c["auth"]).decode(encoding='utf-8', errors='strict').split(":") if "auth" in c else
-            never("bad auth")
-        )
-        run(("crane","auth","login","-u",username,"--password-stdin",registry), text=True, input=password)
 
-def build_cached_by_content(context, repository, push_secret):
-    crane_login(push_secret)
+def crane_login(push_secret, repository):
+    for registry, c in json.loads(push_secret)["auths"].items():
+        if registry in repository:
+            username, password = (
+                (c["username"], c["password"]) if "username" in c and "password" in c else
+                base64.b64decode(c["auth"]).decode(encoding='utf-8', errors='strict').split(":") if "auth" in c else
+                never("bad auth")
+            )
+            run(("crane", "auth", "login", "-u", username, "--password-stdin", registry), text=True, input=password)
+
+
+def crane_image_exists(image):
+    res = run_no_die(("crane", "manifest", image), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, text=True)
+    print("image found" if res else "image not found")
+    return res
+
+
+def build_cached_by_content(context, repository, push_secret_name):
+    push_secret = secret_part_to_text(push_secret_name)
+    crane_login(push_secret, repository)
     files = sorted(run_text_out(("find","-type","f"),cwd=context).splitlines())
     sums = run_text_out(("sha256sum","--",*files),cwd=context)
     image = f"{repository}:c4b.{sha256(sums)[:8]}"
-    if not run_no_die(("crane","manifest",image)):
+    if not crane_image_exists(image):
         with temp_dev_pod({ "image": "gcr.io/kaniko-project/executor:debug", "command": ["/busybox/sleep", "infinity"] }) as name:
             if not run_pipe_no_die(("tar","--exclude",".git","-C",context,"-czf-","."), kcd_args("exec","-i",name,"--","tar","-xzf-")):
                 never("tar failed")
@@ -119,9 +130,25 @@ def temp_dev_pod(opt):
     finally:
         kcd_run("delete","--wait=false",f"pod/{name}")
 
+
+def _temp_dev_pod_generator(opt):
+    name = f"tb-{uuid.uuid4()}"
+    apply_manifest(construct_pod({**opt, "name": name}))
+    try:
+        wait_pod(name, 60, ("Running",))
+        yield name
+    finally:
+        kcd_run("delete", "--wait=false", f"pod/{name}")
+
+
+def get_temp_dev_pod(opt):
+    generator = _temp_dev_pod_generator(opt)
+    return generator, next(generator)
+
+
 def setup_parser(commands):
     main_parser = argparse.ArgumentParser()
-    subparsers = main_parser.add_subparsers()
+    subparsers = main_parser.add_subparsers(required=True)
     for name, op, args in commands:
         parser = subparsers.add_parser(name)
         for a in args: parser.add_argument(a, required=True)
@@ -137,13 +164,27 @@ def secret_part_to_text(k8s_path):
     secret_name, secret_fn = k8s_path.split("/")
     return decode(get_secret_data(secret_name)(secret_fn))
 
-def get_repo(image):
-    res = image.rpartition(":")[0]
-    if not res: never(image)
-    return res
 
 def get_env_values_from_deployments(env_key, deployments):
     return {
         e["value"] for d in deployments for c in d["spec"]["template"]["spec"]["containers"]
         for e in c.get("env",[]) if e["name"] == env_key
     }
+
+
+def get_main_conf(context):
+    main_conf = group_map(read_json(f"{context}/c4dep.main.json"), lambda it: (it[0], it[2]))
+    return lambda k: one(*main_conf[k])
+
+
+def get_proto(context, get_plain_option):
+    proto_postfix = get_plain_option("C4PROTO_POSTFIX")
+    proto_dir = f"{context}/{proto_postfix}"
+    return proto_postfix, proto_dir
+
+
+def get_image_conf(get_plain_option):
+    repo = get_plain_option("C4CI_IMAGE_REPO")
+    image_tag_prefix = get_plain_option("C4CI_IMAGE_TAG_PREFIX")
+    return repo, image_tag_prefix
+

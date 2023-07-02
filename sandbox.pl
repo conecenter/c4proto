@@ -79,7 +79,7 @@ my $get_debug_ip = sub{
 
 my $remake = sub{
     my($build_dir,$droll) = @_;
-    my $arg = &$get_text_or_empty("/c4/debug-tag") || &$mandatory_of(C4CI_BASE_TAG_ENV => \%ENV);
+    my $arg = &$get_text_or_empty("/c4/debug-tag") || die;
     my $tmp = "$build_dir/target/c4";
     my $build_data = JSON::XS->new->decode(&$get_text_or_empty("$tmp/build.json"));
     my ($nm,$mod,$cl) = map{$$build_data{tag_info}{$arg}{$_}||die} qw[name mod main];
@@ -87,9 +87,6 @@ my $remake = sub{
     my $user = $ENV{HOSTNAME}=~/^de-(\w+)-/ ? $1 : die;
     local $ENV{KUBECONFIG} = $ENV{C4KUBECONFIG};
     so("python3.8", "-u", "$proto_dir/build_remote.py", "compile",
-        "--commit", &$mandatory_of(C4COMMIT => \%ENV),
-        "--image", &$mandatory_of(C4COMMON_IMAGE => \%ENV),
-        "--java-options", &$mandatory_of(C4BUILD_JAVA_TOOL_OPTIONS => \%ENV),
         "--proj-tag", $arg, "--user", $user, "--context", $build_dir,
     ) and return ();
     sy("perl", "$proto_dir/build_env.pl", $build_dir, $mod);

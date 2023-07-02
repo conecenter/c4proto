@@ -11,7 +11,7 @@ my $get_text = sub{
 };
 
 my $proto_dir = $ENV{C4CI_PROTO_DIR} || die;
-sy("perl","$proto_dir/sync_setup.pl");
+sy("perl","$proto_dir/sync_setup.pl","$ENV{HOME}/bin");
 my $dir = "$proto_dir/agent";
 sy("cd $dir && sbt c4build");
 exec "java","-cp",&$get_text("$dir/target/c4classpath"),"Main",@ARGV;die;
