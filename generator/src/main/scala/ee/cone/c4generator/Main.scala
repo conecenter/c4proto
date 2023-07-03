@@ -3,10 +3,7 @@ package ee.cone.c4generator
 import java.nio.file.{Files, Path, Paths}
 import java.util.UUID
 import java.nio.charset.StandardCharsets.UTF_8
-
-
-import scala.concurrent.Future
-import scala.concurrent.Await
+import scala.concurrent.{Await, ExecutionContextExecutor, Future}
 import scala.concurrent.duration.Duration
 import scala.meta.parsers.Parsed.{Error, Success}
 import scala.meta._
@@ -47,11 +44,12 @@ trait WillGenerator {
 }
 
 class ParentPath(val path: Path, val removed: List[String])
-class RootGenerator(generators: List[Generator]) {
+class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTextGenerator]=Nil) {
   def willGenerators: List[WillGenerator] = List(
     new DefaultWillGenerator(generators),
     new PublicPathsGenerator,
-    new ModRootsGenerator
+    new ModRootsGenerator,
+    new FromTextWillGenerator(fromTextGenerators)
   )
   //
   def isGenerated(path: Path): Boolean = path.getFileName.toString.startsWith(toPrefix)
@@ -92,28 +90,56 @@ class RootGenerator(generators: List[Generator]) {
   }
 }
 
-class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
-  def get(ctx: WillGeneratorContext): List[(Path,Array[Byte])] = {
+object Cached {
+  def apply(postfix: String, tasks: List[(Path,String=>String)]): List[(Path,Array[Byte])] = {
     val rootCachePath = Files.createDirectories(rootPath.resolve("cache"))
-    val fromPostfix = ".scala"
-    // 
-    val list = Await.result({
-      implicit val ec = scala.concurrent.ExecutionContext.global
-      Future.sequence(
-        ctx.fromFiles.filter(_.toString.endsWith(fromPostfix))
-          .map(path=>Future((path,pathToData(path,rootCachePath))))
-      )
-    },Duration.Inf).collect{
-      case (path,toData) if toData.length > 0 =>
-        path.getParent.resolve(s"$toPrefix${path.getFileName}") -> toData
+    Await.result({
+      implicit val ec: ExecutionContextExecutor = scala.concurrent.ExecutionContext.global
+      Future.sequence(tasks.map(pt=>Future{
+        val (path,transform) = pt
+        val fromData = Files.readAllBytes(path)
+        val uuidForPath = UUID.nameUUIDFromBytes(s"$path$postfix".getBytes(UTF_8)).toString
+        val uuid = UUID.nameUUIDFromBytes(fromData).toString
+        val cachePath = rootCachePath.resolve(s"$uuidForPath-$uuid-$version")
+        val out = if (Files.exists(cachePath)) Files.readAllBytes(cachePath) else {
+          println(s"parsing $path")
+          val toData = transform(new String(fromData,UTF_8)).getBytes(UTF_8)
+          Util.ignoreTheSamePath(Files.write(cachePath, toData))
+          toData
+        }
+        (path,out)
+      }))
+    },Duration.Inf).collect {
+      case (path, toData) if toData.nonEmpty =>
+        path.getParent.resolve(s"$toPrefix${path.getFileName}$postfix") -> toData
     }
-    withIndex(ctx)(list)
-//    withIndex(ctx)(for {
-//      path <- ctx.fromFiles.filter(_.toString.endsWith(fromPostfix))
-//      toData <- Option(pathToData(path,rootCachePath)) if toData.length > 0
-//    } yield path.getParent.resolve(s"$toPrefix${path.getFileName}") -> toData)
   }
-  def withIndex(ctx: WillGeneratorContext): List[(Path,Array[Byte])] => List[(Path,Array[Byte])] = args => {
+}
+
+case class FromTextGeneratorContext(pkgInfo: PkgInfo, content: String)
+trait FromTextGenerator {
+  def ext: String
+  def get(context: FromTextGeneratorContext): String
+}
+
+class FromTextWillGenerator(innerList: List[FromTextGenerator]) extends WillGenerator {
+  def get(ctx: WillGeneratorContext): List[(Path,Array[Byte])] = {
+    val ExtRegEx = """.*\.(\w+)""".r
+    val handlers = innerList.groupMapReduce(_.ext)(h=>h)((a,b)=>throw new Exception("ext conflict"))
+    val tasks = for {
+      mainScalaPath <- Main.env("C4GENERATOR_MAIN_SCALA_PATH").map(Paths.get(_)).toList
+      path <- ctx.fromFiles
+      ExtRegEx(ext) <- List(path.toString) if handlers.contains(ext)
+      pkgInfo <- Util.pkgInfo(mainScalaPath, path.getParent)
+    } yield (path, (content: String)=>handlers(ext).get(FromTextGeneratorContext(pkgInfo, content)))
+    Cached(".scala", tasks)
+  }
+}
+
+class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
+  def get(ctx: WillGeneratorContext): List[(Path,Array[Byte])] =
+    withIndex(ctx)(Cached("", ctx.fromFiles.filter(_.toString.endsWith(".scala")).map(path=>(path, pathToData(path)))))
+  private def withIndex(ctx: WillGeneratorContext): List[(Path,Array[Byte])] => List[(Path,Array[Byte])] = args => {
     val pattern = """\((\S+)\s(\S+)\s(\S+)\)""".r
     val indexes = (for {
       (path,data) <- args
@@ -150,16 +176,8 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
     }
     args ++ indexes
   }
-  def pathToData(path: Path, rootCachePath: Path): Array[Byte] = {
-    val fromData = Files.readAllBytes(path)
-    val uuidForPath = UUID.nameUUIDFromBytes(path.toString.getBytes(UTF_8)).toString
-    val uuid = UUID.nameUUIDFromBytes(fromData).toString
-    val cachePath = rootCachePath.resolve(s"$uuidForPath-$uuid-$version")
-    val Name = """.+/(\w+)\.scala""".r
-    if(Files.exists(cachePath)) Files.readAllBytes(cachePath) else {
-      println(s"parsing $path")
-      val content = new String(fromData,UTF_8).replace("\r\n","\n")
-      val source = dialects.Scala213(content).parse[Source]
+  private def pathToData(path: Path): String => String = contentRaw => {
+      val source = dialects.Scala213(contentRaw.replace("\r\n","\n")).parse[Source]
       val sourceStatements = source match {
         case Parsed.Success(source"..$sourceStatements") => sourceStatements
         case Parsed.Error(position, string, ex) => throw new Exception(s"Parse exception in ($path:${position.startLine})", ex)
@@ -196,18 +214,14 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
           case c => throw new Exception(s"$c")
         }
         val content = code.mkString("\n")
-        val contentWithLinks = if(content.isEmpty) "" else
+        if(content.isEmpty) "" else
           s"// THIS FILE IS GENERATED; APPLINKS: " +
           resStatements.collect{ case s: GeneratedAppLink =>
             s"(${s.pkg} ${s.app} ${s.expr})"
           }.mkString +
           "\n" +
           content
-        val toData = contentWithLinks.getBytes(UTF_8)
-        Util.ignoreTheSamePath(Files.write(cachePath,toData))
-        toData
       }
-    }
   }
 }
 
