@@ -31,12 +31,11 @@ object Main {
   def main(args: Array[String]): Unit = new RootGenerator(defaultGenerators(Nil) ::: List(
     ValInNonFinalGenerator
   )).run()
-  def toPrefix = "c4gen."
   def env(key: String): Option[String] = Option(System.getenv(key))
   def version: String = s"-w${env("C4GENERATOR_VER").getOrElse(throw new Exception(s"missing env C4GENERATOR_VER"))}"
   def workPath = Paths.get(env("C4GENERATOR_PATH").getOrElse(throw new Exception(s"missing env C4GENERATOR_PATH")))
 }
-import Main.{toPrefix,workPath,version}
+import Main.{workPath,version}
 
 case class WillGeneratorContext(
   fromFiles: List[Path], dirToModDir: Map[Path,ParentPath],
@@ -56,7 +55,7 @@ class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTe
     new FromTextWillGenerator(fromTextGenerators)
   )
   //
-  def isGenerated(path: Path): Boolean = path.getFileName.toString.startsWith(toPrefix)
+  def isGenerated(fileName: String): Boolean = fileName.startsWith("c4gen.") || fileName.startsWith("c4gen-")
   def getParentPaths(res: List[ParentPath]): List[ParentPath] = (for {
     parent <- Option(res.head.path.getParent)
     name <- Option(res.head.path.getFileName)
@@ -76,8 +75,7 @@ class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTe
     val dirs = for(it <- (conf("C4SRC") ++ conf("C4PUB")).distinct) yield workPath.resolve(it.to).toString
     val args = "find" :: dirs.toList ::: "-type" :: "f" :: Nil
     val filesA = new String(new ProcessBuilder(args:_*).start().getInputStream.readAllBytes(), UTF_8).split("\n") // Files.walk is much slower
-    val sToPrefix = s"/${toPrefix}"
-    val (wasFiles,fromFilesAll) = filesA.partition(_.contains(sToPrefix))
+    val (wasFiles,fromFilesAll) = filesA.partition{ path => isGenerated(path.substring(path.lastIndexOf("/")+1)) }
     val skipDirs = (for(it <- conf("C4GENERATOR_DIR_MODE") if it.from == "OFF") yield workPath.resolve(it.to)).toSet
     val fromFiles = fromFilesAll.map(Paths.get(_)).filterNot(path => skipDirs(path.getParent)).sorted.toList
     val was = (for { pathStr <- wasFiles } yield {
@@ -90,7 +88,7 @@ class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTe
     val modNames = (conf("C4DEP").map(_.from) ++ conf("C4DEP").map(_.to)).distinct.sorted.toList
     val willGeneratorContext = WillGeneratorContext(fromFiles,getModDirs(fromFiles), deps, srcRoots, modNames)
     val will = willGenerators.flatMap(_.get(willGeneratorContext))
-    assert(will.forall{ case(path,_) => isGenerated(path) })
+    assert(will.forall{ case(path,_) => isGenerated(path.getFileName.toString) })
     //println(s"2:${System.currentTimeMillis()}")
     for(path <- was.keySet -- will.toMap.keys) {
       println(s"removing $path")
@@ -127,7 +125,7 @@ object Cached {
       }))
     },Duration.Inf).collect {
       case (path, toData) if toData.nonEmpty =>
-        path.getParent.resolve(s"$toPrefix${path.getFileName}$postfix") -> toData
+        path.getParent.resolve(s"c4gen.${path.getFileName}$postfix") -> toData
     }
   }
 }
@@ -161,7 +159,6 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
   def get(ctx: WillGeneratorContext): List[(Path,Array[Byte])] =
     withIndex(ctx)(Cached("", ctx.fromFiles.filter(_.toString.endsWith(".scala")).map(path=>(path, pathToData(path)))))
   private def withIndex(ctx: WillGeneratorContext): List[(Path,Array[Byte])] => List[(Path,Array[Byte])] = args => {
-    val started3 = System.currentTimeMillis()
     val pattern = """\((\S+)\s(\S+)\s(\S+)\)""".r
     val rawAppLinks = for {
       (path,data) <- args
@@ -224,12 +221,11 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
               s"\n  Nil",
               s"\n)",
           )
-          Option(AutoMixerDescr(dir.resolve("c4gen.am.scala"), s"$pkg.$mixerName", content))
+          Option(AutoMixerDescr(dir.resolve("c4gen-base.scala"), s"$pkg.$mixerName", content))
         }
       })
     ))(ctx.modNames)
     val autoMixerIndexes = autoMixers.flatten.map(am=>am.path->am.content.getBytes(UTF_8))
-    println(s"with index -- ${System.currentTimeMillis()-started3}")
     args ++ indexes ++ autoMixerIndexes
   }
   private def pathToData(path: Path): String => String = contentRaw => {
