@@ -159,11 +159,6 @@ def main(build_path_str):
 
     out_conf = {
         "plain": conf_plain,
-        "src_dirs_generator_off": [
-            dir
-            for mod in get_list(conf,"C4GENERATOR_MODE","OFF")
-            for dir in get_src_dirs(conf,full_dep(mod))
-        ],
         "tag_info": {
             tag: { **parse_main(*mains), "steps": get_list(conf,"C4STEP",tag) }
             for tag, mains in conf["C4TAG"].items()
@@ -176,6 +171,20 @@ def main(build_path_str):
         },
     }
     write_changed(build_path / f"{tmp_part}/build.json", json.dumps(out_conf, sort_keys=True, indent=4))
+    # no src_dirs_generator_off
+    src_dirs_generator_off = [
+        ["C4GENERATOR_DIR_MODE", "OFF", s_dir]
+        for mod in get_list(conf, "C4GENERATOR_MODE", "OFF")
+        for s_dir in get_src_dirs(conf, full_dep(mod))
+    ]
+    generator_conf_keys = {"C4SRC", "C4PUB", "C4DEP"}
+    generator_conf = [*(line for line in conf_plain if line[0] in generator_conf_keys), *src_dirs_generator_off]
+    for line in generator_conf:
+        if len(line) != 3 or any(("\n" in it) for it in line):
+            raise Exception(f"bad line {line}")
+    generator_conf_str = "\n".join(it for line in generator_conf for it in line)
+    write_changed(build_path / f"{tmp_part}/generator.conf", generator_conf_str)
+
 
 def get_mod_groups_1(mod, deps, modules):
     def reduce_deps(replaces, more):

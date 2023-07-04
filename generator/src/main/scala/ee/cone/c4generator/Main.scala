@@ -34,16 +34,20 @@ object Main {
   def toPrefix = "c4gen."
   def env(key: String): Option[String] = Option(System.getenv(key))
   def version: String = s"-w${env("C4GENERATOR_VER").getOrElse(throw new Exception(s"missing env C4GENERATOR_VER"))}"
-  def rootPath = Paths.get(env("C4GENERATOR_PATH").getOrElse(throw new Exception(s"missing env C4GENERATOR_PATH")))
+  def workPath = Paths.get(env("C4GENERATOR_PATH").getOrElse(throw new Exception(s"missing env C4GENERATOR_PATH")))
 }
-import Main.{toPrefix,rootPath,version}
+import Main.{toPrefix,workPath,version}
 
-case class WillGeneratorContext(fromFiles: List[Path], dirToModDir: Map[Path,ParentPath])
+case class WillGeneratorContext(
+  fromFiles: List[Path], dirToModDir: Map[Path,ParentPath],
+  deps: Map[String, List[String]], srcRoots: Map[String, Seq[String]], modNames: List[String]
+)
 trait WillGenerator {
   def get(ctx: WillGeneratorContext): List[(Path,Array[Byte])]
 }
 
 class ParentPath(val path: Path, val removed: List[String])
+case class ConfItem(from: String, to: String)
 class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTextGenerator]=Nil) {
   def willGenerators: List[WillGenerator] = List(
     new DefaultWillGenerator(generators),
@@ -67,12 +71,24 @@ class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTe
   }
   def run(): Unit = {
     //println(s"1:${System.currentTimeMillis()}") //130
-    val rootFromPath = rootPath.resolve("src")
-    val(wasFiles,fromFiles) = Files.readAllLines(rootFromPath).asScala.map(Paths.get(_)).toList.partition(isGenerated)
-    //println(s"5:${System.currentTimeMillis()}") //150
-    val was = (for { path <- wasFiles } yield path -> Files.readAllBytes(path)).toMap
+    val conf = Files.readAllLines(workPath.resolve("target/c4/generator.conf")).asScala.toSeq.grouped(3).toSeq
+      .groupMap(_(0))(_.tail match{ case Seq(fr,to) => ConfItem(fr,to) }).withDefaultValue(Nil)
+    val dirs = for(it <- (conf("C4SRC") ++ conf("C4PUB")).distinct) yield workPath.resolve(it.to).toString
+    val args = "find" :: dirs.toList ::: "-type" :: "f" :: Nil
+    val filesA = new String(new ProcessBuilder(args:_*).start().getInputStream.readAllBytes(), UTF_8).split("\n") // Files.walk is much slower
+    val sToPrefix = s"/${toPrefix}"
+    val (wasFiles,fromFilesAll) = filesA.partition(_.contains(sToPrefix))
+    val skipDirs = (for(it <- conf("C4GENERATOR_DIR_MODE") if it.from == "OFF") yield workPath.resolve(it.to)).toSet
+    val fromFiles = fromFilesAll.map(Paths.get(_)).filterNot(path => skipDirs(path.getParent)).sorted.toList
+    val was = (for { pathStr <- wasFiles } yield {
+      val path = Paths.get(pathStr)
+      path -> Files.readAllBytes(path)
+    }).toMap
     //println(s"4:${System.currentTimeMillis()}") //1s
-    val willGeneratorContext = WillGeneratorContext(fromFiles,getModDirs(fromFiles))
+    val deps = conf("C4DEP").toList.groupMap(_.from)(_.to).withDefaultValue(Nil)
+    val srcRoots = conf("C4SRC").groupMap(_.from)(_.to).withDefaultValue(Nil)
+    val modNames = (conf("C4DEP").map(_.from) ++ conf("C4DEP").map(_.to)).distinct.sorted.toList
+    val willGeneratorContext = WillGeneratorContext(fromFiles,getModDirs(fromFiles), deps, srcRoots, modNames)
     val will = willGenerators.flatMap(_.get(willGeneratorContext))
     assert(will.forall{ case(path,_) => isGenerated(path) })
     //println(s"2:${System.currentTimeMillis()}")
@@ -92,7 +108,7 @@ class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTe
 
 object Cached {
   def apply(postfix: String, tasks: List[(Path,String=>String)]): List[(Path,Array[Byte])] = {
-    val rootCachePath = Files.createDirectories(rootPath.resolve("cache"))
+    val rootCachePath = Files.createDirectories(workPath.resolve("target/c4/gen/cache"))
     Await.result({
       implicit val ec: ExecutionContextExecutor = scala.concurrent.ExecutionContext.global
       Future.sequence(tasks.map(pt=>Future{
@@ -136,12 +152,14 @@ class FromTextWillGenerator(innerList: List[FromTextGenerator]) extends WillGene
   }
 }
 
+case class AutoMixerDescr(path: Path, name: String, content: String)
 class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
   def get(ctx: WillGeneratorContext): List[(Path,Array[Byte])] =
     withIndex(ctx)(Cached("", ctx.fromFiles.filter(_.toString.endsWith(".scala")).map(path=>(path, pathToData(path)))))
   private def withIndex(ctx: WillGeneratorContext): List[(Path,Array[Byte])] => List[(Path,Array[Byte])] = args => {
+    val started3 = System.currentTimeMillis()
     val pattern = """\((\S+)\s(\S+)\s(\S+)\)""".r
-    val indexes = (for {
+    val rawAppLinks = for {
       (path,data) <- args
       pos = data.indexOf('\n'.toByte)
       firstLine = new String(data,0,pos,UTF_8)
@@ -149,14 +167,19 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
       mat <- pattern.findAllMatchIn(firstLine)
     } yield {
       val Seq(pkg,app,expr) = mat.subgroups
-      if(app=="DefApp"){
-        val modParentPath = ctx.dirToModDir(dir)
-        val end = modParentPath.removed.map(n=>s".$n").mkString
-        assert(pkg.endsWith(end),s"$pkg $end")
-        val appPkg = pkg.substring(0,pkg.length-end.length)
-        modParentPath.path -> GeneratedAppLink(appPkg, s"${Util.pkgNameToId(s".$appPkg")}$app", s"$pkg.$expr")
-      } else dir -> GeneratedAppLink(pkg,app,expr)
-    }).groupMap(_._1)(_._2).toList.sortBy(_._1).map{ case(parentPath,links) =>
+      dir -> GeneratedAppLink(pkg,app,expr)
+    }
+    val (rawDefAppLinks, customAppLinks) = rawAppLinks.partition{ case (_,link) => link.app == "DefApp" }
+    val defAppLinks = rawDefAppLinks.map{ case (dir,link) =>
+      val modParentPath = ctx.dirToModDir(dir)
+      val end = modParentPath.removed.map(n => s".$n").mkString
+      assert(link.pkg.endsWith(end), s"${link.pkg} $end")
+      val pkg = link.pkg.substring(0, link.pkg.length - end.length)
+      val app = s"${Util.pkgNameToId(s".$pkg")}${link.app}"
+      val expr = s"${link.pkg}.${link.expr}"
+      modParentPath.path -> GeneratedAppLink(pkg, app, expr)
+    }
+    val indexes = (defAppLinks++customAppLinks).groupMap(_._1)(_._2).toList.sortBy(_._1).map{ case(parentPath,links) =>
         val Seq(pkg) = links.map(_.pkg).distinct
         val content =
           s"\n// THIS FILE IS GENERATED; C4APPS: ${links.filter(_.expr=="CLASS").map(l=>s"$pkg.${l.app}").mkString(" ")}" +
@@ -174,7 +197,33 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
             }.sorted.mkString
         parentPath.resolve("c4gen.scala") -> content.getBytes(UTF_8)
     }
-    args ++ indexes
+    val defAppsByPkg = defAppLinks.groupMap(_._2.pkg)(_._2.app).transform((k,v)=>v.distinct.mkString(" with "))
+    val MainPkg = """(\w+)\.(.+)""".r
+    val autoMixers = (new ByPriority[String,Option[AutoMixerDescr]](
+      modName=>(ctx.deps(modName), depOpts => {
+        val deps: List[AutoMixerDescr] = depOpts.flatten
+        val MainPkg(main, pkg) = modName
+        val defAppOpt = if(main == "main") defAppsByPkg.get(pkg) else None
+        if (deps.isEmpty && defAppOpt.isEmpty) None else {
+          println(s"-: $modName $defAppOpt")
+          val compContent = defAppOpt.fold("Nil")(defApp => s"(new ${defApp} {}).components")
+          val mixerName = s"${Util.pkgNameToId(s".$pkg")}AutoMixer"
+          val content = (
+            s"package $pkg" ::
+              s"object $mixerName extends ee.cone.c4di.AutoMixer(" ::
+              s"  () => $compContent," ::
+              deps.toList.map(d => s"  ${d.name} ::") ::: "  Nil" ::
+              ")" :: Nil
+            ).mkString("\n")
+          val pkgDir = pkg.replace('.', '/')
+          val Seq(path) = ctx.srcRoots(main).map(srcRoot => workPath.resolve(s"$srcRoot/$pkgDir/c4gen.am.scala"))
+          Option(AutoMixerDescr(path, mixerName, content))
+        }
+      })
+    ))(ctx.modNames)
+    val autoMixerIndexes = autoMixers.flatten.map(am=>am.path->am.content.getBytes(UTF_8))
+    println(s"with index -- ${System.currentTimeMillis()-started3}")
+    args ++ indexes ++ autoMixerIndexes
   }
   private def pathToData(path: Path): String => String = contentRaw => {
       val source = dialects.Scala213(contentRaw.replace("\r\n","\n")).parse[Source]
