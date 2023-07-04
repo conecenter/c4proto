@@ -152,6 +152,10 @@ class FromTextWillGenerator(innerList: List[FromTextGenerator]) extends WillGene
   }
 }
 
+object JoinStr {
+  def apply(parts: String*): String = parts.mkString
+}
+
 case class AutoMixerDescr(path: Path, name: String, content: String)
 class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
   def get(ctx: WillGeneratorContext): List[(Path,Array[Byte])] =
@@ -197,27 +201,30 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
             }.sorted.mkString
         parentPath.resolve("c4gen.scala") -> content.getBytes(UTF_8)
     }
-    val defAppsByPkg = defAppLinks.groupMap(_._2.pkg)(_._2.app).transform((k,v)=>v.distinct.mkString(" with "))
+    val defAppsByModDir = defAppLinks.groupMap(_._1){ case (k,v) => s"${v.pkg}.${v.app}" }.transform((k,v)=>v.distinct)
     val MainPkg = """(\w+)\.(.+)""".r
     val autoMixers = (new ByPriority[String,Option[AutoMixerDescr]](
       modName=>(ctx.deps(modName), depOpts => {
         val deps: List[AutoMixerDescr] = depOpts.flatten
         val MainPkg(main, pkg) = modName
-        val defAppOpt = if(main == "main") defAppsByPkg.get(pkg) else None
-        if (deps.isEmpty && defAppOpt.isEmpty) None else {
-          println(s"-: $modName $defAppOpt")
-          val compContent = defAppOpt.fold("Nil")(defApp => s"(new ${defApp} {}).components")
+        val infix = pkg.replace('.', '/')
+        val dirs = for(srcRoot <- ctx.srcRoots(main) if main == "main")
+          yield workPath.resolve(s"$srcRoot/$infix")
+        val defApps = for(dir <- dirs; defApp <- defAppsByModDir.getOrElse(dir,Nil)) yield defApp
+        if (deps.isEmpty && defApps.isEmpty) None else {
+          val Seq(dir) = dirs
+          val defApp = defApps.mkString(" with ")
+          val compContent = if(defApp.isEmpty) "Nil" else s"(new ${defApp} {}).components"
           val mixerName = s"${Util.pkgNameToId(s".$pkg")}AutoMixer"
-          val content = (
-            s"package $pkg" ::
-              s"object $mixerName extends ee.cone.c4di.AutoMixer(" ::
-              s"  () => $compContent," ::
-              deps.toList.map(d => s"  ${d.name} ::") ::: "  Nil" ::
-              ")" :: Nil
-            ).mkString("\n")
-          val pkgDir = pkg.replace('.', '/')
-          val Seq(path) = ctx.srcRoots(main).map(srcRoot => workPath.resolve(s"$srcRoot/$pkgDir/c4gen.am.scala"))
-          Option(AutoMixerDescr(path, mixerName, content))
+          val content = JoinStr(
+              s"package $pkg",
+              s"\nobject $mixerName extends ee.cone.c4di.AutoMixer(",
+              s"\n  () => $compContent,",
+              deps.map(d => s"\n  ${d.name} ::").mkString,
+              s"\n  Nil",
+              s"\n)",
+          )
+          Option(AutoMixerDescr(dir.resolve("c4gen.am.scala"), s"$pkg.$mixerName", content))
         }
       })
     ))(ctx.modNames)
