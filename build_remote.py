@@ -38,7 +38,7 @@ def rsync_args(kube_ctx, from_pod, to_pod): return (*c4dsync(kube_ctx), "-acr", 
 
 
 def rsync(kube_ctx, from_pod, to_pod, files):
-    run(rsync_args(kube_ctx, from_pod, to_pod), text=True, input="\n".join(files))
+    run(rsync_args(kube_ctx, from_pod, to_pod), text=True, input="".join(f"{f}\n" for f in files))
 
 
 def sbt_args(mod_dir, java_opt):
