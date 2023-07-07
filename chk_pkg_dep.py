@@ -38,11 +38,10 @@ def chk_line(line,allow_pkg_dep):
     #if "kaf" in to_pkg_base : print(line,from_pkg_base,to_pkg_base,allow_pkg_dep[from_pkg_base])
     return True
 
-def main(build_json_path,cp_path):
+def main(build_json_path,cp):
     allow_pkg_dep = {
         k: {k,*l} for k,l in read_json(build_json_path)["allow_pkg_dep"].items()
     }
-    cp = read_json(cp_path)["CLASSPATH"]
     cp_by_tp = group_map(cp.split(":"), lambda p: (
         "jar" if p.endswith(".jar") else
         "classes" if p.endswith("/classes") else

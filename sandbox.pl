@@ -89,7 +89,6 @@ my $remake = sub{
     so("python3.8", "-u", "$proto_dir/build_remote.py", "compile",
         "--proj-tag", $arg, "--user", $user, "--context", $build_dir,
     ) and return ();
-    sy("perl", "$proto_dir/build_env.pl", $build_dir, $mod);
     so("perl", "$proto_dir/prod.pl", "build_client_changed", $build_dir, "dev") and return ();
     #
     my $ppid = $$;
@@ -99,7 +98,7 @@ my $remake = sub{
         my $dir = "$droll$$";
         &$prep_empty_dir($dir);
         my $debug_int_ip = &$get_debug_ip($$);
-        my $paths = JSON::XS->new->decode(&$get_text_or_empty("$tmp/mod.$mod.classpath.json"));
+        my $paths = JSON::XS->new->decode(syf("python3 $proto_dir/build_env.py $build_dir $mod"));
         my $tool_opt = "-XX:+UseG1GC -XX:GCTimeRatio=1 -XX:MinHeapFreeRatio=15 -XX:MaxHeapFreeRatio=50 -XX:+UseStringDeduplication $ENV{JAVA_TOOL_OPTIONS}"; #-XX:NativeMemoryTracking=summary
         ### if need heap >32G keeping 32bit pointers, insert: -XX:ObjectAlignmentInBytes=16 -Xmx45g
         my $env = {

@@ -30,8 +30,6 @@ def changing_text(path, will):
     for save in changing_text_observe(path, will): save()
 def read_text(path_str): return pathlib.Path(path_str).read_text(encoding='utf-8', errors='strict')
 
-def sha256(v):
-    return hashlib.sha256(v.encode('utf-8')).hexdigest()
 
 # suggest: read_json, subprocess.run
 #

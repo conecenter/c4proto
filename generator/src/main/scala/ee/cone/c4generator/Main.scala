@@ -30,16 +30,14 @@ object Main {
   }
   def main(args: Array[String]): Unit = new RootGenerator(defaultGenerators(Nil) ::: List(
     ValInNonFinalGenerator
-  )).run()
-  def env(key: String): Option[String] = Option(System.getenv(key))
-  def version: String = s"-w${env("C4GENERATOR_VER").getOrElse(throw new Exception(s"missing env C4GENERATOR_VER"))}"
-  def workPath = Paths.get(env("C4GENERATOR_PATH").getOrElse(throw new Exception(s"missing env C4GENERATOR_PATH")))
+  )).run(args)
 }
-import Main.{workPath,version}
 
 case class WillGeneratorContext(
   fromFiles: List[Path], dirToModDir: Map[Path,ParentPath],
-  deps: Map[String, List[String]], srcRoots: Map[String, Seq[String]], modNames: List[String]
+  workPath: Path, version: String,
+  srcRoots: Map[String, List[Path]], pubRoots: Map[String, List[Path]],
+  deps: Map[String, List[String]], modNames: List[String]
 )
 trait WillGenerator {
   def get(ctx: WillGeneratorContext): List[(Path,Array[Byte])]
@@ -68,13 +66,16 @@ class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTe
       getParentPaths(new ParentPath(dir,Nil)::Nil).find(p=>hasScala(p.path)).get
     ).toMap
   }
-  def run(): Unit = {
+  def run(args: Array[String]): Unit = {
+    val opt = args.grouped(2).map{ case Array(a,b) => (a,b) }.toMap
+    val workPath = Paths.get(opt("--context"))
+    val version = opt("--ver")
     //println(s"1:${System.currentTimeMillis()}") //130
     val conf = Files.readAllLines(workPath.resolve("target/c4/generator.conf")).asScala.toSeq.grouped(3).toSeq
       .groupMap(_(0))(_.tail match{ case Seq(fr,to) => ConfItem(fr,to) }).withDefaultValue(Nil)
     val dirs = for(it <- (conf("C4SRC") ++ conf("C4PUB")).distinct) yield workPath.resolve(it.to).toString
-    val args = "find" :: dirs.toList ::: "-type" :: "f" :: Nil
-    val filesA = new String(new ProcessBuilder(args:_*).start().getInputStream.readAllBytes(), UTF_8).split("\n") // Files.walk is much slower
+    val cmd = "find" :: dirs.toList ::: "-type" :: "f" :: Nil
+    val filesA = new String(new ProcessBuilder(cmd:_*).start().getInputStream.readAllBytes(), UTF_8).split("\n") // Files.walk is much slower
     val (wasFiles,fromFilesAll) = filesA.partition{ path => isGenerated(path.substring(path.lastIndexOf("/")+1)) }
     val skipDirs = (for(it <- conf("C4GENERATOR_DIR_MODE") if it.from == "OFF") yield workPath.resolve(it.to)).toSet
     val fromFiles = fromFilesAll.map(Paths.get(_)).filterNot(path => skipDirs(path.getParent)).sorted.toList
@@ -84,9 +85,11 @@ class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTe
     }).toMap
     //println(s"4:${System.currentTimeMillis()}") //1s
     val deps = conf("C4DEP").toList.groupMap(_.from)(_.to).withDefaultValue(Nil)
-    val srcRoots = conf("C4SRC").groupMap(_.from)(_.to).withDefaultValue(Nil)
+    val srcRoots = conf("C4SRC").toList.groupMap(_.from)(it=>workPath.resolve(it.to)).withDefaultValue(Nil)
+    val pubRoots = conf("C4PUB").toList.groupMap(_.from)(it=>workPath.resolve(it.to)).withDefaultValue(Nil)
     val modNames = (conf("C4DEP").map(_.from) ++ conf("C4DEP").map(_.to)).distinct.sorted.toList
-    val willGeneratorContext = WillGeneratorContext(fromFiles,getModDirs(fromFiles), deps, srcRoots, modNames)
+    val willGeneratorContext =
+      WillGeneratorContext(fromFiles, getModDirs(fromFiles), workPath, version, srcRoots, pubRoots, deps, modNames)
     val will = willGenerators.flatMap(_.get(willGeneratorContext))
     assert(will.forall{ case(path,_) => isGenerated(path.getFileName.toString) })
     //println(s"2:${System.currentTimeMillis()}")
@@ -105,8 +108,8 @@ class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTe
 }
 
 object Cached {
-  def apply(postfix: String, tasks: List[(Path,String=>String)]): List[(Path,Array[Byte])] = {
-    val rootCachePath = Files.createDirectories(workPath.resolve("target/c4/gen/cache"))
+  def apply(ctx: WillGeneratorContext, postfix: String, tasks: List[(Path,String=>String)]): List[(Path,Array[Byte])] = {
+    val rootCachePath = Files.createDirectories(ctx.workPath.resolve("target/c4/gen/cache"))
     Await.result({
       implicit val ec: ExecutionContextExecutor = scala.concurrent.ExecutionContext.global
       Future.sequence(tasks.map(pt=>Future{
@@ -114,7 +117,7 @@ object Cached {
         val fromData = Files.readAllBytes(path)
         val uuidForPath = UUID.nameUUIDFromBytes(s"$path$postfix".getBytes(UTF_8)).toString
         val uuid = UUID.nameUUIDFromBytes(fromData).toString
-        val cachePath = rootCachePath.resolve(s"$uuidForPath-$uuid-$version")
+        val cachePath = rootCachePath.resolve(s"$uuidForPath-$uuid-${ctx.version}")
         val out = if (Files.exists(cachePath)) Files.readAllBytes(cachePath) else {
           println(s"parsing $path")
           val toData = transform(new String(fromData,UTF_8)).getBytes(UTF_8)
@@ -141,12 +144,12 @@ class FromTextWillGenerator(innerList: List[FromTextGenerator]) extends WillGene
     val ExtRegEx = """.*\.(\w+)""".r
     val handlers = innerList.groupMapReduce(_.ext)(h=>h)((a,b)=>throw new Exception("ext conflict"))
     val tasks = for {
-      mainScalaPath <- Main.env("C4GENERATOR_MAIN_SCALA_PATH").map(Paths.get(_)).toList
+      mainScalaPath <- Util.singleSeq(ctx.srcRoots("main")).toList
       path <- ctx.fromFiles
       ExtRegEx(ext) <- List(path.toString) if handlers.contains(ext)
       pkgInfo <- Util.pkgInfo(mainScalaPath, path.getParent)
     } yield (path, (content: String)=>handlers(ext).get(FromTextGeneratorContext(pkgInfo, content)))
-    Cached(".scala", tasks)
+    Cached(ctx, ".scala", tasks)
   }
 }
 
@@ -157,7 +160,7 @@ object JoinStr {
 case class AutoMixerDescr(path: Path, name: String, content: String)
 class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
   def get(ctx: WillGeneratorContext): List[(Path,Array[Byte])] =
-    withIndex(ctx)(Cached("", ctx.fromFiles.filter(_.toString.endsWith(".scala")).map(path=>(path, pathToData(path)))))
+    withIndex(ctx)(Cached(ctx, "", ctx.fromFiles.filter(_.toString.endsWith(".scala")).map(path=>(path, pathToData(path)))))
   private def withIndex(ctx: WillGeneratorContext): List[(Path,Array[Byte])] => List[(Path,Array[Byte])] = args => {
     val pattern = """\((\S+)\s(\S+)\s(\S+)\)""".r
     val rawAppLinks = for {
@@ -205,8 +208,7 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
         val deps: List[AutoMixerDescr] = depOpts.flatten
         val MainPkg(main, pkg) = modName
         val infix = pkg.replace('.', '/')
-        val dirs = for(srcRoot <- ctx.srcRoots(main) if main == "main")
-          yield workPath.resolve(s"$srcRoot/$infix")
+        val dirs = for(srcRoot <- ctx.srcRoots(main) if main == "main") yield srcRoot.resolve(infix)
         val defApps = for(dir <- dirs; defApp <- defAppsByModDir.getOrElse(dir,Nil)) yield defApp
         if (deps.isEmpty && defApps.isEmpty) None else {
           val Seq(dir) = dirs
@@ -385,11 +387,9 @@ case class GeneratedAppLink(pkg: String, app: String, expr: String) extends Gene
 case class PublicPathRoot(mainPublicPath: Path, pkgName: String, genPath: Path, publicPath: Path)
 class PublicPathsGenerator extends WillGenerator {
   def get(ctx: WillGeneratorContext): List[(Path, Array[Byte])] = {
-    val mainScalaPathOpt = Main.env("C4GENERATOR_MAIN_SCALA_PATH").map(Paths.get(_))
-    val mainPublicPathOpt = Main.env("C4GENERATOR_MAIN_PUBLIC_PATH").map(Paths.get(_))
     val roots: List[PublicPathRoot] = for {
-      mainScalaPath <- mainScalaPathOpt.toList
-      mainPublicPath <- mainPublicPathOpt.toList
+      mainScalaPath <- Util.singleSeq(ctx.srcRoots("main")).toList
+      mainPublicPath <- Util.singleSeq(ctx.pubRoots("main")).toList
       path <- ctx.fromFiles.filter(_.getFileName.toString == "ht.scala")
       pkgInfo <- Util.pkgInfo(mainScalaPath,path.getParent)
     } yield {
@@ -455,7 +455,7 @@ class PublicPathsGenerator extends WillGenerator {
 class ModRootsGenerator extends WillGenerator {
   def get(ctx: WillGeneratorContext): List[(Path, Array[Byte])] = {
     for {
-      mainScalaPath <- Main.env("C4GENERATOR_MAIN_SCALA_PATH").map(Paths.get(_)).toList
+      mainScalaPath <- Util.singleSeq(ctx.srcRoots("main")).toList
       pp <- ctx.dirToModDir.values
       pkgInfo <- Util.pkgInfo(mainScalaPath,pp.path)
     } {

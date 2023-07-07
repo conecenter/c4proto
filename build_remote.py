@@ -38,7 +38,7 @@ def rsync_args(kube_ctx, from_pod, to_pod): return (*c4dsync(kube_ctx), "-acr", 
 
 
 def rsync(kube_ctx, from_pod, to_pod, files):
-    run(rsync_args(kube_ctx, from_pod, to_pod), text=True, input="\n".join(files))
+    run(rsync_args(kube_ctx, from_pod, to_pod), text=True, input="".join(f"{f}\n" for f in files))
 
 
 def sbt_args(mod_dir, java_opt):
@@ -329,22 +329,14 @@ def build_type_rt(proj_tag, context, out):
     proto_postfix, proto_dir = get_proto(context, get_plain_option)
     prod = ("perl", f"{proto_dir}/prod.pl")
     pre = ("python3.8", "-u", f"{proto_dir}/run_with_prefix.py")
-    run(("perl", f"{proto_dir}/build.pl"), cwd=context, env={
-        "C4CI_PROTO_DIR": proto_dir,
-        "PATH": os.environ["PATH"],  # sbt
-        "HOME": os.environ["HOME"],  # c4client_prep
-    })
-    client_proc_opt = (
-        (Popen((*pre, "=client=", *prod, "build_client_changed", context)),) if proj_tag != "def" else
-        ()  # after build.pl
-    )
-    compile_options = get_more_compile_options(context, get_commit(context), proj_tag)  # after build.pl
+    client_proc_opt = ([Popen((*pre, "=client=", *prod, "build_client_changed", context))] if proj_tag != "def" else ())
+    run(("python3.8", f"{proto_dir}/build.py", context))
+    compile_options = get_more_compile_options(context, get_commit(context), proj_tag)  # after build.py
     mod = compile_options.mod
     mod_dir = compile_options.mod_dir
     run((*pre, f"=sbt=", *sbt_args(mod_dir, compile_options.java_options)))
-    run(("perl", f"{proto_dir}/build_env.pl", context, mod))
     pr_env = {"C4CI_PROTO_DIR": proto_dir, "PATH": os.environ["PATH"]}
-    check_proc = Popen((*pre, "=check=", *prod, "ci_rt_chk", context, mod), env=pr_env)  # after build_env.pl
+    check_proc = Popen((*pre, "=check=", *prod, "ci_rt_chk", context, mod), env=pr_env)
     push_compilation_cache(compile_options)
     wait_processes((check_proc, *client_proc_opt)) or never("build failed")  # before ci_rt_base?
     run((*prod, "ci_rt_base", "--context", context, "--proj-tag", proj_tag, "--out-context", out), env=pr_env)
