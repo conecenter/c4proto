@@ -101,6 +101,7 @@ def main(build_path_str):
     tmp_part = "target/c4"
     conf_plain = load_dep(build_path_str, "c4dep.main.json")
     generate_configs(build_path_str, tmp_part, conf_plain)
+    compile_run_generator(build_path_str, tmp_part, conf_plain)
 
 
 def compile_run_generator(build_path_str, tmp_part, conf_plain):
