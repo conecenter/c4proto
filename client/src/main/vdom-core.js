@@ -195,7 +195,7 @@ export function useSyncInput(identity,incomingValue,deferSend){
 const SyncInput = memo(function SyncInput({value,onChange,...props}){
     const {identity,deferSend} = onChange
     const patch = useSyncInput(identity,value,deferSend)
-    return props.children({identity, ...props, ...patch})
+    return props.children({...props, ...patch})
 })
 
 /********* traverse ***********************************************************/
