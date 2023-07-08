@@ -193,7 +193,7 @@ def generate_configs(build_path_str, tmp_part, conf_plain):
         for mod in get_list(conf, "C4GENERATOR_MODE", "OFF")
         for s_dir in get_src_dirs(conf, full_dep(mod))
     ]
-    generator_conf_keys = {"C4SRC", "C4PUB", "C4DEP"}
+    generator_conf_keys = {"C4SRC", "C4PUB", "C4DEP", "C4TAG"}
     generator_conf = [*(line for line in conf_plain if line[0] in generator_conf_keys), *src_dirs_generator_off]
     for line in generator_conf:
         if len(line) != 3 or any(("\n" in it) for it in line):

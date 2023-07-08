@@ -37,7 +37,7 @@ case class WillGeneratorContext(
   fromFiles: List[Path], dirToModDir: Map[Path,ParentPath],
   workPath: Path, version: String,
   srcRoots: Map[String, List[Path]], pubRoots: Map[String, List[Path]],
-  deps: Map[String, List[String]], modNames: List[String]
+  deps: Map[String, List[String]], modNames: List[String], tags: List[ConfItem]
 )
 trait WillGenerator {
   def get(ctx: WillGeneratorContext): List[(Path,Array[Byte])]
@@ -50,7 +50,8 @@ class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTe
     new DefaultWillGenerator(generators),
     new PublicPathsGenerator,
     new ModRootsGenerator,
-    new FromTextWillGenerator(fromTextGenerators)
+    new FromTextWillGenerator(fromTextGenerators),
+    new XsdWillGenerator,
   )
   //
   def isGenerated(fileName: String): Boolean = fileName.startsWith("c4gen.") || fileName.startsWith("c4gen-")
@@ -88,8 +89,9 @@ class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTe
     val srcRoots = conf("C4SRC").toList.groupMap(_.from)(it=>workPath.resolve(it.to)).withDefaultValue(Nil)
     val pubRoots = conf("C4PUB").toList.groupMap(_.from)(it=>workPath.resolve(it.to)).withDefaultValue(Nil)
     val modNames = (conf("C4DEP").map(_.from) ++ conf("C4DEP").map(_.to)).distinct.sorted.toList
+    val tags = conf("C4TAG").toList
     val willGeneratorContext =
-      WillGeneratorContext(fromFiles, getModDirs(fromFiles), workPath, version, srcRoots, pubRoots, deps, modNames)
+      WillGeneratorContext(fromFiles, getModDirs(fromFiles), workPath, version, srcRoots, pubRoots, deps, modNames, tags)
     val will = willGenerators.flatMap(_.get(willGeneratorContext))
     assert(will.forall{ case(path,_) => isGenerated(path.getFileName.toString) })
     //println(s"2:${System.currentTimeMillis()}")
