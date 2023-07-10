@@ -261,7 +261,7 @@ class DefaultWillGenerator(generators: List[Generator], fromTextGenerators: List
         case _: GeneratedAppLink => Nil
         case c => throw new Exception(s"$c")
       }.mkString("\n")
-      s"// THIS FILE IS GENERATED; APPLINKS: $head\n\npackage ${parseContext.pkg} {$body\n}"
+      s"// THIS FILE IS GENERATED; APPLINKS: $head\n\npackage ${parseContext.pkg} {\n$body\n\n}"
     }
   }
 }
