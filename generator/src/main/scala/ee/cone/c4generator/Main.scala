@@ -47,10 +47,9 @@ class ParentPath(val path: Path, val removed: List[String])
 case class ConfItem(from: String, to: String)
 class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTextGenerator]=Nil) {
   def willGenerators: List[WillGenerator] = List(
-    new DefaultWillGenerator(generators),
+    new DefaultWillGenerator(generators, fromTextGenerators),
     new PublicPathsGenerator,
     new ModRootsGenerator,
-    new FromTextWillGenerator(fromTextGenerators),
     new XsdWillGenerator,
   )
   //
@@ -110,12 +109,12 @@ class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTe
 }
 
 object Cached {
-  def apply(ctx: WillGeneratorContext, postfix: String, tasks: List[(Path,String=>String)]): List[(Path,Array[Byte])] = {
+  def apply(ctx: WillGeneratorContext, tasks: List[(Path,String,String=>String)]): List[(Path,Array[Byte])] = {
     val rootCachePath = Files.createDirectories(ctx.workPath.resolve("target/c4/gen/cache"))
     Await.result({
       implicit val ec: ExecutionContextExecutor = scala.concurrent.ExecutionContext.global
       Future.sequence(tasks.map(pt=>Future{
-        val (path,transform) = pt
+        val (path,postfix,transform) = pt
         val fromData = Files.readAllBytes(path)
         val uuidForPath = UUID.nameUUIDFromBytes(s"$path$postfix".getBytes(UTF_8)).toString
         val uuid = UUID.nameUUIDFromBytes(fromData).toString
@@ -126,33 +125,16 @@ object Cached {
           Util.ignoreTheSamePath(Files.write(cachePath, toData))
           toData
         }
-        (path,out)
+        if(out.isEmpty) None else Option(path.getParent.resolve(s"c4gen.${path.getFileName}$postfix") -> out)
       }))
-    },Duration.Inf).collect {
-      case (path, toData) if toData.nonEmpty =>
-        path.getParent.resolve(s"c4gen.${path.getFileName}$postfix") -> toData
-    }
+    },Duration.Inf).flatten
   }
 }
 
 case class FromTextGeneratorContext(pkgInfo: PkgInfo, content: String)
 trait FromTextGenerator {
   def ext: String
-  def get(context: FromTextGeneratorContext): String
-}
-
-class FromTextWillGenerator(innerList: List[FromTextGenerator]) extends WillGenerator {
-  def get(ctx: WillGeneratorContext): List[(Path,Array[Byte])] = {
-    val ExtRegEx = """.*\.(\w+)""".r
-    val handlers = innerList.groupMapReduce(_.ext)(h=>h)((a,b)=>throw new Exception("ext conflict"))
-    val tasks = for {
-      mainScalaPath <- Util.singleSeq(ctx.srcRoots("main")).toList
-      path <- ctx.fromFiles
-      ExtRegEx(ext) <- List(path.toString) if handlers.contains(ext)
-      pkgInfo <- Util.pkgInfo(mainScalaPath, path.getParent)
-    } yield (path, (content: String)=>handlers(ext).get(FromTextGeneratorContext(pkgInfo, content)))
-    Cached(ctx, ".scala", tasks)
-  }
+  def get(context: FromTextGeneratorContext): List[Generated]
 }
 
 object JoinStr {
@@ -160,9 +142,28 @@ object JoinStr {
 }
 
 case class AutoMixerDescr(path: Path, name: String, content: String)
-class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
-  def get(ctx: WillGeneratorContext): List[(Path,Array[Byte])] =
-    withIndex(ctx)(Cached(ctx, "", ctx.fromFiles.filter(_.toString.endsWith(".scala")).map(path=>(path, pathToData(path)))))
+class DefaultWillGenerator(generators: List[Generator], fromTextGenerators: List[FromTextGenerator]) extends WillGenerator {
+  def get(ctx: WillGeneratorContext): List[(Path,Array[Byte])] = {
+    if(fromTextGenerators.size != fromTextGenerators.map(_.ext).distinct.size) throw new Exception("ext conflict")
+    val ExtRegEx = """.*\.(\w+)""".r
+    val pathsByExt = ctx.fromFiles.groupBy(_.getFileName.toString match {
+      case ExtRegEx(ext) => ext
+      case _ => ""
+    }).withDefaultValue(Nil)
+    val tasks = pathsByExt("scala").map(path=>(path, "", (content: String) => {
+      getParseContext(path, content).fold("")(pCtx => addDI(pCtx, generators.flatMap(_.get(pCtx))))
+    }))
+    val fromTextTasks = for {
+      mainScalaPath <- Util.singleSeq(ctx.srcRoots("main")).toList
+      generator <- fromTextGenerators
+      path <- pathsByExt(generator.ext)
+      pkgInfo <- Util.pkgInfo(mainScalaPath, path.getParent)
+    } yield (path, ".scala", (textContent: String)=>{
+      val generated = generator.get(FromTextGeneratorContext(pkgInfo, textContent))
+      addDI(new ParseContext(Nil, path.toString, pkgInfo.pkgName), generated)
+    })
+    withIndex(ctx)(Cached(ctx, tasks ++ fromTextTasks))
+  }
   private def withIndex(ctx: WillGeneratorContext): List[(Path,Array[Byte])] => List[(Path,Array[Byte])] = args => {
     val pattern = """\((\S+)\s(\S+)\s(\S+)\)""".r
     val rawAppLinks = for {
@@ -232,52 +233,36 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
     val autoMixerIndexes = autoMixers.flatten.map(am=>am.path->am.content.getBytes(UTF_8))
     args ++ indexes ++ autoMixerIndexes
   }
-  private def pathToData(path: Path): String => String = contentRaw => {
-      val source = dialects.Scala213(contentRaw.replace("\r\n","\n")).parse[Source]
-      val sourceStatements = source match {
-        case Parsed.Success(source"..$sourceStatements") => sourceStatements
-        case Parsed.Error(position, string, ex) => throw new Exception(s"Parse exception in ($path:${position.startLine})", ex)
-      }
-      val resStatements: List[Generated] = for {
-        sourceStatement <- (sourceStatements:Seq[Stat]).toList
-        q"package $n { ..$packageStatements }" = sourceStatement
-        res <- {
-          val packageStatementsList = (packageStatements:Seq[Stat]).toList
-          val parseContext = new ParseContext(packageStatementsList, path.toString, n.syntax)
-          val generatedWOComponents: List[Generated] = generators.flatMap(_.get(parseContext))
-          val parsedGenerated = generatedWOComponents.collect{ case c: GeneratedCode => c.content.parse[Stat] match { // c.content.parse[Source].get.stats}.flatten
-            case Success(stat) => stat
-            case Error(position, str, exception) =>
-              println(c.content)
-              throw exception
-          }}
-          val parsedAll = packageStatementsList ::: parsedGenerated
-          val compParseContext = new ParseContext(parsedAll, path.toString, n.syntax)
-          val generated: List[Generated] = generatedWOComponents ::: ComponentsGenerator.get(compParseContext)
-          // val patches: List[Patch] = generated.collect{ case p: Patch => p }
-          val statements: List[Generated] = generated.reverse.dropWhile(_.isInstanceOf[GeneratedImport]).reverse
-          // if(patches.nonEmpty) patches else
-          if(statements.isEmpty) statements
-            else List(GeneratedCode(s"\npackage $n {")) ::: statements ::: List(GeneratedCode("\n}"))
+  private def getParseContext(path: Path, content: String): Option[ParseContext] =
+    dialects.Scala213(content.replace("\r\n", "\n")).parse[Source] match {
+      case Parsed.Success(source"..$sourceStatements") =>
+        if (sourceStatements.isEmpty) None else {
+          val Seq(q"package $n { ..$packageStatements }") = sourceStatements
+          val packageStatementsList = (packageStatements: Seq[Stat]).toList
+          Option(new ParseContext(packageStatementsList, path.toString, n.syntax))
         }
-      } yield res;
-      {
-
-        val code = resStatements.flatMap{
-          case c: GeneratedImport => List(c.content)
-          case c: GeneratedCode => List(c.content)
-          case c: GeneratedAppLink => Nil
-          case c => throw new Exception(s"$c")
-        }
-        val content = code.mkString("\n")
-        if(content.isEmpty) "" else
-          s"// THIS FILE IS GENERATED; APPLINKS: " +
-          resStatements.collect{ case s: GeneratedAppLink =>
-            s"(${s.pkg} ${s.app} ${s.expr})"
-          }.mkString +
-          "\n" +
-          content
-      }
+      case Parsed.Error(position, string, ex) => throw new Exception(s"Parse exception in ($path:${position.startLine})", ex)
+    }
+  private def addDI(parseContext: ParseContext, generatedWOComponents: List[Generated]): String = {
+    val parsedGenerated = generatedWOComponents.collect{ case c: GeneratedCode => c.content.parse[Stat] match { // c.content.parse[Source].get.stats}.flatten
+      case Success(stat) => stat
+      case Error(position, str, exception) =>
+        println(c.content)
+        throw exception
+    }}
+    val parsedAll = parseContext.stats ::: parsedGenerated
+    val compParseContext = new ParseContext(parsedAll, parseContext.path, parseContext.pkg)
+    val generated: List[Generated] = generatedWOComponents ::: ComponentsGenerator.get(compParseContext)
+    if(generated.forall(_.isInstanceOf[GeneratedImport])) "" else {
+      val head = generated.collect { case s: GeneratedAppLink => s"(${s.pkg} ${s.app} ${s.expr})" }.mkString
+      val body = generated.flatMap {
+        case c: GeneratedImport => List(c.content)
+        case c: GeneratedCode => List(c.content)
+        case _: GeneratedAppLink => Nil
+        case c => throw new Exception(s"$c")
+      }.mkString("\n")
+      s"// THIS FILE IS GENERATED; APPLINKS: $head\n\npackage ${parseContext.pkg} {$body\n}"
+    }
   }
 }
 
@@ -352,9 +337,9 @@ object Util {
     in.map{ case (path,lines) => path->lines.mkString("\n").getBytes(UTF_8) }.toList.sortBy(_._1)
 
   def pathToId(fileName: String): String = {
-    val SName = """.+/([-\w]+)\.scala""".r
-    val SName(fName) = fileName
-    fName.replace('-', '_')
+    val SName = """.+/([-\w]+)\.([a-z]+)""".r
+    val SName(fName, ext) = fileName
+    fName.replace('-', '_') + (if(ext == "scala") "" else s"_$ext")
   }
 
 
