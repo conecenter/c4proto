@@ -9,6 +9,7 @@ import scala.meta.parsers.Parsed.{Error, Success}
 import scala.meta._
 import scala.jdk.CollectionConverters.IterableHasAsScala
 import scala.jdk.CollectionConverters.IteratorHasAsScala
+import scala.util.matching.Regex
 
 object Main {
   def defaultGenerators(protocolStatsTransformers: List[ProtocolStatsTransformer]): List[Generator] = {
@@ -46,7 +47,7 @@ trait WillGenerator {
 class ParentPath(val path: Path, val removed: List[String])
 case class ConfItem(from: String, to: String)
 class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTextGenerator]=Nil) {
-  def willGenerators: List[WillGenerator] = List(
+  private def willGenerators: List[WillGenerator] = List(
     new DefaultWillGenerator(generators, fromTextGenerators),
     new PublicPathsGenerator,
     new ModRootsGenerator,
@@ -54,11 +55,11 @@ class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTe
   )
   //
   def isGenerated(fileName: String): Boolean = fileName.startsWith("c4gen.") || fileName.startsWith("c4gen-")
-  def getParentPaths(res: List[ParentPath]): List[ParentPath] = (for {
+  private def getParentPaths(res: List[ParentPath]): List[ParentPath] = (for {
     parent <- Option(res.head.path.getParent)
     name <- Option(res.head.path.getFileName)
   } yield getParentPaths(new ParentPath(parent, name.toString::res.head.removed) :: res)).getOrElse(res)
-  def getModDirs(paths: List[Path]): Map[Path,ParentPath] = {
+  private def getModDirs(paths: List[Path]): Map[Path,ParentPath] = {
     val srcScalaDirs: List[Path] =
       paths.filter(_.getFileName.toString.endsWith(".scala")).map(_.getParent).distinct
     val hasScala = srcScalaDirs.toSet
@@ -72,7 +73,7 @@ class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTe
     val version = opt("--ver")
     //println(s"1:${System.currentTimeMillis()}") //130
     val conf = Files.readAllLines(workPath.resolve("target/c4/generator.conf")).asScala.toSeq.grouped(3).toSeq
-      .groupMap(_(0))(_.tail match{ case Seq(fr,to) => ConfItem(fr,to) }).withDefaultValue(Nil)
+      .groupMap(_.head)(_.tail match{ case Seq(fr,to) => ConfItem(fr,to) }).withDefaultValue(Nil)
     val dirs = for(it <- (conf("C4SRC") ++ conf("C4PUB")).distinct) yield workPath.resolve(it.to).toString
     val cmd = "find" :: dirs.toList ::: "-type" :: "f" :: Nil
     val filesA = new String(new ProcessBuilder(cmd:_*).start().getInputStream.readAllBytes(), UTF_8).split("\n") // Files.walk is much slower
@@ -93,6 +94,7 @@ class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTe
       WillGeneratorContext(fromFiles, getModDirs(fromFiles), workPath, version, srcRoots, pubRoots, deps, modNames, tags)
     val will = willGenerators.flatMap(_.get(willGeneratorContext))
     assert(will.forall{ case(path,_) => isGenerated(path.getFileName.toString) })
+    assert(will.size == will.map(_._1).toSet.size)
     //println(s"2:${System.currentTimeMillis()}")
     for(path <- was.keySet -- will.toMap.keys) {
       println(s"removing $path")
@@ -131,7 +133,7 @@ object Cached {
   }
 }
 
-case class FromTextGeneratorContext(pkgInfo: PkgInfo, content: String)
+case class FromTextGeneratorContext(pkgInfo: PkgInfo, fileName: String, content: String)
 trait FromTextGenerator {
   def ext: String
   def get(context: FromTextGeneratorContext): List[Generated]
@@ -144,7 +146,6 @@ object JoinStr {
 case class AutoMixerDescr(path: Path, name: String, content: String)
 class DefaultWillGenerator(generators: List[Generator], fromTextGenerators: List[FromTextGenerator]) extends WillGenerator {
   def get(ctx: WillGeneratorContext): List[(Path,Array[Byte])] = {
-    if(fromTextGenerators.size != fromTextGenerators.map(_.ext).distinct.size) throw new Exception("ext conflict")
     val ExtRegEx = """.*\.(\w+)""".r
     val pathsByExt = ctx.fromFiles.groupBy(_.getFileName.toString match {
       case ExtRegEx(ext) => ext
@@ -159,7 +160,7 @@ class DefaultWillGenerator(generators: List[Generator], fromTextGenerators: List
       path <- pathsByExt(generator.ext)
       pkgInfo <- Util.pkgInfo(mainScalaPath, path.getParent)
     } yield (path, ".scala", (textContent: String)=>{
-      val generated = generator.get(FromTextGeneratorContext(pkgInfo, textContent))
+      val generated = generator.get(FromTextGeneratorContext(pkgInfo, path.getFileName.toString, textContent))
       addDI(new ParseContext(Nil, path.toString, pkgInfo.pkgName), generated)
     })
     withIndex(ctx)(Cached(ctx, tasks ++ fromTextTasks))
@@ -204,7 +205,7 @@ class DefaultWillGenerator(generators: List[Generator], fromTextGenerators: List
             }.sorted.mkString
         parentPath.resolve("c4gen.scala") -> content.getBytes(UTF_8)
     }
-    val defAppsByModDir = defAppLinks.groupMap(_._1){ case (k,v) => s"${v.pkg}.${v.app}" }.transform((k,v)=>v.distinct)
+    val defAppsByModDir = defAppLinks.groupMap(_._1){ case (_,v) => s"${v.pkg}.${v.app}" }.transform((_,v)=>v.distinct)
     val MainPkg = """(\w+)\.(.+)""".r
     val autoMixers = (new ByPriority[String,Option[AutoMixerDescr]](
       modName=>(ctx.deps(modName), depOpts => {
@@ -216,7 +217,7 @@ class DefaultWillGenerator(generators: List[Generator], fromTextGenerators: List
         if (deps.isEmpty && defApps.isEmpty) None else {
           val Seq(dir) = dirs
           val defApp = defApps.mkString(" with ")
-          val compContent = if(defApp.isEmpty) "Nil" else s"(new ${defApp} {}).components"
+          val compContent = if(defApp.isEmpty) "Nil" else s"(new $defApp {}).components"
           val mixerName = s"${Util.pkgNameToId(s".$pkg")}AutoMixer"
           val content = JoinStr(
               s"package $pkg",
@@ -294,7 +295,7 @@ object AppGenerator extends Generator {
 }
 
 object Util {
-  val UnBase = """(\w+)Base""".r
+  val UnBase: Regex = """(\w+)Base""".r
   /*
   def comment(stat: Stat): String=>String = cont =>
     cont.substring(0,stat.pos.start) + " /* " +
@@ -435,7 +436,7 @@ class PublicPathsGenerator extends WillGenerator {
         defs.map(_._1) :::
         "}" :: Nil
       List(root.genPath -> lines, root.mainPublicPath.resolve("c4gen.ht.links") -> defs.map(_._2))
-    }.groupMap(_._1)(_._2).transform((k,v)=>v.flatten))
+    }.groupMap(_._1)(_._2).transform((_,v)=>v.flatten))
   }
 }
 
