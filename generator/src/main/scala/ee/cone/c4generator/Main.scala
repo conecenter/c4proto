@@ -448,7 +448,7 @@ class ModRootsGenerator extends WillGenerator {
       pkgInfo <- Util.pkgInfo(mainScalaPath,pp.path)
     } {
       assert(!pkgInfo.pkgName.contains("._"),s"unclear name: ${pkgInfo.pkgName}; create dummy *.scala file or remove '_' prefix")
-      assert(pp.removed.isEmpty || pp.removed.head.startsWith("_"), s"bad sub: ${pp.removed}")
+      assert(pp.removed.isEmpty || pp.removed.head.startsWith("_"), s"bad sub: ${pp.removed} ${pp.path}")
     }
     Nil
   }

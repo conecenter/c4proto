@@ -14,7 +14,7 @@ class XsdWillGenerator extends WillGenerator {
   private def calcAll(ctx: WillGeneratorContext): MultiCached.TransformMany[String] = in => {
     val rootModsByModDir = (for {
       rMod <- ctx.tags.map(tag => splitDropLast(".", tag.to)).distinct
-      mod <- getFull(ctx.deps.transform((_,v)=>v.toSet), Set(rMod)).toList.sorted
+      mod <- getFull(ctx.deps.transform((_,v)=>v.toSet).withDefaultValue(Set.empty), Set(rMod)).toList.sorted
       dir <- getSourceDirs(ctx, mod)
     } yield dir -> rMod).groupMap(_._1)(_._2).withDefaultValue(Nil)
     (for {
@@ -57,10 +57,13 @@ class XsdWillGenerator extends WillGenerator {
   }
 
   private def getFull(deps: Map[String, Set[String]], startNames: Set[String]): Set[String] =
-    LazyList.iterate(startNames :: Nil)(r => (r.head ++ r.head.flatMap(deps)) :: r).tail
-      .dropWhile(r => r.head != r.tail.head).head.head
+    LazyList.iterate(startNames :: Nil)(r => (r.head ++ r.head.flatMap(deps)) :: r).tail.dropWhile{ r =>
+      //println(s"AN:${r.size} ${r.head.size} ${r.tail.head.size}")
+      r.head != r.tail.head
+    }.head.head
+
   private def calcRMod(toDir: Path): MultiCached.TransformMany[String] = in => {
-    println(s"XSD DIR: $toDir" + in.map { case (path, _) => s"\n  $path" }.mkString)
+    println(s"XSD DIR: $toDir" + in.map { case (path, _) => s"\n  in $path" }.mkString)
     val textsByType = in.map { case (path, text) => getFileType(path.getFileName.toString) -> text }
       .groupMap(_._1)(_._2).withDefaultValue(Nil)
     val elements = provideElements(textsByType("xsd").flatMap(scala.xml.XML.loadString(_).child).flatMap{
@@ -74,8 +77,10 @@ class XsdWillGenerator extends WillGenerator {
     msgBySys.toList.sortBy(_._1).map{ case (sys, startNames) =>
       val accessibleNames = getFull(deps, startNames)
       val enabledElements = elements.filter(e => accessibleNames(e \@ "name"))
+      val path = toDir.resolve(s"c4gen.$sys.xsd")
+      println(s"  out $path -- ${startNames.size} messages in conf -- ${enabledElements.size}/${elements.size} elements")
       val content = new PrettyPrinter(120, 4, true).format(<xs:schema xmlns:xs={xsn}/>.copy(child=enabledElements))
-      toDir.resolve(s"c4gen.$sys.xsd") -> s"""<?xml version="1.0" encoding="UTF-8"?>\n$content"""
+      path -> s"""<?xml version="1.0" encoding="UTF-8"?>\n$content"""
     }
   }
 }
@@ -86,10 +91,8 @@ object MessagesConfParser {
     val linesByCmd = texts.flatMap(_.split("\n")).map(_.split(":")).groupMap(_.head)(_.tail.toList)
     (linesByCmd.keySet -- Set("DIR", "SYSTEM", "")).toList.sorted.foreach(cmd => throw new Exception(s"bad cmd $cmd"))
     val DirRe = """\s*(\w+)\s+(\w+)\s*->\s*(\w+)\s*""".r
-    val SysRe = """\s*(\w+)\s*""".r
-    val dirs: List[(String, String, String)] =
-      linesByCmd.getOrElse("DIR", Nil).map { case DirRe(msg, from, to) => (msg, from, to) }
-    val systems: List[String] = linesByCmd.getOrElse("SYSTEM", Nil).map { case SysRe(sys) => sys }
+    val dirs= linesByCmd.getOrElse("DIR", Nil).map { case Seq(DirRe(msg, from, to)) => (msg, from, to) }
+    val systems = linesByCmd.getOrElse("SYSTEM", Nil).map { case Seq(s) => s.trim }
     (dirs, systems)
   }
 }
@@ -100,13 +103,12 @@ class MessagesConfTextGenerator(imp: String) extends FromTextGenerator {
   override def get(context: FromTextGeneratorContext): List[Generated] =
     if(!MessagesConfParser.supports(context.fileName)) Nil else {
       val (dirList, sysList) = MessagesConfParser.parse(List(context.content))
-      List(GeneratedCode(JoinStr(
+      List(GeneratedImport(imp), GeneratedCode(JoinStr(
         "\n@c4 final class MessageConfProvider {",
-        s"\n  $imp",
-        s"\n  @provide systems: Seq[MessageSystem] = Seq(",
-        sysList.map{ s => s"""\n    MessageDirection("$s"),"""}.mkString,
+        s"\n  @provide def systems: Seq[MessageSystem] = Seq(",
+        sysList.map{ s => s"""\n    MessageSystem("$s"),"""}.mkString,
         "\n  )",
-        s"\n  @provide directions: Seq[MessageDirection] = Seq(",
+        s"\n  @provide def directions: Seq[MessageDirection] = Seq(",
         dirList.map{ case (m,f,t) => s"""\n    MessageDirection("$m","$f","$t"),"""}.mkString,
         "\n  )",
         "\n}"
