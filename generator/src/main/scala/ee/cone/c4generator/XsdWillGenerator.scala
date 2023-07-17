@@ -47,8 +47,6 @@ class XsdWillGenerator extends WillGenerator {
     val c4ns = "http://cone.dev"
     val useN = s"{$c4ns}use"
     val provideN = s"{$c4ns}provide"
-    in.filterNot(e => e.getNamespace(e.prefix) == xsn).foreach(e => throw new Exception(s"bad prefix ${e.prefix}"))
-    in.map(_.label).foreach{ case "element" | "simpleType" | "complexType" => () }
     val (providedElements, elements) = in.partition(e=>(e \@ provideN).nonEmpty)
     val provided = groupDef(providedElements.toList.flatMap{ e => (e \@ provideN).split("""\s+""").map(_->e) })
     def tr(e: Elem): Elem = {
@@ -68,14 +66,21 @@ class XsdWillGenerator extends WillGenerator {
 
   private def calcRMod(toDir: Path): MultiCached.TransformMany[String] = in => {
     println(s"XSD DIR: $toDir" + in.map { case (path, _) => s"\n  in $path" }.mkString)
-    val textsByType = groupDef(in.map { case (path, text) => getFileType(path.getFileName.toString) -> text })
-    val elements = provideElements(textsByType("xsd").flatMap(scala.xml.XML.loadString(_).child).flatMap{
-      case e: xml.Elem => Option(e)
-      case t: xml.Text if t.text.forall(_.isWhitespace) => None
+    val textsByType = groupDef(in.map { case (path, text) => getFileType(path.getFileName.toString) -> (path, text) })
+    val elements = provideElements(textsByType("xsd").flatMap{ case (path, text) =>
+      scala.xml.XML.loadString(text).child.flatMap{
+        case e: xml.Elem if e.getNamespace(e.prefix) == xsn => Option(e)
+        case t: xml.Text if t.text.forall(_.isWhitespace) => None
+        case a => throw new Exception(s"bad 1st level node ($a) at $path")
+      }.filter(_.label match {
+        case "element" | "simpleType" | "complexType" => true
+        case "include" => false
+        case a => throw new Exception(s"bad 1st level element label ($a) at $path")
+      })
     })
     val deps = elements.map(el => (el \@ "name") -> ((el \\ "@base") ++ (el \\ "@type")).map(_.text).toSet)
       .groupMapReduce(_._1)(_._2)(_++_).withDefaultValue(Set.empty)
-    val (dirList, _) = MessagesConfParser.parse(textsByType("conf"))
+    val (dirList, _) = MessagesConfParser.parse(textsByType("conf").map(_._2))
     groupSort(for((ms, f, t) <- dirList; sys <- Seq(f,t)) yield sys -> ms).map{ case (sys, startNameList) =>
       val startNames = startNameList.toSet
       val accessibleNames = getFull(deps, startNames)
