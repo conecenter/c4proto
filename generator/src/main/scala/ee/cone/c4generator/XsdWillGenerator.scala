@@ -11,17 +11,21 @@ class XsdWillGenerator extends WillGenerator {
     MultiCached.cached(ctx, "xsd", calcAll(ctx), files)
   }
 
+  private def groupDef[K,V](in: List[(K,V)]): Map[K, List[V]] = in.groupMap(_._1)(_._2).withDefaultValue(Nil)
+  private def groupSort[K,V](in: List[(K,V)])(implicit o: Ordering[K]): List[(K, List[V])] =
+    in.groupMap(_._1)(_._2).toList.sortBy(_._1)
+
   private def calcAll(ctx: WillGeneratorContext): MultiCached.TransformMany[String] = in => {
-    val rootModsByModDir = (for {
+    val rootModsByModDir = groupDef(for {
       rMod <- ctx.tags.map(tag => splitDropLast(".", tag.to)).distinct
       mod <- getFull(ctx.deps.transform((_,v)=>v.toSet).withDefaultValue(Set.empty), Set(rMod)).toList.sorted
       dir <- getSourceDirs(ctx, mod)
-    } yield dir -> rMod).groupMap(_._1)(_._2).withDefaultValue(Nil)
-    (for {
+    } yield dir -> rMod)
+    groupSort(for {
       (path, text) <- in
       modDir <- ctx.dirToModDir.get(path.getParent).toList
       rMod <- rootModsByModDir(modDir.path)
-    } yield rMod -> (path, text)).groupMap(_._1)(_._2).toList.sortBy(_._1).flatMap { case (rMod, parts) =>
+    } yield rMod -> (path, text)).flatMap { case (rMod, parts) =>
       val Seq(toDir) = getSourceDirs(ctx, rMod)
       calcRMod(toDir)(parts)
     }
@@ -42,18 +46,18 @@ class XsdWillGenerator extends WillGenerator {
   private def provideElements(in: Seq[Elem]): Seq[Elem] = {
     val c4ns = "http://cone.dev"
     val useN = s"{$c4ns}use"
-    val elementsByNS = in.groupBy(e => (e.getNamespace(e.prefix), e.label) match {
-      case (ns@`c4ns`, "provide") => ns
-      case (ns@`xsn`, "element"|"simpleType"|"complexType") => ns
-    }).withDefaultValue(Nil)
-    val providesByType = elementsByNS(c4ns).groupMapReduce(_ \@ "type")(_.child)(_++_).withDefaultValue(Nil)
+    val provideN = s"{$c4ns}provide"
+    in.filterNot(e => e.getNamespace(e.prefix) == xsn).foreach(e => throw new Exception(s"bad prefix ${e.prefix}"))
+    in.map(_.label).foreach{ case "element" | "simpleType" | "complexType" => () }
+    val (providedElements, elements) = in.partition(e=>(e \@ provideN).nonEmpty)
+    val provided = groupDef(providedElements.toList.flatMap{ e => (e \@ provideN).split("""\s+""").map(_->e) })
     def tr(e: Elem): Elem = {
       val use = e \@ useN
-      val child = if (use.isEmpty) e.child else providesByType(use)
-      val attributes = e.attributes.remove(c4ns, e.scope, "use")
+      val child = if (use.isEmpty) e.child else provided(use)
+      val attributes = e.attributes.remove(c4ns, e.scope, "use").remove(c4ns, e.scope, "provide")
       e.copy(scope = TopScope, child = child.map { case ce: Elem => tr(ce) case o => o }, attributes = attributes)
     }
-    elementsByNS(xsn).map(tr)
+    elements.map(tr)
   }
 
   private def getFull(deps: Map[String, Set[String]], startNames: Set[String]): Set[String] =
@@ -64,8 +68,7 @@ class XsdWillGenerator extends WillGenerator {
 
   private def calcRMod(toDir: Path): MultiCached.TransformMany[String] = in => {
     println(s"XSD DIR: $toDir" + in.map { case (path, _) => s"\n  in $path" }.mkString)
-    val textsByType = in.map { case (path, text) => getFileType(path.getFileName.toString) -> text }
-      .groupMap(_._1)(_._2).withDefaultValue(Nil)
+    val textsByType = groupDef(in.map { case (path, text) => getFileType(path.getFileName.toString) -> text })
     val elements = provideElements(textsByType("xsd").flatMap(scala.xml.XML.loadString(_).child).flatMap{
       case e: xml.Elem => Option(e)
       case t: xml.Text if t.text.forall(_.isWhitespace) => None
@@ -73,8 +76,8 @@ class XsdWillGenerator extends WillGenerator {
     val deps = elements.map(el => (el \@ "name") -> ((el \\ "@base") ++ (el \\ "@type")).map(_.text).toSet)
       .groupMapReduce(_._1)(_._2)(_++_).withDefaultValue(Set.empty)
     val (dirList, _) = MessagesConfParser.parse(textsByType("conf"))
-    val msgBySys = (for((ms, f, t) <- dirList; sys <- Seq(f,t)) yield sys -> Set(ms)).groupMapReduce(_._1)(_._2)(_++_)
-    msgBySys.toList.sortBy(_._1).map{ case (sys, startNames) =>
+    groupSort(for((ms, f, t) <- dirList; sys <- Seq(f,t)) yield sys -> ms).map{ case (sys, startNameList) =>
+      val startNames = startNameList.toSet
       val accessibleNames = getFull(deps, startNames)
       val enabledElements = elements.filter(e => accessibleNames(e \@ "name"))
       val path = toDir.resolve(s"c4gen.$sys.xsd")
