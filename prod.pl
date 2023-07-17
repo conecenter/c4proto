@@ -770,9 +770,11 @@ push @tasks, ["debug","<on|off> [components]",sub{
 
 push @tasks, ["tag","[tag]",sub{
     my($tag)=@_;
-    &$put_text("/c4/debug-tag",$tag||"");
+    &$put_text("/c4/debug-tag",$tag||die);
     &$restart();
 }];
+
+push @tasks, ["restart"," ",sub{&$restart()}];
 
 push @tasks, ["kafka","( topics | offsets <hours> | nodes | sizes <node> | topics_rm )",sub{
     my @args = @_;

@@ -88,7 +88,8 @@ class XsdWillGenerator extends WillGenerator {
 object MessagesConfParser {
   def supports(fn: String): Boolean = fn == "messages.conf"
   def parse(texts: List[String]): (List[(String, String, String)], List[String]) = {
-    val linesByCmd = texts.flatMap(_.split("\n")).map(_.split(":")).groupMap(_.head)(_.tail.toList)
+    val linesByCmd = texts.flatMap(_.split("\n")).map(_.split("#").head)
+      .map(_.split(":")).groupMap(_.head)(_.tail.toList)
     (linesByCmd.keySet -- Set("DIR", "SYSTEM", "")).toList.sorted.foreach(cmd => throw new Exception(s"bad cmd $cmd"))
     val DirRe = """\s*(\w+)\s+(\w+)\s*->\s*(\w+)\s*""".r
     val dirs= linesByCmd.getOrElse("DIR", Nil).map { case Seq(DirRe(msg, from, to)) => (msg, from, to) }
