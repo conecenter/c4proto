@@ -47,15 +47,18 @@ class XsdWillGenerator extends WillGenerator {
     val c4ns = "http://cone.dev"
     val useN = s"{$c4ns}use"
     val provideN = s"{$c4ns}provide"
-    val (providedElements, elements) = in.partition(e=>(e \@ provideN).nonEmpty)
-    val provided = groupDef(providedElements.toList.flatMap{ e => (e \@ provideN).split("""\s+""").map(_->e) })
+    val provided = groupDef(for {
+      e <- (in \\ "_").toList
+      ks <- List(e \@ provideN) if ks.nonEmpty
+      k <- ks.split("""\s+""")
+    } yield k -> e)
     def tr(e: Elem): Elem = {
       val use = e \@ useN
       val child = if (use.isEmpty) e.child else provided(use)
       val attributes = e.attributes.remove(c4ns, e.scope, "use").remove(c4ns, e.scope, "provide")
       e.copy(scope = TopScope, child = child.map { case ce: Elem => tr(ce) case o => o }, attributes = attributes)
     }
-    elements.map(tr)
+    in.map(tr)
   }
 
   private def getFull(deps: Map[String, Set[String]], startNames: Set[String]): Set[String] =
