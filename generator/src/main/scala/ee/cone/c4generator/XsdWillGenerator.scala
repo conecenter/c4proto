@@ -78,8 +78,11 @@ class XsdWillGenerator extends WillGenerator {
     })
     val deps = elements.map(el => (el \@ "name") -> ((el \\ "@base") ++ (el \\ "@type")).map(_.text).toSet)
       .groupMapReduce(_._1)(_._2)(_++_).withDefaultValue(Set.empty)
-    val (dirList, _) = MessagesConfParser.parse(textsByType("conf").map(_._2))
-    groupSort(for((ms, f, t) <- dirList; sys <- Seq(f,t)) yield sys -> ms).map{ case (sys, startNameList) =>
+    val (dirList, systemList) = MessagesConfParser.parse(textsByType("conf").map(_._2))
+    val systems = if(systemList.size == 1) systemList.toSet else Set.empty[String]
+    groupSort(
+      for((ms, f, t) <- dirList if systems(f) || systems(t); sys <- Seq(f,t)) yield sys -> ms
+    ).map{ case (sys, startNameList) =>
       val startNames = startNameList.toSet
       val accessibleNames = getFull(deps, startNames)
       val enabledElements = elements.filter(e => accessibleNames(e \@ "name"))
