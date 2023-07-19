@@ -19,14 +19,14 @@ class XsdWillGenerator extends WillGenerator {
     val rootModsByModDir = groupDef(for {
       rMod <- ctx.tags.map(tag => splitDropLast(".", tag.to)).distinct
       mod <- getFull(ctx.deps.transform((_,v)=>v.toSet).withDefaultValue(Set.empty), Set(rMod)).toList.sorted
-      dir <- getSourceDirs(ctx, mod)
+      dir <- ctx.modInfo(mod).srcDirs
     } yield dir -> rMod)
     groupSort(for {
       (path, text) <- in
-      modDir <- ctx.dirToModDir.get(path.getParent).toList
-      rMod <- rootModsByModDir(modDir.path)
+      dirInfo <- Util.dirInfo(ctx, path.getParent)
+      rMod <- rootModsByModDir(dirInfo.modDir)
     } yield rMod -> (path, text)).flatMap { case (rMod, parts) =>
-      val Seq(toDir) = getSourceDirs(ctx, rMod)
+      val Seq(toDir) = ctx.modInfo(rMod).srcDirs
       calcRMod(toDir)(parts)
     }
   }
@@ -35,11 +35,6 @@ class XsdWillGenerator extends WillGenerator {
     if (MessagesConfParser.supports(fn)) "conf" else if (fn.endsWith(".xsd")) "xsd" else ""
 
   private def splitDropLast(sp: String, v: String): String = v.substring(0, v.lastIndexOf(sp))
-
-  private def getSourceDirs(ctx: WillGeneratorContext, modName: String): Seq[Path] = {
-    val modHead :: modTail = modName.split("\\.").toList
-    ctx.srcRoots(modHead).map(_.resolve(modTail.mkString("/")))
-  }
 
   private val xsn = "http://www.w3.org/2001/XMLSchema"
 
@@ -148,8 +143,8 @@ object MultiCached {
   private def transpose[A, B](list: List[(A, B)]): (List[A], List[B]) = (list.map(_._1), list.map(_._2))
 
   def cached(
-              ctx: WillGeneratorContext, tp: String, calc: TransformMany[String], inPaths: List[Path]
-            ): List[(Path, Array[Byte])] = {
+    ctx: WillGeneratorContext, tp: String, calc: TransformMany[String], inPaths: List[Path]
+  ): List[(Path, Array[Byte])] = {
     val inDatas = inPaths.map(read)
     val hash = mkHash(toBytes(ctx.version + mkHash(toBytes(inPaths)) + inDatas.map(mkHash)))
     val rootCachePath = Files.createDirectories(ctx.workPath.resolve(s"target/c4/gen/cache-$tp"))
