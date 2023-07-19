@@ -65,8 +65,11 @@ class XsdWillGenerator extends WillGenerator {
   private def calcRMod(toDir: Path): MultiCached.TransformMany[String] = in => {
     println(s"XSD DIR: $toDir" + in.map { case (path, _) => s"\n  in $path" }.mkString)
     val textsByType = groupDef(in.map { case (path, text) => getFileType(path.getFileName.toString) -> (path, text) })
-    val elements = provideElements(textsByType("xsd").flatMap{ case (path, text) =>
-      scala.xml.XML.loadString(text).child.flatMap{
+    val MessageNumber = """\s*MSG#(\d+).*""".r
+    val elements = provideElements(textsByType("xsd").sortBy{
+      case (path, _) => (path.getFileName, path)
+    }.flatMap{ case (path, text) =>
+      scala.xml.XML.loadString(text).child.flatMap {
         case e: xml.Elem if e.getNamespace(e.prefix) == xsn => Option(e)
         case t: xml.Text if t.text.forall(_.isWhitespace) => None
         case a => throw new Exception(s"bad 1st level node ($a) at $path")
@@ -75,7 +78,15 @@ class XsdWillGenerator extends WillGenerator {
         case "include" => false
         case a => throw new Exception(s"bad 1st level element label ($a) at $path")
       })
-    })
+    }).groupBy(e => (e.label, (e \ "annotation" \ "documentation").text) match {
+      case ("element", MessageNumber(s)) =>
+        println(s"text 1: ${s}")
+        (0, s.toInt)
+      case ("element", t) =>
+        println(s"text 0: ${t}")
+        (1, 0)
+      case _ => (2, 0)
+    }).toList.sortBy(_._1).flatMap(_._2)
     val deps = elements.map(el => (el \@ "name") -> ((el \\ "@base") ++ (el \\ "@type")).map(_.text).toSet)
       .groupMapReduce(_._1)(_._2)(_++_).withDefaultValue(Set.empty)
     val (dirList, systemList) = MessagesConfParser.parse(textsByType("conf").map(_._2))
