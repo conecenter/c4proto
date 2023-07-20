@@ -16,9 +16,12 @@ class XsdWillGenerator extends WillGenerator {
     in.groupMap(_._1)(_._2).toList.sortBy(_._1)
 
   private def calcAll(ctx: WillGeneratorContext): MultiCached.TransformMany[String] = in => {
+    val deps = ctx.deps.transform((_,v)=>v.toSet).withDefaultValue(Set.empty)
+    val rMods = ctx.tags.map(tag => splitDropLast(".", tag.to)).distinct
+    val fullDeps = rMods.map(rMod => rMod -> getFull(deps, Set(rMod)).toList.sorted).toMap
     val rootModsByModDir = groupDef(for {
-      rMod <- ctx.tags.map(tag => splitDropLast(".", tag.to)).distinct
-      mod <- getFull(ctx.deps.transform((_,v)=>v.toSet).withDefaultValue(Set.empty), Set(rMod)).toList.sorted
+      rMod <- rMods
+      mod <- fullDeps(rMod)
       dir <- ctx.modInfo(mod).srcDirs
     } yield dir -> rMod)
     groupSort(for {
@@ -27,7 +30,7 @@ class XsdWillGenerator extends WillGenerator {
       rMod <- rootModsByModDir(dirInfo.modDir)
     } yield rMod -> (path, text)).flatMap { case (rMod, parts) =>
       val Seq(toDir) = ctx.modInfo(rMod).srcDirs
-      calcRMod(toDir)(parts)
+      calcRMod(toDir, fullDeps(rMod))(parts)
     }
   }
 
@@ -62,8 +65,8 @@ class XsdWillGenerator extends WillGenerator {
       r.head != r.tail.head
     }.head.head
 
-  private def calcRMod(toDir: Path): MultiCached.TransformMany[String] = in => {
-    println(s"XSD DIR: $toDir" + in.map { case (path, _) => s"\n  in $path" }.mkString)
+  private def calcRMod(toDir: Path, fullDeps: List[String]): MultiCached.TransformMany[String] = in => {
+    println(s"XSD DIR: $toDir")
     val textsByType = groupDef(in.map { case (path, text) => getFileType(path.getFileName.toString) -> (path, text) })
     val MessageNumber = """\s*MSG#(\d+).*""".r
     val elements = provideElements(textsByType("xsd").sortBy{
@@ -79,18 +82,14 @@ class XsdWillGenerator extends WillGenerator {
         case a => throw new Exception(s"bad 1st level element label ($a) at $path")
       })
     }).groupBy(e => (e.label, (e \ "annotation" \ "documentation").text) match {
-      case ("element", MessageNumber(s)) =>
-        println(s"text 1: ${s}")
-        (0, s.toInt)
-      case ("element", t) =>
-        println(s"text 0: ${t}")
-        (1, 0)
+      case ("element", MessageNumber(s)) => (0, s.toInt)
+      case ("element", t) => (1, 0)
       case _ => (2, 0)
     }).toList.sortBy(_._1).flatMap(_._2)
     val deps = elements.map(el => (el \@ "name") -> ((el \\ "@base") ++ (el \\ "@type")).map(_.text).toSet)
       .groupMapReduce(_._1)(_._2)(_++_).withDefaultValue(Set.empty)
     val (dirList, systemList) = MessagesConfParser.parse(textsByType("conf").map(_._2))
-    if(systemList.size != 1) Nil else groupSort(
+    val xsdRes = if(systemList.size != 1) Nil else groupSort(
       for((ms, f, t) <- dirList if systemList.contains(f) || systemList.contains(t); sys <- Seq(f,t)) yield sys -> ms
     ).map{ case (sys, startNameList) =>
       val startNames = startNameList.toSet
@@ -101,6 +100,7 @@ class XsdWillGenerator extends WillGenerator {
       val content = new PrettyPrinter(120, 4, true).format(<xs:schema xmlns:xs={xsn}/>.copy(child=enabledElements))
       toDir.resolve(fn) -> s"""<?xml version="1.0" encoding="UTF-8"?>\n$content"""
     }
+    (toDir.resolve("c4msg.log")->(fullDeps++in.map(_._1)).mkString("\n")) :: xsdRes
   }
 }
 
