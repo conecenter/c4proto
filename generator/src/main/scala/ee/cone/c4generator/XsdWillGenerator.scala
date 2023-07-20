@@ -90,17 +90,16 @@ class XsdWillGenerator extends WillGenerator {
     val deps = elements.map(el => (el \@ "name") -> ((el \\ "@base") ++ (el \\ "@type")).map(_.text).toSet)
       .groupMapReduce(_._1)(_._2)(_++_).withDefaultValue(Set.empty)
     val (dirList, systemList) = MessagesConfParser.parse(textsByType("conf").map(_._2))
-    val systems = if(systemList.size == 1) systemList.toSet else Set.empty[String]
-    groupSort(
-      for((ms, f, t) <- dirList if systems(f) || systems(t); sys <- Seq(f,t)) yield sys -> ms
+    if(systemList.size != 1) Nil else groupSort(
+      for((ms, f, t) <- dirList if systemList.contains(f) || systemList.contains(t); sys <- Seq(f,t)) yield sys -> ms
     ).map{ case (sys, startNameList) =>
       val startNames = startNameList.toSet
       val accessibleNames = getFull(deps, startNames)
       val enabledElements = elements.filter(e => accessibleNames(e \@ "name"))
-      val path = toDir.resolve(s"c4gen.$sys.xsd")
-      println(s"  out $path -- ${startNames.size} messages in conf -- ${enabledElements.size}/${elements.size} elements")
+      val fn = systemList match { case Seq(s) if s == sys => s"c4msg.$s.all.xsd" case Seq(s) => s"c4msg.$s-$sys.xsd" }
+      println(s"  out $fn -- ${startNames.size} messages in conf -- ${enabledElements.size}/${elements.size} elements")
       val content = new PrettyPrinter(120, 4, true).format(<xs:schema xmlns:xs={xsn}/>.copy(child=enabledElements))
-      path -> s"""<?xml version="1.0" encoding="UTF-8"?>\n$content"""
+      toDir.resolve(fn) -> s"""<?xml version="1.0" encoding="UTF-8"?>\n$content"""
     }
   }
 }

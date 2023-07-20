@@ -102,7 +102,7 @@ my @tasks;
 push @tasks, ["clean_local","",sub{
     my($dir)=@_;
     $dir || die;
-    for(grep{m"\bc4gen\b|/target/|/tmp/|/node_modules/|/.bloop/"} map{"/$_"} &$find("sh -c ","$dir/",[])){ # will not clear dir-only trees
+    for(grep{m"\bc4gen\b|\bc4msg\b|/target/|/tmp/|/node_modules/|/.bloop/"} map{"/$_"} &$find("sh -c ","$dir/",[])){ # will not clear dir-only trees
         my $path = "$dir$_";
         print "deleting $path\n";
         unlink $path or die;
@@ -131,7 +131,7 @@ push @tasks, ["back","",sub{
     my($dir)=@_;
     my $remote_dir = &$request_remote_dir();
     my $remote_pre = &$get_remote_pre();
-    my @changed = grep{/\bc4gen\b/ || /-generated\./} &$find($remote_pre,"$remote_dir/",$prune);
+    my @changed = grep{/\bc4gen\b/ || /\bc4msg\b/ || /-generated\./} &$find($remote_pre,"$remote_dir/",$prune);
     my %changed = map{($_=>1)} @changed;
     &$sync0($dir,$remote_dir,1,\@changed,sub{$changed{$_[0]}?"upd":"del"});
 }];

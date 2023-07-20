@@ -53,7 +53,8 @@ class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTe
     new XsdWillGenerator,
   )
   //
-  def isGenerated(fileName: String): Boolean = fileName.startsWith("c4gen.") || fileName.startsWith("c4gen-")
+  def isGenerated(fileName: String): Boolean =
+    fileName.startsWith("c4gen.") || fileName.startsWith("c4gen-") || fileName.startsWith("c4msg.")
 
   def run(args: Array[String]): Unit = {
     val opt = args.grouped(2).map{ case Array(a,b) => (a,b) }.toMap
