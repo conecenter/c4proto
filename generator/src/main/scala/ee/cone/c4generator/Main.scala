@@ -47,7 +47,9 @@ case class ParentPath(modDir: Path, removed: List[String], pkg: String, modInfo:
 case class ConfItem(from: String, to: String)
 class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTextGenerator]=Nil) {
   private def willGenerators: List[WillGenerator] = List(
-    new DefaultWillGenerator(generators, fromTextGenerators),
+    new DefaultWillGenerator(
+      new FromScalaPerFileGenerator(generators) :: fromTextGenerators.map(new FromTextPerFileGenerator(_))
+    ),
     new PublicPathsGenerator,
     new ModRootsGenerator,
     new XsdWillGenerator,
@@ -123,19 +125,21 @@ case class ModGroupInfo(name: String, srcDirs: List[Path], pubDirs: List[Path])
 case class ModInfo(name: String, group: ModGroupInfo, pkg: String, srcDirs: List[Path])
 
 object Cached {
-  def apply(ctx: WillGeneratorContext, tasks: List[(Path,String,String=>String)]): List[(Path,Array[Byte])] = {
+  def apply(ctx: WillGeneratorContext, tasks: List[(Path,String,PerFileGenerator)]): List[(Path,Array[Byte])] = {
     val rootCachePath = Files.createDirectories(ctx.workPath.resolve("target/c4/gen/cache"))
     Await.result({
       implicit val ec: ExecutionContextExecutor = scala.concurrent.ExecutionContext.global
       Future.sequence(tasks.map(pt=>Future{
-        val (path,postfix,transform) = pt
+        val (path, pkg, perFileGenerator) = pt
+        val postfix = perFileGenerator.postfix
         val fromData = Files.readAllBytes(path)
-        val uuidForPath = UUID.nameUUIDFromBytes(s"$path$postfix".getBytes(UTF_8)).toString
         val uuid = UUID.nameUUIDFromBytes(fromData).toString
-        val cachePath = rootCachePath.resolve(s"$uuidForPath-$uuid-${ctx.version}")
+        val metaUuid = UUID.nameUUIDFromBytes(s"${ctx.version}\n$path\n$pkg\n$postfix\n$uuid".getBytes(UTF_8)).toString
+        val cachePath = rootCachePath.resolve(metaUuid)
         val out = if (Files.exists(cachePath)) Files.readAllBytes(cachePath) else {
           println(s"parsing $path")
-          val toData = transform(new String(fromData,UTF_8)).getBytes(UTF_8)
+          val ctx = PerFileGeneratorContext(path, pkg, new String(fromData,UTF_8))
+          val toData = perFileGenerator.handle(ctx).getBytes(UTF_8)
           Util.ignoreTheSamePath(Files.write(cachePath, toData))
           toData
         }
@@ -156,26 +160,50 @@ object JoinStr {
 }
 
 case class AutoMixerDescr(path: Path, name: String, content: String)
-class DefaultWillGenerator(generators: List[Generator], fromTextGenerators: List[FromTextGenerator]) extends WillGenerator {
-  def get(ctx: WillGeneratorContext): List[(Path,Array[Byte])] = {
+
+trait PerFileGenerator {
+  def ext: String
+  def postfix: String
+  def handle(ctx: PerFileGeneratorContext): String
+}
+
+case class PerFileGeneratorContext(path: Path, pkg: String, content: String)
+
+class FromScalaPerFileGenerator(generators: List[Generator]) extends PerFileGenerator {
+  def ext: String = "scala"
+  def postfix: String = ""
+  def handle(ctx: PerFileGeneratorContext): String =
+    DefaultWillGenerator.getParseContext(ctx.path, ctx.content).fold("")(pCtx =>
+      DefaultWillGenerator.addDI(pCtx, generators.flatMap(_.get(pCtx)))
+    )
+}
+
+class FromTextPerFileGenerator(generator: FromTextGenerator) extends PerFileGenerator {
+  def ext: String = generator.ext
+  def postfix: String = ".scala"
+  def handle(ctx: PerFileGeneratorContext): String = {
+    val generated = generator.get(FromTextGeneratorContext(ctx.pkg, ctx.path.getFileName.toString, ctx.content))
+    DefaultWillGenerator.addDI(new ParseContext(Nil, ctx.path.toString, ctx.pkg), generated)
+  }
+}
+
+class DefaultWillGenerator(generators: List[PerFileGenerator]) extends WillGenerator {
+  def get(ctx: WillGeneratorContext): List[(Path, Array[Byte])] = {
     val ExtRegEx = """.*\.(\w+)""".r
     val pathsByExt = ctx.fromFiles.groupBy(_.getFileName.toString match {
       case ExtRegEx(ext) => ext
       case _ => ""
     }).withDefaultValue(Nil)
-    val tasks = pathsByExt("scala").map(path=>(path, "", (content: String) => {
-      getParseContext(path, content).fold("")(pCtx => addDI(pCtx, generators.flatMap(_.get(pCtx))))
-    }))
-    val fromTextTasks = for {
-      generator <- fromTextGenerators
+    val tasks = for {
+      generator <- generators
       path <- pathsByExt(generator.ext)
       dirInfo <- Util.dirInfo(ctx, path.getParent)
-    } yield (path, ".scala", (textContent: String)=>{
-      val generated = generator.get(FromTextGeneratorContext(dirInfo.pkg, path.getFileName.toString, textContent))
-      addDI(new ParseContext(Nil, path.toString, dirInfo.pkg), generated)
-    })
-    withIndex(ctx)(Cached(ctx, tasks ++ fromTextTasks))
+    } yield (path, dirInfo.pkg, generator)
+    DefaultWillGenerator.withIndex(ctx)(Cached(ctx, tasks))
   }
+}
+
+object DefaultWillGenerator {
   private def withIndex(ctx: WillGeneratorContext): List[(Path,Array[Byte])] => List[(Path,Array[Byte])] = args => {
     val pattern = """\((\S+)\s(\S+)\s(\S+)\)""".r
     val rawAppLinks = for {
@@ -246,7 +274,7 @@ class DefaultWillGenerator(generators: List[Generator], fromTextGenerators: List
     val autoMixerIndexes = autoMixers.flatten.map(am=>am.path->am.content.getBytes(UTF_8))
     args ++ indexes ++ autoMixerIndexes
   }
-  private def getParseContext(path: Path, content: String): Option[ParseContext] =
+  def getParseContext(path: Path, content: String): Option[ParseContext] =
     dialects.Scala213(content.replace("\r\n", "\n")).parse[Source] match {
       case Parsed.Success(source"..$sourceStatements") =>
         if (sourceStatements.isEmpty) None else {
@@ -256,7 +284,7 @@ class DefaultWillGenerator(generators: List[Generator], fromTextGenerators: List
         }
       case Parsed.Error(position, string, ex) => throw new Exception(s"Parse exception in ($path:${position.startLine})", ex)
     }
-  private def addDI(parseContext: ParseContext, generatedWOComponents: List[Generated]): String = {
+  def addDI(parseContext: ParseContext, generatedWOComponents: List[Generated]): String = {
     val parsedGenerated = generatedWOComponents.collect{ case c: GeneratedCode => c.content.parse[Stat] match { // c.content.parse[Source].get.stats}.flatten
       case Success(stat) => stat
       case Error(position, str, exception) =>
