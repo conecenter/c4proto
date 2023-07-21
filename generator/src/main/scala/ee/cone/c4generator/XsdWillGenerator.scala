@@ -5,40 +5,53 @@ import java.nio.file.{Files, Path, Paths}
 import java.util.UUID
 import scala.xml.{Elem, TopScope, PrettyPrinter}
 
-class XsdWillGenerator extends WillGenerator {
-  override def get(ctx: WillGeneratorContext): List[(Path, Array[Byte])] = {
-    val files = ctx.fromFiles.filter(path => getFileType(path.getFileName.toString).nonEmpty)
-    MultiCached.cached(ctx, "xsd", calcAll(ctx), files)
-  }
+import XsdUtil._
 
-  private def groupDef[K,V](in: List[(K,V)]): Map[K, List[V]] = in.groupMap(_._1)(_._2).withDefaultValue(Nil)
-  private def groupSort[K,V](in: List[(K,V)])(implicit o: Ordering[K]): List[(K, List[V])] =
+object XsdUtil {
+  def groupDef[K, V](in: List[(K, V)]): Map[K, List[V]] = in.groupMap(_._1)(_._2).withDefaultValue(Nil)
+
+  def groupSort[K, V](in: List[(K, V)])(implicit o: Ordering[K]): List[(K, List[V])] =
     in.groupMap(_._1)(_._2).toList.sortBy(_._1)
 
-  private def calcAll(ctx: WillGeneratorContext): MultiCached.TransformMany[String] = in => {
-    val deps = ctx.deps.transform((_,v)=>v.toSet).withDefaultValue(Set.empty)
+  def getFull(deps: Map[String, Set[String]], startNames: Set[String]): Set[String] =
+    LazyList.iterate(startNames :: Nil)(r => (r.head ++ r.head.flatMap(deps)) :: r).tail.dropWhile { r =>
+      //println(s"AN:${r.size} ${r.head.size} ${r.tail.head.size}")
+      r.head != r.tail.head
+    }.head.head
+
+  def getFileType(fn: String): String =
+    if (MessagesConfParser.supports(fn)) "conf" else if (fn.endsWith(".xsd")) "xsd" else ""
+}
+
+class XsdWillGenerator extends WillGenerator {
+  def get(ctx: WillGeneratorContext): List[(Path, Array[Byte])] = { // deps tags modInfo dirInfo
+    val deps = ctx.deps.transform((_, v) => v.toSet).withDefaultValue(Set.empty)
     val rMods = ctx.tags.map(tag => splitDropLast(".", tag.to)).distinct
-    val fullDeps = rMods.map(rMod => rMod -> getFull(deps, Set(rMod)).toList.sorted).toMap
+    val fullDeps = rMods.map(rMod => rMod -> getFull(deps, Set(rMod)).toList.sorted).toMap //50-80ms
     val rootModsByModDir = groupDef(for {
       rMod <- rMods
       mod <- fullDeps(rMod)
       dir <- ctx.modInfo(mod).srcDirs
     } yield dir -> rMod)
-    groupSort(for {
-      (path, text) <- in
+    val at4 = System.nanoTime
+    val res = groupSort(for { //80ms
+      path <- ctx.fromFiles if getFileType(path.getFileName.toString).nonEmpty
       dirInfo <- Util.dirInfo(ctx, path.getParent)
       rMod <- rootModsByModDir(dirInfo.modDir)
-    } yield rMod -> (path, text)).flatMap { case (rMod, parts) =>
+    } yield rMod -> path).flatMap { case (rMod, parts) =>
       val Seq(toDir) = ctx.modInfo(rMod).srcDirs
-      calcRMod(toDir, fullDeps(rMod))(parts)
+      val lRes = MultiCached.cached(ctx, toDir.resolve("c4gen-xsd"), XsdMultiCacheGenerator, parts)
+      (toDir.resolve("c4gen-xsd.log") -> fullDeps(rMod).mkString("\n").getBytes(UTF_8)) :: lRes
     }
+    val at5 = System.nanoTime
+    println(s"A0 ${List(at4-at5).map(_ / -1000000)}")
+    res
   }
 
-  private def getFileType(fn: String): String =
-    if (MessagesConfParser.supports(fn)) "conf" else if (fn.endsWith(".xsd")) "xsd" else ""
-
   private def splitDropLast(sp: String, v: String): String = v.substring(0, v.lastIndexOf(sp))
+}
 
+object XsdMultiCacheGenerator extends MultiCacheGenerator {
   private val xsn = "http://www.w3.org/2001/XMLSchema"
 
   private def provideElements(in: Seq[Elem]): Seq[Elem] = {
@@ -59,14 +72,7 @@ class XsdWillGenerator extends WillGenerator {
     in.map(tr)
   }
 
-  private def getFull(deps: Map[String, Set[String]], startNames: Set[String]): Set[String] =
-    LazyList.iterate(startNames :: Nil)(r => (r.head ++ r.head.flatMap(deps)) :: r).tail.dropWhile{ r =>
-      //println(s"AN:${r.size} ${r.head.size} ${r.tail.head.size}")
-      r.head != r.tail.head
-    }.head.head
-
-  private def calcRMod(toDir: Path, fullDeps: List[String]): MultiCached.TransformMany[String] = in => {
-    println(s"XSD DIR: $toDir")
+  def handle(in: List[(Path, String)]): List[(String, String)] = {
     val textsByType = groupDef(in.map { case (path, text) => getFileType(path.getFileName.toString) -> (path, text) })
     val MessageNumber = """\s*MSG#(\d+).*""".r
     val elements = provideElements(textsByType("xsd").sortBy{
@@ -83,13 +89,13 @@ class XsdWillGenerator extends WillGenerator {
       })
     }).groupBy(e => (e.label, (e \ "annotation" \ "documentation").text) match {
       case ("element", MessageNumber(s)) => (0, s.toInt)
-      case ("element", t) => (1, 0)
+      case ("element", _) => (1, 0)
       case _ => (2, 0)
     }).toList.sortBy(_._1).flatMap(_._2)
     val deps = elements.map(el => (el \@ "name") -> ((el \\ "@base") ++ (el \\ "@type")).map(_.text).toSet)
       .groupMapReduce(_._1)(_._2)(_++_).withDefaultValue(Set.empty)
     val (dirList, systemList) = MessagesConfParser.parse(textsByType("conf").map(_._2))
-    val xsdRes = if(systemList.size != 1) Nil else groupSort(
+    if(systemList.size != 1) Nil else groupSort(
       for((ms, f, t) <- dirList if systemList.contains(f) || systemList.contains(t); sys <- Seq(f,t)) yield sys -> ms
     ).map{ case (sys, startNameList) =>
       val startNames = startNameList.toSet
@@ -98,9 +104,8 @@ class XsdWillGenerator extends WillGenerator {
       val fn = systemList match { case Seq(s) if s == sys => s"c4msg.$s.all.xsd" case Seq(s) => s"c4msg.$s-$sys.xsd" }
       println(s"  out $fn -- ${startNames.size} messages in conf -- ${enabledElements.size}/${elements.size} elements")
       val content = new PrettyPrinter(120, 4, true).format(<xs:schema xmlns:xs={xsn}/>.copy(child=enabledElements))
-      toDir.resolve(fn) -> s"""<?xml version="1.0" encoding="UTF-8"?>\n$content"""
+      fn -> s"""<?xml version="1.0" encoding="UTF-8"?>\n$content"""
     }
-    (toDir.resolve("c4msg.log")->(fullDeps++in.map(_._1)).mkString("\n")) :: xsdRes
   }
 }
 
@@ -136,9 +141,11 @@ class MessagesConfTextGenerator(imp: String) extends FromTextGenerator {
     }
 }
 
-object MultiCached {
-  type TransformMany[T] = List[(Path, T)] => List[(Path, T)]
+trait MultiCacheGenerator {
+  def handle(in: List[(Path, String)]): List[(String, String)]
+}
 
+object MultiCached {
   private def toText(data: Array[Byte]): String = new String(data, UTF_8)
 
   private def toBytes(text: String): Array[Byte] = text.getBytes(UTF_8)
@@ -151,21 +158,24 @@ object MultiCached {
 
   private def toBytes(paths: List[Path]): Array[Byte] = toBytes(paths.map(_.toString).mkString("\n"))
 
-  private def toPaths(data: Array[Byte]): List[Path] = toText(data).split("\n").map(Paths.get(_)).toList
+  private def toPaths(data: Array[Byte]): List[Path] =
+    if(data.isEmpty) Nil else toText(data).split("\n").map(Paths.get(_)).toList
 
   private def transpose[A, B](list: List[(A, B)]): (List[A], List[B]) = (list.map(_._1), list.map(_._2))
 
-  def cached(
-    ctx: WillGeneratorContext, tp: String, calc: TransformMany[String], inPaths: List[Path]
+  def cached( // 2 caches should not share `toDir`
+    ctx: WillGeneratorContext, toDir: Path, calc: MultiCacheGenerator, inPaths: List[Path]
   ): List[(Path, Array[Byte])] = {
+    Files.createDirectories(toDir)
     val inDatas = inPaths.map(read)
-    val hash = mkHash(toBytes(ctx.version + mkHash(toBytes(inPaths)) + inDatas.map(mkHash)))
-    val rootCachePath = Files.createDirectories(ctx.workPath.resolve(s"target/c4/gen/cache-$tp"))
+    val hash = mkHash(toBytes(s"${ctx.version}\n$toDir\n" + mkHash(toBytes(inPaths)) + inDatas.map(mkHash)))
+    val rootCachePath = Files.createDirectories(ctx.workPath.resolve(s"target/c4/gen/cache-m"))
     val cachePath = rootCachePath.resolve(hash)
     val partPaths = LazyList.from(0).map(pos => rootCachePath.resolve(s"$hash.$pos"))
     if (Files.exists(cachePath)) toPaths(read(cachePath)).zip(partPaths.map(read)) else {
-      println(s"parsing $tp:" + inPaths.map(p => s"\n  $tp $p").mkString)
-      val (outPaths, outTexts) = transpose(calc(inPaths.zip(inDatas.map(toText))))
+      println(s"generating to $toDir:" + inPaths.map(p => s"\n  in $p").mkString)
+      val (outFilenames, outTexts) = transpose(calc.handle(inPaths.zip(inDatas.map(toText))))
+      val outPaths = outFilenames.map(toDir.resolve)
       val outDatas = outTexts.map(toBytes)
       partPaths.zip(outDatas).toList.foreach((write _).tupled)
       write(cachePath, toBytes(outPaths))
