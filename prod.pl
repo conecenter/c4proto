@@ -505,8 +505,9 @@ push @tasks, ["build_client","",sub{
 push @tasks, ["build_client_changed","",sub{
     my($dir,$mode)=@_;
     &$build_client_init($dir);
-    my @files = syf("cd $dir/target/c4/client/src && find -L -type f")=~/(.+)/g;
-    &$if_changed("$dir/target/c4/client-sums-compiled", syf(join " ", "md5sum", sort @files), sub{
+    my $j_dir = "$dir/target/c4/client/src";
+    my @files = syf("cd $j_dir && find -L -type f")=~/(.+)/g;
+    &$if_changed("$dir/target/c4/client-sums-compiled", syf("cd $j_dir && md5sum ".join " ", sort @files), sub{
         &$build_client($dir, &$client_mode_to_opt($mode));
     });
 }];
