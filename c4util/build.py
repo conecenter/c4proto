@@ -33,6 +33,7 @@ def Popen(args, **opt):
 def wait_processes(processes):
     for proc in processes:
         proc.wait()
+        print(f"finished with: {proc.returncode}")
     return all(proc.returncode == 0 for proc in processes)
 
 def run_pipe_no_die(from_args, to_args):
