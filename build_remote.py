@@ -108,14 +108,6 @@ def push_compilation_cache(compile_options):
     cache_pod_name = compile_options.cache_pod_name
     cache_path = compile_options.cache_path
     cache_tmp_path = f"{cache_path}-{uuid.uuid4()}"
-    #
-    run(("ls", "-la", mod_dir))
-    run(("tar", "-C", mod_dir, "-czf", f"{mod_dir}.test_out", "."))
-    run(("ls", "-la", f"{mod_dir}/.."))
-    import pathlib
-    run(kcd_args("exec", "-i", cache_pod_name, "--", "sh", "-c", f"cat > {cache_tmp_path}"), input=pathlib.Path(f"{mod_dir}.test_out").read_bytes())
-    run(kcd_args("exec", "-i", cache_pod_name, "--", "ls", "-la", cache_tmp_path))
-    #
     pipe_ok = run_pipe_no_die(
         ("tar", "-C", mod_dir, "-czf-", "."),
         kcd_args("exec", "-i", cache_pod_name, "--", "sh", "-c", f"cat > {cache_tmp_path}")
@@ -346,7 +338,8 @@ def build_type_rt(proj_tag, context, out):
     pr_env = {"C4CI_PROTO_DIR": proto_dir, "PATH": os.environ["PATH"]}
     check_proc = Popen((*pre, "=check=", *prod, "ci_rt_chk", context, mod), env=pr_env)
     push_compilation_cache(compile_options)
-    wait_processes((check_proc, *client_proc_opt)) or never("build failed")  # before ci_rt_base?
+    wait_processes(client_proc_opt) or never("client build failed")  # before ci_rt_base?
+    wait_processes((check_proc,)) or never("check failed")  # before ci_rt_base?
     run((*prod, "ci_rt_base", "--context", context, "--proj-tag", proj_tag, "--out-context", out), env=pr_env)
     run((*prod, "ci_rt_over", "--context", context, "--proj-tag", proj_tag, "--out-context", out), env=pr_env)
 
