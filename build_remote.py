@@ -219,7 +219,7 @@ def build_some_parts(parts, context, get_plain_option):
         cat_secret_to_pod(name, remote_conf, get_plain_option("C4DEPLOY_CONFIG"))
     processes = [
         (
-            part_name, build_proc, " ".join(kcd_args("exec", cache_pod_nm, "--", "tail", "-f", log_path)),
+            part_name, build_proc, " ".join(kcd_args("exec", cache_pod_nm, "--", "cat", log_path)),
             Popen(kcd_args("exec", "-i", cache_pod_nm, "--", "sh", "-c", f"cat > {log_path}"), stdin=build_proc.stdout)
         )
         for part, life, name in build_pods
@@ -230,7 +230,10 @@ def build_some_parts(parts, context, get_plain_option):
             "build_inner", "--context", context, "--proj-tag", part["project"], "--image-type", part["image_type"]
         ), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)]
     ]
-    print("To view logs:\n"+"\n".join(f"  ={part_name}= {log_cmd}" for part_name, b_proc, log_cmd, l_proc in processes))
+    print("To view logs:\n"+"\n".join(
+        f"  ={part_name}=\n    {log_cmd}\n    {log_cmd.replace(' cat ',' tail -f ')}"
+        for part_name, b_proc, log_cmd, l_proc in processes
+    ))
     info("waiting images ...")
     started = time.monotonic()
     for part in parts:
@@ -327,15 +330,17 @@ def build_type_de(proj_tag, context, out):
 def build_type_rt(proj_tag, context, out):
     get_plain_option = get_main_conf(context)
     proto_postfix, proto_dir = get_proto(context, get_plain_option)
+    pr_env = {"C4CI_PROTO_DIR": proto_dir, "PATH": os.environ["PATH"]}
     prod = ("perl", f"{proto_dir}/prod.pl")
     pre = ("python3.8", "-u", f"{proto_dir}/run_with_prefix.py")
-    client_proc_opt = ([Popen((*pre, "=client=", *prod, "build_client_changed", context))] if proj_tag != "def" else ())
+    client_proc_opt = (
+        [Popen((*pre, "=client=", *prod, "build_client_changed", context), env=pr_env)] if proj_tag != "def" else ()
+    )
     run(("python3.8", f"{proto_dir}/build.py", context))
     compile_options = get_more_compile_options(context, get_commit(context), proj_tag)  # after build.py
     mod = compile_options.mod
     mod_dir = compile_options.mod_dir
     run((*pre, f"=sbt=", *sbt_args(mod_dir, compile_options.java_options)))
-    pr_env = {"C4CI_PROTO_DIR": proto_dir, "PATH": os.environ["PATH"]}
     check_proc = Popen((*pre, "=check=", *prod, "ci_rt_chk", context, mod), env=pr_env)
     push_compilation_cache(compile_options)
     wait_processes(client_proc_opt) or never("client build failed")  # before ci_rt_base?
