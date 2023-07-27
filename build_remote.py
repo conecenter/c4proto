@@ -231,8 +231,7 @@ def build_some_parts(parts, context, get_plain_option):
         ), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)]
     ]
     print("To view logs:\n"+"\n".join(
-        f"  ={part_name}=\n    {log_cmd}\n    {log_cmd.replace(' cat ',' tail -f ')}"
-        for part_name, b_proc, log_cmd, l_proc in processes
+        f" ={part_name}=\n  {log_cmd.replace(' cat ',' tail -f ')}" for part_name, b_proc, log_cmd, l_proc in processes
     ))
     info("waiting images ...")
     started = time.monotonic()
@@ -240,7 +239,8 @@ def build_some_parts(parts, context, get_plain_option):
         while not crane_image_exists(part["from_image"]):
             for part_name, build_proc, log_cmd, log_proc in processes:
                 if build_proc.poll() or log_proc.poll():
-                    never(part_name)
+                    print(f"{part_name} failed, to view logs:\n {log_cmd}")
+                    never("build failed")
             if time.monotonic() - started > 60*30:
                 never("timeout")
             time.sleep(5)
