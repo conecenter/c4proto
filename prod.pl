@@ -473,7 +473,7 @@ my $if_changed = sub{
 my $build_client_init = sub{
     my ($gen_dir)=@_;
     $gen_dir || die;
-    my $dir = "$gen_dir/target/c4/client";
+    my $dir = &$need_path("$gen_dir/target/c4/client");
     -e $dir or sy("cp -r $ENV{HOME}/c4client_prep $dir");
     my $proto_dir = &$get_proto_dir();
     sy("perl $proto_dir/build_client.pl $gen_dir < $gen_dir/c4dep.main.json");
