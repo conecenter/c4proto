@@ -108,6 +108,14 @@ def push_compilation_cache(compile_options):
     cache_pod_name = compile_options.cache_pod_name
     cache_path = compile_options.cache_path
     cache_tmp_path = f"{cache_path}-{uuid.uuid4()}"
+    #
+    run(("ls", "-la", mod_dir))
+    run(("tar", "-C", mod_dir, "-czf", f"{mod_dir}.test_out", "."))
+    run(("ls", "-la", f"{mod_dir}/.."))
+    import pathlib
+    run(kcd_args("exec", "-i", cache_pod_name, "--", "sh", "-c", f"cat > {cache_tmp_path}"), input=pathlib.Path(f"{mod_dir}.test_out").read_bytes())
+    run(kcd_args("exec", "-i", cache_pod_name, "--", "ls", "-la", cache_tmp_path))
+    #
     pipe_ok = run_pipe_no_die(
         ("tar", "-C", mod_dir, "-czf-", "."),
         kcd_args("exec", "-i", cache_pod_name, "--", "sh", "-c", f"cat > {cache_tmp_path}")
