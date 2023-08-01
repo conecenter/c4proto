@@ -8,7 +8,7 @@ export C4DEV_SERVER_IP="${C4DEV_SERVER_IP:-127.0.0.10}"
 docker run -d --rm --name c4devel \
   -v $PWD/..:/c4repo/c4proto \
   -v /dev/log:/dev/log \
-  -p $C4DEV_SERVER_IP:3000:3000 \
+  -p $C4DEV_SERVER_IP:5173:5173 \
   -p $C4DEV_SERVER_IP:80:1080 \
   -e C4DS_PROTO_DIR=/c4repo/c4proto \
   -e C4DS_ELECTOR_DIR=/c4repo/c4proto \

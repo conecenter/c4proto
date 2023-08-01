@@ -152,8 +152,6 @@ object MultiCached {
 
   private def read(path: Path): Array[Byte] = Files.readAllBytes(path)
 
-  private def write(path: Path, data: Array[Byte]): Unit = Files.write(path, data)
-
   private def mkHash(data: Array[Byte]): String = UUID.nameUUIDFromBytes(data).toString
 
   private def toBytes(paths: List[Path]): Array[Byte] = toBytes(paths.map(_.toString).mkString("\n"))
@@ -164,9 +162,9 @@ object MultiCached {
   private def transpose[A, B](list: List[(A, B)]): (List[A], List[B]) = (list.map(_._1), list.map(_._2))
 
   def cached( // 2 caches should not share `toDir`
-    ctx: WillGeneratorContext, toDir: Path, calc: MultiCacheGenerator, inPaths: List[Path]
+    ctx: WillGeneratorContext, toDirArg: Path, calc: MultiCacheGenerator, inPaths: List[Path]
   ): List[(Path, Array[Byte])] = {
-    Files.createDirectories(toDir)
+    val toDir = Files.createDirectories(toDirArg)
     val inDatas = inPaths.map(read)
     val hash = mkHash(toBytes(s"${ctx.version}\n$toDir\n" + mkHash(toBytes(inPaths)) + inDatas.map(mkHash)))
     val rootCachePath = Files.createDirectories(ctx.workPath.resolve(s"target/c4/gen/cache-m"))
@@ -177,8 +175,8 @@ object MultiCached {
       val (outFilenames, outTexts) = transpose(calc.handle(inPaths.zip(inDatas.map(toText))))
       val outPaths = outFilenames.map(toDir.resolve)
       val outDatas = outTexts.map(toBytes)
-      partPaths.zip(outDatas).toList.foreach((write _).tupled)
-      write(cachePath, toBytes(outPaths))
+      partPaths.zip(outDatas).toList.foreach((Util.write _).tupled)
+      Util.write(cachePath, toBytes(outPaths))
       outPaths.zip(outDatas)
     }
   }

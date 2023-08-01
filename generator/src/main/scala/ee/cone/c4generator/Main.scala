@@ -115,7 +115,7 @@ class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTe
       (path,data) <- will if !java.util.Arrays.equals(data,was.getOrElse(path,Array.empty))
     } {
       println(s"saving $path")
-      Util.ignoreTheSamePath(Files.write(path,data))
+      Util.write(path,data)
     }
     //println(s"3:${System.currentTimeMillis()}")
   }
@@ -140,7 +140,7 @@ object Cached {
           println(s"parsing $path")
           val ctx = PerFileGeneratorContext(path, pkg, new String(fromData,UTF_8))
           val toData = perFileGenerator.handle(ctx).getBytes(UTF_8)
-          Util.ignoreTheSamePath(Files.write(cachePath, toData))
+          Util.write(cachePath, toData)
           toData
         }
         if(out.isEmpty) None else Option(path.getParent.resolve(s"c4gen.${path.getFileName}$postfix") -> out)
@@ -385,6 +385,8 @@ object Util {
   }
 
   def ignoreTheSamePath(path: Path): Unit = ()
+
+  def write(path: Path, data: Array[Byte]): Unit = ignoreTheSamePath(Files.write(path, data))
 
   def pkgNameToId(pkgName: String): String =
     """[\._]+([a-z])""".r.replaceAllIn(pkgName,m=>m.group(1).toUpperCase)

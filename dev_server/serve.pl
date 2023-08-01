@@ -123,7 +123,7 @@ my $serve_proxy = sub{
         "  default_backend be_http",
         "backend be_src",
         "  mode http",
-        "  server se_src 127.0.0.1:3000",
+        "  server se_src 127.0.0.1:5173",
         "backend be_http",
         "  mode http",
         "  default-server check", # w/o it all servers considered ok and req-s gets 503
@@ -149,10 +149,15 @@ my $serve_proxy = sub{
 
 my $serve_node = sub{
     my $repo_dir = &$get_repo_dir();
-    my $proto_dir = &$get_proto_dir();
     my $vite_run_dir = "$repo_dir/target/c4/client";
     my $conf_dir = "$vite_run_dir/src/c4f/vite";
-    sy("mkdir -p $vite_run_dir && perl $proto_dir/build_client.pl $repo_dir < $repo_dir/c4dep.main.json");
+    my $conf = JSON::XS->new->decode(syf("cat $repo_dir/c4dep.main.json"));
+    my %will = map{ ref && $$_[0] eq "C4CLIENT" ? ("$vite_run_dir/src/$$_[1]","$repo_dir/$$_[2]/src"):() } @$conf;
+    #$will{$_} or ^rm $_^ for <$vite_run_dir/src/*>;
+    for(sort keys %will){
+        sy("mkdir", "-p", $_);
+        sy("rsync", "-a", "$will{$_}/", $_);
+    }
     sy("cd $vite_run_dir && cp $conf_dir/package.json $conf_dir/vite.config.js . && npm install");
     &$exec_at($vite_run_dir,{},"npm","run","dev");
 };
