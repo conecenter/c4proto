@@ -16,7 +16,8 @@ object PurgerDefaultPolicy {
     val hour = 60L * 60L * 1000L * millis
     val day = 24L * hour
     val week = 7L * day
-    List(KeepPolicy(millis, 8), KeepPolicy(hour, 24*3), KeepPolicy(day, 14), KeepPolicy(week, 14))
+    val month = 4L * week
+    List(KeepPolicy(millis, 8), KeepPolicy(hour, 24*3), KeepPolicy(day, 14), KeepPolicy(week, 14), KeepPolicy(month, 9))
   }
 }
 
