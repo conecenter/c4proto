@@ -17,6 +17,7 @@ sub syf{ for(@_){ print "$_\n"; my $r = scalar `$_`; $? && die $?; return $r } }
 my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
 my $need_tmp = sub{ -e $_ or mkdir $_ or die for "tmp" };
 my $to_parent = sub{ map{ m{^(.+)/[^/]+$} ? ("$1"):() } @_ };
+my $single = sub{ @_==1 ? $_[0] : die };
 
 my @tasks;
 my $main = sub{
@@ -33,7 +34,7 @@ my $exec_server = sub{
     my($arg)=@_;
     my ($nm,$mod,$cl) = $arg=~/^(\w+)\.(.+)\.(\w+)$/ ? ($1,"$1.$2","$2.$3") : die;
     my $tmp = "target/c4";
-    my $proto_dir = &$single($to_parent("$0"));
+    my $proto_dir = &$single(&$to_parent("$0"));
     sy("cd target/c4/mod.$mod.d && sbt c4build");
     my $paths = JSON::XS->new->decode(syf("python3 $proto_dir/build_env.py . $mod"));
     my $env = { %$paths, C4ELECTOR_CLIENT_ID => "", C4STATE_TOPIC_PREFIX => $nm, C4APP_CLASS => $cl };
