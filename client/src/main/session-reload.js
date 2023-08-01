@@ -10,12 +10,22 @@ export default function SessionReload(localStorage,sessionStorage,location,rando
         Date.now() < state.skipErrorReloadUntil ? state :
         reload(location)(state)
     )
+    const clearLocalStorage = (before) => {
+        for (const [key, value] of Object.entries(localStorage)) {
+            if (key.includes('loadKeyForSession')) {
+                const timestamp = +value.match(/\d+/)?.[0];
+                if (timestamp < before) localStorage.removeItem(key);
+            }
+        }
+    }
     const checkSessionReload = state => {
         const sessionKey = sessionStorage.getItem("sessionKey")
         if(!sessionKey || state.stopped) return state;
         const loadKeyForSession = "loadKeyForSession-" + sessionKey
         if(!state.loadKey){
-            const loadKey = "L"+random()
+            const now = Date.now()
+            clearLocalStorage(now - 30 * 24 * 3600000)
+            const loadKey = "L" + now + 'R' + random()
             localStorage.setItem(loadKeyForSession, loadKey)
             return ({...state,loadKey})
         }
