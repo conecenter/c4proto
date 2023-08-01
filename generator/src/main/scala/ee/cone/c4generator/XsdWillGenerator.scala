@@ -83,7 +83,7 @@ object XsdMultiCacheGenerator extends MultiCacheGenerator {
         case t: xml.Text if t.text.forall(_.isWhitespace) => None
         case a => throw new Exception(s"bad 1st level node ($a) at $path")
       }.filter(_.label match {
-        case "element" | "simpleType" | "complexType" => true
+        case "element" | "simpleType" | "complexType" | "group" => true
         case "include" => false
         case a => throw new Exception(s"bad 1st level element label ($a) at $path")
       })
@@ -92,7 +92,7 @@ object XsdMultiCacheGenerator extends MultiCacheGenerator {
       case ("element", _) => (1, 0)
       case _ => (2, 0)
     }).toList.sortBy(_._1).flatMap(_._2)
-    val deps = elements.map(el => (el \@ "name") -> ((el \\ "@base") ++ (el \\ "@type")).map(_.text).toSet)
+    val deps = elements.map(el => (el \@ "name") -> ((el \\ "@base") ++ (el \\ "@type") ++ (el \\ "@ref")).map(_.text).toSet)
       .groupMapReduce(_._1)(_._2)(_++_).withDefaultValue(Set.empty)
     val (dirList, systemList) = MessagesConfParser.parse(textsByType("conf").map(_._2))
     if(systemList.size != 1) Nil else groupSort(
