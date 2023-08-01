@@ -475,7 +475,7 @@ my $build_client_init = sub{
     $gen_dir || die;
     my $dir = &$need_path("$gen_dir/target/c4/client");
     -e $dir or sy("cp -r /c4/c4client_prep $dir");
-    my $conf = &$decode(&$get_text("$gen_dir/c4dep.main.json"))
+    my $conf = &$decode(&$get_text("$gen_dir/c4dep.main.json"));
     my %will = map{ref && $$_[0] eq "C4CLIENT" ? ("$dir/src/$$_[1]","$gen_dir/$$_[2]/src"):()} @$conf;
     readlink($_) eq $will{$_} or unlink($_) or die $_ for <$dir/src/*>;
     -e $_ or symlink($will{$_}, &$need_path($_)) or die $! for sort keys %will;
