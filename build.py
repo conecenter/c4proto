@@ -2,13 +2,11 @@
 import json
 import sys
 import pathlib
-from c4util import group_map, one
+from c4util import group_map, one, read_text, changing_text_observe, read_json
+from c4util.build import dir_sum, run
+
 
 ### util
-
-def read_json(path):
-    with path.open() as f:
-        return json.load(f)
 
 def lazy_dict(f):
     h = {}
@@ -23,11 +21,11 @@ def write_changed(path,data):
     if not (path.exists() and data == path.read_text(encoding='utf-8', errors='strict')):
         path.write_text(data, encoding='utf-8', errors='strict')
 
-def load_dep(build_path, path):
+def load_dep(build_path_str, path):
     return [
         i_item
-        for o_item in read_json(build_path / path)
-        for i_item in (load_dep(build_path, o_item[2]) if o_item[0] == "C4INC" else [o_item])
+        for o_item in read_json(f"{build_path_str}/{path}")
+        for i_item in (load_dep(build_path_str, o_item[2]) if o_item[0] == "C4INC" else [o_item])
     ]
 
 def wrap_non_empty(before,value,after):
@@ -98,10 +96,28 @@ def to_id(m): return "mod_" + m.replace(".","_")
 
 def get_pkg_from_mod(mod): return ".".join(mod.split(".")[1:])
 
+
 def main(build_path_str):
-    build_path = pathlib.Path(build_path_str)
     tmp_part = "target/c4"
-    conf_plain = load_dep(build_path, "c4dep.main.json")
+    conf_plain = load_dep(build_path_str, "c4dep.main.json")
+    generate_configs(build_path_str, tmp_part, conf_plain)
+    compile_run_generator(build_path_str, tmp_part, conf_plain)
+
+
+def compile_run_generator(build_path_str, tmp_part, conf_plain):
+    generator_conf, = [line[1:] for line in conf_plain if line[0] == "C4GENERATOR_MAIN"]
+    g_main, g_mod = generator_conf
+    proj_part = f"{tmp_part}/mod.{g_mod}.d"
+    g_sum = dir_sum(build_path_str, read_json(f"{build_path_str}/{proj_part}/c4sync_paths.json"), ("-name", "*.scala"))
+    for save in changing_text_observe(f"{build_path_str}/{tmp_part}/generator-src-sum", g_sum):
+        run(("sbt", "c4build"), cwd=f"{build_path_str}/{proj_part}")
+        save()
+    cp = read_text(f"{build_path_str}/{proj_part}/target/c4classpath")
+    run(("java", "-cp", cp, g_main, "--ver", g_sum, "--context", build_path_str))
+
+
+def generate_configs(build_path_str, tmp_part, conf_plain):
+    build_path = pathlib.Path(build_path_str)
     conf = {
         k: group_map(l, lambda it: (it[0],it[1]))
         for k, l in group_map(conf_plain, lambda it: (it[0],it[1:])).items()
@@ -159,11 +175,6 @@ def main(build_path_str):
 
     out_conf = {
         "plain": conf_plain,
-        "src_dirs_generator_off": [
-            dir
-            for mod in get_list(conf,"C4GENERATOR_MODE","OFF")
-            for dir in get_src_dirs(conf,full_dep(mod))
-        ],
         "tag_info": {
             tag: { **parse_main(*mains), "steps": get_list(conf,"C4STEP",tag) }
             for tag, mains in conf["C4TAG"].items()
@@ -176,6 +187,20 @@ def main(build_path_str):
         },
     }
     write_changed(build_path / f"{tmp_part}/build.json", json.dumps(out_conf, sort_keys=True, indent=4))
+    # no src_dirs_generator_off
+    src_dirs_generator_off = [
+        ["C4GENERATOR_DIR_MODE", "OFF", s_dir]
+        for mod in get_list(conf, "C4GENERATOR_MODE", "OFF")
+        for s_dir in get_src_dirs(conf, full_dep(mod))
+    ]
+    generator_conf_keys = {"C4SRC", "C4PUB", "C4DEP", "C4TAG"}
+    generator_conf = [*(line for line in conf_plain if line[0] in generator_conf_keys), *src_dirs_generator_off]
+    for line in generator_conf:
+        if len(line) != 3 or any(("\n" in it) for it in line):
+            raise Exception(f"bad line {line}")
+    generator_conf_str = "\n".join(it for line in generator_conf for it in line)
+    write_changed(build_path / f"{tmp_part}/generator.conf", generator_conf_str)
+
 
 def get_mod_groups_1(mod, deps, modules):
     def reduce_deps(replaces, more):

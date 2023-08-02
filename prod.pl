@@ -469,6 +469,18 @@ my $if_changed = sub{
     &$put_text($path,$will);
     $res;
 };
+
+my $build_client_init = sub{
+    my ($gen_dir)=@_;
+    $gen_dir || die;
+    my $dir = &$need_path("$gen_dir/target/c4/client");
+    -e $dir or sy("cp -r /c4/c4client_prep $dir");
+    my $conf = &$decode(&$get_text("$gen_dir/c4dep.main.json"));
+    my %will = map{ref && $$_[0] eq "C4CLIENT" ? ("$dir/src/$$_[1]","$gen_dir/$$_[2]/src"):()} @$conf;
+    readlink($_) eq $will{$_} or unlink($_) or die $_ for <$dir/src/*>;
+    -e $_ or symlink($will{$_}, &$need_path($_)) or die $! for sort keys %will;
+};
+
 my $build_client = sub{
     my($gen_dir, $opt)=@_;
     $gen_dir || die;
@@ -489,23 +501,22 @@ my $build_client = sub{
 
 push @tasks, ["build_client","",sub{
     my($dir,$mode)=@_;#abs dir
+    &$build_client_init($dir);
     &$build_client($dir, &$client_mode_to_opt($mode));
 }];
 push @tasks, ["build_client_changed","",sub{
     my($dir,$mode)=@_;
-    $dir || die;
-    &$if_changed("$dir/target/c4/client-sums-compiled",&$get_text("$dir/target/c4/client-sums"),sub{
+    &$build_client_init($dir);
+    my $j_dir = "$dir/target/c4/client/src";
+    my @files = syf("cd $j_dir && find -L -type f")=~/(.+)/g;
+    &$if_changed("$dir/target/c4/client-sums-compiled", syf("cd $j_dir && md5sum ".join " ", sort @files), sub{
         &$build_client($dir, &$client_mode_to_opt($mode));
     });
 }];
-my $get_classpath = sub{
-    my($gen_dir,$mod)=@_;
-    "$gen_dir/target/c4/mod.$mod.classpath.json";
-};
 my $chk_pkg_dep = sub{
     my($gen_dir,$mod)=@_;
-    my $cp_path = &$get_classpath($gen_dir,$mod);
-    &$py_run("chk_pkg_dep.py","$gen_dir/target/c4/build.json", $cp_path);
+    my $cp = &$get_text("$gen_dir/target/c4/mod.$mod.d/target/c4classpath");
+    &$py_run("chk_pkg_dep.py","$gen_dir/target/c4/build.json", $cp);
 };
 push @tasks, ["chk_pkg_dep"," ",sub{
     my $gen_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
@@ -561,7 +572,7 @@ push @tasks, ["ci_rt_over","",sub{
     sy("mkdir $ctx_dir");
     sy("cp $proto_dir/run.pl $proto_dir/vault.py $proto_dir/ceph.pl $ctx_dir/");
     mkdir "$ctx_dir/app";
-    my $paths = &$decode(&$get_text(&$get_classpath($gen_dir,$mod)));
+    my $paths = &$decode(syf("python3 $proto_dir/build_env.py $gen_dir $mod"));
     my @started = map{&$start($_)} map{
         m{([^/]+\.jar)$} ? "cp $_ $ctx_dir/app/$1" :
         m{\bclasses\b} ? "cd $_ && zip -q -r $ctx_dir/app/".&$md5_hex($_).".jar ." :
@@ -762,9 +773,11 @@ push @tasks, ["debug","<on|off> [components]",sub{
 
 push @tasks, ["tag","[tag]",sub{
     my($tag)=@_;
-    &$put_text("/c4/debug-tag",$tag||"");
+    &$put_text("/c4/debug-tag",$tag||die);
     &$restart();
 }];
+
+push @tasks, ["restart"," ",sub{&$restart()}];
 
 push @tasks, ["kafka","( topics | offsets <hours> | nodes | sizes <node> | topics_rm )",sub{
     my @args = @_;

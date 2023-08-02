@@ -31,10 +31,6 @@ case class TagParam(
   toElement: Option[String],
 )
 
-object JoinStr {
-  def apply(parts: String*): String = parts.mkString
-}
-
 object TagGenerator extends Generator {
 
   val defaultImports: List[GeneratedImport] = List(

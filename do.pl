@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 
 use strict;
+use JSON::XS;
 
 my $gen_dir = "."; #"target/c4gen/res";
 my $get_curl_test = sub{
@@ -12,9 +13,11 @@ sub sy{
     print "$ENV{PATH}\n";
     print join(" ",@_),"\n"; system @_ and die $?;
 }
+sub syf{ for(@_){ print "$_\n"; my $r = scalar `$_`; $? && die $?; return $r } }
 my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
 my $need_tmp = sub{ -e $_ or mkdir $_ or die for "tmp" };
 my $to_parent = sub{ map{ m{^(.+)/[^/]+$} ? ("$1"):() } @_ };
+my $single = sub{ @_==1 ? $_[0] : die };
 
 my @tasks;
 my $main = sub{
@@ -22,13 +25,20 @@ my $main = sub{
     ($cmd||'') eq $$_[0] and $$_[1]->(@args) for @tasks;
 };
 
+my $exec_env = sub{
+    my($env,@args)=@_;
+    $ENV{$_} = $$env{$_}, print "$_='$$env{$_}' \\\n" for keys %$env;
+    &$exec(@args);
+};
 my $exec_server = sub{
     my($arg)=@_;
     my ($nm,$mod,$cl) = $arg=~/^(\w+)\.(.+)\.(\w+)$/ ? ($1,"$1.$2","$2.$3") : die;
     my $tmp = "target/c4";
-    my $proto_lib = &$single($to_parent("$0"));
-    sy("perl $proto_lib/compile.pl $mod");
-    &$exec(". $tmp/mod.$mod.classpath.sh && C4ELECTOR_CLIENT_ID= C4STATE_TOPIC_PREFIX=$nm C4APP_CLASS=$cl exec java ee.cone.c4actor.ServerMain");
+    my $proto_dir = &$single(&$to_parent("$0"));
+    sy("cd target/c4/mod.$mod.d && sbt c4build");
+    my $paths = JSON::XS->new->decode(syf("python3 $proto_dir/build_env.py . $mod"));
+    my $env = { %$paths, C4ELECTOR_CLIENT_ID => "", C4STATE_TOPIC_PREFIX => $nm, C4APP_CLASS => $cl };
+    &$exec_env($env, "java", "ee.cone.c4actor.ServerMain");
 };
 push @tasks, ["run", $exec_server];
 

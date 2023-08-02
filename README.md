@@ -21,6 +21,7 @@ Application state changes are consumed to in-memory immutable object graph (read
 
 To compile/run example: `cd dev_server && sh example.sh`.
 
-To look inside: `docker exec -it devserver_main_1 bash`.
-
-To look from outside: http://127.0.0.10/todo-app.html#todo
+To look inside: 
+- `docker exec -it devserver_main_1 bash`
+- `tail -f /var/log/syslog`
+- browse http://127.0.0.10/todo-app.html#todo

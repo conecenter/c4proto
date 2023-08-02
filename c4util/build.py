@@ -8,8 +8,8 @@ import contextlib
 import time
 import pathlib
 import base64
-import typing
-from . import group_map, read_json, sha256, one
+import hashlib
+from . import group_map, read_json, one
 
 def run(args, **opt):
     print("running: " + " ".join(args))
@@ -33,6 +33,7 @@ def Popen(args, **opt):
 def wait_processes(processes):
     for proc in processes:
         proc.wait()
+        print(f"finished with: {proc.returncode}")
     return all(proc.returncode == 0 for proc in processes)
 
 def run_pipe_no_die(from_args, to_args):
@@ -106,12 +107,16 @@ def crane_image_exists(image):
     return res
 
 
+def dir_sum(context, paths, args):
+    files = sorted(run_text_out(("find", *paths, "-type", "f", *args), cwd=context).splitlines())
+    sums = run_text_out(("sha256sum", "--", *files), cwd=context)
+    return hashlib.sha256(sums.encode('utf-8')).hexdigest()
+
+
 def build_cached_by_content(context, repository, push_secret_name):
     push_secret = secret_part_to_text(push_secret_name)
     crane_login(push_secret, repository)
-    files = sorted(run_text_out(("find","-type","f"),cwd=context).splitlines())
-    sums = run_text_out(("sha256sum","--",*files),cwd=context)
-    image = f"{repository}:c4b.{sha256(sums)[:8]}"
+    image = f"{repository}:c4b.{dir_sum(context, (), ())[:8]}"
     if not crane_image_exists(image):
         with temp_dev_pod({ "image": "gcr.io/kaniko-project/executor:debug", "command": ["/busybox/sleep", "infinity"] }) as name:
             if not run_pipe_no_die(("tar","--exclude",".git","-C",context,"-czf-","."), kcd_args("exec","-i",name,"--","tar","-xzf-")):

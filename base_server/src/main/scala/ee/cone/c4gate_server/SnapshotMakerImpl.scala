@@ -78,7 +78,7 @@ case object DeferPeriodicSnapshotUntilKey extends TransientLens[Long](0L)
 
 case class PeriodicSnapshotMakingTx(srcId: SrcId)(snapshotMaking: SnapshotMaker, maxTime: SnapshotMakerMaxTime) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = if(DeferPeriodicSnapshotUntilKey.of(local) < now){
-    if(maxTime.maxTime + hour < now){
+    if(maxTime.maxTime + 20*minute < now){
       val rawSnapshots = snapshotMaking.make(NextSnapshotTask(None))
       rawSnapshots.foreach(s=>logger.debug(s"periodic snapshot created: ${s.relativePath}"))
     }
