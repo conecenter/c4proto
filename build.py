@@ -116,6 +116,11 @@ def compile_run_generator(build_path_str, tmp_part, conf_plain):
     run(("java", "-cp", cp, g_main, "--ver", g_sum, "--context", build_path_str))
 
 
+def two_col_str(d):
+    max_len = max(len(l) for l, r in d) if len(d) > 0 else 0
+    return "\n".join(f"{l}{' '*(max_len-len(l))} : {r}" for l, r in d)
+
+
 def generate_configs(build_path_str, tmp_part, conf_plain):
     build_path = pathlib.Path(build_path_str)
     conf = {
@@ -128,6 +133,12 @@ def generate_configs(build_path_str, tmp_part, conf_plain):
     full_dep_edges = lazy_dict(lambda mod,get: {
         rel for to in get_list(conf,"C4DEP",mod) for rel in ((mod,to), *get(to))
     })
+    full_dep_paths = lazy_dict(lambda a_mod, get: {
+        c_mod: (*min(reasons), a_mod) for c_mod, reasons in group_map((
+            p for to in get_list(conf, "C4DEP", a_mod) for p in ((to, ()), *get(to).items())
+        ), lambda it: it).items()
+    })
+    dep_reasoning_prefix = one(*flat_values(conf.get("C4DEP_REASONING_PREFIX", {"#": [None]})))
     mod_heads = sorted({
         *(parse_main(main)["mod"] for main in flat_values(conf["C4TAG"])),
         *flat_values(conf["C4GENERATOR_MAIN"])
@@ -165,6 +176,11 @@ def generate_configs(build_path_str, tmp_part, conf_plain):
             build_sbt, plugins_sbt, *get_src_dirs(conf,modules),
             *sorted({ dep for m in modules for dep in get_list(conf,"C4LIB",m) })
         ]))
+        if dep_reasoning_prefix:
+            write_changed(build_path / f"dep_reasoning/{mod}-generated.log", two_col_str([
+                (c_mod, ' / '.join(r.replace(dep_reasoning_prefix, ".") for r in reason))
+                for c_mod, reason in sorted(full_dep_paths(mod).items())
+            ]))
 
     ide_sbt_text = sbt_common_text + to_sbt_mod(
         "main", """(project in file("."))""", "",
