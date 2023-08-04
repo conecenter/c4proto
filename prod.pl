@@ -160,7 +160,7 @@ my $get_proto_dir = sub{ &$mandatory_of(C4CI_PROTO_DIR=>\%ENV) };
 my $py_run = sub{
     my ($nm,@args) = @_;
     my $gen_dir = &$get_proto_dir();
-    sy("python3.8","-u","$gen_dir/$nm",@args);
+    sy("python3","-u","$gen_dir/$nm",@args);
 };
 
 my $main = sub{
@@ -542,7 +542,7 @@ push @tasks, ["ci_rt_base","",sub{
     my $proto_dir = &$get_proto_dir();
     my @from_steps = grep{/^FROM\s/} @$add_steps;
     &$put_text("$ctx_dir/Dockerfile", join "\n",
-        @from_steps ? @from_steps : "FROM ubuntu:18.04",
+        @from_steps ? @from_steps : "FROM ubuntu:22.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
         "RUN perl install.pl useradd 1979",
         "RUN perl install.pl apt".

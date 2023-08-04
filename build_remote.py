@@ -45,7 +45,7 @@ def sbt_args(mod_dir, java_opt):
     return "env", "-C", mod_dir, f"JAVA_TOOL_OPTIONS={java_opt}", "sbt", "-Dsbt.color=true", "c4build"
 
 
-def get_cb_name(v): return f"cb-v0-{v}"
+def get_cb_name(v): return f"cb-v1-{v}"
 
 
 class CompileOptions(typing.NamedTuple):
@@ -226,7 +226,7 @@ def build_some_parts(parts, context, get_plain_option):
         for part_name, log_path in [(part['name'], f"/tmp/c4log-{name}")]
         for build_proc in [Popen(kcd_args(
             "exec", name, "--", "env", f"KUBECONFIG={remote_conf}", f"C4DEPLOY_CONTEXT={deploy_context}",
-            "python3.8", "-u", f"{proto_dir}/build_remote.py",
+            "python3", "-u", f"{proto_dir}/build_remote.py",
             "build_inner", "--context", context, "--proj-tag", part["project"], "--image-type", part["image_type"]
         ), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)]
     ]
@@ -261,11 +261,11 @@ def build_inner(handlers, context, image_type, proj_tag):
 
 def build_type_elector(context, out):
     build_micro(context, out, ["elector.js"], [
-        "FROM ubuntu:20.04",
+        "FROM ubuntu:22.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
         "RUN perl install.pl useradd 1979",
         "RUN perl install.pl apt curl ca-certificates xz-utils",  # xz-utils for node
-        "RUN perl install.pl curl https://nodejs.org/dist/v14.15.4/node-v14.15.4-linux-x64.tar.xz",
+        "RUN perl install.pl curl https://nodejs.org/dist/v20.5.0/node-v20.5.0-linux-x64.tar.xz",
         "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
         " && chmod +x /tools/tini",
         "USER c4",
@@ -275,24 +275,24 @@ def build_type_elector(context, out):
 
 def build_type_resource_tracker(context, out):
     build_micro(context, out, ["resources.py"], [
-        "FROM ubuntu:20.04",
+        "FROM ubuntu:22.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
         "RUN perl install.pl useradd 1979",
-        "RUN perl install.pl apt curl ca-certificates python3.8",
+        "RUN perl install.pl apt curl ca-certificates python3",
         "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl && chmod +x /tools/kubectl",
         "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
         " && chmod +x /tools/tini",
         "USER c4",
         'ENV PATH=${PATH}:/tools',
-        'ENTRYPOINT ["/tools/tini","--","python3.8","/resources.py","tracker"]',
+        'ENTRYPOINT ["/tools/tini","--","python3","/resources.py","tracker"]',
     ])
 
 
 def build_type_s3client(context, out):
     build_micro(context, out, [], [
-        "ARG C4UID=1979",
-        "FROM ghcr.io/conecenter/c4replink:v2",
-        "USER root",
+        "FROM ubuntu:22.04",
+        "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
+        "RUN perl install.pl useradd 1979",
         "RUN perl install.pl apt curl ca-certificates",
         "RUN /install.pl curl https://dl.min.io/client/mc/release/linux-amd64/mc && chmod +x /tools/mc",
         'ENTRYPOINT /tools/mc alias set def' +
@@ -332,11 +332,11 @@ def build_type_rt(proj_tag, context, out):
     proto_postfix, proto_dir = get_proto(context, get_plain_option)
     pr_env = {"C4CI_PROTO_DIR": proto_dir, "PATH": os.environ["PATH"]}
     prod = ("perl", f"{proto_dir}/prod.pl")
-    pre = ("python3.8", "-u", f"{proto_dir}/run_with_prefix.py")
+    pre = ("python3", "-u", f"{proto_dir}/run_with_prefix.py")
     client_proc_opt = (
         [Popen((*pre, "=client=", *prod, "build_client_changed", context), env=pr_env)] if proj_tag != "def" else ()
     )
-    run(("python3.8", f"{proto_dir}/build.py", context))
+    run(("python3", f"{proto_dir}/build.py", context))
     compile_options = get_more_compile_options(context, get_commit(context), proj_tag)  # after build.py
     mod = compile_options.mod
     mod_dir = compile_options.mod_dir

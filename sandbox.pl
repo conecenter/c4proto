@@ -86,7 +86,7 @@ my $remake = sub{
     my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR => \%ENV);
     my $user = $ENV{HOSTNAME}=~/^de-(\w+)-/ ? $1 : die;
     local $ENV{KUBECONFIG} = $ENV{C4KUBECONFIG};
-    so("python3.8", "-u", "$proto_dir/build_remote.py", "compile",
+    so("python3", "-u", "$proto_dir/build_remote.py", "compile",
         "--proj-tag", $arg, "--user", $user, "--context", $build_dir,
     ) and return ();
     so("perl", "$proto_dir/prod.pl", "build_client_changed", $build_dir, "dev") and return ();

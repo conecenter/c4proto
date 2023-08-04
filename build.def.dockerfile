@@ -1,10 +1,9 @@
-
-ARG C4UID=1979
-FROM ghcr.io/conecenter/c4replink:v2
-USER root
+FROM ubuntu:22.04
+COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /
+RUN perl install.pl useradd 1979
 RUN /install.pl apt \
     curl ca-certificates xz-utils '#build base' \
-    libjson-xs-perl python '#build base' \
+    libjson-xs-perl python3 '#build base' \
     zip rsync '#build final-copy' \
     make g++ '#build client (sass)' \
     fontconfig locales '#?some for runtime' \
@@ -13,15 +12,12 @@ RUN /install.pl apt \
     uuid-runtime '#sandbox->ci' \
     rsync openssh-client '#sandbox remote' \
     atop less bash-completion tmux '#debug more' \
-    python3 '#snapshot_put' \
-    python3-pip '#pip3 install' \
-    python3.8 '#qa-subprocess-text-capture_output' \
-    '#1'
+    python3-pip '#pip3 install'
 # build tools:
 RUN /install.pl curl https://download.bell-sw.com/java/17.0.8+7/bellsoft-jdk17.0.8+7-linux-amd64.tar.gz
 RUN /install.pl curl https://github.com/coursier/launchers/raw/master/coursier && chmod +x /tools/coursier
 RUN /install.pl curl https://github.com/sbt/sbt/releases/download/v1.9.3/sbt-1.9.3.tgz
-RUN /install.pl curl https://nodejs.org/dist/v14.15.4/node-v14.15.4-linux-x64.tar.xz
+RUN /install.pl curl https://nodejs.org/dist/v20.5.0/node-v20.5.0-linux-x64.tar.xz
 # sandbox tools/fixes:
 RUN /install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl && chmod +x /tools/kubectl
 RUN /install.pl curl https://github.com/jvm-profiling-tools/async-profiler/releases/download/v2.7/async-profiler-2.7-linux-x64.tar.gz
