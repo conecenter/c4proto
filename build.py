@@ -158,7 +158,7 @@ def generate_configs(build_path_str, tmp_part, conf_plain):
         build_sbt = f"{proj_part}/build.sbt"
         plugins_sbt = f"{proj_part}/project/plugins.sbt"
         write_changed(build_path / build_sbt, sbt_text)
-        plugins_text = 'addSbtPlugin("org.wartremover" % "sbt-wartremover" % "3.0.5")'
+        plugins_text = 'addSbtPlugin("org.wartremover" % "sbt-wartremover" % "3.1.3")'
         write_changed(build_path / plugins_sbt, plugins_text)
         write_changed(build_path / f"{proj_part}/c4modules", ":".join(modules))
         write_changed(build_path / f"{proj_part}/c4sync_paths.json", json.dumps([
