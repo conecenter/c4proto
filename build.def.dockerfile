@@ -5,7 +5,6 @@ RUN /install.pl apt \
     curl ca-certificates xz-utils '#build base' \
     libjson-xs-perl python3 '#build base' \
     zip rsync '#build final-copy' \
-    make g++ '#build client (sass)' \
     fontconfig locales '#?some for runtime' \
     lsof mc netcat-openbsd '#debug base' \
     haproxy '#sandbox' \
@@ -29,7 +28,7 @@ USER c4
 ENV PATH=${PATH}:/usr/local/bin:/tools/jdk/bin:/tools:/tools/node/bin:/tools/sbt/bin:/tools/apache/bin:/c4/bin
 ENV JAVA_HOME=/tools/jdk
 # pre-installing just to optimize:
-RUN mkdir -p /c4/c4client_prep && cd /c4/c4client_prep && npm install node-sass@4.13.1
+RUN mkdir -p /c4/c4client_prep && cd /c4/c4client_prep && npm install node-sass@9.0.0
 # setup build steps:
 RUN echo 'exec "bash", @ARGV; die' > /c4/c4serve.pl
 ENTRYPOINT ["perl","/c4/c4serve.pl"]
