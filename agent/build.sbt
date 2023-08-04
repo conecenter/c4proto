@@ -1,5 +1,5 @@
 
-scalaVersion := "2.13.8"
+scalaVersion := "2.13.11"
 
 //Compile / unmanagedSourceDirectories := Seq(baseDirectory.value / "src")
 
