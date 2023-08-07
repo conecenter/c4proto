@@ -334,7 +334,7 @@ def build_type_rt(proj_tag, context, out):
     prod = ("perl", f"{proto_dir}/prod.pl")
     pre = ("python3", "-u", f"{proto_dir}/run_with_prefix.py")
     client_proc_opt = (
-        [Popen((*pre, "=client=", *prod, "build_client_changed", context), env=pr_env)] if proj_tag != "def" else ()
+        [Popen((*pre, "=client=", *prod, "build_client", context), env=pr_env)] if proj_tag != "def" else ()
     )
     run(("python3", f"{proto_dir}/build.py", context))
     compile_options = get_more_compile_options(context, get_commit(context), proj_tag)  # after build.py

@@ -89,7 +89,7 @@ my $remake = sub{
     so("python3", "-u", "$proto_dir/build_remote.py", "compile",
         "--proj-tag", $arg, "--user", $user, "--context", $build_dir,
     ) and return ();
-    so("perl", "$proto_dir/prod.pl", "build_client_changed", $build_dir, "dev") and return ();
+    so("perl", "$proto_dir/prod.pl", "build_client", $build_dir, "dev") and return ();
     #
     my $ppid = $$;
     my $pid = fork();

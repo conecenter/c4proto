@@ -456,12 +456,6 @@ my $get_tag_info = sub{
     JSON::XS->new->decode(&$get_text("$gen_dir/target/c4/build.json"))->{tag_info}{$tag} || die;
 };
 
-my $client_mode_to_opt = sub{
-    my($mode)=@_;
-    $mode eq "fast" ? "--color --env.fast=true --mode development" :
-    $mode eq "dev" ? "--color --mode development" :
-    "--color --mode production";
-};
 my $if_changed = sub{
     my($path,$will,$then)=@_;
     return if (-e $path) && &$get_text($path) eq $will;
@@ -469,28 +463,16 @@ my $if_changed = sub{
     &$put_text($path,$will);
     $res;
 };
-
-my $build_client_init = sub{
-    my ($gen_dir)=@_;
-    $gen_dir || die;
-    my $dir = &$need_path("$gen_dir/target/c4/client");
-    -e $dir or sy("cp -r /c4/c4client_prep $dir");
-    my $conf = &$decode(&$get_text("$gen_dir/c4dep.main.json"));
-    my %will = map{ref && $$_[0] eq "C4CLIENT" ? ("$dir/src/$$_[1]","$gen_dir/$$_[2]/src"):()} @$conf;
-    readlink($_) eq $will{$_} or unlink($_) or die $_ for <$dir/src/*>;
-    -e $_ or symlink($will{$_}, &$need_path($_)) or die $! for sort keys %will;
-};
-
 my $build_client = sub{
-    my($gen_dir, $opt)=@_;
-    $gen_dir || die;
-    my $dir = "$gen_dir/target/c4/client";
+    my($dir, $mode)=@_;
+    my $opt = $mode eq "fast" ? "--env.fast=true --mode development" : $mode eq "dev" ? "--mode development" :
+        "--mode production";
     my $build_dir = "$dir/out";
     unlink or die $! for <$build_dir/*>;
     my $conf_dir = &$single_or_undef(grep{-e} map{"$_/webpack"} <$dir/src/*>) || die;
     &$if_changed("$dir/package.json", &$get_text("$conf_dir/package.json"), sub{1})
-        and sy("cd $dir && npm install --no-save");
-    sy("cd $dir && cp $conf_dir/webpack.config.js . && cp $conf_dir/tsconfig.json . && node_modules/webpack/bin/webpack.js $opt");# -d
+        and sy("cd $dir && npm install --no-save --legacy-peer-deps");
+    sy("cd $dir && cp $conf_dir/webpack.config.js . && cp $conf_dir/tsconfig.json . && node_modules/webpack/bin/webpack.js --color $opt");# -d
     &$put_text("$build_dir/publish_time",time);
     &$put_text("$build_dir/c4gen.ht.links",join"",
         map{ my $u = m"^/(.+)$"?$1:die; "base_lib.ee.cone.c4gate /$u $u\n" }
@@ -498,21 +480,21 @@ my $build_client = sub{
         sort <$build_dir/*>
     );
 };
-
-push @tasks, ["build_client","",sub{
-    my($dir,$mode)=@_;#abs dir
-    &$build_client_init($dir);
-    &$build_client($dir, &$client_mode_to_opt($mode));
-}];
-push @tasks, ["build_client_changed","",sub{
+my $build_client_changed = sub{
     my($dir,$mode)=@_;
-    &$build_client_init($dir);
+    $dir || die;
     my $j_dir = "$dir/target/c4/client/src";
+    my $conf = &$decode(&$get_text("$dir/c4dep.main.json"));
+    my %will = map{ref && $$_[0] eq "C4CLIENT" ? ("$j_dir/$$_[1]","$dir/$$_[2]/src"):()} @$conf;
+    readlink($_) eq $will{$_} or unlink($_) or die $_ for <$j_dir/*>;
+    -e $_ or symlink($will{$_}, &$need_path($_)) or die $! for sort keys %will;
     my @files = syf("cd $j_dir && find -L -type f")=~/(.+)/g;
     &$if_changed("$dir/target/c4/client-sums-compiled", syf("cd $j_dir && md5sum ".join " ", sort @files), sub{
-        &$build_client($dir, &$client_mode_to_opt($mode));
+        &$build_client("$dir/target/c4/client", $mode);
     });
-}];
+};
+push @tasks, ["build_client","",sub{ &$build_client_changed(@_) }]; # abs dir
+
 my $chk_pkg_dep = sub{
     my($gen_dir,$mod)=@_;
     my $cp = &$get_text("$gen_dir/target/c4/mod.$mod.d/target/c4classpath");

@@ -27,8 +27,6 @@ RUN echo en_DK.UTF-8 UTF-8 >> /etc/locale.gen && locale-gen
 USER c4
 ENV PATH=${PATH}:/usr/local/bin:/tools/jdk/bin:/tools:/tools/node/bin:/tools/sbt/bin:/tools/apache/bin:/c4/bin
 ENV JAVA_HOME=/tools/jdk
-# pre-installing just to optimize:
-RUN mkdir -p /c4/c4client_prep && cd /c4/c4client_prep && npm install node-sass@9.0.0
 # setup build steps:
 RUN echo 'exec "bash", @ARGV; die' > /c4/c4serve.pl
 ENTRYPOINT ["perl","/c4/c4serve.pl"]
