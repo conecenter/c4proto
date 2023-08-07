@@ -33,7 +33,7 @@ class XsdWillGenerator extends WillGenerator {
       mod <- fullDeps(rMod)
       dir <- ctx.modInfo(mod).srcDirs
     } yield dir -> rMod)
-    val at4 = System.nanoTime
+    //val at4 = System.nanoTime
     val res = groupSort(for { //80ms
       path <- ctx.fromFiles if getFileType(path.getFileName.toString).nonEmpty
       dirInfo <- Util.dirInfo(ctx, path.getParent)
@@ -43,8 +43,8 @@ class XsdWillGenerator extends WillGenerator {
       val lRes = MultiCached.cached(ctx, toDir.resolve("c4gen-xsd"), XsdMultiCacheGenerator, parts)
       (toDir.resolve("c4gen-xsd.log") -> fullDeps(rMod).mkString("\n").getBytes(UTF_8)) :: lRes
     }
-    val at5 = System.nanoTime
-    println(s"A0 ${List(at4-at5).map(_ / -1000000)}")
+    //val at5 = System.nanoTime
+    //println(s"A0 ${List(at4-at5).map(_ / -1000000)}")
     res
   }
 

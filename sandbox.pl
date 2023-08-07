@@ -37,7 +37,7 @@ my $serve_proxy = sub{
     my $debug_int_address = &$get_text_or_empty("/c4/haproxy.to");
     $debug_ext_address && $debug_int_address or &$exec("sleep","infinity");
     my $ha_cfg_path = "/c4/haproxy.cfg";
-    &$put_text($ha_cfg_path, join "\n",
+    &$put_text($ha_cfg_path, join '', map{"$_\n"}
         "global",
         "  tune.ssl.default-dh-param 2048",
         "defaults",
