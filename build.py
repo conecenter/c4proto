@@ -145,7 +145,7 @@ def generate_configs(build_path_str, tmp_part, conf_plain):
     })
     debug = """println("AvailableProcessors",java.lang.Runtime.getRuntime.availableProcessors);"""
     sbt_common_text = "".join((
-        """ThisBuild / scalaVersion := "2.13.8"\n\n""", #"coursierMaxIterations := 200\n\n" +
+        """ThisBuild / scalaVersion := "2.13.11"\n\n""", #"coursierMaxIterations := 200\n\n" +
         """val c4build = taskKey[Unit]("c4 build")\n\n""",
         f"""c4build := {{{debug}IO.write(baseDirectory.value/"target/c4classpath",(main / Compile / fullClasspath).value.map(_.data).mkString(":"))}}\n\n"""
     ))
@@ -169,7 +169,7 @@ def generate_configs(build_path_str, tmp_part, conf_plain):
         build_sbt = f"{proj_part}/build.sbt"
         plugins_sbt = f"{proj_part}/project/plugins.sbt"
         write_changed(build_path / build_sbt, sbt_text)
-        plugins_text = 'addSbtPlugin("org.wartremover" % "sbt-wartremover" % "3.0.5")'
+        plugins_text = 'addSbtPlugin("org.wartremover" % "sbt-wartremover" % "3.1.3")'
         write_changed(build_path / plugins_sbt, plugins_text)
         write_changed(build_path / f"{proj_part}/c4modules", ":".join(modules))
         write_changed(build_path / f"{proj_part}/c4sync_paths.json", json.dumps([
