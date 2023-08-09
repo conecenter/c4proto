@@ -305,6 +305,13 @@ object CheckedMap {
     pairs.groupBy(_._1).transform((k,l)=>Single(l)._2)
 }
 
+object LazyDict {
+  def apply[K,V](calc: K=>V): K=>V = {
+    val inner = collection.concurrent.TrieMap[K,V]()
+    k => inner.getOrElseUpdate(k, calc(k))
+  }
+}
+
 trait AssembleProfiler {
   def createJoiningProfiling(localOpt: Option[Context]): JoiningProfiling
   def addMeta(transition: WorldTransition, updates: Seq[N_Update]): Future[Seq[N_Update]]
