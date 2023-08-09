@@ -320,18 +320,9 @@ my $up_elector = sub{
         @req_small, @lim_small,
     };
 };
-my $up_resource_tracker = sub{
-    my ($comp) = @_;
-    my $conf = &$get_compose($comp);
-    +{
-        image_type => "resource_tracker", project => "def",
-        tty => "true", @req_small, (map{($_=>&$mandatory_of($_=>$conf))} qw[C4RES_TRACKER_OPTIONS C4KUBECONFIG ])
-    };
-};
-
 my $conf_handler = {
     "consumer"=>$up_consumer, "gate"=>$up_gate, "client"=>$up_client,
-    "s3client"=>sub{&$get_compose(@_)}, "elector"=>$up_elector, "resource_tracker"=>$up_resource_tracker,
+    "s3client"=>sub{&$get_compose(@_)}, "elector"=>$up_elector, "resource_tracker"=>sub{&$get_compose(@_)},
 };
 
 ### snapshot op-s
