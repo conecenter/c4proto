@@ -206,6 +206,7 @@ def iter_req_setter(args,state): #10
 
 def iter_j_monitor(args, state):
     context_name, app = args
+    n, = state or (0,)
     kc = get_kc(context_name)
     pods = [
         {"context_name": context_name, "pod_name": pod_name}
@@ -214,13 +215,14 @@ def iter_j_monitor(args, state):
     ]
     procs = [(pod, proc) for pod in pods for proc, is_c4 in ps_java(pod) if is_c4]
     for pod, proc in procs:
-        for cma in ["Thread.print","GC.class_histogram"]:
+        for cma in ["Thread.print", "GC.class_histogram"]:
             cmd_prefix = (*get_exec_cmd(pod), "jcmd", proc["PID"])
             res = run_no_check((*cmd_prefix, "Thread.print"))
             if res.returncode == 0:
-                fn = f"/tmp/c4log.{pod['pod_name']}.{proc['PID']}.{cma}"
+                fn = f"/tmp/c4log.{pod['pod_name']}.{proc['PID']}.{n}.{cma}"
                 pathlib.Path(fn).write_text(res.stdout, encoding='utf-8', errors='strict')
                 print(f"reported: {fn}")
+    return (n+1) % 10,
 
 
 def loop(inner, period_str, *args):
