@@ -137,7 +137,7 @@ my $resolve = cached{
         my ($comp) = @_;
         $$conf_all{$comp} || &$single_or_undef(map{
             my($k,$v) = @{$handlers{$_}||die};
-            $comp=~/^$k$/ ? {&$v(@{^CAPTURE})} : die
+            $comp=~/^$k$/ ? {&$v(map{"$_"}@{^CAPTURE})} : die
         } $comp=~/^($re)$/ ? keys %+ : ())
     }
 };
