@@ -5,6 +5,7 @@ import json
 import math
 import time
 import os
+import pathlib
 
 def group_map(l,f):
     res = {}
@@ -202,6 +203,26 @@ def iter_req_setter(args,state): #10
     else:
         return (deployment_name, started)
 
+
+def iter_j_monitor(args, state):
+    context_name, app = args
+    kc = get_kc(context_name)
+    pods = [
+        {"context_name": context_name, "pod_name": pod_name}
+        for pod in json.loads(run([*kc, "get", "pods", "-o", "json", "-l", f"app={app}"]).stdout)["items"]
+        for pod_name in [pod["metadata"]["name"]]
+    ]
+    procs = [(pod, proc) for pod in pods for proc, is_c4 in ps_java(pod) if is_c4]
+    for pod, proc in procs:
+        for cma in ["Thread.print","GC.class_histogram"]:
+            cmd_prefix = (*get_exec_cmd(pod), "jcmd", proc["PID"])
+            res = run_no_check((*cmd_prefix, "Thread.print"))
+            if res.returncode == 0:
+                fn = f"/tmp/c4log.{pod['pod_name']}.{proc['PID']}.{cma}"
+                pathlib.Path(fn).write_text(res.stdout, encoding='utf-8', errors='strict')
+                print(f"reported: {fn}")
+
+
 def loop(inner, period_str, *args):
     period = int(period_str)
     state = None
@@ -217,6 +238,7 @@ iter = {
     "de_purger": iter_de_purger,
     "gc_runner": iter_gc_runner,
     "req_setter": iter_req_setter,
+    "j_monitor": iter_j_monitor,
 }
 
 def handle_tracker(*q_args):
