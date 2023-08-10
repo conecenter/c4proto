@@ -217,7 +217,7 @@ def iter_j_monitor(args, state):
     for pod, proc in procs:
         for cma in ["Thread.print", "GC.class_histogram"]:
             cmd_prefix = (*get_exec_cmd(pod), "jcmd", proc["PID"])
-            res = run_no_check((*cmd_prefix, "Thread.print"))
+            res = run_no_check((*cmd_prefix, cma))
             if res.returncode == 0:
                 fn = f"/tmp/c4log.{pod['pod_name']}.{proc['PID']}.{n}.{cma}"
                 pathlib.Path(fn).write_text(res.stdout, encoding='utf-8', errors='strict')
