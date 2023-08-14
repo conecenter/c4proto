@@ -756,7 +756,7 @@ push @tasks, ["kafka","( topics | offsets <hours> | nodes | sizes <node> | topic
     my @args = @_;
     my $gen_dir = &$get_proto_dir();
     my $cp = syf("coursier fetch --classpath org.apache.kafka:kafka-clients:2.8.0")=~/(\S+)/ ? $1 : die;
-    sy("CLASSPATH=$cp java --source 15 $gen_dir/kafka_info.java ".join" ",@args);
+    sy("JAVA_TOOL_OPTIONS= CLASSPATH=$cp java --source 15 $gen_dir/kafka_info.java ".join" ",@args);
 }];
 
 push @tasks, ["purge_mode_list","--list <list>",sub{ &$py_run("ci.py","purge_mode_list",@_) }];
