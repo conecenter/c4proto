@@ -60,6 +60,7 @@ def kafka_purge(need_rm):
         kafka_certs = get_secret_data("kafka-certs")
         kafka_env = {
             **os.environ,
+            "JAVA_TOOL_OPTIONS": "",
             "CLASSPATH": classpath,
             "C4STORE_PASS_PATH": secret_part_as_file(kafka_auth, "kafka.store.auth", temp_dir),
             "C4KEYSTORE_PATH": secret_part_as_file(kafka_certs, "kafka.keystore.jks", temp_dir),
