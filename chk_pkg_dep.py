@@ -75,7 +75,7 @@ def handle_by_text(context):
     re_pkg = re.compile("^package\\s+(\\S*)", re.M)
     re_imp = re.compile("^import\\s+(\\S*)", re.M)
     res = [
-        f"{path}\n  {imp}"
+        f"bad dep: {path}\n         {imp}"
         for path in sorted(run_text_out(("find", *src_dirs, "-type", "f", "-name", "*.scala")).splitlines())
         if "/c4gen." not in path for content in [read_text(path)]
         for pkg in re_pkg.findall(content) for from_pkg_base in [get_base(pkg, allow_pkg_dep)] if from_pkg_base
@@ -83,7 +83,7 @@ def handle_by_text(context):
         if imp.startswith(pkg_prefix) and not get_base(imp, allow_pkg_dep[from_pkg_base])
     ]
     if res:
-        print("\n".join(res))
+        print("\n".join(res), file=sys.stderr)
         raise Exception(f"bad deps")
 
 
