@@ -234,7 +234,7 @@ class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends
            |  }
            |  private final class ${defName}_TransJoin(join: ${defName}_Join, diffIndexRawSeq: DiffIndexRawSeq, val executionContext: OuterExecutionContext) extends TransJoin {
            |    import join._
-           |    implicit val ec = executionContext.value
+           |    implicit val ec: scala.concurrent.ExecutionContext = executionContext.value
            |    val iUtil = indexFactory.util
            |    val Seq(${params.map(p=>s"${p.name}_diffIndex").mkString(",")}) = diffIndexRawSeq
            |    ${keyEqParams.map(p=>s"val ${p.name}_isAllChanged = iUtil.nonEmpty(${p.name}_diffIndex,${litOrId(p)}); ").mkString}
