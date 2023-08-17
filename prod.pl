@@ -489,7 +489,7 @@ push @tasks, ["build_client","",sub{ &$build_client_changed(@_) }]; # abs dir
 my $chk_pkg_dep = sub{
     my($gen_dir,$mod)=@_;
     my $cp = &$get_text("$gen_dir/target/c4/mod.$mod.d/target/c4classpath");
-    &$py_run("chk_pkg_dep.py","$gen_dir/target/c4/build.json", $cp);
+    &$py_run("chk_pkg_dep.py", "by_classpath", $gen_dir, $cp);
 };
 push @tasks, ["chk_pkg_dep"," ",sub{
     my $gen_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
