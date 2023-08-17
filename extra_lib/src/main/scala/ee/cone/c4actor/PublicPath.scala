@@ -74,14 +74,17 @@ object ImagePublicPath {
   def pathType = "pathType"
 
   def unpack(url: String): PublicPath = {
-    val map = ImagePublicPath.unpackFormat.findAllMatchIn(url)
+    val reg =
+      if (url.startsWith(path)) ImagePublicPath.unpackFormat.findAllMatchIn(url).toList
+      else Nil
+    val map = reg
       .map(regMatch => regMatch.group(1) -> regMatch.group(2)).toMap
 
     val pathOpt = map.get(path)
     val pathType_ = map.get(pathType)
 
-    pathOpt.map{path_ =>
-      pathType_.map{
+    pathOpt.map { path_ =>
+      pathType_.map {
         case SVGPublicPath.curPathType =>
           SVGPublicPath(path_)
         case NonSVGPublicPath.curPathType =>
