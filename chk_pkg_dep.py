@@ -1,26 +1,9 @@
 
-import json
-import subprocess
 import sys
-import os
 import re
 from c4util import group_map, parse_table, read_json, read_text
 from c4util.build import run_text_out
 
-### util
-
-def print_args(args):
-    if "C4PRINT_ARGS" in os.environ: print("running: "+" ".join(args))
-    return args
-
-def run(args):
-    proc = subprocess.run(print_args(args),capture_output=True,text=True)
-    if proc.returncode != 0:
-        print(proc.stdout,proc.stderr)
-    proc.check_returncode()
-    return proc
-
-### main
 
 def get_base(pkg, coll):
     return pkg if (pkg in coll) or not pkg else get_base(".".join(pkg.split(".")[:-1]), coll)
@@ -56,7 +39,7 @@ def handle_by_classpath(context, cp):
         "-"
     ,p))
     if "-" in cp_by_tp: raise cp_by_tp
-    jdeps_res = run(["jdeps","--multi-release","16","-cp",cp,*cp_by_tp["classes"]]).stdout
+    jdeps_res = run_text_out(("jdeps", "--multi-release", "16", "-cp", cp, *cp_by_tp["classes"]))
     bad = "".join(
         " ".join(line)+"\n" for line in parse_table(jdeps_res) if not chk_line(line,allow_pkg_dep)
     )
@@ -71,20 +54,32 @@ def handle_by_text(context):
     group, point, pkg_prefix = mod_prefix.partition(".")
     if point != ".":
         raise Exception(f"bad conf: {mod_prefix}")
-    src_dirs = sorted(line[2] for line in build_conf["plain"] if line[0] == "C4SRC" and line[1] == group)
-    re_pkg = re.compile("^package\\s+(\\S*)", re.M)
+    src_dirs = sorted(f"{context}/{line[2]}" for line in build_conf["plain"] if line[0] == "C4SRC" and line[1] == group)
     re_imp = re.compile("^import\\s+(\\S*)", re.M)
-    res = [
-        f"bad dep: {path}\n         {imp}"
-        for path in sorted(run_text_out(("find", *src_dirs, "-type", "f", "-name", "*.scala")).splitlines())
-        if "/c4gen." not in path for content in [read_text(path)]
-        for pkg in re_pkg.findall(content) for from_pkg_base in [get_base(pkg, allow_pkg_dep)] if from_pkg_base
-        for imp in re_imp.findall(content)
-        if imp.startswith(pkg_prefix) and not get_base(imp, allow_pkg_dep[from_pkg_base])
+    found = [
+        (path, imp_list, (
+            None if not imp_list else
+            f"\nmissing or unconnected module of {from_pkg}" if not pkg_base else
+            f"\nbad deps in {path}:{''.join(bad_imp_lines)}" if bad_imp_lines else
+            None
+        ))
+        for src_dir in src_dirs
+        for path in sorted(run_text_out(("find", src_dir, "-type", "f", "-name", "*.scala")).splitlines())
+        for path_parts in [path[len(src_dir)+1:].split("/")]
+        for fn_parts in [path_parts[-1].split(".")]
+        if not (fn_parts[0] == "c4gen" and len(fn_parts) == 3)
+        # so if scala is generated from non-scala, it can introduce new deps
+        for from_pkg in [".".join(path_parts[:-1])]
+        for pkg_base in [get_base(from_pkg, allow_pkg_dep)]
+        for imp_list in [[imp for imp in re_imp.findall(read_text(path)) if imp.startswith(pkg_prefix)]]
+        for bad_imp_lines in [pkg_base and [f"\n {to}" for to in imp_list if not get_base(to, allow_pkg_dep[pkg_base])]]
     ]
+    # for path, imp_list, msg in found:
+    #     if "..." in path:
+    #         print(path, imp_list, msg)
+    res = "".join(sorted({msg for path, imp_list, msg in found if msg}))
     if res:
-        print("\n".join(res), file=sys.stderr)
-        raise Exception(f"bad deps")
+        raise Exception(res)
 
 
 def main():
