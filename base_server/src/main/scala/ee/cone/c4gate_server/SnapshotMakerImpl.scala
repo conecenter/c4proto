@@ -193,8 +193,7 @@ class SnapshotSavers(val full: SnapshotSaver, val tx: SnapshotSaver)
         task match {
           case t: NextSnapshotTask =>
             if(nWorld.offset == endOffset) {
-              val saved = save(nWorld)
-              if(offsetOpt.nonEmpty) List(saved) else snapshotLister.list.map(_.raw)
+              List(save(nWorld))
             } else {
               assert(gEvents.isEmpty)
               iteration(nWorld, endOffset, nSkip)
