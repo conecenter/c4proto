@@ -988,7 +988,7 @@ my $prod_image_steps = sub{(
     "RUN perl install.pl apt haproxy",
     #"RUN perl install.pl curl https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz",
     "RUN perl install.pl curl https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.5%2B10/OpenJDK11U-jdk_x64_linux_hotspot_11.0.5_10.tar.gz",
-    "RUN perl install.pl curl https://www-eu.apache.org/dist/kafka/2.2.0/kafka_2.12-2.2.0.tgz",
+    "RUN perl install.pl curl https://downloads.apache.org/kafka/3.5.1/kafka_2.13-3.5.1.tgz",
     "RUN perl install.pl curl http://ompc.oss.aliyuncs.com/greys/release/greys-stable-bin.zip",
     "RUN mkdir /c4db && chown c4:c4 /c4db",
 )};
