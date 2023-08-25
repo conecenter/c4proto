@@ -112,9 +112,17 @@ import scala.concurrent.duration.Duration
     val result = Await.result(res, Duration.Inf)
     val period = end.ms
     if(period > warnPeriod.value) logger.warn(s"${options.toString} long join $period ms on $stage")
+    (new AssemblerProfiling).debugPeriod(stage, period)
     result
   }
 
+}
+
+class AssemblerProfiling extends LazyLogging {
+  def id = s"T-${Thread.currentThread.getId}"
+  def debugPeriod(stage: String, period: Long): Unit = logger.debug(s"$id was $stage-joining for $period ms")
+  def debugOffsets(stage: String, offsets: Seq[NextOffset]): Unit =
+    logger.debug(s"$id $stage "+offsets.map(s => s"E-$s").distinct.mkString(","))
 }
 /*
     val reg = CheckedMap(
@@ -172,6 +180,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     logger.debug("starting toUpdate")
     val updates: List[N_Update] = offset(events) ::: toUpdate.toUpdates(events.toList,"rma").map(toUpdate.toUpdateLost)
     logger.debug("done toUpdate")
+    (new AssemblerProfiling).debugOffsets("starts-reducing", events.map(_.srcId))
     reduce(assembled, updates, options, executionContext)
   }("reduce"){ e => // ??? exception to record
     if(events.size == 1){
