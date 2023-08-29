@@ -58,6 +58,7 @@ object XsdMultiCacheGenerator extends MultiCacheGenerator {
     val c4ns = "http://cone.dev"
     val useN = s"{$c4ns}use"
     val provideN = s"{$c4ns}provide"
+    val orderN = s"{$c4ns}order"
     val provided = groupDef(for {
       e <- (in \\ "_").toList
       ks <- List(e \@ provideN) if ks.nonEmpty
@@ -65,8 +66,9 @@ object XsdMultiCacheGenerator extends MultiCacheGenerator {
     } yield k -> e)
     def tr(e: Elem): Elem = {
       val use = e \@ useN
-      val child = if (use.isEmpty) e.child else provided(use)
-      val attributes = e.attributes.remove(c4ns, e.scope, "use").remove(c4ns, e.scope, "provide")
+      val child = if (use.isEmpty) e.child else provided(use).sortBy(_ \@ orderN) // sortBy is stable
+      val attributes =
+        e.attributes.remove(c4ns, e.scope, "use").remove(c4ns, e.scope, "provide").remove(c4ns, e.scope, "order")
       e.copy(scope = TopScope, child = child.map { case ce: Elem => tr(ce) case o => o }, attributes = attributes)
     }
     in.map(tr)
