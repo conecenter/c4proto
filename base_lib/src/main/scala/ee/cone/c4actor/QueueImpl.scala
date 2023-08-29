@@ -49,6 +49,7 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
       val rec = new QRecordImpl(currentTxLogName, bytes, headers)
       val offset = Single(getRawQSender.value).send(rec)
       logger.debug(s"${updates.size} updates was sent -- $offset")
+      (new AssemblerProfiling).debugOffsets("sent", Seq(offset))
       Function.chain(
         Seq(
           WriteModelKey.set(Queue.empty),
