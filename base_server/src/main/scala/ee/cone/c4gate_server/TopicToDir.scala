@@ -15,8 +15,8 @@ import ee.cone.c4actor._
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     logger.info("begin")
-    val beginningOffset = consuming.process("0" * OffsetHexSize(), _.beginningOffset)
-    consuming.process(beginningOffset, consumer=>iteration(consumer))
+    val offset = consuming.process("0" * OffsetHexSize(), _.endOffset)
+    consuming.process(offset, consumer=>iteration(consumer))
     logger.info("end")
   }
   @tailrec private def iteration(consumer: Consumer): Unit = {
