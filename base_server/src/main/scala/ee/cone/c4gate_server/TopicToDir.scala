@@ -2,6 +2,7 @@
 package ee.cone.c4gate_server
 import scala.annotation.tailrec
 import java.nio.file._
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4di._
 import ee.cone.c4actor._
 
