@@ -31,9 +31,13 @@ import scala.annotation.tailrec
   }
 }
 
-@c4("TopicToDirApp") final class FileRawSnapshotSaver(dir: Path = Paths.get("/tmp")) extends RawSnapshotSaver {
+object TopicDir {
+  def apply(): Path = Paths.get("/tmp")
+}
+
+@c4("TopicToDirApp") final class FileRawSnapshotSaver() extends RawSnapshotSaver {
   def save(snapshot: RawSnapshot, data: Array[Byte]): Unit = {
-    val path = dir.resolve(snapshot.relativePath)
+    val path = TopicDir().resolve(snapshot.relativePath)
     Files.createDirectories(path.getParent)
     Files.write(path, data)
   }
