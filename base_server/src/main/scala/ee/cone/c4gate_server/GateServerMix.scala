@@ -65,9 +65,6 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
 
 //()//todo secure?
 
-@c4("SnapshotMakingApp") final class DefSnapshotSavers(factory: SnapshotSaverImplFactory)
-  extends SnapshotSavers(factory.create("snapshots"), factory.create("snapshot_txs"))
-
 trait SnapshotMakingAppBase extends TaskSignerApp with LOBrokerApp
   with S3RawSnapshotLoaderApp with S3ListerApp with S3RawSnapshotSaverApp
   with SnapshotListRequestHandlerApp
@@ -99,3 +96,6 @@ trait SSEServerAppBase extends AlienProtocolApp
 // S0>W -- static content
 
 //provide httpHandler: FHttpHandler
+
+@c4app class TopicToDirAppBase extends VMExecutionApp with ExecutableApp with BaseApp with ProtoApp
+  with KafkaConsumerApp with SnapshotUtilImplApp with EnvConfigCompApp

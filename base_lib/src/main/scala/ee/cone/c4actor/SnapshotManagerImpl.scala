@@ -47,6 +47,10 @@ import SnapshotUtilImpl._
   }
 }
 
+@c4("SnapshotUtilImplApp") final class SnapshotSaverFactoryImpl(inner: SnapshotSaverImplFactory) extends SnapshotSaverFactory {
+  def create(subDirStr: String): SnapshotSaver = inner.create(subDirStr)
+}
+
 @c4("SnapshotLoaderImplApp") final class SnapshotLoaderImpl(raw: RawSnapshotLoader) extends SnapshotLoader with LazyLogging {
   def load(snapshot: RawSnapshot): Option[RawEvent] = {
     logger.debug(s"Loading raw snapshot [${snapshot.relativePath}]")

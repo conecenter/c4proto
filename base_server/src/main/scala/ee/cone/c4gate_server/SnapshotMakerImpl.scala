@@ -118,10 +118,12 @@ class SnapshotSavers(val full: SnapshotSaver, val tx: SnapshotSaver)
   snapshotConfig: SnapshotConfig,
   snapshotLister: SnapshotLister,
   snapshotLoader: SnapshotLoader,
-  snapshotSavers: SnapshotSavers,
+  snapshotSaverFactory: SnapshotSaverFactory,
   consuming: Consuming,
   toUpdate: ToUpdate,
   updateMapUtil: UpdateMapUtil,
+)(
+  snapshotSavers: SnapshotSavers = new SnapshotSavers(snapshotSaverFactory.create("snapshots"), snapshotSaverFactory.create("snapshot_txs"))
 ) extends SnapshotMaker with SnapshotMakerMaxTime with LazyLogging {
 
   private def reduce(events: List[RawEvent]): SnapshotWorld=>SnapshotWorld = if(events.isEmpty) w=>w else world=>{

@@ -20,6 +20,9 @@ trait RawSnapshotLoaderFactory {
 trait SnapshotSaver {
   def save(offset: NextOffset, data: Array[Byte], headers: List[RawHeader]): RawSnapshot
 }
+trait SnapshotSaverFactory {
+  def create(subDirStr: String): SnapshotSaver
+}
 trait SnapshotUtil {
   def hashFromName: RawSnapshot=>Option[SnapshotInfo]
 }
