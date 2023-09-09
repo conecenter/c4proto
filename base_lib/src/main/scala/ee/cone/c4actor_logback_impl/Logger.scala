@@ -43,13 +43,13 @@ class LoggerConfigurator(paths: List[Path], catchNonFatal: CatchNonFatal, scanPe
         <appender name="CON" class="ch.qos.logback.core.ConsoleAppender">
           <encoder><pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern></encoder>
         </appender>
-        <appender name="ASYNСCON" class="ch.qos.logback.classic.AsyncAppender">
+        <appender name="ASYNCFILE" class="ch.qos.logback.classic.AsyncAppender">
           <discardingThreshold>0</discardingThreshold>
           <queueSize>1000000</queueSize>
           <appender-ref ref="CON" />
         </appender>
         <root level="INFO">
-          <appender-ref ref="ASYNСCON" />
+          <appender-ref ref="ASYNCFILE" />
         </root>
         <shutdownHook/>
       </configuration>

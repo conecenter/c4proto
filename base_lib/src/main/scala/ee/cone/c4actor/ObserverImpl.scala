@@ -84,6 +84,11 @@ abstract class InnerTransientLens[Item](key: TransientLens[Item]) extends Abstra
 
 class TxObserver(val value: Observer[RichContext])
 
+object InnerNoTxObserver extends Observer[RichContext] {
+  def activate(world: RichContext): Observer[RichContext] = this
+}
+@c4("NoObserversApp") final class NoTxObserver extends TxObserver(InnerNoTxObserver)
+
 @c4("SerialObserversApp") final class SerialTxObserver(
   transforms: TxTransforms
 ) extends TxObserver(new SerialObserver(Map.empty)(transforms))

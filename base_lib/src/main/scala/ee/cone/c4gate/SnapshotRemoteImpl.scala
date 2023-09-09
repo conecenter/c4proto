@@ -27,7 +27,7 @@ import scala.annotation.tailrec
   def create(baseURL: String): RawSnapshotLoader = inner.create(baseURL)
 }
 
-@c4("RemoteRawSnapshotApp") final class RemoteSnapshotUtilImpl(util: HttpUtil) extends RemoteSnapshotUtil with LazyLogging {
+@c4("RemoteRawSnapshotUtilApp") final class RemoteSnapshotUtilImpl(util: HttpUtil) extends RemoteSnapshotUtil with LazyLogging {
   def authHeaders(signed: String): List[(String, String)] =
     List(("x-r-signed", signed))
   def measure[R](f: =>R): R = {

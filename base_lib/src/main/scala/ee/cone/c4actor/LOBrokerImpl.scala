@@ -52,7 +52,7 @@ import scala.concurrent.{Await, ExecutionContext, Future, Promise}
             case e => throw new Exception(e.toString)
           }.toList
           for(dataOpt <- s3.get(ev.txLogName,path))
-            yield dataOpt.fold(ev)(data=>ev.withContent(headers,ToByteString(data)))
+            yield dataOpt.fold(ev)(data=>ev.copy(headers=headers,data=ToByteString(data)))
       })},backoffLeft.tail)
     }
 }

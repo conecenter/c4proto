@@ -9,9 +9,7 @@ import java.nio.file._
 import scala.annotation.tailrec
 
 @c4("TopicToDirApp") final class TopicToDir(
-  //consumerBeginningOffset: ConsumerBeginningOffset,
-  consuming: Consuming,
-  snapshotSaverFactory: SnapshotSaverFactory
+  consuming: Consuming, snapshotSaverFactory: SnapshotSaverFactory
 )(
   txSaver: SnapshotSaver = snapshotSaverFactory.create("snapshot_txs")
 ) extends Executable with LazyLogging {
