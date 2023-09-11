@@ -12,8 +12,10 @@ import ee.cone.c4di.{c4, c4multi}
 import scala.annotation.tailrec
 import scala.collection.immutable
 import scala.collection.immutable.{Map, Seq}
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future, Promise}
 import java.nio.charset.StandardCharsets.UTF_8
+import java.util.concurrent.atomic.{AtomicLong, AtomicStampedReference}
+import scala.util.Try
 
 class NonSingleCount(val item: Product, val count: Int)
 sealed class Counts(val data: List[Count])
@@ -36,12 +38,27 @@ case class JoinKeyImpl(
   def withWas(was: Boolean): JoinKey = copy(was=was)
 }
 
-final case class ParallelExecution(power: Int) {
+object ParallelExecutionCount {
+  val values = (0 to 6).map(i=>new AtomicLong(0))
+  def add(power: Int): Unit = values(power).incrementAndGet()
+  def report(): String = {
+    val res = values.map(_.get()).mkString(" ")
+    for(v <- values) v.set(0)
+    res
+  }
+}
+
+case object ParallelExecution4 extends ParallelExecution(2)
+case object ParallelExecution8 extends ParallelExecution(3)
+case object ParallelExecution16 extends ParallelExecution(4)
+case object ParallelExecution32 extends ParallelExecution(5)
+
+abstract class ParallelExecution(power: Int) extends Product {
   val parallelPartCount: Int = 1 << power
   def keyToPartPos(elem: Any): Int = elem.hashCode & (parallelPartCount-1)  // todo other hash?
-  private val parallelRange = (0 until parallelPartCount).toVector
-  def execute[T](f: Int=>T)(implicit ec: ExecutionContext): Future[Vector[T]] =
-    Future.sequence(parallelRange.map(partId=>Future(f(partId))))
+  val parallelRange: Vector[Int] = (0 until parallelPartCount).toVector
+  def execute[S,T,U](tasks: Seq[S], calc: S=>T, aggr: Seq[T]=>U)(implicit ec: ExecutionContext): Future[U] =
+    if(tasks.size < 2) Future(aggr(tasks.map(calc))) else Future.sequence(tasks.map(task=>Future(calc(task)))).map(aggr)
 }
 
 // Ordering.by can drop keys!: https://github.com/scala/bug/issues/8674
@@ -170,15 +187,19 @@ final case class ParallelExecution(power: Int) {
   }
 
   def zipMergeIndex(aDiffs: Seq[Index], bDiffs: Seq[Index])(implicit ec: ExecutionContext): Future[Seq[Index]] = {
-    val parallelExecution = ParallelExecution(3)
+    val parallelExecution = ParallelExecution8
     assert(aDiffs.size == bDiffs.size)
     val ops = rIndexValueOperations
     Future.sequence((aDiffs zip bDiffs).map{ case (a,b) =>
       val aParts = rIndexUtil.split(a, parallelExecution.parallelPartCount)
       val bParts = rIndexUtil.split(b, parallelExecution.parallelPartCount)
-      parallelExecution.execute(partPos=>
-        rIndexUtil.merge(Seq(aParts(partPos), bParts(partPos)),ops)
-      ).map(rIndexUtil.merge(_,ops))
+      val abParts = aParts.zip(bParts)
+      val (simplePairs, complexPairs) = abParts.partition{ case (a,b) => isEmpty(a)||isEmpty(b) }
+      parallelExecution.execute[(Index,Index),Index,Index](
+        complexPairs,
+        { case (a,b) => rIndexUtil.merge(Seq(a, b),ops) },
+        complexRes => rIndexUtil.merge(complexRes ++ simplePairs.map(_._1) ++ simplePairs.map(_._2),ops)
+      )
     })
   }
 
@@ -221,7 +242,8 @@ final case class ParallelExecution(power: Int) {
     buffer.result
   }
   def keyIteration(seq: Seq[Index]): KeyIteration    = {
-    val parallelExecution = ParallelExecution(5) //32
+    val parallelExecution = ParallelExecution32
+    //ParallelExecutionCount.add(0)
     val buffer = new MutableGroupingBufferImpl[Any](parallelExecution.parallelPartCount)
     seq.foreach(index=>rIndexUtil.keyIterator(index).foreach{ key =>
       buffer.add(parallelExecution.keyToPartPos(key),key)
@@ -234,11 +256,15 @@ final case class ParallelExecution(power: Int) {
     val dataI = data.asInstanceOf[Seq[AggrDOutImpl]].toArray
     val setup = Single(dataI.map(_.setup).distinct)
     (0 until setup.outCount).map{ outPos =>
-      setup.parallelExecution.execute{ partPos =>
-        val bufferPos = setup.bufferPos(outPos, partPos)
-        val src: Array[RIndexPair] = dataI.flatMap(_.byOutThenTarget(bufferPos))
-        rIndexUtil.build(memoryOptimizing.indexPower, src, rIndexValueOperations)
-      }.map(rIndexUtil.merge(_,rIndexValueOperations))
+      setup.parallelExecution.execute[Int,Index,Index](
+        setup.parallelExecution.parallelRange,
+        partPos => {
+          val bufferPos = setup.bufferPos(outPos, partPos)
+          val src: Array[RIndexPair] = dataI.flatMap(_.byOutThenTarget(bufferPos))
+          if (src.length == 0) EmptyRIndex else rIndexUtil.build(memoryOptimizing.indexPower, src, rIndexValueOperations)
+        },
+        rIndexUtil.merge(_,rIndexValueOperations)
+      )
     }
   }
   def countResults(data: Seq[AggrDOut]): ProfilingCounts =
@@ -282,7 +308,7 @@ final class MutableGroupingBufferImpl[T](count: Int) {
 */
 
 final case class IndexBuildSetup(outCount: Int){
-  val parallelExecution: ParallelExecution = ParallelExecution(2)
+  val parallelExecution: ParallelExecution = ParallelExecution4
   def bufferCount: Int = outCount * parallelExecution.parallelPartCount
   def bufferPos(outPos: Int, key: Any): Int = outPos * parallelExecution.parallelPartCount + parallelExecution.keyToPartPos(key)
   def createBuffer(): DOutAggregationBuffer = new DOutAggregationBuffer(this)
@@ -314,13 +340,37 @@ final class DOutAggregationBuffer(setup: IndexBuildSetup) extends MutableDOutBuf
 final class KeyIterationImpl(parallelExecution: ParallelExecution, parts: Vector[Seq[Any]]) extends KeyIteration {
   def execute(inner: KeyIterationHandler)(implicit ec: ExecutionContext): Future[Seq[AggrDOut]] = {
     val setup = IndexBuildSetup(inner.outCount)
-    parallelExecution.execute{ partId =>
-      val buffer = setup.createBuffer()
-      parts(partId).foreach(key=>inner.handle(key,buffer))
-      buffer.result
-    }
+//    parallelExecution.execute{ partId =>
+//      val buffer = setup.createBuffer()
+//      parts(partId).foreach(key=>inner.handle(key,buffer))
+//      buffer.result
+//    }
+    parallelExecution.execute[Seq[Any],AggrDOut,Seq[AggrDOut]](
+      parts.filter(_.nonEmpty),
+      part => {
+        val buffer = setup.createBuffer()
+        part.foreach(key => inner.handle(key, buffer))
+        buffer.result
+      },
+      {
+        case Seq() => Seq(setup.createBuffer().result)
+        case a => a
+      }
+    )
   }
 }
+/*
+    ParallelExecutionCount.add(1)
+    val results = parallelExecution.parallelRange.flatMap{ partId =>
+      val part = parts(partId)
+      if (part.nonEmpty || partId == 0) Option(Future {
+        val buffer = setup.createBuffer()
+        part.foreach(key => inner.handle(key, buffer))
+        buffer.result
+      }) else None
+    }
+    if(results.size > 1) Future.sequence(results) else results.head.map(Vector(_))*/
+
 
 // makeIndex(Map(key->Map((ToPrimaryKey(product),product.hashCode)->(Count(product,count)::Nil)))/*, opt*/)
 final class DOutImpl(val pos: Int, val rIndexKey: RIndexKey, val rIndexItem: RIndexItem) extends DOut with RIndexPair

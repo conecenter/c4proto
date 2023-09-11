@@ -193,7 +193,7 @@ final class RIndexUtilImpl(
     indexes: Seq[RIndex], valueOperations: RIndexValueOperations,
   ): RIndex = {
     val indexArr = indexes.filterNot(isEmpty).map{ case i: RIndexImpl => i }.toArray
-    if(indexArr.length==0) EmptyRIndex else {
+    if(indexArr.length==0) EmptyRIndex else if(indexArr.length==1) indexArr(0) else {
       val options = indexArr.head.options
       val buckets: Array[RIndexBucket] = indexArr.head.data.clone()
       assert(indexArr.forall(_.data.length==buckets.length))
