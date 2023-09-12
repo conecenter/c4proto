@@ -66,12 +66,15 @@ abstract class ParallelExecution(power: Int) extends Product {
   rIndexUtil: RIndexUtil,
   memoryOptimizing: MemoryOptimizing,
   noParts: Array[MultiForPart] = Array.empty,
-  val isSingle: Products=>Boolean = {
+) extends IndexUtil {
+  private def isSingle(p: Products): Boolean = p match {
     case _: Counts => false
     case _: NonSingleCount => false
     case _: Product => true
   }
-) extends IndexUtil {
+  private def areSingle(ps: Seq[RIndexItem]): Boolean = areSingle(ps, ps.length)
+  @tailrec private def areSingle(ps: Seq[RIndexItem], sz: Int): Boolean =
+    sz==0 || isSingle(ps(sz-1)) && areSingle(ps, sz-1)
   def single(products: Products, warning: String): Product = products match {
     case c: Counts => throw new Exception(s"non-single $c")
     case c: NonSingleCount =>
@@ -164,7 +167,7 @@ abstract class ParallelExecution(power: Int) extends Product {
 
   def getValues(index: Index, key: Any, warning: String): Values[Product] = { // gives Vector; todo ? ArraySeq.unsafeWrapArray(
     val values = rIndexUtil.get(index,oKey(key))
-    if(values.forall(isSingle)) values.asInstanceOf[Seq[Product]]
+    if(areSingle(values)) values.asInstanceOf[Seq[Product]]
     else values.map(single(_,warning))
   }
 
@@ -345,11 +348,15 @@ final class KeyIterationImpl(parallelExecution: ParallelExecution, parts: Vector
 //      parts(partId).foreach(key=>inner.handle(key,buffer))
 //      buffer.result
 //    }
+    @tailrec def handle(buffer: DOutAggregationBuffer, left: Seq[Any]): Unit = if(left.nonEmpty){
+      inner.handle(left.head, buffer)
+      handle(buffer, left.tail)
+    }
     parallelExecution.execute[Seq[Any],AggrDOut,Seq[AggrDOut]](
       parts.filter(_.nonEmpty),
       part => {
         val buffer = setup.createBuffer()
-        part.foreach(key => inner.handle(key, buffer))
+        handle(buffer, part)
         buffer.result
       },
       {

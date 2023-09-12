@@ -269,7 +269,15 @@ final class RIndexUtilImpl(
   def split(index: RIndex, count: Int): Seq[RIndex] = index match {
     case aI if isEmpty(aI) => (0 until count).map(_=>EmptyRIndex)
     case aI: RIndexImpl =>
-      val data = Array.tabulate(count)(_=>Array.fill(aI.data.length)(emptyBucket))
+      val data = new Array[Array[RIndexBucket]](count)
+      val emptyBuckets = Array.fill(aI.data.length)(emptyBucket)
+      for(i <- 0 until count) {
+        if(i==0) data(i) = emptyBuckets
+        else {
+          data(i) = new Array[RIndexBucket](aI.data.length)
+          System.arraycopy(emptyBuckets, 0, data(i), 0, emptyBuckets.length)
+        }
+      }
       for(i <- aI.data.indices) data(i % count)(i) = aI.data(i)
       data.map(wrapData(aI.options,_))
   }
