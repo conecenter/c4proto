@@ -9,7 +9,6 @@ import scala.util.Try
 trait Execution extends Runnable {
   def onShutdown(hint: String, f:()=>Unit): ()=>Unit
   def complete(): Unit
-  def skippingFuture[T](value: T): SkippingFuture[T]
   def newExecutorService(prefix: String, threadCount: Option[Int]): ExecutorService
   def fatal[T](future: ExecutionContext=>Future[T]): Unit
   def unboundedFatal[T](future: ExecutionContext=>Future[T]): Future[T]

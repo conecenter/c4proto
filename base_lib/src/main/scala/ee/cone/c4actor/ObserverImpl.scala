@@ -1,15 +1,14 @@
 package ee.cone.c4actor
 
 import java.time.Instant
-
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.{SrcId, TransientMap}
-import ee.cone.c4assemble.Types._
-import ee.cone.c4di.c4
+import ee.cone.c4di.{c4, provide}
 
+import java.util.concurrent.LinkedBlockingQueue
+import scala.annotation.tailrec
 import scala.collection.immutable.{Map, Seq}
-import scala.util.control.NonFatal
-import scala.util.{Success, Try}
+import scala.concurrent.Future
 
 trait TxTransforms {
   def get(global: RichContext): Map[SrcId,TransientMap=>TransientMap]
@@ -89,11 +88,6 @@ class TxObserver(val value: Observer[RichContext])
   transforms: TxTransforms
 ) extends TxObserver(new SerialObserver(Map.empty)(transforms))
 
-@c4("ParallelObserversApp") final class ParallelTxObserver(
-  transforms: TxTransforms,
-  execution: Execution
-) extends TxObserver(new ParallelObserver(Map.empty,transforms,execution))
-
 class SerialObserver(localStates: Map[SrcId,TransientMap])(
   transforms: TxTransforms
 ) extends Observer[RichContext] {
@@ -105,34 +99,53 @@ class SerialObserver(localStates: Map[SrcId,TransientMap])(
   }
 }
 
-class ParallelObserver(
-  localStates: Map[SrcId,SkippingFuture[TransientMap]],
+@c4("ParallelObserversApp") final class ParallelObserverProvider(
   transforms: TxTransforms,
-  execution: Execution
-) extends Observer[RichContext] with LazyLogging {
-  private def empty: SkippingFuture[TransientMap] = execution.skippingFuture(Map.empty)
-  def activate(global: RichContext): Observer[RichContext] = {
-    val inProgressMap = localStates.filter{ case(k,v) =>
-      v.value match {
-        case None => true // inProgress
-        case Some(Success(transient)) =>
-          global.offset < InnerReadAfterWriteOffsetKey.of(transient)
-        case a => throw new Exception(s"$a")
-      }
+  ex: ParallelObserverExecutable
+) {
+  @provide def observers: Seq[TxObserver] = Seq(new TxObserver(new Observer[RichContext] {
+    def activate(world: RichContext): Observer[RichContext] = {
+      ex.send(transforms.get(world).withDefaultValue(transient =>
+        if(world.offset < InnerReadAfterWriteOffsetKey.of(transient)) transient else Map.empty
+      ))
+      this
     }
-    val toAdd = transforms.get(global).transform{ case(key,handle) =>
-      localStates.getOrElse(key,empty).map(handle)
-    }
-    val nLocalStates = inProgressMap ++ toAdd
-    logger.debug(
-      s"txTr count: ${nLocalStates.size}, " +
-      s"inProgress: ${inProgressMap.size}, " +
-      s"uncompleted: ${inProgressMap.values.count(_.value.isEmpty)}, " +
-      s"just-mapped: ${toAdd.size}"
-    )
-    new ParallelObserver(nLocalStates,transforms,execution)
-  }
+  }))
 }
+
+@c4("ParallelObserversApp") final class ParallelObserverExecutable(
+  execution: Execution
+) extends Executable with Early {
+  private sealed trait ObservedEvent
+  private final class TodoEv(val value: Map[SrcId, TransientMap => TransientMap]) extends ObservedEvent
+  private final class DoneEv(val key: SrcId, val value: TransientMap) extends ObservedEvent
+  private val queue = new LinkedBlockingQueue[ObservedEvent]
+  def send(actions: Map[SrcId,TransientMap=>TransientMap]): Unit =
+    queue.put(new TodoEv(actions))
+  def run(): Unit = iteration(Map.empty)
+  private class ActorState(
+    val transient: TransientMap, val todo: Option[TransientMap=>TransientMap], val inProgress: Boolean
+  )
+  private def checkActivate(k: SrcId, st: ActorState): ActorState = if(st.inProgress || st.todo.isEmpty) st else {
+    execution.fatal(Future(queue.put(new DoneEv(k, st.todo.get(st.transient))))(_))
+    new ActorState(st.transient, None, true)
+  }
+  @tailrec private def iteration(wasStates: Map[SrcId,ActorState]): Unit = iteration(queue.take() match {
+    case ev: TodoEv =>
+      (ev.value.keySet ++ wasStates.keySet).map{ k =>
+        val wasState = wasStates.getOrElse(k,new ActorState(Map.empty, None, false))
+        val action = ev.value(k)
+        k -> checkActivate(k, new ActorState(wasState.transient, Option(action), wasState.inProgress))
+      }.toMap
+    case ev: DoneEv =>
+      val state = checkActivate(ev.key, new ActorState(ev.value, wasStates(ev.key).todo, false))
+      if(state.transient.isEmpty && state.todo.isEmpty && !state.inProgress)
+        wasStates - ev.key  else wasStates + (ev.key->state)
+  })
+}
+
+
+
 
 /*
 finished ok started deferred

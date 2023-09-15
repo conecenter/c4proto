@@ -117,8 +117,6 @@ class RUncaughtExceptionHandler(inner: UncaughtExceptionHandler) extends Uncaugh
     logger.info(s"totalMemory:${runtime.totalMemory} freeMemory:${runtime.freeMemory}")
     System.exit(0)
   }
-  def skippingFuture[T](value: T): SkippingFuture[T] =
-    new SkippingFutureImpl[T](Future.successful(value),Promise[Unit]())(mainExecutionContext)
   def newExecutorService(prefix: String, threadCount: Option[Int]): ExecutorService =
     VMExecution.newExecutorService(prefix,threadCount)
   def success[T](promise: Promise[T], value: T): Unit =
@@ -135,32 +133,6 @@ class RUncaughtExceptionHandler(inner: UncaughtExceptionHandler) extends Uncaugh
   }
 }
 
-class SkippingFutureImpl[T](inner: Future[T], isNotLast: Promise[Unit])(implicit executionContext: ExecutionContext) extends SkippingFuture[T] with LazyLogging {
-  /*
-  private def canSkip[T](future: Future[T]) = future match {
-    case a: AtomicReference[_] => a.get() match {
-      case s: Seq[_] => s.nonEmpty
-      case u => logger.warn(s"no skip rule for inner ${u.getClass.getName}"); false
-    }
-    case u => logger.warn(s"no skip rule for outer ${u.getClass.getName}"); false
-  }*/
-  def map(body: T => T): SkippingFuture[T] = {
-    /*
-    lazy val nextFuture: Future[T] = inner.map(from =>
-      if(canSkip(nextFuture)) from else body(from)
-    )
-    new SkippingFutureImpl(nextFuture)
-    */
-    val nextIsNotLast = Promise[Unit]()
-    val nextFuture = inner.map(from =>
-      if(nextIsNotLast.isCompleted) from else body(from)
-    )
-    VMExecution.success(isNotLast,())
-    new SkippingFutureImpl(nextFuture,nextIsNotLast)
-  }
-  def value: Option[Try[T]] = inner.value
-  //f[scala.concurrent.impl.Promise.Transformation]
-}
 
 abstract class BaseServerMain(app: ExecutableApp){
   def main(args: Array[String]): Unit = try {
