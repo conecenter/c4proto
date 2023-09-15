@@ -34,6 +34,7 @@
   ["C4DEP", "base_lib.ee.cone.c4ui", "base_lib.ee.cone.c4actor_branch" ],
   ["C4DEP", "base_lib.ee.cone.c4ui", "base_lib.ee.cone.c4vdom_mix" ],
   ["C4DEP", "base_lib.ee.cone.c4ui", "base_lib.ee.cone.c4gate" ],
+  ["C4DEP", "base_lib.ee.cone.c4gate_devel", "base_lib.ee.cone.c4gate"],
 
   ["C4DEP", "extra_lib.ee.cone.c4actor", "base_lib.ee.cone.c4actor" ],
   ["C4DEP", "extra_lib.ee.cone.c4gate", "base_lib.ee.cone.c4gate" ],

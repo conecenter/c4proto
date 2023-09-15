@@ -647,7 +647,7 @@ push @tasks, ["thread_grep_sub","<expression>",sub{
     my($body)=@_;
     my $expr = q^sub{ my $at0=/(.*\bat\b.*)/?$1:''; ^.$body.q^}^;
     my $by = eval $expr;
-    die "$@ -- $expr" if defined $@;
+    #die "$@ -- $expr" if defined $@;
     print grep{&$by} &$tp_split(join '',<STDIN>);
 }];
 push @tasks, ["thread_count"," ",sub{
