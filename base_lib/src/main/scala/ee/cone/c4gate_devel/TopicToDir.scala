@@ -1,10 +1,12 @@
 
-package ee.cone.c4gate_server
-import scala.annotation.tailrec
-import java.nio.file._
+package ee.cone.c4gate_devel
+
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4di._
 import ee.cone.c4actor._
+import ee.cone.c4di._
+
+import java.nio.file._
+import scala.annotation.tailrec
 
 @c4("TopicToDirApp") final class TopicToDir(
   //consumerBeginningOffset: ConsumerBeginningOffset,

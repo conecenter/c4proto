@@ -15,8 +15,6 @@ import okio.ByteString
 
 import java.time.Instant
 
-trait LongHungryAppBase
-
 @protocol("LongHungryApp") object LongHungryProto {
   @Id(0x6a98) case class D_Blob(@Id(0x6a99) srcId: SrcId, @Id(0x6a9a) data: ByteString)
 }

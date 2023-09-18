@@ -96,6 +96,3 @@ trait SSEServerAppBase extends AlienProtocolApp
 // S0>W -- static content
 
 //provide httpHandler: FHttpHandler
-
-@c4app class TopicToDirAppBase extends VMExecutionApp with ExecutableApp with BaseApp with ProtoApp
-  with KafkaConsumerApp with SnapshotUtilImplApp with EnvConfigCompApp

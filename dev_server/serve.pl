@@ -106,6 +106,7 @@ my $serve_broker = sub{
 my $elector_port_base = 6000;
 my $elector_proxy_port_base = 6010;
 my $elector_replicas = 3;
+my $vite_port = 5173;
 
 my $serve_proxy = sub{
     &$put_text("$data_dir/haproxy.cfg", join '', map{"$_\n"}
@@ -123,7 +124,7 @@ my $serve_proxy = sub{
         "  default_backend be_http",
         "backend be_src",
         "  mode http",
-        "  server se_src 127.0.0.1:5173",
+        "  server se_src 127.0.0.1:$vite_port",
         "backend be_http",
         "  mode http",
         "  default-server check", # w/o it all servers considered ok and req-s gets 503
@@ -159,7 +160,7 @@ my $serve_node = sub{
         sy("rsync", "-a", "$will{$_}/", $_);
     }
     sy("cd $vite_run_dir && cp $conf_dir/package.json $conf_dir/vite.config.js . && npm install");
-    &$exec_at($vite_run_dir,{},"npm","run","dev");
+    &$exec_at($vite_run_dir,{},"npm","run","dev","--","--port","$vite_port");
 };
 
 my $get_compilable_services = sub{[
