@@ -1,4 +1,4 @@
-package ee.cone.c4gate_devel
+package ee.cone.c4gate
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.S_Firstborn
@@ -9,7 +9,7 @@ import ee.cone.c4assemble.c4assemble
 import ee.cone.c4di.c4multi
 import ee.cone.c4gate.HttpProtocol.N_Header
 import ee.cone.c4gate.{ByPathHttpPublication, Publisher}
-import ee.cone.c4gate_devel.LongHungryProto.D_Blob
+import ee.cone.c4gate.LongHungryProto.D_Blob
 import ee.cone.c4proto._
 import okio.ByteString
 

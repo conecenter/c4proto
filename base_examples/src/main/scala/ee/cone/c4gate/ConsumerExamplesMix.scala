@@ -40,3 +40,7 @@ trait TestTxTransformAppBase extends TestServerApp
   with VMExecutionApp with NoAssembleProfilerCompApp with KafkaProducerApp
   with SnapshotLoaderImplApp with S3RawSnapshotLoaderApp with S3ManagerApp with S3ListerApp
   with SnapshotUtilImplApp with SnapshotListProtocolApp
+
+trait LongHungryAppBase
+
+@c4app class TestParallelExAppBase extends TestServerApp with ParallelObserversApp

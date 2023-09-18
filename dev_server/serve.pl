@@ -163,16 +163,15 @@ my $serve_node = sub{
     &$exec_at($vite_run_dir,{},"npm","run","dev","--","--port","$vite_port");
 };
 
-my $get_compilable_services = sub{[
-    { name=>"gate", dir=>&$get_proto_dir(),
-        main => "def",
-        replicas => [0,1],
-    },
-    { name=>"main", dir=>&$get_repo_dir(),
-        main => ($ENV{C4DEV_SERVER_MAIN} || die "no C4DEV_SERVER_MAIN"),
-        replicas => [0,1],
-    },
-]};
+my $get_compilable_services = sub{
+    my $repo_dir = &$get_repo_dir();
+    my $tag_path = "$repo_dir/target/c4/tag";
+    my $main = (-e $tag_path) ? syf("cat $tag_path") : $ENV{C4DEV_SERVER_MAIN} || die "no C4DEV_SERVER_MAIN";
+    [
+        { name=>"gate", dir=>&$get_proto_dir(), main => "def", replicas => [0,1] },
+        { name=>"main", dir=>$repo_dir, main => $main, replicas => [0,1] },
+    ]
+};
 
 my $get_tag_info = sub{
     my($compilable_service)=@_;

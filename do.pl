@@ -42,6 +42,13 @@ my $exec_server = sub{
 };
 push @tasks, ["run", $exec_server];
 
+push @tasks, ["tag", sub{
+    my ($arg) = @_;
+    my $tag_path = "target/c4/tag";
+    $arg=~/^([\w\-]+)$/ ? sy("echo -n '$1' > $tag_path") : sy("rm $tag_path");
+    sy("supervisorctl restart build");
+}];
+
 push @tasks, ["test", sub{
     my @arg = @_;
     print map{
