@@ -27,6 +27,9 @@ import scala.jdk.FutureConverters._
     @Id(0x00B1) electorClientId: SrcId,
     @Id(0x001A) txId: String,
     @Id(0x00B0) role: String,
+    @Id(0x0075) startedAt: Long,
+    @Id(0x00B4) hostname: String,
+    @Id(0x00B5) version: String,
   )
 }
 
@@ -84,8 +87,7 @@ case class ReadyProcessesImpl(
   ): Values[(SrcId,EnabledTxTr)] =
     for{
       id <- electorClientIdOpt if !processes.ids.contains(id)
-      process = S_ReadyProcess(id, "", fullActorName)
-      res <- enable(readyProcessTxFactory.create(s"ReadyProcessTx", process))
+      res <- enable(readyProcessTxFactory.create(s"ReadyProcessTx", id, fullActorName))
     } yield res
 
   def enablePurgeReadyProcessTx(
@@ -139,14 +141,23 @@ case object PurgeReadyProcessStateKey extends TransientLens[Option[ElectorReques
   }
 }
 @c4multi("ChildElectorClientApp") final case class ReadyProcessTx(
-  srcId: SrcId, process: S_ReadyProcess
+  srcId: SrcId, electorClientId: SrcId, fullActorName: String
 )(
   txAdd: LTxAdd,
   once: ReadyProcessOnce,
+  config: ListConfig,
 ) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = { // register self / track no self -- activity like snapshot-put can drop S_ReadyProcess
     once.check()
-    logger.info(process.electorClientId)
+    logger.info(electorClientId)
+    val process = S_ReadyProcess(
+      electorClientId,
+      "",
+      fullActorName,
+      System.currentTimeMillis,
+      Single(config.get("HOSTNAME")),
+      "?"//Single.option(config.get("...")).getOrElse("")
+    )
     txAdd.add(LEvent.update(process))(local)
   }
 }
