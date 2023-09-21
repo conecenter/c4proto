@@ -95,6 +95,7 @@ my $make_kc_yml = sub{
             name => $nm, args=>[$nm], image => &$mandatory_of(image=>$opt),
             env=>[
                 $$opt{need_pod_ip} ? {name=>"C4POD_IP",valueFrom=>{fieldRef=>{fieldPath=>"status.podIP"}}} : (),
+                { name=>"C4IMAGE", value=>&$mandatory_of(image=>$opt) },
                 @env
             ],
             volumeMounts=>[@secret_mounts,@host_mounts],

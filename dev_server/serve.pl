@@ -185,6 +185,8 @@ my $inbox_topic_prefix = "def0";
 
 my $get_consumer_env = sub{
     my ($nm,$elector_port_base_arg)=@_;
+    my $readiness_path = "/tmp/c4is-ready-$$";
+    !-e $readiness_path or unlink $readiness_path or die;
     my $elector_servers = join ",", map{
         my $port = $elector_port_base_arg + $_;
         "http://127.0.0.1:$port"
@@ -201,7 +203,8 @@ my $get_consumer_env = sub{
         C4KEYSTORE_PATH => "$data_dir/cu.def.keystore.jks",
         C4TRUSTSTORE_PATH => "$data_dir/cu.def.truststore.jks",
         C4ELECTOR_SERVERS => $elector_servers,
-        C4READINESS_PATH => "",
+        C4READINESS_PATH => $readiness_path,
+        C4IMAGE => "-"
     )
 };
 

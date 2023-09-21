@@ -14,7 +14,7 @@ import ee.cone.c4vdom.Types._
 import ee.cone.c4vdom.{Tags => _, _}
 import okio.ByteString
 import os.remove
-
+import com.typesafe.scalalogging.LazyLogging
 
 
 // @c4mod class FooCargoType extends CargoType
@@ -138,7 +138,7 @@ case object HeaderCSSClassName extends CSSClassName{ def name = "tableHeadContai
 )(
   val listTags: ListTags[Context] = listTagsProvider.get[Context],
   exampleTags: ExampleTags[Context] = exampleTagsProvider.get[Context]
-) extends ByLocationHashView {
+) extends ByLocationHashView with LazyLogging {
   import listTags._
   def view: Context => ViewRes = untilPolicy.wrap{ local =>
     val listKey = "taskList"
@@ -262,6 +262,7 @@ case object HeaderCSSClassName extends CSSClassName{ def name = "tableHeadContai
         ))
       ).toChildPair[OfDiv]
     )
+    logger.info("view")
     List(popupManager("pm",
       highlighter("col-highlighter",rowHighlightByAttr).toChildPair[OfDiv] ::
       highlighter("row-highlighter",colHighlightByAttr).toChildPair[OfDiv] ::

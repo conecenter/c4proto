@@ -35,9 +35,8 @@ class ProgressObserverImpl(
       }
     } else {
       logger.info(s"Stats OK -- loaded ALL/$endOffset -- uptime ${ManagementFactory.getRuntimeMXBean.getUptime}ms")
-      val path = config.get("C4READINESS_PATH")
-      if(path.nonEmpty)
-        ignoreTheSamePath(Files.write(Paths.get(path),Array.empty[Byte]))
+      val path = config.get("C4READINESS_PATH") match { case "" => throw new Exception case p => p }
+      ignoreTheSamePath(Files.write(Paths.get(path),Array.empty[Byte]))
       execution.fatal(Future(sender.run())(_))
       inner.value.activate(rawWorld)
     }

@@ -29,7 +29,7 @@ import scala.jdk.FutureConverters._
     @Id(0x00B0) role: String,
     @Id(0x0075) startedAt: Long,
     @Id(0x00B4) hostname: String,
-    @Id(0x00B5) version: String,
+    @Id(0x00B5) image: String,
   )
 }
 
@@ -42,9 +42,19 @@ case class ReadyProcessesImpl(
   val isMaster: Boolean,
   currentIdOpt: Option[SrcId]
 )(
-  val ids: List[SrcId] = processesByTxId.map(_.electorClientId)
+  val ids: List[SrcId] = processesByTxId.map(_.electorClientId),
+  val sameVerIds: List[SrcId] = processesByTxId.filter(p=>p.image==processesByTxId.head.image).map(_.electorClientId),
+  val processes: List[ReadyProcess] = processesByTxId.map(ReadyProcessImpl)
 ) extends ReadyProcesses {
   def currentId: SrcId = currentIdOpt.get
+}
+
+case class ReadyProcessImpl(orig: S_ReadyProcess) extends ReadyProcess {
+  def id: SrcId = orig.electorClientId
+  def startedAt: Long = orig.startedAt
+  def hostname: String = orig.hostname
+  def image: String = orig.image
+  def halt: Seq[LEvent[Product]] = LEvent.delete(orig)
 }
 
 @c4assemble("ChildElectorClientApp") class EnableTxAssembleBase(
@@ -145,19 +155,14 @@ case object PurgeReadyProcessStateKey extends TransientLens[Option[ElectorReques
 )(
   txAdd: LTxAdd,
   once: ReadyProcessOnce,
-  config: ListConfig,
+  config: Config,
 ) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = { // register self / track no self -- activity like snapshot-put can drop S_ReadyProcess
     once.check()
-    logger.info(electorClientId)
     val process = S_ReadyProcess(
-      electorClientId,
-      "",
-      fullActorName,
-      System.currentTimeMillis,
-      Single(config.get("HOSTNAME")),
-      "?"//Single.option(config.get("...")).getOrElse("")
+      electorClientId, "", fullActorName, System.currentTimeMillis, config.get("HOSTNAME"), config.get("C4IMAGE")
     )
+    logger.info(process.toString)
     txAdd.add(LEvent.update(process))(local)
   }
 }

@@ -71,7 +71,8 @@ import ee.cone.c4proto.{Id, protocol}
         val scaleToNum = // does not try to minimize rescheduling yet
           if(txTrs.exists(t=>clNames(t.getClass.getName))) Math.abs(key.hashCode)
           else 0
-        val scaleToId = processes.ids(scaleToNum % processes.ids.size)
+        val enabledProcesses = processes.sameVerIds
+        val scaleToId = enabledProcesses(scaleToNum % enabledProcesses.size)
         if(worksAtId == scaleToId) txTrs.map(t=>WithPK(EnabledTxTr(t)))
         else List(WithPK(EnabledTxTr(scaleTxFactory.create(key, toDel(scaled) ::: toAdd(key, scaleToId)))))
       }
