@@ -16,6 +16,7 @@ import java.net.http.HttpRequest.BodyPublishers
 import java.net.http.HttpResponse.BodyHandlers
 import java.nio.file.{Files, Path, Paths}
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.concurrent.duration.{Duration, MILLISECONDS}
 import scala.util.Random
@@ -43,7 +44,6 @@ case class ReadyProcessesImpl(
   currentIdOpt: Option[SrcId]
 )(
   val ids: List[SrcId] = processesByTxId.map(_.electorClientId),
-  val sameVerIds: List[SrcId] = processesByTxId.filter(p=>p.image==processesByTxId.head.image).map(_.electorClientId),
   val processes: List[ReadyProcess] = processesByTxId.map(ReadyProcessImpl)
 ) extends ReadyProcesses {
   def currentId: SrcId = currentIdOpt.get
@@ -96,7 +96,7 @@ case class ReadyProcessImpl(orig: S_ReadyProcess) extends ReadyProcess {
     processes: Each[ReadyProcesses]
   ): Values[(SrcId,EnabledTxTr)] =
     for{
-      id <- electorClientIdOpt if !processes.ids.contains(id)
+      id <- electorClientIdOpt if !processes.processes.exists(_.id==id)
       res <- enable(readyProcessTxFactory.create(s"ReadyProcessTx", id, fullActorName))
     } yield res
 
@@ -246,15 +246,20 @@ class ElectorRequests(
 
 
 @c4("ElectorClientApp") final class ProcessParentDeathTracker(
-  listConfig: ListConfig
+  listConfig: ListConfig, execution: Execution
 ) extends Executable with Early {
   def run(): Unit = for{
-    pid <- Single.option(listConfig.get("C4PARENT_PID"))
-    path = Paths.get(s"/proc/$pid")
+    pid <- Single.option(listConfig.get("C4PARENT_PID")).map(_.toLong)
   } {
-    Iterator.continually(Thread.sleep(1000)).takeWhile(_=>Files.exists(path)).foreach(_=>())
+    ProcessHandle.of(pid).ifPresent{ parentProc =>
+      val remove = execution.onShutdown("parentTracker", ()=>{
+        val ignoreOk = parentProc.destroy()
+      })
+      val ignoreProc = parentProc.onExit.get()
+      remove()
+    }
     if(listConfig.get("C4PARENT_FORCE").nonEmpty) Runtime.getRuntime.halt(2)
-    throw new Exception(s"$path not found")
+    throw new Exception(s"$pid not found")
   }
 }
 
@@ -274,6 +279,9 @@ class ElectorRequests(
     val process = startProcess(args, env ++ addEnv)
     val remove = execution.onShutdown("controlSubProcess", ()=>{
       process.destroy()
+      val end = NanoTimer()
+      if(!process.waitFor(3, TimeUnit.SECONDS)) destroyForcibly(process)
+      println(s"waitFor ${end.ms} ms")
       Await.result(allowExit.future,Duration.Inf)
     })
     try {

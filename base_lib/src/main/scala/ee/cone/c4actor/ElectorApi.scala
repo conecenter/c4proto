@@ -4,10 +4,8 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4proto.{Id, protocol}
 
 trait ReadyProcesses extends Product {
-  def ids: List[SrcId]
   def isMaster: Boolean
   def currentId: SrcId
-  def sameVerIds: List[SrcId]
   def processes: List[ReadyProcess]
 }
 

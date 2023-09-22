@@ -1,6 +1,7 @@
 package ee.cone.c4ui
 
 import java.time.Instant
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4di._
 import ee.cone.c4actor._
 import ee.cone.c4vdom._
@@ -61,5 +62,12 @@ import ee.cone.c4vdom.Types.ViewRes
     List(gridRoot("replicaList",
       dragCol = TaskNoReceiver, dragRow = TaskNoReceiver, rows = rows, cols = cols, children = headCells ::: bodyCells
     ).toChildPair[OfDiv])
+  }
+}
+
+@c4("TestTodoApp") final case class ReplicaBadShutdown(execution: Execution) extends Executable with LazyLogging {
+  def run(): Unit = {
+    logger.info("installing bad hook for master")
+    val ignoreRemove = execution.onShutdown("Bad",() => Thread.sleep(10000))
   }
 }

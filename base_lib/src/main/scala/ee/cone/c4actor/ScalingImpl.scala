@@ -44,7 +44,7 @@ import ee.cone.c4proto.{Id, protocol}
     @by[ElectorClientKey] scaled: Values[S_ScaledTxTr],
     @byEq[SrcId](actorName.value) processes: Each[ReadyProcesses],
   ): Values[(SrcId,TxTransform)] =
-    if(processes.ids.contains(key)) Nil
+    if(processes.processes.exists(_.id==key)) Nil
     else List(WithPK(scaleTxFactory.create(s"PurgeScaledTx-$key",toDel(scaled))))
 
   def gatherScaledByTxTr(
@@ -64,15 +64,17 @@ import ee.cone.c4proto.{Id, protocol}
     @by[TxTrKey] scaled: Values[S_ScaledTxTr],
     @byEq[SrcId](actorName.value) processes: Each[ReadyProcesses],
   ): Values[(SrcId,EnabledTxTr)] =
-    if(processes.ids.isEmpty) Nil else {
-      val masterId = processes.ids.head
+    if(processes.processes.isEmpty) Nil else {
+      val masterId = processes.processes.head.id
       val worksAtId = Single.option(scaled).fold(masterId)(_.electorClientId)
       if(worksAtId != processes.currentId) Nil else {
-        val scaleToNum = // does not try to minimize rescheduling yet
-          if(txTrs.exists(t=>clNames(t.getClass.getName))) Math.abs(key.hashCode)
-          else 0
-        val enabledProcesses = processes.sameVerIds
-        val scaleToId = enabledProcesses(scaleToNum % enabledProcesses.size)
+        val scaleToId = if(!txTrs.exists(t=>clNames(t.getClass.getName))) masterId else
+          processes.processes.tail.filter(p=>p.image==processes.processes.head.image) match {
+            case Seq() => masterId
+            case sameVerFollowers =>
+              val scaleToNum = Math.abs(key.hashCode)
+              sameVerFollowers(scaleToNum % sameVerFollowers.size).id
+          }
         if(worksAtId == scaleToId) txTrs.map(t=>WithPK(EnabledTxTr(t)))
         else List(WithPK(EnabledTxTr(scaleTxFactory.create(key, toDel(scaled) ::: toAdd(key, scaleToId)))))
       }
