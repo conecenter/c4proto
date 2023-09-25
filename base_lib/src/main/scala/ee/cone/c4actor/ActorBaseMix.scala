@@ -40,6 +40,7 @@ trait HttpClientAppBase
 trait ElectorClientAppBase extends HttpClientApp
 trait ChildElectorClientAppBase extends ElectorClientApp
 @c4app class ParentElectorClientAppBase extends ElectorClientApp with ExecutableApp with VMExecutionApp with BaseApp with EnvConfigCompApp
+trait NoScalingAppBase
 
 trait ScalingAppBase extends ChildElectorClientApp
 trait ScalingTestAppBase

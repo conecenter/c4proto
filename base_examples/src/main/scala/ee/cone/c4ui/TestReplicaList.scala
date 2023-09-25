@@ -14,22 +14,27 @@ import ee.cone.c4vdom.Types.ViewRes
   getReadyProcesses: GetByPK[ReadyProcesses],
   actorName: ActorName,
   simpleReceiverFactory: SimpleReceiverFactory,
+  replicaCompleteReceiverFactory: ReplicaCompleteReceiverFactory,
 )(
   exampleTags: ExampleTags[Context] = exampleTagsProvider.get[Context],
   listTags: ListTags[Context] = listTagsProvider.get[Context],
 ) extends ByLocationHashView {
   import listTags._
   def view: Context => ViewRes = untilPolicy.wrap { local =>
-    val processes = getReadyProcesses.ofA(local).get(actorName.value).fold(List.empty[ReadyProcess])(_.processes)
+    val processes = getReadyProcesses.ofA(local).get(actorName.value).fold(List.empty[ReadyProcess])(_.all)
     val rows = processes.map(_.id).map(gridRow(_))
     val cols = List(
+      gridCol(colKey = "role", width = boundGridColWidth(5, 10), hideWill = 0),
       gridCol(colKey = "startedAt", width = boundGridColWidth(10, 20), hideWill = 0),
       gridCol(colKey = "hostname", width = boundGridColWidth(10, 20), hideWill = 0),
       gridCol(colKey = "image", width = boundGridColWidth(10, 20), hideWill = 0),
-      gridCol(colKey = "remove", width = boundGridColWidth(1, 1), hideWill = 0),
+      gridCol(colKey = "completion", width = boundGridColWidth(5, 20), hideWill = 0),
+      gridCol(colKey = "remove", width = boundGridColWidth(5, 10), hideWill = 0),
     )
     val headCells = for {
-      (key,text) <- List(("startedAt","Started At"),("hostname","Hostname"),("image","Image"))
+      (key,text) <- List(
+        ("role","Role"),("startedAt","Started At"),("hostname","Hostname"),("image","Image"),("completion","Completion")
+      )
     } yield gridCell(
       colKey = key, rowKey = "head", classNames = HeaderCSSClassName :: Nil,
       children = List(exampleTags.text("text", text).toChildPair[OfDiv])
@@ -37,6 +42,10 @@ import ee.cone.c4vdom.Types.ViewRes
     val bodyCells = for {
       p <- processes
       cell <- List(
+        gridCell(
+          colKey = "role", rowKey = p.id,
+          children = List(exampleTags.text("text", p.role).toChildPair[OfDiv])
+        ),
         gridCell(
           colKey = "startedAt", rowKey = p.id,
           children = List(exampleTags.text("text",
@@ -52,10 +61,19 @@ import ee.cone.c4vdom.Types.ViewRes
           children = List(exampleTags.text("text", p.image).toChildPair[OfDiv])
         ),
         gridCell(
+          colKey = "completion", rowKey = p.id,
+          children = p.completionReqAt.toList.map(at=>exampleTags.text("text", at.toString).toChildPair[OfDiv])
+        ),
+        gridCell(
           colKey = "remove", rowKey = p.id,
-          children = List(exampleTags.button(
-            "remove", activate = simpleReceiverFactory.create(p.halt), caption = "x"
-          ).toChildPair[OfDiv])
+          children = List(
+            exampleTags.button(
+              "complete", activate = replicaCompleteReceiverFactory.create(p), caption = "x..."
+            ).toChildPair[OfDiv],
+            exampleTags.button(
+              "force-remove", activate = simpleReceiverFactory.create(p.halt), caption = "x("
+            ).toChildPair[OfDiv],
+          )
         ),
       )
     } yield cell
@@ -63,6 +81,12 @@ import ee.cone.c4vdom.Types.ViewRes
       dragCol = TaskNoReceiver, dragRow = TaskNoReceiver, rows = rows, cols = cols, children = headCells ::: bodyCells
     ).toChildPair[OfDiv])
   }
+}
+
+@c4multi("TestTodoApp") final case class ReplicaCompleteReceiver(process: ReadyProcess)(
+  txAdd: LTxAdd
+) extends Receiver[Context] {
+  def receive: Handler = message => local => txAdd.add(process.complete(Instant.now.plusSeconds(5)))(local)
 }
 
 @c4("TestTodoApp") final case class ReplicaBadShutdown(execution: Execution) extends Executable with LazyLogging {
