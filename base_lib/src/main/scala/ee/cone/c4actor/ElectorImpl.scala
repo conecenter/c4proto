@@ -4,8 +4,8 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ElectorProtocol._
 import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.{Single, by, byEq, c4assemble, ignore}
-import ee.cone.c4assemble.Types.{Each, Values}
+import ee.cone.c4assemble.{AbstractAll, All, OutFactory, Single, by, byEq, c4assemble, ignore}
+import ee.cone.c4assemble.Types.{Each, Outs, Values}
 import ee.cone.c4di.{c4, c4multi}
 import ee.cone.c4proto.{Id, protocol}
 
@@ -14,8 +14,11 @@ import java.net.URI
 import java.net.http.{HttpClient, HttpRequest}
 import java.net.http.HttpRequest.BodyPublishers
 import java.net.http.HttpResponse.BodyHandlers
+import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path, Paths}
+import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.concurrent.duration.{Duration, MILLISECONDS}
 import scala.util.Random
@@ -27,55 +30,79 @@ import scala.jdk.FutureConverters._
     @Id(0x00B1) electorClientId: SrcId,
     @Id(0x001A) txId: String,
     @Id(0x00B0) role: String,
+    @Id(0x0075) startedAt: Long,
+    @Id(0x00B4) hostname: String,
+    @Id(0x00B5) refDescr: String,
+  )
+  @Id(0x00B2) case class S_CompletionReq(
+    @Id(0x00B7) requestId: SrcId,
+    @Id(0x00B1) electorClientId: SrcId,
+    @Id(0x00B6) at: Long,
   )
 }
 
 @c4("ChildElectorClientApp") final class ReadyProcessSnapshotPatchIgnore
   extends SnapshotPatchIgnore(classOf[S_ReadyProcess])
 
-case class ReadyProcessesImpl(
-  srcId: SrcId,
-  processesByTxId: List[S_ReadyProcess],
-  val isMaster: Boolean,
-  currentIdOpt: Option[SrcId]
-)(
-  val ids: List[SrcId] = processesByTxId.map(_.electorClientId)
-) extends ReadyProcesses {
-  def currentId: SrcId = currentIdOpt.get
+case class ReadyProcessesImpl(srcId: SrcId, all: List[ReadyProcess], enabledForCurrentRole: List[SrcId])
+  extends ReadyProcesses
+
+case class ReadyProcessImpl(orig: S_ReadyProcess, completionRequests: List[S_CompletionReq]) extends ReadyProcess {
+  def id: SrcId = orig.electorClientId
+  def txId: String = orig.txId
+  def role: String = orig.role
+  def startedAt: Long = orig.startedAt
+  def hostname: String = orig.hostname
+  def refDescr: String = orig.refDescr
+  def completionReqAt: Option[Instant] = completionRequests.headOption.map(r=>Instant.ofEpochMilli(r.at))
+  def complete(at: Instant): Seq[LEvent[Product]] =
+    LEvent.update(S_CompletionReq(UUID.randomUUID.toString, id, at.toEpochMilli))
+  def halt: Seq[LEvent[Product]] = LEvent.delete(orig)
+}
+
+@c4("ChildElectorClientApp") final class CurrentProcessImpl(config: Config)(
+  val idSeq: List[SrcId] = List(config.get("C4ELECTOR_CLIENT_ID")).filter(_.nonEmpty),
+) extends CurrentProcess {
+  def id: SrcId = Single(idSeq)
 }
 
 @c4assemble("ChildElectorClientApp") class EnableTxAssembleBase(
-  config: Config,
+  currentProcess: CurrentProcessImpl,
   actorName: ActorName,
-  currentTxLogName: CurrentTxLogName,
   readyProcessTxFactory: ReadyProcessTxFactory,
   purgeReadyProcessTxFactory: PurgeReadyProcessTxFactory,
-  enableScaling: Option[EnableScaling],
-)(
-  electorClientIdOpt: List[String] =
-    List(config.get("C4ELECTOR_CLIENT_ID")).filter(_.nonEmpty),
-  fullActorName: String = s"${currentTxLogName.value}.${actorName.value}"
+  completionTxFactory: CompletionTxFactory,
+  purgeCompletionTxFactory: PurgeCompletionTxFactory,
 ){
   type ActorNameKey = SrcId
 
-  @ignore def enable(t: TxTransform): Values[(SrcId,EnabledTxTr)] =
-    List(WithPK(EnabledTxTr(t)))
+  @ignore def enable(t: TxTransform): (SrcId,EnabledTxTr) = WithPK(EnabledTxTr(t))
+
+  def gatherCompletionRequests(
+    key: SrcId,
+    req: Each[S_CompletionReq]
+  ): Values[(ActorNameKey,S_CompletionReq)] =
+    List(actorName.value -> req)
 
   def gatherProcesses(
     key: SrcId,
     process: Each[S_ReadyProcess],
   ): Values[(ActorNameKey,S_ReadyProcess)] =
-    if(process.role==fullActorName) List(actorName.value->process) else Nil
+    List(actorName.value -> process)
 
   def makeReadyProcesses(
     key: SrcId,
     firstborn: Each[S_Firstborn],
     @by[ActorNameKey] processes: Values[S_ReadyProcess],
+    @by[ActorNameKey] requests: Values[S_CompletionReq],
   ): Values[(SrcId,ReadyProcesses)] = {
     val processesByTxId = processes.sortBy(_.txId).toList
-    val isMaster = processesByTxId.take(1).map(_.electorClientId) == electorClientIdOpt
-    //val currentDestinations = if(isMaster) "" :: electorClientIdOpt else electorClientIdOpt
-    List(WithPK(ReadyProcessesImpl(key,processesByTxId,isMaster,Single.option(electorClientIdOpt))()))
+    val reqByPid = requests.groupBy(_.electorClientId).withDefaultValue(Nil)
+    val richProcesses = processesByTxId.map(p => ReadyProcessImpl(p, reqByPid(p.electorClientId).sortBy(_.at).toList))
+    val processesForCurrentRole = richProcesses.filter(_.role == key)
+    val enabledForCurrentRole =
+      processesForCurrentRole.filter(_.refDescr == processesForCurrentRole.head.refDescr).map(_.id)
+    Seq(WithPK(ReadyProcessesImpl(key, richProcesses, enabledForCurrentRole)))
   }
 
   def enableReadyProcessTx(
@@ -83,29 +110,75 @@ case class ReadyProcessesImpl(
     processes: Each[ReadyProcesses]
   ): Values[(SrcId,EnabledTxTr)] =
     for{
-      id <- electorClientIdOpt if !processes.ids.contains(id)
-      process = S_ReadyProcess(id, "", fullActorName)
-      res <- enable(readyProcessTxFactory.create(s"ReadyProcessTx", process))
-    } yield res
+      id <- currentProcess.idSeq if !processes.all.exists(_.id==id)
+    } yield enable(readyProcessTxFactory.create(s"ReadyProcessTx", id, key))
 
   def enablePurgeReadyProcessTx(
     key: SrcId,
-    processes: Values[ReadyProcesses]
+    processes: Each[ReadyProcesses]
   ): Values[(SrcId,EnabledTxTr)] =
     for{
-      id <- electorClientIdOpt
-      processesImpl <- processes.map{ case p: ReadyProcessesImpl => p } if processesImpl.processesByTxId.size > 1
-      procList = processesImpl.processesByTxId
-      process = procList((procList.indexWhere(_.electorClientId==id)+1)%procList.size)
-      res <- enable(purgeReadyProcessTxFactory.create(s"PurgeReadyProcessTx",process))
-    } yield res
+      id <- currentProcess.idSeq
+      (p, i) <- processes.all.zipWithIndex if p.id == id && processes.all.size > 1
+      siblingProcess = processes.all((i+1)%processes.all.size)
+      siblingOrig = siblingProcess match { case p: ReadyProcessImpl => p.orig }
+    } yield enable(purgeReadyProcessTxFactory.create(s"PurgeReadyProcessTx-${siblingProcess.id}", siblingOrig))
 
-  def enableTxTr(
+  def enableCompletionTx(
     key: SrcId,
-    txTrs: Values[TxTransform],
-    @byEq[SrcId](actorName.value) processes: Each[ReadyProcesses],
-  ): Values[(SrcId,EnabledTxTr)] =
-    if(processes.isMaster && enableScaling.isEmpty) txTrs.flatMap(enable) else Nil
+    processes: Each[ReadyProcesses]
+  ): Values[(SrcId, EnabledTxTr)] =
+    for {
+      id <- currentProcess.idSeq
+      p <- processes.all if p.id == id
+      at <- p.completionReqAt.toSeq
+    } yield enable(completionTxFactory.create("CompletionTx", at))
+
+  def enablePurgeCompletionTx(
+    key: SrcId,
+    processes: Each[ReadyProcesses],
+    @by[ActorNameKey] requests: Values[S_CompletionReq],
+  ): Values[(SrcId, EnabledTxTr)] =
+    for {
+      id <- currentProcess.idSeq
+      p <- processes.all.headOption if p.id == id
+      pidSet = processes.all.map(_.id).toSet
+      purgeRequests <- Option(requests.filterNot(r=>pidSet(r.electorClientId))) if purgeRequests.nonEmpty
+    } yield enable(purgeCompletionTxFactory.create("PurgeCompletionTx", purgeRequests.sortBy(_.requestId).toList))
+}
+
+/*
+@c4assemble("NoScalingApp") class NoScalingAssembleBase(currentProcess: CurrentProcessImpl, actorName: ActorName){
+    def enableTxTr(
+      key: SrcId,
+      txTr: Each[TxTransform],
+      @byEq[SrcId](actorName.value) processes: Each[ReadyProcesses],
+    ): Values[(SrcId,EnabledTxTr)] =
+      for {
+        id <- currentProcess.idSeq
+        pId <- processes.enabledForCurrentRole.headOption if pId == id
+      } yield WithPK(EnabledTxTr(txTr))
+}*/
+
+@c4multi("ChildElectorClientApp") final case class PurgeCompletionTx(id: SrcId, requests: List[S_CompletionReq])(
+  txAdd: LTxAdd
+) extends TxTransform with LazyLogging {
+  def transform(local: Context): Context = {
+    logger.info("purging completion requests")
+    txAdd.add(requests.flatMap(LEvent.delete))(local)
+  }
+}
+
+@c4multi("ChildElectorClientApp") final case class CompletionTx(id: SrcId, at: Instant)(
+  execution: Execution
+) extends TxTransform with LazyLogging {
+  def transform(local: Context): Context = {
+    if(Instant.now.isAfter(at)){
+      logger.info("completing as requested")
+      execution.complete()
+    }
+    local
+  }
 }
 
 case object PurgeReadyProcessStateKey extends TransientLens[Option[ElectorRequests]](None)
@@ -139,16 +212,23 @@ case object PurgeReadyProcessStateKey extends TransientLens[Option[ElectorReques
   }
 }
 @c4multi("ChildElectorClientApp") final case class ReadyProcessTx(
-  srcId: SrcId, process: S_ReadyProcess
+  srcId: SrcId, electorClientId: SrcId, fullActorName: String
 )(
   txAdd: LTxAdd,
   once: ReadyProcessOnce,
+  config: Config,
 ) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = { // register self / track no self -- activity like snapshot-put can drop S_ReadyProcess
     once.check()
-    logger.info(process.electorClientId)
+    val process = S_ReadyProcess(
+      electorClientId, "", fullActorName, System.currentTimeMillis, config.get("HOSTNAME"),
+      readTextOrEmpty("/c4ref_descr")
+    )
+    logger.info(process.toString)
     txAdd.add(LEvent.update(process))(local)
   }
+  private def readTextOrEmpty(pathStr: String): String =
+    Option(Paths.get(pathStr)).filter(Files.exists(_)).fold("")(path => new String(Files.readAllBytes(path), UTF_8))
 }
 
 ////
@@ -230,15 +310,20 @@ class ElectorRequests(
 
 
 @c4("ElectorClientApp") final class ProcessParentDeathTracker(
-  listConfig: ListConfig
+  listConfig: ListConfig, execution: Execution
 ) extends Executable with Early {
   def run(): Unit = for{
-    pid <- Single.option(listConfig.get("C4PARENT_PID"))
-    path = Paths.get(s"/proc/$pid")
+    pid <- Single.option(listConfig.get("C4PARENT_PID")).map(_.toLong)
   } {
-    Iterator.continually(Thread.sleep(1000)).takeWhile(_=>Files.exists(path)).foreach(_=>())
+    ProcessHandle.of(pid).ifPresent{ parentProc =>
+      val remove = execution.onShutdown("parentTracker", ()=>{
+        val ignoreOk = parentProc.destroy()
+      })
+      val ignoreProc = parentProc.onExit.get()
+      remove()
+    }
     if(listConfig.get("C4PARENT_FORCE").nonEmpty) Runtime.getRuntime.halt(2)
-    throw new Exception(s"$path not found")
+    throw new Exception(s"$pid not found")
   }
 }
 
@@ -258,6 +343,9 @@ class ElectorRequests(
     val process = startProcess(args, env ++ addEnv)
     val remove = execution.onShutdown("controlSubProcess", ()=>{
       process.destroy()
+      val end = NanoTimer()
+      if(!process.waitFor(3, TimeUnit.SECONDS)) destroyForcibly(process)
+      println(s"waitFor ${end.ms} ms")
       Await.result(allowExit.future,Duration.Inf)
     })
     try {

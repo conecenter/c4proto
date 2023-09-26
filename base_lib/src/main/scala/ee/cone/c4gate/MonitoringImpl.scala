@@ -105,6 +105,8 @@ case class PrometheusTx(path: String)(compressor: Compressor, metricsFactories: 
 
 }
 
+@c4("AvailabilityApp") final class EnableAvailabilityScaling extends EnableSimpleScaling(classOf[AvailabilityTx])
+
 case class AvailabilityTx(srcId: SrcId, updatePeriod: Long, timeout: Long)(
   monitoring: Monitoring
 ) extends TxTransform {

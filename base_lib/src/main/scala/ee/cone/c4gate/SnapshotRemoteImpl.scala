@@ -13,9 +13,11 @@ import scala.annotation.tailrec
 @c4multi("RemoteRawSnapshotLoaderImplApp") final class RemoteRawSnapshotLoaderImpl(baseURL: String)(util: HttpUtil) extends RawSnapshotLoader with LazyLogging {
   def load(snapshot: RawSnapshot): ByteString = {
     val tm = NanoTimer()
-    val resp = util.get(s"$baseURL/${snapshot.relativePath}", Nil)
-    assert(resp.status == 200)
-    logger.debug(s"downloaded ${resp.body.size} in ${tm.ms} ms")
+    val resp = ReqRetry { () =>
+      logger.info(s"downloading snapshot")
+      util.get(s"$baseURL/${snapshot.relativePath}", Nil)
+    }
+    logger.info(s"downloaded ${resp.body.size} in ${tm.ms} ms")
     resp.body
   }
 }
@@ -39,21 +41,23 @@ import scala.annotation.tailrec
     val uuid = UUID.randomUUID().toString
     util.post(s"$appURL$url", ("x-r-response-key",uuid) :: authHeaders(signed))
     () =>
-      @tailrec def retry(): HttpResponse =
-        try {
-          val res = util.get(s"$appURL/response/$uuid",Nil)
-          if(res.status!=200) throw new FileNotFoundException
-          res
-        } catch {
-          case e: FileNotFoundException =>
-            Thread.sleep(1000)
-            retry()
-        }
-      val headers = retry().headers
+      val headers = ReqRetry(()=>util.get(s"$appURL/response/$uuid", Nil)).headers
       headers.getOrElse("x-r-snapshot-keys",Nil) match {
         case Seq(res) => res.split(",").map(RawSnapshot).toList
         case _ => throw new Exception(headers.getOrElse("x-r-error-message",Nil).mkString(";"))
       }
+  }
+}
+
+object ReqRetry {
+  @tailrec final def apply(f: ()=>HttpResponse): HttpResponse = try {
+    val res = f()
+    if (res.status != 200) throw new FileNotFoundException
+    res
+  } catch {
+    case e: FileNotFoundException =>
+      Thread.sleep(1000)
+      apply(f)
   }
 }
 

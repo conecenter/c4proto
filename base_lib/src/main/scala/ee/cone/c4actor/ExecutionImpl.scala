@@ -44,9 +44,10 @@ object VMExecution {
 
 class ShutdownRunnable(hint: String, f: () => Unit) extends Runnable with LazyLogging {
   def run(): Unit = {
-    logger.debug(s"hook-in $hint")
+    logger.info(s"hook-in $hint")
+    val end = NanoTimer()
     f()
-    logger.debug(s"hook-out $hint")
+    logger.info(s"hook-out $hint -- ${end.ms} ms")
   }
 }
 

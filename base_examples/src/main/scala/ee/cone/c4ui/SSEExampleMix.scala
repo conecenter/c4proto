@@ -96,4 +96,3 @@ trait TestTxLogAppBase
   with PublisherApp
   with SkipWorldPartsApp
   with FrontApp
-  with ScalingApp

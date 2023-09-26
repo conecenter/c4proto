@@ -17,7 +17,7 @@ trait ParallelObserversAppBase
 trait ProtoAppBase
 trait RichDataCompAppBase extends BaseApp with ProtoApp with AssembleApp with CatchNonFatalApp // with ProductCheckerApp
 trait SerialObserversAppBase
-trait ServerCompAppBase extends RichDataCompApp with ExecutableApp with SnapshotLoaderImplApp with ChildElectorClientApp with LOBrokerApp
+trait ServerCompAppBase extends RichDataCompApp with ExecutableApp with SnapshotLoaderImplApp with ScalingApp with LOBrokerApp
 trait SimpleAssembleProfilerCompAppBase
 trait SkipWorldPartsAppBase
 trait SnapshotLoaderFactoryImplAppBase

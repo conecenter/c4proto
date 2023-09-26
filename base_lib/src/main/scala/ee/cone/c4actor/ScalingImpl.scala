@@ -17,13 +17,12 @@ import ee.cone.c4proto.{Id, protocol}
   )
 }
 
-@c4("ScalingApp") final class EnableScalingImpl extends EnableScaling
-
 @c4assemble("ScalingApp") class ScalingAssembleBase(
   actorName: ActorName,
   scaleTxFactory: ScaleTxFactory,
   idGenUtil: IdGenUtil,
-  enables: List[GeneralEnableSimpleScaling]
+  enables: List[GeneralEnableSimpleScaling],
+  currentProcess: CurrentProcess,
 )(
   clNames: Set[String] = enables.map(_.cl.getName).toSet
 ){
@@ -44,7 +43,7 @@ import ee.cone.c4proto.{Id, protocol}
     @by[ElectorClientKey] scaled: Values[S_ScaledTxTr],
     @byEq[SrcId](actorName.value) processes: Each[ReadyProcesses],
   ): Values[(SrcId,TxTransform)] =
-    if(processes.ids.contains(key)) Nil
+    if(processes.all.exists(_.id==key)) Nil
     else List(WithPK(scaleTxFactory.create(s"PurgeScaledTx-$key",toDel(scaled))))
 
   def gatherScaledByTxTr(
@@ -64,19 +63,18 @@ import ee.cone.c4proto.{Id, protocol}
     @by[TxTrKey] scaled: Values[S_ScaledTxTr],
     @byEq[SrcId](actorName.value) processes: Each[ReadyProcesses],
   ): Values[(SrcId,EnabledTxTr)] =
-    if(processes.ids.isEmpty) Nil else {
-      val masterId = processes.ids.head
+    if(processes.enabledForCurrentRole.isEmpty) Nil else {
+      val masterId :: followerIds = processes.enabledForCurrentRole
       val worksAtId = Single.option(scaled).fold(masterId)(_.electorClientId)
-      if(worksAtId != processes.currentId) Nil else {
-        val scaleToNum = // does not try to minimize rescheduling yet
-          if(txTrs.exists(t=>clNames(t.getClass.getName))) Math.abs(key.hashCode)
-          else 0
-        val scaleToId = processes.ids(scaleToNum % processes.ids.size)
+      if(worksAtId != currentProcess.id) Nil else {
+        val scaleToId = if(!txTrs.exists(t=>clNames(t.getClass.getName)) || followerIds.isEmpty) masterId
+          else applyMod(followerIds, Math.abs(key.hashCode))
         if(worksAtId == scaleToId) txTrs.map(t=>WithPK(EnabledTxTr(t)))
         else List(WithPK(EnabledTxTr(scaleTxFactory.create(key, toDel(scaled) ::: toAdd(key, scaleToId)))))
       }
     }
 
+  @ignore def applyMod[T](l: Seq[T], i: Int): T = l(i % l.size)
 }
 
 @c4multi("ScalingApp") final case class ScaleTx(
