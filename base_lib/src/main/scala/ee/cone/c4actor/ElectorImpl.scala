@@ -145,6 +145,7 @@ case class ReadyProcessImpl(orig: S_ReadyProcess, completionRequests: List[S_Com
     } yield enable(purgeCompletionTxFactory.create("PurgeCompletionTx", purgeRequests.sortBy(_.requestId).toList))
 }
 
+/*
 @c4assemble("NoScalingApp") class NoScalingAssembleBase(currentProcess: CurrentProcessImpl, actorName: ActorName){
     def enableTxTr(
       key: SrcId,
@@ -155,7 +156,7 @@ case class ReadyProcessImpl(orig: S_ReadyProcess, completionRequests: List[S_Com
         id <- currentProcess.idSeq
         pId <- processes.enabledForCurrentRole.headOption if pId == id
       } yield WithPK(EnabledTxTr(txTr))
-}
+}*/
 
 @c4multi("ChildElectorClientApp") final case class PurgeCompletionTx(id: SrcId, requests: List[S_CompletionReq])(
   txAdd: LTxAdd

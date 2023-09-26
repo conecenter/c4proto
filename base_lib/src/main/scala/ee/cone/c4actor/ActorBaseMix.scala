@@ -17,7 +17,7 @@ trait ParallelObserversAppBase
 trait ProtoAppBase
 trait RichDataCompAppBase extends BaseApp with ProtoApp with AssembleApp with CatchNonFatalApp // with ProductCheckerApp
 trait SerialObserversAppBase
-trait ServerCompAppBase extends RichDataCompApp with ExecutableApp with SnapshotLoaderImplApp with ChildElectorClientApp with LOBrokerApp
+trait ServerCompAppBase extends RichDataCompApp with ExecutableApp with SnapshotLoaderImplApp with ScalingApp with LOBrokerApp
 trait SimpleAssembleProfilerCompAppBase
 trait SkipWorldPartsAppBase
 trait SnapshotLoaderFactoryImplAppBase
@@ -40,7 +40,6 @@ trait HttpClientAppBase
 trait ElectorClientAppBase extends HttpClientApp
 trait ChildElectorClientAppBase extends ElectorClientApp
 @c4app class ParentElectorClientAppBase extends ElectorClientApp with ExecutableApp with VMExecutionApp with BaseApp with EnvConfigCompApp
-trait NoScalingAppBase
 
 trait ScalingAppBase extends ChildElectorClientApp
 trait ScalingTestAppBase
