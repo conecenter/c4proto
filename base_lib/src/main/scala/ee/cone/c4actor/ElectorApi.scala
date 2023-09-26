@@ -20,7 +20,7 @@ trait ReadyProcess extends Product {
   def role: String
   def startedAt: Long
   def hostname: String
-  def image: String
+  def refDescr: String
   def completionReqAt: Option[Instant]
   def complete(at: Instant): Seq[LEvent[Product]]
 

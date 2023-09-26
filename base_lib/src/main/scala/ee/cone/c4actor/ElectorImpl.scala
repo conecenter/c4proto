@@ -32,8 +32,7 @@ import scala.jdk.FutureConverters._
     @Id(0x00B0) role: String,
     @Id(0x0075) startedAt: Long,
     @Id(0x00B4) hostname: String,
-    @Id(0x00B5) image: String,
-    @Id(0x00B8) branch: String,
+    @Id(0x00B5) refDescr: String,
   )
   @Id(0x00B2) case class S_CompletionReq(
     @Id(0x00B7) requestId: SrcId,
@@ -54,7 +53,7 @@ case class ReadyProcessImpl(orig: S_ReadyProcess, completionRequests: List[S_Com
   def role: String = orig.role
   def startedAt: Long = orig.startedAt
   def hostname: String = orig.hostname
-  def image: String = orig.image
+  def refDescr: String = orig.refDescr
   def completionReqAt: Option[Instant] = completionRequests.headOption.map(r=>Instant.ofEpochMilli(r.at))
   def complete(at: Instant): Seq[LEvent[Product]] =
     LEvent.update(S_CompletionReq(UUID.randomUUID.toString, id, at.toEpochMilli))
@@ -101,7 +100,8 @@ case class ReadyProcessImpl(orig: S_ReadyProcess, completionRequests: List[S_Com
     val reqByPid = requests.groupBy(_.electorClientId).withDefaultValue(Nil)
     val richProcesses = processesByTxId.map(p => ReadyProcessImpl(p, reqByPid(p.electorClientId).sortBy(_.at).toList))
     val processesForCurrentRole = richProcesses.filter(_.role == key)
-    val enabledForCurrentRole = processesForCurrentRole.filter(_.image == processesForCurrentRole.head.image).map(_.id)
+    val enabledForCurrentRole =
+      processesForCurrentRole.filter(_.refDescr == processesForCurrentRole.head.refDescr).map(_.id)
     Seq(WithPK(ReadyProcessesImpl(key, richProcesses, enabledForCurrentRole)))
   }
 
@@ -221,8 +221,8 @@ case object PurgeReadyProcessStateKey extends TransientLens[Option[ElectorReques
   def transform(local: Context): Context = { // register self / track no self -- activity like snapshot-put can drop S_ReadyProcess
     once.check()
     val process = S_ReadyProcess(
-      electorClientId, "", fullActorName, System.currentTimeMillis, config.get("HOSTNAME"), config.get("C4IMAGE"),
-      readTextOrEmpty("/c4branch")
+      electorClientId, "", fullActorName, System.currentTimeMillis, config.get("HOSTNAME"),
+      readTextOrEmpty("/c4ref_descr")
     )
     logger.info(process.toString)
     txAdd.add(LEvent.update(process))(local)

@@ -204,7 +204,6 @@ my $get_consumer_env = sub{
         C4TRUSTSTORE_PATH => "$data_dir/cu.def.truststore.jks",
         C4ELECTOR_SERVERS => $elector_servers,
         C4READINESS_PATH => $readiness_path,
-        C4IMAGE => "-"
     )
 };
 

@@ -27,13 +27,13 @@ import ee.cone.c4vdom.Types.ViewRes
       gridCol(colKey = "role", width = boundGridColWidth(5, 10), hideWill = 0),
       gridCol(colKey = "startedAt", width = boundGridColWidth(10, 20), hideWill = 0),
       gridCol(colKey = "hostname", width = boundGridColWidth(10, 20), hideWill = 0),
-      gridCol(colKey = "image", width = boundGridColWidth(10, 20), hideWill = 0),
+      gridCol(colKey = "version", width = boundGridColWidth(10, 20), hideWill = 0),
       gridCol(colKey = "completion", width = boundGridColWidth(5, 20), hideWill = 0),
       gridCol(colKey = "remove", width = boundGridColWidth(5, 10), hideWill = 0),
     )
     val headCells = for {
       (key,text) <- List(
-        ("role","Role"),("startedAt","Started At"),("hostname","Hostname"),("image","Image"),("completion","Completion")
+        ("role","Role"),("startedAt","Started At"),("hostname","Hostname"),("version","Version"),("completion","Completion")
       )
     } yield gridCell(
       colKey = key, rowKey = "head", classNames = HeaderCSSClassName :: Nil,
@@ -57,8 +57,8 @@ import ee.cone.c4vdom.Types.ViewRes
           children = List(exampleTags.text("text", p.hostname).toChildPair[OfDiv])
         ),
         gridCell(
-          colKey = "image", rowKey = p.id,
-          children = List(exampleTags.text("text", p.image).toChildPair[OfDiv])
+          colKey = "version", rowKey = p.id,
+          children = List(exampleTags.text("text", p.refDescr).toChildPair[OfDiv])
         ),
         gridCell(
           colKey = "completion", rowKey = p.id,
