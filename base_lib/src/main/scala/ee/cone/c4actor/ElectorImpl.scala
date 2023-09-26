@@ -14,6 +14,7 @@ import java.net.URI
 import java.net.http.{HttpClient, HttpRequest}
 import java.net.http.HttpRequest.BodyPublishers
 import java.net.http.HttpResponse.BodyHandlers
+import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path, Paths}
 import java.time.Instant
 import java.util.UUID
@@ -32,6 +33,7 @@ import scala.jdk.FutureConverters._
     @Id(0x0075) startedAt: Long,
     @Id(0x00B4) hostname: String,
     @Id(0x00B5) image: String,
+    @Id(0x00B8) branch: String,
   )
   @Id(0x00B2) case class S_CompletionReq(
     @Id(0x00B7) requestId: SrcId,
@@ -219,11 +221,14 @@ case object PurgeReadyProcessStateKey extends TransientLens[Option[ElectorReques
   def transform(local: Context): Context = { // register self / track no self -- activity like snapshot-put can drop S_ReadyProcess
     once.check()
     val process = S_ReadyProcess(
-      electorClientId, "", fullActorName, System.currentTimeMillis, config.get("HOSTNAME"), config.get("C4IMAGE")
+      electorClientId, "", fullActorName, System.currentTimeMillis, config.get("HOSTNAME"), config.get("C4IMAGE"),
+      readTextOrEmpty("/c4branch")
     )
     logger.info(process.toString)
     txAdd.add(LEvent.update(process))(local)
   }
+  private def readTextOrEmpty(pathStr: String): String =
+    Option(Paths.get(pathStr)).filter(Files.exists(_)).fold("")(path => new String(Files.readAllBytes(path), UTF_8))
 }
 
 ////

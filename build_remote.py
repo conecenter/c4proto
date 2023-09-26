@@ -9,7 +9,7 @@ import uuid
 import tempfile
 import re
 from c4util import path_exists, read_text, changing_text, read_json, changing_text_observe, one
-from c4util.build import never, run, run_no_die, run_pipe_no_die, Popen, \
+from c4util.build import never, run, run_no_die, run_text_out, run_pipe_no_die, Popen, \
     wait_processes, need_dir, kcd_args, kcd_run, need_pod, get_main_conf, get_temp_dev_pod, \
     build_cached_by_content, setup_parser, secret_part_to_text, crane_image_exists, get_proto, get_image_conf, \
     crane_login
@@ -159,6 +159,7 @@ def ci_prep(context, c4env, env_state, info_out):
     need_dir(f"{context}/target")
     run(("perl", f"{proto_dir}/sync_mem.pl", context))
     commit = get_commit(context)  # after sync_mem
+    changing_text(f"{context}/target/c4branch", run_text_out(("git", "rev-parse", "--abbrev-ref", "HEAD")).strip())
     #
     info("making deploy info ...")
     out_path = f"{temp_root.name}/out"
@@ -347,6 +348,7 @@ def build_type_rt(proj_tag, context, out):
     wait_processes((check_proc,)) or never("check failed")  # before ci_rt_base?
     run((*prod, "ci_rt_base", "--context", context, "--proj-tag", proj_tag, "--out-context", out), env=pr_env)
     run((*prod, "ci_rt_over", "--context", context, "--proj-tag", proj_tag, "--out-context", out), env=pr_env)
+    changing_text(f"{out}/c4branch", read_text(f"{context}/target/c4branch"))
 
 
 def main():
