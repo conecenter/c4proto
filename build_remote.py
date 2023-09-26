@@ -159,7 +159,7 @@ def ci_prep(context, c4env, env_state, info_out):
     need_dir(f"{context}/target")
     run(("perl", f"{proto_dir}/sync_mem.pl", context))
     commit = get_commit(context)  # after sync_mem
-    changing_text(f"{context}/target/c4ref_descr", run_text_out(("git", "c4ref_descr", "--all")).strip())
+    changing_text(f"{context}/target/c4ref_descr", run_text_out(("git", "describe", "--all")).strip())
     #
     info("making deploy info ...")
     out_path = f"{temp_root.name}/out"
