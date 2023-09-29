@@ -8,11 +8,16 @@ import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.c4assemble
-import ee.cone.c4di.{c4, c4app, c4multi}
+import ee.cone.c4di.{c4, c4app, c4multi, provide}
 
 import java.time.Instant
 
 //import scala.jdk.CollectionConverters.MapHasAsJava
+
+@c4("NoSenderApp") final class NoSenderProvider {
+  @provide def senders: Seq[RawQSenderExecutable] = Seq(() => ())
+}
+
 
 @c4("ServerCompApp") final class ProgressObserverFactoryImpl(
   val inner: TxObserver, val execution: Execution,

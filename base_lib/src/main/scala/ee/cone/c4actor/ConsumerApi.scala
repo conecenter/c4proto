@@ -7,7 +7,7 @@ trait Consuming {
   def process[R](from: List[(TxLogName,NextOffset)], body: Consumer=>R): R
 }
 trait Consumer {
-  def poll(): List[ExtendedRawEvent]
+  def poll(): List[RawEvent]
   def endOffset: NextOffset
   def beginningOffset: NextOffset
 }

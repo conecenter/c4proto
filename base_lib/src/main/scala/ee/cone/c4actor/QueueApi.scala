@@ -285,11 +285,8 @@ trait ProgressObserverFactory {
   def create(endOffset: NextOffset): Observer[RichContext]
 }
 
-trait ExtendedRawEvent extends RawEvent {
-  def mTime: Long
-  def txLogName: TxLogName
-  def withContent(headers: List[RawHeader], data: ByteString): ExtendedRawEvent
-}
+case class ExtendedRawEvent(srcId: SrcId, data: ByteString, headers: List[RawHeader], txLogName: TxLogName)
+  extends RawEvent
 
 //trait RawDebugOptions {
 //  def load(key: String): Array[Byte]
