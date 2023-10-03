@@ -56,6 +56,7 @@ import SnapshotUtilImpl._
     logger.debug(s"Loading raw snapshot [${snapshot.relativePath}]")
     val res = for {
       snapshotInfo <- hashFromName(snapshot) //goes first, secures fs
+      _ = logger.debug(s"snapshot name parsed")
       data <- Option(raw.load(snapshot)) if hashFromData(data.toByteArray) == snapshotInfo.uuid
     } yield SimpleRawEvent(snapshotInfo.offset, data, snapshotInfo.headers)
     logger.debug(s"Loaded raw snapshot ${res.nonEmpty}")

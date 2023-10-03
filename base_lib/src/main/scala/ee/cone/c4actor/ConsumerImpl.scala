@@ -77,10 +77,6 @@ object StartUpSnapshotUtil {
     consumer: Consumer, world: RichContext, observer: Observer[RichContext]
   ): Unit = {
     val events = consumer.poll()
-    if(events.nonEmpty){
-      val latency = System.currentTimeMillis-events.map(_.mTime).min //check rec.timestampType == TimestampType.CREATE_TIME ?
-      logger.debug(s"p-c latency $latency ms")
-    }
     val end = NanoTimer()
     val newWorld = reducer.reduce(Option(world),events)
     val period = end.ms

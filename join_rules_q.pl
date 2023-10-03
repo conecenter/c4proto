@@ -2,7 +2,7 @@ use strict;
 
 my @rules = grep{@$_}map{
   [map{[/JK\((.+?)\)/g]} /^(.+)==>(.+)$/ ? ($1,$2) : ()];
-} `cat rules.out`;
+} `cat /tmp/c4rules.out`;
 
 my ($q_in,$q_out) = @ARGV;
 

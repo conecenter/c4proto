@@ -420,7 +420,7 @@ push @tasks, ["log_debug","<pod|$composes_txt> [class]",sub{ # ee.cone
     &$for_comp_pod($arg,sub{ my ($comp,$pod) = @_;
         my $kubectl = &$get_kubectl($comp);
         if($cl){
-            my $content = qq[<logger name="$cl" level="DEBUG"><appender-ref ref="ASYNCFILE" /></logger>];
+            my $content = qq[<logger name="$cl" level="DEBUG"></logger>];
             sy(qq[$kubectl exec -i $pod -- sh -c 'cat >> /tmp/logback.xml' < ].&$put_temp("logback.xml",$content));
         } else {
             so(qq[$kubectl exec -i $pod -- rm /tmp/logback.xml]);
