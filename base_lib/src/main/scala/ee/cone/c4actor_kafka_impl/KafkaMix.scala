@@ -9,3 +9,4 @@ trait KafkaConsumerAppBase extends KafkaConfigApp with LZ4DeCompressorApp with L
 trait LZ4DeCompressorAppBase
 trait LZ4RawCompressorAppBase
 trait KafkaPurgerAppBase
+trait DisableDefaultKafkaConsumingAppBase

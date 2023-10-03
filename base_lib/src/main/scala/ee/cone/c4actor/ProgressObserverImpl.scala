@@ -7,19 +7,29 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.c4assemble
+import ee.cone.c4assemble.{c4assemble,Single}
 import ee.cone.c4di.{c4, c4app, c4multi, provide}
+
 
 import java.time.Instant
 
-//import scala.jdk.CollectionConverters.MapHasAsJava
+@c4("NoObserversApp") final class NoObservers
 
-@c4("NoSenderApp") final class NoSenderProvider {
-  @provide def senders: Seq[RawQSenderExecutable] = Seq(() => ())
+object InnerNoTxObserver extends Observer[RichContext] {
+  def activate(world: RichContext): Observer[RichContext] = this
 }
 
+@c4("ServerCompApp") final class ProgressObserverFactoryProvider(
+  execution: Execution, config: Config, inner: List[TxObserver], sender: List[RawQSenderExecutable],
+  disable: Option[NoObservers],
+){
+  @provide def get: Seq[ProgressObserverFactory] = Seq(
+    if(disable.nonEmpty) new ProgressObserverFactoryImpl(new TxObserver(InnerNoTxObserver), execution, config, () => ())
+    else new ProgressObserverFactoryImpl(Single(inner), execution, config, Single(sender))
+  )
+}
 
-@c4("ServerCompApp") final class ProgressObserverFactoryImpl(
+class ProgressObserverFactoryImpl(
   val inner: TxObserver, val execution: Execution,
   val config: Config, val sender: RawQSenderExecutable,
 ) extends ProgressObserverFactory {

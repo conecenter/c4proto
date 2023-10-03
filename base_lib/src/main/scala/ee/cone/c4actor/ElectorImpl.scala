@@ -315,14 +315,15 @@ class ElectorRequests(
   def run(): Unit = for{
     pid <- Single.option(listConfig.get("C4PARENT_PID")).map(_.toLong)
   } {
+    val force = listConfig.get("C4PARENT_FORCE").nonEmpty
     ProcessHandle.of(pid).ifPresent{ parentProc =>
-      val remove = execution.onShutdown("parentTracker", ()=>{
+      val remove = if(force) execution.onShutdown("parentTracker", ()=>{
         val ignoreOk = parentProc.destroy()
-      })
+      }) else ()=>()
       val ignoreProc = parentProc.onExit.get()
       remove()
     }
-    if(listConfig.get("C4PARENT_FORCE").nonEmpty) Runtime.getRuntime.halt(2)
+    if(force) Runtime.getRuntime.halt(2)
     throw new Exception(s"$pid not found")
   }
 }
