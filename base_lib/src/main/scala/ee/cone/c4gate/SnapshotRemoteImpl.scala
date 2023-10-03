@@ -61,17 +61,20 @@ object ReqRetry {
   }
 }
 
-class RemoteSnapshotAppURL(val value: String)
-
-@c4("RemoteRawSnapshotApp") final class DefRemoteSnapshotAppURL(config: Config) extends RemoteSnapshotAppURL(config.get("C4HTTP_SERVER"))
-
-@c4("RemoteRawSnapshotApp") final class EnvRemoteRawSnapshotLoader(url: RemoteSnapshotAppURL, factory: RemoteRawSnapshotLoaderImplFactory) {
-  @provide def get: Seq[RawSnapshotLoader] = List(factory.create(url.value))
+@c4("RemoteRawSnapshotApp") final class EnvRemoteRawSnapshotProvider(
+  disable: Option[DisableDefaultRemoteRawSnapshot],
+  loaderFactory: RemoteRawSnapshotLoaderImplFactory, makerFactory: RemoteSnapshotMakerFactory, config: Config
+) {
+  private def url = config.get("C4HTTP_SERVER")
+  @provide def get: Seq[RawSnapshotLoader] = if(disable.nonEmpty) Nil else Seq(loaderFactory.create(url))
+  @provide def makers: Seq[SnapshotMaker] = if(disable.nonEmpty) Nil else Seq(makerFactory.create(url))
 }
 
-@c4("RemoteRawSnapshotApp") final class RemoteSnapshotMaker(
-  appURL: RemoteSnapshotAppURL, util: RemoteSnapshotUtil, signer: SnapshotTaskSigner
+@c4multi("RemoteRawSnapshotApp") final class RemoteSnapshotMaker(baseURL: String)(
+  util: RemoteSnapshotUtil, signer: SnapshotTaskSigner
 ) extends SnapshotMaker {
   def make(task: SnapshotTask): List[RawSnapshot] =
-    util.request(appURL.value, signer.sign(task, System.currentTimeMillis() + 3600*1000))()
+    util.request(baseURL, signer.sign(task, System.currentTimeMillis() + 3600*1000))()
 }
+
+@c4("DisableDefaultRemoteRawSnapshotApp") final class DisableDefaultRemoteRawSnapshot

@@ -31,12 +31,13 @@ trait MergingSnapshotAppBase extends SnapshotLoaderFactoryImplApp with RemoteRaw
 trait RemoteRawSnapshotUtilAppBase
 trait RemoteRawSnapshotAppBase extends RemoteRawSnapshotUtilApp with TaskSignerApp with ConfigSimpleSignerApp with RemoteRawSnapshotLoaderImplApp//?SnapshotUtilImplApp
   with PrepareApp {
-    def prepare(): Unit = (
+    def prepare(): Unit = if(isInstanceOf[DisableDefaultRemoteRawSnapshotApp]) () else (
       new RichDataCompApp with ExecutableApp with VMExecutionApp with EnvConfigCompApp with NoAssembleProfilerCompApp
         with StartUpSnapshotApp with RemoteRawSnapshotApp
     ).execution.run()
   }
 trait RemoteRawSnapshotLoaderImplAppBase extends HttpUtilApp
+trait DisableDefaultRemoteRawSnapshotAppBase
 
 trait DefaultMetricsAppBase
 trait PrometheusPostAppBase extends DefaultMetricsApp with HttpUtilApp

@@ -11,8 +11,7 @@ import ee.cone.c4proto.ToByteString
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Paths}
 import ee.cone.c4actor._
-import ee.cone.c4di.{c4, c4multi}
-import okio.ByteString
+import ee.cone.c4di.{c4, c4multi, provide}
 import org.apache.kafka.clients.consumer.{ConsumerRecord, KafkaConsumer}
 import org.apache.kafka.clients.producer.{KafkaProducer, Producer, RecordMetadata}
 import org.apache.kafka.common.TopicPartition
@@ -102,10 +101,23 @@ case class KafkaConfig(
   def topicNameToString(name: TxLogName): String = s"${name.value}.inbox"
 }
 
-@c4("KafkaConsumerApp") final case class KafkaConsuming(conf: KafkaConfig)(
-  execution: Execution,
-  consumerFactory: RKafkaConsumerFactory,
-  currentTxLogName: CurrentTxLogName,
+@c4("KafkaConsumerApp") final class ConsumerBeginningOffsetImpl(consuming: Consuming) extends ConsumerBeginningOffset {
+  def get(): NextOffset = consuming.process("0" * OffsetHexSize(), { case c: RKafkaConsumer => c.beginningOffset })
+}
+
+@c4("DisableDefaultKafkaConsumingApp") final class DisableDefaultKafkaConsuming
+
+@c4("KafkaConsumerApp") final class KafkaConsumingProvider(
+  disable: Option[DisableDefaultKafkaConsuming], factory: KafkaConsumingFactory,
+  conf: KafkaConfig, currentTxLogName: CurrentTxLogName,
+){
+  @provide def consumings: Seq[Consuming] = if(disable.nonEmpty) Nil else Seq(factory.create(conf, currentTxLogName))
+}
+
+@c4multi("KafkaConsumerApp") final case class KafkaConsuming(
+  conf: KafkaConfig, currentTxLogName: CurrentTxLogName,
+)(
+  execution: Execution, consumerFactory: RKafkaConsumerFactory,
 ) extends Consuming with LazyLogging {
   def process[R](from: NextOffset, body: Consumer=>R): R =
     process(List(currentTxLogName->from), body)
@@ -155,6 +167,7 @@ case class KafkaConfig(
       val data: Array[Byte] = if (rec.value ne null) rec.value else Array.empty
       ExtendedRawEvent(OffsetHex(rec.offset + 1L), ToByteString(data), compHeader, topicNameMap(rec.topic))
     })
+    logger.debug(events.map(_.srcId).mkString(" "))
     if (records.nonEmpty) {
       val latency = System.currentTimeMillis - records.map(_.timestamp).min //check rec.timestampType == TimestampType.CREATE_TIME ?
       logger.debug(s"p-c latency $latency ms")
