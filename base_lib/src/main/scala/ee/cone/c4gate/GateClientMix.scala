@@ -28,8 +28,7 @@ trait RoomsConfProtocolAppBase
 trait HttpUtilAppBase
 
 trait MergingSnapshotAppBase extends SnapshotLoaderFactoryImplApp with RemoteRawSnapshotLoaderImplApp
-trait RemoteRawSnapshotUtilAppBase
-trait RemoteRawSnapshotAppBase extends RemoteRawSnapshotUtilApp with TaskSignerApp with ConfigSimpleSignerApp with RemoteRawSnapshotLoaderImplApp//?SnapshotUtilImplApp
+trait RemoteRawSnapshotAppBase extends TaskSignerApp with ConfigSimpleSignerApp with RemoteRawSnapshotLoaderImplApp//?SnapshotUtilImplApp
   with PrepareApp {
     def prepare(): Unit = if(isInstanceOf[DisableDefaultRemoteRawSnapshotApp]) () else (
       new RichDataCompApp with ExecutableApp with VMExecutionApp with EnvConfigCompApp with NoAssembleProfilerCompApp

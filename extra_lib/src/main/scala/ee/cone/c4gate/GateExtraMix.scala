@@ -24,7 +24,7 @@ trait PublishingApp extends PublishingCompApp with ComponentsApp {
     mimeTypesComponent :: publishFromStringsComponent :: super.components
 }
 
-@deprecated trait FileRawSnapshotApp extends /*RemoteRawSnapshotApp with*/ ComponentProviderApp { // Remote!
+@deprecated trait FileRawSnapshotApp extends RemoteRawSnapshotApp with ComponentProviderApp { // Remote!
   lazy val snapshotTaskSigner: Signer[SnapshotTask] = resolveSingle(classOf[SnapshotTaskSigner])
   lazy val rawSnapshotLoaderFactory: RawSnapshotLoaderFactory = resolveSingle(classOf[RawSnapshotLoaderFactory])
   lazy val snapshotLoaderFactory: SnapshotLoaderFactory = resolveSingle(classOf[SnapshotLoaderFactory])

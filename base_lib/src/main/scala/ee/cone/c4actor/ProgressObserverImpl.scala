@@ -10,16 +10,13 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{c4assemble,Single}
 import ee.cone.c4di.{c4, c4app, c4multi, provide}
 
+
 import java.time.Instant
 
 @c4("NoObserversApp") final class NoObservers
 
 object InnerNoTxObserver extends Observer[RichContext] {
   def activate(world: RichContext): Observer[RichContext] = this
-}
-
-@c4("NoSenderApp") final class NoSenderProvider {
-  @provide def senders: Seq[RawQSenderExecutable] = Seq(() => ())
 }
 
 @c4("ServerCompApp") final class ProgressObserverFactoryProvider(

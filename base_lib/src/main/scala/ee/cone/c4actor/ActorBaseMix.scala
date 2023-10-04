@@ -12,7 +12,6 @@ trait GzipRawCompressorAppBase
 trait ModelAccessFactoryCompAppBase
 trait MortalFactoryCompAppBase
 trait NoAssembleProfilerCompAppBase
-trait NoSenderAppBase
 trait NoObserversAppBase
 trait ParallelObserversAppBase
 trait ProtoAppBase
