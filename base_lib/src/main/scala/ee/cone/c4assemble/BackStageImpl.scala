@@ -27,8 +27,8 @@ object PrepareBackStage extends WorldPartExpression {
   def transform(transition: WorldTransition): WorldTransition = {
     implicit val executionContext: ExecutionContext = transition.executionContext.value
     val next = for {
-      diff <- Future.sequence(nextKeys.map(_.of(transition.prev.get.diff)))
-      result <- Future.sequence(nextKeys.map(_.of(transition.result)))
+      diff <- ShortFSeq(nextKeys.map(_.of(transition.prev.get.diff)))
+      result <- ShortFSeq(nextKeys.map(_.of(transition.result)))
     } yield new IndexUpdates(diff,result,Nil)
     //println(s"AAA: $nextKey $diffPart")
     //println(s"BBB: $transition")

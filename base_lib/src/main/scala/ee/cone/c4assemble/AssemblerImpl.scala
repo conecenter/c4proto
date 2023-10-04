@@ -58,7 +58,7 @@ abstract class ParallelExecution(power: Int) extends Product {
   def keyToPartPos(elem: Any): Int = elem.hashCode & (parallelPartCount-1)  // todo other hash?
   val parallelRange: Vector[Int] = (0 until parallelPartCount).toVector
   def execute[S,T,U](tasks: Seq[S], calc: S=>T, aggr: Seq[T]=>U)(implicit ec: ExecutionContext): Future[U] =
-    if(tasks.size < 2) Future(aggr(tasks.map(calc))) else Future.sequence(tasks.map(task=>Future(calc(task)))).map(aggr)
+    if(tasks.size < 2) Future(aggr(tasks.map(calc))) else ShortFSeq(tasks.map(task=>Future(calc(task)))).map(aggr)
 }
 
 // Ordering.by can drop keys!: https://github.com/scala/bug/issues/8674
@@ -189,11 +189,11 @@ abstract class ParallelExecution(power: Int) extends Product {
     (aDiffs zip bDiffs).map{ case (a,b) => mergeIndex(Seq(a, b)) }
   }
 
-  def zipMergeIndex(aDiffs: Seq[Index], bDiffs: Seq[Index])(implicit ec: ExecutionContext): Future[Seq[Index]] = {
+  def zipMergeIndexA(aDiffs: Seq[Index], bDiffs: Seq[Index])(implicit ec: ExecutionContext): Seq[Future[Index]] = {
     val parallelExecution = ParallelExecution8
     assert(aDiffs.size == bDiffs.size)
     val ops = rIndexValueOperations
-    Future.sequence((aDiffs zip bDiffs).map{ case (a,b) =>
+    (aDiffs zip bDiffs).map{ case (a,b) =>
       val aParts = rIndexUtil.split(a, parallelExecution.parallelPartCount)
       val bParts = rIndexUtil.split(b, parallelExecution.parallelPartCount)
       val abParts = aParts.zip(bParts)
@@ -203,7 +203,7 @@ abstract class ParallelExecution(power: Int) extends Product {
         { case (a,b) => rIndexUtil.merge(Seq(a, b),ops) },
         complexRes => rIndexUtil.merge(complexRes ++ simplePairs.map(_._1) ++ simplePairs.map(_._2),ops)
       )
-    })
+    }
   }
 
   def removingDiff(pos: Int, index: Index, keys: Iterable[Any]): Iterable[DOut] =
@@ -409,6 +409,18 @@ trait ParallelAssembleStrategy {
 
 }*/
 
+object ShortFSeq {
+  implicit val ec = new ExecutionContext {
+    def execute(runnable: Runnable): Unit = runnable.run()
+    def reportFailure(cause: Throwable): Unit = ExecutionContext.defaultReporter(cause)
+  }
+  def apply[T](in: Seq[Future[T]]): Future[Seq[T]] = in.size match {
+    case 0 => Future.successful(Nil)
+    case 1 => in.head.map(Seq(_))
+    case _ => Future.sequence(in)
+  }
+}
+
 @c4multi("AssembleApp") final class JoinMapIndex(join: Join)(
   updater: IndexUpdater,
   composes: IndexUtil,
@@ -431,30 +443,33 @@ trait ParallelAssembleStrategy {
   def doTransform(transition: WorldTransition, worldDiffOpts: Seq[Option[Future[Index]]]): WorldTransition = {
     implicit val executionContext: ExecutionContext = transition.executionContext.value
     def getNoUpdates(log: ProfilingLog): Future[IndexUpdates] = for {
-      outputDiffs <- Future.sequence(outputWorldKeys.map(_.of(transition.diff)))
-      outputResults <- Future.sequence(outputWorldKeys.map(_.of(transition.result)))
+      outputDiffs <- ShortFSeq(outputWorldKeys.map(_.of(transition.diff))) //o
+      outputResults <- ShortFSeq(outputWorldKeys.map(_.of(transition.result))) //o
     } yield new IndexUpdates(outputDiffs,outputResults,log)
     val next: Future[IndexUpdates] = for {
-      worldDiffs <- Future.sequence(worldDiffOpts.map(OrEmptyIndex(_)))
+      worldDiffs <- ShortFSeq(worldDiffOpts.map(OrEmptyIndex(_))) //i
       res <- {
         if (worldDiffs.forall(composes.isEmpty)) getNoUpdates(Nil)
         else for {
-          prevInputs <- Future.sequence(inputWorldKeys.map(_.of(transition.prev.get.result)))
-          inputs <- Future.sequence(inputWorldKeys.map(_.of(transition.result)))
+          prevInputs <- ShortFSeq(inputWorldKeys.map(_.of(transition.prev.get.result))) //i
+          inputs <- ShortFSeq(inputWorldKeys.map(_.of(transition.result))) //i
           profiler = transition.profiling
           calcStart = profiler.time
           runJoin = join.joins(worldDiffs, transition.executionContext)
-          joinResSeq <- Future.sequence(Seq(runJoin.dirJoin(-1,prevInputs), runJoin.dirJoin(+1,inputs)))
-          joinRes = joinResSeq.flatten
+          prevJoinResF = runJoin.dirJoin(-1,prevInputs)
+          nextJoinResF = runJoin.dirJoin(+1,inputs)
+          prevJoinRes <- prevJoinResF
+          nextJoinRes <- nextJoinResF
+          joinRes = prevJoinRes ++ nextJoinRes
           calcLog = profiler.handle(join, 0L, calcStart, Nil)
           countLog = profiler.handle(join, joinRes, calcLog)
           findChangesStart = profiler.time
-          indexDiffs <- Future.sequence(composes.buildIndex(joinRes))
+          indexDiffs <- ShortFSeq(composes.buildIndex(joinRes)) //o
           findChangesLog = profiler.handle(join, 1L, findChangesStart, countLog)
           noUpdates <- getNoUpdates(findChangesLog)
           patchStart = profiler.time
-          diffs <- composes.zipMergeIndex(noUpdates.diffs, indexDiffs)
-          results <- composes.zipMergeIndex(noUpdates.results, indexDiffs)
+          diffs <- ShortFSeq(composes.zipMergeIndexA(noUpdates.diffs, indexDiffs)) //o
+          results <- ShortFSeq(composes.zipMergeIndexA(noUpdates.results, indexDiffs)) //o
           patchLog = profiler.handle(join, 2L, patchStart, findChangesLog)
         } yield new IndexUpdates(diffs, results, patchLog)
       }
@@ -649,8 +664,9 @@ class FailedRule(val message: List[String]) extends WorldPartRule
     implicit val ec = executionContext.value
     val prevTransition = new WorldTransition(None,emptyReadModel,prevWorld,profiler,Future.successful(Nil),executionContext,Nil)
     val currentWorld = readModelUtil.op(Merge[AssembledKey,Future[Index]](_=>false/*composes.isEmpty*/,(a,b)=>for {
-      seq <- Future.sequence(Seq(a,b))
-    } yield composes.mergeIndex(seq) ))(prevWorld,diff)
+      aR <- a
+      bR <- b
+    } yield composes.mergeIndex(Seq(aR,bR)) ))(prevWorld,diff)
     val nextTransition = new WorldTransition(Option(prevTransition),diff,currentWorld,profiler,Future.successful(Nil),executionContext,Nil)
     for {
       finalTransition <- transformUntilStable(1000, nextTransition)

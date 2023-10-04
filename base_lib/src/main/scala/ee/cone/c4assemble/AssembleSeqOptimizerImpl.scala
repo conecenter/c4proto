@@ -26,11 +26,11 @@ import scala.concurrent.{ExecutionContext, Future}
   ): Future[(IndexUpdates,IndexUpdates)] = {
     implicit val executionContext: ExecutionContext = transition.executionContext.value
     for {
-      diffParts <- Future.sequence(outputWorldKeys.map(_.of(transition.diff)))
+      diffParts <- ShortFSeq(outputWorldKeys.map(_.of(transition.diff)))
       sumDiffs = wasSumDiffs.fold(diffParts)(composes.zipMergeIndex(diffParts))
       res <- if(composes.isEmpty(diffParts(loopOutputIndex))){
         for {
-          results <- Future.sequence(outputWorldKeys.map(_.of(transition.result)))
+          results <- ShortFSeq(outputWorldKeys.map(_.of(transition.result)))
         } yield (
           new IndexUpdates(sumDiffs, results, Nil),
           new IndexUpdates(Seq(emptyIndex),Seq(results(loopOutputIndex)),Nil)
