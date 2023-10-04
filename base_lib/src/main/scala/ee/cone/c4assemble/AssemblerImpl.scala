@@ -468,8 +468,10 @@ object ShortFSeq {
           findChangesLog = profiler.handle(join, 1L, findChangesStart, countLog)
           noUpdates <- getNoUpdates(findChangesLog)
           patchStart = profiler.time
-          diffs <- ShortFSeq(composes.zipMergeIndexA(noUpdates.diffs, indexDiffs)) //o
-          results <- ShortFSeq(composes.zipMergeIndexA(noUpdates.results, indexDiffs)) //o
+          diffsF = composes.zipMergeIndexA(noUpdates.diffs, indexDiffs)
+          resultsF = composes.zipMergeIndexA(noUpdates.results, indexDiffs)
+          diffs <- ShortFSeq(diffsF) //o
+          results <- ShortFSeq(resultsF) //o
           patchLog = profiler.handle(join, 2L, patchStart, findChangesLog)
         } yield new IndexUpdates(diffs, results, patchLog)
       }
