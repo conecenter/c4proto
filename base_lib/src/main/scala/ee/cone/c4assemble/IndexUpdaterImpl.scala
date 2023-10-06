@@ -8,13 +8,10 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @c4("AssembleApp") final class IndexUpdaterImpl(readModelUtil: ReadModelUtil) extends IndexUpdater {
   def setPart(worldKeys: Seq[AssembledKey], update: Future[IndexUpdates], logTask: Boolean): WorldTransition=>WorldTransition = transition => {
-    implicit val ec: ExecutionContext = transition.executionContext.value
-    val diff = readModelUtil.updated(worldKeys,update.map(_.diffs))(ec)(transition.diff)
-    val next = readModelUtil.updated(worldKeys,update.map(_.results))(ec)(transition.result)
-    val log = for {
-      log <- transition.log
-      u <- update
-    } yield u.log ::: log
+    val ec: ExecutionContext = transition.executionContext.values(1)
+    val diff = readModelUtil.updated(worldKeys,update,_.diffs)(ec)(transition.diff)
+    val next = readModelUtil.updated(worldKeys,update,_.results)(ec)(transition.result)
+    val log = transition.log.zipWith(update)((log,u)=>u.log ::: log)(ec)
     val nTaskLog = if(logTask) worldKeys.toList ::: transition.taskLog else transition.taskLog
     new WorldTransition(
       prev = transition.prev,
@@ -31,10 +28,15 @@ import scala.concurrent.{ExecutionContext, Future}
 @c4("AssembleApp") final class ReadModelUtilImpl(indexUtil: IndexUtil) extends ReadModelUtil {
   def create(inner: MMap): ReadModel =
     new ReadModelImpl(inner)
-  def updated(worldKeys: Seq[AssembledKey], values: Future[Seq[Index]])(implicit ec: ExecutionContext): ReadModel=>ReadModel = {
+  def updated(worldKeys: Seq[AssembledKey], values: Future[IndexUpdates], get: IndexUpdates=>Seq[Future[Index]])(ec: ExecutionContext): ReadModel=>ReadModel = {
     case from: ReadModelImpl =>
-      val cValues = values.map{l=>assert(l.size==worldKeys.size);l}
-      new ReadModelImpl(from.inner ++ worldKeys.zipWithIndex.map{ case (k,i) => k -> cValues.map(_(i)) })
+      new ReadModelImpl(from.inner ++ worldKeys.zipWithIndex.map{ case (k,i) =>
+        k -> values.flatMap { u =>
+          val l = get(u)
+          assert(l.size==worldKeys.size)
+          l(i)
+        }(ec)
+      })
   }
 
   def isEmpty(implicit executionContext: ExecutionContext): ReadModel=>Future[Boolean] = {

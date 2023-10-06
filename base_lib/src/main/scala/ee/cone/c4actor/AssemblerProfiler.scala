@@ -57,7 +57,7 @@ case object NoJoiningProfiling extends JoiningProfiling {
     else SimpleSerialJoiningProfiling(System.nanoTime)
   def addMeta(transition: WorldTransition, updates: Seq[N_Update]): Future[Seq[N_Update]] = transition.profiling match {
     case SimpleSerialJoiningProfiling(startedAt) =>
-    implicit val executionContext: ExecutionContext = transition.executionContext.value
+    implicit val executionContext: ExecutionContext = transition.executionContext.values(3)
     //val meta = transition.profiling.result.toList.flatMap(LEvent.update).map(toUpdate.toUpdate)
     val finishedAt = System.nanoTime
     val size = updates.map(_.value.size).sum

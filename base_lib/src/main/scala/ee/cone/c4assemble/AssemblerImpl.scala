@@ -189,11 +189,11 @@ abstract class ParallelExecution(power: Int) extends Product {
     (aDiffs zip bDiffs).map{ case (a,b) => mergeIndex(Seq(a, b)) }
   }
 
-  def zipMergeIndexA(aDiffs: Seq[Index], bDiffs: Seq[Index])(implicit ec: ExecutionContext): Seq[Future[Index]] = {
+  def zipMergeIndexA(aDiffs: Seq[Future[Index]], bDiffs: Seq[Future[Index]])(implicit ec: ExecutionContext): Seq[Future[Index]] = {
     val parallelExecution = ParallelExecution8
     assert(aDiffs.size == bDiffs.size)
     val ops = rIndexValueOperations
-    (aDiffs zip bDiffs).map{ case (a,b) =>
+    (aDiffs zip bDiffs).map{ case (aF,bF) => aF.zipWith(bF){ case (a,b) =>
       val aParts = rIndexUtil.split(a, parallelExecution.parallelPartCount)
       val bParts = rIndexUtil.split(b, parallelExecution.parallelPartCount)
       val abParts = aParts.zip(bParts)
@@ -203,7 +203,7 @@ abstract class ParallelExecution(power: Int) extends Product {
         { case (a,b) => rIndexUtil.merge(Seq(a, b),ops) },
         complexRes => rIndexUtil.merge(complexRes ++ simplePairs.map(_._1) ++ simplePairs.map(_._2),ops)
       )
-    }
+    }.flatten}
   }
 
   def removingDiff(pos: Int, index: Index, keys: Iterable[Any]): Iterable[DOut] =
@@ -441,15 +441,13 @@ object ShortFSeq {
     else doTransform(transition, worldDiffOpts)
   }
   def doTransform(transition: WorldTransition, worldDiffOpts: Seq[Option[Future[Index]]]): WorldTransition = {
-    implicit val executionContext: ExecutionContext = transition.executionContext.value
-    def getNoUpdates(log: ProfilingLog): Future[IndexUpdates] = for {
-      outputDiffs <- ShortFSeq(outputWorldKeys.map(_.of(transition.diff))) //o
-      outputResults <- ShortFSeq(outputWorldKeys.map(_.of(transition.result))) //o
-    } yield new IndexUpdates(outputDiffs,outputResults,log)
+    implicit val executionContext: ExecutionContext = transition.executionContext.values(4)
+    def getNoUpdates(log: ProfilingLog): IndexUpdates =
+      new IndexUpdates(outputWorldKeys.map(_.of(transition.diff)), outputWorldKeys.map(_.of(transition.result)),log)
     val next: Future[IndexUpdates] = for {
       worldDiffs <- ShortFSeq(worldDiffOpts.map(OrEmptyIndex(_))) //i
       res <- {
-        if (worldDiffs.forall(composes.isEmpty)) getNoUpdates(Nil)
+        if (worldDiffs.forall(composes.isEmpty)) Future.successful(getNoUpdates(Nil))
         else for {
           prevInputs <- ShortFSeq(inputWorldKeys.map(_.of(transition.prev.get.result))) //i
           inputs <- ShortFSeq(inputWorldKeys.map(_.of(transition.result))) //i
@@ -464,16 +462,14 @@ object ShortFSeq {
           calcLog = profiler.handle(join, 0L, calcStart, Nil)
           countLog = profiler.handle(join, joinRes, calcLog)
           findChangesStart = profiler.time
-          indexDiffs <- ShortFSeq(composes.buildIndex(joinRes)) //o
+          indexDiffs = composes.buildIndex(joinRes)(transition.executionContext.values(5)) //o
           findChangesLog = profiler.handle(join, 1L, findChangesStart, countLog)
-          noUpdates <- getNoUpdates(findChangesLog)
+          noUpdates = getNoUpdates(findChangesLog)
           patchStart = profiler.time
-          diffsF = composes.zipMergeIndexA(noUpdates.diffs, indexDiffs)
-          resultsF = composes.zipMergeIndexA(noUpdates.results, indexDiffs)
-          diffs <- ShortFSeq(diffsF) //o
-          results <- ShortFSeq(resultsF) //o
+          diffsF = composes.zipMergeIndexA(noUpdates.diffs, indexDiffs)(transition.executionContext.values(6))
+          resultsF = composes.zipMergeIndexA(noUpdates.results, indexDiffs)(transition.executionContext.values(6))
           patchLog = profiler.handle(join, 2L, patchStart, findChangesLog)
-        } yield new IndexUpdates(diffs, results, patchLog)
+        } yield new IndexUpdates(diffsF, resultsF, patchLog)
       }
     } yield res
     updater.setPart(outputWorldKeys,next,logTask = true)(transition)
@@ -647,7 +643,7 @@ class FailedRule(val message: List[String]) extends WorldPartRule
   def transformAllOnce(transition: WorldTransition): WorldTransition =
     transformTail(transforms,transition)
   def transformUntilStable(left: Int, transition: WorldTransition): Future[WorldTransition] = {
-    implicit val executionContext: ExecutionContext = transition.executionContext.value
+    implicit val executionContext: ExecutionContext = transition.executionContext.values(2)
     for {
       stable <- readModelUtil.isEmpty(executionContext)(transition.diff) //seq
       res <- {
@@ -663,7 +659,7 @@ class FailedRule(val message: List[String]) extends WorldPartRule
     profiler: JoiningProfiling,
     executionContext: OuterExecutionContext
   ): Future[WorldTransition] = {
-    implicit val ec = executionContext.value
+    implicit val ec = executionContext.values(2)
     val prevTransition = new WorldTransition(None,emptyReadModel,prevWorld,profiler,Future.successful(Nil),executionContext,Nil)
     val currentWorld = readModelUtil.op(Merge[AssembledKey,Future[Index]](_=>false/*composes.isEmpty*/,(a,b)=>for {
       aR <- a

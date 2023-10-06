@@ -1,7 +1,6 @@
 package ee.cone.c4actor
 
-import java.util.concurrent.ExecutorService
-
+import java.util.concurrent.{Executor, ExecutorService}
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types._
@@ -10,7 +9,6 @@ import ee.cone.c4proto.ToByteString
 import scala.collection.immutable.Map
 import scala.concurrent.ExecutionContext
 import java.lang.Math.toIntExact
-
 import ee.cone.c4actor.QProtocol._
 import ee.cone.c4actor.Types._
 import ee.cone.c4di.c4
@@ -66,7 +64,16 @@ object EmptyInjected extends Injected
     val fixedThreadCount = if(confThreadCount>0) toIntExact(confThreadCount) else Runtime.getRuntime.availableProcessors
     val pool = execution.newExecutorService("ass-",Option(fixedThreadCount))
     logger.info(s"ForkJoinPool create $fixedThreadCount")
-    new OuterExecutionContextImpl(confThreadCount,fixedThreadCount,ExecutionContext.fromExecutor(pool),pool)
+
+
+    val contexts = (0 to 6).map{ i =>
+      if(i < 5 && i > 0) ExecutionContext.parasitic else ExecutionContext.fromExecutor((command: Runnable) => {
+        ParallelExecutionCount.add(i)
+        pool.execute(command)
+      })
+    }
+
+    new OuterExecutionContextImpl(confThreadCount,fixedThreadCount,contexts.head,contexts,pool)
   }
   def needExecutionContext(confThreadCount: Long): OuterExecutionContext=>OuterExecutionContext = {
     case ec: OuterExecutionContextImpl if ec.confThreadCount == confThreadCount =>
@@ -84,10 +91,12 @@ class OuterExecutionContextImpl(
   val confThreadCount: Long,
   val threadCount: Long,
   val value: ExecutionContext,
+  val values: Seq[ExecutionContext],
   val service: ExecutorService
 ) extends OuterExecutionContext
 object EmptyOuterExecutionContext extends OuterExecutionContext {
   def value: ExecutionContext = throw new Exception("no ExecutionContext")
+  def values: Seq[ExecutionContext] = throw new Exception("no ExecutionContext")
   def threadCount: Long =  throw new Exception("no ExecutionContext")
 }
 

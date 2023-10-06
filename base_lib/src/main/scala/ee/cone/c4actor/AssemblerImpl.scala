@@ -67,7 +67,7 @@ import scala.concurrent.duration.Duration
     val txName = Thread.currentThread.getName
     val isActiveOrig: Set[AssembledKey] = activeOrigKeyRegistry.values
     val outFactory = composes.createOutFactory(0, +1)
-    implicit val ec: ExecutionContext = executionContext.value
+    implicit val ec: ExecutionContext = executionContext.values(2)
     logger.debug("toTreeReplace indexGroups before")
     val indexGroups = for {
       tpPair <- updates.groupBy(_.valueTypeId)
@@ -122,7 +122,7 @@ class AssemblerProfiling extends LazyLogging {
   def id = s"T-${Thread.currentThread.getId}"
   def debugPeriod(stage: String, period: Long): Unit = {
     logger.debug(s"$id was $stage-joining for $period ms")
-    //logger.debug(s"mergeStat ${ParallelExecutionCount.report()}")
+    logger.info(s"execute $period ms ${ParallelExecutionCount.report()}")
   }
   def debugOffsets(stage: String, offsets: Seq[NextOffset]): Unit =
     logger.debug(s"$id $stage "+offsets.map(s => s"E-$s").distinct.mkString(","))
@@ -171,7 +171,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   ): ReadModel = {
     val profiling = assembleProfiler.createJoiningProfiling(None)
     val util = Single(utilOpt.value)
-    val res = util.toTreeReplace(wasAssembled, updates, profiling, executionContext).map(_.result)(executionContext.value)
+    val res = util.toTreeReplace(wasAssembled, updates, profiling, executionContext).map(_.result)(executionContext.values(2))
     util.waitFor(res, options, "read")
   }
   private def offset(events: Seq[RawEvent]): List[N_Update] = for{
@@ -234,7 +234,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     if (out.isEmpty) identity[Context]
     else doAdd(out,_)
   private def doAdd(out: Seq[N_Update], local: Context): Context = {
-      implicit val executionContext: ExecutionContext = local.executionContext.value
+      implicit val executionContext: ExecutionContext = local.executionContext.values(2)
       val options = getAssembleOptions.get(local.assembled)
       val processedOut: List[N_Update] = processors.flatMap(_.process(out)) ++ out
       val externalOut = updateProcessor.fold(processedOut)(_.process(processedOut, WriteModelKey.of(local).size).toList)

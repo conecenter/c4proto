@@ -17,7 +17,7 @@ trait IndexUtil {
   def keyIterator(index: Index): Iterator[Any]
   def mergeIndex(l: DPIterable[Index]): Index
   def zipMergeIndex(aDiffs: Seq[Index])(bDiffs: Seq[Index]): Seq[Index]
-  def zipMergeIndexA(aDiffs: Seq[Index], bDiffs: Seq[Index])(implicit ec: ExecutionContext): Seq[Future[Index]]
+  def zipMergeIndexA(aDiffs: Seq[Future[Index]], bDiffs: Seq[Future[Index]])(implicit ec: ExecutionContext): Seq[Future[Index]]
   def getValues(index: Index, key: Any, warning: String): Values[Product] //m
   def nonEmpty(index: Index, key: Any): Boolean //m
   def removingDiff(pos: Int, index: Index, keys: Iterable[Any]): Iterable[DOut]
@@ -62,6 +62,7 @@ trait OutFactory[K,V<:Product] {
 
 trait OuterExecutionContext {
   def value: ExecutionContext
+  def values: Seq[ExecutionContext]
   def threadCount: Long
 }
 
@@ -93,7 +94,7 @@ object Types {
 trait ReadModelUtil {
   type MMap = DMap[AssembledKey, Future[Index]]
   def create(inner: MMap): ReadModel
-  def updated(worldKeys: Seq[AssembledKey], values: Future[Seq[Index]])(implicit ec: ExecutionContext): ReadModel=>ReadModel
+  def updated(worldKeys: Seq[AssembledKey], values: Future[IndexUpdates], get: IndexUpdates=>Seq[Future[Index]])(ec: ExecutionContext): ReadModel=>ReadModel
   def isEmpty(implicit executionContext: ExecutionContext): ReadModel=>Future[Boolean]
   def op(op: (MMap,MMap)=>MMap): (ReadModel,ReadModel)=>ReadModel
   def changesReady(prev: ReadModel, next: ReadModel)(implicit executionContext: ExecutionContext): Future[Any]
