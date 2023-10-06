@@ -17,7 +17,7 @@ trait IndexUtil {
   def keyIterator(index: Index): Iterator[Any]
   def mergeIndex(l: DPIterable[Index]): Index
   def zipMergeIndex(aDiffs: Seq[Index])(bDiffs: Seq[Index]): Seq[Index]
-  def zipMergeIndexA(aDiffs: Seq[Future[Index]], bDiffs: Seq[Future[Index]])(implicit ec: ExecutionContext): Seq[Future[Index]]
+  def zipMergeIndexA(aDiffs: Seq[Index], bDiffs: Seq[Index])(implicit ec: ExecutionContext): Seq[Future[Index]]
   def getValues(index: Index, key: Any, warning: String): Values[Product] //m
   def nonEmpty(index: Index, key: Any): Boolean //m
   def removingDiff(pos: Int, index: Index, keys: Iterable[Any]): Iterable[DOut]
@@ -26,10 +26,10 @@ trait IndexUtil {
   //
   def aggregate(values: Iterable[DOut]): AggrDOut
   def buildIndex(data: Seq[AggrDOut])(implicit ec: ExecutionContext): Seq[Future[Index]]
-  def keyIteration(seq: Seq[Index]): KeyIteration
+  def keyIteration(seq: Seq[Index])(implicit ec: ExecutionContext): KeyIteration
   def countResults(data: Seq[AggrDOut]): ProfilingCounts
   //
-  def getInstantly(future: Future[Index]): Index
+  def getInstantly(future: Index): Index
   //
   def createOutFactory(pos: Int, dir: Int): OutFactory[Any,Product]
   //
@@ -52,7 +52,7 @@ trait KeyIterationHandler {
   def handle(id: Any, buffer: MutableDOutBuffer): Unit
 }
 trait KeyIteration {
-  def execute(inner: KeyIterationHandler)(implicit ec: ExecutionContext): Future[Seq[AggrDOut]]
+  def execute(inner: KeyIterationHandler)(implicit ec: ExecutionContext): Seq[Future[AggrDOut]]
 }
 
 trait OutFactory[K,V<:Product] {
@@ -62,7 +62,6 @@ trait OutFactory[K,V<:Product] {
 
 trait OuterExecutionContext {
   def value: ExecutionContext
-  def values: Seq[ExecutionContext]
   def threadCount: Long
 }
 
@@ -92,17 +91,16 @@ object Types {
 }
 
 trait ReadModelUtil {
-  type MMap = DMap[AssembledKey, Future[Index]]
+  type MMap = DMap[AssembledKey, Index]
   def create(inner: MMap): ReadModel
-  def updated(worldKeys: Seq[AssembledKey], values: Future[IndexUpdates], get: IndexUpdates=>Seq[Future[Index]])(ec: ExecutionContext): ReadModel=>ReadModel
-  def isEmpty(implicit executionContext: ExecutionContext): ReadModel=>Future[Boolean]
+  def updated(worldKeys: Seq[AssembledKey], values: Seq[Index]): ReadModel=>ReadModel
+  def isEmpty: ReadModel=>Boolean
   def op(op: (MMap,MMap)=>MMap): (ReadModel,ReadModel)=>ReadModel
-  def changesReady(prev: ReadModel, next: ReadModel)(implicit executionContext: ExecutionContext): Future[Any]
   def toMap: ReadModel=>Map[AssembledKey,Index]
 }
 
 trait ReadModel {
-  def getFuture(key: AssembledKey): Option[Future[Index]]
+  def getIndex(key: AssembledKey): Option[Index]
 }
 
 trait Getter[C,+I] {
@@ -110,11 +108,10 @@ trait Getter[C,+I] {
 }
 
 object OrEmptyIndex {
-  def apply(opt: Option[Future[Index]]): Future[Index] =
-    opt.getOrElse(Future.successful(emptyIndex))
+  def apply(opt: Option[Index]): Index = opt.getOrElse(emptyIndex)
 }
 abstract class AssembledKey extends Product {
-  def of(model: ReadModel): Future[Index] = OrEmptyIndex(model.getFuture(this))
+  def of(model: ReadModel): Index = OrEmptyIndex(model.getIndex(this))
 }
 trait WorldPartExpression extends WorldPartRule {
   def transform(transition: WorldTransition): WorldTransition
@@ -125,7 +122,7 @@ class WorldTransition(
   val diff: ReadModel,
   val result: ReadModel,
   val profiling: JoiningProfiling,
-  val log: Future[ProfilingLog],
+  val log: ProfilingLog,
   val executionContext: OuterExecutionContext,
   val taskLog: List[AssembledKey]
 )
@@ -171,7 +168,7 @@ abstract class Join(
   def joins(diffIndexRawSeq: DiffIndexRawSeq, executionContext: OuterExecutionContext): TransJoin
 }
 trait TransJoin {
-  def dirJoin(dir: Int, indexRawSeq: Seq[Index]): Future[Seq[AggrDOut]]
+  def dirJoin(dir: Int, indexRawSeq: Seq[Index]): Seq[Future[AggrDOut]]
 }
 
 

@@ -29,7 +29,7 @@ trait Replace {
   def replace(
     prevWorld: ReadModel, diff: ReadModel, profiler: JoiningProfiling,
     executionContext: OuterExecutionContext
-  ): Future[WorldTransition]
+  ): WorldTransition
 }
 
 trait TreeAssembler {
@@ -43,10 +43,10 @@ trait ByPriority {
 ////
 // moment -> mod/index -> key/srcId -> value -> count
 
-class IndexUpdates(val diffs: Seq[Future[Index]], val results: Seq[Future[Index]], val log: ProfilingLog)
+class IndexUpdates(val diffs: Seq[Index], val results: Seq[Index], val log: ProfilingLog)
 
 trait IndexUpdater {
-  def setPart(worldKeys: Seq[AssembledKey], update: Future[IndexUpdates], logTask: Boolean): WorldTransition=>WorldTransition
+  def setPart(worldKeys: Seq[AssembledKey], update: IndexUpdates, logTask: Boolean): WorldTransition=>WorldTransition
   //def setPart(worldKey: AssembledKey, update: Future[IndexUpdate], logTask: Boolean): WorldTransition=>WorldTransition
 }
 

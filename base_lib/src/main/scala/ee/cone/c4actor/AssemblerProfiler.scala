@@ -22,8 +22,8 @@ import scala.concurrent.{ExecutionContext, Future}
 case object NoAssembleProfiler extends AssembleProfiler {
   def createJoiningProfiling(localOpt: Option[Context]): JoiningProfiling =
     NoJoiningProfiling
-  def addMeta(transition: WorldTransition, updates: Seq[N_Update]): Future[Seq[N_Update]] =
-    Future.successful(updates)
+  def addMeta(transition: WorldTransition, updates: Seq[N_Update]): Seq[N_Update] =
+    updates
 }
 
 case object NoJoiningProfiling extends JoiningProfiling {
@@ -55,27 +55,22 @@ case object NoJoiningProfiling extends JoiningProfiling {
   def createJoiningProfiling(localOpt: Option[Context]) =
     if(localOpt.isEmpty) SimpleConsoleSerialJoiningProfiling
     else SimpleSerialJoiningProfiling(System.nanoTime)
-  def addMeta(transition: WorldTransition, updates: Seq[N_Update]): Future[Seq[N_Update]] = transition.profiling match {
+  def addMeta(transition: WorldTransition, updates: Seq[N_Update]): Seq[N_Update] = transition.profiling match {
     case SimpleSerialJoiningProfiling(startedAt) =>
-    implicit val executionContext: ExecutionContext = transition.executionContext.values(3)
     //val meta = transition.profiling.result.toList.flatMap(LEvent.update).map(toUpdate.toUpdate)
     val finishedAt = System.nanoTime
     val size = updates.map(_.value.size).sum
     val types = updates.map(_.valueTypeId).distinct.toList
     val id = idGenUtil.srcIdFromStrings(UUID.randomUUID.toString)
-    for {
-      logAll <- transition.log
-    } yield {
-      val log = logAll.collect{ case l: D_LogEntry => l }
-      val meta = List(
+    val log = transition.log.collect{ case l: D_LogEntry => l }
+    val meta = List(
         N_TxRef(id,""),
         D_TxAddMeta(id,startedAt,finishedAt,log,updates.size,size,types)
-      )
-      val metaUpdates = meta.flatMap(LEvent.update).map(toUpdate.toUpdate)
-      val metaTypeIds = metaUpdates.map(_.valueTypeId).toSet
-      if(updates.map(_.valueTypeId).forall(metaTypeIds)) updates
-      else metaUpdates ++ updates
-    }
+    )
+    val metaUpdates = meta.flatMap(LEvent.update).map(toUpdate.toUpdate)
+    val metaTypeIds = metaUpdates.map(_.valueTypeId).toSet
+    if(updates.map(_.valueTypeId).forall(metaTypeIds)) updates
+    else metaUpdates ++ updates
   }
 }
 

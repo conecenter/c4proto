@@ -476,6 +476,8 @@ final class RIndexUtilDebug(inner: RIndexUtil) extends RIndexUtil {
     wrap("get",inner.get(index,key))
   def nonEmpty(index: RIndex, key: RIndexKey): Boolean =
     wrap("nonEmpty",inner.nonEmpty(index,key))
+  def isEmpty(index: RIndex): Boolean =
+    wrap("isEmpty",inner.isEmpty(index))
   def merge(indexes: Seq[RIndex], valueOperations: RIndexValueOperations): RIndex =
     wrap("merge",inner.merge(indexes,valueOperations))
   def split(index: RIndex, count: Int): Seq[RIndex] =

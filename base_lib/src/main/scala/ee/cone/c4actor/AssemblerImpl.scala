@@ -62,66 +62,53 @@ import scala.concurrent.duration.Duration
 ) extends LazyLogging {
   def buildIndex(changes: Iterable[DOut])(implicit ec: ExecutionContext): Future[Index] =
     Single(composes.buildIndex(Seq(composes.aggregate(changes))))
-  def toTreeReplace(assembled: ReadModel, updates: Seq[N_Update], profiling: JoiningProfiling, executionContext: OuterExecutionContext): Future[WorldTransition] = {
-    val start = System.nanoTime
+  def toTreeReplace(assembled: ReadModel, updates: Seq[N_Update], profiling: JoiningProfiling, executionContext: OuterExecutionContext): WorldTransition = {
+    val end = NanoTimer()
     val txName = Thread.currentThread.getName
     val isActiveOrig: Set[AssembledKey] = activeOrigKeyRegistry.values
     val outFactory = composes.createOutFactory(0, +1)
-    implicit val ec: ExecutionContext = executionContext.values(2)
+    val ec: ExecutionContext = executionContext.value
     logger.debug("toTreeReplace indexGroups before")
-    val indexGroups = for {
-      tpPair <- updates.groupBy(_.valueTypeId)
+    val indexGroupsF = for {
+      tpPair <- updates.groupBy(_.valueTypeId).toSeq
       (valueTypeId, tpUpdates) = tpPair : (Long,Seq[N_Update])
-      valueAdapter <- qAdapterRegistry.byId.get(valueTypeId)
-      wKey <- Option(origKeyFactory.value.rawKey(valueAdapter.className)) if isActiveOrig(wKey)
-    } yield {
-      val updatesBySrcId = tpUpdates.groupBy(_.srcId)
-      val adds: Iterable[DOut] = for {
+      valueAdapter <- qAdapterRegistry.byId.get(valueTypeId).toSeq
+      wKey <- Seq(origKeyFactory.value.rawKey(valueAdapter.className)) if isActiveOrig(wKey)
+      updatesBySrcId = tpUpdates.groupBy(_.srcId)
+      adds: Iterable[DOut] = for {
         iPair <- updatesBySrcId
         (srcId, iUpdates) = iPair
         rawValue = iUpdates.last.value if rawValue.size > 0
-      } yield outFactory.result(srcId,valueAdapter.decode(rawValue))
-      val partitionerList = origPartitionerRegistry.getByAdapter(valueAdapter)
-      for {
-        wasIndex <- wKey.of(assembled)
-        removes = composes.removingDiff(0, wasIndex, updatesBySrcId.keys)
-        changes = adds ++ removes
-        partitionedIndexFList = for{
-          partitioner <- partitionerList
-          (nsName,nsChanges) <- changes.groupBy(change=>partitioner.handle(composes.getValue(change)))
-        } yield composes.addNS(wKey,nsName) -> buildIndex(nsChanges)
-      } yield (wKey->buildIndex(changes)) :: partitionedIndexFList
-    }
+      } yield outFactory.result(srcId, valueAdapter.decode(rawValue))
+      partitionerList = origPartitionerRegistry.getByAdapter(valueAdapter)
+      wasIndex = wKey.of(assembled)
+      removes = composes.removingDiff(0, wasIndex, updatesBySrcId.keys)
+      changes = adds ++ removes
+      partitionedIndexFList = for {
+        partitioner <- partitionerList
+        (nsName, nsChanges) <- changes.groupBy(change => partitioner.handle(composes.getValue(change)))
+      } yield composes.addNS(wKey, nsName) -> buildIndex(nsChanges)(ec)
+      kv <- (wKey->buildIndex(changes)(ec)) :: partitionedIndexFList
+    } yield kv
+    val indexGroups = CheckedMap(indexGroupsF.map{ case (k,v) => k -> Await.result(v, Duration.Inf) })
     logger.debug("toTreeReplace indexGroups after")
-    for {
-      indexes <- Future.sequence(indexGroups)
-      diff = readModelUtil.create(CheckedMap(indexes.toSeq.flatten))
-      transition <- replace.replace(assembled,diff,profiling,executionContext)
-    } yield {
-      if(logger.underlying.isDebugEnabled){
-        val period = (System.nanoTime-start)/1000000
-        val ids = updates.map(_.valueTypeId).distinct.map(v=>s"0x${java.lang.Long.toHexString(v)}").mkString(" ")
-        logger.debug(s"checked: ${transition.taskLog.size} rules $period ms by $txName ($ids)")
-      }
-      transition
-    }
-  }
-
-  def waitFor[T](res: Future[T], options: AssembleOptions, stage: String): T = concurrent.blocking{
-    val end = NanoTimer()
-    val result = Await.result(res, Duration.Inf)
+    val diff = readModelUtil.create(indexGroups)
+    val transition = replace.replace(assembled,diff,profiling,executionContext)
     val period = end.ms
-    if(period > warnPeriod.value) logger.warn(s"${options.toString} long join $period ms on $stage")
-    (new AssemblerProfiling).debugPeriod(stage, period)
-    result
+    if(logger.underlying.isDebugEnabled){
+      val ids = updates.map(_.valueTypeId).distinct.map(v=>s"0x${java.lang.Long.toHexString(v)}").mkString(" ")
+      logger.debug(s"checked: ${transition.taskLog.size} rules by $txName ($ids)")
+    }
+    if (period > warnPeriod.value) logger.warn(s"long join $period ms")
+    (new AssemblerProfiling).debugPeriod(period)
+    transition
   }
-
 }
 
 class AssemblerProfiling extends LazyLogging {
   def id = s"T-${Thread.currentThread.getId}"
-  def debugPeriod(stage: String, period: Long): Unit = {
-    logger.debug(s"$id was $stage-joining for $period ms")
+  def debugPeriod(period: Long): Unit = {
+    logger.debug(s"$id was joining for $period ms")
     logger.info(s"execute $period ms ${ParallelExecutionCount.report()}")
   }
   def debugOffsets(stage: String, offsets: Seq[NextOffset]): Unit =
@@ -149,7 +136,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   assembleOptionsInnerKey: String = ToPrimaryKey(defaultAssembleOptions)
 ) extends GetAssembleOptions {
   def get(assembled: ReadModel): AssembleOptions = {
-    val index = composes.getInstantly(assembleOptionsOuterKey.of(assembled))
+    val index = assembleOptionsOuterKey.of(assembled)
     composes.getValues(index,assembleOptionsInnerKey,"").collectFirst{
       case o: AssembleOptions => o
     }.getOrElse(defaultAssembleOptions)
@@ -162,36 +149,32 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   assembleProfiler: AssembleProfiler,
   actorName: ActorName,
   catchNonFatal: CatchNonFatal,
-  getAssembleOptions: GetAssembleOptions,
 ) extends ReadModelAdd with LazyLogging {
   // read model part:
   private def reduce(
     wasAssembled: ReadModel, updates: Seq[N_Update],
-    options: AssembleOptions, executionContext: OuterExecutionContext
+    executionContext: OuterExecutionContext
   ): ReadModel = {
     val profiling = assembleProfiler.createJoiningProfiling(None)
     val util = Single(utilOpt.value)
-    val res = util.toTreeReplace(wasAssembled, updates, profiling, executionContext).map(_.result)(executionContext.values(2))
-    util.waitFor(res, options, "read")
+    util.toTreeReplace(wasAssembled, updates, profiling, executionContext).result
   }
   private def offset(events: Seq[RawEvent]): List[N_Update] = for{
     ev <- events.lastOption.toList
     lEvent <- LEvent.update(S_Offset(actorName.value,ev.srcId))
   } yield toUpdate.toUpdate(lEvent)
   def add(executionContext: OuterExecutionContext, events: Seq[RawEvent]): ReadModel=>ReadModel = assembled => catchNonFatal {
-    val options = getAssembleOptions.get(assembled)
     logger.debug("starting toUpdate")
     val updates: List[N_Update] = offset(events) ::: toUpdate.toUpdates(events.toList,"rma").map(toUpdate.toUpdateLost)
     logger.debug("done toUpdate")
     (new AssemblerProfiling).debugOffsets("starts-reducing", events.map(_.srcId))
-    reduce(assembled, updates, options, executionContext)
+    reduce(assembled, updates, executionContext)
   }("reduce"){ e => // ??? exception to record
     if(events.size == 1){
-      val options = getAssembleOptions.get(assembled)
       val updates = offset(events) ++
         events.map(ev=>S_FailedUpdates(ev.srcId, e.getMessage))
           .flatMap(LEvent.update).map(toUpdate.toUpdate)
-      reduce(assembled, updates, options, executionContext)
+      reduce(assembled, updates, executionContext)
     } else {
       val(a,b) = events.splitAt(events.size / 2)
       Function.chain(Seq(add(executionContext,a), add(executionContext,b)))(assembled)
@@ -209,7 +192,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     updateMapUtil.toUpdatesFrom(updates.toList, u => {
       val valueAdapter = qAdapterRegistry.byId(u.valueTypeId)
       val wKey = origKeyFactory.value.rawKey(valueAdapter.className)
-      val index = indexUtil.getInstantly(wKey.of(local.assembled))
+      val index = wKey.of(local.assembled)
       Single.option(indexUtil.getValues(index,u.srcId,""))
         .fold(ByteString.EMPTY)(item=>ToByteString(valueAdapter.encode(item)))
     })
@@ -234,21 +217,15 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     if (out.isEmpty) identity[Context]
     else doAdd(out,_)
   private def doAdd(out: Seq[N_Update], local: Context): Context = {
-      implicit val executionContext: ExecutionContext = local.executionContext.values(2)
-      val options = getAssembleOptions.get(local.assembled)
-      val processedOut: List[N_Update] = processors.flatMap(_.process(out)) ++ out
-      val externalOut = updateProcessor.fold(processedOut)(_.process(processedOut, WriteModelKey.of(local).size).toList)
-      val profiling = assembleProfiler.createJoiningProfiling(Option(local))
-      val util = Single(utilOpt.value)
-      val res = for {
-        transition <- util.toTreeReplace(local.assembled, externalOut, profiling, local.executionContext)
-        updates <- assembleProfiler.addMeta(transition, externalOut)
-      } yield {
-        val nLocal = new Context(local.injected, transition.result, local.executionContext, local.transient)
-        WriteModelKey.modify(_.enqueueAll(updateFromUtil.get(local,updates)))(nLocal)
-      }
-      util.waitFor(res, options, "add")
-      //call add here for new mortal?
+    val processedOut: List[N_Update] = processors.flatMap(_.process(out)) ++ out
+    val externalOut = updateProcessor.fold(processedOut)(_.process(processedOut, WriteModelKey.of(local).size).toList)
+    val profiling = assembleProfiler.createJoiningProfiling(Option(local))
+    val util = Single(utilOpt.value)
+    val transition = util.toTreeReplace(local.assembled, externalOut, profiling, local.executionContext)
+    val updates = assembleProfiler.addMeta(transition, externalOut)
+    val nLocal = new Context(local.injected, transition.result, local.executionContext, local.transient)
+    WriteModelKey.modify(_.enqueueAll(updateFromUtil.get(local,updates)))(nLocal)
+    //call add here for new mortal?
   }
 }
 
@@ -317,7 +294,7 @@ case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K
 
 @c4("RichDataCompApp") final class DynamicByPKImpl(indexUtil: IndexUtil) extends DynamicByPK {
   def get(joinKey: AssembledKey, context: AssembledContext): Map[SrcId,Product] = {
-    val index: Index = indexUtil.getInstantly(joinKey.of(context.assembled))
+    val index: Index = joinKey.of(context.assembled)
     UniqueIndexMap(index)(indexUtil)
   }
 }

@@ -242,7 +242,7 @@ class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends
            |      ${if(keyEqParams.isEmpty)"" else s"""if(${keyEqParams.map(p=>s"${p.name}_isAllChanged").mkString(" || ")}) None else """}
            |      Option(iUtil.keyIteration(Seq(${keyIdParams.map(p=>s"${p.name}_diffIndex").mkString(",")})))
            |    ${params.map(p => if(p.distinct) s"""val ${p.name}_warn = "";""" else s"""val ${p.name}_warn = "${defName} ${p.name} "+${p.indexKeyName}(indexFactory).valueClassName;""").mkString}
-           |    def dirJoin(dir: Int, indexRawSeq: Seq[Index]): Future[Seq[AggrDOut]] =
+           |    def dirJoin(dir: Int, indexRawSeq: Seq[Index]): Seq[Future[AggrDOut]] =
            |      new ${defName}_DirJoin(this,dir,indexRawSeq).execute()
            |  }
            |  private final class ${defName}_DirJoin(transJoin: ${defName}_TransJoin, dir: Int, indexRawSeq: Seq[Index]) extends KeyIterationHandler {
@@ -252,7 +252,7 @@ class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends
            |    val Seq(${params.map(p=>s"${p.name}_index").mkString(",")}) = indexRawSeq
            |    $keyEqParts
            |    val invalidateKeySet = invalidateKeySetOpt.getOrElse(iUtil.keyIteration(Seq(${keyIdParams.map(p=>s"${p.name}_index").mkString(",")})))
-           |    def execute(): Future[Seq[AggrDOut]] = invalidateKeySet.execute(this)
+           |    def execute(): Seq[Future[AggrDOut]] = invalidateKeySet.execute(this)
            |    def outCount: Int = ${outKeyNames.size}
            |    def handle(id: Any, buffer: MutableDOutBuffer) = new ${defName}_KeyJoin(transJoin,this,id,buffer).execute()
            |  }

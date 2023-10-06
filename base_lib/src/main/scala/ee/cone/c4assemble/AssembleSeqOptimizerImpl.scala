@@ -23,33 +23,29 @@ import scala.concurrent.{ExecutionContext, Future}
     left: Int,
     transition: WorldTransition,
     wasSumDiffs: Option[Seq[Index]], //do not inclide transition.diff-s
-  ): Future[(IndexUpdates,IndexUpdates)] = {
-    implicit val executionContext: ExecutionContext = transition.executionContext.values(3)
-    for {
-      diffParts <- ShortFSeq(outputWorldKeys.map(_.of(transition.diff)))
-      sumDiffs = wasSumDiffs.fold(diffParts)(composes.zipMergeIndex(diffParts))
-      res <- if(composes.isEmpty(diffParts(loopOutputIndex))){
-        val results = outputWorldKeys.map(_.of(transition.result))
-        Future.successful((
-          new IndexUpdates(sumDiffs.map(Future.successful), results, Nil),
-          new IndexUpdates(Seq(Future.successful(emptyIndex)),Seq(results(loopOutputIndex)),Nil)
-        ))
-      } else {
-        assert(left > 0, s"unstable local assemble $diffParts")
-        inner(left - 1, main.transform(continueF(transition)), Option(sumDiffs))
-      }
-    } yield res
+  ): (IndexUpdates,IndexUpdates) = {
+    val diffParts = outputWorldKeys.map(_.of(transition.diff))
+    val sumDiffs = wasSumDiffs.fold(diffParts)(composes.zipMergeIndex(diffParts))
+    if(composes.isEmpty(diffParts(loopOutputIndex))){
+      val results = outputWorldKeys.map(_.of(transition.result))
+      (
+        new IndexUpdates(sumDiffs, results, Nil),
+        new IndexUpdates(Seq(emptyIndex),Seq(results(loopOutputIndex)),Nil)
+      )
+    } else {
+      assert(left > 0, s"unstable local assemble $diffParts")
+      inner(left - 1, main.transform(continueF(transition)), Option(sumDiffs))
+    }
   }
   def transform(transition: WorldTransition): WorldTransition = {
     val transitionA = main.transform(transition)
     if(transition eq transitionA) transition
     else finishTransform(transition, inner(1000, transitionA, None))
   }
-  def finishTransform(transition: WorldTransition, next: Future[(IndexUpdates,IndexUpdates)]): WorldTransition = {
-    implicit val executionContext: ExecutionContext = transition.executionContext.values(3)
+  private def finishTransform(transition: WorldTransition, next: (IndexUpdates,IndexUpdates)): WorldTransition = {
     Function.chain(Seq(
-      updater.setPart(outputWorldKeys,next.map(_._1),logTask = true),
-      updater.setPart(Seq(wasOutputWorldKey),next.map(_._2),logTask = false)
+      updater.setPart(outputWorldKeys,next._1,logTask = true),
+      updater.setPart(Seq(wasOutputWorldKey),next._2,logTask = false)
     ))(transition)
   }
 }

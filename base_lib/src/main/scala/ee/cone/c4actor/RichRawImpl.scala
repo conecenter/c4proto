@@ -64,16 +64,14 @@ object EmptyInjected extends Injected
     val fixedThreadCount = if(confThreadCount>0) toIntExact(confThreadCount) else Runtime.getRuntime.availableProcessors
     val pool = execution.newExecutorService("ass-",Option(fixedThreadCount))
     logger.info(s"ForkJoinPool create $fixedThreadCount")
-
-
-    val contexts = (0 to 6).map{ i =>
-      if(i < 5 && i > 0) ExecutionContext.parasitic else ExecutionContext.fromExecutor((command: Runnable) => {
-        ParallelExecutionCount.add(i)
-        pool.execute(command)
-      })
-    }
-
-    new OuterExecutionContextImpl(confThreadCount,fixedThreadCount,contexts.head,contexts,pool)
+//    val contexts = (0 to 6).map{ i =>
+//      if(i < 5 && i > 0) ExecutionContext.parasitic else ExecutionContext.fromExecutor((command: Runnable) => {
+//        ParallelExecutionCount.add(i)
+//        pool.execute(command)
+//      })
+//    }
+    val context = ExecutionContext.fromExecutor(pool)
+    new OuterExecutionContextImpl(confThreadCount,fixedThreadCount,context,pool)
   }
   def needExecutionContext(confThreadCount: Long): OuterExecutionContext=>OuterExecutionContext = {
     case ec: OuterExecutionContextImpl if ec.confThreadCount == confThreadCount =>
@@ -91,12 +89,10 @@ class OuterExecutionContextImpl(
   val confThreadCount: Long,
   val threadCount: Long,
   val value: ExecutionContext,
-  val values: Seq[ExecutionContext],
   val service: ExecutorService
 ) extends OuterExecutionContext
 object EmptyOuterExecutionContext extends OuterExecutionContext {
   def value: ExecutionContext = throw new Exception("no ExecutionContext")
-  def values: Seq[ExecutionContext] = throw new Exception("no ExecutionContext")
   def threadCount: Long =  throw new Exception("no ExecutionContext")
 }
 

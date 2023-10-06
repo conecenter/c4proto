@@ -25,12 +25,11 @@ object PrepareBackStage extends WorldPartExpression {
   composes: IndexUtil
 ) extends WorldPartExpression {
   def transform(transition: WorldTransition): WorldTransition = {
-    implicit val executionContext: ExecutionContext = transition.executionContext.values(3)
     val next = new IndexUpdates(nextKeys.map(_.of(transition.prev.get.diff)),nextKeys.map(_.of(transition.result)),Nil)
     //println(s"AAA: $nextKey $diffPart")
     //println(s"BBB: $transition")
     //if(composes.isEmpty(diffPart)) transition else
-    updater.setPart(outputWorldKeys, Future.successful(next),logTask = true)(transition)
+    updater.setPart(outputWorldKeys, next,logTask = true)(transition)
   }
 }
 

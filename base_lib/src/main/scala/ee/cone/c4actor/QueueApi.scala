@@ -311,7 +311,7 @@ object LazyDict {
 
 trait AssembleProfiler {
   def createJoiningProfiling(localOpt: Option[Context]): JoiningProfiling
-  def addMeta(transition: WorldTransition, updates: Seq[N_Update]): Future[Seq[N_Update]]
+  def addMeta(transition: WorldTransition, updates: Seq[N_Update]): Seq[N_Update]
 }
 
 case object DebugStateKey extends TransientLens[Option[(RichContext,RawEvent)]](None)
