@@ -8,5 +8,5 @@ package object c4assemble {
   class c4multiAssemble(apps: String*) extends StaticAnnotation
   class fieldAccess extends StaticAnnotation
   class ignore extends StaticAnnotation
-  type MakeJoinKey = IndexFactory=>JoinKey
+  type MakeJoinKey = IndexUtil=>JoinKey
 }

@@ -48,9 +48,7 @@ trait ToInjectApp extends ComponentsApp {
   def toInject: List[ToInject] = Nil
 }
 
-trait PreHashingApp {
-  def preHashing: PreHashing
-}
+@deprecated trait PreHashingApp
 
 trait ServerApp extends ServerCompApp with RichDataApp with DeadlockDetectApp { //e-only
   lazy val snapshotLoader: SnapshotLoader = resolveSingle(classOf[SnapshotLoader])
@@ -86,18 +84,11 @@ trait RichDataAppBase extends RichDataCompApp
   with ComponentProviderApp
   with AssemblesApp
 {
-  lazy val byPriority: ByPriority = resolveSingle(classOf[ByPriority])
   lazy val qAdapterRegistry: QAdapterRegistry = resolveSingle(classOf[QAdapterRegistry])
   lazy val toUpdate: ToUpdate = resolveSingle(classOf[ToUpdate])
-  lazy val preHashing: PreHashing = resolveSingle(classOf[PreHashing])
   lazy val richRawWorldReducer: RichRawWorldReducer = resolveSingle(classOf[RichRawWorldReducer])
-  lazy val indexUtil: IndexUtil = resolveSingle(classOf[IndexUtil])
   lazy val idGenUtil: IdGenUtil = resolveSingle(classOf[IdGenUtil])
   lazy val modelFactory: ModelFactory = resolveSingle(classOf[ModelFactory])
-  lazy val readModelUtil: ReadModelUtil = resolveSingle(classOf[ReadModelUtil])
-  lazy val indexUpdater: IndexUpdater = resolveSingle(classOf[IndexUpdater])
-  lazy val backStageFactory: BackStageFactory = resolveSingle(classOf[BackStageFactory])
-  lazy val hashSearchFactory: HashSearch.Factory = resolveSingle(classOf[HashSearchFactoryHolder]).value
   lazy val modelConditionFactory: ModelConditionFactory[Unit] = resolveSingle(classOf[ModelConditionFactoryHolder]).value
 
   @deprecated def parallelAssembleOn: Boolean = false

@@ -62,7 +62,7 @@ import scala.concurrent.duration.Duration
 ) extends LazyLogging {
   def buildIndex(changes: Iterable[DOut])(implicit ec: ExecutionContext): Future[Index] =
     Single(composes.buildIndex(Seq(composes.aggregate(changes))))
-  def toTreeReplace(assembled: ReadModel, updates: Seq[N_Update], profiling: JoiningProfiling, executionContext: OuterExecutionContext): WorldTransition = {
+  def toTreeReplace(assembled: ReadModel, updates: Seq[N_Update], profiling: JoiningProfiling, executionContext: OuterExecutionContext): ReadModel = {
     val end = NanoTimer()
     val txName = Thread.currentThread.getName
     val isActiveOrig: Set[AssembledKey] = activeOrigKeyRegistry.values
@@ -90,18 +90,18 @@ import scala.concurrent.duration.Duration
       } yield composes.addNS(wKey, nsName) -> buildIndex(nsChanges)(ec)
       kv <- (wKey->buildIndex(changes)(ec)) :: partitionedIndexFList
     } yield kv
-    val indexGroups = CheckedMap(indexGroupsF.map{ case (k,v) => k -> Await.result(v, Duration.Inf) })
+    val diff = indexGroupsF.map{ case (k,v) => k -> Await.result(v, Duration.Inf) }
+    assert(diff.map(_._1).distinct.size == diff.size)
     logger.debug("toTreeReplace indexGroups after")
-    val diff = readModelUtil.create(indexGroups)
-    val transition = replace.replace(assembled,diff,profiling,executionContext)
+    val willAssembled = replace.replace(assembled,diff,profiling,executionContext)
     val period = end.ms
-    if(logger.underlying.isDebugEnabled){
-      val ids = updates.map(_.valueTypeId).distinct.map(v=>s"0x${java.lang.Long.toHexString(v)}").mkString(" ")
-      logger.debug(s"checked: ${transition.taskLog.size} rules by $txName ($ids)")
-    }
-    if (period > warnPeriod.value) logger.warn(s"long join $period ms")
+//    if(logger.underlying.isDebugEnabled){
+//      val ids = updates.map(_.valueTypeId).distinct.map(v=>s"0x${java.lang.Long.toHexString(v)}").mkString(" ")
+//      logger.debug(s"checked: ${transition.taskLog.size} rules by $txName ($ids)")
+//    }
+    if (period > warnPeriod.value) logger.warn(s"long join $period ms by $txName")
     (new AssemblerProfiling).debugPeriod(period)
-    transition
+    willAssembled
   }
 }
 
@@ -110,6 +110,7 @@ class AssemblerProfiling extends LazyLogging {
   def debugPeriod(period: Long): Unit = {
     logger.debug(s"$id was joining for $period ms")
     logger.info(s"execute $period ms ${ParallelExecutionCount.report()}")
+    ParallelExecutionCount.reset()
   }
   def debugOffsets(stage: String, offsets: Seq[NextOffset]): Unit =
     logger.debug(s"$id $stage "+offsets.map(s => s"E-$s").distinct.mkString(","))
@@ -157,7 +158,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   ): ReadModel = {
     val profiling = assembleProfiler.createJoiningProfiling(None)
     val util = Single(utilOpt.value)
-    util.toTreeReplace(wasAssembled, updates, profiling, executionContext).result
+    util.toTreeReplace(wasAssembled, updates, profiling, executionContext)
   }
   private def offset(events: Seq[RawEvent]): List[N_Update] = for{
     ev <- events.lastOption.toList
@@ -221,9 +222,9 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     val externalOut = updateProcessor.fold(processedOut)(_.process(processedOut, WriteModelKey.of(local).size).toList)
     val profiling = assembleProfiler.createJoiningProfiling(Option(local))
     val util = Single(utilOpt.value)
-    val transition = util.toTreeReplace(local.assembled, externalOut, profiling, local.executionContext)
-    val updates = assembleProfiler.addMeta(transition, externalOut)
-    val nLocal = new Context(local.injected, transition.result, local.executionContext, local.transient)
+    val result = util.toTreeReplace(local.assembled, externalOut, profiling, local.executionContext)
+    val updates = assembleProfiler.addMeta(new WorldTransition(profiling), externalOut)
+    val nLocal = new Context(local.injected, result, local.executionContext, local.transient)
     WriteModelKey.modify(_.enqueueAll(updateFromUtil.get(local,updates)))(nLocal)
     //call add here for new mortal?
   }

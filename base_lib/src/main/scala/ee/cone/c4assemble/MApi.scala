@@ -4,7 +4,7 @@ package ee.cone.c4assemble
 import Types._
 
 import scala.annotation.StaticAnnotation
-import scala.collection.immutable.Seq
+import scala.collection.immutable.{Seq, TreeSet}
 import scala.concurrent.{ExecutionContext, Future}
 
 case class AssembleOptions(srcId: String, @deprecated isParallel: Boolean, threadCount: Long)
@@ -17,7 +17,7 @@ trait IndexUtil {
   def keyIterator(index: Index): Iterator[Any]
   def mergeIndex(l: DPIterable[Index]): Index
   def zipMergeIndex(aDiffs: Seq[Index])(bDiffs: Seq[Index]): Seq[Index]
-  def zipMergeIndexA(aDiffs: Seq[Index], bDiffs: Seq[Index])(implicit ec: ExecutionContext): Seq[Future[Index]]
+  def mergeIndexP(tasks: Seq[(Index,Index)])(implicit ec: ExecutionContext): Seq[Index]
   def getValues(index: Index, key: Any, warning: String): Values[Product] //m
   def nonEmpty(index: Index, key: Any): Boolean //m
   def removingDiff(pos: Int, index: Index, keys: Iterable[Any]): Iterable[DOut]
@@ -91,11 +91,7 @@ object Types {
 }
 
 trait ReadModelUtil {
-  type MMap = DMap[AssembledKey, Index]
-  def create(inner: MMap): ReadModel
-  def updated(worldKeys: Seq[AssembledKey], values: Seq[Index]): ReadModel=>ReadModel
-  def isEmpty: ReadModel=>Boolean
-  def op(op: (MMap,MMap)=>MMap): (ReadModel,ReadModel)=>ReadModel
+  def updated(pairs: Seq[(AssembledKey,Index)]): ReadModel=>ReadModel
   def toMap: ReadModel=>Map[AssembledKey,Index]
 }
 
@@ -113,34 +109,14 @@ object OrEmptyIndex {
 abstract class AssembledKey extends Product {
   def of(model: ReadModel): Index = OrEmptyIndex(model.getIndex(this))
 }
-trait WorldPartExpression extends WorldPartRule {
-  def transform(transition: WorldTransition): WorldTransition
-}
-//object WorldTransition { type Diff = Map[AssembledKey[_],IndexDiff[Object,_]] } //Map[AssembledKey[_],Index[Object,_]] //Map[AssembledKey[_],Map[Object,Boolean]]
-class WorldTransition(
-  val prev: Option[WorldTransition],
-  val diff: ReadModel,
-  val result: ReadModel,
-  val profiling: JoiningProfiling,
-  val log: ProfilingLog,
-  val executionContext: OuterExecutionContext,
-  val taskLog: List[AssembledKey]
-)
+
+@deprecated class WorldTransition(val profiling: JoiningProfiling, val log: ProfilingLog = Nil)
 
 trait JoiningProfiling extends Product {
   type Res = Long
   def time: Long
   def handle(join: Join, result: Seq[AggrDOut], wasLog: ProfilingLog): ProfilingLog
   def handle(join: Join, stage: Long, start: Long, wasLog: ProfilingLog): ProfilingLog
-}
-
-trait IndexFactory {
-  def createJoinMapIndex(join: Join):
-  WorldPartExpression
-    with DataDependencyFrom[Index]
-    with DataDependencyTo[Index]
-
-  def util: IndexUtil
 }
 
 trait DataDependencyFrom[From] {
@@ -164,6 +140,7 @@ abstract class Join(
   val outputWorldKeys: Seq[AssembledKey],
 ) extends DataDependencyFrom[Index]
   with DataDependencyTo[Index]
+  with WorldPartRule
 {
   def joins(diffIndexRawSeq: DiffIndexRawSeq, executionContext: OuterExecutionContext): TransJoin
 }
@@ -173,7 +150,7 @@ trait TransJoin {
 
 
 trait Assemble {
-  def dataDependencies: IndexFactory => List[WorldPartRule with DataDependencyTo[_]]
+  def dataDependencies: IndexUtil => Seq[WorldPartRule]
 }
 
 trait JoinKey extends AssembledKey {
@@ -230,7 +207,7 @@ trait CallerAssemble {
 trait SubAssemble[R<:Product] {
   type Result = _=>Values[(_,R)]
   def result: Result
-  def resultKey: IndexFactory=>JoinKey = throw new Exception("never here")
+  def resultKey: IndexUtil=>JoinKey = throw new Exception("never here")
 }
 
 class CanCallToValues
