@@ -59,7 +59,12 @@ final class MutablePlannerImpl(taskUsers: Array[Array[TaskPos]]) extends Mutable
     reasonCountByExprPos(exprPos) = willCount
     if (wasCount == 0 || willCount == 0) {
       reasonedExprCount += dir
-      for (userExprPos <- taskUsers(exprPos)) changeCount(userExprPos, dir)
+      val users = taskUsers(exprPos)
+      var uPos = 0
+      while(uPos < users.length){
+        changeCount(users(uPos), dir)
+        uPos += 1
+      }
     }
     updateSuggested(exprPos)
   }

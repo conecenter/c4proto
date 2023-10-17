@@ -1,6 +1,7 @@
 
 package ee.cone.c4assemble
 
+import ee.cone.c4assemble.RIndexTypes.RIndexItem
 import ee.cone.c4assemble.Types._
 
 import scala.concurrent.Future
@@ -25,7 +26,7 @@ trait WorldPartRule
 class OriginalWorldPart[A<:Object](val outputWorldKeys: Seq[AssembledKey]) extends WorldPartRule with DataDependencyTo[A]
 
 trait Replace {
-  type Diffs = Seq[(AssembledKey, Index)]
+  type Diffs = Seq[(AssembledKey, Array[RIndexPair])]
   def active: Seq[WorldPartRule]
   def replace(
     model: ReadModel, diff: Diffs, profiler: JoiningProfiling, executionContext: OuterExecutionContext

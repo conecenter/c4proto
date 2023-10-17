@@ -2,6 +2,7 @@
 package ee.cone.c4assemble
 
 import Types._
+import ee.cone.c4assemble.RIndexTypes.RIndexItem
 
 import scala.annotation.StaticAnnotation
 import scala.collection.immutable.{Seq, TreeSet}
@@ -15,18 +16,19 @@ trait IndexUtil {
   def valueCount(index: Index): Int
   def keyCount(index: Index): Int
   def keyIterator(index: Index): Iterator[Any]
-  def mergeIndex(l: DPIterable[Index]): Index
-  def zipMergeIndex(aDiffs: Seq[Index])(bDiffs: Seq[Index]): Seq[Index]
-  def mergeIndexP(tasks: Seq[(Index,Index)])(implicit ec: ExecutionContext): Seq[Index]
+  def mergeIndex(a: Index, b: Index): IndexingTask
   def getValues(index: Index, key: Any, warning: String): Values[Product] //m
   def nonEmpty(index: Index, key: Any): Boolean //m
   def removingDiff(pos: Int, index: Index, keys: Iterable[Any]): Iterable[DOut]
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Array[MultiForPart]  //m
   def mayBePar[V](seq: Seq[V]): DPIterable[V]
   //
+  def byOutput(aggr: AggrDOut, outPos: Int): Array[RIndexPair]
+  def aggregate(s: Seq[AggrDOut]): AggrDOut
   def aggregate(values: Iterable[DOut]): AggrDOut
-  def buildIndex(data: Seq[AggrDOut])(implicit ec: ExecutionContext): Seq[Future[Index]]
-  def keyIteration(seq: Seq[Index])(implicit ec: ExecutionContext): KeyIteration
+  def aggregate(buffer: MutableDOutBuffer): AggrDOut
+  def createBuffer(): MutableDOutBuffer
+  def buildIndex(src: Array[RIndexPair]): IndexingTask
   def countResults(data: Seq[AggrDOut]): ProfilingCounts
   //
   def getInstantly(future: Index): Index
@@ -50,9 +52,7 @@ trait MutableDOutBuffer {
 trait KeyIterationHandler {
   def outCount: Int
   def handle(id: Any, buffer: MutableDOutBuffer): Unit
-}
-trait KeyIteration {
-  def execute(inner: KeyIterationHandler)(implicit ec: ExecutionContext): Seq[Future[AggrDOut]]
+  def invalidateKeysFromIndexes: Seq[Index] // just iterate all to get keys
 }
 
 trait OutFactory[K,V<:Product] {
@@ -142,10 +142,10 @@ abstract class Join(
   with DataDependencyTo[Index]
   with WorldPartRule
 {
-  def joins(diffIndexRawSeq: DiffIndexRawSeq, executionContext: OuterExecutionContext): TransJoin
+  def joins(diffIndexRawSeq: Seq[Index]): TransJoin
 }
 trait TransJoin {
-  def dirJoin(dir: Int, indexRawSeq: Seq[Index]): Seq[Future[AggrDOut]]
+  def dirJoin(dir: Int, indexRawSeq: Seq[Index]): KeyIterationHandler
 }
 
 

@@ -229,21 +229,19 @@ class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends
            |    Seq(${params.map(_.indexKeyName).mkString(",")}).map(_(iUtil)),
            |    Seq(${outKeyNames.mkString(",")}).map(_(iUtil)),
            |  ) {
-           |    def joins(diffIndexRawSeq: DiffIndexRawSeq, executionContext: OuterExecutionContext): TransJoin =
-           |      new ${defName}_TransJoin(this,diffIndexRawSeq,executionContext)
+           |    def joins(diffIndexRawSeq: Seq[Index]): TransJoin = new ${defName}_TransJoin(this,diffIndexRawSeq)
            |  }
-           |  private final class ${defName}_TransJoin(join: ${defName}_Join, diffIndexRawSeq: DiffIndexRawSeq, val executionContext: OuterExecutionContext) extends TransJoin {
+           |  private final class ${defName}_TransJoin(join: ${defName}_Join, diffIndexRawSeq: DiffIndexRawSeq) extends TransJoin {
            |    import join._
-           |    implicit val ec: scala.concurrent.ExecutionContext = executionContext.value
            |    val iUtil = join.iUtil
            |    val Seq(${params.map(p=>s"${p.name}_diffIndex").mkString(",")}) = diffIndexRawSeq
            |    ${keyEqParams.map(p=>s"val ${p.name}_isAllChanged = iUtil.nonEmpty(${p.name}_diffIndex,${litOrId(p)}); ").mkString}
-           |    val invalidateKeySetOpt =
+           |    val invalidateKeysFromIndexesOpt =
            |      ${if(keyEqParams.isEmpty)"" else s"""if(${keyEqParams.map(p=>s"${p.name}_isAllChanged").mkString(" || ")}) None else """}
-           |      Option(iUtil.keyIteration(Seq(${keyIdParams.map(p=>s"${p.name}_diffIndex").mkString(",")})))
+           |      Option(Seq(${keyIdParams.map(p=>s"${p.name}_diffIndex").mkString(",")}))
            |    ${params.map(p => if(p.distinct) s"""val ${p.name}_warn = "";""" else s"""val ${p.name}_warn = "${defName} ${p.name} "+${p.indexKeyName}(iUtil).valueClassName;""").mkString}
-           |    def dirJoin(dir: Int, indexRawSeq: Seq[Index]): Seq[Future[AggrDOut]] =
-           |      new ${defName}_DirJoin(this,dir,indexRawSeq).execute()
+           |    def dirJoin(dir: Int, indexRawSeq: Seq[Index]): KeyIterationHandler =
+           |      new ${defName}_DirJoin(this,dir,indexRawSeq)
            |  }
            |  private final class ${defName}_DirJoin(transJoin: ${defName}_TransJoin, dir: Int, indexRawSeq: Seq[Index]) extends KeyIterationHandler {
            |    import transJoin._
@@ -251,8 +249,7 @@ class AssembleGenerator(joinParamTransforms: List[JoinParamTransformer]) extends
            |    ${outParams.zipWithIndex.map{ case (p,i) => s"val ${p.name}_arg = iUtil.createOutFactory($i,dir); "}.mkString}
            |    val Seq(${params.map(p=>s"${p.name}_index").mkString(",")}) = indexRawSeq
            |    $keyEqParts
-           |    val invalidateKeySet = invalidateKeySetOpt.getOrElse(iUtil.keyIteration(Seq(${keyIdParams.map(p=>s"${p.name}_index").mkString(",")})))
-           |    def execute(): Seq[Future[AggrDOut]] = invalidateKeySet.execute(this)
+           |    val invalidateKeysFromIndexes = invalidateKeysFromIndexesOpt.getOrElse(Seq(${keyIdParams.map(p=>s"${p.name}_index").mkString(",")}))
            |    def outCount: Int = ${outKeyNames.size}
            |    def handle(id: Any, buffer: MutableDOutBuffer) = new ${defName}_KeyJoin(transJoin,this,id,buffer).execute()
            |  }

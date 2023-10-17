@@ -60,8 +60,6 @@ import scala.concurrent.duration.Duration
   activeOrigKeyRegistry: ActiveOrigKeyRegistry,
   origPartitionerRegistry: OrigPartitionerRegistry,
 ) extends LazyLogging {
-  def buildIndex(changes: Iterable[DOut])(implicit ec: ExecutionContext): Future[Index] =
-    Single(composes.buildIndex(Seq(composes.aggregate(changes))))
   def toTreeReplace(assembled: ReadModel, updates: Seq[N_Update], profiling: JoiningProfiling, executionContext: OuterExecutionContext): ReadModel = {
     val end = NanoTimer()
     val txName = Thread.currentThread.getName
@@ -69,7 +67,7 @@ import scala.concurrent.duration.Duration
     val outFactory = composes.createOutFactory(0, +1)
     val ec: ExecutionContext = executionContext.value
     logger.debug("toTreeReplace indexGroups before")
-    val indexGroupsF = for {
+    val diff = for {
       tpPair <- updates.groupBy(_.valueTypeId).toSeq
       (valueTypeId, tpUpdates) = tpPair : (Long,Seq[N_Update])
       valueAdapter <- qAdapterRegistry.byId.get(valueTypeId).toSeq
@@ -87,10 +85,10 @@ import scala.concurrent.duration.Duration
       partitionedIndexFList = for {
         partitioner <- partitionerList
         (nsName, nsChanges) <- changes.groupBy(change => partitioner.handle(composes.getValue(change)))
-      } yield composes.addNS(wKey, nsName) -> buildIndex(nsChanges)(ec)
-      kv <- (wKey->buildIndex(changes)(ec)) :: partitionedIndexFList
+      } yield composes.addNS(wKey, nsName) -> composes.byOutput(composes.aggregate(nsChanges), 0)
+      kv <- (wKey->composes.byOutput(composes.aggregate(changes), 0)) :: partitionedIndexFList
     } yield kv
-    val diff = indexGroupsF.map{ case (k,v) => k -> Await.result(v, Duration.Inf) }
+
     assert(diff.map(_._1).distinct.size == diff.size)
     logger.debug("toTreeReplace indexGroups after")
     val willAssembled = replace.replace(assembled,diff,profiling,executionContext)

@@ -5,6 +5,8 @@ import ee.cone.c4assemble.RIndexTypes._
 import java.util
 import java.util.Comparator
 import scala.annotation.tailrec
+import scala.collection.ArrayOps
+import scala.collection.immutable.ArraySeq
 
 final class RIndexImpl(
   val options: RIndexOptions,
@@ -71,6 +73,9 @@ final class RIndexUtilImpl(
   val emptyBucket: RIndexBucket = new RIndexBucket(
     new RIndexPowers(0,0), EmptyInnerIndex, Array.empty, EmptyInnerIndex, Array.empty
   ),
+  val maxPower: Int = 12
+)(
+  val emptyBuckets: Array[RIndexBucket] = Array.fill(1 << maxPower)(emptyBucket)
 ) extends RIndexUtil {
 
   def getHash(s: RIndexKey): Int = Integer.reverseBytes(s.hashCode)
@@ -94,7 +99,7 @@ final class RIndexUtilImpl(
   def fillSizes(sizes: Array[Int], srcSize: Int, toPos: Int=>Int): Unit =
     for (i <- 0 until srcSize) sizes(toPos(i)) += 1
 
-  def build(power: Int, src: Array[RIndexPair], valueOperations: RIndexValueOperations): RIndex = {
+  def buildIndex(power: Int, src: Array[RIndexPair], valueOperations: RIndexValueOperations): IndexingTask = {
     //val started = System.nanoTime()
     val keyComparator: Comparator[RIndexKey] = compareKeys(_,_)
     val options = new RIndexOptions(power,keyComparator)
@@ -109,12 +114,20 @@ final class RIndexUtilImpl(
         keyToPosInRoot(options.power, pair.rIndexKey)
       def toDest(pos: Int): Array[RIndexPair] = dest(pos)
     })(src, sizes)
-    val kvComparator: Comparator[RIndexPair] = (aPair,bPair)=>{
+    val handler = new BuildIndexingHandler(power, valueOperations, options, dest)
+    makeIndexingTask(handler, sizes, Math.max(1000, src.length / 32), options)
+  }
+
+  private class BuildIndexingHandler(
+    val power: Int, val valueOperations: RIndexValueOperations, val options: RIndexOptions,
+    val pairsByBucket: Array[Array[RIndexPair]]
+  ) extends IndexingHandler {
+    val kvComparator: Comparator[RIndexPair] = (aPair, bPair) => {
       val kRes = compareKeys(aPair.rIndexKey,bPair.rIndexKey)
       if(kRes != 0) kRes else valueOperations.compare(aPair.rIndexItem,bPair.rIndexItem)
     }
-    val builder = new RIndexBucketBuilder(this, options, sizes.max)()
-    val buckets = dest.map{ pairs =>
+    def handle(pos: Int, builder: RIndexBucketBuilder): RIndexBucket = {
+      val pairs = pairsByBucket(pos)
       if(pairs.length == 0) emptyBucket else {
         builder.restart()
         val powers = new RIndexPowers(power,getPower(pairs.length))
@@ -144,8 +157,6 @@ final class RIndexUtilImpl(
         builder.result(powers)
       }
     }
-    //MeasureP("build_ms",((System.nanoTime()-started)/1000000).toInt)
-    wrapData(options, buckets)
   }
 
   def getPower(sz: Int): Int = Integer.SIZE - Integer.numberOfLeadingZeros(sz)
@@ -155,15 +166,73 @@ final class RIndexUtilImpl(
     (hash >> (Integer.SIZE - powers.rootPower - powers.innerPower)) & ((1 << powers.innerPower)-1)
   }
 
-  def wrapData(options: RIndexOptions, data: Array[RIndexBucket]): RIndex = {
-    @tailrec def iter(i: Int, keyCount: Int, valueCount: Int): RIndex = {
-      if(i < data.length)
-        iter(i+1, keyCount+data(i).keys.length, valueCount+data(i).values.length)
-      else if(keyCount > 0) new RIndexImpl(options, data, keyCount, valueCount)
-      else EmptyRIndex
+  ////
+
+  private def makeIndexingTask(
+    handler: IndexingHandler, itemCountsByBucket: Array[Int], minItemsPerSubTask: Int, options: RIndexOptions
+  ): IndexingTask = {
+    @tailrec def makeSubTasks(start: Int, end: Int, items: Int, maxItemsPerBucket: Int, res: List[IndexingSubTask]): Seq[IndexingSubTask] = {
+      if (end == itemCountsByBucket.length) new IndexingSubTaskImpl(handler, start, end, maxItemsPerBucket) :: res
+      else if (items > minItemsPerSubTask)
+        makeSubTasks(end, end, 0, 0, new IndexingSubTaskImpl(handler, start, end, maxItemsPerBucket) :: res)
+      else {
+        val itemCount = itemCountsByBucket(end)
+        makeSubTasks(start, end + 1, items + itemCount, Math.max(maxItemsPerBucket, itemCount), res)
+      }
     }
-    iter(0,0,0)
+    new IndexingTaskImpl(makeSubTasks(0, 0, 0, 0, Nil))
   }
+
+  def execute(subTask: IndexingSubTask): IndexingResult = {
+    val st = subTask match { case t: IndexingSubTaskImpl => t }
+    val handler = st.handler
+    val buckets = new Array[RIndexBucket](st.end - st.start)
+    val builder = new RIndexBucketBuilder(this, handler.options, st.maxSize)()
+    var keyCount = 0
+    var valueCount = 0
+    for(pos <- st.start until st.end){
+      val bucket = handler.handle(pos, builder)
+      buckets(pos - st.start) = bucket
+      keyCount += bucket.keys.length
+      valueCount += bucket.values.length
+    }
+    new IndexingResultImpl(st, buckets, st.start, keyCount, valueCount)
+  }
+
+  def merge(task: IndexingTask, parts: Seq[IndexingResult]): RIndex = {
+    val taskImpl = task match {
+      case t: IndexingTaskImpl => t
+    }
+    val partSeq = parts.asInstanceOf[Seq[IndexingResultImpl]]
+    assert(taskImpl.subTasks.toSet == partSeq.map(_.subTask).toSet)
+    var keyCount = 0
+    var valueCount = 0
+    for(part <- partSeq) {
+        keyCount += part.keyCount
+        valueCount += part.valueCount
+    }
+    if (keyCount <= 0) EmptyRIndex else {
+      val data: Array[RIndexBucket] = emptyBuckets.clone()
+      for(part <- partSeq) System.arraycopy(part.data, 0, data, part.start, part.data.length)
+      val options = taskImpl.subTasks.head match { case t: IndexingSubTaskImpl =>  t.handler.options }
+      new RIndexImpl(options, data, keyCount, valueCount)
+    }
+  }
+
+  private trait IndexingHandler {
+    def handle(pos: Int, builder: RIndexBucketBuilder): RIndexBucket
+    def options: RIndexOptions
+  }
+  private class IndexingTaskImpl(val subTasks: Seq[IndexingSubTask]) extends IndexingTask
+  private class IndexingSubTaskImpl(
+    val handler: IndexingHandler, val start: Int, val end: Int, val maxSize: Int
+  ) extends IndexingSubTask
+  private class IndexingResultImpl(
+    val subTask: IndexingSubTaskImpl, val data: Array[RIndexBucket], val start: Int,
+    val keyCount: Int, val valueCount: Int
+  ) extends IndexingResult
+
+  ////
 
   def isEmpty(r: RIndexBucket): Boolean = r.keys.length == 0
   def isEmpty(index: RIndex): Boolean = index eq EmptyRIndex
@@ -189,32 +258,31 @@ final class RIndexUtilImpl(
     res
   }
 
-  def merge(
-    indexes: Seq[RIndex], valueOperations: RIndexValueOperations,
-  ): RIndex = {
-    val indexArr = indexes.filterNot(isEmpty).map{ case i: RIndexImpl => i }.toArray
-    if(indexArr.length==0) EmptyRIndex else if(indexArr.length==1) indexArr(0) else {
-      val options = indexArr.head.options
-      val buckets: Array[RIndexBucket] = indexArr.head.data.clone()
-      assert(indexArr.forall(_.data.length==buckets.length))
-      @tailrec def getMergeSize(bucketIdx: Int, layerIdx: Int, nonEmptyCount: Int, size: Int): Int =
-        if(layerIdx < indexArr.length){
-          val bucketSize = indexArr(layerIdx).data(bucketIdx).values.length
-          getMergeSize(bucketIdx, layerIdx+1, if(bucketSize==0) nonEmptyCount else nonEmptyCount+1, size+bucketSize)
-        } else if(nonEmptyCount>1) size else 0
-      @tailrec def getMaxMergeSize(bucketIdx: Int, size: Int): Int =
-        if(bucketIdx < buckets.length){
-          val sz = getMergeSize(bucketIdx,0,0,0)
-          getMaxMergeSize(bucketIdx+1, Math.max(size,sz))
-        } else size
-      val maxSize = getMaxMergeSize(0,0)
-      val builder = new RIndexBucketBuilder(this, options, maxSize)()
-      for(otherIndex <- indexArr.tail) for(i <- buckets.indices){
-        val aBucket: RIndexBucket = buckets(i)
-        val bBucket: RIndexBucket = otherIndex.data(i)
-        if(isEmpty(bBucket)) ()
-        else if(isEmpty(aBucket)) buckets(i) = bBucket
-        else {
+  def mergeIndex(aIndex: RIndex, bIndex: RIndex, valueOperations: RIndexValueOperations): IndexingTask = {
+    val Seq(aI,bI) = Seq(aIndex,bIndex).filterNot(isEmpty).map{ case i: RIndexImpl => i }
+    val aData = aI.data
+    val bData = bI.data
+    assert(aData.length==bData.length)
+    val itemCountsByBucket = new Array[Int](aData.length)
+    var i = 0
+    while(i < aData.length){
+      itemCountsByBucket(i) = aData(i).values.length + bData(i).values.length
+      i += 1
+    }
+    val itemCount = aI.valueCount + bI.valueCount
+    val options = aI.options
+    val handler = new MergeIndexingHandler(options, valueOperations, aI, bI)
+    makeIndexingTask(handler, itemCountsByBucket, Math.max(1000, itemCount / 32), options)
+  }
+
+  private class MergeIndexingHandler(
+    val options: RIndexOptions, val valueOperations: RIndexValueOperations,
+    val aIndex: RIndexImpl, val bIndex: RIndexImpl
+  ) extends IndexingHandler {
+    def handle(pos: Int, builder: RIndexBucketBuilder): RIndexBucket = {
+        val aBucket: RIndexBucket = aIndex.data(pos)
+        val bBucket: RIndexBucket = bIndex.data(pos)
+        if(isEmpty(bBucket)) aBucket else if(isEmpty(aBucket)) bBucket else {
           builder.restart()
           val aKeys = aBucket.keys
           val bKeys = bBucket.keys
@@ -259,27 +327,35 @@ final class RIndexUtilImpl(
             def fromB(ai: Int, b0: Int, b1: Int): Unit = add(bBucket, bPositions, b0, b1)
           }
           keyMerger.merge0(0,aKeys.length,0,bKeys.length)
-          buckets(i) = builder.result(needPowers)
+          builder.result(needPowers)
         }
-      }
-      wrapData(options, buckets)
     }
   }
 
-  def split(index: RIndex, count: Int): Seq[RIndex] = index match {
-    case aI if isEmpty(aI) => (0 until count).map(_=>EmptyRIndex)
+  private val emptyKeys = Array.empty[RIndexKey]
+  def subIndexKeys(index: RIndex, partPos: Int, partCount: Int): Array[RIndexKey] = index match {
+    case aI if isEmpty(aI) => emptyKeys
     case aI: RIndexImpl =>
-      val data = new Array[Array[RIndexBucket]](count)
-      val emptyBuckets = Array.fill(aI.data.length)(emptyBucket)
-      for(i <- 0 until count) {
-        if(i==0) data(i) = emptyBuckets
-        else {
-          data(i) = new Array[RIndexBucket](aI.data.length)
-          System.arraycopy(emptyBuckets, 0, data(i), 0, emptyBuckets.length)
-        }
+      val size = aI.data.length / partCount
+      assert(aI.data.length % partCount == 0)
+      val start = partPos*size
+      val end = (partPos+1)*size
+      var kPos = 0
+      var oPos = start
+      while(oPos < end){
+        val keys =  aI.data(oPos).keys
+        kPos += keys.length
+        oPos += 1
       }
-      for(i <- aI.data.indices) data(i % count)(i) = aI.data(i)
-      data.map(wrapData(aI.options,_))
+      val res = new Array[RIndexKey](kPos)
+      while(oPos > start){
+        oPos -= 1
+        val keys =  aI.data(oPos).keys
+        kPos -= keys.length
+        if(keys.length > 0) System.arraycopy(keys, 0, res, kPos, keys.length)
+      }
+      assert(kPos == 0)
+      res
   }
 
   def findKey(options: RIndexOptions, bucket: RIndexBucket, key: RIndexKey): Int = {
@@ -461,6 +537,7 @@ final class RIndexBucketBuilder(
 //arr.mapInPlace() arr.slice
 // util.Arrays.copyOfRange(bucket.subData,from,to)
 
+/*
 import scala.util.control.NonFatal
 final class RIndexUtilDebug(inner: RIndexUtil) extends RIndexUtil {
   def wrap[T](hint: String, f: =>T): T = try{
@@ -480,8 +557,8 @@ final class RIndexUtilDebug(inner: RIndexUtil) extends RIndexUtil {
     wrap("isEmpty",inner.isEmpty(index))
   def merge(indexes: Seq[RIndex], valueOperations: RIndexValueOperations): RIndex =
     wrap("merge",inner.merge(indexes,valueOperations))
-  def split(index: RIndex, count: Int): Seq[RIndex] =
-    wrap("split",inner.split(index,count))
+  def subIndex(index: RIndex, partPos: Int, partCount: Int): RIndex =
+    wrap("subIndex",inner.subIndex(index, partPos, partCount))
   def keyIterator(index: RIndex): Iterator[RIndexKey] =
     wrap("iterator",inner.keyIterator(index))
   def keyCount(index: RIndex): Int =
@@ -497,3 +574,4 @@ final class RIndexUtilDebug(inner: RIndexUtil) extends RIndexUtil {
   def unchanged(values: Seq[RIndexItem], diff: Seq[RIndexItem], valueOperations: RIndexValueOperations): Array[RIndexItem] =
     wrap("unchanged",inner.unchanged(values,diff,valueOperations))
 }
+*/

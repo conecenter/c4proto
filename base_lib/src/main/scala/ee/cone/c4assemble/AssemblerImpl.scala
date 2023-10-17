@@ -5,15 +5,17 @@ package ee.cone.c4assemble
 
 import java.nio.file.{Files, Path, Paths}
 import Types._
+import ee.cone.c4assemble.DOutAggregationBuffer.{emptyBuffers, emptyDOuts}
 import ee.cone.c4assemble.IndexTypes.{Count, Products}
 import ee.cone.c4assemble.RIndexTypes.{RIndexItem, RIndexKey}
 import ee.cone.c4di.{c4, c4multi}
 
 import scala.annotation.tailrec
-import scala.collection.immutable
+import scala.collection.{immutable, mutable}
 import scala.collection.immutable.{Map, Seq}
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import java.nio.charset.StandardCharsets.UTF_8
+import java.util
 import java.util.concurrent.atomic.{AtomicLong, AtomicStampedReference}
 import scala.concurrent.duration.Duration
 import scala.util.Try
@@ -40,32 +42,12 @@ case class JoinKeyImpl(
 }
 
 object ParallelExecutionCount {
-  val values = (0 to 9).map(i=>new AtomicLong(0))
+  val values = (0 until 20).map(i=>new AtomicLong(0))
   def add(power: Int, d: Long): Unit = {
     val ignore = values(power).addAndGet(d)
   }
   def report(): String = values.map(_.get()).mkString(" ")
   def reset(): Unit = for(v <- values) v.set(0)
-}
-
-case object ParallelExecution4 {
-  val power = 2
-  val parallelPartCount: Int = 1 << power
-  def keyToPartPos(elem: Any): Int = elem.hashCode & (parallelPartCount - 1) // todo other hash?
-  val parallelRange: Vector[Int] = (0 until parallelPartCount).toVector
-}
-
-object ParallelExecution {
-//  def execute[S,T](tasks: Seq[S], calc: S=>T)(implicit ec: ExecutionContext): Seq[Future[T]] =
-//    tasks.map(task=>Future(calc(task)))
-  def execute[S,T,U](tasks: Seq[S], calc: S=>T, aggr: Seq[T]=>U)(implicit ec: ExecutionContext): Future[U] =
-    if(tasks.size < 2) Future(aggr(tasks.map(calc))) else seq(tasks.map(task=>Future(calc(task))), aggr)(shortEC)
-  private val shortEC = new ExecutionContext {
-    def execute(runnable: Runnable): Unit = runnable.run()
-    def reportFailure(cause: Throwable): Unit = ExecutionContext.defaultReporter(cause)
-  }
-  def seq[T,U](results: Seq[Future[T]], aggr: Seq[T]=>U)(implicit ec: ExecutionContext): Future[U] =
-    Future.sequence(results).map(aggr)
 }
 
 // Ordering.by can drop keys!: https://github.com/scala/bug/issues/8674
@@ -138,13 +120,16 @@ object ParallelExecution {
     case 1 => item.asInstanceOf[Count]
     case n => new NonSingleCount(item, n).asInstanceOf[Count]
   }
-
-  def rIndexValueOperations: RIndexValueOperations = new RIndexValueOperations {
+  private def rIndexValueOperations: RIndexValueOperations = new RIndexValueOperations {
     def compare(a: RIndexItem, b: RIndexItem): Int = {
       val aP = headProduct(a)
       val bP = headProduct(b)
       val r = RawToPrimaryKey.get(aP) compareTo RawToPrimaryKey.get(bP)
       if (r == 0) java.lang.Integer.compare(aP.hashCode,bP.hashCode) else r
+//      if (r == 0){
+//        //ParallelExecutionCount.add(8, 1)
+//        java.lang.Integer.compare(HashCodeCache.get(aP),HashCodeCache.get(bP))
+//      } else r
     }
     def merge(a: RIndexItem, b: RIndexItem): RIndexItem = mergeProducts(a,b)
     def nonEmpty(value: RIndexItem): Boolean = !isEmptyProducts(value)
@@ -188,30 +173,8 @@ object ParallelExecution {
       case p: Product => Nil
     }
 
-  def mergeIndex(l: DPIterable[Index]): Index = // size 2
-    rIndexUtil.merge(l.toSeq,rIndexValueOperations)
-
-  def zipMergeIndex(aDiffs: Seq[Index])(bDiffs: Seq[Index]): Seq[Index] = {
-    assert(aDiffs.size == bDiffs.size)
-    (aDiffs zip bDiffs).map{ case (a,b) => mergeIndex(Seq(a, b)) }
-  }
-
-  def mergeIndexP(tasks: Seq[(Index,Index)])(implicit ec: ExecutionContext): Seq[Index] = {
-    val parallelPartCount = 8
-    val ops = rIndexValueOperations
-    val resF = tasks.distinct.map{ case (a,b) => Future{
-      val aParts = rIndexUtil.split(a, parallelPartCount)
-      val bParts = rIndexUtil.split(b, parallelPartCount)
-      val abParts = aParts.zip(bParts)
-      val (simplePairs, complexPairs) = abParts.partition{ case (a,b) => isEmpty(a)||isEmpty(b) }
-      ParallelExecution.execute[(Index,Index),Index,((Index,Index),Index)](
-        complexPairs,
-        { case (a,b) => rIndexUtil.merge(Seq(a, b),ops) },
-        complexRes => (a,b) -> rIndexUtil.merge(complexRes ++ simplePairs.map(_._1) ++ simplePairs.map(_._2),ops)
-      )
-    }.flatten}
-    tasks.map(resF.map(Await.result(_, Duration.Inf)).toMap)
-  }
+  def mergeIndex(a: Index, b: Index): IndexingTask =
+    rIndexUtil.mergeIndex(a, b, rIndexValueOperations)
 
   def removingDiff(pos: Int, index: Index, keys: Iterable[Any]): Iterable[DOut] =
     for {
@@ -245,44 +208,32 @@ object ParallelExecution {
 
   def mayBePar[V](seq: immutable.Seq[V]): DPIterable[V] = seq
 
-  def aggregate(values: Iterable[DOut]): AggrDOut = {
-    val setup = IndexBuildSetup(1)
-    val buffer = setup.createBuffer()
-    buffer.add(values)
-    buffer.result
+  def byOutput(aggr: AggrDOut, outPos: Int): Array[RIndexPair] = aggr match { case a: AggrDOutImpl =>
+    val r = a.resultsByOut
+    if(outPos < r.length) r(outPos) else emptyItems
   }
-  def keyIteration(seq: Seq[Index])(implicit ec: ExecutionContext): KeyIteration = {
-    val parallelPartCount = 32
-    val tasks = seq.foldLeft(Vector.fill[List[Index]](parallelPartCount)(Nil)){ (acc, index) =>
-      val parts = rIndexUtil.split(index, parallelPartCount)
-      acc.zip(parts).map{ case (accP, part) => if(rIndexUtil.isEmpty(part)) accP else part :: accP }
-    }.filter(_.nonEmpty)
-    new KeyIterationImpl(tasks.map(task=>Future(task match {
-      case Seq(a) => rIndexUtil.keyIterator(a).toList
-      case as => as.flatMap(rIndexUtil.keyIterator).distinct
-    })))
+  private val emptyItems = Array.empty[RIndexPair]
+  private val emptyAggrDOut = new AggrDOutImpl(Array.empty, 0)
+  def aggregate(seq: Seq[AggrDOut]): AggrDOut = if(seq.isEmpty) emptyAggrDOut else {
+    val s = seq.map{ case a: AggrDOutImpl => a }.toArray
+    val outCount = s.map(_.resultsByOut.length).max
+    val res = (0 until outCount).toArray.map(outPos => s.flatMap(byOutput(_, outPos)))
+    new AggrDOutImpl(res, s.map(_.callCount).sum)
   }
-  def buildIndex(data: Seq[AggrDOut])(implicit ec: ExecutionContext): Seq[Future[Index]] = {
-    assert(data.nonEmpty)
-    val dataI = data.asInstanceOf[Seq[AggrDOutImpl]].toArray
-    val setup = Single(dataI.map(_.setup).distinct)
-    (0 until setup.outCount).map{ outPos =>
-      ParallelExecution.execute[Int,Index,Index](
-        setup.parallelExecution.parallelRange,
-        partPos => {
-          val bufferPos = setup.bufferPos(outPos, partPos)
-          val src: Array[RIndexPair] = dataI.flatMap(_.byOutThenTarget(bufferPos))
-          if (src.length == 0) EmptyRIndex else rIndexUtil.build(memoryOptimizing.indexPower, src, rIndexValueOperations)
-        },
-        rIndexUtil.merge(_,rIndexValueOperations)
-      )
-    }
-  }
+  def aggregate(values: Iterable[DOut]): AggrDOut =
+    new AggrDOutImpl(Array(values.map{ case o: DOutImpl => o }.toArray), 0)
+  def aggregate(buffer: MutableDOutBuffer): AggrDOut =
+    buffer match { case b: DOutAggregationBuffer => b.result }
+  def createBuffer(): MutableDOutBuffer = new DOutAggregationBuffer
+
+  def buildIndex(src: Array[RIndexPair]): IndexingTask =
+    rIndexUtil.buildIndex(memoryOptimizing.indexPower, src, rIndexValueOperations)
+
   def countResults(data: Seq[AggrDOut]): ProfilingCounts =
     data.asInstanceOf[Seq[AggrDOutImpl]]
       .foldLeft(ProfilingCounts(0L,0L))((res,aggr) => res.copy(
-        callCount = res.callCount + aggr.profilingCounts.callCount,
-        resultCount = res.resultCount + aggr.profilingCounts.resultCount,
+        callCount = res.callCount + aggr.callCount,
+        resultCount = res.resultCount + aggr.resultsByOut.map(_.length).sum,
       ))
 
   def createOutFactory(pos: Int, dir: Int): OutFactory[Any, Product] =
@@ -304,12 +255,6 @@ final class UnchangedMultiForPart(getItems: ()=>Array[Product]) extends MultiFor
   lazy val items: Array[Product] = getItems()
 }
 
-final class MutableGroupingBufferImpl[T](count: Int) {
-  private val buffers: Array[List[T]] = Array.fill(count)(Nil)
-  def add(pos: Int, value: T): Unit = { buffers(pos) = value :: buffers(pos) }
-  def toVector: Vector[Seq[T]] = buffers.toVector
-}
-
 /*
 final class MutableGroupingBufferImpl[T](count: Int) {
   private val buffers = Vector.fill(count)(new mutable.ArrayBuffer[T])
@@ -317,50 +262,50 @@ final class MutableGroupingBufferImpl[T](count: Int) {
   def toVector: Vector[Vector[T]] = buffers.map(_.toVector)
 }
 */
+final class AggrDOutImpl(val resultsByOut: Array[Array[RIndexPair]], val callCount: Long) extends AggrDOut
 
-final case class IndexBuildSetup(outCount: Int){
-  val parallelExecution = ParallelExecution4
-  def bufferCount: Int = outCount * parallelExecution.parallelPartCount
-  def bufferPos(outPos: Int, key: Any): Int = outPos * parallelExecution.parallelPartCount + parallelExecution.keyToPartPos(key)
-  def createBuffer(): DOutAggregationBuffer = new DOutAggregationBuffer(this)
+final class DOutLeafBuffer {
+  var values: Array[RIndexPair] = new Array(32)
+  var end: Int = 0
+  def addOne(v: RIndexPair): Unit = {
+    if(end >= values.length) {
+      val willBuffer = new Array[RIndexPair](values.length * 2)
+      System.arraycopy(values, 0, willBuffer, 0, values.length)
+      values = willBuffer
+    }
+    values(end) = v
+    end += 1
+  }
+
+  def result: Array[RIndexPair] = {
+    // ParallelExecutionCount.add(end match { case 1 => 4 case 2 => 5 case a if a < 10 => 6 case a => 7 },1)
+    java.util.Arrays.copyOf(values, end)
+  }
 }
-final class AggrDOutImpl(val setup: IndexBuildSetup, val byOutThenTarget: Vector[Seq[DOutImpl]], val profilingCounts: ProfilingCounts) extends AggrDOut
-final class DOutAggregationBuffer(setup: IndexBuildSetup) extends MutableDOutBuffer {
-  private val inner = new MutableGroupingBufferImpl[DOutImpl](setup.bufferCount)
-  private val callCounter = Array[Long](0L,0L)
-  private val addOne: DOut=>Unit = { case v: DOutImpl =>
-    inner.add(setup.bufferPos(v.pos,v.rIndexKey), v)
-    callCounter(1) += 1
+
+object DOutAggregationBuffer {
+  private val emptyDOuts = Array.empty[RIndexPair]
+  private val emptyBuffers = Array.empty[DOutLeafBuffer]
+}
+final class DOutAggregationBuffer extends MutableDOutBuffer {
+  private var buffers: Array[DOutLeafBuffer] = emptyBuffers
+  private var callCounter: Long = 0L
+  private def addOne(v: DOut): Unit = v match { case v: DOutImpl =>
+    val pos = v.pos
+    while(pos >= buffers.length){
+      buffers = buffers.appended(new DOutLeafBuffer)
+    }
+    buffers(pos).addOne(v)
   }
   def add(values: Iterable[DOut]): Unit = {
-    callCounter(0) += 1
+    callCounter += 1
     values.foreach(addOne)
   }
   def add[K,V<:Product](outFactory: OutFactory[K,V], values: Seq[(K,V)]): Unit = {
-    callCounter(0) += 1
+    callCounter += 1
     values.foreach(pair => addOne(outFactory.result(pair)))
   }
-  def result: AggrDOutImpl = new AggrDOutImpl(setup, inner.toVector, ProfilingCounts(callCounter(0),callCounter(1)))
-}
-//final class DOutAggregation(){
-//
-//  def createBuffer() = new DOutAggregationBuffer
-//}
-
-
-final class KeyIterationImpl(parts: Vector[Future[Seq[Any]]]) extends KeyIteration {
-  def execute(inner: KeyIterationHandler)(implicit ec: ExecutionContext): Seq[Future[AggrDOut]] = {
-    val setup = IndexBuildSetup(inner.outCount)
-    @tailrec def handle(buffer: DOutAggregationBuffer, left: Seq[Any]): Unit = if(left.nonEmpty){
-      inner.handle(left.head, buffer)
-      handle(buffer, left.tail)
-    }
-    if(parts.isEmpty) Seq(Future.successful(setup.createBuffer().result)) else parts.map(_.map{ part =>
-      val buffer = setup.createBuffer()
-      handle(buffer, part)
-      buffer.result
-    })
-  }
+  def result: AggrDOutImpl = new AggrDOutImpl(buffers.map(_.result), callCounter)
 }
 
 final class DOutImpl(val pos: Int, val rIndexKey: RIndexKey, val rIndexItem: RIndexItem) extends DOut with RIndexPair
@@ -527,7 +472,11 @@ object MeasureP {
 ) extends StartUpSpaceProfiler {
 
   def out(readModelA: ReadModel): Unit = {
-    val readModel = readModelUtil.toMap(readModelA)
+    Option("/tmp/c4profile_replay").filter(p=>Files.exists(Paths.get(p))).foreach{ p =>
+      new ProcessBuilder("sh",p).inheritIO().start()
+    }
+
+    //val readModel = readModelUtil.toMap(readModelA)
 
     /*
     val cols = Seq("S","F","L","M1","MH","MC","MM")

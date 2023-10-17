@@ -7,7 +7,7 @@ trait AssembleAppBase
 @c4("AssembleApp") final class RIndexUtilProvider(
   memoryOptimizing: MemoryOptimizing
 )(
-  inner: RIndexUtil = new RIndexUtilImpl()
+  inner: RIndexUtil = new RIndexUtilImpl()()
 ){
   @provide def getRIndexUtil: Seq[RIndexUtil] = Seq(inner)
     //Seq(new RIndexUtilDebug(inner))
