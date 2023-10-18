@@ -100,8 +100,11 @@ def remote_compile(context, user, proj_tag):
     rsync(compile_options.deploy_context, None, pod, [path for path in full_sync_paths if path_exists(path)])
     kcd_run("exec", pod, "--", *sbt_args(mod_dir, compile_options.java_options))
     rsync(compile_options.deploy_context, pod, None, [cp_path])
-    rsync(compile_options.deploy_context, pod, None, read_text(cp_path).split(":"))
+    rsync(compile_options.deploy_context, pod, None, [rm_dots(path) for path in read_text(cp_path).split(":")])
 
+def rm_dots(path):
+    res = re.sub("""/[^/]+/\.\./""", "/", path, count=1)
+    return res if path == res else rm_dots(res)
 
 def push_compilation_cache(compile_options):
     mod_dir = compile_options.mod_dir
