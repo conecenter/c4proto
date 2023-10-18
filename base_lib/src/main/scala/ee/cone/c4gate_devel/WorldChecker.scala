@@ -21,29 +21,37 @@ import java.util
     willContext
   }
   def report(assembled: ReadModel): Unit = {
-    val productWorldChecker = new ProductWorldChecker
+    for(r <- config.get("C4WORLD_CHECK_HASHES")) reportHashes(assembled, r)
+    for(r <- config.get("C4WORLD_CHECK_PRODUCTS"))  reportBadProducts(assembled)
+  }
+
+  def reportHashes(assembled: ReadModel, opt: String): Unit = {
     readModelUtil.toMap(assembled).toList.collect{
-      case (worldKey: JoinKey, index: Index) if !worldKey.was && worldKey.keyAlias == "SrcId" =>
+      case (worldKey: JoinKey, index: Index) if opt == "all" || !worldKey.was && worldKey.keyAlias == "SrcId" =>
         (for {
           pk <- indexUtil.keyIterator(index).toList.sortBy(_.toString)
           value <- indexUtil.getValues(index,pk,"").toList.sortBy(ToPrimaryKey(_))
         } yield pk -> value).groupBy(_._2.getClass.getName).toList.sortBy(_._1).map{
           case (clName,res) =>
-            s"cl3 ${worldKey.valueClassName} $clName kv-hc ${res.hashCode}"
+            s"cl3 $worldKey $clName kv-hc ${res.hashCode}"
         }
     }.flatten.sorted.foreach{ l => logger.info(l) }
   }
+  def reportBadProducts(assembled: ReadModel): Unit = {
+    val productWorldChecker = new ProductWorldChecker
+    readModelUtil.toMap(assembled).toList.collect {
+      case (worldKey: JoinKey, index: Index) if !worldKey.was && worldKey.keyAlias == "SrcId" =>
+        val res0 = indexUtil.keyIterator(index).toList.sortBy(_.toString).map { pk =>
+          (pk, indexUtil.getValues(index, pk, "").toList.sortBy(ToPrimaryKey(_)))
+        }
+        //val khc = res0.map(_._1).hashCode
+        for (l <- productWorldChecker.check(res0))
+          logger.warn(s"non-product ${worldKey.valueClassName} : $l")
+      //s"cl2 ${worldKey.valueClassName} sz ${res0.size} kv-hc ${res0.hashCode} k-hc: $khc"
+    }
+  }
 }
 
-/*
-//val res0 = comp.keyIterator(index).toList.sortBy(_.toString).map{ pk =>
-//  (pk, indexUtil.getValues(index,pk,"").toList.sortBy(ToPrimaryKey(_)))
-//}
-//val khc = res0.map(_._1).hashCode
-//for(l <- productWorldChecker.check(res0))
-//  logger.warn(s"non-product-6 ${worldKey.valueClassName} : $l")
-//s"cl2 ${worldKey.valueClassName} sz ${res0.size} kv-hc ${res0.hashCode} k-hc: $khc"
-*/
 class ProductWorldChecker extends LazyLogging {
   def check(l: Seq[Product]): Seq[String] = {
     val wasObj = new util.IdentityHashMap[Any,Boolean]

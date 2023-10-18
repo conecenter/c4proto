@@ -37,9 +37,9 @@ object ProdGetter {
 object CreateProdGetter {
   //for generated code only
   def from[C, I](clFrom: Class[C], clTo: Class[I], tkFrom: TypeKey, tkTo: TypeKey)(fldName: String)(inner: AbstractProdGetter[C,I], meta: AbstractMetaAttr*): ProdGetterStrict[C, I] =
-    ProdGetterStrict[C, I](NameMetaAttr(fldName+"."+inner.hashCode) :: meta.toList, clFrom, clTo, tkFrom, tkTo)(inner.of)
+    ProdGetterStrict[C, I](NameMetaAttr(fldName+"."+inner.hashCode) :: meta.toList, tkFrom, tkTo)(clFrom, clTo, inner.of)
   def of[C, I](clFrom: Class[C], clTo: Class[I], tkFrom: TypeKey, tkTo: TypeKey)(fldName: String)(of: C => I, meta: AbstractMetaAttr*): ProdGetterStrict[C, I] =
-    ProdGetterStrict[C, I](NameMetaAttr(fldName) :: meta.toList, clFrom, clTo, tkFrom, tkTo)(of)
+    ProdGetterStrict[C, I](NameMetaAttr(fldName) :: meta.toList, tkFrom, tkTo)(clFrom, clTo, of)
 }
 
 @deprecated("results in bad product") object UnsafeProdGetter {
@@ -92,16 +92,16 @@ abstract class ProdLens[C, I] extends ProdGetter[C, I] with AbstractProdLens[C, 
 
 case class ProdGetterStrict[C, I](
   extraMetaList: List[AbstractMetaAttr],
-  clFrom: Class[C], clTo: Class[I], tkFrom: TypeKey, tkTo: TypeKey
+  tkFrom: TypeKey, tkTo: TypeKey
 )(
-  val of: C => I
+  val clFrom: Class[C], val clTo: Class[I], val of: C => I
 ) extends ProdGetter[C, I] {
   def +(metaAttrs: AbstractMetaAttr*): ProdGetterStrict[C, I] =
     ProdGetterStrict[C, I](
       extraMetaList ::: metaAttrs.toList,
-      clFrom, clTo, tkFrom, tkTo
+      tkFrom, tkTo
     )(
-      of
+      clFrom, clTo, of
     )
 
   lazy val metaList: List[AbstractMetaAttr] = ee.cone.c4actor.TypeKeyAttr(tkFrom, tkTo) ::
@@ -110,9 +110,9 @@ case class ProdGetterStrict[C, I](
   def to[V](inner: ProdGetter[I, V]): ProdGetter[C, V] =
     ProdGetterStrict[C, V](
       extraMetaList ::: inner.extraMetaList,
-      clFrom, inner.clTo, tkFrom, inner.tkTo
+      tkFrom, inner.tkTo
     )(
-      container => inner.of(of(container))
+      clFrom, inner.clTo, container => inner.of(of(container))
     )
 }
 
@@ -138,9 +138,9 @@ case class ProdLensStrict[C, I](
   def to[V](inner: ProdGetter[I, V]): ProdGetter[C, V] =
     ProdGetterStrict[C, V](
       extraMetaList ::: inner.extraMetaList,
-      clFrom, inner.clTo, tkFrom, inner.tkTo
+      tkFrom, inner.tkTo
     )(
-      container => inner.of(of(container))
+      clFrom, inner.clTo, container => inner.of(of(container))
     )
 
   def to[V](inner: ProdLens[I, V]): ProdLens[C, V] =
