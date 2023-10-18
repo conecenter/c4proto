@@ -110,7 +110,7 @@ abstract class AssembledKey extends Product {
   def of(model: ReadModel): Index = OrEmptyIndex(model.getIndex(this))
 }
 
-@deprecated class WorldTransition(val profiling: JoiningProfiling, val log: ProfilingLog = Nil)
+@deprecated class WorldTransition(val profiling: JoiningProfiling, val log: Future[ProfilingLog])
 
 trait JoiningProfiling extends Product {
   type Res = Long

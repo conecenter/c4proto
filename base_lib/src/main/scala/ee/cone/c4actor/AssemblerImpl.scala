@@ -221,7 +221,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     val profiling = assembleProfiler.createJoiningProfiling(Option(local))
     val util = Single(utilOpt.value)
     val result = util.toTreeReplace(local.assembled, externalOut, profiling, local.executionContext)
-    val updates = assembleProfiler.addMeta(new WorldTransition(profiling), externalOut)
+    val updates = Await.result(assembleProfiler.addMeta(new WorldTransition(profiling, Future.successful(Nil)), externalOut), Duration.Inf)
     val nLocal = new Context(local.injected, result, local.executionContext, local.transient)
     WriteModelKey.modify(_.enqueueAll(updateFromUtil.get(local,updates)))(nLocal)
     //call add here for new mortal?
