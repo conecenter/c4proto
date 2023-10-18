@@ -9,17 +9,17 @@ import okio.ByteString
 import java.util
 
 @c4("WorldCheckerApp") final class WorldCheckerReadModelAdd(
-  inner: ReadModelAdd,
+  inner: RichRawWorldReducer,
   readModelUtil: ReadModelUtil,
   indexUtil: IndexUtil,
   config: ListConfig,
-) extends ReadModelAdd with LazyLogging {
+) extends RichRawWorldReducer with LazyLogging {
   val postfix: String = Single.option(config.get("C4WORLD_CHECK_ORDER")).fold("")(order => "f" * order.toInt)
-  def add(executionContext: OuterExecutionContext, events: Seq[RawEvent]): ReadModel=>ReadModel =
-    inner.add(executionContext,events).andThen{ assembled =>
-      if(Single(events).srcId.endsWith(postfix)) report(assembled) // from FileConsumer events go 1 by 1
-      assembled
-    }
+  def reduce(context: Option[SharedContext with AssembledContext], events: List[RawEvent]): RichContext = {
+    val willContext = inner.reduce(context, events)
+    if(Single(events).srcId.endsWith(postfix)) report(willContext.assembled) // from FileConsumer events go 1 by 1
+    willContext
+  }
   def report(assembled: ReadModel): Unit = {
     val productWorldChecker = new ProductWorldChecker
     readModelUtil.toMap(assembled).toList.collect{
