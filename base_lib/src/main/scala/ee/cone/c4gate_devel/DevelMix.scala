@@ -8,5 +8,10 @@ import ee.cone.c4gate.DisableDefaultRemoteRawSnapshotApp
 @c4app class TopicToDirAppBase extends VMExecutionApp with ExecutableApp with BaseApp with ProtoApp
   with KafkaConsumerApp with SnapshotUtilImplApp with EnvConfigCompApp
 
-trait FileConsumerAppBase extends NoObserversApp
-  with DisableDefaultKafkaConsumingApp with DisableDefaultRemoteRawSnapshotApp
+trait FileConsumerAppBase
+trait WorldCheckerAppBase
+trait ReplayApp extends NoObserversApp
+  with DisableDefaultKafkaConsumingApp
+  with DisableDefaultRemoteRawSnapshotApp
+  with FileConsumerApp
+  with WorldCheckerApp
