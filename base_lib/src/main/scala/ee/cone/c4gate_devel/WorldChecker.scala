@@ -23,13 +23,13 @@ import java.util
   def report(assembled: ReadModel): Unit = {
     val productWorldChecker = new ProductWorldChecker
     readModelUtil.toMap(assembled).toList.collect{
-      case (worldKey: JoinKey, index: Index) if !worldKey.was && worldKey.keyAlias == "SrcId" =>
+      case (worldKey: JoinKey, index: Index) /*if !worldKey.was && worldKey.keyAlias == "SrcId"*/ =>
         (for {
           pk <- indexUtil.keyIterator(index).toList.sortBy(_.toString)
           value <- indexUtil.getValues(index,pk,"").toList.sortBy(ToPrimaryKey(_))
         } yield pk -> value).groupBy(_._2.getClass.getName).toList.sortBy(_._1).map{
           case (clName,res) =>
-            s"cl3 ${worldKey.valueClassName} $clName kv-hc ${res.hashCode}"
+            s"cl3 ${worldKey/*.valueClassName*/} $clName kv-hc ${res.hashCode}"
         }
     }.flatten.sorted.foreach{ l => logger.info(l) }
   }
