@@ -26,7 +26,7 @@ trait WorldPartRule
 class OriginalWorldPart[A<:Object](val outputWorldKeys: Seq[AssembledKey]) extends WorldPartRule with DataDependencyTo[A]
 
 trait Replace {
-  type Diffs = Seq[(AssembledKey, Array[RIndexPair])]
+  type Diffs = Seq[(AssembledKey, Array[Array[RIndexPair]])]
   def active: Seq[WorldPartRule]
   def replace(
     model: ReadModel, diff: Diffs, profiler: JoiningProfiling, executionContext: OuterExecutionContext

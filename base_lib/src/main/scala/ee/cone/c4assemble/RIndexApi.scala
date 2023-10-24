@@ -18,17 +18,17 @@ trait IndexingTask {
 }
 trait IndexingSubTask
 trait IndexingResult
-
 trait RIndexUtil {
+  def create(creatorPos: Int, key: RIndexKey, value: RIndexItem): RIndexPair
   def get(index: RIndex, key: RIndexKey): Seq[RIndexItem]
   def nonEmpty(index: RIndex, key: RIndexKey): Boolean
   def isEmpty(index: RIndex): Boolean
 
-  def buildIndex(power: Int, src: Array[RIndexPair], valueOperations: RIndexValueOperations): IndexingTask
-  def mergeIndex(aIndex: RIndex, bIndex: RIndex, valueOperations: RIndexValueOperations): IndexingTask
+  def buildIndex(prev: Array[RIndex], src: Array[Array[RIndexPair]], valueOperations: RIndexValueOperations): IndexingTask
   def execute(subTask: IndexingSubTask): IndexingResult
-  def merge(task: IndexingTask, parts: Seq[IndexingResult]): RIndex
+  def merge(task: IndexingTask, parts: Seq[IndexingResult]): Seq[RIndex]
 
+  def subIndexOptimalCount(index: RIndex): Int
   def subIndexKeys(index: RIndex, partPos: Int, partCount: Int): Array[RIndexKey]
   def keyIterator(index: RIndex): Iterator[RIndexKey]
   def keyCount(index: RIndex): Int
@@ -40,12 +40,12 @@ trait RIndexUtil {
 
 trait RIndexValueOperations {
   //def compareInPairs(a: RIndexPair, b: RIndexPair): Int
-  def compare(a: RIndexItem, b: RIndexItem): Int
+  def compare(a: RIndexItem, b: RIndexItem, cache: HashCodeCache): Int
   def merge(a: RIndexItem, b: RIndexItem): RIndexItem
   def nonEmpty(value: RIndexItem): Boolean
 }
 
 trait RIndexPair {
-  def rIndexKey: RIndexKey
+  def creatorPos: Int
   def rIndexItem: RIndexItem
 }

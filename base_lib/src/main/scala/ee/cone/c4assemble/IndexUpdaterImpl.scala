@@ -6,7 +6,7 @@ import ee.cone.c4di.c4
 import scala.collection.immutable.Seq
 
 @c4("AssembleApp") final class ReadModelUtilImpl(indexUtil: IndexUtil) extends ReadModelUtil {
-  def updated(pairs: Seq[(AssembledKey,Index)]): ReadModel=>ReadModel = {
+  def updated(pairs: Iterable[(AssembledKey,Index)]): ReadModel=>ReadModel = {
     case from: ReadModelImpl =>
       new ReadModelImpl(from.inner ++ pairs)
   }

@@ -9,4 +9,5 @@ package object c4assemble {
   class fieldAccess extends StaticAnnotation
   class ignore extends StaticAnnotation
   type MakeJoinKey = IndexUtil=>JoinKey
+  type DOut = RIndexPair
 }

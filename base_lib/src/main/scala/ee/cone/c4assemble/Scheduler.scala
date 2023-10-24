@@ -6,9 +6,11 @@ import ee.cone.c4assemble.SchedulerConf._
 import ee.cone.c4assemble.Types.{Index, emptyIndex}
 import ee.cone.c4di.{c4, c4multi}
 
-import java.util.concurrent.{BlockingQueue, LinkedBlockingQueue}
+import java.lang.management.ManagementFactory
+import java.util.concurrent.{BlockingQueue, ForkJoinPool, ForkJoinWorkerThread, LinkedBlockingQueue}
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
+import scala.collection.mutable
 import scala.concurrent.ExecutionContext.parasitic
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -18,32 +20,54 @@ object SchedulerConf {
   case class JoinInputPrevKey(exprPos: TaskPos, inputPos: Int) extends AssembledKey
   case class JoinInputDiffKey(exprPos: TaskPos, inputPos: Int) extends AssembledKey
   case class InputConf(was: Boolean, worldKey: JoinKey, prevKey: JoinInputPrevKey, diffKey: JoinInputDiffKey)
-  case class TaskConf(exprPos: TaskPos, inputs: ArraySeq[InputConf], outKeys: ArraySeq[JoinKey])
-  case class IndexUserConf(diffKey: JoinInputDiffKey, exprPos: TaskPos)
+  sealed trait TaskConf {
+    def exprPos: TaskPos
+    def subscribeKeys: ArraySeq[AssembledKey]
+    def planNotifyKeys: ArraySeq[AssembledKey]
+  }
+  case class CalcTaskConf(
+    exprPos: TaskPos, subscribeKeys: ArraySeq[AssembledKey], planNotifyKeys: ArraySeq[AssembledKey],
+    joinPos: Int, inputs: ArraySeq[InputConf], outKeys: ArraySeq[JoinKey]
+  ) extends TaskConf
+  case class BuildTaskConf(
+    exprPos: TaskPos, subscribeKeys: ArraySeq[AssembledKey], planNotifyKeys: ArraySeq[AssembledKey],
+    key: JoinKey, outDiffKeys: ArraySeq[JoinInputDiffKey]
+  ) extends TaskConf
 }
-case class SchedulerConf(indexUsers: Map[JoinKey,ArraySeq[IndexUserConf]], tasks: ArraySeq[TaskConf], plannerConf: PlannerConf)
+case class SchedulerConf(tasks: ArraySeq[TaskConf], subscribed: Map[AssembledKey,TaskPos], plannerConf: PlannerConf)
 
 @c4("AssembleApp") final class SchedulerFactoryImpl(
   expressionsDumpers: List[ExpressionsDumper[Unit]],
   schedulerImplFactory: SchedulerImplFactory, plannerFactory: PlannerFactory
 ) extends SchedulerFactory {
   def create(rulesByPriority: Seq[WorldPartRule]): Replace = {
-    val joins = rulesByPriority.collect { case e: Join => e }
+    val rulesByPriorityArr = ArraySeq.from(rulesByPriority)
+    val worldKeys = rulesByPriorityArr.collect{ case e: DataDependencyTo[_] => e.outputWorldKeys }.flatten
+      .map{ case k: JoinKey => k }.distinct
+    val joins = rulesByPriorityArr.collect { case e: Join => e }
     expressionsDumpers.foreach(_.dump(joins.toList))
-    val tasks = ArraySeq.from(joins.zipWithIndex.map{ case (join,i) =>
-      val exprPos = i.asInstanceOf[TaskPos]
+    val calcTasks = ArraySeq.from(joins.zipWithIndex.map{ case (join,i) =>
+      val exprPos = (worldKeys.length+i).asInstanceOf[TaskPos]
       val inputs = ArraySeq.from(join.inputWorldKeys.zipWithIndex.map { case (k:JoinKey,inputPos) =>
         InputConf(k.was, k.withWas(false), JoinInputPrevKey(exprPos, inputPos), JoinInputDiffKey(exprPos, inputPos))
       })
       val outputs = ArraySeq.from(join.outputWorldKeys.map{ case k: JoinKey => assert(!k.was); k })
-      TaskConf(exprPos: TaskPos, inputs, outputs)
+      val subscribeKeys = inputs.map(_.diffKey)
+      CalcTaskConf(exprPos, subscribeKeys,  outputs, i, inputs, outputs)
     })
-    val indexUsers = (for(task<-tasks; inp<-task.inputs) yield inp.worldKey -> IndexUserConf(inp.diffKey,task.exprPos))
-      .groupMap(_._1)(_._2).withDefaultValue(ArraySeq.empty)
-    val planIndexUsers = (for(task<-tasks; inp<-task.inputs if !inp.was) yield inp.worldKey -> task.exprPos)
-      .groupMap(_._1)(_._2).withDefaultValue(ArraySeq.empty)
-    val planTasks: Seq[PlanTaskConf] = tasks.map(task => PlanTaskConf(task.outKeys.flatMap(planIndexUsers)))
-    val conf = SchedulerConf(indexUsers, tasks, plannerFactory.createConf(planTasks))
+    val calcInputsByWorldKey = calcTasks.flatMap(_.inputs).groupBy(_.worldKey).withDefaultValue(ArraySeq.empty)
+    val buildTasks = worldKeys.zipWithIndex.map{ case (k,i) =>
+      val exprPos = i.asInstanceOf[TaskPos]
+      val outputs = calcInputsByWorldKey(k)
+      val planNotifyKeys = outputs.filterNot(_.was).map(_.diffKey)
+      BuildTaskConf(exprPos, ArraySeq(k), planNotifyKeys, k, outputs.map(_.diffKey))
+    }
+    val tasks = buildTasks ++ calcTasks
+    val subscribed =
+      tasks.flatMap(t => t.subscribeKeys.map(_->t.exprPos)).groupMap(_._1)(_._2).transform((_,v)=>Single(v))
+    val planConf = plannerFactory.createConf(tasks.map(t => PlanTaskConf(t.planNotifyKeys.map(subscribed))))
+    val conf = SchedulerConf(tasks, subscribed, planConf)
+    //new Thread(new ThreadTracker).start()
     schedulerImplFactory.create(rulesByPriority, conf, joins)
   }
 }
@@ -55,50 +79,14 @@ case class SchedulerConf(indexUsers: Map[JoinKey,ArraySeq[IndexUserConf]], tasks
   indexUtil: IndexUtil, readModelUtil: ReadModelUtil, rIndexUtil: RIndexUtil, plannerFactory: PlannerFactory,
 ) extends Replace {
   private trait Ev
-  private class RecalculatedEv(val done: Option[TaskPos], val diff: ArraySeq[(AssembledKey, Array[RIndexPair])]) extends Ev
-  private class BuiltEv(val done: Option[TaskPos], val diff: ArraySeq[(JoinKey, Index)]) extends Ev
 
-  private def applyPatch(diffs: ArraySeq[(JoinKey, Index)])(implicit ec: ExecutionContext): ReadModel=>ReadModel = model => {
-    val extendedPairs = diffs.flatMap{ case (k,v) =>
-      conf.indexUsers(k).map(_.diffKey).appended(k).map(ik=>ik->(ik.of(model),v))
-    }
-    val merged = Await.result(mergeIndexP(extendedPairs.map(_._2)), Duration.Inf)
-    readModelUtil.updated(zip(extendedPairs.map(_._1), merged))(model)
-  }
-
-  private def mergeIndexP(tasks: Seq[(Index, Index)])(implicit ec: ExecutionContext): Future[Seq[Index]] = {
-    val (simplePairs, complexPairs) = tasks.distinct.partition { case (a, b) => indexUtil.isEmpty(a) || indexUtil.isEmpty(b) }
-    execute2[(Index, Index), IndexingSubTask, IndexingResult, ((Index, Index), Index), Seq[Index]](
-      "M",
-      complexPairs,
-      { case (a, b) =>
-        val task = indexUtil.mergeIndex(a, b)
-        (task.subTasks, rIndexUtil.execute, l => (a, b) -> rIndexUtil.merge(task, l))
-      },
-      res => tasks.map((simplePairs.map{ case (a, b) => (a, b) -> (if(indexUtil.isEmpty(b)) a else b) } ++ res).toMap),
-      ec
-    )
-  }
-
-  private def buildIndexP(diff: ArraySeq[Array[RIndexPair]])(implicit ec: ExecutionContext): Future[Seq[Index]] =
-    execute2[Array[RIndexPair], IndexingSubTask, IndexingResult, Index, Seq[Index]](
-      "B",
-      diff,
-      pairs => {
-        val task = indexUtil.buildIndex(pairs)
-        (task.subTasks, rIndexUtil.execute, rIndexUtil.merge(task, _))
-      },
-      identity,
-      ec
-    )
-
-  def zip[A, B](a: ArraySeq[A], b: Seq[B]) = {
+  private def zip[A, B](a: ArraySeq[A], b: Seq[B]) = {
     assert(a.size == b.size)
     a.zip(b)
   }
 
   private class CalcReq(
-    val taskConf: TaskConf, val prevInputValues: Seq[Index], val nextInputValues: Seq[Index], val inputDiffs: Seq[Index]
+    val taskConf: CalcTaskConf, val prevInputValues: Seq[Index], val nextInputValues: Seq[Index], val inputDiffs: Seq[Index]
   )
 
   private def execute[S, T, U](tasks: Seq[S], calc: S => T, aggr: Seq[T] => U, ec: ExecutionContext): Future[U] = {
@@ -123,19 +111,6 @@ case class SchedulerConf(indexUsers: Map[JoinKey,ArraySeq[IndexUserConf]], tasks
       outerTasks,
       outerTask => {
         val (innerTasks, innerCalc, innerAggr) = prep(outerTask)
-/*
-        ParallelExecutionCount.add((hint match {
-          case "B" => 0
-          case "M" => 1
-          case "C" => 2
-        }) * 5 + (innerTasks.size match {
-          case 0 => 0
-          case 1 => 1
-          case 2 => 2
-          case a if a < 15 => 3
-          case a if a < 40 => 4
-        }), 1)*/
-
         execute[InnerTask,InnerRes,OuterRes](innerTasks, innerCalc, innerAggr, ec)
       },
       s => seq(s)(shortEC).map(outerAggr)(shortEC),
@@ -153,9 +128,16 @@ case class SchedulerConf(indexUsers: Map[JoinKey,ArraySeq[IndexUserConf]], tasks
     if(inputs.forall(indexUtil.isEmpty)) res else transJoin.dirJoin(dir, inputs) :: res
 
   private def recalc(req: CalcReq, ec: ExecutionContext): Future[AggrDOut] = {
-    val transJoin = joins(req.taskConf.exprPos).joins(req.inputDiffs)
+    val at = System.nanoTime()
+    val transJoin = joins(req.taskConf.joinPos).joins(req.inputDiffs)
+
+    //if(transJoin.toString.contains("syncStatsJ")) ParallelExecutionCount.values(1).set(1)
+
     val handlers = addHandler(transJoin, -1, req.prevInputValues, addHandler(transJoin, +1, req.nextInputValues, Nil))
-    val parallelPartCount = 32
+
+    //ParallelExecutionCount.values(1).set(0)
+
+    val parallelPartCount = req.inputDiffs.map(rIndexUtil.subIndexOptimalCount).max
     val handlersByInvalidationSeq = handlers.groupBy(_.invalidateKeysFromIndexes).toSeq
     // so if invalidateKeysFromIndexes for handlers are same, then it's normal diff case, else `byEq` changes, and we need to recalc all
     type Task = (Seq[Array[RIndexKey]],Seq[KeyIterationHandler])
@@ -164,18 +146,7 @@ case class SchedulerConf(indexUsers: Map[JoinKey,ArraySeq[IndexUserConf]], tasks
       partPos <- 0 until parallelPartCount
       subIndexes <- Seq(getSubIndexKeys(invalidateKeysFromIndexes, partPos, parallelPartCount)) if subIndexes.nonEmpty
     } yield (subIndexes, handlers)
-/*
-    ParallelExecutionCount.add(tasks.size match {
-      case 0 => 0
-      case 1 => 1
-      case 2 => 2
-      case a if a < 15 => 3
-      case a if a < 30 => 4
-      case a if a < 40 => 5
-    }, 1)*/
-
-    //val outRange = (0 until Single(handlers.map(_.outCount).distinct))
-    execute2[Task,KeyIterationHandler,AggrDOut,Seq[AggrDOut],AggrDOut](
+    execute2[Task,KeyIterationHandler,AggrDOut,AggrDOut,AggrDOut](
       "C",
       tasks,
       { case (invalidateKeysFromSubIndexes, handlers) =>
@@ -187,9 +158,12 @@ case class SchedulerConf(indexUsers: Map[JoinKey,ArraySeq[IndexUserConf]], tasks
           val buffer = indexUtil.createBuffer()
           for (k <- keys) handler.handle(k, buffer)
           indexUtil.aggregate(buffer)
-        }, identity)
+        }, indexUtil.aggregate)
       },
-      r => indexUtil.aggregate(r.flatten),
+      r => {
+        // println(s"calc ${(System.nanoTime-at)/1000000} ms ${req.inputDiffs.map(rIndexUtil.valueCount).sum} items ${tasks.size} of $parallelPartCount parts $transJoin")
+        indexUtil.aggregate(r)
+      },
       ec
     )
   }
@@ -200,96 +174,124 @@ case class SchedulerConf(indexUsers: Map[JoinKey,ArraySeq[IndexUserConf]], tasks
   } yield subIndexKeys
 
   private class MutableSchedulingContext(
-    val queue: BlockingQueue[Try[Ev]], val planner: MutablePlanner, val ec: ExecutionContext, var inProgress: Int,
-    var model: ReadModel,
+    val planner: MutablePlanner, val ec: ExecutionContext,
+    var model: ReadModel, val calculatedByBuildTask: collection.mutable.Map[JoinKey,Array[Array[RIndexPair]]]
   )
+
+  private def startBuild(context: MutableSchedulingContext, taskConf: BuildTaskConf): Future[Option[Ev]] =
+    context.calculatedByBuildTask.remove(taskConf.key) match {
+      case None => Future.successful(None)
+      case Some(calculated) =>
+        val outKeys = taskConf.outDiffKeys.toArray[AssembledKey].appended(taskConf.key)
+        val prev = outKeys.map(_.of(context.model))
+        continueBuild(calculated, outKeys, prev)(context.ec)
+    }
+  private def continueBuild(
+    calculated: Array[Array[RIndexPair]], outKeys: Array[AssembledKey], prev: Array[Index]
+  )(ec: ExecutionContext): Future[Option[Ev]] = Future{
+    val prevDistinct = prev.distinct
+    val task = indexUtil.buildIndex(prevDistinct, calculated)
+    execute[IndexingSubTask,IndexingResult,Seq[Index]](task.subTasks, rIndexUtil.execute, rIndexUtil.merge(task, _), ec)
+    .map{ nextDistinct =>
+      prev.map(zip(ArraySeq.from(prevDistinct), nextDistinct).toMap)
+    }(shortEC)
+  }(ec).flatten.map(next=>Option(new BuiltEv(outKeys, prev, next.toArray)))(shortEC)
+  private class BuiltEv(val keys: Array[AssembledKey], val prev: Array[Index], val next: Array[Index]) extends Ev
+  private def finishBuild(context: MutableSchedulingContext, ev: BuiltEv): Unit = {
+    val diff = for (i <- ev.keys.indices) yield {
+      val k = ev.keys(i)
+      assert(k.of(context.model) == ev.prev(i))
+      k -> ev.next(i)
+    }
+    context.model = readModelUtil.updated(diff)(context.model)
+    diff.collect{ case (k: JoinInputDiffKey, _) => k.exprPos }.foreach(context.planner.setTodo)
+  }
+
+  private def startCalc(context: MutableSchedulingContext, taskConf: CalcTaskConf): Future[Option[Ev]] = {
+    val diffs = taskConf.inputs.map(_.diffKey.of(context.model))
+    if (diffs.forall(indexUtil.isEmpty)) Future.successful(None) else {
+      val prevInputs = taskConf.inputs.map(_.prevKey.of(context.model))
+      val inputs = taskConf.inputs.map(_.worldKey.of(context.model))
+      val req = new CalcReq(taskConf, prevInputs, inputs, diffs)
+      val replace = zip(taskConf.inputs, inputs).flatMap{ case (c, v) => Seq(c.prevKey -> v, c.diffKey -> emptyIndex) }
+      context.model = readModelUtil.updated(replace)(context.model)
+      continueCalc(req)(context.ec)
+    }
+  }
+  private def continueCalc(req: CalcReq)(ec: ExecutionContext): Future[Option[Ev]] =
+    Future(recalc(req, ec))(ec).flatten.map { aggr =>
+      val diff = req.taskConf.outKeys.indices.toArray.map(i => req.taskConf.outKeys(i) -> indexUtil.byOutput(aggr, i))
+        .filter(_._2.nonEmpty)
+      Option(new CalculatedEv(diff))
+    }(shortEC)
+  private class CalculatedEv(val diff: Array[(JoinKey, Array[Array[RIndexPair]])]) extends Ev
+  private def finishCalc(context: MutableSchedulingContext, ev: CalculatedEv): Unit = setTodoBuild(context, ev.diff)
+
+  private def setTodoBuild(context: MutableSchedulingContext, diff: Array[(JoinKey, Array[Array[RIndexPair]])]): Unit = {
+    val c = context.calculatedByBuildTask
+    for ((k, v) <- diff) {
+      c(k) = if (c.contains(k)) c(k) ++ v else v
+      context.planner.setTodo(conf.subscribed(k))
+    }
+  }
 
   def replace(
     model: ReadModel, diff: Diffs, profiler: JoiningProfiling, executionContext: OuterExecutionContext
   ): ReadModel = {
     val planner = plannerFactory.createMutablePlanner(conf.plannerConf)
-    val queue = new LinkedBlockingQueue[Try[Ev]]
-    val context = new MutableSchedulingContext(queue, planner, executionContext.value, 0, model)
-    sendNow(context, new RecalculatedEv(None,ArraySeq.from(diff)))
-    iteration(context)
+    val calculatedByBuildTask = new collection.mutable.HashMap[JoinKey, Array[Array[RIndexPair]]]
+    val context = new MutableSchedulingContext(planner, executionContext.value, model, calculatedByBuildTask)
+    setTodoBuild(context, diff.map{ case (k: JoinKey, v) => (k,v) }.toArray)
+    loop(context)
+    context.model
   }
-  @tailrec private def iteration(context: MutableSchedulingContext): ReadModel = {
-    import context._
-    ParallelExecutionCount.values(0).set(inProgress)
-    assert(inProgress >= 0)
-    if(planner.planCount <= 0 && inProgress <= 0 && queue.isEmpty) model else {
-      if(planner.suggested.nonEmpty){
+  private def loop(context: MutableSchedulingContext): Unit = {
+    val queue = new LinkedBlockingQueue[Try[(TaskPos,Option[Ev])]]
+    val planner = context.planner
+    //println(s"status counts: ${planner.planCount} ${planner.getStatusCounts}")
+    while(planner.planCount > 0) {
+      //ParallelExecutionCount.values(0).set(inProgress)
+      //println(s"status counts: ${planner.planCount} ${planner.getStatusCounts}")
+      while (planner.suggested.nonEmpty){
         val exprPos = planner.suggested.head
         planner.setStarted(exprPos)
-        val taskConf: TaskConf = conf.tasks(exprPos)
-        val diffs = taskConf.inputs.map(_.diffKey.of(model))
-        if (diffs.forall(indexUtil.isEmpty)){
-          sendNow(context, new RecalculatedEv(Option(exprPos), ArraySeq.empty))
-        } else {
-          val prevInputs = taskConf.inputs.map(_.prevKey.of(model))
-          val inputs = taskConf.inputs.map(_.worldKey.of(model))
-          val req = new CalcReq(taskConf, prevInputs, inputs, diffs)
-          val repl = zip(taskConf.inputs, inputs).flatMap { case (c, v) => Seq(c.prevKey -> v, c.diffKey -> emptyIndex) }
-          model = readModelUtil.updated(repl)(model)
-          send(context, ()=>{
-            recalc(req, ec).map{ aggr =>
-              val diff = taskConf.outKeys.zipWithIndex.flatMap{ case (k,pos) =>
-                val items = indexUtil.byOutput(aggr, pos)
-                if(items.isEmpty) ArraySeq.empty else ArraySeq(k -> items)
-              }
-              new RecalculatedEv(Option(exprPos), diff)
-            }(shortEC)
-          })
-        }
-      } else {
-        val event = queue.take().get
-        context.inProgress -= 1
-        event match {
-          case ev: RecalculatedEv =>
-            send(context, ()=>{
-              buildIndexP(ev.diff.map(_._2))(ec).map{ diff =>
-                val fDiff: ArraySeq[(JoinKey, Index)] = zip(ev.diff.map(_._1), diff)
-                  .collect { case (k: JoinKey, v) if !indexUtil.isEmpty(v) => (k, v) }
-                new BuiltEv(ev.done, fDiff)
-              }(ec)
-            })
-          case ev: BuiltEv =>
-            model = applyPatch(ev.diff)(ec)(model)
-            //for(exprPos <- ev.done) println(s"SCH finishing $exprPos")
-            planner.setDoneTodo(ev.done, (for ((k, _) <- ev.diff; u <- conf.indexUsers(k)) yield u.exprPos).toSet)
-            //ParallelExecutionCount.add(1, 1)
-        }
+        (conf.tasks(exprPos) match {
+          case taskConf: BuildTaskConf => startBuild(context, taskConf)
+          case taskConf: CalcTaskConf => startCalc(context, taskConf)
+        }).map((exprPos,_))(shortEC).onComplete{ tEv => queue.put(tEv) }(shortEC)
       }
-      iteration(context)
+      val (exprPos, event) = queue.take().get
+      event.foreach{
+        case ev: CalculatedEv => finishCalc(context, ev)
+        case ev: BuiltEv => finishBuild(context, ev)
+      }
+      planner.setDone(exprPos)
     }
   }
+}
 
-  private def sendNow(context: MutableSchedulingContext, ev: Ev): Unit = {
-    context.inProgress += 1
-    context.queue.put(Success(ev))
-  }
-  def send(context: MutableSchedulingContext, calc: ()=>Future[Ev]): Unit = {
-    context.inProgress += 1
-    Future(calc())(context.ec).flatten.onComplete{ tEv =>
-      context.queue.put(tEv)
-    }(shortEC)
+class ThreadTracker extends Runnable {
+  def run(): Unit = {
+    val man = ManagementFactory.getThreadMXBean
+    while(true){
+      val assThreads = man.dumpAllThreads(false, false)
+        .filter(ti => ti.getThreadName.contains("ass-") && ti.getThreadState == Thread.State.RUNNABLE)
+      println(s"assCount ${assThreads.length}")
+      if(assThreads.length > 2 && assThreads.length < 12) for(ti <- assThreads){
+        println("ass")
+        for(s <- ti.getStackTrace) println(s.toString)
+      }
+      Thread.sleep(1000)
+    }
   }
 }
 
 /*
-
-
-plan:
-chk wrld hash
+plan/ideas:
 conc-y vs par-m -- is cpu busy
+  gather stats on joiners then use next time
 All? par Each
 fjp
-
-ideas:
-outKey as task
-we need diff anyway for next recalc, but do we need to merge-w/o-build 
-    or just (prev,pairs)->build_merge->(diff,next)
-bucketCount for index dynamic on 1st join
+chk wrld hash long
 if value-count >> key-count (and it's not Values?), then segmented bucketPos based on both
-
 */

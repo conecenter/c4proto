@@ -31,12 +31,12 @@ final class MutablePlannerImpl(taskUsers: Array[Array[TaskPos]]) extends Mutable
   private var suggestedSet: TreeSet[TaskPos] = TreeSet.empty
   private val statusCounts = Array[Int](taskUsers.length, 0, 0)
 
-  def setDoneTodo(done: Option[TaskPos], todo: Set[TaskPos]): Unit = {
-    for(exprPos <- todo if statusByExprPos(exprPos) == noSt) setStatus(exprPos, noSt, todoSt, +1)
-    for(exprPos <- done) {
-      setStatus(exprPos, startedSt, todoSt, 0)
-      if(!todo(exprPos)) setStatus(exprPos, todoSt, noSt, -1)
-    }
+  def setTodo(exprPos: TaskPos): Unit =
+    if(statusByExprPos(exprPos) == noSt) setStatus(exprPos, noSt, todoSt, +1)
+
+  def setDone(exprPos: TaskPos): Unit = {
+    setStatus(exprPos, startedSt, todoSt, 0)
+    setStatus(exprPos, todoSt, noSt, -1)
   }
   def setStarted(exprPos: TaskPos): Unit = setStatus(exprPos, todoSt, startedSt, 0)
   def suggested: Set[TaskPos] = suggestedSet

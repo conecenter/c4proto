@@ -8,17 +8,13 @@ import Types._
 import ee.cone.c4assemble.DOutAggregationBuffer.{emptyBuffers, emptyDOuts}
 import ee.cone.c4assemble.IndexTypes.{Count, Products}
 import ee.cone.c4assemble.RIndexTypes.{RIndexItem, RIndexKey}
-import ee.cone.c4di.{c4, c4multi}
+import ee.cone.c4di.c4
 
 import scala.annotation.tailrec
-import scala.collection.{immutable, mutable}
+import scala.collection.immutable
 import scala.collection.immutable.{Map, Seq}
-import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import java.nio.charset.StandardCharsets.UTF_8
-import java.util
-import java.util.concurrent.atomic.{AtomicLong, AtomicStampedReference}
-import scala.concurrent.duration.Duration
-import scala.util.Try
+import java.util.concurrent.atomic.AtomicLong
 
 class NonSingleCount(val item: Product, val count: Int)
 sealed class Counts(val data: List[Count])
@@ -53,7 +49,6 @@ object ParallelExecutionCount {
 // Ordering.by can drop keys!: https://github.com/scala/bug/issues/8674
 @c4("AssembleApp") final class IndexUtilImpl(
   rIndexUtil: RIndexUtil,
-  memoryOptimizing: MemoryOptimizing,
   noParts: Array[MultiForPart] = Array.empty,
 ) extends IndexUtil {
   private def isSingle(p: Products): Boolean = p match {
@@ -121,15 +116,12 @@ object ParallelExecutionCount {
     case n => new NonSingleCount(item, n).asInstanceOf[Count]
   }
   private def rIndexValueOperations: RIndexValueOperations = new RIndexValueOperations {
-    def compare(a: RIndexItem, b: RIndexItem): Int = {
+    def compare(a: RIndexItem, b: RIndexItem, cache: HashCodeCache): Int = {
       val aP = headProduct(a)
       val bP = headProduct(b)
       val r = RawToPrimaryKey.get(aP) compareTo RawToPrimaryKey.get(bP)
-      if (r == 0) java.lang.Integer.compare(aP.hashCode,bP.hashCode) else r
-//      if (r == 0){
-//        //ParallelExecutionCount.add(8, 1)
-//        java.lang.Integer.compare(HashCodeCache.get(aP),HashCodeCache.get(bP))
-//      } else r
+//      if (r == 0) java.lang.Integer.compare(aP.hashCode,bP.hashCode) else r
+      if (r == 0) java.lang.Integer.compare(cache.get(aP),cache.get(bP)) else r
     }
     def merge(a: RIndexItem, b: RIndexItem): RIndexItem = mergeProducts(a,b)
     def nonEmpty(value: RIndexItem): Boolean = !isEmptyProducts(value)
@@ -159,8 +151,11 @@ object ParallelExecutionCount {
 
   def getValues(index: Index, key: Any, warning: String): Values[Product] = { // gives Vector; todo ? ArraySeq.unsafeWrapArray(
     val values = rIndexUtil.get(index,oKey(key))
-    if(areSingle(values)) values.asInstanceOf[Seq[Product]]
-    else values.map(single(_,warning))
+    if(values.isEmpty) Nil else new AssSeq(values, warning)
+  }
+  private final class AssSeq(inner: Seq[RIndexItem], warning: String) extends IndexedSeq[Product] {
+    def apply(i: Int): Product = single(inner(i),warning)
+    def length: Int = inner.length
   }
 
   def getNonSingles(index: Index, key: Any): Seq[(Product,Int)] =
@@ -173,15 +168,12 @@ object ParallelExecutionCount {
       case p: Product => Nil
     }
 
-  def mergeIndex(a: Index, b: Index): IndexingTask =
-    rIndexUtil.mergeIndex(a, b, rIndexValueOperations)
-
   def removingDiff(pos: Int, index: Index, keys: Iterable[Any]): Iterable[DOut] =
     for {
       key <- keys
       products  <- rIndexUtil.get(index,oKey(key))
       count <- toCounts(products)
-    } yield new DOutImpl(pos, oKey(key), asUProducts(inverse(count)))
+    } yield rIndexUtil.create(pos, oKey(key), asUProducts(inverse(count)))
 
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Array[MultiForPart] = {
     val currentMS = rIndexUtil.get(currentIndex,oKey(key))
@@ -208,40 +200,36 @@ object ParallelExecutionCount {
 
   def mayBePar[V](seq: immutable.Seq[V]): DPIterable[V] = seq
 
-  def byOutput(aggr: AggrDOut, outPos: Int): Array[RIndexPair] = aggr match { case a: AggrDOutImpl =>
-    val r = a.resultsByOut
-    if(outPos < r.length) r(outPos) else emptyItems
+  def byOutput(aggr: AggrDOut, outPos: Int): Array[Array[RIndexPair]] = aggr match {
+    case a: AggrDOutImpl => a.resultsByOut.collect { case (p, v) if p == outPos => v }
   }
-  private val emptyItems = Array.empty[RIndexPair]
   private val emptyAggrDOut = new AggrDOutImpl(Array.empty, 0)
   def aggregate(seq: Seq[AggrDOut]): AggrDOut = if(seq.isEmpty) emptyAggrDOut else {
     val s = seq.map{ case a: AggrDOutImpl => a }.toArray
-    val outCount = s.map(_.resultsByOut.length).max
-    val res = (0 until outCount).toArray.map(outPos => s.flatMap(byOutput(_, outPos)))
-    new AggrDOutImpl(res, s.map(_.callCount).sum)
+    new AggrDOutImpl(s.flatMap(_.resultsByOut), s.map(_.callCount).sum)
   }
   def aggregate(values: Iterable[DOut]): AggrDOut =
-    new AggrDOutImpl(Array(values.map{ case o: DOutImpl => o }.toArray), 0)
+    new AggrDOutImpl(Array((0, values.toArray)), 0)
   def aggregate(buffer: MutableDOutBuffer): AggrDOut =
     buffer match { case b: DOutAggregationBuffer => b.result }
   def createBuffer(): MutableDOutBuffer = new DOutAggregationBuffer
 
-  def buildIndex(src: Array[RIndexPair]): IndexingTask =
-    rIndexUtil.buildIndex(memoryOptimizing.indexPower, src, rIndexValueOperations)
+  def buildIndex(prev: Array[Index], src: Array[Array[RIndexPair]]): IndexingTask =
+    rIndexUtil.buildIndex(prev, src, rIndexValueOperations)
 
   def countResults(data: Seq[AggrDOut]): ProfilingCounts =
     data.asInstanceOf[Seq[AggrDOutImpl]]
       .foldLeft(ProfilingCounts(0L,0L))((res,aggr) => res.copy(
         callCount = res.callCount + aggr.callCount,
-        resultCount = res.resultCount + aggr.resultsByOut.map(_.length).sum,
+        resultCount = res.resultCount + aggr.resultsByOut.map{ case (_,v) => v.length }.sum,
       ))
 
   def createOutFactory(pos: Int, dir: Int): OutFactory[Any, Product] =
-    new OutFactoryImpl(this,pos,dir)
+    new OutFactoryImpl(this,rIndexUtil,pos,dir)
 
   @deprecated def getInstantly(index: Index): Index = index
 
-  def getValue(dOut: DOut): Product = dOut match { case d: DOutImpl => getItem(asCount(d.rIndexItem)) }
+  def getValue(dOut: DOut): Product = getItem(asCount(dOut.rIndexItem))
   def addNS(key: AssembledKey, ns: String): AssembledKey = key match {
     case k: JoinKeyImpl => k.copy(keyAlias=k.keyAlias+"#"+ns)
   }
@@ -254,15 +242,7 @@ final class UnchangedMultiForPart(getItems: ()=>Array[Product]) extends MultiFor
   def isChanged: Boolean = false
   lazy val items: Array[Product] = getItems()
 }
-
-/*
-final class MutableGroupingBufferImpl[T](count: Int) {
-  private val buffers = Vector.fill(count)(new mutable.ArrayBuffer[T])
-  def add(pos: Int, value: T): Unit = { val _ = buffers(pos).addOne(value) }
-  def toVector: Vector[Vector[T]] = buffers.map(_.toVector)
-}
-*/
-final class AggrDOutImpl(val resultsByOut: Array[Array[RIndexPair]], val callCount: Long) extends AggrDOut
+final class AggrDOutImpl(val resultsByOut: Array[(Int,Array[RIndexPair])], val callCount: Long) extends AggrDOut
 
 final class DOutLeafBuffer {
   var values: Array[RIndexPair] = new Array(32)
@@ -290,8 +270,8 @@ object DOutAggregationBuffer {
 final class DOutAggregationBuffer extends MutableDOutBuffer {
   private var buffers: Array[DOutLeafBuffer] = emptyBuffers
   private var callCounter: Long = 0L
-  private def addOne(v: DOut): Unit = v match { case v: DOutImpl =>
-    val pos = v.pos
+  private def addOne(v: DOut): Unit = {
+    val pos = v.creatorPos
     while(pos >= buffers.length){
       buffers = buffers.appended(new DOutLeafBuffer)
     }
@@ -299,20 +279,19 @@ final class DOutAggregationBuffer extends MutableDOutBuffer {
   }
   def add(values: Iterable[DOut]): Unit = {
     callCounter += 1
-    values.foreach(addOne)
+    val iterator = values.iterator
+    while(iterator.hasNext) addOne(iterator.next())
   }
   def add[K,V<:Product](outFactory: OutFactory[K,V], values: Seq[(K,V)]): Unit = {
     callCounter += 1
     values.foreach(pair => addOne(outFactory.result(pair)))
   }
-  def result: AggrDOutImpl = new AggrDOutImpl(buffers.map(_.result), callCounter)
+  def result: AggrDOutImpl = new AggrDOutImpl(buffers.zipWithIndex.map{ case (b,i)=> (i,b.result) }, callCounter)
 }
 
-final class DOutImpl(val pos: Int, val rIndexKey: RIndexKey, val rIndexItem: RIndexItem) extends DOut with RIndexPair
-
-final class OutFactoryImpl(util: IndexUtilImpl, pos: Int, dir: Int) extends OutFactory[Any, Product] {
+final class OutFactoryImpl(util: IndexUtilImpl, rIndexUtil: RIndexUtil, pos: Int, dir: Int) extends OutFactory[Any, Product] {
   def result(key: Any, value: Product): DOut = {
-    new DOutImpl(pos,util.oKey(key),util.asUProducts(util.makeCount(value,dir)))
+    rIndexUtil.create(pos,util.oKey(key),util.asUProducts(util.makeCount(value,dir)))
   }
   def result(pair: (Any, Product)): DOut = {
     val (k,v) = pair

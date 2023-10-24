@@ -3,7 +3,7 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol._
 import ee.cone.c4actor.Types._
-import ee.cone.c4assemble.{DOut, ReadModel, _}
+import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types._
 import ee.cone.c4di.Types.ComponentFactory
 import ee.cone.c4di.{c4, c4multi, provide}
@@ -12,6 +12,7 @@ import okio.ByteString
 
 import scala.collection.immutable
 import scala.collection.immutable.{Map, Seq}
+import scala.concurrent.ExecutionContext.parasitic
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.control.NonFatal
 import scala.concurrent.duration.Duration
@@ -50,16 +51,27 @@ import scala.concurrent.duration.Duration
       .asInstanceOf[List[OrigPartitioner[Product]]]
 }
 
+object SpreadUpdates extends SpreadHandler[N_Update] {
+  val power = 5
+  val partCount = 1 << power
+  val empty = Array.empty[N_Update]
+  def toPos(it: N_Update): Int = it.srcId.hashCode & (partCount-1)
+  def createPart(sz: Int): Array[N_Update] = if (sz > 0) new Array(sz) else empty
+  def createRoot(sz: Int): Array[Array[N_Update]] = new Array(sz)
+}
+
 @c4("RichDataCompApp") final class AssemblerUtil(
   qAdapterRegistry: QAdapterRegistry,
   composes: IndexUtil,
   origKeyFactory: OrigKeyFactoryFinalHolder,
-  readModelUtil: ReadModelUtil,
+  spreader: Spreader,
   warnPeriod: LongAssembleWarnPeriod,
   replace: Replace,
   activeOrigKeyRegistry: ActiveOrigKeyRegistry,
   origPartitionerRegistry: OrigPartitionerRegistry,
 ) extends LazyLogging {
+  def seq[T](s: Seq[Future[T]])(implicit ec: ExecutionContext): Future[Seq[T]] = Future.sequence(s)
+
   def toTreeReplace(assembled: ReadModel, updates: Seq[N_Update], profiling: JoiningProfiling, executionContext: OuterExecutionContext): ReadModel = {
     val end = NanoTimer()
     val txName = Thread.currentThread.getName
@@ -67,9 +79,9 @@ import scala.concurrent.duration.Duration
     val outFactory = composes.createOutFactory(0, +1)
     val ec: ExecutionContext = executionContext.value
     logger.debug("toTreeReplace indexGroups before")
-    val diff = for {
-      tpPair <- updates.groupBy(_.valueTypeId).toSeq
-      (valueTypeId, tpUpdates) = tpPair : (Long,Seq[N_Update])
+    def handle(updatesPart: Array[N_Update]): Seq[(AssembledKey, Array[Array[DOut]])] = for {
+      tpPair <- updatesPart.groupBy(_.valueTypeId).toSeq
+      (valueTypeId, tpUpdates) = tpPair: (Long, Array[N_Update])
       valueAdapter <- qAdapterRegistry.byId.get(valueTypeId).toSeq
       wKey <- Seq(origKeyFactory.value.rawKey(valueAdapter.className)) if isActiveOrig(wKey)
       updatesBySrcId = tpUpdates.groupBy(_.srcId)
@@ -86,10 +98,13 @@ import scala.concurrent.duration.Duration
         partitioner <- partitionerList
         (nsName, nsChanges) <- changes.groupBy(change => partitioner.handle(composes.getValue(change)))
       } yield composes.addNS(wKey, nsName) -> composes.byOutput(composes.aggregate(nsChanges), 0)
-      kv <- (wKey->composes.byOutput(composes.aggregate(changes), 0)) :: partitionedIndexFList
+      kv <- (wKey -> composes.byOutput(composes.aggregate(changes), 0)) :: partitionedIndexFList
     } yield kv
-
-    assert(diff.map(_._1).distinct.size == diff.size)
+    val tasks = spreader.spread(updates.toArray, SpreadUpdates).filter(_.length>0).sortBy(-_.length)
+    val taskResultsF = seq(tasks.map{ part => Future{ handle(part) }(ec) })(parasitic)
+    val taskResults = Await.result(taskResultsF, Duration.Inf)
+    val diff = taskResults.flatten.groupMap(_._1)(_._2).transform((_,v)=>v.toArray.flatten).toSeq
+    //assert(diff.map(_._1).distinct.size == diff.size)
     logger.debug("toTreeReplace indexGroups after")
     val willAssembled = replace.replace(assembled,diff,profiling,executionContext)
     val period = end.ms

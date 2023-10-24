@@ -16,19 +16,18 @@ trait IndexUtil {
   def valueCount(index: Index): Int
   def keyCount(index: Index): Int
   def keyIterator(index: Index): Iterator[Any]
-  def mergeIndex(a: Index, b: Index): IndexingTask
   def getValues(index: Index, key: Any, warning: String): Values[Product] //m
   def nonEmpty(index: Index, key: Any): Boolean //m
   def removingDiff(pos: Int, index: Index, keys: Iterable[Any]): Iterable[DOut]
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Array[MultiForPart]  //m
   def mayBePar[V](seq: Seq[V]): DPIterable[V]
   //
-  def byOutput(aggr: AggrDOut, outPos: Int): Array[RIndexPair]
+  def byOutput(aggr: AggrDOut, outPos: Int): Array[Array[RIndexPair]]
   def aggregate(s: Seq[AggrDOut]): AggrDOut
   def aggregate(values: Iterable[DOut]): AggrDOut
   def aggregate(buffer: MutableDOutBuffer): AggrDOut
   def createBuffer(): MutableDOutBuffer
-  def buildIndex(src: Array[RIndexPair]): IndexingTask
+  def buildIndex(prev: Array[Index], src: Array[Array[RIndexPair]]): IndexingTask
   def countResults(data: Seq[AggrDOut]): ProfilingCounts
   //
   def getInstantly(future: Index): Index
@@ -67,9 +66,8 @@ trait OuterExecutionContext {
 
 trait AggrDOut
 
-trait DOut
-
 object Types {
+  type DOut = RIndexPair
   type DiffIndexRawSeq = Seq[Index]
   type Outs = Seq[DOut]
   type Values[V] = Seq[V]
@@ -91,7 +89,7 @@ object Types {
 }
 
 trait ReadModelUtil {
-  def updated(pairs: Seq[(AssembledKey,Index)]): ReadModel=>ReadModel
+  def updated(pairs: Iterable[(AssembledKey,Index)]): ReadModel=>ReadModel
   def toMap: ReadModel=>Map[AssembledKey,Index]
 }
 
@@ -226,8 +224,4 @@ we declare, that products has fast x.hashCode and ToPrimaryKey(x),
 
 trait StartUpSpaceProfiler {
   def out(readModelA: ReadModel): Unit
-}
-
-trait MemoryOptimizing {
-  def indexPower: Int
 }
