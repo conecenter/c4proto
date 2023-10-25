@@ -1,36 +1,31 @@
 package ee.cone.c4assemble
 
 import ee.cone.c4assemble.PlannerTypes.TaskPos
-import ee.cone.c4assemble.RIndexTypes.{RIndexItem, RIndexKey}
+import ee.cone.c4assemble.RIndexTypes.RIndexKey
 import ee.cone.c4assemble.SchedulerConf._
 import ee.cone.c4assemble.Types.{Index, emptyIndex}
 import ee.cone.c4di.{c4, c4multi}
 
 import java.lang.management.ManagementFactory
-import java.util.concurrent.{BlockingQueue, ForkJoinPool, ForkJoinWorkerThread, LinkedBlockingQueue}
-import scala.annotation.tailrec
+import java.util.concurrent.LinkedBlockingQueue
 import scala.collection.immutable.ArraySeq
-import scala.collection.mutable
-import scala.concurrent.ExecutionContext.parasitic
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, ExecutionContext, Future}
-import scala.util.{Success, Try}
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Try
 
 object SchedulerConf {
-  case class JoinInputPrevKey(exprPos: TaskPos, inputPos: Int) extends AssembledKey
-  case class JoinInputDiffKey(exprPos: TaskPos, inputPos: Int) extends AssembledKey
+  case class JoinInputPrevKey(joinPos: Int, inputPos: Int) extends AssembledKey
+  case class JoinInputDiffKey(joinPos: Int, inputPos: Int) extends AssembledKey
   case class InputConf(was: Boolean, worldKey: JoinKey, prevKey: JoinInputPrevKey, diffKey: JoinInputDiffKey)
   sealed trait TaskConf {
-    def exprPos: TaskPos
     def subscribeKeys: ArraySeq[AssembledKey]
     def planNotifyKeys: ArraySeq[AssembledKey]
   }
   case class CalcTaskConf(
-    exprPos: TaskPos, subscribeKeys: ArraySeq[AssembledKey], planNotifyKeys: ArraySeq[AssembledKey],
+    subscribeKeys: ArraySeq[AssembledKey], planNotifyKeys: ArraySeq[AssembledKey],
     joinPos: Int, inputs: ArraySeq[InputConf], outKeys: ArraySeq[JoinKey]
   ) extends TaskConf
   case class BuildTaskConf(
-    exprPos: TaskPos, subscribeKeys: ArraySeq[AssembledKey], planNotifyKeys: ArraySeq[AssembledKey],
+    subscribeKeys: ArraySeq[AssembledKey], planNotifyKeys: ArraySeq[AssembledKey],
     key: JoinKey, outDiffKeys: ArraySeq[JoinInputDiffKey]
   ) extends TaskConf
 }
@@ -46,25 +41,37 @@ case class SchedulerConf(tasks: ArraySeq[TaskConf], subscribed: Map[AssembledKey
       .map{ case k: JoinKey => k }.distinct
     val joins = rulesByPriorityArr.collect { case e: Join => e }
     expressionsDumpers.foreach(_.dump(joins.toList))
-    val calcTasks = ArraySeq.from(joins.zipWithIndex.map{ case (join,i) =>
-      val exprPos = (worldKeys.length+i).asInstanceOf[TaskPos]
+    val calcTasks = ArraySeq.from(joins.zipWithIndex.map{ case (join,joinPos) =>
       val inputs = ArraySeq.from(join.inputWorldKeys.zipWithIndex.map { case (k:JoinKey,inputPos) =>
-        InputConf(k.was, k.withWas(false), JoinInputPrevKey(exprPos, inputPos), JoinInputDiffKey(exprPos, inputPos))
+        InputConf(k.was, k.withWas(false), JoinInputPrevKey(joinPos, inputPos), JoinInputDiffKey(joinPos, inputPos))
       })
       val outputs = ArraySeq.from(join.outputWorldKeys.map{ case k: JoinKey => assert(!k.was); k })
       val subscribeKeys = inputs.map(_.diffKey)
-      CalcTaskConf(exprPos, subscribeKeys,  outputs, i, inputs, outputs)
+      val planNotifyKeys = outputs
+      CalcTaskConf(subscribeKeys, planNotifyKeys, joinPos, inputs, outputs)
     })
-    val calcInputsByWorldKey = calcTasks.flatMap(_.inputs).groupBy(_.worldKey).withDefaultValue(ArraySeq.empty)
-    val buildTasks = worldKeys.zipWithIndex.map{ case (k,i) =>
-      val exprPos = i.asInstanceOf[TaskPos]
-      val outputs = calcInputsByWorldKey(k)
-      val planNotifyKeys = outputs.filterNot(_.was).map(_.diffKey)
-      BuildTaskConf(exprPos, ArraySeq(k), planNotifyKeys, k, outputs.map(_.diffKey))
+    val buildTasks = {
+      // we need additional deps for planner for looped calculations: from was out build to other output builds, to prevent output-build start while looping
+      val wasPairedKeys =
+        joins.flatMap(_.inputWorldKeys.collect { case k: JoinKey if k.was => k.withWas(false) }).toSet
+      val crossOutputDeps = (for {
+        t <- calcTasks
+        pairedKey <- t.outKeys if wasPairedKeys(pairedKey)
+        k <- t.outKeys if k != pairedKey
+      } yield pairedKey -> k).groupMap(_._1)(_._2).withDefaultValue(ArraySeq.empty)
+      //println(s"crossOutputDeps: ${crossOutputDeps}")
+      val calcInputsByWorldKey = calcTasks.flatMap(_.inputs).groupBy(_.worldKey).withDefaultValue(ArraySeq.empty)
+      worldKeys.map{ k =>
+        val outputs = calcInputsByWorldKey(k)
+        val subscribeKeys = ArraySeq(k)
+        val planNotifyKeys = outputs.filterNot(_.was).map(_.diffKey) ++ crossOutputDeps(k)
+        BuildTaskConf(subscribeKeys, planNotifyKeys, k, outputs.map(_.diffKey))
+      }
     }
     val tasks = buildTasks ++ calcTasks
-    val subscribed =
-      tasks.flatMap(t => t.subscribeKeys.map(_->t.exprPos)).groupMap(_._1)(_._2).transform((_,v)=>Single(v))
+    val subscribed = tasks.zipWithIndex
+        .flatMap{ case (t,taskPos) => t.subscribeKeys.map(_->taskPos.asInstanceOf[TaskPos]) }
+        .groupMapReduce(_._1)(_._2)((_,_)=>throw new Exception("conflicting subscriptions"))
     val planConf = plannerFactory.createConf(tasks.map(t => PlanTaskConf(t.planNotifyKeys.map(subscribed))))
     val conf = SchedulerConf(tasks, subscribed, planConf)
     //new Thread(new ThreadTracker).start()
@@ -204,7 +211,7 @@ case class SchedulerConf(tasks: ArraySeq[TaskConf], subscribed: Map[AssembledKey
       k -> ev.next(i)
     }
     context.model = readModelUtil.updated(diff)(context.model)
-    diff.collect{ case (k: JoinInputDiffKey, _) => k.exprPos }.foreach(context.planner.setTodo)
+    diff.collect{ case (k: JoinInputDiffKey, _) => conf.subscribed(k) }.foreach(context.planner.setTodo)
   }
 
   private def startCalc(context: MutableSchedulingContext, taskConf: CalcTaskConf): Future[Option[Ev]] = {
@@ -240,7 +247,8 @@ case class SchedulerConf(tasks: ArraySeq[TaskConf], subscribed: Map[AssembledKey
   ): ReadModel = {
     val planner = plannerFactory.createMutablePlanner(conf.plannerConf)
     val calculatedByBuildTask = new collection.mutable.HashMap[JoinKey, Array[Array[RIndexPair]]]
-    val context = new MutableSchedulingContext(planner, executionContext.value, model, calculatedByBuildTask)
+    val debuggingPlanner = new DebuggingPlanner(planner, conf, joins)
+    val context = new MutableSchedulingContext(debuggingPlanner, executionContext.value, model, calculatedByBuildTask)
     setTodoBuild(context, diff.map{ case (k: JoinKey, v) => (k,v) }.toArray)
     loop(context)
     context.model
@@ -268,6 +276,22 @@ case class SchedulerConf(tasks: ArraySeq[TaskConf], subscribed: Map[AssembledKey
       planner.setDone(exprPos)
     }
   }
+}
+
+class DebuggingPlanner(inner: MutablePlanner, conf: SchedulerConf, joins: Seq[Join]) extends MutablePlanner {
+  private def wrap(hint: String, exprPos: TaskPos, dummy: Unit): Unit =
+    println(conf.tasks(exprPos) match {
+      case t: CalcTaskConf =>
+        val j = joins(t.joinPos)
+        s"$hint #$exprPos calc ${j.assembleName} rule ${j.name}"
+      case t: BuildTaskConf => s"$hint #$exprPos build ${t.key}"
+    })
+  override def setTodo(exprPos: TaskPos): Unit = wrap("setTodo   ",exprPos,inner.setTodo(exprPos))
+  override def setDone(exprPos: TaskPos): Unit = wrap("setDone   ",exprPos,inner.setDone(exprPos))
+  override def setStarted(exprPos: TaskPos): Unit = wrap("setStarted",exprPos,inner.setStarted(exprPos))
+  override def suggested: Set[TaskPos] = inner.suggested
+  override def planCount: Int = inner.planCount
+  override def getStatusCounts: Seq[Int] = inner.getStatusCounts
 }
 
 class ThreadTracker extends Runnable {

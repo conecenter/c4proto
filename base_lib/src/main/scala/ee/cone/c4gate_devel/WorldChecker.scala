@@ -21,6 +21,7 @@ import java.util
     willContext
   }
   def report(assembled: ReadModel): Unit = {
+    for(r <- config.get("C4WORLD_CHECK_SELECT")) reportSelect(assembled, r)
     for(r <- config.get("C4WORLD_CHECK_HASHES")) reportHashes(assembled, r)
     for(r <- config.get("C4WORLD_CHECK_PRODUCTS"))  reportBadProducts(assembled)
   }
@@ -28,12 +29,13 @@ import java.util
   def reportHashes(assembled: ReadModel, opt: String): Unit = {
     readModelUtil.toMap(assembled).toList.collect{
       case (worldKey: JoinKey, index: Index) if opt == "all" || !worldKey.was && worldKey.keyAlias == "SrcId" =>
+        val keys = indexUtil.keyIterator(index).toList.sortBy(_.toString)
         (for {
-          pk <- indexUtil.keyIterator(index).toList.sortBy(_.toString)
+          pk <- keys
           value <- indexUtil.getValues(index,pk,"").toList.sortBy(ToPrimaryKey(_))
         } yield pk -> value).groupBy(_._2.getClass.getName).toList.sortBy(_._1).map{
           case (clName,res) =>
-            s"cl3 $worldKey $clName kv-hc ${res.hashCode}"
+            s"cl3 $worldKey $clName kv-hc ${res.hashCode} size ${res.size}"
         }
     }.flatten.sorted.foreach{ l => logger.info(l) }
   }
@@ -48,6 +50,23 @@ import java.util
         for (l <- productWorldChecker.check(res0))
           logger.warn(s"non-product ${worldKey.valueClassName} : $l")
       //s"cl2 ${worldKey.valueClassName} sz ${res0.size} kv-hc ${res0.hashCode} k-hc: $khc"
+    }
+  }
+  def reportSelect(assembled: ReadModel, opt: String): Unit = {
+    val opts = opt.split(' ').toSet
+    readModelUtil.toMap(assembled).toList.collect {
+      case (worldKey: JoinKey, index: Index) if opts(worldKey.valueClassName) =>
+        val keys = indexUtil.keyIterator(index).toList.sortBy(_.toString)
+        if(opts.size == 1) for(fk <- keys){
+          logger.info(s"$worldKey $fk:")
+          for(v <- indexUtil.getValues(index,fk,"").toList.sortBy(ToPrimaryKey(_)))
+            logger.info(s"  ${v.hashCode} ${ToPrimaryKey(v)} ${v.getClass.getName}")
+
+        }
+        else for(fk <- opts){
+          for(v <- indexUtil.getValues(index,fk,"").toList.sortBy(ToPrimaryKey(_)))
+            logger.info(s"  ${v.hashCode} $v")
+        }
     }
   }
 }

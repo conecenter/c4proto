@@ -347,7 +347,9 @@ class FailedRule(val message: List[String]) extends WorldPartRule
 @c4("AssembleApp") final class DefExpressionsDumper extends ExpressionsDumper[Unit] {
   private def ignoreTheSamePath(path: Path): Unit = ()
   def dump(expressions: List[DataDependencyTo[_] with DataDependencyFrom[_]]): Unit = {
-    val content = expressions.map(expression=>s"${expression.inputWorldKeys.mkString(" ")} ==> ${expression.outputWorldKeys.mkString(" ")}").mkString("\n")
+    val content = expressions.map(expression=>
+      s"${expression.assembleName}/${expression.name}: ${expression.inputWorldKeys.mkString(" ")} ==> ${expression.outputWorldKeys.mkString(" ")}"
+    ).mkString("\n")
     ignoreTheSamePath(Files.write(Paths.get("/tmp/c4rules.out"),content.getBytes(UTF_8)))
   }
 }
