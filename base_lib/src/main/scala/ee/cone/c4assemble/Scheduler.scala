@@ -247,7 +247,7 @@ case class SchedulerConf(tasks: ArraySeq[TaskConf], subscribed: Map[AssembledKey
   ): ReadModel = {
     val planner = plannerFactory.createMutablePlanner(conf.plannerConf)
     val calculatedByBuildTask = new collection.mutable.HashMap[JoinKey, Array[Array[RIndexPair]]]
-    val debuggingPlanner = new DebuggingPlanner(planner, conf, joins)
+    val debuggingPlanner = planner //new DebuggingPlanner(planner, conf, joins)
     val context = new MutableSchedulingContext(debuggingPlanner, executionContext.value, model, calculatedByBuildTask)
     setTodoBuild(context, diff.map{ case (k: JoinKey, v) => (k,v) }.toArray)
     loop(context)
