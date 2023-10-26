@@ -27,7 +27,7 @@ RUN curl -L -o /t.tgz https://github.com/google/go-containerregistry/releases/do
 RUN pip3 install setuptools supervisor
 RUN echo en_DK.UTF-8 UTF-8 >> /etc/locale.gen && locale-gen
 USER c4
-ENV PATH=${PATH}:/usr/local/bin:/tools/jdk/bin:/tools:/tools/node/bin:/tools/sbt/bin:/tools/apache/bin:/c4/bin
+ENV PATH=${PATH}:/usr/local/bin:/tools/jdk/bin:/tools:/tools/node/bin:/tools/sbt/bin:/tools/apache/bin:/tools/linux:/c4/bin
 ENV JAVA_HOME=/tools/jdk
 # setup build steps:
 RUN echo 'exec "bash", @ARGV; die' > /c4/c4serve.pl

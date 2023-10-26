@@ -773,6 +773,12 @@ push @tasks, ["resources_set","$composes_txt <cpu=n|memory=nGi>",sub{
     &$py_run("resources.py","set",$context,$comp,$res);
 }];
 
+push @tasks, ["topic_dir_get","--app <comp> --snapshot-name <name> --tx-count <n>",sub{
+    my %argh = @_;
+    my ($context) = &$get_deployer_conf(&$mandatory_of("--app"=>\%argh),1,qw[context]);
+    &$py_run("txs_loader.py","--kube-context",$context,%argh);
+}];
+
 ####
 
 &$main(@ARGV);
