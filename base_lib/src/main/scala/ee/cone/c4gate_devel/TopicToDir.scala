@@ -5,6 +5,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor._
 import ee.cone.c4di._
 
+import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file._
 import scala.annotation.tailrec
 
@@ -24,10 +25,25 @@ import scala.annotation.tailrec
   @tailrec private def iteration(consumer: Consumer): Unit = {
     val events = consumer.poll()
     val rangeStr = Seq(events.headOption,events.lastOption).flatten.map(_.srcId).mkString("..")
-    logger.info(s"consumed ${events.size} ${rangeStr}")
+    logger.debug(s"consumed ${events.size} ${rangeStr}")
     for(ev <- events) txSaver.save(ev.srcId, ev.data.toByteArray, ev.headers)
-    logger.info("saved")
+    logger.debug("saved")
     iteration(consumer)
+  }
+}
+
+@c4("TopicToDirApp") final class PurgeTopicToDir extends Executable with LazyLogging {
+  def run(): Unit = iteration()
+  @tailrec private def iteration(): Unit = {
+    val cmd = Seq("find", "/tmp/snapshot_txs", "-mmin", "+10080", "-type", "f") // 1 week
+    val filesA = new String(new ProcessBuilder(cmd: _*).start().getInputStream.readAllBytes(), UTF_8).split("\n")
+    for(file <- filesA if file.nonEmpty){
+      logger.debug(s"deleting $file")
+      Files.delete(Paths.get(file))
+      logger.debug(s"deleted")
+    }
+    Thread.sleep(1000*60*30)
+    iteration()
   }
 }
 
