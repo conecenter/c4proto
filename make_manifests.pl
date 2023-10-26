@@ -74,7 +74,10 @@ my $make_kc_yml = sub{
         }]
     }});
     my $tolerate = &$merge_list({},&$map($opt,sub{ my($k,$v)=@_;
-        $k=~/^tolerate:(.+)/ ? {"tolerations"=>[{ "key" => $1, "operator" => "Exists", "effect" => "NoSchedule" }]} : ()
+        $k=~/^tolerate:(.+)/ && $v ? { tolerations =>[{ key => $1, operator => "Exists", effect => "NoSchedule" }]} : ()
+    }));
+    my $node_selector = &$merge_list({},&$map($opt,sub{ my($k,$v)=@_;
+        $k=~/^node:(.+)/ ? { nodeSelector => { $1 => $v } }
     }));
     #
     my %host_path_to_name = &$map($opt,sub{ my($k,$v)=@_;
@@ -143,7 +146,7 @@ my $make_kc_yml = sub{
                         runAsNonRoot => "true",
                     },
                     #$$opt{is_deployer} ? (serviceAccountName => "deployer") : (),
-                    %affinity, %$tolerate,
+                    %affinity, %$tolerate, %$node_selector,
                 },
             },
     };
