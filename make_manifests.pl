@@ -77,7 +77,7 @@ my $make_kc_yml = sub{
         $k=~/^tolerate:(.+)/ && $v ? { tolerations =>[{ key => $1, operator => "Exists", effect => "NoSchedule" }]} : ()
     }));
     my $node_selector = &$merge_list({},&$map($opt,sub{ my($k,$v)=@_;
-        $k=~/^node:(.+)/ ? { nodeSelector => { $1 => $v } }
+        $k=~/^node:(.+)/ ? { nodeSelector => { $1 => $v } } : ()
     }));
     #
     my %host_path_to_name = &$map($opt,sub{ my($k,$v)=@_;
