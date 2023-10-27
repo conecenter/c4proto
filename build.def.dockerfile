@@ -20,13 +20,14 @@ RUN /install.pl curl https://github.com/sbt/sbt/releases/download/v1.9.3/sbt-1.9
 RUN /install.pl curl https://nodejs.org/dist/v14.15.4/node-v14.15.4-linux-x64.tar.xz
 # sandbox tools/fixes:
 RUN /install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl && chmod +x /tools/kubectl
+RUN /install.pl curl https://get.helm.sh/helm-v3.12.1-linux-amd64.tar.gz
 RUN /install.pl curl https://github.com/jvm-profiling-tools/async-profiler/releases/download/v2.7/async-profiler-2.7-linux-x64.tar.gz
 RUN curl -L -o /t.tgz https://github.com/google/go-containerregistry/releases/download/v0.12.1/go-containerregistry_Linux_x86_64.tar.gz \
  && tar -C /tools -xzf /t.tgz crane && rm /t.tgz # install fails on L* file
 RUN pip3 install setuptools supervisor
 RUN echo en_DK.UTF-8 UTF-8 >> /etc/locale.gen && locale-gen
 USER c4
-ENV PATH=${PATH}:/usr/local/bin:/tools/jdk/bin:/tools:/tools/node/bin:/tools/sbt/bin:/tools/apache/bin:/c4/bin
+ENV PATH=${PATH}:/usr/local/bin:/tools/jdk/bin:/tools:/tools/node/bin:/tools/sbt/bin:/tools/apache/bin:/tools/linux:/c4/bin
 ENV JAVA_HOME=/tools/jdk
 # setup build steps:
 RUN echo 'exec "bash", @ARGV; die' > /c4/c4serve.pl

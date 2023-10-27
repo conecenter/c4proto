@@ -89,6 +89,15 @@ abstract class ProdLens[C, I] extends ProdGetter[C, I] with AbstractProdLens[C, 
   def to[V](inner: ProdLens[I, V]): ProdLens[C, V]
 }
 
+object ProdGetterStrict {
+  @deprecated def apply[C, I](
+    extraMetaList: List[AbstractMetaAttr],
+    clFrom: Class[C], clTo: Class[I],
+    tkFrom: TypeKey, tkTo: TypeKey
+  )(
+    of: C => I
+  ): ProdGetterStrict[C, I] = ProdGetterStrict[C, I](extraMetaList, tkFrom, tkTo)(clFrom, clTo, of)
+}
 
 case class ProdGetterStrict[C, I](
   extraMetaList: List[AbstractMetaAttr],

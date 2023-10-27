@@ -79,7 +79,7 @@ class ProductWorldChecker extends LazyLogging {
       classOf[String],classOf[okio.ByteString],
       classOf[Integer],classOf[java.lang.Long],classOf[BigDecimal],
       classOf[java.lang.Boolean], /*ok?*/classOf[java.lang.Double],
-      classOf[PreHashedMurMur3[_]],classOf[PreHashedImpl[_]],
+      //classOf[PreHashedMurMur3[_]],classOf[PreHashedImpl[_]],
     ).map(_.getName).toSet
     def chk(el: Any, path: List[String]): Unit = if(!wasObj.containsKey(el)){
       wasObj.put(el,true)
