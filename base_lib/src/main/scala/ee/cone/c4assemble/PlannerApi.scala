@@ -20,7 +20,8 @@ trait MutablePlanner {
   def setTodo(exprPos: TaskPos): Unit
   def setDone(exprPos: TaskPos): Unit
   def setStarted(exprPos: TaskPos): Unit
-  def suggested: Set[TaskPos]
+  def suggestedNonEmpty: Boolean
+  def suggestedHead: TaskPos
   def planCount: Int
   def getStatusCounts: Seq[Int]
 }

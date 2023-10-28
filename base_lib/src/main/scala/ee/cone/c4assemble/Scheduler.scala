@@ -7,7 +7,7 @@ import ee.cone.c4assemble.Types.{Index, emptyIndex}
 import ee.cone.c4di.{c4, c4multi}
 
 import java.lang.management.ManagementFactory
-import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.{LinkedBlockingQueue, RecursiveTask}
 import scala.collection.immutable.ArraySeq
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
@@ -79,12 +79,67 @@ case class SchedulerConf(tasks: ArraySeq[TaskConf], subscribed: Map[AssembledKey
   }
 }
 
+object ParallelExecution {
+  val shortEC: ExecutionContext = new ExecutionContext {
+    def execute(runnable: Runnable): Unit = runnable.run()
+    def reportFailure(cause: Throwable): Unit = ExecutionContext.defaultReporter(cause)
+  }
+  def seq[T](tasks: Seq[Future[T]])(implicit ec: ExecutionContext): Future[Seq[T]] = Future.sequence(tasks)
+}
+
+
+trait ParallelExecution {
+  def execute[S, T<:Object, U](tasks: IndexedSeq[S], calc: S => T, aggr: Seq[T] => U, ec: ExecutionContext): Future[U]
+}
+
+/*@c4("AssembleApp") final class ParallelExecutionImpl() extends ParallelExecution {
+  import ParallelExecution._
+  def execute[S, T<:Object, U](tasks: IndexedSeq[S], calc: S => T, aggr: Seq[T] => U, ec: ExecutionContext): Future[U] = {
+    val (seqTasks, parTasks) = tasks.splitAt(1)
+    val bsFO = parTasks.size match {
+      case 0 => None
+      case 1 => Option(Future(parTasks.map(calc))(ec))
+      case _ => Option(seq(parTasks.map(b => Future(calc(b))(ec)))(shortEC))
+    }
+    val asR = seqTasks.map(calc)
+    bsFO.fold(Future.successful(aggr(asR)))(_.map(bsR => aggr(asR ++ bsR))(shortEC))
+  }
+}*/
+
+/**/@c4("AssembleApp") final class FJPParallelExecutionImpl() extends ParallelExecution {
+  import ParallelExecution._
+  private final class LTask[S,T](task: S, calc: S => T) extends RecursiveTask[T] {
+    def compute(): T = calc(task)
+  }
+
+  def execute[S, T<:Object, U](tasks: IndexedSeq[S], calc: S => T, aggr: Seq[T] => U, ec: ExecutionContext): Future[U] = {
+    val lTasks = new Array[LTask[S,T]](tasks.size)
+    var i = lTasks.length
+    while(i > 0){
+      i -= 1
+      val lTask  = new LTask(tasks(i), calc)
+      lTasks(i) = lTask
+      if(i > 0) lTask.fork() else lTask.invoke()
+    }
+    val resA = new Array[Object](lTasks.length)
+    while(i < lTasks.length){
+      resA(i) = lTasks(i).join()
+      i += 1
+    }
+    Future.successful(aggr(ArraySeq.unsafeWrapArray(resA).asInstanceOf[ArraySeq[T]]))
+  }
+}
+
 @SuppressWarnings(Array("org.wartremover.warts.TryPartial"))
 @c4multi("AssembleApp") final class SchedulerImpl(
   val active: Seq[WorldPartRule], conf: SchedulerConf, joins: Seq[Join]
 )(
   indexUtil: IndexUtil, readModelUtil: ReadModelUtil, rIndexUtil: RIndexUtil, plannerFactory: PlannerFactory,
+  parallelExecution: ParallelExecution
 ) extends Replace {
+  import ParallelExecution._
+  import parallelExecution._
+
   private trait Ev
 
   private def zip[A, B](a: ArraySeq[A], b: Seq[B]) = {
@@ -96,21 +151,10 @@ case class SchedulerConf(tasks: ArraySeq[TaskConf], subscribed: Map[AssembledKey
     val taskConf: CalcTaskConf, val prevInputValues: Seq[Index], val nextInputValues: Seq[Index], val inputDiffs: Seq[Index]
   )
 
-  private def execute[S, T, U](tasks: Seq[S], calc: S => T, aggr: Seq[T] => U, ec: ExecutionContext): Future[U] = {
-    val (seqTasks, parTasks) = tasks.splitAt(1)
-    val bsFO = parTasks.size match {
-      case 0 => None
-      case 1 => Option(Future(parTasks.map(calc))(ec))
-      case _ => Option(seq(parTasks.map(b=>Future(calc(b))(ec)))(shortEC))
-    }
-    val asR = seqTasks.map(calc)
-    bsFO.fold(Future.successful(aggr(asR)))(_.map(bsR=>aggr(asR ++ bsR))(shortEC))
-  }
-
-  private def execute2[OuterTask, InnerTask, InnerRes, OuterRes, Res](
+  private def execute2[OuterTask, InnerTask, InnerRes<:Object, OuterRes, Res](
     hint: String,
-    outerTasks: Seq[OuterTask],
-    prep: OuterTask => (Seq[InnerTask], InnerTask=>InnerRes, Seq[InnerRes]=>OuterRes),
+    outerTasks: IndexedSeq[OuterTask],
+    prep: OuterTask => (IndexedSeq[InnerTask], InnerTask=>InnerRes, Seq[InnerRes]=>OuterRes),
     outerAggr: Seq[OuterRes]=>Res,
     ec: ExecutionContext
   ): Future[Res] =
@@ -124,18 +168,11 @@ case class SchedulerConf(tasks: ArraySeq[TaskConf], subscribed: Map[AssembledKey
       ec
     ).flatten
 
-  private val shortEC = new ExecutionContext {
-    def execute(runnable: Runnable): Unit = runnable.run()
-    def reportFailure(cause: Throwable): Unit = ExecutionContext.defaultReporter(cause)
-  }
-
-  private def seq[T](tasks: Seq[Future[T]])(implicit ec: ExecutionContext) = Future.sequence(tasks)
-
   private def addHandler(transJoin: TransJoin, dir: Int, inputs: Seq[Index], res: List[KeyIterationHandler]): List[KeyIterationHandler] =
     if(inputs.forall(indexUtil.isEmpty)) res else transJoin.dirJoin(dir, inputs) :: res
 
   private def recalc(req: CalcReq, ec: ExecutionContext): Future[AggrDOut] = {
-    val at = System.nanoTime()
+    //val at = System.nanoTime()
     val transJoin = joins(req.taskConf.joinPos).joins(req.inputDiffs)
 
     //if(transJoin.toString.contains("syncStatsJ")) ParallelExecutionCount.values(1).set(1)
@@ -155,13 +192,13 @@ case class SchedulerConf(tasks: ArraySeq[TaskConf], subscribed: Map[AssembledKey
     } yield (subIndexes, handlers)
     execute2[Task,KeyIterationHandler,AggrDOut,AggrDOut,AggrDOut](
       "C",
-      tasks,
+      tasks.toIndexedSeq,
       { case (invalidateKeysFromSubIndexes, handlers) =>
         val keys: Array[RIndexKey] = invalidateKeysFromSubIndexes match {
           case Seq(a) => a
           case as => as.toArray.flatten.distinct
         }
-        (handlers, handler => {
+        (handlers.toIndexedSeq, handler => {
           val buffer = indexUtil.createBuffer()
           for (k <- keys) handler.handle(k, buffer)
           indexUtil.aggregate(buffer)
@@ -198,18 +235,20 @@ case class SchedulerConf(tasks: ArraySeq[TaskConf], subscribed: Map[AssembledKey
   )(ec: ExecutionContext): Future[Option[Ev]] = Future{
     val prevDistinct = prev.distinct
     val task = indexUtil.buildIndex(prevDistinct, calculated)
-    execute[IndexingSubTask,IndexingResult,Seq[Index]](task.subTasks, rIndexUtil.execute, rIndexUtil.merge(task, _), ec)
+    execute[IndexingSubTask,IndexingResult,Seq[Index]](task.subTasks.toIndexedSeq, rIndexUtil.execute, rIndexUtil.merge(task, _), ec)
     .map{ nextDistinct =>
       prev.map(zip(ArraySeq.from(prevDistinct), nextDistinct).toMap)
     }(shortEC)
-  }(ec).flatten.map(next=>Option(new BuiltEv(outKeys, prev, next.toArray)))(shortEC)
+  }(ec).flatten.map(next=>Option(new BuiltEv(outKeys, prev, next)))(shortEC)
   private class BuiltEv(val keys: Array[AssembledKey], val prev: Array[Index], val next: Array[Index]) extends Ev
   private def finishBuild(context: MutableSchedulingContext, ev: BuiltEv): Unit = {
-    val diff = for (i <- ev.keys.indices) yield {
+    val diffA = new Array[(AssembledKey,Index)](ev.keys.length)
+    for (i <- ev.keys.indices){
       val k = ev.keys(i)
       assert(k.of(context.model) == ev.prev(i))
-      k -> ev.next(i)
+      diffA(i) = k -> ev.next(i)
     }
+    val diff = ArraySeq.unsafeWrapArray(diffA)
     context.model = readModelUtil.updated(diff)(context.model)
     diff.collect{ case (k: JoinInputDiffKey, _) => conf.subscribed(k) }.foreach(context.planner.setTodo)
   }
@@ -260,8 +299,8 @@ case class SchedulerConf(tasks: ArraySeq[TaskConf], subscribed: Map[AssembledKey
     while(planner.planCount > 0) {
       //ParallelExecutionCount.values(0).set(inProgress)
       //println(s"status counts: ${planner.planCount} ${planner.getStatusCounts}")
-      while (planner.suggested.nonEmpty){
-        val exprPos = planner.suggested.head
+      while (planner.suggestedNonEmpty){
+        val exprPos = planner.suggestedHead
         planner.setStarted(exprPos)
         (conf.tasks(exprPos) match {
           case taskConf: BuildTaskConf => startBuild(context, taskConf)
@@ -289,7 +328,8 @@ class DebuggingPlanner(inner: MutablePlanner, conf: SchedulerConf, joins: Seq[Jo
   override def setTodo(exprPos: TaskPos): Unit = wrap("setTodo   ",exprPos,inner.setTodo(exprPos))
   override def setDone(exprPos: TaskPos): Unit = wrap("setDone   ",exprPos,inner.setDone(exprPos))
   override def setStarted(exprPos: TaskPos): Unit = wrap("setStarted",exprPos,inner.setStarted(exprPos))
-  override def suggested: Set[TaskPos] = inner.suggested
+  override def suggestedNonEmpty: Boolean = inner.suggestedNonEmpty
+  override def suggestedHead: TaskPos = inner.suggestedHead
   override def planCount: Int = inner.planCount
   override def getStatusCounts: Seq[Int] = inner.getStatusCounts
 }

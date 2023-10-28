@@ -415,7 +415,7 @@ final class RIndexUtilImpl(
   private def findBucket(aI: RIndexImpl, keyRHash: Int) =
     aI.data(rHashToPosInRoot(getPowerStrict(aI.data.length), keyRHash))
 
-  private def findKey[T](index: RIndex, key: RIndexKey, handler: RKeyFoundHandler[T]): T = index match {
+  private def findKey[@specialized(Boolean)T](index: RIndex, key: RIndexKey, handler: RKeyFoundHandler[T]): T = index match {
     case a if isEmpty(a) => handler.handleEmpty()
     case aI: RIndexImpl =>
       val keyRHash = getHash(key)

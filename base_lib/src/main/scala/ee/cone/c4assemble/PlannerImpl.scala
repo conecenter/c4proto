@@ -1,9 +1,7 @@
 package ee.cone.c4assemble
 
 import ee.cone.c4assemble.PlannerTypes.{Tagged, TaskPos}
-import ee.cone.c4di.{c4, c4multi}
-
-import scala.collection.immutable.{BitSet, TreeSet}
+import ee.cone.c4di.c4
 
 class PlannerConfImpl(val taskUsers: Array[Array[TaskPos]]) extends PlannerConf
 
@@ -27,8 +25,7 @@ final class MutablePlannerImpl(taskUsers: Array[Array[TaskPos]]) extends Mutable
   private val noSt: Status = mkSt(0)
   private val todoSt: Status = mkSt(1)
   private val startedSt: Status = mkSt(2)
-  private val suggestedByExprPos: Array[Boolean] = new Array(taskUsers.length)
-  private var suggestedSet: TreeSet[TaskPos] = TreeSet.empty
+  private val suggestedSet = new RBitSet(taskUsers.length)
   private val statusCounts = Array[Int](taskUsers.length, 0, 0)
 
   def setTodo(exprPos: TaskPos): Unit =
@@ -39,7 +36,11 @@ final class MutablePlannerImpl(taskUsers: Array[Array[TaskPos]]) extends Mutable
     setStatus(exprPos, todoSt, noSt, -1)
   }
   def setStarted(exprPos: TaskPos): Unit = setStatus(exprPos, todoSt, startedSt, 0)
-  def suggested: Set[TaskPos] = suggestedSet
+
+  def suggestedNonEmpty: Boolean = suggestedSet.size > 0
+
+  def suggestedHead: TaskPos = suggestedSet.head.asInstanceOf[TaskPos]
+
   def planCount: Int = reasonedExprCount
   def getStatusCounts: Seq[Int] = statusCounts.toSeq
 
@@ -69,14 +70,34 @@ final class MutablePlannerImpl(taskUsers: Array[Array[TaskPos]]) extends Mutable
     updateSuggested(exprPos)
   }
 
-  private def updateSuggested(exprPos: TaskPos): Unit = {
-    val will = reasonCountByExprPos(exprPos) == 1 && statusByExprPos(exprPos) == todoSt
-    if(suggestedByExprPos(exprPos) != will){
-      suggestedByExprPos(exprPos) = will
-      doUpdateSuggested(exprPos, will)
-    }
-  }
-  private def doUpdateSuggested(exprPos: TaskPos, will: Boolean): Unit =
-    suggestedSet = if(will) suggestedSet + exprPos else suggestedSet - exprPos
+  private def updateSuggested(exprPos: TaskPos): Unit =
+    suggestedSet(exprPos) = reasonCountByExprPos(exprPos) == 1 && statusByExprPos(exprPos) == todoSt
 }
 
+final class RBitSet(maxSize: Int){
+  private val LogWL = 6
+  private val WordLength = 64
+  private val elems = new Array[Long](((maxSize-1) >> LogWL)+1)
+  var size = 0
+
+  def update(elem: Int, value: Boolean): Unit = {
+    require(elem >= 0)
+    val idx = elem >> LogWL
+    val wasW = elems(idx)
+    val shifted = 1L << elem
+    val contains = (wasW & shifted) != 0L
+    if(value && !contains){
+      elems(idx) = wasW | shifted
+      size += 1
+    } else if(!value && contains){
+      elems(idx) = wasW & ~shifted
+      size -= 1
+    }
+  }
+
+  def head: Int = {
+    var i = 0
+    while (elems(i) == 0) i += 1
+    java.lang.Long.numberOfTrailingZeros(elems(i)) + (i * WordLength)
+  }
+}
