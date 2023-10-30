@@ -33,6 +33,7 @@ object EmptyInjected extends Injected
   readModelAdd: ReadModelAdd,
   getAssembleOptions: GetAssembleOptions,
   updateMapUtil: UpdateMapUtil,
+  replaces: DeferredSeq[Replace],
 ) extends RichRawWorldReducer with LazyLogging {
   def reduce(contextOpt: Option[SharedContext with AssembledContext], addEvents: List[RawEvent]): RichContext = {
     val events = if(contextOpt.nonEmpty) addEvents else {
@@ -47,7 +48,7 @@ object EmptyInjected extends Injected
       case context => create(context.injected, context.assembled, context.executionContext)
     } else {
       val context = contextOpt.getOrElse(
-        create(Single.option(injected).getOrElse(EmptyInjected), emptyReadModel, EmptyOuterExecutionContext)
+        create(Single.option(injected).getOrElse(EmptyInjected), Single(replaces.value).emptyReadModel, EmptyOuterExecutionContext)
       )
       val nAssembled = readModelAdd.add(context.executionContext,events)(context.assembled)
       create(context.injected, nAssembled, context.executionContext)

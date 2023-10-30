@@ -3,9 +3,6 @@ package ee.cone.c4actor
 import ee.cone.c4di.c4
 import ee.cone.c4proto.ToByteString
 import ee.cone.c4actor.QProtocol._
-import ee.cone.c4assemble.Types.emptyReadModel
-
-import scala.collection.immutable.Map
 
 @c4("TestVMRichDataCompApp") final class ContextFactoryImpl(
   reducer: RichRawWorldReducer,

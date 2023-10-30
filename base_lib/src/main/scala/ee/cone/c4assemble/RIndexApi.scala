@@ -26,7 +26,7 @@ trait RIndexUtil {
 
   def buildIndex(prev: Array[RIndex], src: Array[Array[RIndexPair]], valueOperations: RIndexValueOperations): IndexingTask
   def execute(subTask: IndexingSubTask): IndexingResult
-  def merge(task: IndexingTask, parts: Seq[IndexingResult]): Seq[RIndex]
+  def merge(task: IndexingTask, parts: Array[IndexingResult]): Seq[RIndex]
 
   def subIndexOptimalCount(index: RIndex): Int
   def subIndexKeys(index: RIndex, partPos: Int, partCount: Int): Array[RIndexKey]

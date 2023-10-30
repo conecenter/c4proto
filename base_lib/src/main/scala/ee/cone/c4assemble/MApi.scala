@@ -23,7 +23,7 @@ trait IndexUtil {
   def mayBePar[V](seq: Seq[V]): DPIterable[V]
   //
   def byOutput(aggr: AggrDOut, outPos: Int): Array[Array[RIndexPair]]
-  def aggregate(s: Seq[AggrDOut]): AggrDOut
+  def aggregate(s: Array[AggrDOut]): AggrDOut
   def aggregate(values: Iterable[DOut]): AggrDOut
   def aggregate(buffer: MutableDOutBuffer): AggrDOut
   def createBuffer(): MutableDOutBuffer
@@ -75,11 +75,6 @@ object Types {
   type DMap[K,V] = Map[K,V] //ParMap[K,V]
   type DPIterable[V] = Iterable[V]
   type Index = RIndex
-
-  private object EmptyReadModel extends ReadModelImpl(emptyDMap)
-  //
-  def emptyDMap[K,V]: DMap[K,V] = Map.empty
-  def emptyReadModel: ReadModel = EmptyReadModel
   def emptyIndex: Index = EmptyRIndex
   //
   type ProfilingLog = List[Product]
@@ -89,7 +84,6 @@ object Types {
 }
 
 trait ReadModelUtil {
-  def updated(pairs: Iterable[(AssembledKey,Index)]): ReadModel=>ReadModel
   def toMap: ReadModel=>Map[AssembledKey,Index]
 }
 

@@ -31,6 +31,7 @@ trait Replace {
   def replace(
     model: ReadModel, diff: Diffs, profiler: JoiningProfiling, executionContext: OuterExecutionContext
   ): ReadModel
+  def emptyReadModel: ReadModel
 }
 
 trait SchedulerFactory {

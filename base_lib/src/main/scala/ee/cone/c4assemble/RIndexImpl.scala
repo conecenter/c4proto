@@ -326,30 +326,52 @@ final class RIndexUtilImpl(
     keyMerger.merge0(0, aKeys.length, 0, bKeys.length)
     builder.result(needRootPower, needInnerPower)
   }
-  def merge(task: IndexingTask, parts: Seq[IndexingResult]): Seq[RIndex] = {
+  def merge(task: IndexingTask, parts: Array[IndexingResult]): Seq[RIndex] = {
     val taskImpl = task match {
       case t: IndexingTaskImpl => t
     }
-    val chkSubTasks = parts.map{ case s: IndexingResultImpl => s.subTask case s: NoIndexingResult => s.subTask }
-    assert(taskImpl.subTasks.size == chkSubTasks.size)
-    for(i <- chkSubTasks.indices) assert(chkSubTasks(i) == taskImpl.subTasks(i))
-    val partSeq = parts.collect{ case s: IndexingResultImpl => s }
-    if(partSeq.isEmpty) taskImpl.prev else taskImpl.prev.indices.map{ grPos =>
-      val prevIndex = taskImpl.prev(grPos)
-      var aKeyCount = keyCount(prevIndex)
-      var aValueCount = valueCount(prevIndex)
-      for (part <- partSeq) {
-        aKeyCount += part.keyCountDiffs(grPos)
-        aValueCount += part.valueCountDiffs(grPos)
+    assert(taskImpl.subTasks.size == parts.length)
+    var partsEnd = 0
+    val partSeq = new Array[IndexingResultImpl](parts.length)
+    var i = 0
+    while(i < parts.length){
+      parts(i) match {
+        case s: NoIndexingResult =>
+          assert(s.subTask == taskImpl.subTasks(i))
+        case s: IndexingResultImpl =>
+          assert(s.subTask == taskImpl.subTasks(i))
+          partSeq(partsEnd) = s
+          partsEnd += 1
       }
-      if (aKeyCount <= 0) EmptyRIndex else {
-        val data = copyBuckets(prevIndex, 0, partSeq.head.subTask.pairsByBucket.length)
-        for (part <- partSeq) {
-          val src = part.bucketsGroups(grPos)
-          System.arraycopy(src, 0, data, part.start, src.length)
+      i += 1
+    }
+    if(partsEnd == 0) taskImpl.prev else {
+      val res = new Array[RIndex](taskImpl.prev.length)
+      var grPos = 0
+      while(grPos < taskImpl.prev.length){
+        val prevIndex = taskImpl.prev(grPos)
+        var aKeyCount = keyCount(prevIndex)
+        var aValueCount = valueCount(prevIndex)
+        var partPos = 0
+        while(partPos < partsEnd){
+          val part = partSeq(partPos)
+          aKeyCount += part.keyCountDiffs(grPos)
+          aValueCount += part.valueCountDiffs(grPos)
+          partPos += 1
         }
-        new RIndexImpl(data, aKeyCount, aValueCount)
+        res(grPos) = if (aKeyCount <= 0) EmptyRIndex else {
+          val data = copyBuckets(prevIndex, 0, partSeq(0).subTask.pairsByBucket.length)
+          while(partPos > 0){
+            partPos -= 1
+            val part = partSeq(partPos)
+            val src = part.bucketsGroups(grPos)
+            System.arraycopy(src, 0, data, part.start, src.length)
+          }
+          new RIndexImpl(data, aKeyCount, aValueCount)
+        }
+        grPos += 1
       }
+      res
     }
   }
 

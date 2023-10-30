@@ -204,8 +204,8 @@ object ParallelExecutionCount {
     case a: AggrDOutImpl => a.resultsByOut.collect { case (p, v) if p == outPos => v }
   }
   private val emptyAggrDOut = new AggrDOutImpl(Array.empty, 0)
-  def aggregate(seq: Seq[AggrDOut]): AggrDOut = if(seq.isEmpty) emptyAggrDOut else {
-    val s = seq.map{ case a: AggrDOutImpl => a }.toArray
+  def aggregate(seq: Array[AggrDOut]): AggrDOut = if(seq.isEmpty) emptyAggrDOut else {
+    val s = seq.map{ case a: AggrDOutImpl => a }
     new AggrDOutImpl(s.flatMap(_.resultsByOut), s.map(_.callCount).sum)
   }
   def aggregate(values: Iterable[DOut]): AggrDOut =
