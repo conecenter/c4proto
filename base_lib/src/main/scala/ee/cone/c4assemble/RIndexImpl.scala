@@ -5,12 +5,14 @@ import ee.cone.c4assemble.RIndexTypes._
 import java.util
 import java.util.Comparator
 import scala.annotation.tailrec
+import scala.collection.mutable
 
 final class RIndexImpl(
   val data: Array[RIndexBucket],
-  val keyCount: Int,
-  val valueCount: Int,
-) extends RIndex
+  val nonEmptyParts: Long,
+) extends RIndex {
+  var keyCountCache: Int = -1
+}
 
 final class RIndexBucket(
   val rootPower: Int,
@@ -146,6 +148,74 @@ final class RIndexUtilImpl(
     for (i <- 0 until srcSize) sizes(toPos(i)) += 1
 
   //// indexing start
+  private val indexPartCount = 32
+
+  private final class RecalculationTaskImpl(val diffs: Array[RIndexImpl], val start: Int, val end: Int) extends RecalculationTask
+  def recalculate(diffs: Array[RIndex]): Array[RecalculationTask] = {
+    var nonEmptyParts = 0L
+    val nonEmptyIndexesBuffer = new RIndexBuffer[RIndexImpl](new Array[RIndexImpl](diffs.length))
+    var iPos = 0
+    var size = -1
+    while(iPos < diffs.length){
+      val diff = diffs(iPos)
+      nonEmptyParts |= getNonEmptyParts(diff)
+      diff match {
+        case a if isEmpty(a) => ()
+        case aI: RIndexImpl =>
+          nonEmptyIndexesBuffer.add(aI)
+          if(size < 0) size = aI.data.length else assert(size == aI.data.length)
+      }
+      iPos += 1
+    }
+    val nonEmptyIndexes = nonEmptyIndexesBuffer.result()
+    val res = new RIndexBuffer[RecalculationTask](new Array(indexPartCount))
+    if(size > 0) {
+      val partSize = getPartSize(size, indexPartCount)
+      var partPos = 0
+      while (partPos < indexPartCount) {
+        val shifted = 1 << partPos
+        val contains = (nonEmptyParts & shifted) != 0L
+        if (contains) {
+          val start = partSize * partPos
+          val end = partSize * (partPos + 1)
+          res.add(new RecalculationTaskImpl(nonEmptyIndexes, start, end))
+        }
+        partPos += 1
+      }
+    }
+    res.result()
+  }
+  def execute(task: RecalculationTask, handle: RIndexKey=>Unit): Unit = {
+    val taskImpl = task match {
+      case t: RecalculationTaskImpl => t
+    }
+    val keySets = new Array[Array[RIndexKey]](taskImpl.diffs.length)
+    val keySetBuffer = new RIndexBuffer[Array[RIndexKey]](keySets)
+    val wasKeys = mutable.HashSet.empty[RIndexKey]
+    var bPos = taskImpl.start
+    while(bPos < taskImpl.end){
+      keySetBuffer.end = 0
+      var iPos = 0
+      while(iPos < taskImpl.diffs.length){
+        val keys = taskImpl.diffs(iPos).data(bPos).keys
+        if(keys.length > 0) keySetBuffer.add(keys)
+        iPos += 1
+      }
+      val needDedup = keySetBuffer.end > 1
+      while(keySetBuffer.end > 0){
+        keySetBuffer.end -= 1
+        val keySet = keySets(keySetBuffer.end)
+        var keyPos = 0
+        while(keyPos < keySet.length){
+          val key = keySet(keyPos)
+          if(!needDedup || wasKeys.add(key)) handle(key)
+          keyPos += 1
+        }
+      }
+      if(needDedup) wasKeys.clear()
+      bPos += 1
+    }
+  }
 
   def buildIndex(prev: Array[RIndex], srcs: Array[Array[RIndexPair]], valueOperations: RIndexValueOperations): IndexingTask = {
     val src = (new RFlatten[RIndexPair,RIndexPairImpl]{
@@ -168,14 +238,13 @@ final class RIndexUtilImpl(
       def toDest(pos: Int): Array[RIndexPairImpl] = dest(pos)
     })(src, sizes)
     val subTasks: Array[IndexingSubTaskImpl] = {
-      val partCount = 32
-      val partSize = getPartSize(size, partCount)
-      val out = new RIndexBuffer(new Array[IndexingSubTaskImpl](partCount))
-      for(partPos <- 0 until partCount){
+      val partSize = getPartSize(size, indexPartCount)
+      val out = new RIndexBuffer(new Array[IndexingSubTaskImpl](indexPartCount))
+      for(partPos <- 0 until indexPartCount){
         val start = partSize * partPos
         val end = partSize * (partPos+1)
         if(existsAboveZeroInRange(sizes, start, end))
-          out.add(new IndexingSubTaskImpl(prev, dest, valueOperations, start, end))
+          out.add(new IndexingSubTaskImpl(prev, dest, valueOperations, start, end, partPos))
       }
       out.result()
     }
@@ -188,7 +257,7 @@ final class RIndexUtilImpl(
   private final class IndexingTaskImpl(val subTasks: Seq[IndexingSubTask], val prev: Array[RIndex]) extends IndexingTask
   private final class IndexingSubTaskImpl(
     val prev: Array[RIndex], val pairsByBucket: Array[Array[RIndexPairImpl]], val valueOperations: RIndexValueOperations,
-    val start: Int, val end: Int
+    val start: Int, val end: Int, val partPos: Int
   ) extends IndexingSubTask
   private def copyBuckets(index: RIndex, start: Int, sz: Int): Array[RIndexBucket] = {
     val res = new Array[RIndexBucket](sz)
@@ -216,8 +285,6 @@ final class RIndexUtilImpl(
     }
     val rootPower = getPowerStrict(st.pairsByBucket.length)
     var changed = false
-    val keyCountDiffs = new Array[Int](st.prev.length)
-    val valueCountDiffs = new Array[Int](st.prev.length)
     for (pos <- st.start until st.end) {
       val pairs = st.pairsByBucket(pos)
       if(pairs.length > 0){
@@ -228,18 +295,30 @@ final class RIndexUtilImpl(
           val nextBucket = if(isEmpty(prevBucket)) diffBucket
             else mergeBuckets(prevBucket, diffBucket, rootPower, builder, hashCodeCache, st.valueOperations)
           buckets(pos - st.start) = nextBucket
-          keyCountDiffs(bGrPos) += nextBucket.keys.length - prevBucket.keys.length
-          valueCountDiffs(bGrPos) += nextBucket.values.length - prevBucket.values.length
           changed = true
         }
       }
     }
-    if(changed) new IndexingResultImpl(st, bucketsGroups, st.start, keyCountDiffs, valueCountDiffs)
-    else new NoIndexingResult(st)
+    if(!changed) new NoIndexingResult(st) else {
+      val nonEmptyGroups = new Array[Boolean](bucketsGroups.length)
+      var bGrPos = 0
+      while(bGrPos < bucketsGroups.length){
+        val bGr = bucketsGroups(bGrPos)
+        var nonEmptyGroup = false
+        var pos = 0
+        while(pos < bGr.length && !nonEmptyGroup){
+          if(bGr(pos).keys.length > 0) nonEmptyGroup = true
+          pos += 1
+        }
+        nonEmptyGroups(bGrPos) = nonEmptyGroup
+        bGrPos += 1
+      }
+      new IndexingResultImpl(st, bucketsGroups, st.start, st.partPos, nonEmptyGroups)
+    }
   }
   private final class IndexingResultImpl(
     val subTask: IndexingSubTaskImpl, val bucketsGroups: Array[Array[RIndexBucket]], val start: Int,
-    val keyCountDiffs: Array[Int], val valueCountDiffs: Array[Int]
+    val partPos: Int, val nonEmptyGroups: Array[Boolean]
   ) extends IndexingResult
   private final class NoIndexingResult(val subTask: IndexingSubTaskImpl) extends IndexingResult
   private def buildBucket(
@@ -350,16 +429,15 @@ final class RIndexUtilImpl(
       var grPos = 0
       while(grPos < taskImpl.prev.length){
         val prevIndex = taskImpl.prev(grPos)
-        var aKeyCount = keyCount(prevIndex)
-        var aValueCount = valueCount(prevIndex)
+        var nonEmptyParts = getNonEmptyParts(prevIndex)
         var partPos = 0
         while(partPos < partsEnd){
           val part = partSeq(partPos)
-          aKeyCount += part.keyCountDiffs(grPos)
-          aValueCount += part.valueCountDiffs(grPos)
+          val shifted = 1 << part.partPos
+          nonEmptyParts = if(part.nonEmptyGroups(grPos)) nonEmptyParts | shifted else nonEmptyParts & ~shifted
           partPos += 1
         }
-        res(grPos) = if (aKeyCount <= 0) EmptyRIndex else {
+        res(grPos) = if (nonEmptyParts == 0L) EmptyRIndex else {
           val data = copyBuckets(prevIndex, 0, partSeq(0).subTask.pairsByBucket.length)
           while(partPos > 0){
             partPos -= 1
@@ -367,12 +445,17 @@ final class RIndexUtilImpl(
             val src = part.bucketsGroups(grPos)
             System.arraycopy(src, 0, data, part.start, src.length)
           }
-          new RIndexImpl(data, aKeyCount, aValueCount)
+          new RIndexImpl(data, nonEmptyParts)
         }
         grPos += 1
       }
       res
     }
+  }
+
+  private def getNonEmptyParts(index: RIndex) = index match {
+    case a if isEmpty(a) => 0L
+    case aI: RIndexImpl => aI.nonEmptyParts
   }
 
   //// indexing end
@@ -409,6 +492,9 @@ final class RIndexUtilImpl(
     res
   }
 
+
+
+  /*
   def subIndexOptimalCount(index: RIndex): Int = index match {
     case aI if isEmpty(aI) => 1
     case aI: RIndexImpl =>
@@ -425,7 +511,8 @@ final class RIndexUtilImpl(
         def get(pos: Int): Array[RIndexKey] = aI.data(pos).keys
         def create(size: Int): Array[RIndexKey] = new Array[RIndexKey](size)
       }.apply(partPos*size, (partPos+1)*size)
-  }
+  }*/
+
   private def getPartSize(itemCount: Int, partCount: Int): Int = {
     assert(itemCount % partCount == 0)
     itemCount / partCount
@@ -477,12 +564,29 @@ final class RIndexUtilImpl(
 
   def keyCount(index: RIndex): Int = index match {
     case a if isEmpty(a) => 0
-    case aI: RIndexImpl => aI.keyCount
+    case aI: RIndexImpl =>
+      if(aI.keyCountCache < 0) {
+        var res = 0
+        var i = 0
+        while (i < aI.data.length) {
+          res += aI.data(i).keys.length
+          i += 1
+        }
+        aI.keyCountCache = res
+      }
+      aI.keyCountCache
   }
 
   def valueCount(index: RIndex): Int = index match {
     case a if isEmpty(a) => 0
-    case aI: RIndexImpl => aI.valueCount
+    case aI: RIndexImpl =>
+      var res = 0
+      var i = 0
+      while(i < aI.data.length){
+        res += aI.data(i).values.length
+        i += 1
+      }
+      res
   }
 
 

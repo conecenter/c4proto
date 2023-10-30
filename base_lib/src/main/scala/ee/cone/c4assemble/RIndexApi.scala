@@ -13,6 +13,7 @@ object RIndexTypes {
   type RIndexItem = Object with Tagged[RIndexItemTag]
 }
 
+trait RecalculationTask
 trait IndexingTask {
   def subTasks: Seq[IndexingSubTask]
 }
@@ -24,12 +25,13 @@ trait RIndexUtil {
   def nonEmpty(index: RIndex, key: RIndexKey): Boolean
   def isEmpty(index: RIndex): Boolean
 
+  def recalculate(diffs: Array[RIndex]): Array[RecalculationTask]
+  def execute(task: RecalculationTask, handle: RIndexKey=>Unit): Unit
+
   def buildIndex(prev: Array[RIndex], src: Array[Array[RIndexPair]], valueOperations: RIndexValueOperations): IndexingTask
   def execute(subTask: IndexingSubTask): IndexingResult
   def merge(task: IndexingTask, parts: Array[IndexingResult]): Seq[RIndex]
 
-  def subIndexOptimalCount(index: RIndex): Int
-  def subIndexKeys(index: RIndex, partPos: Int, partCount: Int): Array[RIndexKey]
   def keyIterator(index: RIndex): Iterator[RIndexKey]
   def keyCount(index: RIndex): Int
   def valueCount(index: RIndex): Int

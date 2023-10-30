@@ -1,7 +1,6 @@
 package ee.cone.c4assemble
 
 import ee.cone.c4assemble.PlannerTypes.{Tagged, TaskPos}
-import ee.cone.c4assemble.RIndexTypes.RIndexKey
 import ee.cone.c4assemble.SchedulerConf._
 import ee.cone.c4assemble.Types.{Index, emptyIndex}
 import ee.cone.c4di.{c4, c4multi}
@@ -111,7 +110,7 @@ object ParallelExecution {
 
 
 trait ParallelExecution {
-  def execute[S, T<:Object, U](tasks: IndexedSeq[S], calc: S => T, create: Int=>Array[T], aggr: Array[T] => U): Future[U]
+  def execute[S, T<:Object, U](tasks: Array[S], calc: S => T, create: Int=>Array[T], aggr: Array[T] => U): U
 }
 
 /*@c4("AssembleApp") final class ParallelExecutionImpl() extends ParallelExecution {
@@ -133,8 +132,8 @@ trait ParallelExecution {
     def compute(): T = calc(task)
   }
 
-  def execute[S, T<:Object, U](tasks: IndexedSeq[S], calc: S => T, create: Int=>Array[T], aggr: Array[T] => U): Future[U] = {
-    val lTasks = new Array[LTask[S,T]](tasks.size)
+  def execute[S, T<:Object, U](tasks: Array[S], calc: S => T, create: Int=>Array[T], aggr: Array[T] => U): U = {
+    val lTasks = new Array[LTask[S,T]](tasks.length)
     var i = lTasks.length
     while(i > 0){
       i -= 1
@@ -147,7 +146,7 @@ trait ParallelExecution {
       resA(i) = lTasks(i).join()
       i += 1
     }
-    Future.successful(aggr(resA))
+    aggr(resA)
   }
 }
 
@@ -172,75 +171,10 @@ trait ParallelExecution {
     a.zip(b)
   }
 
-  private class CalcReq(
-    val taskConf: CalcTaskConf, val prevInputValues: Seq[Index], val nextInputValues: Seq[Index], val inputDiffs: Seq[Index]
-  )
 
-  private def execute2[OuterTask, InnerTask, InnerRes<:Object, OuterRes, Res](
-    hint: String,
-    outerTasks: IndexedSeq[OuterTask],
-    prep: OuterTask => (IndexedSeq[InnerTask], InnerTask=>InnerRes, Array[InnerRes]=>OuterRes),
-    innerCreate: Int=>Array[InnerRes],
-    outerAggr: Seq[OuterRes]=>Res
-  ): Future[Res] =
-    execute[OuterTask, Future[OuterRes], Future[Res]](
-      outerTasks,
-      outerTask => {
-        val (innerTasks, innerCalc, innerAggr) = prep(outerTask)
-        execute[InnerTask,InnerRes,OuterRes](innerTasks, innerCalc, innerCreate, innerAggr)
-      },
-      new Array(_),
-      s => seq(s)(shortEC).map(s=>outerAggr(s))(shortEC),
-    ).flatten
 
   private def addHandler(transJoin: TransJoin, dir: Int, inputs: Seq[Index], res: List[KeyIterationHandler]): List[KeyIterationHandler] =
     if(inputs.forall(indexUtil.isEmpty)) res else transJoin.dirJoin(dir, inputs) :: res
-
-  private def recalc(req: CalcReq, ec: ExecutionContext): Future[AggrDOut] = {
-    //val at = System.nanoTime()
-    val transJoin = joins(req.taskConf.joinPos).joins(req.inputDiffs)
-
-    //if(transJoin.toString.contains("syncStatsJ")) ParallelExecutionCount.values(1).set(1)
-
-    val handlers = addHandler(transJoin, -1, req.prevInputValues, addHandler(transJoin, +1, req.nextInputValues, Nil))
-
-    //ParallelExecutionCount.values(1).set(0)
-
-    val parallelPartCount = req.inputDiffs.map(rIndexUtil.subIndexOptimalCount).max
-    val handlersByInvalidationSeq = handlers.groupBy(_.invalidateKeysFromIndexes).toSeq
-    // so if invalidateKeysFromIndexes for handlers are same, then it's normal diff case, else `byEq` changes, and we need to recalc all
-    type Task = (Seq[Array[RIndexKey]],Seq[KeyIterationHandler])
-    val tasks: Seq[Task] = for {
-      (invalidateKeysFromIndexes, handlers) <- handlersByInvalidationSeq
-      partPos <- 0 until parallelPartCount
-      subIndexes <- Seq(getSubIndexKeys(invalidateKeysFromIndexes, partPos, parallelPartCount)) if subIndexes.nonEmpty
-    } yield (subIndexes, handlers)
-    execute2[Task,KeyIterationHandler,AggrDOut,AggrDOut,AggrDOut](
-      "C",
-      tasks.toIndexedSeq,
-      { case (invalidateKeysFromSubIndexes, handlers) =>
-        val keys: Array[RIndexKey] = invalidateKeysFromSubIndexes match {
-          case Seq(a) => a
-          case as => as.toArray.flatten.distinct
-        }
-        (handlers.toIndexedSeq, handler => {
-          val buffer = indexUtil.createBuffer()
-          for (k <- keys) handler.handle(k, buffer)
-          indexUtil.aggregate(buffer)
-        }, indexUtil.aggregate)
-      },
-      new Array(_),
-      r => {
-        // println(s"calc ${(System.nanoTime-at)/1000000} ms ${req.inputDiffs.map(rIndexUtil.valueCount).sum} items ${tasks.size} of $parallelPartCount parts $transJoin")
-        indexUtil.aggregate(r.toArray)
-      },
-    )
-  }
-
-  private def getSubIndexKeys(invalidateKeysFromIndexes: Seq[Index], partPos: Int, parallelPartCount: Int): Seq[Array[RIndexKey]] = for {
-    index <- invalidateKeysFromIndexes
-    subIndexKeys <- Seq(rIndexUtil.subIndexKeys(index, partPos, parallelPartCount)) if subIndexKeys.length > 0
-  } yield subIndexKeys
 
   private class MutableSchedulingContext(
     val planner: MutablePlanner, val ec: ExecutionContext,
@@ -260,20 +194,19 @@ trait ParallelExecution {
         prev(i + 1) = context.inputDiffs(taskConf.outDiffPos(i))
         i += 1
       }
-      continueBuild(taskConf, calculated, prev)(context.ec)
+      Future(continueBuild(taskConf, calculated, prev))(context.ec)
     }
   }
 
-  private def continueBuild(
-    taskConf: BuildTaskConf, calculated: Array[Array[RIndexPair]], prev: Array[Index]
-  )(ec: ExecutionContext): Future[Option[Ev]] = Future{
+  private def continueBuild(taskConf: BuildTaskConf, calculated: Array[Array[RIndexPair]], prev: Array[Index]): Option[Ev] = {
     val prevDistinct = prev.distinct
     val task = indexUtil.buildIndex(prevDistinct, calculated)
-    execute[IndexingSubTask,IndexingResult,Seq[Index]](task.subTasks.toIndexedSeq, rIndexUtil.execute, new Array(_), rIndexUtil.merge(task, _))
-    .map{ nextDistinct =>
-      prev.map(zip(ArraySeq.from(prevDistinct), nextDistinct).toMap)
-    }(shortEC)
-  }(ec).flatten.map(next=>Option(new BuiltEv(taskConf, prev, next)))(shortEC)
+    val nextDistinct = execute[IndexingSubTask,IndexingResult,Seq[Index]](
+      task.subTasks.toArray, rIndexUtil.execute, new Array(_), rIndexUtil.merge(task, _)
+    )
+    val next = prev.map(zip(ArraySeq.from(prevDistinct), nextDistinct).toMap)
+    Option(new BuiltEv(taskConf, prev, next))
+  }
   private class BuiltEv(val taskConf: BuildTaskConf, val prev: Array[Index], val next: Array[Index]) extends Ev
   private def replace[K<:Int](values: COWArr[K,Index], pos: K, prev: Index, next: Index): Unit = {
     assert(values(pos)==prev)
@@ -311,14 +244,48 @@ trait ParallelExecution {
       if(!indexUtil.isEmpty(diff)) nonEmpty = true
       i += 1
     }
-    if(nonEmpty) continueCalc(new CalcReq(taskConf, prevInputs, inputs, diffs))(context.ec) else Future.successful(None)
+    if(nonEmpty) Future(continueCalc(new CalcReq(taskConf, prevInputs, inputs, diffs)))(context.ec)
+    else Future.successful(None)
   }
-  private def continueCalc(req: CalcReq)(ec: ExecutionContext): Future[Option[Ev]] =
-    Future(recalc(req, ec))(ec).flatten.map { aggr =>
-      val diff = req.taskConf.outWorldPos.indices.toArray.map(i => req.taskConf.outWorldPos(i) -> indexUtil.byOutput(aggr, i))
-        .filter(_._2.nonEmpty)
-      Option(new CalculatedEv(diff))
-    }(shortEC)
+
+  private class CalcReq(
+    val taskConf: CalcTaskConf, val prevInputValues: Seq[Index], val nextInputValues: Seq[Index], val inputDiffs: Seq[Index]
+  )
+  private def continueCalc(req: CalcReq): Option[Ev] = {
+    val transJoin = joins(req.taskConf.joinPos).joins(req.inputDiffs)
+    val handlers =
+      addHandler(transJoin, -1, req.prevInputValues, addHandler(transJoin, +1, req.nextInputValues, Nil)).toArray
+    // so if invalidateKeysFromIndexes for handlers are same, then it's normal diff case, else `byEq` changes, and we need to recalc all
+    val aggr = handlers match {
+      case Array(a, b) if a.invalidateKeysFromIndexes == b.invalidateKeysFromIndexes =>
+        execute[RecalculationTask, AggrDOut, AggrDOut](
+          rIndexUtil.recalculate(a.invalidateKeysFromIndexes.toArray),
+          { rTask =>
+            val buffer = indexUtil.createBuffer()
+            rIndexUtil.execute(rTask, k => {
+              a.handle(k, buffer)
+              b.handle(k, buffer)
+            })
+            indexUtil.aggregate(buffer)
+          },
+          new Array(_), indexUtil.aggregate
+        )
+      case hs =>
+        execute[(RecalculationTask, KeyIterationHandler), AggrDOut, AggrDOut](
+          hs.flatMap(h => rIndexUtil.recalculate(h.invalidateKeysFromIndexes.toArray).map((_, h))),
+          { case (rTask, handler) =>
+            val buffer = indexUtil.createBuffer()
+            rIndexUtil.execute(rTask, k => handler.handle(k, buffer))
+            indexUtil.aggregate(buffer)
+          },
+          new Array(_), indexUtil.aggregate
+        )
+    }
+    val diff =
+      req.taskConf.outWorldPos.indices.toArray.map(i => req.taskConf.outWorldPos(i) -> indexUtil.byOutput(aggr, i))
+      .filter(_._2.nonEmpty)
+    Option(new CalculatedEv(diff))
+  }
   private class CalculatedEv(val diff: Array[(WorldPos, Array[Array[RIndexPair]])]) extends Ev
   private def finishCalc(context: MutableSchedulingContext, ev: CalculatedEv): Unit = setTodoBuild(context, ev.diff)
 
