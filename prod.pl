@@ -456,7 +456,7 @@ my $if_changed = sub{
 };
 my $build_client = sub{
     my($dir, $mode)=@_;
-    my $opt = $mode eq "fast" ? "--env.fast=true --mode development" : $mode eq "dev" ? "--mode development" :
+    my $opt = $mode eq "fast" ? "--env fast=true --mode development" : $mode eq "dev" ? "--mode development" :
         "--mode production";
     my $build_dir = "$dir/out";
     unlink or die $! for <$build_dir/*>;
