@@ -23,10 +23,10 @@ import java.util
   def report(assembled: ReadModel): Unit = {
     for(r <- config.get("C4WORLD_CHECK_SELECT")) reportSelect(assembled, r)
     for(r <- config.get("C4WORLD_CHECK_HASHES")) reportHashes(assembled, r)
-    for(r <- config.get("C4WORLD_CHECK_PRODUCTS"))  reportBadProducts(assembled)
+    for(_ <- config.get("C4WORLD_CHECK_PRODUCTS"))  reportBadProducts(assembled)
   }
 
-  def reportHashes(assembled: ReadModel, opt: String): Unit = {
+  private def reportHashes(assembled: ReadModel, opt: String): Unit = {
     readModelUtil.toMap(assembled).toList.collect{
       case (worldKey: JoinKey, index: Index) if opt == "all" || !worldKey.was && worldKey.keyAlias == "SrcId" =>
         val keys = indexUtil.keyIterator(index).toList.sortBy(_.toString)
@@ -39,7 +39,7 @@ import java.util
         }
     }.flatten.sorted.foreach{ l => logger.info(l) }
   }
-  def reportBadProducts(assembled: ReadModel): Unit = {
+  private def reportBadProducts(assembled: ReadModel): Unit = {
     val productWorldChecker = new ProductWorldChecker
     readModelUtil.toMap(assembled).toList.collect {
       case (worldKey: JoinKey, index: Index) if !worldKey.was && worldKey.keyAlias == "SrcId" =>
@@ -52,20 +52,21 @@ import java.util
       //s"cl2 ${worldKey.valueClassName} sz ${res0.size} kv-hc ${res0.hashCode} k-hc: $khc"
     }
   }
-  def reportSelect(assembled: ReadModel, opt: String): Unit = {
+  private def reportSelect(assembled: ReadModel, opt: String): Unit = {
     val opts = opt.split(' ').toSet
     readModelUtil.toMap(assembled).toList.collect {
       case (worldKey: JoinKey, index: Index) if opts(worldKey.valueClassName) =>
         val keys = indexUtil.keyIterator(index).toList.sortBy(_.toString)
-        if(opts.size == 1) for(fk <- keys){
-          logger.info(s"$worldKey $fk:")
-          for(v <- indexUtil.getValues(index,fk,"").toList.sortBy(ToPrimaryKey(_)))
-            logger.info(s"  ${v.hashCode} ${ToPrimaryKey(v)} ${v.getClass.getName}")
-
-        }
-        else for(fk <- opts){
-          for(v <- indexUtil.getValues(index,fk,"").toList.sortBy(ToPrimaryKey(_)))
-            logger.info(s"  ${v.hashCode} $v")
+        val doList = opts("list")
+        for(fk <- keys){
+          val deepSelected = opts(fk.toString)
+          if(deepSelected || doList) {
+            logger.info(s"$worldKey $fk:")
+            for (v <- indexUtil.getValues(index, fk, "").toList.sortBy(ToPrimaryKey(_))) {
+              logger.info(s"  ${v.hashCode} ${ToPrimaryKey(v)} ${v.getClass.getName}")
+              if(deepSelected) logger.info(s"    $v")
+            }
+          }
         }
     }
   }
@@ -89,7 +90,7 @@ class ProductWorldChecker extends LazyLogging {
         case l: Vector[_] => for(e <- l) chk(e, "Vector"::path)
         /*ok?*/case l: Set[_] => for(e <- l) chk(e, "Set"::path)
         /*ok?*/case l: Map[_,_] => for(e <- l) chk(e, "Map"::path)
-        /*ok?*/case s: ByteString => ()
+        /*ok?*/case _: ByteString => ()
         case p: PreHashed[_] => chk(p.value, "PreHashed"::path)
         case p: Product => for(i <- 0 until p.productArity) chk(p.productElement(i), p.productPrefix::path)
         case o if okSet(o.getClass.getName) => ()
