@@ -11,7 +11,7 @@ trait AvailabilityAppBase
 
 trait DefPublishFullCompressorAppBase
 trait PublishingCompAppBase extends PublisherApp with DefPublishFullCompressorApp
-@c4("DefPublishFullCompressorApp") final class DefPublishFullCompressor extends PublishFullCompressor(GzipFullCompressor())
+@c4("DefPublishFullCompressorApp") final class DefPublishFullCompressor extends PublishFullCompressor(GzipFullRawCompressor())
 
 trait SessionAttrCompAppBase extends SessionDataProtocolApp
 trait SessionDataProtocolAppBase

@@ -12,7 +12,7 @@ import scala.concurrent.{ExecutionContext, Future}
 trait SenderToAgent {
   def add(data: Array[Byte]): Unit
   def close(): Unit
-  def compressor: Option[Compressor]
+  def compressor: Option[RawCompressor]
 }
 
 trait TcpServer {
