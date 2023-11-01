@@ -8,11 +8,16 @@ import ee.cone.c4di._
 import okio.ByteString
 import java.util
 
+trait WorldCheckHandler {
+  def handle(context: RichContext): Unit
+}
+
 @c4("WorldCheckerApp") final class WorldCheckerReadModelAdd(
   inner: RichRawWorldReducer,
   readModelUtil: ReadModelUtil,
   indexUtil: IndexUtil,
   config: ListConfig,
+  handlers: List[WorldCheckHandler],
 ) extends RichRawWorldReducer with LazyLogging {
   val postfix: String = Single.option(config.get("C4WORLD_CHECK_ORDER")).fold("")(order => "f" * order.toInt)
   def reduce(context: Option[SharedContext with AssembledContext], events: List[RawEvent]): RichContext = {
@@ -23,6 +28,7 @@ import java.util
     logger.info(s"reduced tx $txId $period ms ${DebugCounter.report()}")
     DebugCounter.reset()
     if(txId.endsWith(postfix)) report(willContext.assembled, txId)
+    handlers.foreach(_.handle(willContext))
     willContext
   }
   def report(assembled: ReadModel, txId: String): Unit = {
