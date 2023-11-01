@@ -14,7 +14,6 @@ import scala.annotation.tailrec
 import scala.collection.immutable
 import scala.collection.immutable.{Map, Seq}
 import java.nio.charset.StandardCharsets.UTF_8
-import java.util.concurrent.atomic.AtomicLong
 
 class NonSingleCount(val item: Product, val count: Int)
 sealed class Counts(val data: List[Count])
@@ -35,15 +34,6 @@ case class JoinKeyImpl(
   override def toString: String =
     s"JK(${if (was) "@was " else ""}@by[$keyAlias] $valueClassName)"
   def withWas(was: Boolean): JoinKey = copy(was=was)
-}
-
-object ParallelExecutionCount {
-  val values = (0 until 20).map(i=>new AtomicLong(0))
-  def add(power: Int, d: Long): Unit = {
-    val ignore = values(power).addAndGet(d)
-  }
-  def report(): String = values.map(_.get()).mkString(" ")
-  def reset(): Unit = for(v <- values) v.set(0)
 }
 
 // Ordering.by can drop keys!: https://github.com/scala/bug/issues/8674
@@ -257,10 +247,7 @@ final class DOutLeafBuffer {
     end += 1
   }
 
-  def result: Array[RIndexPair] = {
-    // ParallelExecutionCount.add(end match { case 1 => 4 case 2 => 5 case a if a < 10 => 6 case a => 7 },1)
-    java.util.Arrays.copyOf(values, end)
-  }
+  def result: Array[RIndexPair] = java.util.Arrays.copyOf(values, end)
 }
 
 object DOutAggregationBuffer {

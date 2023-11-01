@@ -120,11 +120,7 @@ object SpreadUpdates extends SpreadHandler[N_Update] {
 
 class AssemblerProfiling extends LazyLogging {
   def id = s"T-${Thread.currentThread.getId}"
-  def debugPeriod(period: Long): Unit = {
-    logger.debug(s"$id was joining for $period ms")
-    logger.info(s"execute $period ms ${ParallelExecutionCount.report()}")
-    ParallelExecutionCount.reset()
-  }
+  def debugPeriod(period: Long): Unit = logger.debug(s"$id was joining for $period ms")
   def debugOffsets(stage: String, offsets: Seq[NextOffset]): Unit =
     logger.debug(s"$id $stage "+offsets.map(s => s"E-$s").distinct.mkString(","))
 }

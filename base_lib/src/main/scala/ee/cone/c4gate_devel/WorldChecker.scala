@@ -16,8 +16,12 @@ import java.util
 ) extends RichRawWorldReducer with LazyLogging {
   val postfix: String = Single.option(config.get("C4WORLD_CHECK_ORDER")).fold("")(order => "f" * order.toInt)
   def reduce(context: Option[SharedContext with AssembledContext], events: List[RawEvent]): RichContext = {
-    val willContext = inner.reduce(context, events)
     val txId = Single(events).srcId // from FileConsumer events go 1 by 1
+    val startedAt = System.nanoTime
+    val willContext = inner.reduce(context, events)
+    val period = (System.nanoTime-startedAt)/1000000
+    logger.info(s"reduced tx $txId $period ms ${DebugCounter.report()}")
+    DebugCounter.reset()
     if(txId.endsWith(postfix)) report(willContext.assembled, txId)
     willContext
   }

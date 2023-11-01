@@ -7,7 +7,6 @@ import ch.qos.logback.classic.LoggerContext
 import ch.qos.logback.classic.joran.JoranConfigurator
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor._
-//import ee.cone.c4assemble.ParallelExecutionCount
 import ee.cone.c4di.c4
 import org.slf4j.LoggerFactory
 
@@ -35,7 +34,6 @@ import scala.annotation.tailrec
 class LoggerConfigurator(paths: List[Path], catchNonFatal: CatchNonFatal, scanPeriod: Long) extends Executable with LazyLogging {
   def run(): Unit = concurrent.blocking{ iteration("") }
   @tailrec private def iteration(wasContent: String): Unit = {
-    //logger.info(ParallelExecutionCount.report())
     val content =
       s"""
       <configuration>

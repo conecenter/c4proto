@@ -325,12 +325,8 @@ trait ParallelExecution {
   private final class OuterEv(val exprPos: TaskPos, val event: Option[Ev])
   private def loop(context: MutableSchedulingContext): Unit = {
     val queue = new LinkedBlockingQueue[Try[OuterEv]]
-    //val queue = new MpscBlockingConsumerArrayQueue[Try[OuterEv]](2048)
     val planner = context.planner
-    //println(s"status counts: ${planner.planCount} ${planner.getStatusCounts}")
     while(planner.planCount > 0) {
-      //ParallelExecutionCount.values(0).set(inProgress)
-      //println(s"status counts: ${planner.planCount} ${planner.getStatusCounts}")
       while (planner.suggestedNonEmpty){
         val exprPos = planner.suggestedHead
         planner.setStarted(exprPos)
