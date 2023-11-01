@@ -17,11 +17,12 @@ import java.util
   val postfix: String = Single.option(config.get("C4WORLD_CHECK_ORDER")).fold("")(order => "f" * order.toInt)
   def reduce(context: Option[SharedContext with AssembledContext], events: List[RawEvent]): RichContext = {
     val willContext = inner.reduce(context, events)
-    if(Single(events).srcId.endsWith(postfix)) report(willContext.assembled) // from FileConsumer events go 1 by 1
+    val txId = Single(events).srcId // from FileConsumer events go 1 by 1
+    if(txId.endsWith(postfix)) report(willContext.assembled, txId)
     willContext
   }
-  def report(assembled: ReadModel): Unit = {
-    for(r <- config.get("C4WORLD_CHECK_SELECT")) reportSelect(assembled, r)
+  def report(assembled: ReadModel, txId: String): Unit = {
+    for(r <- config.get("C4WORLD_CHECK_SELECT")) reportSelect(assembled, r, txId)
     for(r <- config.get("C4WORLD_CHECK_HASHES")) reportHashes(assembled, r)
     for(_ <- config.get("C4WORLD_CHECK_PRODUCTS"))  reportBadProducts(assembled)
   }
@@ -52,8 +53,9 @@ import java.util
       //s"cl2 ${worldKey.valueClassName} sz ${res0.size} kv-hc ${res0.hashCode} k-hc: $khc"
     }
   }
-  private def reportSelect(assembled: ReadModel, opt: String): Unit = {
+  private def reportSelect(assembled: ReadModel, opt: String, txId: String): Unit = {
     val opts = opt.split(' ').toSet
+    logger.info(s"txId $txId options ${opts.toSeq.sorted.map(s=>s"'$s'").mkString(" ")}")
     readModelUtil.toMap(assembled).toList.collect {
       case (worldKey: JoinKey, index: Index) if opts(worldKey.valueClassName) =>
         val keys = indexUtil.keyIterator(index).toList.sortBy(_.toString)
