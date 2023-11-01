@@ -311,7 +311,7 @@ trait ParallelExecution {
     model: ReadModel, diff: Diffs, profiler: JoiningProfiling, executionContext: OuterExecutionContext
   ): ReadModel = {
     val planner = plannerFactory.createMutablePlanner(conf.plannerConf)
-    val debuggingPlanner = planner //new DebuggingPlanner(planner, conf, joins)
+    val debuggingPlanner = if(DebugCounter.on(0)) new DebuggingPlanner(planner, conf, joins) else planner
     val modelImpl = model match{ case m: ReadModelImpl => m }
     val context = new MutableSchedulingContext(
       debuggingPlanner, executionContext.value,
