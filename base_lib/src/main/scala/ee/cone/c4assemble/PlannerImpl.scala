@@ -46,14 +46,14 @@ final class MutablePlannerImpl(taskUsers: Array[Array[TaskPos]]) extends Mutable
         uPos += 1
       }
     }
-    updateSuggested(exprPos)
-  }
-
-  private def updateSuggested(exprPos: TaskPos): Unit =
     suggestedSet(exprPos) = reasonCountByExprPos(exprPos) == 1 && todoSet(exprPos) && !startedSet(exprPos)
+  }
 }
 
-final class RBitSet[K<:Int](maxSize: Int, onChange: (K,Int)=>Unit){
+trait RBitSetChangeHandler[K<:Int]{
+  def handle(pos: K, dir: Int): Unit
+}
+final class RBitSet[K<:Int](maxSize: Int, changeHandler: RBitSetChangeHandler[K]){
   private val LogWL = 6
   private val WordLength = 64
   private val elems = new Array[Long](((maxSize-1) >> LogWL)+1)
@@ -77,10 +77,10 @@ final class RBitSet[K<:Int](maxSize: Int, onChange: (K,Int)=>Unit){
     //
     if(value && !contains){
       elems(idx) = wasW | shifted
-      onChange(elem, +1)
+      changeHandler.handle(elem, +1)
     } else if(!value && contains){
       elems(idx) = wasW & ~shifted
-      onChange(elem, -1)
+      changeHandler.handle(elem, -1)
     }
   }
 
