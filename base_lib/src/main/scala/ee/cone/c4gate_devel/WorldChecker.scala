@@ -6,7 +6,13 @@ import ee.cone.c4assemble.Types.Index
 import ee.cone.c4assemble._
 import ee.cone.c4di._
 import okio.ByteString
+
 import java.util
+import scala.concurrent.Future
+
+trait WorldCheckHandler {
+  def handle(context: RichContext): Unit
+}
 
 trait WorldCheckHandler {
   def handle(context: RichContext): Unit
@@ -18,6 +24,7 @@ trait WorldCheckHandler {
   indexUtil: IndexUtil,
   config: ListConfig,
   handlers: List[WorldCheckHandler],
+  execution: Execution,
 ) extends RichRawWorldReducer with LazyLogging {
   val postfix: String = Single.option(config.get("C4WORLD_CHECK_ORDER")).fold("")(order => "f" * order.toInt)
   def reduce(context: Option[SharedContext with AssembledContext], events: List[RawEvent]): RichContext = {
@@ -37,33 +44,41 @@ trait WorldCheckHandler {
     for(_ <- config.get("C4WORLD_CHECK_PRODUCTS"))  reportBadProducts(assembled)
   }
 
-  private def reportHashes(assembled: ReadModel, opt: String): Unit = {
-    readModelUtil.toMap(assembled).toList.collect{
+  private def reportHashes(assembled: ReadModel, opt: String): Unit = execution.aWait{ implicit ec =>
+    Future.sequence(readModelUtil.toMap(assembled).toList.collect{
       case (worldKey: JoinKey, index: Index) if opt == "all" || !worldKey.was && worldKey.keyAlias == "SrcId" =>
-        val keys = indexUtil.keyIterator(index).toList.sortBy(_.toString)
-        (for {
-          pk <- keys
-          value <- indexUtil.getValues(index,pk,"").toList.sortBy(ToPrimaryKey(_))
-        } yield pk -> value).groupBy(_._2.getClass.getName).toList.sortBy(_._1).map{
-          case (clName,res) =>
-            s"cl3 $worldKey $clName kv-hc ${res.hashCode} size ${res.size}"
+        Future {
+          val keys = indexUtil.keyIterator(index).toList.sortBy(_.toString)
+          (for {
+            pk <- keys
+            value <- indexUtil.getValues(index, pk, "").toList.sortBy(ToPrimaryKey(_))
+          } yield pk -> value).groupBy(_._2.getClass.getName).toList.sortBy(_._1).map {
+            case (clName, res) =>
+              s"cl3 $worldKey $clName kv-hc ${res.hashCode} size ${res.size}"
+          }
         }
-    }.flatten.sorted.foreach{ l => logger.info(l) }
-  }
-  private def reportBadProducts(assembled: ReadModel): Unit = {
-    val productWorldChecker = new ProductWorldChecker
-    readModelUtil.toMap(assembled).toList.collect {
-      case (worldKey: JoinKey, index: Index) if !worldKey.was && worldKey.keyAlias == "SrcId" =>
-        val res0 = indexUtil.keyIterator(index).toList.sortBy(_.toString).map { pk =>
-          (pk, indexUtil.getValues(index, pk, "").toList.sortBy(ToPrimaryKey(_)))
-        }
-        //val khc = res0.map(_._1).hashCode
-        for (l <- productWorldChecker.check(res0))
-          logger.warn(s"non-product ${worldKey.valueClassName} : $l")
-      //s"cl2 ${worldKey.valueClassName} sz ${res0.size} kv-hc ${res0.hashCode} k-hc: $khc"
+    })
+  }.flatten.sorted.foreach{ l => logger.info(l) }
+  private def reportBadProducts(assembled: ReadModel): Unit =
+    execution.aWait{ implicit ec =>
+      val productWorldChecker = new ProductWorldChecker
+      Future.sequence(readModelUtil.toMap(assembled).toList.collect {
+        case (worldKey: JoinKey, index: Index) if !worldKey.was && worldKey.keyAlias == "SrcId" =>
+          Future {
+            val res0 = indexUtil.keyIterator(index).toList.sortBy(_.toString).map { pk =>
+              (pk, indexUtil.getValues(index, pk, "").toList.sortBy(ToPrimaryKey(_)))
+            }
+            productWorldChecker.check(res0).map(l=>s"  non-product ${worldKey.valueClassName} : $l")
+          }
+      })
+    }.flatten match {
+      case Seq() =>
+        logger.info("no non-product found")
+      case s =>
+        logger.info("non-product found:")
+        for(l<-s) logger.info(l)
     }
-  }
-  private def reportSelect(assembled: ReadModel, opt: String, txId: String): Unit = {
+  private def reportSelect(assembled: ReadModel, opt: String, txId: String, txId: String): Unit = {
     val opts = opt.split(' ').toSet
     logger.info(s"txId $txId options ${opts.toSeq.sorted.map(s=>s"'$s'").mkString(" ")}")
     readModelUtil.toMap(assembled).toList.collect {
