@@ -17,11 +17,9 @@ trait PlannerFactory {
 }
 
 trait MutablePlanner {
-  def setTodo(exprPos: TaskPos): Unit
-  def setDone(exprPos: TaskPos): Unit
-  def setStarted(exprPos: TaskPos): Unit
+  def setTodo(exprPos: TaskPos, value: Boolean): Unit
+  def setStarted(exprPos: TaskPos, value: Boolean): Unit
   def suggestedNonEmpty: Boolean
   def suggestedHead: TaskPos
   def planCount: Int
-  def getStatusCounts: Seq[Int]
 }

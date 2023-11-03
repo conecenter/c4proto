@@ -32,7 +32,8 @@ final class ConfIIMap[K<:Int,V<:Int](data: Array[V]){
 final class SchedulerConf(
   val tasks: ArraySeq[TaskConf],
   val subscribedWorldPos: ConfIIMap[WorldPos,TaskPos], val subscribedInputPos: ConfIIMap[InputPos,TaskPos],
-  val worldPosFromKey: Map[JoinKey,WorldPos], val plannerConf: PlannerConf, val emptyReadModel: ReadModel
+  val worldPosFromKey: Map[JoinKey,WorldPos], val worldKeys: ArraySeq[JoinKey], val inputs: ArraySeq[(Int,Int)],
+  val plannerConf: PlannerConf, val emptyReadModel: ReadModel
 )
 
 @c4("AssembleApp") final class SchedulerFactoryImpl(
@@ -86,11 +87,13 @@ final class SchedulerConf(
         t.planNotifyInputPos.map(subscribedInputPos(_)) ++ t.planNotifyWorldPos.map(subscribedWorldPos(_))
     })))
     val emptyReadModel = {
-      val emptyWorld = ImmArr.fill[WorldPos,RIndex](emptyIndex, new Array(_), new Array(_))
-      val emptyInputs = ImmArr.fill[InputPos,RIndex](emptyIndex, new Array(_), new Array(_))
+      val emptyWorld = ImmArr.empty[WorldPos,RIndex](emptyIndex, new Array(_), new Array(_))
+      val emptyInputs = ImmArr.empty[InputPos,RIndex](emptyIndex, new Array(_), new Array(_))
       new ReadModelImpl(emptyWorld, emptyInputs, emptyInputs, worldPosFromKey)
     }
-    val conf = new SchedulerConf(tasks, subscribedWorldPos, subscribedInputPos, worldPosFromKey, planConf, emptyReadModel)
+    val conf = new SchedulerConf(
+      tasks, subscribedWorldPos, subscribedInputPos, worldPosFromKey, worldKeys, inputs, planConf, emptyReadModel
+    )
     //new Thread(new ThreadTracker).start()
     schedulerImplFactory.create(rulesByPriority, conf, joins)
   }
@@ -159,7 +162,7 @@ trait ParallelExecution {
   emptyCalculated: Array[Array[RIndexPair]] = Array.empty
 )(
   emptyCalculatedByBuildTask: ImmArr[WorldPos, Array[Array[RIndexPair]]] =
-    ImmArr.fill(emptyCalculated, new Array(_), new Array(_))
+    ImmArr.empty(emptyCalculated, new Array(_), new Array(_))
 ) extends Replace {
   import ParallelExecution._
   import parallelExecution._
@@ -176,15 +179,16 @@ trait ParallelExecution {
   private def addHandler(transJoin: TransJoin, dir: Int, inputs: Seq[Index], res: List[KeyIterationHandler]): List[KeyIterationHandler] =
     if(inputs.forall(indexUtil.isEmpty)) res else transJoin.dirJoin(dir, inputs) :: res
 
+  private type RIndexPairs = Array[Array[RIndexPair]]
   private class MutableSchedulingContext(
-    val planner: MutablePlanner, val ec: ExecutionContext,
+    val planner: MutablePlanner,
     val model: COWArr[WorldPos,Index], val inputDiffs: COWArr[InputPos,Index], val inputPrevValues: COWArr[InputPos,Index],
-    val calculatedByBuildTask: COWArr[WorldPos,Array[Array[RIndexPair]]]
+    val calculatedByBuildTask: COWArr[WorldPos,RIndexPairs]
   )
 
-  private def startBuild(context: MutableSchedulingContext, taskConf: BuildTaskConf): Future[Option[Ev]] = {
+  private def startBuild(context: MutableSchedulingContext, taskConf: BuildTaskConf): Option[()=>Ev] = {
     val calculated = context.calculatedByBuildTask(taskConf.worldPos)
-    if(calculated.length == 0) Future.successful(None) else {
+    if(calculated.length == 0) None else {
       context.calculatedByBuildTask(taskConf.worldPos) = emptyCalculated
       val len = taskConf.outDiffPos.length
       val prev = new Array[Index](1 + len)
@@ -194,18 +198,18 @@ trait ParallelExecution {
         prev(i + 1) = context.inputDiffs(taskConf.outDiffPos(i))
         i += 1
       }
-      Future(continueBuild(taskConf, calculated, prev))(context.ec)
+      Option(()=>continueBuild(taskConf, calculated, prev))
     }
   }
 
-  private def continueBuild(taskConf: BuildTaskConf, calculated: Array[Array[RIndexPair]], prev: Array[Index]): Option[Ev] = {
+  private def continueBuild(taskConf: BuildTaskConf, calculated: RIndexPairs, prev: Array[Index]): Ev = {
     val prevDistinct = prev.distinct
     val task = indexUtil.buildIndex(prevDistinct, calculated)
     val nextDistinct = execute[IndexingSubTask,IndexingResult,Seq[Index]](
       task.subTasks.toArray, rIndexUtil.execute, new Array(_), rIndexUtil.merge(task, _)
     )
     val next = prev.map(zip(ArraySeq.from(prevDistinct), nextDistinct).toMap)
-    Option(new BuiltEv(taskConf, prev, next))
+    new BuiltEv(taskConf, prev, next)
   }
   private class BuiltEv(val taskConf: BuildTaskConf, val prev: Array[Index], val next: Array[Index]) extends Ev
   private def replace[K<:Int](values: COWArr[K,Index], pos: K, prev: Index, next: Index): Unit = {
@@ -219,12 +223,12 @@ trait ParallelExecution {
     while(i < len) {
       val pos = ev.taskConf.outDiffPos(i)
       replace(context.inputDiffs, pos, ev.prev(i+1), ev.next(i+1))
-      context.planner.setTodo(conf.subscribedInputPos(pos))
+      context.planner.setTodo(conf.subscribedInputPos(pos), value = true)
       i += 1
     }
   }
 
-  private def startCalc(context: MutableSchedulingContext, taskConf: CalcTaskConf): Future[Option[Ev]] = {
+  private def startCalc(context: MutableSchedulingContext, taskConf: CalcTaskConf): Option[()=>Ev] = {
     var nonEmpty = false
     val len = taskConf.inputs.length
     val diffs = new Array[Index](len)
@@ -244,14 +248,14 @@ trait ParallelExecution {
       if(!indexUtil.isEmpty(diff)) nonEmpty = true
       i += 1
     }
-    if(nonEmpty) Future(continueCalc(new CalcReq(taskConf, prevInputs, inputs, diffs)))(context.ec)
-    else Future.successful(None)
+    if(nonEmpty) Option(()=>continueCalc(new CalcReq(taskConf, prevInputs, inputs, diffs)))
+    else None
   }
 
   private class CalcReq(
     val taskConf: CalcTaskConf, val prevInputValues: Seq[Index], val nextInputValues: Seq[Index], val inputDiffs: Seq[Index]
   )
-  private def continueCalc(req: CalcReq): Option[Ev] = {
+  private def continueCalc(req: CalcReq): Ev = {
     val transJoin = joins(req.taskConf.joinPos).joins(req.inputDiffs)
     val handlers =
       addHandler(transJoin, -1, req.prevInputValues, addHandler(transJoin, +1, req.nextInputValues, Nil)).toArray
@@ -284,12 +288,12 @@ trait ParallelExecution {
     val diff =
       req.taskConf.outWorldPos.indices.toArray.map(i => req.taskConf.outWorldPos(i) -> indexUtil.byOutput(aggr, i))
       .filter(_._2.nonEmpty)
-    Option(new CalculatedEv(diff))
+    new CalculatedEv(diff)
   }
-  private class CalculatedEv(val diff: Array[(WorldPos, Array[Array[RIndexPair]])]) extends Ev
+  private class CalculatedEv(val diff: Array[(WorldPos, RIndexPairs)]) extends Ev
   private def finishCalc(context: MutableSchedulingContext, ev: CalculatedEv): Unit = setTodoBuild(context, ev.diff)
 
-  private def setTodoBuild(context: MutableSchedulingContext, diff: Array[(WorldPos, Array[Array[RIndexPair]])]): Unit = {
+  private def setTodoBuild(context: MutableSchedulingContext, diff: Array[(WorldPos, RIndexPairs)]): Unit = {
     val c = context.calculatedByBuildTask
     var i = 0
     while(i < diff.length) {
@@ -302,46 +306,67 @@ trait ParallelExecution {
         System.arraycopy(v,0,merged,was.length,v.length)
         merged
       }
-      context.planner.setTodo(conf.subscribedWorldPos(k))
+      context.planner.setTodo(conf.subscribedWorldPos(k), value = true)
       i += 1
     }
   }
+
+  private def cowArrDebug[K<:Int,V](hint: String, explainK: K=>String, explainV: V=>String): Option[CowArrDebug[K, V]] =
+    Option(new CowArrDebug[K, V] {
+      def update(pos: K, value: V): Unit = println(s"$hint ${explainK(pos)} ${explainV(value)}")
+    })
+  private def explainJoinPos(joinPos: Int): String =
+    joins(joinPos) match { case j => s"${j.assembleName} rule ${j.name}" }
+  private def explainWorldPos(pos: WorldPos): String = conf.worldKeys(pos).toString
+  private def explainInputPos(pos: InputPos): String = {
+    val (joinPos, iPos) = conf.inputs(pos)
+    s"${explainJoinPos(joinPos)} input #$iPos"
+  }
+  private def explainIndex(index: Index): String = s"${rIndexUtil.keyCount(index)} keys"
+  private def explainQueue(queue: RIndexPairs): String = s"${queue.map(_.length).sum} pairs"
 
   def replace(
     model: ReadModel, diff: Diffs, profiler: JoiningProfiling, executionContext: OuterExecutionContext
   ): ReadModel = {
     val planner = plannerFactory.createMutablePlanner(conf.plannerConf)
-    val debuggingPlanner = if(DebugCounter.on(0)) new DebuggingPlanner(planner, conf, joins) else planner
     val modelImpl = model match{ case m: ReadModelImpl => m }
+    val noDbg = !DebugCounter.on(0)
     val context = new MutableSchedulingContext(
-      debuggingPlanner, executionContext.value,
-      modelImpl.model.toMutable, modelImpl.inputDiffs.toMutable, modelImpl.inputPrevValues.toMutable,
-      emptyCalculatedByBuildTask.toMutable
+      if(noDbg) planner else new DebuggingPlanner(planner, conf, joins),
+      modelImpl.model.toMutable(if(noDbg) None else cowArrDebug("set-model",explainWorldPos,explainIndex)),
+      modelImpl.inputDiffs.toMutable(if(noDbg) None else cowArrDebug("set-input-diff",explainInputPos,explainIndex)),
+      modelImpl.inputPrevValues.toMutable(if(noDbg) None else cowArrDebug("set-input-prev",explainInputPos,explainIndex)),
+      emptyCalculatedByBuildTask.toMutable(if(noDbg) None else cowArrDebug("set-queue",explainWorldPos,explainQueue))
     )
     setTodoBuild(context, diff.map{ case (k: JoinKey, v) => (conf.worldPosFromKey(k),v) }.toArray)
-    loop(context)
+    loop(context, executionContext.value)
+    context.calculatedByBuildTask.requireIsEmpty()
+    context.inputDiffs.requireIsEmpty()
     new ReadModelImpl(context.model.toImmutable, context.inputDiffs.toImmutable, context.inputPrevValues.toImmutable, conf.worldPosFromKey)
   }
-  private final class OuterEv(val exprPos: TaskPos, val event: Option[Ev])
-  private def loop(context: MutableSchedulingContext): Unit = {
+  private final class OuterEv(val exprPos: TaskPos, val event: Ev)
+  private def loop(context: MutableSchedulingContext, ec: ExecutionContext): Unit = {
     val queue = new LinkedBlockingQueue[Try[OuterEv]]
     val planner = context.planner
-    while(planner.planCount > 0) {
-      while (planner.suggestedNonEmpty){
-        val exprPos = planner.suggestedHead
-        planner.setStarted(exprPos)
-        (conf.tasks(exprPos) match {
-          case taskConf: BuildTaskConf => startBuild(context, taskConf)
-          case taskConf: CalcTaskConf => startCalc(context, taskConf)
-        }).map(new OuterEv(exprPos,_))(shortEC).onComplete{ tEv => queue.put(tEv) }(shortEC)
+    while(planner.planCount > 0) if(planner.suggestedNonEmpty) {
+      val exprPos = planner.suggestedHead
+      (conf.tasks(exprPos) match {
+        case taskConf: BuildTaskConf => startBuild(context, taskConf)
+        case taskConf: CalcTaskConf => startCalc(context, taskConf)
+      }) match {
+        case None => ()
+        case Some(f) =>
+          planner.setStarted(exprPos, value = true)
+          Future(new OuterEv(exprPos,f()))(ec).onComplete{ tEv => queue.put(tEv) }(shortEC)
       }
+      planner.setTodo(exprPos, value = false)
+    } else {
       val outerEv: OuterEv = queue.take().get
       outerEv.event match {
-        case Some(ev: CalculatedEv) => finishCalc(context, ev)
-        case Some(ev: BuiltEv) => finishBuild(context, ev)
-        case None => ()
+        case ev: CalculatedEv => finishCalc(context, ev)
+        case ev: BuiltEv => finishBuild(context, ev)
       }
-      planner.setDone(outerEv.exprPos)
+      planner.setStarted(outerEv.exprPos, value = false)
     }
   }
   def emptyReadModel: ReadModel = conf.emptyReadModel
@@ -375,19 +400,19 @@ object ImmArr{
   private val innerSize: Int = 1 << innerPower
   val innerMask: Int = innerSize - 1
 
-  def fill[K <: Int, V <: Object](value: V, createInnerArray: Int => Array[V], createOuterArray: Int => Array[Array[V]]): ImmArr[K, V] = {
+  def empty[K <: Int, V <: Object](value: V, createInnerArray: Int => Array[V], createOuterArray: Int => Array[Array[V]]): ImmArr[K, V] = {
     val inner = createInnerArray(innerSize)
     java.util.Arrays.setAll[V](inner, (_: Int) => value)
     val outer = createOuterArray(outerSize)
     java.util.Arrays.setAll[Array[V]](outer, (_: Int) => inner)
-    new ImmArr(outer)
+    new ImmArr(outer, 0, value)
   }
 }
-final class ImmArr[K<:Int,V](data: Array[Array[V]]){
+final class ImmArr[K<:Int,V<:Object](data: Array[Array[V]], nonEmptyCount: Int, emptyItem: V){
   def apply(pos: K): V = data(pos >> ImmArr.innerPower)(pos & ImmArr.innerMask)
-  def toMutable: COWArr[K,V] = new COWArr(data)
+  def toMutable(debug: Option[CowArrDebug[K,V]]): COWArr[K,V] = new COWArr(data, nonEmptyCount, emptyItem, debug)
 }
-final class COWArr[K<:Int,V](private var data: Array[Array[V]]){
+final class COWArr[K<:Int,V<:Object](private var data: Array[Array[V]], private var nonEmptyCount: Int, emptyItem: V, debug: Option[CowArrDebug[K,V]]){
   def apply(pos: K): V = data(pos >> ImmArr.innerPower)(pos & ImmArr.innerMask)
   private var privateC: Long = 0L
   def update(pos: K, value: V): Unit = {
@@ -403,29 +428,45 @@ final class COWArr[K<:Int,V](private var data: Array[Array[V]]){
       data(outerPos) = data(outerPos).clone()
       privateC = privateC | shifted
     }
-    data(outerPos)(pos & innerMask) = value
+    val part = data(outerPos)
+    val innerPos = pos & innerMask
+    nonEmptyCount += (if(part(innerPos) ne emptyItem) -1 else 0) + (if(value ne emptyItem) 1 else 0)
+    part(innerPos) = value
+    if(debug ne None) debug.get(pos) = value
   }
   def toImmutable: ImmArr[K,V] = {
     privateC = 0L
-    new ImmArr(data)
+    new ImmArr(data, nonEmptyCount, emptyItem)
   }
+  def requireIsEmpty(): Unit = assert(nonEmptyCount == 0)
+}
+
+sealed trait CowArrDebug[K<:Int,V] {
+  def update(pos: K, value: V): Unit
 }
 
 class DebuggingPlanner(inner: MutablePlanner, conf: SchedulerConf, joins: Seq[Join]) extends MutablePlanner {
-  private def wrap(hint: String, exprPos: TaskPos, dummy: Unit): Unit =
-    println(conf.tasks(exprPos) match {
+  private def report(hint: String, exprPos: TaskPos, value: Boolean): Unit = {
+    val explanation = conf.tasks(exprPos) match {
       case t: CalcTaskConf =>
         val j = joins(t.joinPos)
-        s"$hint #$exprPos calc ${j.assembleName} rule ${j.name}"
-      case t: BuildTaskConf => s"$hint #$exprPos build ${/*t.key*/}"
-    })
-  override def setTodo(exprPos: TaskPos): Unit = wrap("setTodo   ",exprPos,inner.setTodo(exprPos))
-  override def setDone(exprPos: TaskPos): Unit = wrap("setDone   ",exprPos,inner.setDone(exprPos))
-  override def setStarted(exprPos: TaskPos): Unit = wrap("setStarted",exprPos,inner.setStarted(exprPos))
-  override def suggestedNonEmpty: Boolean = inner.suggestedNonEmpty
-  override def suggestedHead: TaskPos = inner.suggestedHead
-  override def planCount: Int = inner.planCount
-  override def getStatusCounts: Seq[Int] = inner.getStatusCounts
+        s"calc ${j.assembleName} rule ${j.name}"
+      case t: BuildTaskConf => s"build ${conf.worldKeys(t.worldPos)}"
+    }
+    val v = if(value) "on " else "off"
+    println(s"$hint $v #$exprPos $explanation")
+  }
+  def setTodo(exprPos: TaskPos, value: Boolean): Unit = {
+    report(s"setTodo   ",exprPos,value)
+    inner.setTodo(exprPos,value)
+  }
+  def setStarted(exprPos: TaskPos, value: Boolean): Unit = {
+    report(s"setStarted",exprPos,value)
+    inner.setStarted(exprPos,value)
+  }
+  def suggestedNonEmpty: Boolean = inner.suggestedNonEmpty
+  def suggestedHead: TaskPos = inner.suggestedHead
+  def planCount: Int = inner.planCount
 }
 
 class ThreadTracker extends Runnable {

@@ -5,7 +5,6 @@ package ee.cone.c4assemble
 
 import java.nio.file.{Files, Path, Paths}
 import Types._
-import ee.cone.c4assemble.DOutAggregationBuffer.{emptyBuffers, emptyDOuts}
 import ee.cone.c4assemble.IndexTypes.{Count, Products}
 import ee.cone.c4assemble.RIndexTypes.{RIndexItem, RIndexKey}
 import ee.cone.c4di.c4
@@ -38,7 +37,7 @@ case class JoinKeyImpl(
 
 // Ordering.by can drop keys!: https://github.com/scala/bug/issues/8674
 @c4("AssembleApp") final class IndexUtilImpl(
-  rIndexUtil: RIndexUtil,
+  rIndexUtil: RIndexUtil, spreader: Spreader,
   noParts: Array[MultiForPart] = Array.empty,
 ) extends IndexUtil {
   private def isSingle(p: Products): Boolean = p match {
@@ -193,16 +192,17 @@ case class JoinKeyImpl(
   def byOutput(aggr: AggrDOut, outPos: Int): Array[Array[RIndexPair]] = aggr match {
     case a: AggrDOutImpl => a.resultsByOut.collect { case (p, v) if p == outPos => v }
   }
-  private val emptyAggrDOut = new AggrDOutImpl(Array.empty, 0)
-  def aggregate(seq: Array[AggrDOut]): AggrDOut = if(seq.isEmpty) emptyAggrDOut else {
-    val s = seq.map{ case a: AggrDOutImpl => a }
-    new AggrDOutImpl(s.flatMap(_.resultsByOut), s.map(_.callCount).sum)
+  def aggregate(seq: Array[AggrDOut]): AggrDOut = {
+    val s = seq.collect{ case a: AggrDOutImpl if a.resultsByOut.length > 0 || a.callCount > 0 => a }
+    s.length match {
+      case 0 => DOutAggregationBuffer.emptyAggrDOut
+      case 1 => s(0)
+      case _ => new AggrDOutImpl(s.flatMap(_.resultsByOut), s.map(_.callCount).sum)
+    }
   }
-  def aggregate(values: Iterable[DOut]): AggrDOut =
-    new AggrDOutImpl(Array((0, values.toArray)), 0)
   def aggregate(buffer: MutableDOutBuffer): AggrDOut =
     buffer match { case b: DOutAggregationBuffer => b.result }
-  def createBuffer(): MutableDOutBuffer = new DOutAggregationBuffer
+  def createBuffer(): MutableDOutBuffer = new DOutAggregationBuffer(spreader)
 
   def buildIndex(prev: Array[Index], src: Array[Array[RIndexPair]]): IndexingTask =
     rIndexUtil.buildIndex(prev, src, rIndexValueOperations)
@@ -232,37 +232,33 @@ final class UnchangedMultiForPart(getItems: ()=>Array[Product]) extends MultiFor
   def isChanged: Boolean = false
   lazy val items: Array[Product] = getItems()
 }
-final class AggrDOutImpl(val resultsByOut: Array[(Int,Array[RIndexPair])], val callCount: Long) extends AggrDOut
 
-final class DOutLeafBuffer {
-  var values: Array[RIndexPair] = new Array(32)
-  var end: Int = 0
-  def addOne(v: RIndexPair): Unit = {
-    if(end >= values.length) {
-      val willBuffer = new Array[RIndexPair](values.length * 2)
+final class AggrDOutImpl(val resultsByOut: Array[(Int,Array[RIndexPair])], val callCount: Long) extends AggrDOut
+object DOutAggregationBuffer {
+  private val emptyDOuts = Array.empty[RIndexPair]
+  private val emptyDOutsByOut = Array.empty[(Int,Array[RIndexPair])]
+  val emptyAggrDOut: AggrDOutImpl = new AggrDOutImpl(Array.empty, 0L)
+  private val spreadHandler = new SpreadHandler[DOut] {
+    def toPos(it: DOut): Int = it.creatorPos
+    def createPart(sz: Int): Array[DOut] = if (sz > 0) new Array(sz) else emptyDOuts
+    def createRoot(sz: Int): Array[Array[DOut]] = new Array(sz)
+  }
+}
+final class DOutAggregationBuffer(spreader: Spreader) extends MutableDOutBuffer {
+  import DOutAggregationBuffer._
+  private var values: Array[RIndexPair] = emptyDOuts
+  private var end: Int = 0
+  private var maxCreatorPos: Int = 0
+  private var callCounter: Long = 0L
+  private def addOne(v: DOut): Unit = {
+    if(v.creatorPos > maxCreatorPos) maxCreatorPos = v.creatorPos
+    if (end >= values.length) {
+      val willBuffer = new Array[RIndexPair](if(values.length > 0) values.length * 2 else 32)
       System.arraycopy(values, 0, willBuffer, 0, values.length)
       values = willBuffer
     }
     values(end) = v
     end += 1
-  }
-
-  def result: Array[RIndexPair] = java.util.Arrays.copyOf(values, end)
-}
-
-object DOutAggregationBuffer {
-  private val emptyDOuts = Array.empty[RIndexPair]
-  private val emptyBuffers = Array.empty[DOutLeafBuffer]
-}
-final class DOutAggregationBuffer extends MutableDOutBuffer {
-  private var buffers: Array[DOutLeafBuffer] = emptyBuffers
-  private var callCounter: Long = 0L
-  private def addOne(v: DOut): Unit = {
-    val pos = v.creatorPos
-    while(pos >= buffers.length){
-      buffers = buffers.appended(new DOutLeafBuffer)
-    }
-    buffers(pos).addOne(v)
   }
   def add(values: Iterable[DOut]): Unit = {
     callCounter += 1
@@ -273,7 +269,14 @@ final class DOutAggregationBuffer extends MutableDOutBuffer {
     callCounter += 1
     values.foreach(pair => addOne(outFactory.result(pair)))
   }
-  def result: AggrDOutImpl = new AggrDOutImpl(buffers.zipWithIndex.map{ case (b,i)=> (i,b.result) }, callCounter)
+  def result: AggrDOutImpl = if(callCounter == 0) emptyAggrDOut else {
+    val res: Array[(Int,Array[RIndexPair])] =
+      if(end == 0) emptyDOutsByOut
+      else if(maxCreatorPos == 0) Array((0, java.util.Arrays.copyOf(values, end)))
+      else spreader.spread(values, end, maxCreatorPos + 1, spreadHandler)
+        .zipWithIndex.collect { case (r, i) if r.length > 0 => (i, r) }
+    new AggrDOutImpl(res, callCounter)
+  }
 }
 
 final class OutFactoryImpl(util: IndexUtilImpl, rIndexUtil: RIndexUtil, pos: Int, dir: Int) extends OutFactory[Any, Product] {

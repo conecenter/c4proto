@@ -24,7 +24,6 @@ trait IndexUtil {
   //
   def byOutput(aggr: AggrDOut, outPos: Int): Array[Array[RIndexPair]]
   def aggregate(s: Array[AggrDOut]): AggrDOut
-  def aggregate(values: Iterable[DOut]): AggrDOut
   def aggregate(buffer: MutableDOutBuffer): AggrDOut
   def createBuffer(): MutableDOutBuffer
   def buildIndex(prev: Array[Index], src: Array[Array[RIndexPair]]): IndexingTask

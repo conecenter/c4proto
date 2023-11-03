@@ -15,43 +15,22 @@ class PlannerConfImpl(val taskUsers: Array[Array[TaskPos]]) extends PlannerConf
 
 @SuppressWarnings(Array("org.wartremover.warts.Var"))
 final class MutablePlannerImpl(taskUsers: Array[Array[TaskPos]]) extends MutablePlanner {
-  private sealed trait StatusTag
-  private type Status = Byte with Tagged[StatusTag]
-
   private val reasonCountByExprPos: Array[Int] = new Array(taskUsers.length)
   private var reasonedExprCount = 0
-  private val statusByExprPos: Array[Status] = new Array(taskUsers.length)
-  private def mkSt(v: Int): Status = v.toByte.asInstanceOf[Status]
-  private val noSt: Status = mkSt(0)
-  private val todoSt: Status = mkSt(1)
-  private val startedSt: Status = mkSt(2)
-  private val suggestedSet = new RBitSet(taskUsers.length)
-  private val statusCounts = Array[Int](taskUsers.length, 0, 0)
+  private val todoSet = new RBitSet[TaskPos](taskUsers.length, (exprPos,d)=>{ changeCount(exprPos, d) })
+  private val startedSet = new RBitSet[TaskPos](taskUsers.length, (exprPos,d)=>{ changeCount(exprPos, d) })
+  private val suggestedSet = new RBitSet[TaskPos](taskUsers.length, (_,d)=>{ suggestedSize += d })
+  private var suggestedSize = 0
 
-  def setTodo(exprPos: TaskPos): Unit =
-    if(statusByExprPos(exprPos) == noSt) setStatus(exprPos, noSt, todoSt, +1)
+  def setTodo(exprPos: TaskPos, value: Boolean): Unit = { todoSet(exprPos) = value }
 
-  def setDone(exprPos: TaskPos): Unit = {
-    setStatus(exprPos, startedSt, todoSt, 0)
-    setStatus(exprPos, todoSt, noSt, -1)
-  }
-  def setStarted(exprPos: TaskPos): Unit = setStatus(exprPos, todoSt, startedSt, 0)
+  def setStarted(exprPos: TaskPos, value: Boolean): Unit = { startedSet(exprPos) = value }
 
-  def suggestedNonEmpty: Boolean = suggestedSet.size > 0
+  def suggestedNonEmpty: Boolean = suggestedSize > 0
 
   def suggestedHead: TaskPos = suggestedSet.head.asInstanceOf[TaskPos]
 
   def planCount: Int = reasonedExprCount
-  def getStatusCounts: Seq[Int] = statusCounts.toSeq
-
-  private def setStatus(exprPos: TaskPos, wasValue: Status, willValue: Status, countDir: Int): Unit = {
-    assert(statusByExprPos(exprPos) == wasValue)
-    statusByExprPos(exprPos) = willValue
-    statusCounts(wasValue) -= 1
-    statusCounts(willValue) += 1
-    if(countDir != 0) changeCount(exprPos, countDir)
-    updateSuggested(exprPos)
-  }
 
   private def changeCount(exprPos: TaskPos, dir: Int): Unit = {
     val wasCount = reasonCountByExprPos(exprPos)
@@ -71,27 +50,37 @@ final class MutablePlannerImpl(taskUsers: Array[Array[TaskPos]]) extends Mutable
   }
 
   private def updateSuggested(exprPos: TaskPos): Unit =
-    suggestedSet(exprPos) = reasonCountByExprPos(exprPos) == 1 && statusByExprPos(exprPos) == todoSt
+    suggestedSet(exprPos) = reasonCountByExprPos(exprPos) == 1 && todoSet(exprPos) && !startedSet(exprPos)
 }
 
-final class RBitSet(maxSize: Int){
+final class RBitSet[K<:Int](maxSize: Int, onChange: (K,Int)=>Unit){
   private val LogWL = 6
   private val WordLength = 64
   private val elems = new Array[Long](((maxSize-1) >> LogWL)+1)
-  var size = 0
 
-  def update(elem: Int, value: Boolean): Unit = {
+  def apply(elem: K): Boolean = {
     require(elem >= 0)
     val idx = elem >> LogWL
     val wasW = elems(idx)
     val shifted = 1L << elem
     val contains = (wasW & shifted) != 0L
+    //
+    contains
+  }
+
+  def update(elem: K, value: Boolean): Unit = {
+    require(elem >= 0)
+    val idx = elem >> LogWL
+    val wasW = elems(idx)
+    val shifted = 1L << elem
+    val contains = (wasW & shifted) != 0L
+    //
     if(value && !contains){
       elems(idx) = wasW | shifted
-      size += 1
+      onChange(elem, +1)
     } else if(!value && contains){
       elems(idx) = wasW & ~shifted
-      size -= 1
+      onChange(elem, -1)
     }
   }
 

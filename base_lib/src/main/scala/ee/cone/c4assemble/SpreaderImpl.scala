@@ -3,11 +3,11 @@ package ee.cone.c4assemble
 import ee.cone.c4di.c4
 
 @c4("AssembleApp") final class SpreaderImpl extends Spreader {
-  def spread[N](src: Array[N], handler: SpreadHandler[N]): Array[Array[N]] = {
-    val dest = handler.createRoot(handler.partCount)
+  def spread[N](src: Array[N], itemCount: Int, partCount: Int, handler: SpreadHandler[N]): Array[Array[N]] = {
+    val dest = handler.createRoot(partCount)
     val ends = new Array[Int](dest.length)
     var sp = 0
-    while (sp < src.length) {
+    while (sp < itemCount) {
       val it = src(sp)
       val drp = handler.toPos(it)
       ends(drp) += 1
