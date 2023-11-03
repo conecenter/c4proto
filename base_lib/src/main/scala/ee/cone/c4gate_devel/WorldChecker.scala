@@ -14,10 +14,6 @@ trait WorldCheckHandler {
   def handle(context: RichContext): Unit
 }
 
-trait WorldCheckHandler {
-  def handle(context: RichContext): Unit
-}
-
 @c4("WorldCheckerApp") final class WorldCheckerReadModelAdd(
   inner: RichRawWorldReducer,
   readModelUtil: ReadModelUtil,
@@ -78,7 +74,7 @@ trait WorldCheckHandler {
         logger.info("non-product found:")
         for(l<-s) logger.info(l)
     }
-  private def reportSelect(assembled: ReadModel, opt: String, txId: String, txId: String): Unit = {
+  private def reportSelect(assembled: ReadModel, opt: String, txId: String): Unit = {
     val opts = opt.split(' ').toSet
     logger.info(s"txId $txId options ${opts.toSeq.sorted.map(s=>s"'$s'").mkString(" ")}")
     readModelUtil.toMap(assembled).toList.collect {
