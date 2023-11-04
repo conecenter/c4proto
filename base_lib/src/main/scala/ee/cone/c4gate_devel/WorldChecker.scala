@@ -29,9 +29,9 @@ trait WorldCheckHandler {
     val willContext = inner.reduce(context, events)
     val period = (System.nanoTime-startedAt)/1000000
     logger.info(s"reduced tx $txId $period ms ${DebugCounter.report()}")
-    DebugCounter.reset()
     if(txId.endsWith(postfix)) report(willContext.assembled, txId)
     handlers.foreach(_.handle(willContext))
+    DebugCounter.reset()
     willContext
   }
   def report(assembled: ReadModel, txId: String): Unit = {
