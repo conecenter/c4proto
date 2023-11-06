@@ -253,17 +253,12 @@ object PodLister extends Runnable {
     readLine(stream, prefix, willPods)
   }
 
-  @tailrec private def getPrefix(): Seq[String] = {
-    val devName = PublicState.load().fold("")(_.devName)
-    if(devName.isEmpty){
+  def run(): Unit = {
+    while(PublicState.load().isEmpty){
       println("pod lister waits for auth")
       Thread.sleep(1000)
-      getPrefix()
-    } else Seq(s"de-${devName}-",s"te-${devName}-")
-  }
-
-  def run(): Unit = {
-    val prefix = getPrefix()
+    }
+    val prefix = Seq("de-","te-")
     val proc = os.proc(Seq("kcd","get","pod","--watch","--output-watch-events")).spawn(stdin=os.Inherit)
     try {
       readLine(proc.stdout, prefix, Set.empty)

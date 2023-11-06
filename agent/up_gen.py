@@ -37,7 +37,7 @@ def gen_conf(context,path,comment,line_wrap,uid,home,setup,arch_name,repo_name,n
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /replink.pl /",
         "ARG C4UID",
         "RUN perl install.pl useradd $C4UID",
-        "RUN perl install.pl apt curl ca-certificates libjson-xs-perl openssh-client rsync lsof python3 openjdk-17-jre-headless git",
+        "RUN perl install.pl apt curl ca-certificates libjson-xs-perl openssh-client rsync lsof python3 openjdk-17-jre-headless git micro",
         "RUN perl install.pl curl https://github.com/sbt/sbt/releases/download/v1.9.3/sbt-1.9.3.tgz",
         f"RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/{arch_name}/kubectl && chmod +x /tools/kubectl",
         "RUN perl install.pl curl https://get.helm.sh/helm-v3.12.1-linux-amd64.tar.gz",
@@ -45,6 +45,8 @@ def gen_conf(context,path,comment,line_wrap,uid,home,setup,arch_name,repo_name,n
         " && tar -C /tools -xzf /t.tgz crane && rm /t.tgz",
         "USER c4",
         "ENV PATH=${PATH}:/c4/bin:/tools:/tools/sbt/bin:/tools/linux",
+        "ENV KUBECONFIG=/c4/.kube/config",
+        "ENV KUBE_EDITOR=micro",
     )))
 
 def gen_sync(context, path, repo_name, comment, line_wrap, run):

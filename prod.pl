@@ -408,7 +408,7 @@ push @tasks, ["watch","$composes_txt",sub{
 }];
 push @tasks, ["log","[pod|$composes_txt] [tail] [add]",sub{
     my($arg_opt,$tail,$add)=@_;
-    my $arg = $arg_opt || &$mandatory_of(C4INBOX_TOPIC_PREFIX=>\%ENV)."-main";
+    my $arg = $arg_opt || &$mandatory_of(HOSTNAME=>\%ENV);
     &$for_comp_pod($arg,sub{ my ($comp,$pod) = @_;
         my $kubectl = &$get_kubectl($comp);
         my $tail_or = ($tail+0) || 100;
@@ -751,6 +751,15 @@ push @tasks, ["tag","[tag]",sub{
 }];
 
 push @tasks, ["restart"," ",sub{&$restart()}];
+push @tasks, ["stop"," ",sub{
+    while(1){
+        my @pid = sort map{/^(\d+).*ServerMain/?"$1":()}`jcmd`;
+        @pid or last;
+        sy("kill",$pid[-1]);
+        sleep 1;
+    }
+}];
+push @tasks, ["build"," ",sub{ &$py_run("build.py",&$mandatory_of(C4CI_BUILD_DIR => \%ENV)) }];
 
 push @tasks, ["kafka","( topics | offsets <hours> | nodes | sizes <node> | topics_rm )",sub{
     my @args = @_;
