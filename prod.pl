@@ -751,6 +751,7 @@ push @tasks, ["tag","[tag]",sub{
 }];
 
 push @tasks, ["restart"," ",sub{&$restart()}];
+push @tasks, ["build"," ",sub{ &$py_run("build.py",&$mandatory_of(C4CI_BUILD_DIR => \%ENV)) }];
 
 push @tasks, ["kafka","( topics | offsets <hours> | nodes | sizes <node> | topics_rm )",sub{
     my @args = @_;
