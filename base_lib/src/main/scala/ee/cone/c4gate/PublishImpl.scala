@@ -20,6 +20,7 @@ import scala.jdk.CollectionConverters.IteratorHasAsScala
 //todo un-publish
 
 import scala.jdk.CollectionConverters.IterableHasAsScala
+import java.nio.charset.StandardCharsets.UTF_8
 
 @c4assemble("PublishingCompApp") class PublishingAssembleBase(publishing: Publishing){
   def join(
@@ -81,33 +82,33 @@ case object InitialPublishDone extends TransientLens[Boolean](false)
   publicPaths: PublicPaths,
 )(
   mimeTypes: String=>Option[String] = mimeTypesProviders.flatMap(_.get).toMap.get,
-  compressor: Compressor = publishFullCompressor.value
+  compressor: RawCompressor = publishFullCompressor.value
 ) extends LazyLogging {
   def checkPublishFromStrings(local: Context): Context = {
     val strEvents = publisher.publish("FromStrings", for {
       publishFromStringsProvider <- publishFromStringsProviders
       (path,body) <- publishFromStringsProvider.get
-    } yield prepare(path,ToByteString(body)))(local)
+    } yield prepare(path,body.getBytes(UTF_8)))(local)
     txAdd.add(strEvents).andThen(SleepUntilKey.set(Instant.MAX))(local)
   }
   def checkPublishFromFiles(local: Context): Context = {
     val timeToPublish =
       publicPaths.value.map(_.resolve("publish_time")).filter(Files.exists(_))
-        .flatMap(path=>publisher.publish("FromFilesTime",List(prepare("/publish_time",ToByteString(Files.readAllBytes(path)))))(local))
+        .flatMap(path=>publisher.publish("FromFilesTime",List(prepare("/publish_time",Files.readAllBytes(path))))(local))
     if(timeToPublish.isEmpty && InitialPublishDone.of(local))
       SleepUntilKey.set(Instant.ofEpochMilli(System.currentTimeMillis+1000))(local)
     else {
       val filesToPublish = publisher.publish("FromFiles", for {
         publicDirProvider <- publicDirProviders
         (url, file) <- publicDirProvider.get if url != "/publish_time"
-      } yield prepare(url, ToByteString(Files.readAllBytes(file))))(local)
+      } yield prepare(url, Files.readAllBytes(file)))(local)
       txAdd.add(filesToPublish ++ timeToPublish).andThen(InitialPublishDone.set(true))(local)
     }
   }
-  def prepare(path: String, body: ByteString): ByPathHttpPublication = {
+  def prepare(path: String, body: Array[Byte]): ByPathHttpPublication = {
     val pointPos = path.lastIndexOf(".")
     val ext = if(pointPos<0) "" else path.substring(pointPos+1)
-    val byteString = compressor.compress(body)
+    val byteString = new ByteString(compressor.compress(body))
     val mimeType = mimeTypes(ext)
     val eTag = "v1-" +
       idGenUtil.srcIdFromSerialized(0,byteString) +

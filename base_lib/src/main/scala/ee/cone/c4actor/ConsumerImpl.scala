@@ -5,6 +5,7 @@ import ee.cone.c4actor.QProtocol.S_FailedUpdates
 import ee.cone.c4assemble.StartUpSpaceProfiler
 import ee.cone.c4di.c4
 
+import java.lang.management.ManagementFactory
 import java.nio.file.{Files, Path, Paths}
 import java.nio.charset.StandardCharsets.UTF_8
 import scala.annotation.tailrec
@@ -62,10 +63,11 @@ object StartUpSnapshotUtil {
     val snapshot = getSnapshot()
     logger.debug(s"Loading $snapshot")
     val Some(event) = loader.load(snapshot)
-    logger.debug(s"Reducing $snapshot")
+    val rt = ManagementFactory.getRuntimeMXBean
+    logger.info(s"Reducing $snapshot -- uptime ${rt.getUptime}ms")
     val world = reducer.reduce(None,List(event))
     if(getS_FailedUpdates.ofA(world).nonEmpty) throw new Exception(s"Snapshot reduce failed $snapshot")
-    logger.info(s"Snapshot reduced without failures $snapshot")
+    logger.info(s"Snapshot reduced without failures $snapshot -- uptime ${rt.getUptime}ms")
     GCLog("after loadRecent")
     startUpSpaceProfiler.out(world.assembled)
     consuming.process(world.offset, consumer => {

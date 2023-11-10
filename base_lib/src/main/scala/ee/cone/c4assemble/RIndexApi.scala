@@ -13,15 +13,28 @@ object RIndexTypes {
   type RIndexItem = Object with Tagged[RIndexItemTag]
 }
 
+trait RecalculationTask
+trait IndexingTask {
+  def subTasks: Seq[IndexingSubTask]
+}
+trait IndexingSubTask
+trait IndexingResult
 trait RIndexUtil {
+  def create(creatorPos: Int, key: RIndexKey, value: RIndexItem): RIndexPair
   def get(index: RIndex, key: RIndexKey): Seq[RIndexItem]
   def nonEmpty(index: RIndex, key: RIndexKey): Boolean
-  def merge(indexes: Seq[RIndex], valueOperations: RIndexValueOperations): RIndex
-  def split(index: RIndex, count: Int): Seq[RIndex]
+  def isEmpty(index: RIndex): Boolean
+
+  def recalculate(diffs: Array[RIndex]): Array[RecalculationTask]
+  def execute(task: RecalculationTask, handle: RIndexKey=>Unit): Unit
+
+  def buildIndex(prev: Array[RIndex], src: Array[Array[RIndexPair]], valueOperations: RIndexValueOperations): IndexingTask
+  def execute(subTask: IndexingSubTask): IndexingResult
+  def merge(task: IndexingTask, parts: Array[IndexingResult]): Seq[RIndex]
+
   def keyIterator(index: RIndex): Iterator[RIndexKey]
   def keyCount(index: RIndex): Int
   def valueCount(index: RIndex): Int
-  def build(power: Int, src: Array[RIndexPair], valueOperations: RIndexValueOperations): RIndex
   def eqBuckets(a: RIndex, b: RIndex, key: RIndexKey): Boolean
   def changed(values: Seq[RIndexItem], diff: Seq[RIndexItem], valueOperations: RIndexValueOperations): Array[RIndexItem]
   def unchanged(values: Seq[RIndexItem], diff: Seq[RIndexItem], valueOperations: RIndexValueOperations): Array[RIndexItem]
@@ -29,12 +42,12 @@ trait RIndexUtil {
 
 trait RIndexValueOperations {
   //def compareInPairs(a: RIndexPair, b: RIndexPair): Int
-  def compare(a: RIndexItem, b: RIndexItem): Int
+  def compare(a: RIndexItem, b: RIndexItem, cache: HashCodeCache): Int
   def merge(a: RIndexItem, b: RIndexItem): RIndexItem
   def nonEmpty(value: RIndexItem): Boolean
 }
 
 trait RIndexPair {
-  def rIndexKey: RIndexKey
+  def creatorPos: Int
   def rIndexItem: RIndexItem
 }

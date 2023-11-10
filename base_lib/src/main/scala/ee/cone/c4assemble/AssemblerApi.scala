@@ -1,6 +1,7 @@
 
 package ee.cone.c4assemble
 
+import ee.cone.c4assemble.RIndexTypes.RIndexItem
 import ee.cone.c4assemble.Types._
 
 import scala.concurrent.Future
@@ -25,11 +26,16 @@ trait WorldPartRule
 class OriginalWorldPart[A<:Object](val outputWorldKeys: Seq[AssembledKey]) extends WorldPartRule with DataDependencyTo[A]
 
 trait Replace {
-  def active: List[WorldPartRule]
+  type Diffs = Seq[(AssembledKey, Array[Array[RIndexPair]])]
+  def active: Seq[WorldPartRule]
   def replace(
-    prevWorld: ReadModel, diff: ReadModel, profiler: JoiningProfiling,
-    executionContext: OuterExecutionContext
-  ): Future[WorldTransition]
+    model: ReadModel, diff: Diffs, profiler: JoiningProfiling, executionContext: OuterExecutionContext
+  ): ReadModel
+  def emptyReadModel: ReadModel
+}
+
+trait SchedulerFactory {
+  def create(rulesByPriority: Seq[WorldPartRule]): Replace
 }
 
 trait TreeAssembler {
@@ -42,22 +48,6 @@ trait ByPriority {
 
 ////
 // moment -> mod/index -> key/srcId -> value -> count
-
-class IndexUpdates(val diffs: Seq[Index], val results: Seq[Index], val log: ProfilingLog)
-
-trait IndexUpdater {
-  def setPart(worldKeys: Seq[AssembledKey], update: Future[IndexUpdates], logTask: Boolean): WorldTransition=>WorldTransition
-  //def setPart(worldKey: AssembledKey, update: Future[IndexUpdate], logTask: Boolean): WorldTransition=>WorldTransition
-}
-
-trait AssembleSeqOptimizer {
-  type Expr = WorldPartExpression with DataDependencyFrom[_] with DataDependencyTo[_]
-  def optimize: List[Expr]=>List[WorldPartExpression]
-}
-
-trait BackStageFactory {
-  def create(l: List[DataDependencyFrom[_]]): List[WorldPartExpression]
-}
 
 trait AssembleDataDependencyFactory {
   def create(assembles: List[Assemble]): List[WorldPartRule]

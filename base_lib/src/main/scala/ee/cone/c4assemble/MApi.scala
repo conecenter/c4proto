@@ -2,9 +2,10 @@
 package ee.cone.c4assemble
 
 import Types._
+import ee.cone.c4assemble.RIndexTypes.RIndexItem
 
 import scala.annotation.StaticAnnotation
-import scala.collection.immutable.Seq
+import scala.collection.immutable.{Seq, TreeSet}
 import scala.concurrent.{ExecutionContext, Future}
 
 case class AssembleOptions(srcId: String, @deprecated isParallel: Boolean, threadCount: Long)
@@ -15,21 +16,20 @@ trait IndexUtil {
   def valueCount(index: Index): Int
   def keyCount(index: Index): Int
   def keyIterator(index: Index): Iterator[Any]
-  def mergeIndex(l: DPIterable[Index]): Index
-  def zipMergeIndex(aDiffs: Seq[Index])(bDiffs: Seq[Index]): Seq[Index]
-  def zipMergeIndex(aDiffs: Seq[Index], bDiffs: Seq[Index])(implicit ec: ExecutionContext): Future[Seq[Index]]
   def getValues(index: Index, key: Any, warning: String): Values[Product] //m
   def nonEmpty(index: Index, key: Any): Boolean //m
   def removingDiff(pos: Int, index: Index, keys: Iterable[Any]): Iterable[DOut]
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Array[MultiForPart]  //m
   def mayBePar[V](seq: Seq[V]): DPIterable[V]
   //
-  def aggregate(values: Iterable[DOut]): AggrDOut
-  def buildIndex(data: Seq[AggrDOut])(implicit ec: ExecutionContext): Seq[Future[Index]]
-  def keyIteration(seq: Seq[Index]): KeyIteration
+  def byOutput(aggr: AggrDOut, outPos: Int): Array[Array[RIndexPair]]
+  def aggregate(s: Array[AggrDOut]): AggrDOut
+  def aggregate(buffer: MutableDOutBuffer): AggrDOut
+  def createBuffer(): MutableDOutBuffer
+  def buildIndex(prev: Array[Index], src: Array[Array[RIndexPair]]): IndexingTask
   def countResults(data: Seq[AggrDOut]): ProfilingCounts
   //
-  def getInstantly(future: Future[Index]): Index
+  def getInstantly(future: Index): Index
   //
   def createOutFactory(pos: Int, dir: Int): OutFactory[Any,Product]
   //
@@ -50,9 +50,7 @@ trait MutableDOutBuffer {
 trait KeyIterationHandler {
   def outCount: Int
   def handle(id: Any, buffer: MutableDOutBuffer): Unit
-}
-trait KeyIteration {
-  def execute(inner: KeyIterationHandler)(implicit ec: ExecutionContext): Future[Seq[AggrDOut]]
+  def invalidateKeysFromIndexes: Seq[Index] // just iterate all to get keys
 }
 
 trait OutFactory[K,V<:Product] {
@@ -67,9 +65,8 @@ trait OuterExecutionContext {
 
 trait AggrDOut
 
-trait DOut
-
 object Types {
+  type DOut = RIndexPair
   type DiffIndexRawSeq = Seq[Index]
   type Outs = Seq[DOut]
   type Values[V] = Seq[V]
@@ -77,11 +74,6 @@ object Types {
   type DMap[K,V] = Map[K,V] //ParMap[K,V]
   type DPIterable[V] = Iterable[V]
   type Index = RIndex
-
-  private object EmptyReadModel extends ReadModelImpl(emptyDMap)
-  //
-  def emptyDMap[K,V]: DMap[K,V] = Map.empty
-  def emptyReadModel: ReadModel = EmptyReadModel
   def emptyIndex: Index = EmptyRIndex
   //
   type ProfilingLog = List[Product]
@@ -91,17 +83,11 @@ object Types {
 }
 
 trait ReadModelUtil {
-  type MMap = DMap[AssembledKey, Future[Index]]
-  def create(inner: MMap): ReadModel
-  def updated(worldKeys: Seq[AssembledKey], values: Future[Seq[Index]])(implicit ec: ExecutionContext): ReadModel=>ReadModel
-  def isEmpty(implicit executionContext: ExecutionContext): ReadModel=>Future[Boolean]
-  def op(op: (MMap,MMap)=>MMap): (ReadModel,ReadModel)=>ReadModel
-  def changesReady(prev: ReadModel, next: ReadModel)(implicit executionContext: ExecutionContext): Future[Any]
   def toMap: ReadModel=>Map[AssembledKey,Index]
 }
 
 trait ReadModel {
-  def getFuture(key: AssembledKey): Option[Future[Index]]
+  def getIndex(key: AssembledKey): Option[Index]
 }
 
 trait Getter[C,+I] {
@@ -109,40 +95,19 @@ trait Getter[C,+I] {
 }
 
 object OrEmptyIndex {
-  def apply(opt: Option[Future[Index]]): Future[Index] =
-    opt.getOrElse(Future.successful(emptyIndex))
+  def apply(opt: Option[Index]): Index = opt.getOrElse(emptyIndex)
 }
 abstract class AssembledKey extends Product {
-  def of(model: ReadModel): Future[Index] = OrEmptyIndex(model.getFuture(this))
+  def of(model: ReadModel): Index = OrEmptyIndex(model.getIndex(this))
 }
-trait WorldPartExpression extends WorldPartRule {
-  def transform(transition: WorldTransition): WorldTransition
-}
-//object WorldTransition { type Diff = Map[AssembledKey[_],IndexDiff[Object,_]] } //Map[AssembledKey[_],Index[Object,_]] //Map[AssembledKey[_],Map[Object,Boolean]]
-class WorldTransition(
-  val prev: Option[WorldTransition],
-  val diff: ReadModel,
-  val result: ReadModel,
-  val profiling: JoiningProfiling,
-  val log: Future[ProfilingLog],
-  val executionContext: OuterExecutionContext,
-  val taskLog: List[AssembledKey]
-)
+
+@deprecated class WorldTransition(val profiling: JoiningProfiling, val log: Future[ProfilingLog])
 
 trait JoiningProfiling extends Product {
   type Res = Long
   def time: Long
   def handle(join: Join, result: Seq[AggrDOut], wasLog: ProfilingLog): ProfilingLog
   def handle(join: Join, stage: Long, start: Long, wasLog: ProfilingLog): ProfilingLog
-}
-
-trait IndexFactory {
-  def createJoinMapIndex(join: Join):
-  WorldPartExpression
-    with DataDependencyFrom[Index]
-    with DataDependencyTo[Index]
-
-  def util: IndexUtil
 }
 
 trait DataDependencyFrom[From] {
@@ -166,16 +131,17 @@ abstract class Join(
   val outputWorldKeys: Seq[AssembledKey],
 ) extends DataDependencyFrom[Index]
   with DataDependencyTo[Index]
+  with WorldPartRule
 {
-  def joins(diffIndexRawSeq: DiffIndexRawSeq, executionContext: OuterExecutionContext): TransJoin
+  def joins(diffIndexRawSeq: Seq[Index]): TransJoin
 }
 trait TransJoin {
-  def dirJoin(dir: Int, indexRawSeq: Seq[Index]): Future[Seq[AggrDOut]]
+  def dirJoin(dir: Int, indexRawSeq: Seq[Index]): KeyIterationHandler
 }
 
 
 trait Assemble {
-  def dataDependencies: IndexFactory => List[WorldPartRule with DataDependencyTo[_]]
+  def dataDependencies: IndexUtil => Seq[WorldPartRule]
 }
 
 trait JoinKey extends AssembledKey {
@@ -232,7 +198,7 @@ trait CallerAssemble {
 trait SubAssemble[R<:Product] {
   type Result = _=>Values[(_,R)]
   def result: Result
-  def resultKey: IndexFactory=>JoinKey = throw new Exception("never here")
+  def resultKey: IndexUtil=>JoinKey = throw new Exception("never here")
 }
 
 class CanCallToValues
@@ -251,8 +217,4 @@ we declare, that products has fast x.hashCode and ToPrimaryKey(x),
 
 trait StartUpSpaceProfiler {
   def out(readModelA: ReadModel): Unit
-}
-
-trait MemoryOptimizing {
-  def indexPower: Int
 }

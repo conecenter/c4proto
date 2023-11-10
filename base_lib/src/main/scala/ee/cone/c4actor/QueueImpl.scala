@@ -10,7 +10,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.{NextOffset, SrcId, TypeId, UpdateKey, UpdateMap}
 import ee.cone.c4assemble.Single
 import ee.cone.c4di._
-import okio.ByteString
+import okio.{Buffer, ByteString, Okio, SegmentPool}
 
 import scala.annotation.tailrec
 import scala.concurrent.duration.Duration
@@ -72,13 +72,13 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
 
 @c4("ProtoApp") final class ToUpdateImpl(
   qAdapterRegistry: QAdapterRegistry,
-  deCompressorRegistry: DeCompressorRegistry,
-  compressorOpt: Option[MultiRawCompressor],
   compressionMinSize: UpdateCompressionMinSize,
   fillTxIdUpdateFlag: FillTxIdUpdateFlag,
   archiveUpdateFlag: ArchiveUpdateFlag,
   execution: Execution,
-  updateMapUtil: UpdateMapUtil,
+  compressedUpdatesAdapter: ProtoAdapter[N_CompressedUpdates],
+  deCompressors: List[DeCompressor],
+  rawCompressor: RawCompressor,
 )(
   updatesAdapter: ProtoAdapter[S_Updates] with HasId =
   qAdapterRegistry.byName(classOf[QProtocol.S_Updates].getName)
@@ -112,15 +112,6 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
 
   private val compressionKey = "c"
 
-  private def findCompressor: List[RawHeader] => Option[MultiDeCompressor] = list =>
-    list.collectFirst { case header if header.key == compressionKey => header.value } match {
-      case Some(name) => Option(deCompressorRegistry.byName(name))
-      case None => None
-    }
-
-  private def makeHeaderFromName: MultiRawCompressor => List[RawHeader] = jc =>
-    RawHeader(compressionKey, jc.name) :: Nil
-
   def getInnerSize(up: N_UpdateFrom): Long = up.fromValue.size + up.value.size
   @tailrec private def nextPartSize(updates: List[N_UpdateFrom], count: Long, size: Long): Option[Long] =
     if(updates.isEmpty) None
@@ -140,33 +131,31 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
     logger.debug(s"Encoded to ${res.length} bytes")
     res
   }
-  def toBytes(updates: List[N_UpdateFrom]): (Array[Byte], List[RawHeader]) = concurrent.blocking{
+  def toBytes(updates: List[N_UpdateFrom]): (Array[Byte], List[RawHeader]) = {
     val filteredUpdates = updates.filterNot(_.valueTypeId==offsetAdapter.id)
-    compressorOpt.filter(_=>nextPartSize(filteredUpdates,0,0).nonEmpty)
-      .fold{
-        (encode(filteredUpdates), List.empty[RawHeader])
-      } { compressor =>
-        val res = execution.aWait{ implicit ec =>
-          val parts = split(filteredUpdates, Nil).map(u=>Future(encode(u)))
-          logger.debug(s"Compressing ${parts.size} parts...")
-          compressor.compress(parts: _*)
-        }
-        logger.debug(s"Compressed")
-        (res, makeHeaderFromName(compressor))
+    if(nextPartSize(filteredUpdates,0,0).isEmpty) (encode(filteredUpdates), List.empty[RawHeader]) else {
+      logger.debug(s"Compressing/encoding parts...")
+      val res = execution.aWait{ implicit ec =>
+        Future.sequence(split(filteredUpdates, Nil).map(u=>Future(new ByteString(rawCompressor.compress(encode(u))))))
+          .map(values=>compressedUpdatesAdapter.encode(N_CompressedUpdates(rawCompressor.name, values)))
       }
+      logger.debug(s"Compressed")
+      (res, RawHeader(compressionKey, "inner") :: Nil)
+    }
   }
 
-  private def deCompressDecode(event: RawEvent): List[N_UpdateFrom] = concurrent.blocking{
-    val compressorOpt = findCompressor(event.headers)
-    logger.debug("Decompressing...")
-    val res = execution.aWait { implicit ec =>
-      Future.sequence(
-        compressorOpt.fold(List(Future.successful(event.data)))(_.deCompress(event.data))
-          .map(f=>f.map{data=>
-            logger.debug(s"Decoding ${data.size} bytes...")
-            updatesAdapter.decode(data).updates
-          })
-      ).map(_.flatten)
+  private def deCompressDecode(event: RawEvent): List[N_UpdateFrom] = {
+    logger.debug("Decompressing/decoding...")
+    val res = event.headers.collectFirst { case header if header.key == compressionKey => header.value } match {
+      case Some("inner") =>
+        execution.aWait { implicit ec =>
+          val compressedUpdates = compressedUpdatesAdapter.decode(event.data)
+          val compressor = deCompressors.find(_.name==compressedUpdates.compressorName).get
+          Future.sequence(compressedUpdates.values.map(v => Future {
+            FinallyClose(compressor.deCompress((new Buffer).write(v)))(updatesAdapter.decode(_).updates)
+          }))
+        }.flatten
+      case None => updatesAdapter.decode(event.data).updates
     }
     logger.debug("Decompressing finished...")
     res

@@ -1,7 +1,7 @@
 package ee.cone.c4gate
 
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.{Compressor, Context, LEvent}
+import ee.cone.c4actor.{RawCompressor, Context, LEvent}
 import ee.cone.c4gate.HttpProtocol.N_Header
 import okio.ByteString
 
@@ -13,7 +13,7 @@ trait PublishMimeTypesProvider {
   def get: List[(String,String)]
 }
 
-class PublishFullCompressor(val value: Compressor)
+class PublishFullCompressor(val value: RawCompressor)
 
 ////
 

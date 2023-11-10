@@ -16,11 +16,6 @@ trait Execution extends Runnable {
   def success[T](promise: Promise[T], value: T): Unit
 }
 
-trait SkippingFuture[T] {
-  def map(body: T => T): SkippingFuture[T]
-  def value: Option[Try[T]]
-}
-
 trait ExecutableApp {
   def execution: Runnable // we need this while we have componentRegistry.resolve to avoid 2 componentRegistry-s
 }

@@ -93,11 +93,10 @@ trait RoPongRegistry {
 
 object SSEMessage {
   def message(sender: SenderToAgent, event: String, data: String, header: String=""): Unit = {
-    val escapedData = data.replaceAllLiterally("\n","\ndata: ")    
-    val str = s"${header}event: $event\ndata: $escapedData\n\n"     
-    val unzippedStr = ByteString.encodeUtf8(s"event: $event\ndata: $escapedData\n\n")  
-    val zippedStr =  sender.compressor.fold(unzippedStr)(compressor=>compressor.compress(unzippedStr))
-    val toS = header.getBytes(UTF_8) ++ zippedStr.toByteArray
+    val escapedData = data.replaceAllLiterally("\n","\ndata: ")
+    val unzippedArr: Array[Byte] = s"event: $event\ndata: $escapedData\n\n".getBytes(UTF_8)
+    val zippedArr: Array[Byte] =  sender.compressor.fold(unzippedArr)(compressor=>compressor.compress(unzippedArr))
+    val toS = header.getBytes(UTF_8) ++ zippedArr
     //println(s"event: $event, unzipped: ${str.getBytes(UTF_8).length}, zipped: ${toS.length}")    
     sender.add(toS)
   }

@@ -1,7 +1,6 @@
 package ee.cone.c4actor
 
 import java.util.UUID
-
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.NoJoiningProfiling.Res
 import ee.cone.c4actor.QProtocol.{N_TxRef, N_Update}
@@ -13,7 +12,8 @@ import ee.cone.c4di.{c4, provide}
 import ee.cone.c4proto.{Id, protocol}
 
 import scala.collection.immutable.Seq
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, Future}
 
 @c4("NoAssembleProfilerCompApp") final class NoAssembleProfilerProvider {
   @provide def get: Seq[AssembleProfiler] = List(NoAssembleProfiler)
@@ -57,25 +57,20 @@ case object NoJoiningProfiling extends JoiningProfiling {
     else SimpleSerialJoiningProfiling(System.nanoTime)
   def addMeta(transition: WorldTransition, updates: Seq[N_Update]): Future[Seq[N_Update]] = transition.profiling match {
     case SimpleSerialJoiningProfiling(startedAt) =>
-    implicit val executionContext: ExecutionContext = transition.executionContext.value
     //val meta = transition.profiling.result.toList.flatMap(LEvent.update).map(toUpdate.toUpdate)
     val finishedAt = System.nanoTime
     val size = updates.map(_.value.size).sum
     val types = updates.map(_.valueTypeId).distinct.toList
     val id = idGenUtil.srcIdFromStrings(UUID.randomUUID.toString)
-    for {
-      logAll <- transition.log
-    } yield {
-      val log = logAll.collect{ case l: D_LogEntry => l }
-      val meta = List(
+    val log = List.empty[D_LogEntry] // transition.log.collect{ case l: D_LogEntry => l }
+    val meta = List(
         N_TxRef(id,""),
         D_TxAddMeta(id,startedAt,finishedAt,log,updates.size,size,types)
-      )
-      val metaUpdates = meta.flatMap(LEvent.update).map(toUpdate.toUpdate)
-      val metaTypeIds = metaUpdates.map(_.valueTypeId).toSet
-      if(updates.map(_.valueTypeId).forall(metaTypeIds)) updates
-      else metaUpdates ++ updates
-    }
+    )
+    val metaUpdates = meta.flatMap(LEvent.update).map(toUpdate.toUpdate)
+    val metaTypeIds = metaUpdates.map(_.valueTypeId).toSet
+    val res = if(updates.map(_.valueTypeId).forall(metaTypeIds)) updates else metaUpdates ++ updates
+    Future.successful(res)
   }
 }
 

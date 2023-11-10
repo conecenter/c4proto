@@ -67,7 +67,7 @@ class RForkJoinPool(prefix: String, depth: Int, threadCount: Int)(
     new RForkJoinWorkerThreadFactory(
       ForkJoinPool.defaultForkJoinWorkerThreadFactory,s"$prefix$depth-"
     )
-) extends ForkJoinPool(threadCount,threadFactory,null,false){
+) extends ForkJoinPool(threadCount,threadFactory,null,false){ // true?
   lazy val deeper: ExecutionContext = ExecutionContext.fromExecutor(
     new RForkJoinPool(prefix, depth+1, threadCount)()
   )

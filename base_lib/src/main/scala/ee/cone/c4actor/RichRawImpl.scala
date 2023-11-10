@@ -1,7 +1,6 @@
 package ee.cone.c4actor
 
-import java.util.concurrent.ExecutorService
-
+import java.util.concurrent.{Executor, ExecutorService}
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types._
@@ -10,7 +9,6 @@ import ee.cone.c4proto.ToByteString
 import scala.collection.immutable.Map
 import scala.concurrent.ExecutionContext
 import java.lang.Math.toIntExact
-
 import ee.cone.c4actor.QProtocol._
 import ee.cone.c4actor.Types._
 import ee.cone.c4di.c4
@@ -35,6 +33,7 @@ object EmptyInjected extends Injected
   readModelAdd: ReadModelAdd,
   getAssembleOptions: GetAssembleOptions,
   updateMapUtil: UpdateMapUtil,
+  replaces: DeferredSeq[Replace],
 ) extends RichRawWorldReducer with LazyLogging {
   def reduce(contextOpt: Option[SharedContext with AssembledContext], addEvents: List[RawEvent]): RichContext = {
     val events = if(contextOpt.nonEmpty) addEvents else {
@@ -49,7 +48,7 @@ object EmptyInjected extends Injected
       case context => create(context.injected, context.assembled, context.executionContext)
     } else {
       val context = contextOpt.getOrElse(
-        create(Single.option(injected).getOrElse(EmptyInjected), emptyReadModel, EmptyOuterExecutionContext)
+        create(Single.option(injected).getOrElse(EmptyInjected), Single(replaces.value).emptyReadModel, EmptyOuterExecutionContext)
       )
       val nAssembled = readModelAdd.add(context.executionContext,events)(context.assembled)
       create(context.injected, nAssembled, context.executionContext)
@@ -66,7 +65,8 @@ object EmptyInjected extends Injected
     val fixedThreadCount = if(confThreadCount>0) toIntExact(confThreadCount) else Runtime.getRuntime.availableProcessors
     val pool = execution.newExecutorService("ass-",Option(fixedThreadCount))
     logger.info(s"ForkJoinPool create $fixedThreadCount")
-    new OuterExecutionContextImpl(confThreadCount,fixedThreadCount,ExecutionContext.fromExecutor(pool),pool)
+    val context = ExecutionContext.fromExecutor(pool)
+    new OuterExecutionContextImpl(confThreadCount,fixedThreadCount,context,pool)
   }
   def needExecutionContext(confThreadCount: Long): OuterExecutionContext=>OuterExecutionContext = {
     case ec: OuterExecutionContextImpl if ec.confThreadCount == confThreadCount =>

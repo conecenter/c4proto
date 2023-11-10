@@ -15,7 +15,7 @@ import scala.collection.immutable.Queue
 
 @SuppressWarnings(Array("org.wartremover.warts.Var")) class ChannelHandler(
   channel: AsynchronousSocketChannel, unregister: ()=>Unit, fail: Throwable=>Unit,
-  executor: ScheduledExecutorService, timeout: Long, val compressor: Option[Compressor]
+  executor: ScheduledExecutorService, timeout: Long, val compressor: Option[RawCompressor]
 ) extends CompletionHandler[Integer,Unit] with SenderToAgent {
   private var queue: Queue[Array[Byte]] = Queue.empty
   private var activeElement: Option[ByteBuffer] = None
