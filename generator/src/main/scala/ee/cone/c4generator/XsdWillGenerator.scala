@@ -3,9 +3,11 @@ package ee.cone.c4generator
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path, Paths}
 import java.util.UUID
-import scala.xml.{Elem, TopScope, PrettyPrinter}
-
+import scala.xml.{Elem, PrettyPrinter, TopScope}
 import XsdUtil._
+
+import java.io.ByteArrayOutputStream
+import java.util.zip.{ZipEntry, ZipOutputStream}
 
 object XsdUtil {
   def groupDef[K, V](in: List[(K, V)]): Map[K, List[V]] = in.groupMap(_._1)(_._2).withDefaultValue(Nil)
@@ -34,14 +36,31 @@ class XsdWillGenerator extends WillGenerator {
       dir <- ctx.modInfo(mod).srcDirs
     } yield dir -> rMod)
     //val at4 = System.nanoTime
-    val res = groupSort(for { //80ms
+    val res = groupSort(for { //80ms + zip
       path <- ctx.fromFiles if getFileType(path.getFileName.toString).nonEmpty
       dirInfo <- Util.dirInfo(ctx, path.getParent)
       rMod <- rootModsByModDir(dirInfo.modDir)
     } yield rMod -> path).flatMap { case (rMod, parts) =>
       val Seq(toDir) = ctx.modInfo(rMod).srcDirs
       val lRes = MultiCached.cached(ctx, toDir.resolve("c4gen-xsd"), XsdMultiCacheGenerator, parts)
-      (toDir.resolve("c4gen-xsd.log") -> fullDeps(rMod).mkString("\n").getBytes(UTF_8)) :: lRes
+      //
+      val pubLRes = if(lRes.isEmpty) Nil else ctx.modInfo(rMod).group.pubDirs.flatMap{ pubDir =>
+        val bOut = new ByteArrayOutputStream
+        val zipOut = new ZipOutputStream(bOut, UTF_8)
+        for ((path, data) <- lRes) {
+          val entry = new ZipEntry(path.getFileName.toString)
+          entry.setTime(0L) // contents of zip archive may become different for different time settings
+          zipOut.putNextEntry(entry)
+          zipOut.write(data)
+        }
+        zipOut.close()
+        val zipData = bOut.toByteArray
+        val fn = s"c4gen-xsd.$rMod.zip"
+        val url = s"/c4xsd/${UUID.nameUUIDFromBytes(zipData)}.zip"
+        val line = s"$rMod $url $fn"
+        List(pubDir.resolve(fn) -> zipData, pubDir.resolve("c4gen.ht.links") -> line.getBytes(UTF_8))
+      }
+      pubLRes ::: (toDir.resolve("c4gen-xsd.log") -> fullDeps(rMod).mkString("\n").getBytes(UTF_8)) :: lRes
     }
     //val at5 = System.nanoTime
     //println(s"A0 ${List(at4-at5).map(_ / -1000000)}")

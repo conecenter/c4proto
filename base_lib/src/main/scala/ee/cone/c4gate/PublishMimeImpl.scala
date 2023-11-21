@@ -8,5 +8,6 @@ import ee.cone.c4di.c4
     "js" -> "application/javascript",
     "ico" -> "image/x-icon",
     "svg" -> "image/svg+xml",
+    "zip" -> "application/zip",
   )
 }

@@ -103,16 +103,19 @@ class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTe
     val tags = conf("C4TAG").toList
     val willGeneratorContext =
       WillGeneratorContext(fromFiles, dirInfo, workPath, version, deps, modNames, modInfo, tags)
-    val will = willGenerators.flatMap(_.get(willGeneratorContext))
-    assert(will.forall{ case(path,_) => isGenerated(path.getFileName.toString) })
-    assert(will.size == will.map(_._1).toSet.size)
+    val will = willGenerators.flatMap(_.get(willGeneratorContext)).groupMap(_._1)(_._2).transform((path,ds)=> ds match {
+      case Seq(d) => d
+      case ds if path.getFileName.toString == "c4gen.ht.links" => ds.map(new String(_,UTF_8)).mkString("\n").getBytes(UTF_8)
+    })
+    assert(will.keys.forall(path => isGenerated(path.getFileName.toString)))
+
     //println(s"2:${System.currentTimeMillis()}")
-    for(path <- was.keySet -- will.toMap.keys) {
+    for(path <- was.keySet -- will.keys) {
       println(s"removing $path")
       Files.delete(path)
     }
     for{
-      (path,data) <- will if !java.util.Arrays.equals(data,was.getOrElse(path,Array.empty))
+      (path,data) <- will.toSeq.sortBy(_._1) if !java.util.Arrays.equals(data,was.getOrElse(path,Array.empty))
     } {
       println(s"saving $path")
       Util.write(path,data)
