@@ -64,7 +64,7 @@ export default function Feedback(sessionStorage,location,fetch,setTimeout){
         location.href = "#"+data
     }
     const receivers = {connect,ping,relocateHash}
-    const busyFor = rKey => senders[qKey] ? senders[qKey].busyFor() : 0
+    const busyFor = qKey => senders[qKey] ? senders[qKey].busyFor() : 0
     return ({receivers,send,busyFor})
 }
 
