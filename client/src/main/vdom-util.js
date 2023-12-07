@@ -24,7 +24,7 @@ export function VDomSender(feedback){ // todo: may be we need a queue to be sure
             retry: target.retry //vdom-changes are more or less idempotent and can be retried
         },rCtx.modify)
     }
-    return ({send})
+    return ({send, busyFor: feedback.busyFor})
 }
 
 export const pairOfInputAttributes = ({value,onChange,salt},headers) => {

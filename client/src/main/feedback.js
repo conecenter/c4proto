@@ -64,7 +64,8 @@ export default function Feedback(sessionStorage,location,fetch,setTimeout){
         location.href = "#"+data
     }
     const receivers = {connect,ping,relocateHash}
-    return ({receivers,send})
+    const busyFor = qKey => senders[qKey] ? senders[qKey].busyFor() : 0
+    return ({receivers,send,busyFor})
 }
 
 const withNext = f => (item,index,list) => f(item,list[index+1])
@@ -73,6 +74,7 @@ function Sender(fetch,setTimeout){
     let defer = []
     let queue = []
     let busy = null
+    let busyFrom = null
     /*
     if make retry here, then it can lead to post duplication, so requires extra server deduplication stuff;
     retry is ok for idempotent messages, like input changes;
@@ -91,7 +93,9 @@ function Sender(fetch,setTimeout){
                 }
                 else setTimeout(()=>activate(),1000)
             })
+        busyFrom = busy && (busyFrom || Date.now())
     }
+    function busyFor(){ return busyFrom ? Date.now() - busyFrom : 0 }
     function enqueue(message){
         defer = [...defer,message]
     }
@@ -101,5 +105,5 @@ function Sender(fetch,setTimeout){
         defer = []
         if(!busy) activate()
     }
-    return ({enqueue,flush})
+    return ({enqueue,flush,busyFor})
 }
