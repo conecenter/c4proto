@@ -288,7 +288,7 @@ trait ParallelExecution {
     val diff =
       req.taskConf.outWorldPos.indices.toArray.map(i => req.taskConf.outWorldPos(i) -> indexUtil.byOutput(aggr, i))
       .filter(_._2.nonEmpty)
-    new CalculatedEv(diff)
+    new CalculatedEv(diff) // report from diff
   }
   private class CalculatedEv(val diff: Array[(WorldPos, RIndexPairs)]) extends Ev
   private def finishCalc(context: MutableSchedulingContext, ev: CalculatedEv): Unit = setTodoBuild(context, ev.diff)
@@ -313,7 +313,7 @@ trait ParallelExecution {
 
   private def cowArrDebug[K<:Int,V](hint: String, explainK: K=>String, explainV: V=>String): Option[CowArrDebug[K, V]] =
     Option(new CowArrDebug[K, V] {
-      def update(pos: K, value: V): Unit = println(s"$hint ${explainK(pos)} ${explainV(value)}")
+      def update(pos: K, value: V): Unit = println(s"$hint ${explainK(pos)} ${explainV(value)}") //report
     })
   private def explainJoinPos(joinPos: Int): String =
     joins(joinPos) match { case j => s"${j.assembleName} rule ${j.name}" }
@@ -454,7 +454,7 @@ class DebuggingPlanner(inner: MutablePlanner, conf: SchedulerConf, joins: Seq[Jo
       case t: BuildTaskConf => s"build ${conf.worldKeys(t.worldPos)}"
     }
     val v = if(value) "on " else "off"
-    println(s"$hint $v #$exprPos $explanation")
+    println(s"$hint $v #$exprPos $explanation") //report
   }
   def setTodo(exprPos: TaskPos, value: Boolean): Unit = {
     report(s"setTodo   ",exprPos,value)

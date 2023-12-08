@@ -37,7 +37,7 @@ case class JoinKeyImpl(
 
 // Ordering.by can drop keys!: https://github.com/scala/bug/issues/8674
 @c4("AssembleApp") final class IndexUtilImpl(
-  rIndexUtil: RIndexUtil, spreader: Spreader,
+  rIndexUtil: RIndexUtil, arrayUtil: ArrayUtil,
   noParts: Array[MultiForPart] = Array.empty,
 ) extends IndexUtil {
   private def isSingle(p: Products): Boolean = p match {
@@ -192,17 +192,33 @@ case class JoinKeyImpl(
   def byOutput(aggr: AggrDOut, outPos: Int): Array[Array[RIndexPair]] = aggr match {
     case a: AggrDOutImpl => a.resultsByOut.collect { case (p, v) if p == outPos => v }
   }
-  def aggregate(seq: Array[AggrDOut]): AggrDOut = {
-    val s = seq.collect{ case a: AggrDOutImpl if a.resultsByOut.length > 0 || a.callCount > 0 => a }
-    s.length match {
-      case 0 => DOutAggregationBuffer.emptyAggrDOut
-      case 1 => s(0)
-      case _ => new AggrDOutImpl(s.flatMap(_.resultsByOut), s.map(_.callCount).sum)
-    }
+
+  private object AggrFlattenHandler extends FlattenHandler[AggrDOut, (Int, Array[RIndexPair]), (Int, Array[RIndexPair])] {
+    def get(src: AggrDOut): Array[(Int, Array[RIndexPair])] = src.asInstanceOf[AggrDOutImpl].resultsByOut
+    def create(size: Int): Array[(Int, Array[RIndexPair])] = new Array(size)
+  }
+
+  private object PartCountSumHandler extends SumHandler[AggrDOut] {
+    def get(src: AggrDOut): Long = src.asInstanceOf[AggrDOutImpl].partCount
+  }
+  private object CallCountSumHandler extends SumHandler[AggrDOut] {
+    def get(src: AggrDOut): Long = src.asInstanceOf[AggrDOutImpl].callCount
+  }
+  private object SpentNsSumHandler extends SumHandler[AggrDOut] {
+    def get(src: AggrDOut): Long = src.asInstanceOf[AggrDOutImpl].spentNs
+  }
+
+  def aggregate(seq: Array[AggrDOut]): AggrDOut = if(seq.length == 1) seq(0) else {
+    val resultsByOut = arrayUtil.flatten(seq, AggrFlattenHandler)
+    val partCount = arrayUtil.sum(seq, PartCountSumHandler)
+    val callCount = arrayUtil.sum(seq, CallCountSumHandler)
+    val spentNs = arrayUtil.sum(seq, SpentNsSumHandler)
+    new AggrDOutImpl(resultsByOut, partCount, callCount, spentNs)
+    // 0 1 _   25 1001 8775   1919 993 6889
   }
   def aggregate(buffer: MutableDOutBuffer): AggrDOut =
     buffer match { case b: DOutAggregationBuffer => b.result }
-  def createBuffer(): MutableDOutBuffer = new DOutAggregationBuffer(spreader)
+  def createBuffer(): MutableDOutBuffer = new DOutAggregationBuffer(arrayUtil)
 
   def buildIndex(prev: Array[Index], src: Array[Array[RIndexPair]]): IndexingTask =
     rIndexUtil.buildIndex(prev, src, rIndexValueOperations)
@@ -233,18 +249,18 @@ final class UnchangedMultiForPart(getItems: ()=>Array[Product]) extends MultiFor
   lazy val items: Array[Product] = getItems()
 }
 
-final class AggrDOutImpl(val resultsByOut: Array[(Int,Array[RIndexPair])], val callCount: Long) extends AggrDOut
+final class AggrDOutImpl(val resultsByOut: Array[(Int,Array[RIndexPair])], val partCount: Long, val callCount: Long, val spentNs: Long) extends AggrDOut
 object DOutAggregationBuffer {
   private val emptyDOuts = Array.empty[RIndexPair]
   private val emptyDOutsByOut = Array.empty[(Int,Array[RIndexPair])]
-  val emptyAggrDOut: AggrDOutImpl = new AggrDOutImpl(Array.empty, 0L)
+  //val emptyAggrDOut: AggrDOutImpl = new AggrDOutImpl(Array.empty, 0L, 0L, 0L)
   private val spreadHandler = new SpreadHandler[DOut] {
     def toPos(it: DOut): Int = it.creatorPos
     def createPart(sz: Int): Array[DOut] = if (sz > 0) new Array(sz) else emptyDOuts
     def createRoot(sz: Int): Array[Array[DOut]] = new Array(sz)
   }
 }
-final class DOutAggregationBuffer(spreader: Spreader) extends MutableDOutBuffer {
+final class DOutAggregationBuffer(arrayUtil: ArrayUtil, startedAt: Long = System.nanoTime) extends MutableDOutBuffer {
   import DOutAggregationBuffer._
   private var values: Array[RIndexPair] = emptyDOuts
   private var end: Int = 0
@@ -269,13 +285,13 @@ final class DOutAggregationBuffer(spreader: Spreader) extends MutableDOutBuffer 
     callCounter += 1
     values.foreach(pair => addOne(outFactory.result(pair)))
   }
-  def result: AggrDOutImpl = if(callCounter == 0) emptyAggrDOut else {
+  def result: AggrDOutImpl = /*if(callCounter == 0) emptyAggrDOut else */{
     val res: Array[(Int,Array[RIndexPair])] =
       if(end == 0) emptyDOutsByOut
       else if(maxCreatorPos == 0) Array((0, java.util.Arrays.copyOf(values, end)))
-      else spreader.spread(values, end, maxCreatorPos + 1, spreadHandler)
+      else arrayUtil.spread(values, end, maxCreatorPos + 1, spreadHandler)
         .zipWithIndex.collect { case (r, i) if r.length > 0 => (i, r) }
-    new AggrDOutImpl(res, callCounter)
+    new AggrDOutImpl(res, 1, callCounter, System.nanoTime-startedAt)
   }
 }
 

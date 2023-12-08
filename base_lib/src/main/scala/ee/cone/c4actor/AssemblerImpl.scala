@@ -64,7 +64,7 @@ object SpreadUpdates extends SpreadHandler[N_Update] {
   qAdapterRegistry: QAdapterRegistry,
   composes: IndexUtil,
   origKeyFactory: OrigKeyFactoryFinalHolder,
-  spreader: Spreader,
+  arrayUtil: ArrayUtil,
   warnPeriod: LongAssembleWarnPeriod,
   replace: Replace,
   activeOrigKeyRegistry: ActiveOrigKeyRegistry,
@@ -101,7 +101,7 @@ object SpreadUpdates extends SpreadHandler[N_Update] {
       kv <- (if(changes.isEmpty) Nil else (wKey -> Array(changes.toArray)) :: partitionedIndexFList)
     } yield kv
     val updatesArr = updates.toArray
-    val tasks = spreader.spread(updatesArr, updatesArr.length, SpreadUpdates.partCount, SpreadUpdates)
+    val tasks = arrayUtil.spread(updatesArr, updatesArr.length, SpreadUpdates.partCount, SpreadUpdates)
       .filter(_.length>0).sortBy(-_.length)
     val taskResultsF = seq(tasks.map{ part => Future{ handle(part) }(ec) })(parasitic)
     val taskResults = Await.result(taskResultsF, Duration.Inf)

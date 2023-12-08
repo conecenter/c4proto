@@ -68,30 +68,6 @@ abstract class RIndexSpread {
   }
 }
 
-abstract class RFlatten[F,T] {
-  def get(pos: Int): Array[F]
-  def create(size: Int): Array[T]
-
-  def apply(start: Int, end: Int): Array[T] = {
-    var kPos = 0
-    var oPos = start
-    while (oPos < end) {
-      val keys = get(oPos)
-      kPos += keys.length
-      oPos += 1
-    }
-    val res = create(kPos)
-    while (oPos > start) {
-      oPos -= 1
-      val keys = get(oPos)
-      kPos -= keys.length
-      if (keys.length > 0) System.arraycopy(keys, 0, res, kPos, keys.length)
-    }
-    assert(kPos == 0)
-    res
-  }
-}
-
 trait RKeyFoundHandler[@specialized(Boolean)T] {
   def handleEmpty(): T
   def handleNonEmptyKey(keyRHash: Int, bucket: RIndexBucket, found: Int): T
@@ -107,6 +83,7 @@ final class RNonEmptyChecker extends RKeyFoundHandler[Boolean] {
 }
 
 final class RIndexUtilImpl(
+  arrayUtil: ArrayUtil,
   val emptyBucket: RIndexBucket = new RIndexBucket(
     0, 0, EmptyInnerIndex, Array.empty, EmptyInnerIndex, Array.empty
   ),
@@ -217,11 +194,13 @@ final class RIndexUtilImpl(
     }
   }
 
+  private object BuildFlattenHandler extends FlattenHandler[Array[RIndexPair],RIndexPair,RIndexPairImpl] {
+    def get(src: Array[RIndexPair]): Array[RIndexPair] = src
+    def create(size: Int): Array[RIndexPairImpl] = new Array[RIndexPairImpl](size)
+  }
+
   def buildIndex(prev: Array[RIndex], srcs: Array[Array[RIndexPair]], valueOperations: RIndexValueOperations): IndexingTask = {
-    val src = (new RFlatten[RIndexPair,RIndexPairImpl]{
-      def get(pos: Int): Array[RIndexPair] = srcs(pos)
-      def create(size: Int): Array[RIndexPairImpl] = new Array[RIndexPairImpl](size)
-    })(0, srcs.length)
+    val src = arrayUtil.flatten[Array[RIndexPair],RIndexPair,RIndexPairImpl](srcs, BuildFlattenHandler)
     val power = 10
     /* dynamic power -- works, but complicates calc-task-creation
       val power: Int = Single.option(prev.collect{ case aI: RIndexImpl => getPowerStrict(aI.data.length) }.distinct)
@@ -562,33 +541,25 @@ final class RIndexUtilImpl(
     case aI: RIndexImpl => aI.data.iterator.flatMap(_.keys)
   }
 
+  private object KeyCountSumHandler extends SumHandler[RIndexBucket] {
+    def get(src: RIndexBucket): Long = src.keys.length
+  }
+
   def keyCount(index: RIndex): Int = index match {
     case a if isEmpty(a) => 0
     case aI: RIndexImpl =>
-      if(aI.keyCountCache < 0) {
-        var res = 0
-        var i = 0
-        while (i < aI.data.length) {
-          res += aI.data(i).keys.length
-          i += 1
-        }
-        aI.keyCountCache = res
-      }
+      if(aI.keyCountCache < 0) aI.keyCountCache = java.lang.Math.toIntExact(arrayUtil.sum(aI.data, KeyCountSumHandler))
       aI.keyCountCache
+  }
+
+  private object ValueCountSumHandler extends SumHandler[RIndexBucket] {
+    def get(src: RIndexBucket): Long = src.values.length
   }
 
   def valueCount(index: RIndex): Int = index match {
     case a if isEmpty(a) => 0
-    case aI: RIndexImpl =>
-      var res = 0
-      var i = 0
-      while(i < aI.data.length){
-        res += aI.data(i).values.length
-        i += 1
-      }
-      res
+    case aI: RIndexImpl => java.lang.Math.toIntExact(arrayUtil.sum(aI.data, ValueCountSumHandler))
   }
-
 
   def eqBuckets(a: RIndex, b: RIndex, key: RIndexKey): Boolean = (a,b) match {
     case (a,b) if a eq b => true
