@@ -1,21 +1,16 @@
 package ee.cone.c4actor.time
 
-import java.security.SecureRandom
-
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4actor.time.ProtoCurrentTimeConfig.S_CurrentTimeNodeSetting
+import ee.cone.c4actor.time.ProtoCurrentTimeConfig.{S_CurrentTimeGlobalOffset, S_CurrentTimeNodeSetting, T_Time}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{AbstractAll, All, byEq, c4assemble}
 import ee.cone.c4di.{c4, c4multi}
 import ee.cone.c4proto.{Id, protocol}
 
-trait T_Time extends Product {
-  def srcId: SrcId
-  def millis: Long
-}
+import java.security.SecureRandom
 
 trait GeneralCurrentTimeAppBase
 
@@ -23,28 +18,21 @@ trait WithCurrentTime {
   def currentTime: CurrentTime
 }
 
-trait GeneralCurrTimeConfig extends WithCurrentTime {
-  def cl: Class[_ <: T_Time]
-  def process(refreshRate: Option[Long], offset: Long): Context => Seq[LEvent[Product]]
-}
+trait CurrTimeConfig extends WithCurrentTime with LazyLogging {
+  def set: Long => T_Time => T_Time = time => _.copy(millis = time)
+  def timeGetter: GetByPK[T_Time]
 
-trait CurrTimeConfig[Model <: T_Time] extends GeneralCurrTimeConfig with LazyLogging {
-  def cl: Class[Model]
-  def set: Long => Model => Model
-  def default: Model
-  def timeGetter: GetByPK[Model]
-
-  def process(refreshRate: Option[Long], offset: Long): Context => Seq[LEvent[Product]] = {
-    val refreshRateMillis = refreshRate.getOrElse(currentTime.refreshRateSeconds) * 1000L
+  def process(refreshRate: Option[Long], globalOffset: Long, offset: Long): Context => Seq[LEvent[Product]] = {
+    val refreshTolerance = refreshRate.getOrElse(currentTime.refreshRateSeconds) * 1000L + offset
     local => {
-      val now = System.currentTimeMillis()
-      val model: Option[Model] = timeGetter.ofA(local).get(currentTime.srcId)
+      val now = System.currentTimeMillis() + globalOffset
+      val model: Option[T_Time] = timeGetter.ofA(local).get(currentTime.srcId)
       model match {
-        case Some(time) if time.millis + offset + refreshRateMillis < now =>
+        case Some(time) if time.millis + refreshTolerance < now =>
           logger.debug(s"Updating ${currentTime.srcId} with ${offset}")
           LEvent.update(set(now)(time))
         case None =>
-          LEvent.update(set(now)(default))
+          LEvent.update(set(now)(T_Time(currentTime.srcId, 0)))
         case _ => Nil
       }
     }
@@ -58,11 +46,28 @@ trait CurrTimeConfig[Model <: T_Time] extends GeneralCurrTimeConfig with LazyLog
     gettersMap(currentTime.srcId)
 }
 
+@c4("GeneralCurrentTimeApp") final class TimeNodePartition(configs: List[CurrTimeConfig]) extends OrigPartitioner(classOf[T_Time]) {
+  private val unknownSrcId: String = "unknown"
+  lazy val allSrcIds: Set[String] = configs.map(_.currentTime.srcId).toSet + unknownSrcId
+  def handle(value: T_Time): String = if (allSrcIds(value.srcId)) value.srcId else unknownSrcId
+  lazy val partitions: Set[String] = allSrcIds
+}
+
 @protocol("GeneralCurrentTimeApp") object ProtoCurrentTimeConfig {
+
+  @Id(0x012a) case class S_CurrentTimeGlobalOffset(
+    @Id(0x012b) srcId: SrcId,
+    @Id(0x012c) offset: Long,
+  )
 
   @Id(0x0127) case class S_CurrentTimeNodeSetting(
     @Id(0x0128) timeNodeId: String,
     @Id(0x0129) refreshSeconds: Long
+  )
+
+  @Id(0x012d) case class T_Time(
+    @Id(0x012f) srcId: SrcId,
+    @Id(0x0130) millis: Long,
   )
 
 }
@@ -81,27 +86,30 @@ trait CurrTimeConfig[Model <: T_Time] extends GeneralCurrTimeConfig with LazyLog
   def CreateGeneralTimeConfig(
     firstBornId: SrcId,
     firstborn: Each[S_Firstborn],
+    globalOffset: Each[S_CurrentTimeGlobalOffset],
     @byEq[CurrentTimeGeneralAll](All) timeSetting: Values[S_CurrentTimeNodeSetting],
     //@time(TestDepTime) time: Each[Time] // byEq[SrcId](TestTime.srcId) time: Each[Time]
   ): Values[(SrcId, TxTransform)] =
-    WithPK(generalCurrentTimeTransformFactory.create(s"${firstborn.srcId}-general-time", timeSetting.toList)) :: Nil
+    WithPK(generalCurrentTimeTransformFactory.create(s"${firstborn.srcId}-general-time", globalOffset, timeSetting.toList)) :: Nil
 }
 
 @c4multi("GeneralCurrentTimeApp") final case class GeneralCurrentTimeTransform(
-  srcId: SrcId, configs: List[S_CurrentTimeNodeSetting]
+  srcId: SrcId, globalOffset: S_CurrentTimeGlobalOffset, configs: List[S_CurrentTimeNodeSetting]
 )(
-  generalCurrTimeConfigs: List[GeneralCurrTimeConfig],
+  generalCurrTimeConfigs: List[CurrTimeConfig],
   txAdd: LTxAdd,
 ) extends TxTransform {
-  lazy val currentTimes: List[GeneralCurrTimeConfig] =
+  lazy val currentTimes: List[CurrTimeConfig] =
     CheckedMap(generalCurrTimeConfigs.map(c => c.currentTime.srcId -> c)).values.toList
   private val random: SecureRandom = new SecureRandom()
+
+  lazy val offset: Long = globalOffset.offset
 
   lazy val configsMap: Map[String, Long] =
     configs.map(conf => conf.timeNodeId -> conf.refreshSeconds).toMap
   lazy val actions: List[Context => Seq[LEvent[Product]]] =
     currentTimes.map(currentTime =>
-      currentTime.process(configsMap.get(currentTime.currentTime.srcId), random.nextInt(500))
+      currentTime.process(configsMap.get(currentTime.currentTime.srcId), offset, random.nextInt(500))
     )
 
   def transform(local: Context): Context = {
