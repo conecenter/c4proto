@@ -223,7 +223,7 @@ import okio.ByteString
   }
 }
 
-class CurrentTimeRequestFactoryImpl(val byPkAsk: AskByPK[_ <: T_Time], time: CurrentTime) extends CurrentTimeRequestFactory {
+class CurrentTimeRequestFactoryImpl(val byPkAsk: AskByPK[T_Time], time: CurrentTime) extends CurrentTimeRequestFactory {
   def ask: Dep[Long] = byPkAsk.option(time.srcId).map(_.map(_.millis).getOrElse(0L))
 }
 
@@ -238,6 +238,7 @@ class CurrentTimeRequestFactoryImpl(val byPkAsk: AskByPK[_ <: T_Time], time: Cur
   askByPKFactory: AskByPKFactory,
   timeGetters: TimeGetters
 ) extends CurrentTimeAskFactory {
+  lazy val askTime: AskByPK[T_Time] = askByPKFactory.forClass(classOf[T_Time])
   def askCurrentTime(time: CurrentTime): CurrentTimeRequestFactory =
-    new CurrentTimeRequestFactoryImpl(askByPKFactory.forClass(timeGetters(time).cl), time)
+    new CurrentTimeRequestFactoryImpl(askTime, time)
 }

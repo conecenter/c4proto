@@ -1,6 +1,7 @@
 package ee.cone.c4actor
 
 import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.time.ProtoCurrentTimeConfig.T_Time
 
 import scala.annotation.StaticAnnotation
 
@@ -15,7 +16,6 @@ package object time {
   }
 
   abstract class TimeGetter(val currentTime: CurrentTime) extends WithCurrentTime {
-    def cl: Class[_ <: T_Time]
     def ofA(context: AssembledContext): Option[T_Time]
   }
 
@@ -24,4 +24,5 @@ package object time {
     def all: List[TimeGetter]
   }
 
+  type T_Time = ee.cone.c4actor.time.ProtoCurrentTimeConfig.T_Time
 }
