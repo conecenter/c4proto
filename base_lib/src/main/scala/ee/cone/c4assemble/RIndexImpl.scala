@@ -248,6 +248,7 @@ final class RIndexUtilImpl(
     res
   }
   def execute(subTask: IndexingSubTask): IndexingResult = {
+    val startedAt = System.nanoTime
     val st = subTask match {
       case t: IndexingSubTaskImpl => t
     }
@@ -278,7 +279,7 @@ final class RIndexUtilImpl(
         }
       }
     }
-    if(!changed) new NoIndexingResult(st) else {
+    if(!changed) new NoIndexingResult(st, System.nanoTime-startedAt) else {
       val nonEmptyGroups = new Array[Boolean](bucketsGroups.length)
       var bGrPos = 0
       while(bGrPos < bucketsGroups.length){
@@ -292,14 +293,14 @@ final class RIndexUtilImpl(
         nonEmptyGroups(bGrPos) = nonEmptyGroup
         bGrPos += 1
       }
-      new IndexingResultImpl(st, bucketsGroups, st.start, st.partPos, nonEmptyGroups)
+      new IndexingResultImpl(st, bucketsGroups, st.start, st.partPos, nonEmptyGroups, System.nanoTime-startedAt)
     }
   }
   private final class IndexingResultImpl(
     val subTask: IndexingSubTaskImpl, val bucketsGroups: Array[Array[RIndexBucket]], val start: Int,
-    val partPos: Int, val nonEmptyGroups: Array[Boolean]
+    val partPos: Int, val nonEmptyGroups: Array[Boolean], val spentNs: Long
   ) extends IndexingResult
-  private final class NoIndexingResult(val subTask: IndexingSubTaskImpl) extends IndexingResult
+  private final class NoIndexingResult(val subTask: IndexingSubTaskImpl, val spentNs: Long) extends IndexingResult
   private def buildBucket(
     pairs: Array[RIndexPairImpl], power: Int,
     builder: RIndexBucketBuilder, hashCodeCache: HashCodeCache, kvComparator: Comparator[RIndexPairImpl],
@@ -384,7 +385,8 @@ final class RIndexUtilImpl(
     keyMerger.merge0(0, aKeys.length, 0, bKeys.length)
     builder.result(needRootPower, needInnerPower)
   }
-  def merge(task: IndexingTask, parts: Array[IndexingResult]): Seq[RIndex] = {
+  def merge(task: IndexingTask, parts: Array[IndexingResult]): (Seq[RIndex], MergeProfilingCounts) = {
+    var spentNs = 0L
     val taskImpl = task match {
       case t: IndexingTaskImpl => t
     }
@@ -396,14 +398,16 @@ final class RIndexUtilImpl(
       parts(i) match {
         case s: NoIndexingResult =>
           assert(s.subTask == taskImpl.subTasks(i))
+          spentNs += s.spentNs
         case s: IndexingResultImpl =>
           assert(s.subTask == taskImpl.subTasks(i))
+          spentNs += s.spentNs
           partSeq(partsEnd) = s
           partsEnd += 1
       }
       i += 1
     }
-    if(partsEnd == 0) taskImpl.prev else {
+    val res = if(partsEnd == 0) taskImpl.prev else {
       val res = new Array[RIndex](taskImpl.prev.length)
       var grPos = 0
       while(grPos < taskImpl.prev.length){
@@ -430,6 +434,7 @@ final class RIndexUtilImpl(
       }
       res
     }
+    (res, MergeProfilingCounts(parts.length, spentNs))
   }
 
   private def getNonEmptyParts(index: RIndex) = index match {

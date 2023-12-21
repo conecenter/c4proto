@@ -27,7 +27,8 @@ trait IndexUtil {
   def aggregate(buffer: MutableDOutBuffer): AggrDOut
   def createBuffer(): MutableDOutBuffer
   def buildIndex(prev: Array[Index], src: Array[Array[RIndexPair]]): IndexingTask
-  def countResults(data: Seq[AggrDOut]): ProfilingCounts
+  @deprecated def countResults(data: Seq[AggrDOut]): ProfilingCounts = ???
+  def countResults(data: AggrDOut): ProfilingCounts
   //
   def getInstantly(future: Index): Index
   //
@@ -41,7 +42,8 @@ trait IndexUtil {
 
 // ${outKeyName.fold("DOut=>Unit")(_=>"Tuple2[Any,Product]=>Unit")}      ${outKeyName.fold("buffer.add _")(_=>"pair=>buffer.add(outFactory.result(pair))")}  MutableDOutBuffer
 
-case class ProfilingCounts(callCount: Long, resultCount: Long)
+case class ProfilingCounts(resultCount: Long, partCount: Long, callCount: Long, spentNs: Long)
+  extends AbstractProfilingCounts
 
 trait MutableDOutBuffer {
   def add(values: Iterable[DOut]): Unit
@@ -104,10 +106,7 @@ abstract class AssembledKey extends Product {
 @deprecated class WorldTransition(val profiling: JoiningProfiling, val log: Future[ProfilingLog])
 
 trait JoiningProfiling extends Product {
-  type Res = Long
-  def time: Long
-  def handle(join: Join, result: Seq[AggrDOut], wasLog: ProfilingLog): ProfilingLog
-  def handle(join: Join, stage: Long, start: Long, wasLog: ProfilingLog): ProfilingLog
+  @deprecated type Res = Long
 }
 
 trait DataDependencyFrom[From] {
@@ -217,4 +216,8 @@ we declare, that products has fast x.hashCode and ToPrimaryKey(x),
 
 trait StartUpSpaceProfiler {
   def out(readModelA: ReadModel): Unit
+}
+
+trait NonSingleLogger {
+  def warn(a: String, b: String): Unit
 }

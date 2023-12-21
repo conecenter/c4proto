@@ -37,7 +37,7 @@ case class JoinKeyImpl(
 
 // Ordering.by can drop keys!: https://github.com/scala/bug/issues/8674
 @c4("AssembleApp") final class IndexUtilImpl(
-  rIndexUtil: RIndexUtil, arrayUtil: ArrayUtil,
+  rIndexUtil: RIndexUtil, arrayUtil: ArrayUtil, nonSingleLogger: NonSingleLogger,
   noParts: Array[MultiForPart] = Array.empty,
 ) extends IndexUtil {
   private def isSingle(p: Products): Boolean = p match {
@@ -52,7 +52,7 @@ case class JoinKeyImpl(
     case c: Counts => throw new Exception(s"non-single $c")
     case c: NonSingleCount =>
       if(warning.nonEmpty)
-        println(s"non-single $warning ${c.item.productPrefix}:${ToPrimaryKey(c.item)}")
+        nonSingleLogger.warn(s"non-single $warning ${c.item.productPrefix}:", ToPrimaryKey(c.item))
       c.item
     case item: Product => item
   }
@@ -223,12 +223,13 @@ case class JoinKeyImpl(
   def buildIndex(prev: Array[Index], src: Array[Array[RIndexPair]]): IndexingTask =
     rIndexUtil.buildIndex(prev, src, rIndexValueOperations)
 
-  def countResults(data: Seq[AggrDOut]): ProfilingCounts =
-    data.asInstanceOf[Seq[AggrDOutImpl]]
-      .foldLeft(ProfilingCounts(0L,0L))((res,aggr) => res.copy(
-        callCount = res.callCount + aggr.callCount,
-        resultCount = res.resultCount + aggr.resultsByOut.map{ case (_,v) => v.length }.sum,
-      ))
+  private object CountResultsSumHandler extends SumHandler[(Int,Array[RIndexPair])] {
+    def get(src: (Int,Array[RIndexPair])): Long = src match { case (_, v) => v.length }
+  }
+  def countResults(data: AggrDOut): ProfilingCounts = data match {
+    case d: AggrDOutImpl =>
+      ProfilingCounts(arrayUtil.sum(d.resultsByOut, CountResultsSumHandler), d.partCount, d.callCount, d.spentNs)
+  }
 
   def createOutFactory(pos: Int, dir: Int): OutFactory[Any, Product] =
     new OutFactoryImpl(this,rIndexUtil,pos,dir)

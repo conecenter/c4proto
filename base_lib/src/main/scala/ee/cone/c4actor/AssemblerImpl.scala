@@ -10,6 +10,7 @@ import ee.cone.c4di.{c4, c4multi, provide}
 import ee.cone.c4proto.{HasId, ToByteString}
 import okio.ByteString
 
+import java.util.concurrent.atomic.AtomicBoolean
 import scala.collection.immutable
 import scala.collection.immutable.{Map, Seq}
 import scala.concurrent.ExecutionContext.parasitic
@@ -36,7 +37,14 @@ import scala.concurrent.duration.Duration
 
 //case object TreeAssemblerKey extends SharedComponentKey[Replace]
 
-@c4("RichDataCompApp") final class DefLongAssembleWarnPeriod extends LongAssembleWarnPeriod(Option(System.getenv("C4ASSEMBLE_WARN_PERIOD_MS")).fold(1000L)(_.toLong))
+@c4("RichDataCompApp") final class RAssProfilingImpl(
+  listConfig: ListConfig
+) extends RAssProfiling with LazyLogging {
+  def msWarnPeriod: Long = Single.option(listConfig.get("C4ASSEMBLE_WARN_PERIOD_MS")).fold(1000L)(_.toLong)
+  def warn(content: String): Unit = logger.warn(content)
+  def debug(content: ()=>String): Unit =  logger.debug(s"$id ${content()}")
+  private def id = s"T-${Thread.currentThread.getId}"
+}
 
 @c4("RichDataCompApp") final class DefAssembleOptions extends AssembleOptions("AssembleOptions",false,0L)
 
@@ -65,16 +73,14 @@ object SpreadUpdates extends SpreadHandler[N_Update] {
   composes: IndexUtil,
   origKeyFactory: OrigKeyFactoryFinalHolder,
   arrayUtil: ArrayUtil,
-  warnPeriod: LongAssembleWarnPeriod,
   replace: Replace,
   activeOrigKeyRegistry: ActiveOrigKeyRegistry,
   origPartitionerRegistry: OrigPartitionerRegistry,
 ) extends LazyLogging {
   def seq[T](s: Seq[Future[T]])(implicit ec: ExecutionContext): Future[Seq[T]] = Future.sequence(s)
 
-  def toTreeReplace(assembled: ReadModel, updates: Seq[N_Update], profiling: JoiningProfiling, executionContext: OuterExecutionContext): ReadModel = {
-    val end = NanoTimer()
-    val txName = Thread.currentThread.getName
+  def toTreeReplace(assembled: ReadModel, updates: Seq[N_Update], executionContext: OuterExecutionContext): ReadModel = {
+    //val end = NanoTimer()
     val isActiveOrig: Set[AssembledKey] = activeOrigKeyRegistry.values
     val outFactory = composes.createOutFactory(0, +1)
     val ec: ExecutionContext = executionContext.value
@@ -108,21 +114,17 @@ object SpreadUpdates extends SpreadHandler[N_Update] {
     val diff = taskResults.flatten.groupMap(_._1)(_._2).transform((_,v)=>v.toArray.flatten).toSeq
     //assert(diff.map(_._1).distinct.size == diff.size)
     logger.debug("toTreeReplace indexGroups after")
-    val willAssembled = replace.replace(assembled,diff,profiling,executionContext)
-    val period = end.ms
+    replace.replace(assembled,diff,executionContext)
+    //val period = end.ms
 //    if(logger.underlying.isDebugEnabled){
 //      val ids = updates.map(_.valueTypeId).distinct.map(v=>s"0x${java.lang.Long.toHexString(v)}").mkString(" ")
 //      logger.debug(s"checked: ${transition.taskLog.size} rules by $txName ($ids)")
 //    }
-    if (period > warnPeriod.value) logger.warn(s"long join $period ms by $txName")
-    (new AssemblerProfiling).debugPeriod(period)
-    willAssembled
   }
 }
 
 class AssemblerProfiling extends LazyLogging {
   def id = s"T-${Thread.currentThread.getId}"
-  def debugPeriod(period: Long): Unit = logger.debug(s"$id was joining for $period ms")
   def debugOffsets(stage: String, offsets: Seq[NextOffset]): Unit =
     logger.debug(s"$id $stage "+offsets.map(s => s"E-$s").distinct.mkString(","))
 }
@@ -167,9 +169,8 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     wasAssembled: ReadModel, updates: Seq[N_Update],
     executionContext: OuterExecutionContext
   ): ReadModel = {
-    val profiling = assembleProfiler.createJoiningProfiling(None)
     val util = Single(utilOpt.value)
-    util.toTreeReplace(wasAssembled, updates, profiling, executionContext)
+    util.toTreeReplace(wasAssembled, updates, executionContext)
   }
   private def offset(events: Seq[RawEvent]): List[N_Update] = for{
     ev <- events.lastOption.toList
@@ -233,7 +234,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     val externalOut = updateProcessor.fold(processedOut)(_.process(processedOut, WriteModelKey.of(local).size).toList)
     val profiling = assembleProfiler.createJoiningProfiling(Option(local))
     val util = Single(utilOpt.value)
-    val result = util.toTreeReplace(local.assembled, externalOut, profiling, local.executionContext)
+    val result = util.toTreeReplace(local.assembled, externalOut, local.executionContext)
     val updates = Await.result(assembleProfiler.addMeta(new WorldTransition(profiling, Future.successful(Nil)), externalOut), Duration.Inf)
     val nLocal = new Context(local.injected, result, local.executionContext, local.transient)
     WriteModelKey.modify(_.enqueueAll(updateFromUtil.get(local,updates)))(nLocal)
@@ -369,4 +370,11 @@ class NeedWorldPartRule(
 
 @c4("SkipWorldPartsApp") final class IsTargetWorldPartRuleImpl extends IsTargetWorldPartRule {
   def check(rule: WorldPartRule): Boolean = rule.isInstanceOf[NeedWorldPartRule]
+}
+
+@c4("RichDataCompApp") final class NonSingleLoggerImpl(
+  was: Array[AtomicBoolean] = Array.tabulate(32)(_=>new AtomicBoolean(false))
+) extends NonSingleLogger with LazyLogging {
+  def warn(a: String, b: String): Unit =
+    if(!was(Math.floorMod(a.hashCode, was.length)).getAndSet(true)) logger.warn(s"$a$b")
 }

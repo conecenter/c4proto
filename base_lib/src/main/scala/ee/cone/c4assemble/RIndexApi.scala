@@ -19,6 +19,8 @@ trait IndexingTask {
 }
 trait IndexingSubTask
 trait IndexingResult
+trait AbstractProfilingCounts extends Product { def spentNs: Long }
+case class MergeProfilingCounts(partCount: Long, spentNs: Long) extends AbstractProfilingCounts
 trait RIndexUtil {
   def create(creatorPos: Int, key: RIndexKey, value: RIndexItem): RIndexPair
   def get(index: RIndex, key: RIndexKey): Seq[RIndexItem]
@@ -30,7 +32,7 @@ trait RIndexUtil {
 
   def buildIndex(prev: Array[RIndex], src: Array[Array[RIndexPair]], valueOperations: RIndexValueOperations): IndexingTask
   def execute(subTask: IndexingSubTask): IndexingResult
-  def merge(task: IndexingTask, parts: Array[IndexingResult]): Seq[RIndex]
+  def merge(task: IndexingTask, parts: Array[IndexingResult]): (Seq[RIndex], MergeProfilingCounts)
 
   def keyIterator(index: RIndex): Iterator[RIndexKey]
   def keyCount(index: RIndex): Int

@@ -31,7 +31,16 @@ import scala.jdk.CollectionConverters.{IterableHasAsScala,MapHasAsJava,MapHasAsS
   keyPassPath = config.get("C4STORE_PASS_PATH"),
 )()
 
-@c4("KafkaProducerApp") final class KafkaRawQSender(
+@c4("KafkaProducerApp") final class KafkaRawQSenderProvider(
+  factory: KafkaRawQSenderFactory, disable: List[DisableDefProducer]
+)(
+  res: Seq[RawQSender with RawQSenderExecutable] = if(disable.nonEmpty) Nil else Seq(factory.create())
+){
+  @provide def senders: Seq[RawQSender] = res
+  @provide def executables: Seq[RawQSenderExecutable] = res
+}
+
+@c4multi("KafkaProducerApp") final class KafkaRawQSender()(
   conf: KafkaConfig, execution: Execution,
   loBroker: LOBroker, listConfig: ListConfig,
 )(
@@ -105,10 +114,8 @@ case class KafkaConfig(
   def get(): NextOffset = consuming.process("0" * OffsetHexSize(), { case c: RKafkaConsumer => c.beginningOffset })
 }
 
-@c4("DisableDefaultKafkaConsumingApp") final class DisableDefaultKafkaConsuming
-
 @c4("KafkaConsumerApp") final class KafkaConsumingProvider(
-  disable: Option[DisableDefaultKafkaConsuming], factory: KafkaConsumingFactory,
+  disable: Option[DisableDefConsuming], factory: KafkaConsumingFactory,
   conf: KafkaConfig, currentTxLogName: CurrentTxLogName,
 ){
   @provide def consumings: Seq[Consuming] = if(disable.nonEmpty) Nil else Seq(factory.create(conf, currentTxLogName))

@@ -6,9 +6,11 @@ import ee.cone.c4assemble.Types.{Index, emptyIndex}
 import ee.cone.c4di.{c4, c4multi}
 
 import java.lang.management.ManagementFactory
+import java.util
 import java.util.concurrent.{LinkedBlockingQueue, RecursiveTask}
 import scala.collection.immutable.ArraySeq
 import scala.concurrent.{ExecutionContext, Future}
+import scala.jdk.CollectionConverters.ListHasAsScala
 import scala.util.Try
 
 object SchedulerConf {
@@ -89,7 +91,8 @@ final class SchedulerConf(
     val emptyReadModel = {
       val emptyWorld = ImmArr.empty[WorldPos,RIndex](emptyIndex, new Array(_), new Array(_))
       val emptyInputs = ImmArr.empty[InputPos,RIndex](emptyIndex, new Array(_), new Array(_))
-      new ReadModelImpl(emptyWorld, emptyInputs, emptyInputs, worldPosFromKey)
+      val spentNs = ImmArr.empty[TaskPos,java.lang.Long](0L, new Array(_), new Array(_))
+      new ReadModelImpl(emptyWorld, emptyInputs, emptyInputs, worldPosFromKey, spentNs)
     }
     val conf = new SchedulerConf(
       tasks, subscribedWorldPos, subscribedInputPos, worldPosFromKey, worldKeys, inputs, planConf, emptyReadModel
@@ -157,7 +160,8 @@ trait ParallelExecution {
 @c4multi("AssembleApp") final class SchedulerImpl(
   val active: Seq[WorldPartRule], conf: SchedulerConf, joins: Seq[Join]
 )(
-  indexUtil: IndexUtil, rIndexUtil: RIndexUtil, plannerFactory: PlannerFactory, parallelExecution: ParallelExecution
+  indexUtil: IndexUtil, rIndexUtil: RIndexUtil, plannerFactory: PlannerFactory, parallelExecution: ParallelExecution,
+  profiling: RAssProfiling,
 )(
   emptyCalculated: Array[Array[RIndexPair]] = Array.empty
 )(
@@ -167,7 +171,9 @@ trait ParallelExecution {
   import ParallelExecution._
   import parallelExecution._
 
-  private trait Ev
+  private trait Ev {
+    def profilingCounts: AbstractProfilingCounts
+  }
 
   private def zip[A, B](a: ArraySeq[A], b: Seq[B]) = {
     assert(a.size == b.size)
@@ -183,7 +189,8 @@ trait ParallelExecution {
   private class MutableSchedulingContext(
     val planner: MutablePlanner,
     val model: COWArr[WorldPos,Index], val inputDiffs: COWArr[InputPos,Index], val inputPrevValues: COWArr[InputPos,Index],
-    val calculatedByBuildTask: COWArr[WorldPos,RIndexPairs]
+    val calculatedByBuildTask: COWArr[WorldPos,RIndexPairs],
+    val profilingCountsList: util.ArrayList[(TaskPos,AbstractProfilingCounts)],
   )
 
   private def startBuild(context: MutableSchedulingContext, taskConf: BuildTaskConf): Option[()=>Ev] = {
@@ -205,13 +212,16 @@ trait ParallelExecution {
   private def continueBuild(taskConf: BuildTaskConf, calculated: RIndexPairs, prev: Array[Index]): Ev = {
     val prevDistinct = prev.distinct
     val task = indexUtil.buildIndex(prevDistinct, calculated)
-    val nextDistinct = execute[IndexingSubTask,IndexingResult,Seq[Index]](
+    val (nextDistinct, profilingCounts) = execute[IndexingSubTask,IndexingResult,(Seq[Index],MergeProfilingCounts)](
       task.subTasks.toArray, rIndexUtil.execute, new Array(_), rIndexUtil.merge(task, _)
     )
     val next = prev.map(zip(ArraySeq.from(prevDistinct), nextDistinct).toMap)
-    new BuiltEv(taskConf, prev, next)
+    new BuiltEv(taskConf, prev, next, profilingCounts)
   }
-  private class BuiltEv(val taskConf: BuildTaskConf, val prev: Array[Index], val next: Array[Index]) extends Ev
+  private class BuiltEv(
+    val taskConf: BuildTaskConf, val prev: Array[Index], val next: Array[Index],
+    val profilingCounts: MergeProfilingCounts
+  ) extends Ev
   private def replace[K<:Int](values: COWArr[K,Index], pos: K, prev: Index, next: Index): Unit = {
     assert(values(pos)==prev)
     values(pos) = next
@@ -288,9 +298,9 @@ trait ParallelExecution {
     val diff =
       req.taskConf.outWorldPos.indices.toArray.map(i => req.taskConf.outWorldPos(i) -> indexUtil.byOutput(aggr, i))
       .filter(_._2.nonEmpty)
-    new CalculatedEv(diff) // report from diff
+    new CalculatedEv(diff, indexUtil.countResults(aggr))
   }
-  private class CalculatedEv(val diff: Array[(WorldPos, RIndexPairs)]) extends Ev
+  private class CalculatedEv(val diff: Array[(WorldPos, RIndexPairs)], val profilingCounts: ProfilingCounts) extends Ev
   private def finishCalc(context: MutableSchedulingContext, ev: CalculatedEv): Unit = setTodoBuild(context, ev.diff)
 
   private def setTodoBuild(context: MutableSchedulingContext, diff: Array[(WorldPos, RIndexPairs)]): Unit = {
@@ -313,7 +323,7 @@ trait ParallelExecution {
 
   private def cowArrDebug[K<:Int,V](hint: String, explainK: K=>String, explainV: V=>String): Option[CowArrDebug[K, V]] =
     Option(new CowArrDebug[K, V] {
-      def update(pos: K, value: V): Unit = println(s"$hint ${explainK(pos)} ${explainV(value)}") //report
+      def update(pos: K, value: V): Unit = profiling.warn(s"$hint ${explainK(pos)} ${explainV(value)}") //report
     })
   private def explainJoinPos(joinPos: Int): String =
     joins(joinPos) match { case j => s"${j.assembleName} rule ${j.name}" }
@@ -324,25 +334,71 @@ trait ParallelExecution {
   }
   private def explainIndex(index: Index): String = s"${rIndexUtil.keyCount(index)} keys"
   private def explainQueue(queue: RIndexPairs): String = s"${queue.map(_.length).sum} pairs"
+  private def explainTask(exprPos: TaskPos): String = conf.tasks(exprPos) match {
+    case t: CalcTaskConf =>
+      val j = joins(t.joinPos)
+      s"#$exprPos calc ${j.assembleName} rule ${j.name}"
+    case t: BuildTaskConf => s"#$exprPos build ${conf.worldKeys(t.worldPos)}"
+  }
+  private def reportPlanning(hint: String, exprPos: TaskPos): Unit = profiling.warn(s"$hint ${explainTask(exprPos)}")
 
-  def replace(
-    model: ReadModel, diff: Diffs, profiler: JoiningProfiling, executionContext: OuterExecutionContext
-  ): ReadModel = {
+  private def reportTop(context: MutableSchedulingContext, period: Long) = {
+    val txName = Thread.currentThread.getName
+    profiling.warn(s"long join $period ms by $txName")
+    context.profilingCountsList.asScala.groupMapReduce(_._1)(_._2)((a, b) => (a, b) match {
+      case (a: ProfilingCounts, b: ProfilingCounts) => ProfilingCounts(
+        resultCount = a.resultCount + b.resultCount, partCount = a.partCount + b.partCount,
+        callCount = a.callCount + b.callCount, spentNs = a.spentNs + b.spentNs
+      )
+      case (a: MergeProfilingCounts, b: MergeProfilingCounts) => MergeProfilingCounts(
+        partCount = a.partCount + b.partCount, spentNs = a.spentNs + b.spentNs
+      )
+    }).toSeq.sortBy(_._2.spentNs).takeRight(64).foreach { case (exprPos, profilingCounts) =>
+      val countsStr = profilingCounts match {
+        case a: ProfilingCounts =>
+          s"${nsToMilli(a.spentNs)}ms, ${a.partCount} parts, ${a.callCount} calls, ${a.resultCount} results"
+        case a: MergeProfilingCounts =>
+          s"${nsToMilli(a.spentNs)}ms, ${a.partCount} parts"
+      }
+      profiling.warn(s"$countsStr -- ${explainTask(exprPos)}")
+    }
+    //.toArray(Array.empty)
+  }
+  private def reportTopOpt(context: MutableSchedulingContext, period: Long) = {
+    profiling.debug(()=>s"was joining for $period ms")
+    if(period > profiling.msWarnPeriod) reportTop(context, period)
+  }
+  private def addSpent(context: MutableSchedulingContext, spentNs: ImmArr[TaskPos,java.lang.Long]): ImmArr[TaskPos,java.lang.Long] = {
+    val spentNsM = spentNs.toMutable(None)
+    context.profilingCountsList.forEach { case (exprPos, profilingCounts) =>
+      spentNsM(exprPos) = spentNsM(exprPos) + profilingCounts.spentNs
+    }
+    spentNsM.toImmutable
+  }
+  private def nsToMilli(ns: Long) = ns / 1000000
+
+  def replace(model: ReadModel, diff: Diffs, executionContext: OuterExecutionContext): ReadModel = {
+    val startedAt = System.nanoTime
     val planner = plannerFactory.createMutablePlanner(conf.plannerConf)
     val modelImpl = model match{ case m: ReadModelImpl => m }
     val noDbg = !DebugCounter.on(0)
     val context = new MutableSchedulingContext(
-      if(noDbg) planner else new DebuggingPlanner(planner, conf, joins),
+      if(noDbg) planner else new DebuggingPlanner(planner, reportPlanning),
       modelImpl.model.toMutable(if(noDbg) None else cowArrDebug("set-model",explainWorldPos,explainIndex)),
       modelImpl.inputDiffs.toMutable(if(noDbg) None else cowArrDebug("set-input-diff",explainInputPos,explainIndex)),
       modelImpl.inputPrevValues.toMutable(if(noDbg) None else cowArrDebug("set-input-prev",explainInputPos,explainIndex)),
-      emptyCalculatedByBuildTask.toMutable(if(noDbg) None else cowArrDebug("set-queue",explainWorldPos,explainQueue))
+      emptyCalculatedByBuildTask.toMutable(if(noDbg) None else cowArrDebug("set-queue",explainWorldPos,explainQueue)),
+      new util.ArrayList
     )
     setTodoBuild(context, diff.map{ case (k: JoinKey, v) => (conf.worldPosFromKey(k),v) }.toArray)
     loop(context, executionContext.value)
     context.calculatedByBuildTask.requireIsEmpty()
     context.inputDiffs.requireIsEmpty()
-    new ReadModelImpl(context.model.toImmutable, context.inputDiffs.toImmutable, context.inputPrevValues.toImmutable, conf.worldPosFromKey)
+    reportTopOpt(context, nsToMilli(System.nanoTime - startedAt))
+    new ReadModelImpl(
+      context.model.toImmutable, context.inputDiffs.toImmutable, context.inputPrevValues.toImmutable,
+      conf.worldPosFromKey, addSpent(context, modelImpl.spentNs)
+    )
   }
   private final class OuterEv(val exprPos: TaskPos, val event: Ev)
   private def loop(context: MutableSchedulingContext, ec: ExecutionContext): Unit = {
@@ -367,14 +423,26 @@ trait ParallelExecution {
         case ev: BuiltEv => finishBuild(context, ev)
       }
       planner.setStarted(outerEv.exprPos, value = false)
+      addProfilingCounts(context, outerEv.exprPos, outerEv.event.profilingCounts)
     }
   }
+  private def addProfilingCounts(
+    context: MutableSchedulingContext, pos: TaskPos, profilingCounts: AbstractProfilingCounts
+  ): Unit = context.profilingCountsList.add((pos, profilingCounts))
   def emptyReadModel: ReadModel = conf.emptyReadModel
+
+  def report(model: ReadModel): Unit = {
+    val modelImpl = model match{ case m: ReadModelImpl => m }
+    for{
+      exprPos <- conf.tasks.indices.asInstanceOf[IndexedSeq[TaskPos]]
+      ms = nsToMilli(modelImpl.spentNs(exprPos)) if ms > 0L
+    } profiling.warn(s"aggr $ms ms ${explainTask(exprPos)}")
+  }
 }
 
 class ReadModelImpl(
   val model: ImmArr[WorldPos,Index], val inputDiffs: ImmArr[InputPos,Index], val inputPrevValues: ImmArr[InputPos,Index],
-  val worldPosFromKey: Map[JoinKey,WorldPos]
+  val worldPosFromKey: Map[JoinKey,WorldPos], val spentNs: ImmArr[TaskPos,java.lang.Long],
 ) extends ReadModel {
   def getIndex(key: AssembledKey): Option[Index] = key match {
     case k: JoinKey => worldPosFromKey.get(k).map(model(_))
@@ -445,23 +513,14 @@ sealed trait CowArrDebug[K<:Int,V] {
   def update(pos: K, value: V): Unit
 }
 
-class DebuggingPlanner(inner: MutablePlanner, conf: SchedulerConf, joins: Seq[Join]) extends MutablePlanner {
-  private def report(hint: String, exprPos: TaskPos, value: Boolean): Unit = {
-    val explanation = conf.tasks(exprPos) match {
-      case t: CalcTaskConf =>
-        val j = joins(t.joinPos)
-        s"calc ${j.assembleName} rule ${j.name}"
-      case t: BuildTaskConf => s"build ${conf.worldKeys(t.worldPos)}"
-    }
-    val v = if(value) "on " else "off"
-    println(s"$hint $v #$exprPos $explanation") //report
-  }
+class DebuggingPlanner(inner: MutablePlanner, report: (String,TaskPos)=>Unit) extends MutablePlanner {
+  private def bStr(value: Boolean): String = if(value) "on " else "off"
   def setTodo(exprPos: TaskPos, value: Boolean): Unit = {
-    report(s"setTodo   ",exprPos,value)
+    report(s"setTodo    ${bStr(value)}",exprPos)
     inner.setTodo(exprPos,value)
   }
   def setStarted(exprPos: TaskPos, value: Boolean): Unit = {
-    report(s"setStarted",exprPos,value)
+    report(s"setStarted ${bStr(value)}",exprPos)
     inner.setStarted(exprPos,value)
   }
   def suggestedNonEmpty: Boolean = inner.suggestedNonEmpty
