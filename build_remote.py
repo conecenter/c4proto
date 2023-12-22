@@ -1,5 +1,5 @@
 
-
+import re
 import subprocess
 import json
 import os
@@ -138,7 +138,11 @@ def compile(opt):
     rsync(None, pod, [path for path in full_sync_paths if path_exists(path)])
     kcd_run("exec",pod,"--",*sbt_args(mod_dir,opt.java_options))
     rsync(pod, None, [cp_path])
-    rsync(pod, None, read_text(cp_path).split(":"))
+    rsync(pod, None, [rm_dots(path) for path in read_text(cp_path).split(":")])
+
+def rm_dots(path):
+    res = re.sub("""/[^/]+/\.\./""", "/", path, count=1)
+    return res if path == res else rm_dots(res)
 
 def push_compilation_cache(compile_options, image):
     mod_dir = compile_options.mod_dir
