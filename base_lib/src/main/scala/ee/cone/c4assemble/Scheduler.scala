@@ -433,9 +433,16 @@ trait ParallelExecution {
 
   def report(model: ReadModel): Unit = {
     val modelImpl = model match{ case m: ReadModelImpl => m }
-    for{
-      exprPos <- conf.tasks.indices.asInstanceOf[IndexedSeq[TaskPos]]
-      ms = nsToMilli(modelImpl.spentNs(exprPos)) if ms > 0L
+//    for{
+//      exprPos <- conf.tasks.indices.asInstanceOf[IndexedSeq[TaskPos]]
+//      ms = nsToMilli(modelImpl.spentNs(exprPos)) if ms > 0L
+//    } profiling.warn(s"aggr $ms ms ${explainTask(exprPos)}")
+    for {
+      (ns,exprPos) <- (for{
+        exprPos <- conf.tasks.indices.asInstanceOf[IndexedSeq[TaskPos]]
+        ns = modelImpl.spentNs(exprPos)
+      } yield (ns,exprPos)).sorted
+      ms = nsToMilli(ns) if ms > 0L
     } profiling.warn(s"aggr $ms ms ${explainTask(exprPos)}")
   }
 }

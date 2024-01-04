@@ -25,6 +25,7 @@ trait WorldCheckHandler {
   val postfix: String = Single.option(config.get("C4WORLD_CHECK_ORDER")).fold("")(order => "f" * order.toInt)
   def reduce(context: Option[SharedContext with AssembledContext], events: List[RawEvent]): RichContext = {
     val txId = Single(events).srcId // from FileConsumer events go 1 by 1
+    DebugCounter.on(0, value = config.get("C4WORLD_CHECK_DEBUG_TXS").exists(_.contains(txId)))
     val startedAt = System.nanoTime
     val willContext = inner.reduce(context, events)
     val period = (System.nanoTime-startedAt)/1000000
