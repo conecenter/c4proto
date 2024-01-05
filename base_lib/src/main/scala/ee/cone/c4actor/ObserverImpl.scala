@@ -82,8 +82,6 @@ abstract class InnerTransientLens[Item](key: TransientLens[Item]) extends Abstra
     value => m => m + (key -> value.asInstanceOf[Object])
 }
 
-class TxObserver(val value: Observer[RichContext])
-
 @c4("SerialObserversApp") final class SerialTxObserver(
   transforms: TxTransforms
 ) extends TxObserver(new SerialObserver(Map.empty)(transforms))
@@ -101,9 +99,10 @@ class SerialObserver(localStates: Map[SrcId,TransientMap])(
 
 @c4("ParallelObserversApp") final class ParallelObserverProvider(
   transforms: TxTransforms,
-  ex: ParallelObserverExecutable
+  ex: ParallelObserverExecutable,
+  disable: List[DisableDefObserver]
 ) {
-  @provide def observers: Seq[TxObserver] = Seq(new TxObserver(new Observer[RichContext] {
+  @provide def observers: Seq[TxObserver] = if(disable.nonEmpty) Nil else Seq(new TxObserver(new Observer[RichContext] {
     def activate(world: RichContext): Observer[RichContext] = {
       ex.send(transforms.get(world).withDefaultValue(transient =>
         if(world.offset < InnerReadAfterWriteOffsetKey.of(transient)) transient else Map.empty

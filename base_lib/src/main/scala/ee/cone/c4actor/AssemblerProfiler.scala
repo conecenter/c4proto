@@ -26,11 +26,7 @@ case object NoAssembleProfiler extends AssembleProfiler {
     Future.successful(updates)
 }
 
-case object NoJoiningProfiling extends JoiningProfiling {
-  def time: Long = 0L
-  def handle(join: Join, result: Seq[AggrDOut], wasLog: ProfilingLog): ProfilingLog = wasLog
-  def handle(join: Join, stage: Res, start: Res, wasLog: ProfilingLog): ProfilingLog = wasLog
-}
+case object NoJoiningProfiling extends JoiningProfiling
 
 ////
 
@@ -53,7 +49,7 @@ case object NoJoiningProfiling extends JoiningProfiling {
 
 @c4("SimpleAssembleProfilerCompApp") final case class SimpleAssembleProfiler(idGenUtil: IdGenUtil)(toUpdate: ToUpdate) extends AssembleProfiler {
   def createJoiningProfiling(localOpt: Option[Context]) =
-    if(localOpt.isEmpty) SimpleConsoleSerialJoiningProfiling
+    if(localOpt.isEmpty) NoJoiningProfiling
     else SimpleSerialJoiningProfiling(System.nanoTime)
   def addMeta(transition: WorldTransition, updates: Seq[N_Update]): Future[Seq[N_Update]] = transition.profiling match {
     case SimpleSerialJoiningProfiling(startedAt) =>
@@ -74,22 +70,4 @@ case object NoJoiningProfiling extends JoiningProfiling {
   }
 }
 
-case class SimpleSerialJoiningProfiling(startedAt: Long) extends JoiningProfiling {
-  def time: Long = System.nanoTime
-  def handle(join: Join, stage: Long, start: Long, wasLog: ProfilingLog): ProfilingLog = {
-    val period = (System.nanoTime - start) / 1000
-    D_LogEntry(join.name,stage,period) :: wasLog
-  }
-  def handle(join: Join, result: Seq[AggrDOut], wasLog: ProfilingLog): ProfilingLog = wasLog
-}
-
-case object SimpleConsoleSerialJoiningProfiling extends JoiningProfiling with LazyLogging {
-  def time: Long = System.nanoTime
-  def handle(join: Join, stage: Long, start: Long, wasLog: ProfilingLog): ProfilingLog = {
-    val period = (System.nanoTime - start) / 1000000
-    if(period > 50)
-      logger.debug(s"$period ms for ${join.name}-$stage") // "${joinRes.size} items"
-    wasLog
-  }
-  def handle(join: Join, result: Seq[AggrDOut], wasLog: ProfilingLog): ProfilingLog = wasLog
-}
+case class SimpleSerialJoiningProfiling(startedAt: Long) extends JoiningProfiling

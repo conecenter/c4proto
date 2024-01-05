@@ -13,22 +13,7 @@ import ee.cone.c4di.{c4, c4app, c4multi, provide}
 
 import java.time.Instant
 
-@c4("NoObserversApp") final class NoObservers
-
-object InnerNoTxObserver extends Observer[RichContext] {
-  def activate(world: RichContext): Observer[RichContext] = this
-}
-
-@c4("ServerCompApp") final class ProgressObserverFactoryProvider(
-  execution: Execution, config: Config, inner: List[TxObserver], sender: List[RawQSenderExecutable],
-  disable: Option[NoObservers],
-){
-  @provide def get: Seq[ProgressObserverFactory] = Seq(
-    if(disable.nonEmpty) new ProgressObserverFactoryImpl(new TxObserver(InnerNoTxObserver), execution, config, () => ())
-    else new ProgressObserverFactoryImpl(Single(inner), execution, config, Single(sender))
-  )
-}
-
+@c4("ServerCompApp") final
 class ProgressObserverFactoryImpl(
   val inner: TxObserver, val execution: Execution,
   val config: Config, val sender: RawQSenderExecutable,

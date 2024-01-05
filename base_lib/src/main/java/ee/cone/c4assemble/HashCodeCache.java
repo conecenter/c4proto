@@ -11,7 +11,7 @@ public class HashCodeCache {
     }
     public int get(Product item){
         if(cacheItems.length == 0) return item.hashCode();
-        final int pos = System.identityHashCode(item) % cacheItems.length;
+        final int pos = Math.floorMod(System.identityHashCode(item), cacheItems.length);
         if(cacheItems[pos] == item) return cacheHashes[pos];
         int hash = item.hashCode();
         cacheItems[pos] = item;

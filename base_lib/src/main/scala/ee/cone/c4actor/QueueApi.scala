@@ -117,7 +117,6 @@ trait QMessages {
 
 class LongTxWarnPeriod(val value: Long)
 class UpdateCompressionMinSize(val value: Long)
-class LongAssembleWarnPeriod(val value: Long)
 
 trait ContextFactory { // for tests only
   def updated(updates: List[N_Update]): Context
@@ -254,6 +253,11 @@ trait GetAssembleOptions {
 trait Observer[Message] {
   def activate(world: Message): Observer[Message]
 }
+
+class TxObserver(val value: Observer[RichContext])
+final class DisableDefObserver
+final class DisableDefConsuming
+final class DisableDefProducer
 
 case object TxTransformOrigMeta{
   def apply(name: String): Context => Context = TxTransformOrigMetaKey.set(MetaAttr(D_TxTransformNameMeta(name)) :: Nil)

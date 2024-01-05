@@ -1,6 +1,7 @@
 
 package ee.cone.c4assemble
 
+import ee.cone.c4assemble.PlannerTypes.TaskPos
 import ee.cone.c4assemble.RIndexTypes.RIndexItem
 import ee.cone.c4assemble.Types._
 
@@ -28,10 +29,15 @@ class OriginalWorldPart[A<:Object](val outputWorldKeys: Seq[AssembledKey]) exten
 trait Replace {
   type Diffs = Seq[(AssembledKey, Array[Array[RIndexPair]])]
   def active: Seq[WorldPartRule]
-  def replace(
-    model: ReadModel, diff: Diffs, profiler: JoiningProfiling, executionContext: OuterExecutionContext
-  ): ReadModel
+  def replace(model: ReadModel, diff: Diffs, executionContext: OuterExecutionContext): ReadModel
   def emptyReadModel: ReadModel
+  def report(model: ReadModel): Unit
+}
+
+trait RAssProfiling {
+  def msWarnPeriod: Long
+  def warn(content: String): Unit
+  def debug(content: ()=>String): Unit
 }
 
 trait SchedulerFactory {

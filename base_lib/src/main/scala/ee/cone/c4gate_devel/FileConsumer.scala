@@ -4,6 +4,7 @@ package ee.cone.c4gate_devel
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types._
 import ee.cone.c4actor._
+import ee.cone.c4assemble.Replace
 import ee.cone.c4di._
 import ee.cone.c4proto.ToByteString
 import okio.ByteString
@@ -45,4 +46,20 @@ import java.nio.file._
 @c4("FileConsumerApp") final class FileSnapshotMaker(dir: FileConsumerDir) extends SnapshotMaker {
   def make(task: SnapshotTask): List[RawSnapshot] =
     List(RawSnapshot(new String(Files.readAllBytes(dir.resolve("snapshot_name")), UTF_8)))
+}
+
+object InnerNoTxObserver extends Observer[RichContext] {
+  def activate(world: RichContext): Observer[RichContext] = this
+}
+
+@c4("FileConsumerApp") final class ReportingTxObserver(replace: Replace) extends TxObserver(world=>{
+    replace.report(world.assembled)
+    InnerNoTxObserver
+})
+
+@c4("FileConsumerApp") final class DisablingProvider(){
+  @provide def senders: Seq[RawQSenderExecutable] = Seq(()=>())
+  @provide def disableDefObserver: Seq[DisableDefObserver] = Seq(new DisableDefObserver)
+  @provide def disableDefaultKafkaConsuming: Seq[DisableDefConsuming] = Seq(new DisableDefConsuming)
+  @provide def disableKafkaProducer: Seq[DisableDefProducer] = Seq(new DisableDefProducer)
 }
