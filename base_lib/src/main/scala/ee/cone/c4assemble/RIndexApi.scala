@@ -19,8 +19,8 @@ trait IndexingTask {
 }
 trait IndexingSubTask
 trait IndexingResult
-trait AbstractProfilingCounts extends Product { def spentNs: Long }
-case class MergeProfilingCounts(partCount: Long, spentNs: Long) extends AbstractProfilingCounts
+trait AbstractProfilingCounts extends Product { def maxNs: Long }
+case class MergeProfilingCounts(maxNs: Long, spentNs: Long) extends AbstractProfilingCounts
 trait RIndexUtil {
   def create(creatorPos: Int, key: RIndexKey, value: RIndexItem): RIndexPair
   def get(index: RIndex, key: RIndexKey): Seq[RIndexItem]

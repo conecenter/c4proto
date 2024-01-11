@@ -42,7 +42,7 @@ trait IndexUtil {
 
 // ${outKeyName.fold("DOut=>Unit")(_=>"Tuple2[Any,Product]=>Unit")}      ${outKeyName.fold("buffer.add _")(_=>"pair=>buffer.add(outFactory.result(pair))")}  MutableDOutBuffer
 
-case class ProfilingCounts(resultCount: Long, partCount: Long, callCount: Long, spentNs: Long)
+case class ProfilingCounts(resultCount: Long, maxNs: Long, callCount: Long, spentNs: Long)
   extends AbstractProfilingCounts
 
 trait MutableDOutBuffer {

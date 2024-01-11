@@ -347,18 +347,18 @@ trait ParallelExecution {
     profiling.warn(s"long join $period ms by $txName")
     context.profilingCountsList.asScala.groupMapReduce(_._1)(_._2)((a, b) => (a, b) match {
       case (a: ProfilingCounts, b: ProfilingCounts) => ProfilingCounts(
-        resultCount = a.resultCount + b.resultCount, partCount = a.partCount + b.partCount,
+        resultCount = a.resultCount + b.resultCount, maxNs = Math.max(a.maxNs, b.maxNs),
         callCount = a.callCount + b.callCount, spentNs = a.spentNs + b.spentNs
       )
       case (a: MergeProfilingCounts, b: MergeProfilingCounts) => MergeProfilingCounts(
-        partCount = a.partCount + b.partCount, spentNs = a.spentNs + b.spentNs
+        maxNs = Math.max(a.maxNs, b.maxNs), spentNs = a.spentNs + b.spentNs
       )
-    }).toSeq.sortBy(_._2.spentNs).takeRight(64).foreach { case (exprPos, profilingCounts) =>
+    }).toSeq.sortBy(_._2.maxNs).takeRight(64).foreach { case (exprPos, profilingCounts) =>
       val countsStr = profilingCounts match {
         case a: ProfilingCounts =>
-          s"${nsToMilli(a.spentNs)}ms, ${a.partCount} parts, ${a.callCount} calls, ${a.resultCount} results"
+          s"max ${nsToMilli(a.maxNs)} ms, sum ${nsToMilli(a.spentNs)} ms, ${a.callCount} calls, ${a.resultCount} results"
         case a: MergeProfilingCounts =>
-          s"${nsToMilli(a.spentNs)}ms, ${a.partCount} parts"
+          s"max ${nsToMilli(a.maxNs)} ms, sum ${nsToMilli(a.spentNs)} ms"
       }
       profiling.warn(s"$countsStr -- ${explainTask(exprPos)}")
     }
@@ -371,7 +371,7 @@ trait ParallelExecution {
   private def addSpent(context: MutableSchedulingContext, spentNs: ImmArr[TaskPos,java.lang.Long]): ImmArr[TaskPos,java.lang.Long] = {
     val spentNsM = spentNs.toMutable(None)
     context.profilingCountsList.forEach { case (exprPos, profilingCounts) =>
-      spentNsM(exprPos) = spentNsM(exprPos) + profilingCounts.spentNs
+      spentNsM(exprPos) = spentNsM(exprPos) + profilingCounts.maxNs // .spentNs if we care of cpu
     }
     spentNsM.toImmutable
   }
@@ -441,7 +441,7 @@ trait ParallelExecution {
       (ns,exprPos) <- (for{
         exprPos <- conf.tasks.indices.asInstanceOf[IndexedSeq[TaskPos]]
         ns = modelImpl.spentNs(exprPos)
-      } yield (ns,exprPos)).sorted
+      } yield (ns,exprPos)).sorted.takeRight(128)
       ms = nsToMilli(ns) if ms > 0L
     } profiling.warn(s"aggr $ms ms ${explainTask(exprPos)}")
   }

@@ -1,6 +1,6 @@
 package ee.cone.c4assemble
 
-trait SumHandler[S] {
+trait LongGetter[S] {
   def get(src: S): Long
 }
 
@@ -18,5 +18,6 @@ trait SpreadHandler[N] {
 trait ArrayUtil {
   def spread[N](src: Array[N], itemCount: Int, partCount: Int, handler: SpreadHandler[N]): Array[Array[N]]
   def flatten[S,F,T](srcs: Array[S], handler: FlattenHandler[S,F,T]): Array[T]
-  def sum[S](src: Array[S], handler: SumHandler[S]): Long
+  def sum[S](src: Array[S], handler: LongGetter[S]): Long
+  def max[S](src: Array[S], handler: LongGetter[S], start: Long): Long
 }

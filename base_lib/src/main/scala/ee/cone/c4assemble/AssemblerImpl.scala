@@ -198,22 +198,22 @@ case class JoinKeyImpl(
     def create(size: Int): Array[(Int, Array[RIndexPair])] = new Array(size)
   }
 
-  private object PartCountSumHandler extends SumHandler[AggrDOut] {
-    def get(src: AggrDOut): Long = src.asInstanceOf[AggrDOutImpl].partCount
+  private object MaxNsHandler extends LongGetter[AggrDOut] {
+    def get(src: AggrDOut): Long = src.asInstanceOf[AggrDOutImpl].maxNs
   }
-  private object CallCountSumHandler extends SumHandler[AggrDOut] {
+  private object CallCountSumHandler extends LongGetter[AggrDOut] {
     def get(src: AggrDOut): Long = src.asInstanceOf[AggrDOutImpl].callCount
   }
-  private object SpentNsSumHandler extends SumHandler[AggrDOut] {
+  private object SpentNsSumHandler extends LongGetter[AggrDOut] {
     def get(src: AggrDOut): Long = src.asInstanceOf[AggrDOutImpl].spentNs
   }
 
   def aggregate(seq: Array[AggrDOut]): AggrDOut = if(seq.length == 1) seq(0) else {
     val resultsByOut = arrayUtil.flatten(seq, AggrFlattenHandler)
-    val partCount = arrayUtil.sum(seq, PartCountSumHandler)
+    val maxNs = arrayUtil.max(seq, MaxNsHandler, 0L)
     val callCount = arrayUtil.sum(seq, CallCountSumHandler)
     val spentNs = arrayUtil.sum(seq, SpentNsSumHandler)
-    new AggrDOutImpl(resultsByOut, partCount, callCount, spentNs)
+    new AggrDOutImpl(resultsByOut, maxNs, callCount, spentNs)
     // 0 1 _   25 1001 8775   1919 993 6889
   }
   def aggregate(buffer: MutableDOutBuffer): AggrDOut =
@@ -223,12 +223,12 @@ case class JoinKeyImpl(
   def buildIndex(prev: Array[Index], src: Array[Array[RIndexPair]]): IndexingTask =
     rIndexUtil.buildIndex(prev, src, rIndexValueOperations)
 
-  private object CountResultsSumHandler extends SumHandler[(Int,Array[RIndexPair])] {
+  private object CountResultsSumHandler extends LongGetter[(Int,Array[RIndexPair])] {
     def get(src: (Int,Array[RIndexPair])): Long = src match { case (_, v) => v.length }
   }
   def countResults(data: AggrDOut): ProfilingCounts = data match {
     case d: AggrDOutImpl =>
-      ProfilingCounts(arrayUtil.sum(d.resultsByOut, CountResultsSumHandler), d.partCount, d.callCount, d.spentNs)
+      ProfilingCounts(arrayUtil.sum(d.resultsByOut, CountResultsSumHandler), d.maxNs, d.callCount, d.spentNs)
   }
 
   def createOutFactory(pos: Int, dir: Int): OutFactory[Any, Product] =
@@ -250,7 +250,7 @@ final class UnchangedMultiForPart(getItems: ()=>Array[Product]) extends MultiFor
   lazy val items: Array[Product] = getItems()
 }
 
-final class AggrDOutImpl(val resultsByOut: Array[(Int,Array[RIndexPair])], val partCount: Long, val callCount: Long, val spentNs: Long) extends AggrDOut
+final class AggrDOutImpl(val resultsByOut: Array[(Int,Array[RIndexPair])], val maxNs: Long, val callCount: Long, val spentNs: Long) extends AggrDOut
 object DOutAggregationBuffer {
   private val emptyDOuts = Array.empty[RIndexPair]
   private val emptyDOutsByOut = Array.empty[(Int,Array[RIndexPair])]
@@ -292,7 +292,8 @@ final class DOutAggregationBuffer(arrayUtil: ArrayUtil, startedAt: Long = System
       else if(maxCreatorPos == 0) Array((0, java.util.Arrays.copyOf(values, end)))
       else arrayUtil.spread(values, end, maxCreatorPos + 1, spreadHandler)
         .zipWithIndex.collect { case (r, i) if r.length > 0 => (i, r) }
-    new AggrDOutImpl(res, 1, callCounter, System.nanoTime-startedAt)
+    val spentNs = System.nanoTime-startedAt
+    new AggrDOutImpl(res, spentNs, callCounter, spentNs)
   }
 }
 

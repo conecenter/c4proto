@@ -387,6 +387,7 @@ final class RIndexUtilImpl(
   }
   def merge(task: IndexingTask, parts: Array[IndexingResult]): (Seq[RIndex], MergeProfilingCounts) = {
     var spentNs = 0L
+    var maxNs = 0L
     val taskImpl = task match {
       case t: IndexingTaskImpl => t
     }
@@ -399,9 +400,11 @@ final class RIndexUtilImpl(
         case s: NoIndexingResult =>
           assert(s.subTask == taskImpl.subTasks(i))
           spentNs += s.spentNs
+          maxNs = math.max(maxNs, s.spentNs)
         case s: IndexingResultImpl =>
           assert(s.subTask == taskImpl.subTasks(i))
           spentNs += s.spentNs
+          maxNs = math.max(maxNs, s.spentNs)
           partSeq(partsEnd) = s
           partsEnd += 1
       }
@@ -434,7 +437,7 @@ final class RIndexUtilImpl(
       }
       res
     }
-    (res, MergeProfilingCounts(parts.length, spentNs))
+    (res, MergeProfilingCounts(maxNs, spentNs))
   }
 
   private def getNonEmptyParts(index: RIndex) = index match {
@@ -546,7 +549,7 @@ final class RIndexUtilImpl(
     case aI: RIndexImpl => aI.data.iterator.flatMap(_.keys)
   }
 
-  private object KeyCountSumHandler extends SumHandler[RIndexBucket] {
+  private object KeyCountSumHandler extends LongGetter[RIndexBucket] {
     def get(src: RIndexBucket): Long = src.keys.length
   }
 
@@ -557,7 +560,7 @@ final class RIndexUtilImpl(
       aI.keyCountCache
   }
 
-  private object ValueCountSumHandler extends SumHandler[RIndexBucket] {
+  private object ValueCountSumHandler extends LongGetter[RIndexBucket] {
     def get(src: RIndexBucket): Long = src.values.length
   }
 

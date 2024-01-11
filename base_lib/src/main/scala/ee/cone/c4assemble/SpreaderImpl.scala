@@ -51,7 +51,7 @@ import ee.cone.c4di.c4
     res
   }
 
-  def sum[S](src: Array[S], handler: SumHandler[S]): Long = {
+  def sum[S](src: Array[S], handler: LongGetter[S]): Long = {
     var res = 0L
     var i = 0
     while (i < src.length) {
@@ -60,4 +60,15 @@ import ee.cone.c4di.c4
     }
     res
   }
+
+  def max[S](src: Array[S], handler: LongGetter[S], start: Long): Long = {
+    var res = start
+    var i = 0
+    while (i < src.length) {
+      res = Math.max(res, handler.get(src(i)))
+      i += 1
+    }
+    res
+  }
+
 }
