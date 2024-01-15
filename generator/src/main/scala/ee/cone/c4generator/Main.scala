@@ -393,6 +393,19 @@ object Util {
 
   def pkgNameToId(pkgName: String): String =
     """[\._]+([a-z])""".r.replaceAllIn(pkgName,m=>m.group(1).toUpperCase)
+
+  def importFriends(parseContext: ParseContext, friends: Seq[(String,String)]): Seq[String] = {
+    val friendMap: Map[String,Seq[String]] = friends.groupMap(_._1)(_._2)
+    parseContext.stats.flatMap{
+      case q"import ..$importers" =>
+        for{
+          importer"$eref.{..$importeesnel}" <- importers
+          e <- importeesnel
+          friend <- friendMap.getOrElse(s"$e",Nil)
+        } yield s"import $eref.$friend"
+      case _ => Nil
+    }
+  }
 }
 
 class ParsedClass(

@@ -8,7 +8,7 @@ import java.util.UUID
 import FromExternalDBProtocol.B_DBOffset
 import ToExternalDBProtocol.B_HasState
 import ToExternalDBTypes.{NeedSrcId, PseudoOrigNeedSrcId}
-import com.squareup.wire.ProtoAdapter
+import ee.cone.c4proto.ProtoAdapter
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{N_Update, S_Firstborn}
 import ee.cone.c4actor.Types.SrcId
@@ -367,6 +367,7 @@ object Hex { def apply(i: Long): String = "0x%04x".format(i) }
   }
   def shortName(cl: Class[_]): String = cl.getName.split("\\.").last
 
+  import com.squareup.wire.ProtoAdapter
   def toUniversalProp(tag: Int, typeName: String, value: String): UniversalProp = typeName match {
     case "String" =>
       prop[String](tag,value,ProtoAdapter.STRING)

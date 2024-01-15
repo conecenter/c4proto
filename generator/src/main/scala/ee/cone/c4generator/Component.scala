@@ -7,6 +7,7 @@ import scala.meta._
 sealed abstract class AbstractGeneratedComponent extends Product
 case class GeneratedComponentAppLink(app: String, link: String) extends AbstractGeneratedComponent
 case class GeneratedComponent(typeStr: String, link: String, fixIn: Option[(String,String)], content: String) extends AbstractGeneratedComponent
+case class GeneratedComponentImport(content: String) extends AbstractGeneratedComponent
 
 object ComponentsGenerator extends Generator {
   def toContent(typeStr: String, name: String, out: String, nonFinalOut: Option[String], in: List[String], caseSeq: List[String], body: String): GeneratedComponent =
@@ -35,7 +36,7 @@ object ComponentsGenerator extends Generator {
       case Seq(r) => Option(r)
     }
   }
-  def getComponent(cl: ParsedClass, parseContext: ParseContext): List[GeneratedComponent] = {
+  def getComponent(cl: ParsedClass, parseContext: ParseContext, app: String): List[AbstractGeneratedComponent] = {
     Util.assertFinal(cl)
     val tp = cl.name
     val list = for{
@@ -65,11 +66,13 @@ object ComponentsGenerator extends Generator {
         val clArgs = a.flatten.collect{ case q"classOf[$a]" => a }
         if(clArgs.nonEmpty) Type.Apply(t,clArgs) else t
       case init"$t(...$_)" => t
-    }.flatMap{
-      case t@Type.Apply(Type.Name(n),_) => List(t,Type.Name(s"General$n"))
-      case t: Type.Name => List(t)
     }
-    val extOuts: List[GeneratedComponent] = abstractTypes.zipWithIndex.map{ case (t,i) =>
+    val generalTypePairs: Seq[(String,String)] = abstractTypes.flatMap{
+      case t@Type.Apply(Type.Name(n),_) => List((s"$n",s"General$n"))
+      case t: Type.Name => Nil
+    }
+    val generalTypes = generalTypePairs.map{ case (_,n) => Type.Name(n) }
+    val extOuts: List[GeneratedComponent] = (abstractTypes++generalTypes).zipWithIndex.map{ case (t,i) =>
       outToContent(s"${tp}_E$i",t,a=>s"Seq($a)",None)
     }
     val defOuts: List[GeneratedComponent] = cl.stats.flatMap{
@@ -95,7 +98,9 @@ object ComponentsGenerator extends Generator {
     val outs: List[GeneratedComponent] = extOuts ::: defOuts
     val fixIn = outs.flatMap(_.fixIn).toMap
     val inSeq = depSeq.map(k=>fixIn.getOrElse(k,k))
-    toContent("",tp,mainOut,None,inSeq,caseSeq,concrete) :: outs
+    val components =  toContent("",tp,mainOut,None,inSeq,caseSeq,concrete) :: outs
+    Util.importFriends(parseContext, generalTypePairs).toList.map(GeneratedComponentImport) ++
+      components.map(c => GeneratedComponentAppLink(app,c.link)) ++ components
   }
   def get(parseContext: ParseContext): List[Generated] = {
     val components: List[AbstractGeneratedComponent] = for {
@@ -104,8 +109,7 @@ object ComponentsGenerator extends Generator {
         case mod"@c4(...$exprss) " => (exprss, cl)
       })
       app = if(exprss.isEmpty) s"DefApp" else annArgToStr(exprss).get
-      c <- getComponent(cl, parseContext)
-      res <- new GeneratedComponentAppLink(app,c.link) :: c :: Nil
+      res <- getComponent(cl, parseContext, app)
     } yield res
     if(components.isEmpty) Nil else wrapComponents(parseContext,components)
   }
@@ -123,6 +127,7 @@ object ComponentsGenerator extends Generator {
     }
     GeneratedCode(
       s"\nobject $componentsId {" +
+        components.collect{ case c: GeneratedComponentImport => s"\n  ${c.content}" }.mkString +
         "\n  import ee.cone.c4di._" +
         "\n  import scala.collection.immutable.Seq" +
         components.collect{ case c: GeneratedComponent => c.content }.mkString
