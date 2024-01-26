@@ -36,7 +36,8 @@ object TxGroup {
 @c4("TopicToS3App") final class TopicToS3(
   execution: Execution, snapshotUtil: SnapshotUtil,
   s3: S3Manager, s3L: S3Lister, currentTxLogName: CurrentTxLogName, consuming: Consuming,
-  consumerBeginningOffset: ConsumerBeginningOffset, adapter: ProtoAdapter[N_TxGroup]
+  adapter: ProtoAdapter[N_TxGroup],
+  // consumerBeginningOffset: ConsumerBeginningOffset -- does not work, LOBroker fails later
 ) extends LazyLogging {
   import TxGroup._
   private def getSaved: List[(String,String)] =
@@ -60,7 +61,7 @@ object TxGroup {
   private object Saver extends Executable {
     def run(): Unit = {
       val nextOffsets = getSaved.map { case (nm, _) => nm.split(splitter)(1) } // java.lang.Long.parseLong(???,16)
-      val offset = if (nextOffsets.isEmpty) consumerBeginningOffset.get() else nextOffsets.max //OffsetHex(???)
+      val offset = if (nextOffsets.isEmpty) consuming.process("0" * OffsetHexSize(), _.endOffset) else nextOffsets.max //OffsetHex(???)
       // ? what will happen if old txg exists, but old inbox records are purged ?
       consuming.process(offset, consumer => iteration(consumer, Queue.empty, 0, System.nanoTime))
     }
