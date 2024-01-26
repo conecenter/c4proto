@@ -28,6 +28,8 @@ object SnapshotUtilImpl extends SnapshotUtil {
     }
   }
   def hashFromData: Array[Byte]=>String = C4UUID.nameUUIDFromBytes(_).toString
+  def getName(subDirStr: String, offset: NextOffset, data: Array[Byte], headers: List[RawHeader]): String =
+    s"$subDirStr/$offset-${hashFromData(data)}${headers.map(h => s"-${h.key}-${h.value}").mkString}"
 }
 
 @c4("SnapshotUtilImplApp") final class SnapshotUtilProvider {
@@ -40,7 +42,7 @@ import SnapshotUtilImpl._
 //case class Snapshot(offset: NextOffset, uuid: String, raw: RawSnapshot)
 @c4multi("SnapshotUtilImplApp") final class SnapshotSaverImpl(subDirStr: String)(inner: RawSnapshotSaver) extends SnapshotSaver {
   def save(offset: NextOffset, data: Array[Byte], headers: List[RawHeader]): RawSnapshot = {
-    val snapshot = RawSnapshot(s"$subDirStr/$offset-${hashFromData(data)}${headers.map(h => s"-${h.key}-${h.value}").mkString}")
+    val snapshot = RawSnapshot(getName(subDirStr, offset, data, headers))
     assert(hashFromName(snapshot).nonEmpty, s"Not a valid name ${snapshot.relativePath}")
     inner.save(snapshot, data)
     snapshot

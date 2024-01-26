@@ -25,6 +25,7 @@ trait SnapshotSaverFactory {
 }
 trait SnapshotUtil {
   def hashFromName: RawSnapshot=>Option[SnapshotInfo]
+  def getName(subDirStr: String, offset: NextOffset, data: Array[Byte], headers: List[RawHeader]): String
 }
 case class SnapshotInfo(subDirStr: String, offset: NextOffset, uuid: String, headers: List[RawHeader], raw: RawSnapshot)
 trait SnapshotLoader {
