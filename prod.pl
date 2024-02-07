@@ -313,6 +313,7 @@ my $up_gate = sub{
     };
 };
 my $up_elector = sub{
+    my($run_comp)=@_;
     my $conf = &$get_compose($run_comp);
     +{
         image_type => "elector", project => "def",
