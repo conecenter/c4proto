@@ -313,11 +313,12 @@ my $up_gate = sub{
     };
 };
 my $up_elector = sub{
+    my $conf = &$get_compose($run_comp);
     +{
         image_type => "elector", project => "def",
         tty => "true", headless => 1, replicas => 3,
         C4HTTP_PORT => $elector_port, "port:$elector_port:$elector_port"=>"",
-        @req_small, @lim_small,
+        @req_small, @lim_small, %$conf
     };
 };
 my $conf_handler = {
