@@ -65,14 +65,24 @@ my $make_kc_yml = sub{
         }
     );
     #
-    my %affinity = !$$opt{noderole} ? () : (affinity=>{ nodeAffinity=>{
+    my %node_affinity = !$$opt{noderole} ? () : (nodeAffinity=>{
         preferredDuringSchedulingIgnoredDuringExecution=> [{
             weight=> 1,
             preference=> { matchExpressions=> [
                 { key=> "noderole", operator=> "In", values=> [$$opt{noderole}] }
             ]},
         }]
-    }});
+    });
+    my %pod_anti_affinity = !$$opt{headless} ? () : (podAntiAffinity=>{
+        requiredDuringSchedulingIgnoredDuringExecution => [{
+            labelSelector => { matchExpressions => [
+                { key=> "app", operator=> "In", values=> [$name] }
+            ]},
+            topologyKey => "kubernetes.io/hostname",
+        }]
+    });
+    my %inner_affinity = (%node_affinity, %pod_anti_affinity);
+    my %affinity = %inner_affinity ? (affinity=>\%inner_affinity) : ();
     my $tolerate = &$merge_list({},&$map($opt,sub{ my($k,$v)=@_;
         $k=~/^tolerate:(.+)/ && $v ? { tolerations =>[{ key => $1, operator => "Exists", effect => "NoSchedule" }]} : ()
     }));
