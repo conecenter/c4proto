@@ -86,13 +86,27 @@ object TxGroup {
   tmpRes: Promise[Path] = Promise(),
 ) extends Executable with Early with FileConsumerDir with LazyLogging {
   import TxGroup._
-  private def runGetBytes(cmd: Seq[String]): Array[Byte] =
-    new ProcessBuilder(cmd: _*).start().getInputStream.readAllBytes()
+  private def runGetBytes(cmd: Seq[String]): Array[Byte] = {
+    logger.info(s"running $cmd")
+    val proc =  new ProcessBuilder(cmd: _*).start()
+    //val res =
+    proc.getInputStream.readAllBytes()
+    //logger.info(s"exit code: ${proc.waitFor()} ; result bytes: ${res.length}")
+    //res
+  }
+
   private def runGetLines(cmd: Seq[String]): Array[String] = new String(runGetBytes(cmd), UTF_8).split("\n")
   private def toBytes(lines: Iterable[String]): Array[Byte] = lines.mkString("\n").getBytes(UTF_8)
   private def write(path: Path, data: Array[Byte]): Unit = {
     Files.createDirectories(path.getParent)
     Files.write(path, data)
+  }
+  @tailrec private def retry[T](f: ()=>Option[T]): T = f() match {
+    case Some(r) => r
+    case None =>
+      Thread.sleep(1000)
+      logger.warn(s"retry")
+      retry(f)
   }
   private def extract(): Path = {
     val kubeContext: String = config.get("C4REPLAY_KUBE_CONTEXT")
@@ -114,11 +128,17 @@ object TxGroup {
       //
       val snapshotN = snapshot.split(splitter).head
       val txQ = new java.util.ArrayList[String]
-      val groups =  runGetLines(mc ++ Seq("ls",s"def/$topicPrefix.$bucketPostfix")).toList.map(_.split(" ").last).sorted
-      for(group <- groups){
+      val groups =  runGetLines(mc ++ Seq("ls","--json",s"def/$topicPrefix.$bucketPostfix")).toList.map{ line =>
+        val obj = ujson.read(line)
+        (obj("key").str, obj("size").num.toInt)
+      }.sorted
+      for((group,size) <- groups){
         val Array(fromN,toN) = group.split(splitter)
         if(snapshotN < toN && fromN < replayUntil) {
-          for(tx <- adapter.decode(runGetBytes(mc ++ Seq("cat",s"def/$topicPrefix.$bucketPostfix/$group"))).txs) {
+          val bytes =  retry(()=>Option(runGetBytes(
+            mc ++ Seq("cat",s"def/$topicPrefix.$bucketPostfix/$group")
+          )).filter(_.length==size))
+          for(tx <- adapter.decode(bytes).txs) {
             write(tmp.resolve(tx.resource), tx.data.toByteArray)
             val offset = snapshotUtil.hashFromName(RawSnapshot(tx.resource)).get.offset
             if(snapshotN < offset && offset < replayUntil) txQ.add(tx.resource)
