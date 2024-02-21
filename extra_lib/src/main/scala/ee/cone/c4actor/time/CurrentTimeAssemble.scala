@@ -28,7 +28,7 @@ trait CurrTimeConfig extends WithCurrentTime with LazyLogging {
       val now = System.currentTimeMillis() + globalOffset
       val model: Option[T_Time] = timeGetter.ofA(local).get(currentTime.srcId)
       model match {
-        case Some(time) if time.millis + refreshTolerance < now =>
+        case Some(time) if Math.abs(now - time.millis) > refreshTolerance =>
           logger.debug(s"Updating ${currentTime.srcId} with ${offset}")
           LEvent.update(set(now)(time))
         case None =>
