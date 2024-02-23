@@ -172,6 +172,8 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     val util = Single(utilOpt.value)
     util.toTreeReplace(wasAssembled, updates, executionContext)
   }
+  private def rangeStr(ids: Seq[String]) =
+    ids match { case Seq() => "-" case Seq(id) => id case e => s"${e.head}-${e.last}" }
   private def offset(events: Seq[RawEvent]): List[N_Update] = for{
     ev <- events.lastOption.toList
     lEvent <- LEvent.update(S_Offset(actorName.value,ev.srcId))
@@ -181,7 +183,13 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     val updates: List[N_Update] = offset(events) ::: toUpdate.toUpdates(events.toList,"rma").map(toUpdate.toUpdateLost)
     logger.debug("done toUpdate")
     (new AssemblerProfiling).debugOffsets("starts-reducing", events.map(_.srcId))
-    reduce(assembled, updates, executionContext)
+    val timer = NanoTimer()
+    val res = reduce(assembled, updates, executionContext)
+    timer.ms match {
+      case ms if ms > 1000 => logger.warn(s"long_join $ms of ${rangeStr(events.map(_.srcId))}")
+      case _ => ()
+    }
+    res
   }("reduce"){ e => // ??? exception to record
     if(events.size == 1){
       val updates = offset(events) ++
