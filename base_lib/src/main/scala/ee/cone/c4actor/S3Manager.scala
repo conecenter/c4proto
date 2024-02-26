@@ -59,7 +59,8 @@ import scala.jdk.FutureConverters._
   def send(txLogName: TxLogName, resource: String, method: String, contentType: String, builder: HttpRequest.Builder)(implicit ec: ExecutionContext): Future[Option[Array[Byte]]] = {
     val resourceWithPrefix = s"/${txLogName.value}.$resource"
     val date = getDateStr
-    sendInner(resourceWithPrefix, date, sign(s"$method\n\n$contentType\n$date\n$resourceWithPrefix"), builder)
+    val resourceWOSearch = resourceWithPrefix.takeWhile(_!='?')
+    sendInner(resourceWithPrefix, date, sign(s"$method\n\n$contentType\n$date\n$resourceWOSearch"), builder)
   }
 
   def putInner(txLogName: TxLogName, resource: String, body: Array[Byte]): Boolean = {

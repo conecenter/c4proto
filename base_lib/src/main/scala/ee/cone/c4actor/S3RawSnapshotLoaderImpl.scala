@@ -18,8 +18,7 @@ import okio.ByteString
   }
   private def infix = "snapshots"
   def listInner(): List[(RawSnapshot,String)] = for {
-    xmlBytes <- getSync(infix).toList
-    (name,timeStr) <- s3Lister.parseItems(xmlBytes)
+    (name,timeStr) <- execution.aWait{ implicit ec => s3Lister.list(currentTxLogName, infix) }.toList.flatten
   } yield (RawSnapshot(s"$infix/${name}"), timeStr)
   def list: List[SnapshotInfo] = (for{
     (rawSnapshot,_) <- listInner()

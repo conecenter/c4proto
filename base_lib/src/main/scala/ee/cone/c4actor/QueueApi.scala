@@ -361,7 +361,7 @@ trait S3Manager {
 }
 
 trait S3Lister {
-  def parseItems(data: Array[Byte]): List[(String,String)]
+  def list(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Option[List[(String,String)]]]
   def parseTime(s: String): Long
 }
 

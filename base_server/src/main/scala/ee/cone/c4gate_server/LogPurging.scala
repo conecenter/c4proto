@@ -42,11 +42,10 @@ import scala.concurrent.Future
   def delete(txLogName: TxLogName, beforeMillis: Long): Unit = execution.fatal{ implicit ec =>
     logger.debug(s"delete before ms: $beforeMillis")
     for{
-      dataOpt <- s3.get(txLogName,loBroker.bucketPostfix)
+      dataOpt <- s3L.list(txLogName,loBroker.bucketPostfix)
       deleted <- Future.sequence(
         for {
-          data <- dataOpt.toList
-          (name,tStr) <- s3L.parseItems(data) if s3L.parseTime(tStr) < beforeMillis
+          (name,tStr) <- dataOpt.toList.flatten if s3L.parseTime(tStr) < beforeMillis
         } yield s3.delete(txLogName,s"${loBroker.bucketPostfix}/$name")
       )
     } yield deleted

@@ -41,7 +41,7 @@ object TxGroup {
 ) extends LazyLogging {
   import TxGroup._
   private def getSaved: List[(String,String)] =
-    execution.aWait(s3.get(currentTxLogName, bucketPostfix)(_)).toList.flatMap(s3L.parseItems)
+    execution.aWait(s3L.list(currentTxLogName, bucketPostfix)(_)).toList.flatten
   private def targetGroupVolume: Long = 1_000_000_000L //1_000_000L
   @tailrec private def iteration(consumer: Consumer, wasTaken: Queue[RawEvent], wasSize: Long, time: Long): Unit = {
     val events = consumer.poll()
@@ -71,6 +71,7 @@ object TxGroup {
     val items = getSaved.map{ case (nm,tmStr) => (nm, s3L.parseTime(tmStr)) }
     val maxTm = items.map{ case (_,tm) => tm }.maxOption
     val toDel = items.collect{ case (nm,tm) if maxTm.get-tm > keepPeriod => s"$bucketPostfix/$nm" }
+    logger.info(s"purger: items ${items.size}, maxTm $maxTm, toDel ${toDel.size}")
     execution.fatal(implicit ec => Future.sequence(toDel.map(s3.delete(currentTxLogName, _))))
     Thread.sleep(1000 * 60)
     purgeIteration()
