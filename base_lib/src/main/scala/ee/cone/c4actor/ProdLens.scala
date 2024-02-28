@@ -58,7 +58,9 @@ case class FieldNameAttr(fieldName: String) extends AbstractMetaAttr
 
 case class ClassesAttr(modelClName: String, fieldClName: String) extends AbstractMetaAttr
 
-case class TypeKeyAttr(from: TypeKey, to: TypeKey) extends AbstractMetaAttr
+case class TypeKeyAttr(from: TypeKey, to: TypeKey) extends
+
+case object SrcIdFieldAttr extends AbstractMetaAttr
 
 trait GetterWithMetaList[C, +I] extends Getter[C, I] with Product {
   def metaList: List[AbstractMetaAttr]
