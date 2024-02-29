@@ -58,7 +58,7 @@ case class FieldNameAttr(fieldName: String) extends AbstractMetaAttr
 
 case class ClassesAttr(modelClName: String, fieldClName: String) extends AbstractMetaAttr
 
-case class TypeKeyAttr(from: TypeKey, to: TypeKey) extends
+case class TypeKeyAttr(from: TypeKey, to: TypeKey) extends AbstractMetaAttr
 
 case object SrcIdFieldAttr extends AbstractMetaAttr
 
