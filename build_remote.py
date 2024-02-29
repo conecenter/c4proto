@@ -278,8 +278,8 @@ def build_type_elector(context, out):
     ])
 
 
-def build_type_resource_tracker(context, out):
-    build_micro(context, out, ["resources.py"], [
+def py_kc_base_lines(args):
+    return (
         "FROM ubuntu:22.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
         "RUN perl install.pl useradd 1979",
@@ -289,8 +289,16 @@ def build_type_resource_tracker(context, out):
         " && chmod +x /tools/tini",
         "USER c4",
         'ENV PATH=${PATH}:/tools',
-        'ENTRYPOINT ["/tools/tini","--","python3","/resources.py","tracker"]',
-    ])
+        'ENTRYPOINT '+json.dumps(["/tools/tini", "--", "python3", *args])
+    )
+
+
+def build_type_resource_tracker(context, out):
+    build_micro(context, out, ["resources.py"], py_kc_base_lines(("/resources.py", "tracker")))
+
+
+def build_type_kube_reporter(context, out):
+    build_micro(context, out, ["kube_reporter.py"], py_kc_base_lines(("/kube_reporter.py",)))
 
 
 def build_type_s3client(context, out):
@@ -361,6 +369,7 @@ def main():
         "build_type-de": lambda proj_tag: (lambda *args: build_type_de(proj_tag, *args)),
         "build_type-elector": lambda proj_tag: build_type_elector,
         "build_type-resource_tracker": lambda proj_tag: build_type_resource_tracker,
+        "build_type-kube_reporter": lambda proj_tag: build_type_kube_reporter,
         "build_type-s3client": lambda proj_tag: build_type_s3client,
     }
     opt = setup_parser((
