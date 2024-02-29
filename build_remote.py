@@ -278,8 +278,8 @@ def build_type_elector(context, out):
     ])
 
 
-def py_kc_base_lines(args):
-    return (
+def build_type_resource_tracker(context, out):
+    build_micro(context, out, ["resources.py"], [
         "FROM ubuntu:22.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
         "RUN perl install.pl useradd 1979",
@@ -289,16 +289,23 @@ def py_kc_base_lines(args):
         " && chmod +x /tools/tini",
         "USER c4",
         'ENV PATH=${PATH}:/tools',
-        'ENTRYPOINT '+json.dumps(["/tools/tini", "--", "python3", *args])
-    )
-
-
-def build_type_resource_tracker(context, out):
-    build_micro(context, out, ["resources.py"], py_kc_base_lines(("/resources.py", "tracker")))
+        'ENTRYPOINT ["/tools/tini","--","python3","/resources.py","tracker"]',
+    ])
 
 
 def build_type_kube_reporter(context, out):
-    build_micro(context, out, ["kube_reporter.py"], py_kc_base_lines(("/kube_reporter.py",)))
+    build_micro(context, out, ["kube_reporter.py"], [
+        "FROM ubuntu:22.04",
+        "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
+        "RUN perl install.pl useradd 1979",
+        "RUN perl install.pl apt curl ca-certificates python3 git",
+        "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl && chmod +x /tools/kubectl",
+        "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
+        " && chmod +x /tools/tini",
+        "USER c4",
+        'ENV PATH=${PATH}:/tools',
+        'ENTRYPOINT ["/tools/tini","--","python3","/kube_reporter.py"]',
+    ])
 
 
 def build_type_s3client(context, out):
