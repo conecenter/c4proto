@@ -88,7 +88,7 @@ def serve():
             run(("git", "commit", "-m", "get pods"), cwd=context)
             run(("git", "push", "--set-upstream", "origin", branch), cwd=context)
         else:
-            print("unchanged")
+            print("unchanged", file=sys.stderr)
         time.sleep(30)
 
 
