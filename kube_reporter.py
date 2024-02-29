@@ -84,7 +84,7 @@ def serve():
                 pathlib.Path(out_path).write_text(content, encoding='utf-8', errors='strict')
         run(("git", "add", "."), cwd=context)
         if run_no_die(("git", "commit", "-m", "get pods"), cwd=context):
-            run(("git", "pull", branch), cwd=context)
+            run(("git", "pull"), cwd=context)
             run(("git", "push", "--set-upstream", "origin", branch), cwd=context)
         elif len(run(("git", "status", "--porcelain=v1"), cwd=context, text=True, capture_output=True).stdout.strip()) > 0:
             raise Exception("can not commit")
