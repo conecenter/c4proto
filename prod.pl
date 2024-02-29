@@ -242,28 +242,18 @@ my $spaced_list = sub{ map{ ref($_) ? @$_ : /(\S+)/g } @_ };
 
 ###
 
-my @lim_small = (lim_mem=>"100Mi",lim_cpu=>"250m"); # use rarely, on lim_mem child processes inside container can be killed, and parent get mad
-my @req_small = (req_mem=>"100Mi",req_cpu=>"250m");
 my @req_big = (req_mem=>"10Gi",req_cpu=>"1000m");
 
 my $inner_http_port = 8067;
 my $inner_sse_port = 8068;
-my $elector_port = 1080;
 
-my $up_client = sub{
-    my($run_comp)=@_;
-    my $conf = &$get_compose($run_comp);
-    +{
-        tty => "true", JAVA_TOOL_OPTIONS => "-XX:-UseContainerSupport",
-        @req_small, %$conf,
-    };
-};
 
 my $get_consumer_options = sub{
     my($comp)=@_;
     my $conf = &$get_compose($comp);
     my $prefix = $$conf{C4INBOX_TOPIC_PREFIX};
-    my ($bootstrap_servers,$elector) = &$get_deployer_conf($comp,1,qw[bootstrap_servers elector]);
+    my ($bootstrap_servers,$elector,$elector_port) =
+        &$get_deployer_conf($comp,1,qw[bootstrap_servers elector elector_port]);
     (
         tty                  => "true",
         JAVA_TOOL_OPTIONS    => "-XX:-UseContainerSupport ", # -XX:ActiveProcessorCount=36
@@ -312,20 +302,8 @@ my $up_gate = sub{
         &$map($conf, sub{ my($k,$v)=@_; $k=~/^label:/ ? ($k,$v):() }),
     };
 };
-my $up_elector = sub{
-    my($run_comp)=@_;
-    my $conf = &$get_compose($run_comp);
-    +{
-        image_type => "elector", project => "def",
-        tty => "true", headless => 1, replicas => 3,
-        C4HTTP_PORT => $elector_port, "port:$elector_port:$elector_port"=>"",
-        @req_small, @lim_small, %$conf
-    };
-};
-my $conf_handler = {
-    "consumer"=>$up_consumer, "gate"=>$up_gate, "client"=>$up_client,
-    "s3client"=>sub{&$get_compose(@_)}, "elector"=>$up_elector, "resource_tracker"=>sub{&$get_compose(@_)},
-};
+
+my $conf_handler = { "consumer"=>$up_consumer, "gate"=>$up_gate };
 
 ### snapshot op-s
 
@@ -439,7 +417,9 @@ push @tasks, ["ci_deploy_info", "", sub{
         my ($context, $image_pull_secrets) = &$get_deployer_conf($comp,1,qw[context image_pull_secrets]);
         my ($allow_src, $to_repo_prop) = &$get_deployer_conf($comp,0,qw[allow_source_repo sys_image_repo]);
         my $to_repo = $allow_src ? "" : $to_repo_prop;
-        my $options = &{$$conf_handler{&$get_compose($comp)->{type}} || die "no handler"}($comp);
+        my $conf = &$get_compose($comp);
+        my $tp = $$conf{type};
+        my $options = $tp ? &{$$conf_handler{$tp} || die "no handler"}($comp) : $conf;
         +{ context=>$context, to_repo=>$to_repo, image_pull_secrets=>$image_pull_secrets, %$options, name=>$comp }
     } map{ &$spaced_list(&$get_compose($_)->{parts}||[$_]) } &$mandatory_of("--env-state",\%opt)]));
 }];
