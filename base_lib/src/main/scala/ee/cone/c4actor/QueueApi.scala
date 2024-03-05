@@ -399,3 +399,7 @@ trait SnapshotPatchIgnoreRegistry {
 trait UpdateFromUtil {
   def get(local: Context, updates: Seq[N_Update]): Seq[N_UpdateFrom]
 }
+
+trait AssembleStatsAccumulator {
+  def report(): List[(String,Int,Long)]
+}

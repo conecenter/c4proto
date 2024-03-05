@@ -1,6 +1,6 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.Context
+import ee.cone.c4actor.{AssembleStatsAccumulator, Context}
 import ee.cone.c4assemble.{IndexUtil, JoinKey, ReadModelUtil}
 import ee.cone.c4assemble.Types.Index
 import ee.cone.c4di.c4
@@ -16,10 +16,14 @@ import ee.cone.c4di.c4
     }
 }
 
-@c4("DefaultMetricsApp") final class RuntimeMemoryMetricsFactory extends MetricsFactory {
+@c4("DefaultMetricsApp") final class DefMetricsFactory(
+  assembleStatsAccumulator: AssembleStatsAccumulator
+) extends MetricsFactory {
   def measure(local: Context): List[Metric] = {
     val runtime = Runtime.getRuntime
-    List(
+    assembleStatsAccumulator.report().map{
+      case (k,id,v) => Metric(k,MetricLabel("assemble_stage",id.toString)::Nil,v)
+    } ::: List(
       //sk: seems to be: max > total > free
       Metric("runtime_mem_max", runtime.maxMemory),
       Metric("runtime_mem_total", runtime.totalMemory),

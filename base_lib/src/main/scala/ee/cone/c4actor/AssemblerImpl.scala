@@ -10,7 +10,8 @@ import ee.cone.c4di.{c4, c4multi, provide}
 import ee.cone.c4proto.{HasId, ToByteString}
 import okio.ByteString
 
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.{AtomicBoolean, AtomicLong, AtomicReference}
+import scala.annotation.tailrec
 import scala.collection.immutable
 import scala.collection.immutable.{Map, Seq}
 import scala.concurrent.ExecutionContext.parasitic
@@ -157,10 +158,35 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   }
 }
 
+@c4("RichDataCompApp") final class AssembleStatsAccumulatorImpl extends AssembleStatsAccumulator {
+  private val sumRefs = Seq(new AtomicLong(0L), new AtomicLong(0L))
+  private val maxRefs = Seq[AtomicReference[List[(Long,Long)]]](new AtomicReference(Nil), new AtomicReference(Nil))
+  def add(id: Int, value: Long): Unit = {
+    sumRefs(id).addAndGet(value)
+    addMax(id, value)
+  }
+  @tailrec private def addMax(id: Int, value: Long): Unit = {
+    val ref = maxRefs(id)
+    val was = ref.get()
+    val now = System.nanoTime
+    val will = (now, value) :: was.dropWhile{ case (_,v) => v <= value }
+    if (!ref.compareAndSet(was, will)) addMax(id, value)
+  }
+  @tailrec private def getMax(id: Int): Long = {
+    val ref = maxRefs(id)
+    val was = ref.get()
+    val now = System.nanoTime
+    val will = was.takeWhile{ case (t,_) => now - t < 300_000_000_000L }
+    if(!ref.compareAndSet(was, will)) getMax(id) else will.lastOption.fold(0L){ case (_,v) => v }
+  }
+  def report(): List[(String,Int,Long)] =
+    List(0,1).flatMap(id => List(("assemble_sum", id, sumRefs(id).get()), ("assemble_max", id, getMax(id))))
+}
+
 @c4("RichDataCompApp") final class ReadModelAddImpl(
   utilOpt: DeferredSeq[AssemblerUtil],
   toUpdate: ToUpdate,
-  assembleProfiler: AssembleProfiler,
+  assembleStatsAccumulator: AssembleStatsAccumulatorImpl,
   actorName: ActorName,
   catchNonFatal: CatchNonFatal,
 ) extends ReadModelAdd with LazyLogging {
@@ -185,10 +211,9 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     (new AssemblerProfiling).debugOffsets("starts-reducing", events.map(_.srcId))
     val timer = NanoTimer()
     val res = reduce(assembled, updates, executionContext)
-    timer.ms match {
-      case ms if ms > 1000 => logger.warn(s"long_join $ms of ${rangeStr(events.map(_.srcId))}")
-      case _ => ()
-    }
+    val ms = timer.ms
+    assembleStatsAccumulator.add(0, ms)
+    if(ms > 1000) logger.warn(s"long_join $ms of ${rangeStr(events.map(_.srcId))}")
     res
   }("reduce"){ e => // ??? exception to record
     if(events.size == 1){
@@ -225,7 +250,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   assembleProfiler: AssembleProfiler,
   updateProcessor: Option[UpdateProcessor],
   processors: List[UpdatesPreprocessor],
-  getAssembleOptions: GetAssembleOptions,
+  assembleStatsAccumulator: AssembleStatsAccumulatorImpl,
 ) extends RawTxAdd with Executable with Early with LazyLogging {
   def run(): Unit = {
     logger.info("assemble-preload start")
@@ -241,8 +266,10 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     val processedOut: List[N_Update] = processors.flatMap(_.process(out)) ++ out
     val externalOut = updateProcessor.fold(processedOut)(_.process(processedOut, WriteModelKey.of(local).size).toList)
     val profiling = assembleProfiler.createJoiningProfiling(Option(local))
+    val timer = NanoTimer()
     val util = Single(utilOpt.value)
     val result = util.toTreeReplace(local.assembled, externalOut, local.executionContext)
+    assembleStatsAccumulator.add(1, timer.ms)
     val updates = Await.result(assembleProfiler.addMeta(new WorldTransition(profiling, Future.successful(Nil)), externalOut), Duration.Inf)
     val nLocal = new Context(local.injected, result, local.executionContext, local.transient)
     WriteModelKey.modify(_.enqueueAll(updateFromUtil.get(local,updates)))(nLocal)
