@@ -764,10 +764,11 @@ push @tasks, ["resources_set","$composes_txt <cpu=n|memory=nGi>",sub{
     &$py_run("resources.py","set",$context,$comp,$res);
 }];
 
-push @tasks, ["topic_dir_get","--app <comp> --snapshot-name <name> --tx-count <n>",sub{
-    my %argh = @_;
-    my ($context) = &$get_deployer_conf(&$mandatory_of("--app"=>\%argh),1,qw[context]);
-    &$py_run("txs_loader.py","--kube-context",$context,%argh);
+push @tasks, ["metrics_purge"," ",sub{
+    my $now = time;
+    my $url = &$mandatory_of(C4PROMETHEUS_POST_URL=>\%ENV)=~m{^(.+/metrics)\b} ? $1 : die;
+    /^push_time_seconds\{instance="",job="([^\s"]+)"\} (\S+)\n/ && $now-$2 > 3600 and sy("curl -X DELETE $url/job/$1")
+        for syl("curl $url");
 }];
 
 ####
