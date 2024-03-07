@@ -70,6 +70,7 @@ trait PublicDirProvider {
 
 // we need it, because there's no good place to found there's new *.svg in src/
 case object InitialPublishDone extends TransientLens[Boolean](false)
+case object PublishFromStringsCache extends TransientLens[Option[List[ByPathHttpPublication]]](None)
 
 @c4("PublishingCompApp") final class Publishing(
   idGenUtil: IdGenUtil,
@@ -84,19 +85,24 @@ case object InitialPublishDone extends TransientLens[Boolean](false)
   mimeTypes: String=>Option[String] = mimeTypesProviders.flatMap(_.get).toMap.get,
   compressor: RawCompressor = publishFullCompressor.value
 ) extends LazyLogging {
+  private def sleepABit: Context=>Context = SleepUntilKey.set(Instant.ofEpochMilli(System.currentTimeMillis+1000))
   def checkPublishFromStrings(local: Context): Context = {
-    val strEvents = publisher.publish("FromStrings", for {
+    val timer = NanoTimer()
+    val prepared = PublishFromStringsCache.of(local).getOrElse(for {
       publishFromStringsProvider <- publishFromStringsProviders
       (path,body) <- publishFromStringsProvider.get
-    } yield prepare(path,body.getBytes(UTF_8)))(local)
-    txAdd.add(strEvents).andThen(SleepUntilKey.set(Instant.MAX))(local)
+    } yield prepare(path,body.getBytes(UTF_8)))
+    val strEvents = publisher.publish("FromStrings", prepared)(local)
+    val end = timer.ms
+    logger.debug(s"checkPublishFromStrings: ${prepared.size} prepared, ${strEvents.size} events, $end ms")
+    Function.chain(Seq(txAdd.add(strEvents), PublishFromStringsCache.set(Option(prepared)), sleepABit))(local) // we can not sleep forever due to snapshot put
   }
   def checkPublishFromFiles(local: Context): Context = {
     val timeToPublish =
       publicPaths.value.map(_.resolve("publish_time")).filter(Files.exists(_))
         .flatMap(path=>publisher.publish("FromFilesTime",List(prepare("/publish_time",Files.readAllBytes(path))))(local))
     if(timeToPublish.isEmpty && InitialPublishDone.of(local))
-      SleepUntilKey.set(Instant.ofEpochMilli(System.currentTimeMillis+1000))(local)
+      sleepABit(local)
     else {
       val filesToPublish = publisher.publish("FromFiles", for {
         publicDirProvider <- publicDirProviders
