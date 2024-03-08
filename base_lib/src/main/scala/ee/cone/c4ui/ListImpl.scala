@@ -13,6 +13,8 @@ import ee.cone.c4vdom._
     List(util.jsonValueAdapter((value,builder) => value.appendJson(builder)))
   @provide def forInt: Seq[JsonValueAdapter[Int]] =
     List(util.jsonValueAdapter((value, builder) => builder.just.append(value)))
+  @provide def forLong: Seq[JsonValueAdapter[Long]] =
+    List(util.jsonValueAdapter((value, builder) => builder.just.append(value)))
   @provide def forBoolean: Seq[JsonValueAdapter[Boolean]] =
     List(util.jsonValueAdapter((value,builder) => builder.just.append(value)))
   //
