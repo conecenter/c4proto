@@ -162,3 +162,9 @@ trait OfDiv
 
 @deprecated trait Tags
 @deprecated trait TagStyles
+
+////
+
+trait SeedFactory {
+  def create(key: VDomKey, value: Product): ViewRes
+}

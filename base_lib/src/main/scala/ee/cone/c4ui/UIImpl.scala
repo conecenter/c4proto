@@ -11,7 +11,7 @@ import ee.cone.c4assemble.{Assemble, assemble, by, c4assemble}
 import ee.cone.c4di.{c4, c4multi}
 import ee.cone.c4gate.{Metric, MetricLabel, MetricsFactory}
 import ee.cone.c4proto.{HasId, ProtoAdapter}
-import ee.cone.c4vdom.Types.ViewRes
+import ee.cone.c4vdom.Types.{VDomKey, ViewRes}
 import ee.cone.c4vdom._
 import ee.cone.c4vdom_impl.SeedVDomValue
 import okio.ByteString
@@ -81,17 +81,21 @@ case class VDomMessageImpl(message: BranchMessage) extends VDomMessage {
 }
 
 @c4("UICompApp") final class DefaultUntilPolicy(
-  viewRestPeriodProvider: ViewRestPeriodProvider,
-  branchOperations: BranchOperations,
-  childFactory: ChildPairFactory,
+  viewRestPeriodProvider: ViewRestPeriodProvider, seedFactory: SeedFactory
 ) extends UntilPolicy {
   def wrap(view: Context=>ViewRes): Context=>ViewRes = local => {
     val restPeriod = ViewRestPeriodKey.of(local).getOrElse(viewRestPeriodProvider.get(local))
     val res = view(ViewRestPeriodKey.set(Option(restPeriod))(local))
     val branchKey = CurrentBranchKey.of(local)
-    val seed = branchOperations.toSeed(N_RestPeriod(branchKey,restPeriod.valueMillis))
-    childFactory[OfDiv]("until",SimpleSeedElement(seed), Nil) :: res
+    seedFactory.create("until", N_RestPeriod(branchKey,restPeriod.valueMillis)) ::: res
   }
+}
+
+@c4("UICompApp") final class SeedFactoryImpl(
+  branchOperations: BranchOperations, childFactory: ChildPairFactory
+) extends SeedFactory {
+  def create(key: VDomKey, value: Product): ViewRes =
+    childFactory[OfDiv](key: VDomKey, SimpleSeedElement(branchOperations.toSeed(value)), Nil) :: Nil
 }
 
 case class SimpleSeedElement(seed: S_BranchResult) extends SeedVDomValue {
