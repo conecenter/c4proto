@@ -13,6 +13,12 @@ import ee.cone.c4vdom._
     List(util.jsonValueAdapter((value,builder) => value.appendJson(builder)))
   @provide def forInt: Seq[JsonValueAdapter[Int]] =
     List(util.jsonValueAdapter((value, builder) => builder.just.append(value)))
+  /*
+  @provide def forLong: Seq[JsonValueAdapter[Long]] =
+      We can not send Long, because JS can add error to it when decoding
+      e.g. 9223372036854775807 = 9223372036854776000 for JS
+      use String instead
+  */
   @provide def forBoolean: Seq[JsonValueAdapter[Boolean]] =
     List(util.jsonValueAdapter((value,builder) => builder.just.append(value)))
   //
