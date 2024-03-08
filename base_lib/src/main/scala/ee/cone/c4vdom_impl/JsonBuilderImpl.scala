@@ -18,7 +18,6 @@ class FinJsonBuilderImpl(outer: JsonBuilderImpl) extends FinMutableJsonBuilder {
   def append(value: String): Unit = outer.appendStr(value)
   def append(value: BigDecimal, decimalFormat: DecimalFormat): Unit = outer.append(value,decimalFormat)
   def append(value: Int): Unit = outer.append(value)
-  def append(value: Long): Unit = outer.append(value)
   def append(value: Boolean): Unit = outer.append(value)
 }
 
@@ -97,12 +96,6 @@ class FinJsonBuilderImpl(outer: JsonBuilderImpl) extends FinMutableJsonBuilder {
     endElement()
   }
   def append(value: Int): Unit = {
-    startElement()
-    ignoreTheSameBuilder(result.append(value))
-    endElement()
-  }
-
-  def append(value: Long): Unit = {
     startElement()
     ignoreTheSameBuilder(result.append(value))
     endElement()
