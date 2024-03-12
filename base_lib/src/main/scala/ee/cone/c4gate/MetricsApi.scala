@@ -16,3 +16,7 @@ object Metric {
 trait MetricsFactory {
   def measure(local: Context): List[Metric]
 }
+
+trait IndexMetricsProvider {
+  def getClassNames(local: Context): Seq[String]
+}

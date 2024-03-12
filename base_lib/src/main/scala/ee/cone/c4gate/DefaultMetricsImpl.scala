@@ -1,25 +1,31 @@
 package ee.cone.c4gate
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.{AssembleStatsAccumulator, Config, Context, Early, Executable}
+import ee.cone.c4actor.{AssembleStatsAccumulator, Config, Context, Early, Executable, KeyFactory}
 import ee.cone.c4assemble.{IndexUtil, JoinKey, ReadModelUtil}
 import ee.cone.c4assemble.Types.Index
 import ee.cone.c4di.c4
+import ee.cone.c4gate.AlienProtocol.U_FromAlienState
 import ee.cone.c4proto.ToByteString
 
 import java.nio.charset.StandardCharsets
 import scala.annotation.tailrec
 import scala.util.Try
 
-@c4("DefaultMetricsApp") final class RichWorldMetricsFactory(readModelUtil: ReadModelUtil, indexUtil: IndexUtil) extends MetricsFactory {
+@c4("DefaultMetricsApp") final class DefIndexMetricsProvider extends IndexMetricsProvider {
+  def getClassNames(local: Context): Seq[String] = Seq(
+    classOf[U_FromAlienState],
+  ).map(_.getName)
+}
+
+@c4("DefaultMetricsApp") final class RichWorldMetricsFactory(
+  indexUtil: IndexUtil, providers: List[IndexMetricsProvider], keyFactory: KeyFactory,
+) extends MetricsFactory {
   def measure(local: Context): List[Metric] =
-    readModelUtil.toMap(local.assembled).toList.collect{
-      case (worldKey: JoinKey, index: Index) if !worldKey.was && worldKey.keyAlias == "SrcId" =>
-        (worldKey.valueClassName,index)
-    }.sortBy(_._1).map {
-      case (key, index) =>
-        Metric("c4index_key_count", MetricLabel("valClass", key) :: Nil, indexUtil.keyCount(index).toLong)
-    }
+    for(className <- providers.flatMap(_.getClassNames(local)).distinct.sorted) yield Metric(
+      "c4index_key_count", MetricLabel("valClass", className) :: Nil,
+      indexUtil.keyCount(keyFactory.rawKey(className).of(local.assembled)).toLong
+    )
 }
 
 @c4("DefaultMetricsApp") final class PerReplicaMetrics(
