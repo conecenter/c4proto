@@ -444,7 +444,7 @@ my $build_client = sub{
     unlink or die $! for <$build_dir/*>;
     my $conf_dir = &$single_or_undef(grep{-e} map{"$_/webpack"} <$dir/src/*>) || die;
     &$if_changed("$dir/package.json", &$get_text("$conf_dir/package.json"), sub{1})
-        and sy("cd $dir && npm install --no-save --legacy-peer-deps");
+        and sy("cd $dir && cp -r $conf_dir/patches . && npm install --no-save --legacy-peer-deps");
     sy("cd $dir && cp $conf_dir/webpack.config.js . && cp $conf_dir/tsconfig.json . && cp $conf_dir/.eslintrc.json . && node_modules/webpack/bin/webpack.js --color $opt");# -d
     &$put_text("$build_dir/publish_time",time);
     &$put_text("$build_dir/c4gen.ht.links",join"",
