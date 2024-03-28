@@ -211,8 +211,10 @@ my $make_kc_yml = sub{
             http => {
                 paths => [map{+{
                     backend => {
-                        serviceName => $name,
-                        servicePort => $$_{port},
+                        service => {
+                            name => $name,
+                            port => { number => $$_{port} },
+                        }
                     },
                     $$_{path} ? (path=>$$_{path}) : (),
                 }}@$v],
