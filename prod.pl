@@ -571,7 +571,7 @@ push @tasks, ["up_kc_host", "", sub{ # the last multi container kc
         metadata => { name => $run_comp },
         rules => [
             {
-                apiGroups => ["","apps","extensions","metrics.k8s.io"],
+                apiGroups => ["","apps","extensions","metrics.k8s.io","networking.k8s.io"],
                 resources => ["statefulsets","secrets","services","deployments","ingresses","pods","replicasets"],
                 verbs => ["get","create","patch","delete","update","list","watch"],
             },
