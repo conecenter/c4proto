@@ -48,7 +48,7 @@ import scala.jdk.CollectionConverters.ListHasAsScala
     updates.collect { case v if v.valueTypeId == valueTypeId => adapter.decode(v.value) match {
       case p: S_ExternalMarker => p.valueTypeId
     }}.groupMapReduce(i=>i)(_=>1)((a,b)=>a+b).toSeq.sorted.foreach{ case (id, count) =>
-      logger.info(s"st: $id c:$count")
+      logger.info(s"st:${java.lang.Long.toHexString(id)} c:$count")
     }
 }
 
