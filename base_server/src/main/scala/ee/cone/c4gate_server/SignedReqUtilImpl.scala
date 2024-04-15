@@ -5,6 +5,7 @@ import ee.cone.c4gate.HttpProtocol._
 import ee.cone.c4gate_server.Time._
 import ee.cone.c4di.c4
 import ee.cone.c4gate.{ByPathHttpPublication, Publisher}
+import ee.cone.c4proto.ToByteString
 import okio.ByteString
 
 @c4("SignedReqUtilImplApp") final class SignedReqUtilImpl(
@@ -26,6 +27,13 @@ import okio.ByteString
       (post, headers) <- res
       delete <- LEvent.delete(post)
     } yield delete
-    txAdd.add(updates ++ deletes)
+    val now =  System.currentTimeMillis
+    val respFailUpdates = for {
+      (post, msg) <- failed
+      update <- LEvent.update(S_HttpResponse(
+        post.srcId, 500, N_Header("Content-Type", "text/html; charset=UTF-8") :: Nil, ToByteString(msg), now
+      ))
+    } yield update
+    txAdd.add(updates ++ deletes ++ respFailUpdates)
   }
 }

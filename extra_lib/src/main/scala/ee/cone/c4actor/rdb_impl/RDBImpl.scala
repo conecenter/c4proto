@@ -222,12 +222,12 @@ case object RDBSleepUntilKey extends TransientLens[Map[SrcId,(Instant,Option[B_H
     else local
 }
 
-@c4("FromExternalDBSyncApp") final class FromExternalDBUpdateFlag extends UpdateFlag {
+@c4("IndentedParserApp") final class FromExternalDBUpdateFlag extends UpdateFlag { // FromExternalDBSyncApp
   val flagValue: Long = 8L
 }
 
-@c4("FromExternalDBSyncApp") final class IndentedParser(
-  universalProtoAdapter: ProtoAdapter[UniversalNode],
+@c4("IndentedParserApp") final class IndentedParser( // FromExternalDBSyncApp
+  universalProtoAdapter: ProtoAdapter[UniversalNode], //rdc
   rDBTypes: RDBTypes,
   universalNodeFactory: UniversalNodeFactory,
   fromExternalDBUpdateFlag: FromExternalDBUpdateFlag,
@@ -236,7 +236,7 @@ case object RDBSleepUntilKey extends TransientLens[Map[SrcId,(Instant,Option[B_H
   splitter: Char = ' ', lineSplitter: String = "\n"
 )(
   fromExternalDBFlag: Long = fromExternalDBUpdateFlag.flagValue
-) extends LazyLogging {
+) extends AbstractIndentedParser with LazyLogging {
   //@tailrec final
   private def parseProp(key: String, value: List[String]): UniversalProp = {
     import universalNodeFactory._
@@ -339,9 +339,9 @@ class ProtoToString(registry: QAdapterRegistry, rDBTypes: RDBTypes){
 
 object Hex { def apply(i: Long): String = "0x%04x".format(i) }
 
-@c4("RDBSyncApp") final class RDBTypes(
-  universalProtoAdapter: ProtoAdapter[UniversalNode],
-  universalNodeFactory: UniversalNodeFactory,
+@c4("IndentedParserApp") final class RDBTypes( // RDBSyncApp
+  universalProtoAdapter: ProtoAdapter[UniversalNode], //rdc
+  universalNodeFactory: UniversalNodeFactory, //rdc
   srcIdProtoAdapter: ProtoAdapter[SrcId],
   customFieldAdapters: List[CustomFieldAdapter]
 ) {

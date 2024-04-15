@@ -305,74 +305,20 @@ my $up_gate = sub{
 
 my $conf_handler = { "consumer"=>$up_consumer, "gate"=>$up_gate };
 
-### snapshot op-s
+###
 
-my $snapshot_name = sub{
-    my($snnm)=@_;
-    my @fn = $snnm=~/^(\w{16})(-\w{8}-\w{4}-\w{4}-\w{4}-\w{12}[-\w]*)$/ ? ($1,$2) : return;
-    my $zero = '0' x length $fn[0];
-    ["$fn[0]$fn[1]","$zero$fn[1]"]
-};
-
-my $snapshot_get_statements = sub{
-    my($gate_comp)=@_;
-    my $prefix = &$get_compose($gate_comp)->{C4INBOX_TOPIC_PREFIX}
-        || die "no C4INBOX_TOPIC_PREFIX for $gate_comp";
-    my ($client_comp) = &$get_deployer_conf($gate_comp,1,qw[s3client]);
-    my ($pod) = &$get_pods($client_comp); # any is ok
-    my $stm = sub{
-        my($op,$fn) = @_;
-        &$kj_exec($client_comp,$pod,"","/tools/mc $op def/$prefix.snapshots/$fn")
-    };
-    my $cat = sub{
-        my($from,$to)=@_;
-        $from && $to || die;
-        &$stm("cat",$from)." > $to"
-    };
-    (&$stm("ls",""), $cat)
-};
-
-my $snapshot_parse_last = sub{
-    my($data)=@_;
-    (sort{$b cmp $a} grep{ &$snapshot_name($_) } $data=~/(\S+)/g)[0];
-};
-
+# /^(\w{16})(-\w{8}-\w{4}-\w{4}-\w{4}-\w{12}[-\w]*)$/
+my $with_context = sub{ my($comp)=@_; ((&$get_deployer_conf($comp,1,qw[context]))[0],$comp) };
+my $snapshot_run = sub{ sy("python3 -u ".&$get_proto_dir()."/snapshots.py < ".&$put_temp("value",&$encode([@_]))) };
 push @tasks, ["snapshot_get", "$composes_txt [|snapshot|last]", sub{
     my($gate_comp,$arg)=@_;
-    my ($ls_stm,$cat) = &$snapshot_get_statements($gate_comp);
-    if(!defined $arg){
-        sy($ls_stm);
-    } else {
-        my $snnm = $arg ne "last" ? $arg : &$snapshot_parse_last(syf($ls_stm));
-        my $fn = &$snapshot_name($snnm) || die "bad or no snapshot name";
-        sy(&$cat(@$fn));
-    }
+    my $op_list = ["snapshot_list", &$with_context($gate_comp)];
+    &$snapshot_run($op_list, (!defined $arg) ? ["dump"] : (["snapshot_get", $arg], ["snapshot_write", "."]));
 }];
-
-my $snapshot_put = sub{
-    my($auth_path,$data_path,$addr)=@_;
-    my $gen_dir = &$get_proto_dir();
-    my $data_fn = $data_path=~m{([^/]+)$} ? $1 : die "bad file path";
-    -e $auth_path or die "no gate auth";
-    ("python3","-u","$gen_dir/req.py",$auth_path,$data_path,$addr,"/put-snapshot","/put-snapshot","snapshots/$data_fn");
-};
-
-push @tasks, ["snapshot_put", "<pod|$composes_txt> <file_path|nil> [to_address]", sub{
-    my($arg, $data_path_arg, $address_arg)=@_;
-    my $data_path = $data_path_arg ne "nil" ? $data_path_arg :
-        &$put_temp("0000000000000000-d41d8cd9-8f00-3204-a980-0998ecf8427e","");
-    &$for_comp_pod($arg,sub{ my ($comp,$pod) = @_;
-        my $host = &$get_hostname($comp);
-        my $address = $address_arg || $host && "https://$host" ||
-            die "need le_hostname or domain_zone for $comp or address";
-        my $kubectl = &$get_kubectl($comp);
-        my $auth_path = &$get_tmp_dir()."/auth";
-        sy(qq[$kubectl exec $pod -- sh -c 'cat \$C4AUTH_KEY_FILE' > $auth_path]);
-        sy(&$snapshot_put($auth_path,$data_path,$address));
-    });
+push @tasks, ["snapshot_put", "$composes_txt <file_path|nil>", sub{
+    my($gate_comp, $data_path_arg)=@_;
+    &$snapshot_run(["snapshot_read", $data_path_arg], ["snapshot_put", &$with_context($gate_comp)]);
 }];
-
-###
 
 push @tasks, ["exec_bash","<pod|$composes_txt>",sub{
     my($arg)=@_;

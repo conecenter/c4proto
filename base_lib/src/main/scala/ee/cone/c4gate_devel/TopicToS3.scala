@@ -83,31 +83,14 @@ object TxGroup {
 }
 
 @c4("ExtractTxApp") final class ExtractTx(
-  config: Config, listConfig: ListConfig, adapter: ProtoAdapter[N_TxGroup], snapshotUtil: SnapshotUtil,
+  config: Config, listConfig: ListConfig, adapter: ProtoAdapter[N_TxGroup], snapshotUtil: SnapshotUtil, s3: KubeS3Reader,
   tmpRes: Promise[Path] = Promise(),
 ) extends Executable with Early with FileConsumerDir with LazyLogging {
   import TxGroup._
-  private def runGetBytes(cmd: Seq[String]): Array[Byte] = {
-    logger.info(s"running $cmd")
-    val proc =  new ProcessBuilder(cmd: _*).start()
-    //val res =
-    proc.getInputStream.readAllBytes()
-    //logger.info(s"exit code: ${proc.waitFor()} ; result bytes: ${res.length}")
-    //res
-  }
-
-  private def runGetLines(cmd: Seq[String]): Array[String] = new String(runGetBytes(cmd), UTF_8).split("\n")
   private def toBytes(lines: Iterable[String]): Array[Byte] = lines.mkString("\n").getBytes(UTF_8)
   private def write(path: Path, data: Array[Byte]): Unit = {
     Files.createDirectories(path.getParent)
     Files.write(path, data)
-  }
-  @tailrec private def retry[T](f: ()=>Option[T]): T = f() match {
-    case Some(r) => r
-    case None =>
-      Thread.sleep(1000)
-      logger.warn(s"retry")
-      retry(f)
   }
   private def extract(): Path = {
     val kubeContext: String = config.get("C4REPLAY_KUBE_CONTEXT")
@@ -119,26 +102,17 @@ object TxGroup {
     logger.info(s"extracting $tmp")
     val txListPath =  tmp.resolve("snapshot_tx_list")
     if(Files.notExists(txListPath)){
-      val kc = Seq("kubectl", "--context", kubeContext)
-      val s3pod :: _ = runGetLines(kc ++ Seq("get", "pods", "-o", "name", "-l", "c4s3client")).toList
-      val mc = kc ++ Seq("exec", s3pod, "--", "/tools/mc")
-      //
       val snapshotPf = s"snapshots/$snapshot"
       write(tmp.resolve("snapshot_name"), snapshotPf.getBytes(UTF_8))
-      write(tmp.resolve(snapshotPf), runGetBytes(mc ++ Seq("cat",s"def/$topicPrefix.$snapshotPf")))
+      val data = Single(s3.list(kubeContext, s"$topicPrefix.snapshots").collect{ case(k,get) if k==snapshot => get() })
+      write(tmp.resolve(snapshotPf), data)
       //
       val snapshotN = snapshot.split(splitter).head
       val txQ = new java.util.ArrayList[String]
-      val groups =  runGetLines(mc ++ Seq("ls","--json",s"def/$topicPrefix.$bucketPostfix")).toList.map{ line =>
-        val obj = ujson.read(line)
-        (obj("key").str, obj("size").num.toInt)
-      }.sorted
-      for((group,size) <- groups){
+      for((group,get) <- s3.list(kubeContext, s"$topicPrefix.$bucketPostfix")){
         val Array(fromN,toN) = group.split(splitter)
         if(snapshotN < toN && fromN < replayUntil) {
-          val bytes =  retry(()=>Option(runGetBytes(
-            mc ++ Seq("cat",s"def/$topicPrefix.$bucketPostfix/$group")
-          )).filter(_.length==size))
+          val bytes = get()
           for(tx <- adapter.decode(bytes).txs) {
             write(tmp.resolve(tx.resource), tx.data.toByteArray)
             val offset = snapshotUtil.hashFromName(RawSnapshot(tx.resource)).get.offset
@@ -153,4 +127,35 @@ object TxGroup {
   }
   def run(): Unit = tmpRes.success(Single.option(listConfig.get("C4REPLAY_DIR")).fold(extract())(Paths.get(_)))
   def resolve(p: String): Path = Await.result(tmpRes.future, Duration.Inf).resolve(p)
+}
+
+@c4("ExtractTxApp") final class KubeS3Reader extends LazyLogging {
+  @tailrec private def retry[T](f: ()=>Option[T]): T = f() match {
+    case Some(r) => r
+    case None =>
+      Thread.sleep(1000)
+      logger.warn(s"retry")
+      retry(f)
+  }
+  private def runGetBytes(cmd: Seq[String]): Array[Byte] = {
+    logger.info(s"running $cmd")
+    val proc =  new ProcessBuilder(cmd: _*).start()
+    //val res =
+    proc.getInputStream.readAllBytes()
+    //logger.info(s"exit code: ${proc.waitFor()} ; result bytes: ${res.length}")
+    //res
+  }
+  private def runGetLines(cmd: Seq[String]): Array[String] = new String(runGetBytes(cmd), UTF_8).split("\n")
+  def list(kubeContext: String, bucket: String): List[(String,()=>Array[Byte])] = {
+    val kc = Seq("kubectl", "--context", kubeContext)
+    val s3pod :: _ = runGetLines(kc ++ Seq("get", "pods", "-o", "name", "-l", "c4s3client")).toList
+    val mc = kc ++ Seq("exec", s3pod, "--", "/tools/mc")
+    //
+    runGetLines(mc ++ Seq("ls","--json",s"def/$bucket")).toList.map{ line =>
+      val obj = ujson.read(line)
+      val name =  obj("key").str
+      val size =  obj("size").num.toInt
+      (name, ()=>retry(()=>Option(runGetBytes(mc ++ Seq("cat",s"def/$bucket/$name"))).filter(_.length==size)))
+    }.sortBy(_._1)
+  }
 }

@@ -43,6 +43,8 @@ trait PrometheusPostAppBase extends DefaultMetricsApp with HttpUtilApp
 
 trait PublisherAppBase extends HttpProtocolApp
 
+trait InjectionAppBase extends ConfigSimpleSignerApp
+
 /*
 *
 * Usage:

@@ -403,3 +403,7 @@ trait UpdateFromUtil {
 trait AssembleStatsAccumulator {
   def report(): List[(String,Int,Long)]
 }
+
+trait AbstractIndentedParser {
+  def toUpdates(textEncoded: String): List[N_Update]
+}
