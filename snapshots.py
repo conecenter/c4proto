@@ -88,6 +88,13 @@ def post_signed(kube_context, app, url, arg, data):
         never(f"request failed:\n{msg}")
 
 
+def clone_repo(key, branch):
+    dir_life = tempfile.TemporaryDirectory()
+    repo = read_text(pathlib.Path(os.environ[key]))
+    run(("git", "clone", "-b", branch, "--depth", "1", "--", repo, "."), cwd=dir_life.name)
+    return dir_life
+
+
 def op_snapshot_list(ctx, kube_context, app):
     app_pod_cmd_prefix = get_app_pod_cmd_prefix(kube_context, app)
     inbox = run((*app_pod_cmd_prefix, "echo -n $C4INBOX_TOPIC_PREFIX"), text=True, capture_output=True).stdout
@@ -129,15 +136,33 @@ def op_snapshot_put(ctx, kube_context, app):
 
 
 def op_injection_get(ctx, branch, subdir):
-    dir_life = tempfile.TemporaryDirectory()
-    repo = read_text(pathlib.Path(os.environ["C4INJECTION_REPO"]))
-    run(("git", "clone", "-b", branch, "--depth", "1", "--", repo, "."), cwd=dir_life.name)
-    ctx["injection"] = "\n".join(read_text(path) for path in sorted((pathlib.Path(dir_life.name)/subdir).iterdir()))
+    dir_life = clone_repo("C4INJECTION_REPO", branch)
+    ctx["injection"] = "\n".join(
+        line.replace("?", " ")
+        for path in sorted((pathlib.Path(dir_life.name)/subdir).iterdir())
+        for line in read_text(path).splitlines() if not line.startswith("#")
+    )
 
 
 def op_injection_post(ctx, kube_context, app):
     data = ctx["injection"]
-    post_signed(kube_context, app, "/injection", md5s(data), data)
+    post_signed(kube_context, app, "/injection", md5s([data.encode("utf-8")]).decode("utf-8"), data)
+
+
+def main_operator(script):
+    dir_life = clone_repo("C4INJECTION_REPO", os.environ["C4CRON_BRANCH"])
+    path = pathlib.Path(dir_life.name) / os.environ["C4CRON_SUB_PATH"]
+    last_tm_abbr = ""
+    while True:
+        tm = time.gmtime()
+        tm_abbr = "ETKNRLP"[tm.tm_wday] + time.strftime("%H:%M", tm)
+        if last_tm_abbr == tm_abbr:
+            continue
+        last_tm_abbr = tm_abbr
+        run(("git", "pull"), cwd=dir_life.name)
+        for step_str in [json.dumps(steps) for times, steps in json.loads(read_text(path)) if tm_abbr in times]:
+            subprocess.Popen(("python3", "-u", script, step_str))
+        time.sleep(30)
 
 
 handlers = {
@@ -153,12 +178,16 @@ handlers = {
 
 
 def main():
-    ctx = {}
-    for op, *args in json.load(sys.stdin):
-        handlers[op](ctx, *args)
-
+    script, op = sys.argv
+    if op == "main":
+        main_operator(script)
+    elif op.startswith("["):
+        ctx = {}
+        for op, *args in json.loads(op):
+            handlers[op](ctx, *args)
+    else:
+        never()
 
 main()
 # cp_inj inj per_cp_inj
-
 

@@ -10,6 +10,7 @@ RUN /install.pl apt \
     haproxy '#sandbox' \
     uuid-runtime '#sandbox->ci' \
     rsync openssh-client '#sandbox remote' \
+    git '#sandbox injections' \
     atop less bash-completion tmux '#debug more' \
     python3-pip '#pip3 install'
 # build tools:

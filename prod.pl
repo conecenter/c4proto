@@ -309,7 +309,7 @@ my $conf_handler = { "consumer"=>$up_consumer, "gate"=>$up_gate };
 
 # /^(\w{16})(-\w{8}-\w{4}-\w{4}-\w{4}-\w{12}[-\w]*)$/
 my $with_context = sub{ my($comp)=@_; ((&$get_deployer_conf($comp,1,qw[context]))[0],$comp) };
-my $snapshot_run = sub{ sy("python3 -u ".&$get_proto_dir()."/snapshots.py < ".&$put_temp("value",&$encode([@_]))) };
+my $snapshot_run = sub{ &$py_run("snapshots.py",&$encode([@_])) };
 push @tasks, ["snapshot_get", "$composes_txt [|snapshot|last]", sub{
     my($gate_comp,$arg)=@_;
     my $op_list = ["snapshot_list", &$with_context($gate_comp)];

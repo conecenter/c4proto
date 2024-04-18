@@ -7,6 +7,7 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.c4assemble
 import ee.cone.c4di.c4multi
 import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpRequest, S_HttpResponse}
+import ee.cone.c4proto.ToByteString
 import okio.ByteString
 
 @c4assemble("InjectionApp") class InjectionAssembleBase(
@@ -28,19 +29,21 @@ import okio.ByteString
 
 @c4multi("InjectionApp") final case class InjectionTx(req: S_HttpRequest)(
   txAdd: LTxAdd, signatureChecker: SimpleSigner, catchNonFatal: CatchNonFatal, indentedParser: AbstractIndentedParser,
-  rawTxAdd: RawTxAdd,
+  rawTxAdd: RawTxAdd, idGenUtil: IdGenUtil,
 ) extends TxTransform {
   private def header(headers: List[N_Header], key: String): Option[String] = headers.find(_.key == key).map(_.value)
-  private def respond(code: Int): Seq[LEvent[Product]] =
-    LEvent.update(S_HttpResponse(req.srcId,code,Nil,ByteString.EMPTY,System.currentTimeMillis)) ++ LEvent.delete(req)
+  private def respond(code: Int, content: String): Seq[LEvent[Product]] =
+    LEvent.update(S_HttpResponse(req.srcId,code,Nil,ToByteString(content),System.currentTimeMillis)) ++ LEvent.delete(req)
   def transform(local: Context): Context = catchNonFatal{
     assert(req.method == "POST")
     val Some(Seq("/injection",dataHash)) = signatureChecker.retrieve(check=true)(header(req.headers,"x-r-signed"))
-    assert(dataHash == req.body.sha512().hex())
+    //val receivedHashStr = dataHash.utf8()
+    val hash = idGenUtil.srcIdFromStrings(req.body.utf8())
+    assert(dataHash == hash, s"$dataHash != $hash ; ${dataHash.getClass.getName} ${hash.getClass.getName}")
     //
     val nLocal = rawTxAdd.add(indentedParser.toUpdates(req.body.utf8()))(local)
-    txAdd.add(respond(200))(nLocal)
+    txAdd.add(respond(200,""))(nLocal)
   }("injection"){ e =>
-    txAdd.add(respond(500))(local)
+    txAdd.add(respond(500,e.getMessage))(local)
   }
 }
