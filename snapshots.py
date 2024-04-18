@@ -26,8 +26,11 @@ def debug_args(hint, args):
 def run(args, **opt): return subprocess.run(debug_args("running:", args), check=True, **opt)
 
 
+def get_kubectl(kube_context): return "kubectl", "--kubeconfig", os.environ["C4KUBECONFIG"], "--context", kube_context
+
+
 def s3init(kube_context):
-    kc = ("kubectl", "--context", kube_context)
+    kc = get_kubectl(kube_context)
     s3pods_str = run((*kc, "get", "pods", "-o", "name", "-l", "c4s3client"), text=True, capture_output=True).stdout
     s3pod = max(s3pods_str.splitlines())
     return *kc, "exec", s3pod, "--", "/tools/mc"
@@ -47,7 +50,7 @@ def s3get(line):
 
 
 def get_hostname(kube_context, app):
-    kc = ("kubectl", "--context", kube_context)
+    kc = get_kubectl(kube_context)
     ingress = json.loads(run((*kc, "get", "ingress", "-o", "json", app), text=True, capture_output=True).stdout)
     return max(r["host"] for r in ingress["spec"]["rules"])
 
@@ -69,7 +72,7 @@ def sign(salt, args):
 
 
 def get_app_pod_cmd_prefix(kube_context, app):
-    kc = ("kubectl", "--context", kube_context)
+    kc = get_kubectl(kube_context)
     pods = json.loads(run((*kc, "get", "pods", "-o", "json", "-l", f"app={app}"), text=True, capture_output=True).stdout)["items"]
     pod_name = max(pod["metadata"]["name"] for pod in pods)
     return *kc, "exec", pod_name, "--", "sh", "-c"
