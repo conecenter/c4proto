@@ -188,6 +188,7 @@ def main():
         ctx = {}
         for op, *args in json.loads(op):
             handlers[op](ctx, *args)
+        print("OK", file=sys.stderr)
     else:
         never()
 
