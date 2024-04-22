@@ -159,19 +159,20 @@ const checkUpdate = changes => state => (
 
 /********* sync input *********************************************************/
 
+const eventToPatch = (e) => ({headers: e.target.headers, value: e.target.value, skipByPath: true, retry: true})
+
 export function useSyncInput(identity,incomingValue,deferSend){
     const [patches,enqueuePatch] = useSync(identity)
     const [lastPatch,setLastPatch] = useState()
     const defer = deferSend(!!lastPatch)
     const onChange = useCallback(event => {
-        const headers = ({...event.target.headers})
-        const value = event.target.value
-        enqueuePatch({ headers: {...headers,"x-r-changing":"1"}, value, skipByPath: true, retry: true, defer})
-        setLastPatch({ headers, value, skipByPath: true, retry: true })
+        const patch = eventToPatch(event)
+        enqueuePatch({ ...patch, headers: {...patch.headers,"x-r-changing":"1"}, defer})
+        setLastPatch(patch)
     },[enqueuePatch,defer])
     const onBlur = useCallback(event => {
         setLastPatch(wasLastPatch=>{
-            if(wasLastPatch) enqueuePatch(wasLastPatch)
+            if(wasLastPatch) enqueuePatch(event ? eventToPatch(event) : wasLastPatch)
             return undefined
         })
     },[enqueuePatch])
