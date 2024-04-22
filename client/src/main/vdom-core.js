@@ -159,19 +159,21 @@ const checkUpdate = changes => state => (
 
 /********* sync input *********************************************************/
 
+const eventToPatch = (e) => ({headers: e.target.headers, value: e.target.value, skipByPath: true, retry: true})
+
 export function useSyncInput(identity,incomingValue,deferSend){
     const [patches,enqueuePatch] = useSync(identity)
     const [lastPatch,setLastPatch] = useState()
     const defer = deferSend(!!lastPatch)
     const onChange = useCallback(event => {
-        const headers = ({...event.target.headers})
-        const value = event.target.value
-        enqueuePatch({ headers: {...headers,"x-r-changing":"1"}, value, skipByPath: true, retry: true, defer})
-        setLastPatch({ headers, value, skipByPath: true, retry: true })
+        const patch = eventToPatch(event)
+        enqueuePatch({ ...patch, headers: {...patch.headers,"x-r-changing":"1"}, defer})
+        setLastPatch(patch)
     },[enqueuePatch,defer])
     const onBlur = useCallback(event => {
+        const replacingPatch = event && event.replaceLastPatch && eventToPatch(event)
         setLastPatch(wasLastPatch=>{
-            if(wasLastPatch) enqueuePatch(wasLastPatch)
+            if(wasLastPatch) enqueuePatch(replacingPatch || wasLastPatch)
             return undefined
         })
     },[enqueuePatch])
@@ -186,6 +188,7 @@ export function useSyncInput(identity,incomingValue,deferSend){
     //        setLastPatch(wasLastPatch => wasLastPatch && wasLastPatch.value === incomingValue ? wasLastPatch : undefined)
     //    },[incomingValue])
     //
+    // replacingPatch - incomingValue can be different then in lastPatch && onBlur might still be needed to signal end of input
 
     const patch = patches.slice(-1).map(({value})=>({value}))[0]
     const value = patch ? patch.value : incomingValue
