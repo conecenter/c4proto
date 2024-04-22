@@ -171,7 +171,7 @@ export function useSyncInput(identity,incomingValue,deferSend){
         setLastPatch(patch)
     },[enqueuePatch,defer])
     const onBlur = useCallback(event => {
-        const replacingPatch = event.replaceLastPatch && eventToPatch(event)
+        const replacingPatch = event && event.replaceLastPatch && eventToPatch(event)
         setLastPatch(wasLastPatch=>{
             if(wasLastPatch) enqueuePatch(replacingPatch || wasLastPatch)
             return undefined
