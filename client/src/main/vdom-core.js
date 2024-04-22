@@ -171,8 +171,9 @@ export function useSyncInput(identity,incomingValue,deferSend){
         setLastPatch(patch)
     },[enqueuePatch,defer])
     const onBlur = useCallback(event => {
+        const replacingPatch = event.replaceLastPatch && eventToPatch(event)
         setLastPatch(wasLastPatch=>{
-            if(wasLastPatch) enqueuePatch(event ? eventToPatch(event) : wasLastPatch)
+            if(wasLastPatch) enqueuePatch(replacingPatch || wasLastPatch)
             return undefined
         })
     },[enqueuePatch])
@@ -187,6 +188,7 @@ export function useSyncInput(identity,incomingValue,deferSend){
     //        setLastPatch(wasLastPatch => wasLastPatch && wasLastPatch.value === incomingValue ? wasLastPatch : undefined)
     //    },[incomingValue])
     //
+    // replacingPatch - incomingValue can be different then in lastPatch && onBlur might still be needed to signal end of input
 
     const patch = patches.slice(-1).map(({value})=>({value}))[0]
     const value = patch ? patch.value : incomingValue
