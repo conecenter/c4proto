@@ -13,14 +13,14 @@ import ee.cone.c4proto._
 import okio.ByteString
 import ee.cone.c4di.{c4, provide}
 
-@protocol("SessionDataProtocolApp") object SessionDataProtocol   {
+@protocol("SessionDataProtocolApp") object SessionDataProtocol {
   @Id(0x0066) case class U_RawSessionData(
     @Id(0x0061) srcId: String,
     @Id(0x0067) sessionKey: String,
     @Id(0x0a66) dataNode: Option[N_RawDataNode] // Always isDefined
   )
 
-    @Id(0x0a65) case class N_RawDataNode(
+  @Id(0x0a65) case class N_RawDataNode(
     @Id(0x0068) domainSrcId: String,
     @Id(0x0069) fieldId: Long,
     @Id(0x0064) valueTypeId: Long,
@@ -28,7 +28,7 @@ import ee.cone.c4di.{c4, provide}
   )
 }
 
-@c4("SessionAttrCompApp") final class  SessionDataAssemblesBase(mortal: MortalFactory) {
+@c4("SessionAttrCompApp") final class SessionDataAssemblesBase(mortal: MortalFactory) {
   @provide def subAssembles: Seq[Assemble] = List(mortal(classOf[U_RawSessionData]))
 }
 
@@ -64,8 +64,8 @@ object SessionAttrLens {
   getU_RawSessionData: GetByPK[U_RawSessionData],
   rawSessionDataMeta: OrigMeta[U_RawSessionData],
   origMetaRegistry: OrigMetaRegistry
-) extends SessionAttrAccessFactory with KeyGenerator{
-  def to[P<:Product](attr: SessionAttr[P]): Context=>Option[Access[P]] = {
+) extends SessionAttrAccessFactory with KeyGenerator {
+  def to[P <: Product](attr: SessionAttr[P]): Context => Access[P] = {
     val adapter = registry.byName(classOf[U_RawSessionData].getName)
     val meta = origMetaRegistry.byName(attr.className).asInstanceOf[OrigMeta[P]]
     val lens = SessionAttrLens(attr.metaList, rawSessionDataMeta, meta)(
@@ -91,12 +91,12 @@ object SessionAttrLens {
           )
         )
       )
-      val pk = genPK(request, adapter)//val deepPK = genPK(request.copy(sessionKey=""))
-      val value: U_RawSessionData = getU_RawSessionData.ofA(local).getOrElse(pk,{
+      val pk = genPK(request, adapter) //val deepPK = genPK(request.copy(sessionKey=""))
+      val value: U_RawSessionData = getU_RawSessionData.ofA(local).getOrElse(pk, {
         val model = modelFactory.create[P](attr.className)(pk)
-        lens.set(model)(request.copy(srcId=pk))
+        lens.set(model)(request.copy(srcId = pk))
       })
-      modelAccessFactory.to(getU_RawSessionData,value).map(_.to(lens))
+      modelAccessFactory.to(getU_RawSessionData, value).to(lens)
     }
   }
 }

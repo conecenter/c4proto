@@ -26,7 +26,7 @@ case class SessionAttr[+By](
 }
 
 trait SessionAttrAccessFactory {
-  def to[P<:Product](attr: SessionAttr[P]): Context=>Option[Access[P]]
+  def to[P <: Product](attr: SessionAttr[P]): Context => Access[P]
 }
 
 case object CurrentSessionKey extends TransientLens[SrcId]("")

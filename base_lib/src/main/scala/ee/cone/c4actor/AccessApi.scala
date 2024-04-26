@@ -12,5 +12,5 @@ trait Access[C] extends Product{
 }
 
 trait RModelAccessFactory {
-  def to[P <: Product](key: GetByPK[P], product: P): Option[Access[P]]
+  def to[P <: Product](key: GetByPK[P], product: P): Access[P]
 }

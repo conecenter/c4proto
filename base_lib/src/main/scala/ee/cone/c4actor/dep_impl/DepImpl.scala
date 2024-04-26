@@ -27,6 +27,10 @@ class ResolvedDep[A](value: A) extends DepImpl[A] {
   def resolve(ctx: DepCtx): Resolvable[A] = Resolvable(Option(value))
 }
 
+class UnresolvedDep[A]() extends DepImpl[A] {
+  def resolve(ctx: DepCtx): Resolvable[A] = Resolvable(None)
+}
+
 class ComposedDep[A, B](inner: Dep[A], fm: A => Dep[B]) extends DepImpl[B] {
   def resolve(ctx: DepCtx): Resolvable[B] =
     inner.resolve(ctx) match {
@@ -106,6 +110,9 @@ class SeqUncheckedParallelDep[A](depSeq: Seq[Dep[A]]) extends DepImpl[Seq[A]] {
 
   def resolvedRequestDep[Out](response: Out): Dep[Out] =
     new ResolvedDep[Out](response)
+
+  def unresolvedDep[Out]: Dep[Out] =
+    new UnresolvedDep[Out]()
 
   def parallelTuple[A, B](a: Dep[A], b: Dep[B]): Dep[(A, B)] =
     new ParallelDep[A, B](a, b)
