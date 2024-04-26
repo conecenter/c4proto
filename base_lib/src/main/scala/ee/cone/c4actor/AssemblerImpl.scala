@@ -39,12 +39,15 @@ import scala.concurrent.duration.Duration
 //case object TreeAssemblerKey extends SharedComponentKey[Replace]
 
 @c4("RichDataCompApp") final class RAssProfilingImpl(
-  listConfig: ListConfig
+  listConfig: ListConfig,
+  assembleStatsAccumulator: AssembleStatsAccumulatorImpl,
+)(
+  val msWarnPeriod: Long = Single.option(listConfig.get("C4ASSEMBLE_WARN_PERIOD_MS")).fold(1000L)(_.toLong)
 ) extends RAssProfiling with LazyLogging {
-  def msWarnPeriod: Long = Single.option(listConfig.get("C4ASSEMBLE_WARN_PERIOD_MS")).fold(1000L)(_.toLong)
   def warn(content: String): Unit = logger.warn(content)
   def debug(content: ()=>String): Unit =  logger.debug(s"$id ${content()}")
   private def id = s"T-${Thread.currentThread.getId}"
+  def addPeriod(accId: Int, value: Long): Unit = assembleStatsAccumulator.add(accId, value)
 }
 
 @c4("RichDataCompApp") final class DefAssembleOptions extends AssembleOptions("AssembleOptions",false,0L)
@@ -79,8 +82,10 @@ object SpreadUpdates extends SpreadHandler[N_Update] {
   origPartitionerRegistry: OrigPartitionerRegistry,
 ) extends LazyLogging {
   def seq[T](s: Seq[Future[T]])(implicit ec: ExecutionContext): Future[Seq[T]] = Future.sequence(s)
-
-  def toTreeReplace(assembled: ReadModel, updates: Seq[N_Update], executionContext: OuterExecutionContext): ReadModel = {
+  def toTreeReplace(
+    assembled: ReadModel, updates: Seq[N_Update], executionContext: OuterExecutionContext,
+    profilingContext: RAssProfilingContext
+  ): ReadModel = {
     //val end = NanoTimer()
     val isActiveOrig: Set[AssembledKey] = activeOrigKeyRegistry.values
     val outFactory = composes.createOutFactory(0, +1)
@@ -115,7 +120,7 @@ object SpreadUpdates extends SpreadHandler[N_Update] {
     val diff = taskResults.flatten.groupMap(_._1)(_._2).transform((_,v)=>v.toArray.flatten).toSeq
     //assert(diff.map(_._1).distinct.size == diff.size)
     logger.debug("toTreeReplace indexGroups after")
-    replace.replace(assembled,diff,executionContext)
+    replace.replace(assembled,diff,executionContext,profilingContext)
     //val period = end.ms
 //    if(logger.underlying.isDebugEnabled){
 //      val ids = updates.map(_.valueTypeId).distinct.map(v=>s"0x${java.lang.Long.toHexString(v)}").mkString(" ")
@@ -183,23 +188,29 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     List(0,1).flatMap(id => List(("assemble_sum", id, sumRefs(id).get()), ("assemble_max", id, getMax(id))))
 }
 
+@c4("RichDataCompApp") final class MemLog(config: ListConfig) extends Executable with Early with LazyLogging {
+  def run(): Unit = {
+    val runtime = Runtime.getRuntime
+    def iter(): Unit = {
+      logger.info(s"${runtime.totalMemory - runtime.freeMemory} bytes used")
+      Thread.sleep(1000)
+      iter()
+    }
+    if(config.get("C4ASSEMBLE_DEBUG_TXS").nonEmpty) iter()
+  }
+}
+
 @c4("RichDataCompApp") final class ReadModelAddImpl(
   utilOpt: DeferredSeq[AssemblerUtil],
   toUpdate: ToUpdate,
-  assembleStatsAccumulator: AssembleStatsAccumulatorImpl,
   actorName: ActorName,
   catchNonFatal: CatchNonFatal,
+  config: ListConfig,
+)(
+  debugTxs: Option[String] = Single.option(config.get("C4ASSEMBLE_DEBUG_TXS"))
 ) extends ReadModelAdd with LazyLogging {
   // read model part:
-  private def reduce(
-    wasAssembled: ReadModel, updates: Seq[N_Update],
-    executionContext: OuterExecutionContext
-  ): ReadModel = {
-    val util = Single(utilOpt.value)
-    util.toTreeReplace(wasAssembled, updates, executionContext)
-  }
-  private def rangeStr(ids: Seq[String]) =
-    ids match { case Seq() => "-" case Seq(id) => id case e => s"${e.head}-${e.last}" }
+  private def util = Single(utilOpt.value)
   private def offset(events: Seq[RawEvent]): List[N_Update] = for{
     ev <- events.lastOption.toList
     lEvent <- LEvent.update(S_Offset(actorName.value,ev.srcId))
@@ -208,19 +219,16 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     logger.debug("starting toUpdate")
     val updates: List[N_Update] = offset(events) ::: toUpdate.toUpdates(events.toList,"rma").map(toUpdate.toUpdateLost)
     logger.debug("done toUpdate")
-    (new AssemblerProfiling).debugOffsets("starts-reducing", events.map(_.srcId))
-    val timer = NanoTimer()
-    val res = reduce(assembled, updates, executionContext)
-    val ms = timer.ms
-    assembleStatsAccumulator.add(0, ms)
-    if(ms > 1000) logger.warn(s"long_join $ms of ${rangeStr(events.map(_.srcId))}")
-    res
+    val eventIds = events.map(_.srcId)
+    (new AssemblerProfiling).debugOffsets("starts-reducing", eventIds)
+    val debug = debugTxs.exists(cfTxs=>eventIds.exists(id=>id.contains(cfTxs)||cfTxs.contains(id)))
+    util.toTreeReplace(assembled, updates, executionContext, RAssProfilingContext(0, eventIds, debug))
   }("reduce"){ e => // ??? exception to record
     if(events.size == 1){
       val updates = offset(events) ++
         events.map(ev=>S_FailedUpdates(ev.srcId, e.getMessage))
           .flatMap(LEvent.update).map(toUpdate.toUpdate)
-      reduce(assembled, updates, executionContext)
+      util.toTreeReplace(assembled, updates, executionContext, RAssProfilingContext(0, Nil, needDetailed = false))
     } else {
       val(a,b) = events.splitAt(events.size / 2)
       Function.chain(Seq(add(executionContext,a), add(executionContext,b)))(assembled)
@@ -250,7 +258,6 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   assembleProfiler: AssembleProfiler,
   updateProcessor: Option[UpdateProcessor],
   processors: List[UpdatesPreprocessor],
-  assembleStatsAccumulator: AssembleStatsAccumulatorImpl,
 ) extends RawTxAdd with Executable with Early with LazyLogging {
   def run(): Unit = {
     logger.info("assemble-preload start")
@@ -266,10 +273,9 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     val processedOut: List[N_Update] = processors.flatMap(_.process(out)) ++ out
     val externalOut = updateProcessor.fold(processedOut)(_.process(processedOut, WriteModelKey.of(local).size).toList)
     val profiling = assembleProfiler.createJoiningProfiling(Option(local))
-    val timer = NanoTimer()
     val util = Single(utilOpt.value)
-    val result = util.toTreeReplace(local.assembled, externalOut, local.executionContext)
-    assembleStatsAccumulator.add(1, timer.ms)
+    val profilingContext = RAssProfilingContext(1, Nil, TxAddAssembleDebugKey.of(local))
+    val result = util.toTreeReplace(local.assembled, externalOut, local.executionContext, profilingContext)
     val updates = Await.result(assembleProfiler.addMeta(new WorldTransition(profiling, Future.successful(Nil)), externalOut), Duration.Inf)
     val nLocal = new Context(local.injected, result, local.executionContext, local.transient)
     WriteModelKey.modify(_.enqueueAll(updateFromUtil.get(local,updates)))(nLocal)

@@ -7,7 +7,8 @@ import ee.cone.c4di.{c4, c4multi}
 
 import java.lang.management.ManagementFactory
 import java.util
-import java.util.concurrent.{LinkedBlockingQueue, RecursiveTask}
+import java.util.concurrent.{LinkedBlockingQueue, RecursiveTask, TimeUnit}
+import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
 import scala.concurrent.{ExecutionContext, Future}
 import scala.jdk.CollectionConverters.ListHasAsScala
@@ -342,9 +343,7 @@ trait ParallelExecution {
   }
   private def reportPlanning(hint: String, exprPos: TaskPos): Unit = profiling.warn(s"$hint ${explainTask(exprPos)}")
 
-  private def reportTop(context: MutableSchedulingContext, period: Long) = {
-    val txName = Thread.currentThread.getName
-    profiling.warn(s"long join $period ms by $txName")
+  private def reportTop(context: MutableSchedulingContext) = {
     context.profilingCountsList.asScala.groupMapReduce(_._1)(_._2)((a, b) => (a, b) match {
       case (a: ProfilingCounts, b: ProfilingCounts) => ProfilingCounts(
         resultCount = a.resultCount + b.resultCount, maxNs = Math.max(a.maxNs, b.maxNs),
@@ -364,10 +363,7 @@ trait ParallelExecution {
     }
     //.toArray(Array.empty)
   }
-  private def reportTopOpt(context: MutableSchedulingContext, period: Long) = {
-    profiling.debug(()=>s"was joining for $period ms")
-    if(period > profiling.msWarnPeriod) reportTop(context, period)
-  }
+
   private def addSpent(context: MutableSchedulingContext, spentNs: ImmArr[TaskPos,java.lang.Long]): ImmArr[TaskPos,java.lang.Long] = {
     val spentNsM = spentNs.toMutable(None)
     context.profilingCountsList.forEach { case (exprPos, profilingCounts) =>
@@ -376,12 +372,13 @@ trait ParallelExecution {
     spentNsM.toImmutable
   }
   private def nsToMilli(ns: Long) = ns / 1000000
-
-  def replace(model: ReadModel, diff: Diffs, executionContext: OuterExecutionContext): ReadModel = {
+  private def rangeStr(ids: Seq[String]) =
+    ids.distinct match { case Seq() => "-" case Seq(id) => id case e => s"${e.head}-${e.last} (${e.size})" }
+  def replace(model: ReadModel, diff: Diffs, executionContext: OuterExecutionContext, profilingContext: RAssProfilingContext): ReadModel = {
     val startedAt = System.nanoTime
     val planner = plannerFactory.createMutablePlanner(conf.plannerConf)
     val modelImpl = model match{ case m: ReadModelImpl => m }
-    val noDbg = !DebugCounter.on(0)
+    val noDbg = !profilingContext.needDetailed
     val context = new MutableSchedulingContext(
       if(noDbg) planner else new DebuggingPlanner(planner, reportPlanning),
       modelImpl.model.toMutable(if(noDbg) None else cowArrDebug("set-model",explainWorldPos,explainIndex)),
@@ -394,7 +391,13 @@ trait ParallelExecution {
     loop(context, executionContext.value)
     context.calculatedByBuildTask.requireIsEmpty()
     context.inputDiffs.requireIsEmpty()
-    reportTopOpt(context, nsToMilli(System.nanoTime - startedAt))
+    val period = nsToMilli(System.nanoTime - startedAt)
+    def hint = s"was joining for $period ms by ${Thread.currentThread.getName} of ${rangeStr(profilingContext.eventIds)}"
+    if(period > profiling.msWarnPeriod){
+      profiling.warn(hint)
+      reportTop(context)
+    } else profiling.debug(()=>hint)
+    profiling.addPeriod(profilingContext.accId, period)
     new ReadModelImpl(
       context.model.toImmutable, context.inputDiffs.toImmutable, context.inputPrevValues.toImmutable,
       conf.worldPosFromKey, addSpent(context, modelImpl.spentNs)
@@ -404,6 +407,12 @@ trait ParallelExecution {
   private def loop(context: MutableSchedulingContext, ec: ExecutionContext): Unit = {
     val queue = new LinkedBlockingQueue[Try[OuterEv]]
     val planner = context.planner
+    @tailrec def take(): OuterEv = Option(queue.poll(1L,TimeUnit.SECONDS)) match {
+      case Some(ev) => ev.get
+      case None =>
+        planner.reportStarted()
+        take()
+    }
     while(planner.planCount > 0) if(planner.suggestedNonEmpty) {
       val exprPos = planner.suggestedHead
       (conf.tasks(exprPos) match {
@@ -417,7 +426,7 @@ trait ParallelExecution {
       }
       planner.setTodo(exprPos, value = false)
     } else {
-      val outerEv: OuterEv = queue.take().get
+      val outerEv: OuterEv = take()
       outerEv.event match {
         case ev: CalculatedEv => finishCalc(context, ev)
         case ev: BuiltEv => finishBuild(context, ev)
@@ -533,6 +542,9 @@ class DebuggingPlanner(inner: MutablePlanner, report: (String,TaskPos)=>Unit) ex
   def suggestedNonEmpty: Boolean = inner.suggestedNonEmpty
   def suggestedHead: TaskPos = inner.suggestedHead
   def planCount: Int = inner.planCount
+
+  def getStarted: Seq[TaskPos] = inner.getStarted
+  def reportStarted(): Unit = for(exprPos <- getStarted) report("is-started", exprPos)
 }
 
 class ThreadTracker extends Runnable {

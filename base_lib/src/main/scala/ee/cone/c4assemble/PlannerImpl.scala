@@ -48,6 +48,9 @@ final class MutablePlannerImpl(taskUsers: Array[Array[TaskPos]]) extends Mutable
     }
     suggestedSet(exprPos) = reasonCountByExprPos(exprPos) == 1 && todoSet(exprPos) && !startedSet(exprPos)
   }
+
+  def getStarted: Seq[TaskPos] = (taskUsers.indices.asInstanceOf[Seq[TaskPos]]).filter(startedSet(_))
+  def reportStarted(): Unit = ()
 }
 
 trait RBitSetChangeHandler[K<:Int]{

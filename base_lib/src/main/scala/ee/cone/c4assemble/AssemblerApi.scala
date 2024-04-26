@@ -29,7 +29,7 @@ class OriginalWorldPart[A<:Object](val outputWorldKeys: Seq[AssembledKey]) exten
 trait Replace {
   type Diffs = Seq[(AssembledKey, Array[Array[RIndexPair]])]
   def active: Seq[WorldPartRule]
-  def replace(model: ReadModel, diff: Diffs, executionContext: OuterExecutionContext): ReadModel
+  def replace(model: ReadModel, diff: Diffs, executionContext: OuterExecutionContext, profilingContext: RAssProfilingContext): ReadModel
   def emptyReadModel: ReadModel
   def report(model: ReadModel): Unit
 }
@@ -38,7 +38,10 @@ trait RAssProfiling {
   def msWarnPeriod: Long
   def warn(content: String): Unit
   def debug(content: ()=>String): Unit
+  def addPeriod(accId: Int, period: Long): Unit
 }
+
+case class RAssProfilingContext(accId: Int, eventIds: Seq[String], needDetailed: Boolean)
 
 trait SchedulerFactory {
   def create(rulesByPriority: Seq[WorldPartRule]): Replace
