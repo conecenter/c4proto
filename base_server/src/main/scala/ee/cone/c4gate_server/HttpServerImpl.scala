@@ -120,11 +120,11 @@ object AuthOperations {
         }
         RHttpResponse(None, requests.flatMap(LEvent.update))
       case Some("check") =>
-        val Array(userName,password) = request.body.utf8().split("\n")
+        val Array(userName,password) = request.body.utf8().split("\n", 2) // limit == 2; when limit is not provided or limit is 0 it discards trailing empty strings
         val hashesByUser = getC_PasswordHashOfUser.ofA(local)
-        val hash = hashesByUser.get(userName).map(_.hash.get)
+        val hashOpt = hashesByUser.get(userName).flatMap(_.hash)
         val endTime = System.currentTimeMillis() + 1000
-        val hashOK = hash.exists(pass=>AuthOperations.verify(password,pass))
+        val hashOK = hashOpt.exists(hash => AuthOperations.verify(password, hash))
         Thread.sleep(Math.max(0,endTime-System.currentTimeMillis()))
         if(hashOK) {
           val wasSessionKey = ReqGroup.session(request).filter(_.nonEmpty).get
