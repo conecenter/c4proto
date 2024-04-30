@@ -111,6 +111,9 @@ def op_dump(ctx):
         print("snapshot_list:")
         for l in snapshot_list:
             print(f"\t{l['lastModified']}\t{l['size']}\t{l['key']}")
+    data = ctx.get("injection")
+    if data:
+        print(f"injection:\n{data}")
 
 
 def op_snapshot_get(ctx, arg_name):
@@ -152,6 +155,17 @@ def op_injection_post(ctx, kube_context, app):
     post_signed(kube_context, app, "/injection", md5s([data.encode("utf-8")]).decode("utf-8"), data)
 
 
+def op_injection_substitute(ctx, from_str, to):
+    mapped = {
+        "now_ms": str(int(time.time()*1000))
+    }
+    ctx["injection"] = ctx["injection"].replace(from_str, mapped[to])
+
+
+def op_injection_set(ctx, value):
+    ctx["injection"] = value
+
+
 def main_operator(script):
     dir_life = clone_repo("C4INJECTION_REPO", os.environ["C4CRON_BRANCH"])
     path = pathlib.Path(dir_life.name) / os.environ["C4CRON_SUB_PATH"]
@@ -177,6 +191,8 @@ handlers = {
     "snapshot_put": op_snapshot_put,
     "injection_get": op_injection_get,
     "injection_post": op_injection_post,
+    "injection_substitute": op_injection_substitute,
+    "injection_set": op_injection_set,
 }
 
 
