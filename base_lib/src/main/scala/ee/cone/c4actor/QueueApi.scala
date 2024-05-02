@@ -407,3 +407,5 @@ trait AssembleStatsAccumulator {
 trait AbstractIndentedParser {
   def toUpdates(textEncoded: String): List[N_Update]
 }
+
+case object TxAddAssembleDebugKey extends TransientLens[Boolean](false)
