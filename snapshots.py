@@ -98,6 +98,9 @@ def clone_repo(key, branch):
     return dir_life
 
 
+def list_subdir(dir_life, subdir): return sorted((pathlib.Path(dir_life.name)/subdir).iterdir())
+
+
 def op_snapshot_list(ctx, kube_context, app):
     app_pod_cmd_prefix = get_app_pod_cmd_prefix(kube_context, app)
     inbox = run((*app_pod_cmd_prefix, "echo -n $C4INBOX_TOPIC_PREFIX"), text=True, capture_output=True).stdout
@@ -145,7 +148,7 @@ def op_injection_get(ctx, branch, subdir):
     dir_life = clone_repo("C4INJECTION_REPO", branch)
     ctx["injection"] = "\n".join(
         line.replace("?", " ")
-        for path in sorted((pathlib.Path(dir_life.name)/subdir).iterdir())
+        for path in list_subdir(dir_life, subdir)
         for line in read_text(path).splitlines() if not line.startswith("#")
     )
 
@@ -168,7 +171,7 @@ def op_injection_set(ctx, value):
 
 def main_operator(script):
     dir_life = clone_repo("C4INJECTION_REPO", os.environ["C4CRON_BRANCH"])
-    path = pathlib.Path(dir_life.name) / os.environ["C4CRON_SUB_PATH"]
+    subdir = os.environ["C4CRON_DIR"]
     last_tm_abbr = ""
     while True:
         tm = time.gmtime()
@@ -177,8 +180,11 @@ def main_operator(script):
             continue
         last_tm_abbr = tm_abbr
         run(("git", "pull"), cwd=dir_life.name)
-        for step_str in [json.dumps(steps) for times, steps in json.loads(read_text(path)) if tm_abbr in times]:
-            subprocess.Popen(("python3", "-u", script, step_str))
+        proc_list = [
+            subprocess.Popen(("python3", "-u", script, json.dumps(steps)))
+            for path in list_subdir(dir_life, subdir) if path.suffix == ".json"
+            for times, steps in json.loads(read_text(path)) if tm_abbr in times
+        ]
         time.sleep(30)
 
 
