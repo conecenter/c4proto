@@ -206,7 +206,7 @@ my $make_kc_yml = sub{
             hosts => \@hosts,
             secretName => $ingress_secret_name || "$name-tls",
         }]);
-        my $api_ver = $$opt{ingress_api_version} || die;
+        my $api_ver = $$opt{ingress_api_version};
         my @rules = &$map($by_host,sub{ my($host,$v)=@_; +{
             host => $host,
             http => {
@@ -229,7 +229,7 @@ my $make_kc_yml = sub{
             },
         }});
         @rules ? {
-            apiVersion => $api_ver,
+            apiVersion => ($api_ver||die),
             kind => "Ingress",
             metadata => {
                 annotations=>{
