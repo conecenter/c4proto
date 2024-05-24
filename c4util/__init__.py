@@ -1,7 +1,9 @@
 
 import json
 import pathlib
-import hashlib
+import subprocess
+import time
+import sys
 
 def group_map(l,f):
     res = {}
@@ -31,6 +33,41 @@ def changing_text(path, will):
 def read_text(path_str): return pathlib.Path(path_str).read_text(encoding='utf-8', errors='strict')
 
 
+def decode(bs): return bs.decode(encoding='utf-8', errors='strict')
+
+
+def log(text):
+    print(text, file=sys.stderr)
+
+
+def run(args, **opt):
+    log("running: " + " ".join(str(a) for a in args))
+    started = time.monotonic()
+    res = subprocess.run(args, check=True, **opt)
+    log(f"{time.monotonic() - started}s for {args[0]}")
+    return res
+
+
+def Popen(args, **opt):
+    log("starting: "+" ".join(args))
+    return subprocess.Popen(args, **opt)
+
+
+def wait_processes(processes):
+    for proc in processes:
+        proc.wait()
+        log(f"finished with: {proc.returncode}")
+    return all(proc.returncode == 0 for proc in processes)
+
+
+def run_text_out(args, **opt):
+    log("running: "+" ".join(str(a) for a in args))
+    return subprocess.run(args, check=True, text=True, capture_output=True, **opt).stdout
+
+
+def never(a): raise Exception(a)
+
+
+def list_dir(d): return sorted(str(p) for p in pathlib.Path(d).iterdir())
+
 # suggest: read_json, subprocess.run
-#
-# parse_table

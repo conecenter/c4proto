@@ -1,8 +1,7 @@
 
 import sys
 import re
-from c4util import group_map, parse_table, read_json, read_text
-from c4util.build import run_text_out
+from c4util import group_map, parse_table, read_json, read_text, run_text_out
 
 
 def get_base(pkg, coll):

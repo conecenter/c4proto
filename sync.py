@@ -1,5 +1,5 @@
-from c4util import parse_table, read_text, changing_text, changing_text_observe
-from c4util.build import need_dir, run, setup_parser
+from c4util import parse_table, read_text, changing_text, changing_text_observe, run
+from c4util.build import need_dir, setup_parser
 
 
 def handle_local(opt):

@@ -3,9 +3,8 @@ import os
 import tempfile
 import time
 import typing
-from .c4util import read_json, changing_text, read_text, path_exists
-from .c4util.build import run, kcd_run, need_pod, \
-    build_cached_by_content, never, Popen, temp_dev_pod, kcd_args, run_text_out, \
+from .c4util import read_json, changing_text, read_text, path_exists, run, never, Popen, run_text_out
+from .c4util.build import kcd_run, need_pod, build_cached_by_content, temp_dev_pod, kcd_args, \
     get_env_values_from_deployments
 
 
