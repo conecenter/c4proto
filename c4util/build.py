@@ -22,10 +22,6 @@ def run_pipe_no_die(from_args, to_args):
     return wait_processes((from_proc, to_proc))
 
 
-def need_dir(dir):
-    pathlib.Path(dir).mkdir(parents=True, exist_ok=True)
-    return dir
-
 def kcd_args(*args):
     return ("kubectl","--context",os.environ["C4DEPLOY_CONTEXT"],*args)
 
@@ -142,13 +138,6 @@ def get_secret_data(secret_name):
 def secret_part_to_text(k8s_path):
     secret_name, secret_fn = k8s_path.split("/")
     return decode(get_secret_data(secret_name)(secret_fn))
-
-
-def get_env_values_from_deployments(env_key, deployments):
-    return {
-        e["value"] for d in deployments for c in d["spec"]["template"]["spec"]["containers"]
-        for e in c.get("env",[]) if e["name"] == env_key
-    }
 
 
 def get_main_conf(context):

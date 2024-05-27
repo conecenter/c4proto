@@ -7,25 +7,10 @@ import os
 import hashlib
 import base64
 import time
-import urllib
+import urllib.parse
 
 from . import run, never, one, read_text, list_dir, run_text_out, Popen, wait_processes
-
-
-def get_secret_data(kc, secret_name):
-    secret = json.loads(run_text_out((*kc, "get", "secret", secret_name, "-o", "json")))
-    return lambda secret_fn: base64.b64decode(secret["data"][secret_fn])
-
-
-def get_kubectl(kube_context): return "kubectl", "--kubeconfig", os.environ["C4KUBECONFIG"], "--context", kube_context
-
-
-def s3init(kc):
-    s3pod = max(run_text_out((*kc, "get", "pods", "-o", "name", "-l", "c4s3client")).splitlines())
-    return *kc, "exec", "-i", s3pod, "--", "/tools/mc"
-
-
-def s3list(mc, bucket): return [json.loads(line) for line in run_text_out((*mc, "ls", "--json", bucket)).splitlines()]
+from cluster import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl, get_secret_data
 
 
 def s3get(line):
@@ -40,10 +25,10 @@ def get_hostname(kube_context, app):
 
 def md5s(data):
     digest = hashlib.md5()
-    for bytes in data:
-        l = len(bytes).to_bytes(4, byteorder='big')
-        digest.update(l)
-        digest.update(bytes)
+    for a_bytes in data:
+        lb = len(a_bytes).to_bytes(4, byteorder='big')
+        digest.update(lb)
+        digest.update(a_bytes)
     return base64.urlsafe_b64encode(digest.digest())
 
 
@@ -84,24 +69,17 @@ def clone_repo(key, branch):
     return dir_life
 
 
-def s3path(path): return f"def/{path}"
-
-
-def get_env_values_from_pods(env_key, pods):
-    return {e["value"] for p in pods for c in p["spec"]["containers"] for e in c.get("env", []) if e["name"] == env_key}
-
-
 def snapshot_list(kube_context, app):
     kc = get_kubectl(kube_context)
     inbox = one(*get_env_values_from_pods("C4INBOX_TOPIC_PREFIX", get_app_pods(kc, app)))
     mc = s3init(kc)
     bucket = s3path(f"{inbox}.snapshots")
-    return [{**l, "cat": (*mc, "cat", f"{bucket}/{l['key']}")} for l in s3list(mc, bucket)]
+    return [{**it, "cat": (*mc, "cat", f"{bucket}/{it['key']}")} for it in s3list(mc, bucket)]
 
 
 def snapshot_get(lines, arg_name):
-    name = max(l["key"] for l in lines) if arg_name == "last" else arg_name
-    data, = [s3get(l) for l in lines if l["key"] == name]
+    name = max(it["key"] for it in lines) if arg_name == "last" else arg_name
+    data, = [s3get(it) for it in lines if it["key"] == name]
     return name, data
 
 
@@ -152,9 +130,9 @@ def with_zero_offset(fn):
 def clone_last_to_prefix_list(kube_context, from_prefix, to_prefix_list):
     kc = get_kubectl(kube_context)
     mc = s3init(kc)
-    was_buckets = {l['key'] for l in s3list(mc, s3path(""))}
+    was_buckets = {it['key'] for it in s3list(mc, s3path(""))}
     from_bucket = f"{from_prefix}.snapshots"
-    files = reversed(sorted(l['key'] for l in s3list(mc, s3path(from_bucket))))
+    files = reversed(sorted(it['key'] for it in s3list(mc, s3path(from_bucket))))
     from_fn, to_fn = next((fn, zfn) for fn in files for zfn in [with_zero_offset(fn)] if zfn)
     to_buckets = [f"{to_prefix}.snapshots" for to_prefix in to_prefix_list]
     for to_bucket in to_buckets:

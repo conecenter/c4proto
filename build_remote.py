@@ -9,8 +9,8 @@ import uuid
 import tempfile
 import re
 from c4util import path_exists, read_text, changing_text, read_json, changing_text_observe, one, never, \
-    run, run_text_out, Popen, wait_processes
-from c4util.build import run_no_die, run_pipe_no_die, need_dir, kcd_args, kcd_run, need_pod, get_main_conf, \
+    run, run_text_out, Popen, wait_processes, need_dir
+from c4util.build import run_no_die, run_pipe_no_die, kcd_args, kcd_run, need_pod, get_main_conf, \
     get_temp_dev_pod, build_cached_by_content, setup_parser, secret_part_to_text, crane_image_exists, get_proto, \
     get_image_conf, crane_login
 
@@ -308,8 +308,10 @@ def build_type_kube_reporter(context, out):
     ])
 
 
-def build_type_snapshot_operator(context, out):
-    build_micro(context, out, ["snapshots.py"], [
+def build_type_ci_operator(context, out):
+    build_micro(context, out, [
+        "ci_serve.py", "c4util/snapshots.py", "c4util/purge.py", "c4util/__init__.py", "ci_prep.py", "ci_up.py"
+    ], [
         "FROM ubuntu:22.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
         "RUN perl install.pl useradd 1979",
@@ -317,9 +319,12 @@ def build_type_snapshot_operator(context, out):
         "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl && chmod +x /tools/kubectl",
         "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
         " && chmod +x /tools/tini",
+        "RUN perl install.pl curl https://get.helm.sh/helm-v3.12.1-linux-amd64.tar.gz",  # c4ci_up
+        "RUN /install.pl curl https://download.bell-sw.com/java/17.0.8+7/bellsoft-jdk17.0.8+7-linux-amd64.tar.gz",  # kafka-purge, tests
+        "RUN /install.pl curl https://github.com/coursier/launchers/raw/master/coursier && chmod +x /tools/coursier",  # kafka-purge
         "USER c4",
         'ENV PATH=${PATH}:/tools',
-        'ENTRYPOINT ["/tools/tini","--","python3","-u","/snapshots.py"]',
+        'ENTRYPOINT ["/tools/tini","--","python3","-u","/ci_serve.py"]',
     ])
 
 
@@ -392,7 +397,7 @@ def main():
         "build_type-elector": lambda proj_tag: build_type_elector,
         "build_type-resource_tracker": lambda proj_tag: build_type_resource_tracker,
         "build_type-kube_reporter": lambda proj_tag: build_type_kube_reporter,
-        "build_type-snapshot_operator": lambda proj_tag: build_type_snapshot_operator,
+        "build_type-ci_operator": lambda proj_tag: build_type_ci_operator,
         "build_type-s3client": lambda proj_tag: build_type_s3client,
     }
     opt = setup_parser((

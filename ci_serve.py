@@ -13,24 +13,27 @@ import c4util.purge as pu
 from c4util import run, never, read_text, list_dir, log
 
 
+def py_cmd(): return "python3", "-u"
+
+
 def app_start(app_dir, app):
     out_dir_life = tempfile.TemporaryDirectory()
     info_path = f"{out_dir_life.name}/up.json"
-    run(("c4ci_prep", "--context", app_dir, "--c4env", app, "--state", "main", "--info-out", info_path))
-    run(("c4ci_up",), text=True, input=read_text(pathlib.Path(info_path)))
+    run((*py_cmd(), "/ci_prep.py", "--context", app_dir, "--c4env", app, "--state", "main", "--info-out", info_path))
+    run((*py_cmd(), "/ci_up.py"), text=True, input=read_text(pathlib.Path(info_path)))
 
 
 def app_stop(kube_context, app):
     info = {"c4env": app, "state": "c4-off", "kube-context": kube_context, "manifests": []}
-    run(("c4ci_up",), text=True, input=json.dumps(info))
+    run((*py_cmd(), "/ci_up.py"), text=True, input=json.dumps(info))
 
 
 def op_dump(ctx):
     snapshot_list = ctx.get("snapshot_list")
     if snapshot_list:
         log("snapshot_list:")
-        for l in snapshot_list:
-            log(f"\t{l['lastModified']}\t{l['size']}\t{l['key']}")
+        for it in snapshot_list:
+            log(f"\t{it['lastModified']}\t{it['size']}\t{it['key']}")
     data = ctx.get("injection")
     if data:
         log(f"injection:\n{data}")
@@ -38,7 +41,7 @@ def op_dump(ctx):
 
 
 def clone_cron():
-    return clone_repo("C4INJECTION_REPO", os.environ["C4CRON_BRANCH"])
+    return sn.clone_repo("C4INJECTION_REPO", os.environ["C4CRON_BRANCH"])
 
 
 def fire(script, dir_life, ev_abbr):
@@ -49,8 +52,8 @@ def fire(script, dir_life, ev_abbr):
             for ev_abbr_list, steps in json.loads(read_text(path)):
                 if ev_abbr in ev_abbr_list:
                     log_path = f"/tmp/c4log-{random.random()}"
-                    log(f"starting task, to view log:\n\tkcd exec {pod_name} -- tail -f {log_path}", file=sys.stderr)
-                    proc = subprocess.Popen(("python3", "-u", script, json.dumps(steps)))
+                    log(f"starting task, to view log:\n\tkcd exec {pod_name} -- tail -f {log_path}")
+                    proc = subprocess.Popen((*py_cmd(), script, json.dumps(steps)))
                     subprocess.Popen(("sh", "-c", f"cat > {log_path}"), stdin=proc.stdout)
 
 
@@ -89,7 +92,6 @@ handlers = {
         lambda ctx, fr, to_list: {**ctx, "": sn.clone_last_to_prefix_list(os.environ["C4DEPLOY_CONTEXT"], fr, to_list)},
 
     "fire": lambda ctx, ev_abbr: {**ctx, "": fire(ctx["script"], clone_cron(), ev_abbr)},
-
 }
 
 
@@ -108,6 +110,3 @@ def main():
 
 main()
 
-# fill C4APP_REPO
-# need: c4ci_prep, c4ci_up, helm
-# clone_repo

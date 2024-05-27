@@ -4,7 +4,7 @@ import pathlib
 import tempfile
 
 from . import parse_table, log, run_text_out, never, run, decode
-from snapshots import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl, get_secret_data
+from cluster import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl, get_secret_data
 
 
 def filter_parts(check_prefix, postfix_set, values):
@@ -22,7 +22,7 @@ def get_active_prefixes(kc):
 
 def s3purge(kc, need_rm):
     mc = s3init(kc)
-    buckets = [l['key'] for l in s3list(mc, s3path(""))]
+    buckets = [it['key'] for it in s3list(mc, s3path(""))]
     buckets_to_rm = filter_parts(need_rm, {"snapshots/", "txr/"}, buckets)
     if buckets_to_rm:
         run((*mc, "rb", "--force", *(s3path(b) for b in buckets_to_rm)))
@@ -56,7 +56,8 @@ def kafka_purge(kc, need_rm):
         topics_to_rm = filter_parts(need_rm, {"inbox", }, topics)
         log(f"{len(topics)} topics found, {len(topics_to_rm)} to remove")
         topics_to_rm_str = "".join(f"{topic}\n" for topic in topics_to_rm)
-        if topics_to_rm_str: run((*kafka_cmd, "topics_rm"), env=kafka_env, text=True, input=topics_to_rm_str)
+        if topics_to_rm_str:
+            run((*kafka_cmd, "topics_rm"), env=kafka_env, text=True, input=topics_to_rm_str)
 
 
 def purge_inner(kc, need_rm):
@@ -79,4 +80,3 @@ def purge_prefix_list(prefix_list):
     if conflicting:
         never(f"{conflicting} are in use")
     purge_inner(kc, lambda prefix: prefix in prefixes)
-

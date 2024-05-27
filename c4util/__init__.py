@@ -70,4 +70,8 @@ def never(a): raise Exception(a)
 
 def list_dir(d): return sorted(str(p) for p in pathlib.Path(d).iterdir())
 
-# suggest: read_json, subprocess.run
+
+def need_dir(d):
+    pathlib.Path(d).mkdir(parents=True, exist_ok=True)
+    return d
+
