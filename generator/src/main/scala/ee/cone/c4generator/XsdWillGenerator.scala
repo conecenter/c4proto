@@ -85,8 +85,11 @@ object XsdMultiCacheGenerator extends MultiCacheGenerator {
     } yield k -> e)
     def tr(e: Elem): Elem = {
       val use = e \@ useN
-      val child = if (use.isEmpty) e.child
-        else provided(use).sortBy(e => (e \@ orderN, e \@ "name", e \@ "ref", e \@ "value")) // sortBy is stable
+      val child = if (use.isEmpty) e.child else provided(use).sortBy{ ei =>
+        val o: String = ei \@ orderN
+        val od = if(o.isEmpty) None else Option(BigDecimal(o))
+        (o.isEmpty, od, ei \@ "name", ei \@ "ref", ei \@ "value")
+      } // sortBy is stable
       val attributes =
         e.attributes.remove(c4ns, e.scope, "use").remove(c4ns, e.scope, "provide").remove(c4ns, e.scope, "order")
       e.copy(scope = TopScope, child = child.map { case ce: Elem => tr(ce) case o => o }, attributes = attributes)
