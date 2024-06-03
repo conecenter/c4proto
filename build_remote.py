@@ -309,21 +309,32 @@ def build_type_kube_reporter(context, out):
 
 
 def build_type_ci_operator(context, out):
+    get_plain_option = get_main_conf(context)
+    deploy_context = get_plain_option("C4DEPLOY_CONTEXT")
     build_micro(context, out, [
-        "ci_serve.py", "c4util/snapshots.py", "c4util/purge.py", "c4util/__init__.py", "ci_prep.py", "ci_up.py"
+        "ci_serve.py", "c4util/snapshots.py", "c4util/purge.py", "c4util/cluster.py", "c4util/__init__.py",
+        "ci_prep.py", "ci_up.py", "kafka_info.java",
     ], [
         "FROM ubuntu:22.04",
-        "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
+        "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /replink.pl /",  # replink for ci_prep
         "RUN perl install.pl useradd 1979",
-        "RUN perl install.pl apt curl ca-certificates python3 git",
-        "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl && chmod +x /tools/kubectl",
+        "RUN perl install.pl apt curl ca-certificates python3 git" +
+        " libjson-xs-perl" +  # for ci_prep/prod/deploy_info
+        " rsync",  # for ci_prep
+        "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl" +
+        " && chmod +x /tools/kubectl",
         "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
         " && chmod +x /tools/tini",
-        "RUN perl install.pl curl https://get.helm.sh/helm-v3.12.1-linux-amd64.tar.gz",  # c4ci_up
-        "RUN /install.pl curl https://download.bell-sw.com/java/17.0.8+7/bellsoft-jdk17.0.8+7-linux-amd64.tar.gz",  # kafka-purge, tests
-        "RUN /install.pl curl https://github.com/coursier/launchers/raw/master/coursier && chmod +x /tools/coursier",  # kafka-purge
+        "RUN perl install.pl curl https://get.helm.sh/helm-v3.12.1-linux-amd64.tar.gz",  # ci_up
+        "RUN perl install.pl curl https://download.bell-sw.com/java/17.0.8+7/bellsoft-jdk17.0.8+7-linux-amd64.tar.gz",  # kafka-purge, tests
+        "RUN perl install.pl curl https://github.com/coursier/launchers/raw/master/coursier" +
+        " && chmod +x /tools/coursier",  # kafka-purge
+        "RUN curl -L -o /t.tgz" +
+        " https://github.com/google/go-containerregistry/releases/download/v0.12.1/go-containerregistry_Linux_x86_64.tar.gz" +
+        " && tar -C /tools -xzf /t.tgz crane && rm /t.tgz",  # ci_prep
         "USER c4",
-        'ENV PATH=${PATH}:/tools',
+        'ENV PATH=${PATH}:/tools:/tools/linux:/tools/jdk/bin',  # /tools/linux for ci_up/helm
+        f"ENV C4DEPLOY_CONTEXT={deploy_context}",
         'ENTRYPOINT ["/tools/tini","--","python3","-u","/ci_serve.py"]',
     ])
 
@@ -345,6 +356,9 @@ def build_micro(context, out, scripts, lines):
     proto_postfix, proto_dir = get_proto(context, get_plain_option)
     changing_text(f"{out}/Dockerfile", "\n".join(lines))
     for script in scripts:
+        subdir = script.rpartition("/")[0]
+        if subdir:
+            need_dir(f"{out}/{subdir}")
         changing_text(f"{out}/{script}", read_text(f"{proto_dir}/{script}"))
 
 

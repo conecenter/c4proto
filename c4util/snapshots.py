@@ -9,17 +9,18 @@ import base64
 import time
 import urllib.parse
 
-from . import run, never, one, read_text, list_dir, run_text_out, Popen, wait_processes
-from cluster import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl, get_secret_data
+from . import run, never, one, read_text, list_dir, run_text_out, Popen, wait_processes, log
+from .cluster import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl, get_secret_data
 
 
-def s3get(line):
+def s3get(line, try_count):
+    if try_count <= 0:
+        never("bad download")
     data = run(line["cat"], capture_output=True).stdout
-    return data if int(line["size"]) == len(data) else never("bad download")
+    return data if int(line["size"]) == len(data) else s3get(line, try_count-1)
 
 
-def get_hostname(kube_context, app):
-    kc = get_kubectl(kube_context)
+def get_hostname(kc, app):
     return max(r["host"] for r in json.loads(run_text_out((*kc, "get", "ingress", "-o", "json", app)))["spec"]["rules"])
 
 
@@ -38,8 +39,7 @@ def sign(salt, args):
     return {"x-r-signed": "=".join([urllib.parse.quote_plus(e) for e in [md5s([salt, *u_data]), *u_data]])}
 
 
-def get_app_pods(kc, app):
-    return json.loads(run_text_out((*kc, "get", "pods", "-o", "json", "-l", f"app={app}")))["items"]
+def get_labeled_pods(kc, la): return json.loads(run_text_out((*kc, "get", "pods", "-o", "json", "-l", la)))["items"]
 
 
 def get_app_pod_cmd_prefix(kc, pods):
@@ -47,12 +47,19 @@ def get_app_pod_cmd_prefix(kc, pods):
     return *kc, "exec", pod_name, "--", "sh", "-c"
 
 
-def post_signed(kube_context, app, url, arg, data):
-    kc = get_kubectl(kube_context)
-    pods = get_app_pods(kc, app)
+def get_app_kc_pods(kube_contexts, app):
+    for kube_context in kube_contexts:
+        kc = get_kubectl(kube_context)
+        pods = get_labeled_pods(kc, f"app={app}")
+        if pods:
+            return kc, pods
+
+
+def post_signed(kube_contexts, app, url, arg, data):
+    kc, pods = get_app_kc_pods(kube_contexts, app)
     app_pod_cmd_prefix = get_app_pod_cmd_prefix(kc, pods)
     salt = run((*app_pod_cmd_prefix, "cat $C4AUTH_KEY_FILE"), capture_output=True).stdout
-    host = get_hostname(kube_context, app)
+    host = get_hostname(kc, app)
     headers = sign(salt, [url, arg])
     conn = http.client.HTTPSConnection(host, None)
     conn.request("POST", url, data, headers)
@@ -69,17 +76,27 @@ def clone_repo(key, branch):
     return dir_life
 
 
-def snapshot_list(kube_context, app):
-    kc = get_kubectl(kube_context)
-    inbox = one(*get_env_values_from_pods("C4INBOX_TOPIC_PREFIX", get_app_pods(kc, app)))
+def snapshot_list_dump(kube_contexts, app):
+    for it in snapshot_list(kube_contexts, app):
+        log(f"\t{it['lastModified']}\t{it['size']}\t{it['key']}")
+
+
+def snapshot_list(kube_contexts, app):
+    kc, pods = get_app_kc_pods(kube_contexts, app)
+    inbox = one(*get_env_values_from_pods("C4INBOX_TOPIC_PREFIX", pods))
     mc = s3init(kc)
     bucket = s3path(f"{inbox}.snapshots")
     return [{**it, "cat": (*mc, "cat", f"{bucket}/{it['key']}")} for it in s3list(mc, bucket)]
 
 
-def snapshot_get(lines, arg_name):
+def snapshot_make(kube_contexts, app):
+    post_signed(kube_contexts, app, "/need-snapshot", "next", b'')
+
+
+def snapshot_get(kube_contexts, app, arg_name):
+    lines = snapshot_list(kube_contexts, app)
     name = max(it["key"] for it in lines) if arg_name == "last" else arg_name
-    data, = [s3get(it) for it in lines if it["key"] == name]
+    data, = [s3get(it, 3) for it in lines if it["key"] == name]
     return name, data
 
 
@@ -95,10 +112,10 @@ def snapshot_read(data_path_arg):
     )
 
 
-def snapshot_put(data_fn, data, kube_context, app):
+def snapshot_put(data_fn, data, kube_contexts, app):
     if len(data) > 800000000:
         never("snapshot is too big")
-    post_signed(kube_context, app, "/put-snapshot", f"snapshots/{data_fn}", data)
+    post_signed(kube_contexts, app, "/put-snapshot", f"snapshots/{data_fn}", data)
 
 
 def injection_get(branch, subdir):
@@ -110,8 +127,8 @@ def injection_get(branch, subdir):
     )
 
 
-def injection_post(data, kube_context, app):
-    post_signed(kube_context, app, "/injection", md5s([data.encode("utf-8")]).decode("utf-8"), data)
+def injection_post(data, kube_contexts, app):
+    post_signed(kube_contexts, app, "/injection", md5s([data.encode("utf-8")]).decode("utf-8"), data)
 
 
 def injection_substitute(data, from_str, to):
@@ -127,18 +144,12 @@ def with_zero_offset(fn):
     return f"{'0' * offset_len}{minus}{postfix}" if minus == "-" and len(offset) == offset_len else None
 
 
-def clone_last_to_prefix_list(kube_context, from_prefix, to_prefix_list):
+def snapshot_put_purged(data_fn, data, kube_context, to_prefix_list):
     kc = get_kubectl(kube_context)
     mc = s3init(kc)
-    was_buckets = {it['key'] for it in s3list(mc, s3path(""))}
-    from_bucket = f"{from_prefix}.snapshots"
-    files = reversed(sorted(it['key'] for it in s3list(mc, s3path(from_bucket))))
-    from_fn, to_fn = next((fn, zfn) for fn in files for zfn in [with_zero_offset(fn)] if zfn)
-    to_buckets = [f"{to_prefix}.snapshots" for to_prefix in to_prefix_list]
-    for to_bucket in to_buckets:
-        if f"{to_bucket}/" in was_buckets:
-            never(f"{to_bucket} exists")
+    for to_prefix in to_prefix_list:
+        to_bucket = f"{to_prefix}.snapshots"
         run((*mc, "mb", s3path(to_bucket)))
-    from_path = f"{from_bucket}/{from_fn}"
-    to_paths = [f"{to_bucket}/{to_fn}" for to_bucket in to_buckets]
-    wait_processes(Popen((*mc, "cp", s3path(from_path), s3path(to))) for to in to_paths)
+        if s3list(mc, s3path(to_bucket)):
+            never(f"{to_bucket} non-empty")
+        run((*mc, "pipe", s3path(f"{to_bucket}/{with_zero_offset(data_fn)}")), input=data)

@@ -4,7 +4,7 @@ import pathlib
 import tempfile
 
 from . import parse_table, log, run_text_out, never, run, decode
-from cluster import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl, get_secret_data
+from .cluster import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl, get_secret_data
 
 
 def filter_parts(check_prefix, postfix_set, values):
@@ -35,29 +35,30 @@ def secret_part_as_file(secret, file_name, to_dir):
 
 
 def kafka_purge(kc, need_rm):
-    with tempfile.TemporaryDirectory() as temp_dir:
-        coursier_res = run_text_out(["coursier", "fetch", "--classpath", "org.apache.kafka:kafka-clients:2.8.0"])
-        classpath = coursier_res.split()[0]
-        kafka_auth = get_secret_data(kc, "kafka-auth")
-        kafka_certs = get_secret_data(kc, "kafka-certs")
-        kafka_env = {
-            **os.environ,
-            "JAVA_TOOL_OPTIONS": "",
-            "CLASSPATH": classpath,
-            "C4STORE_PASS_PATH": secret_part_as_file(kafka_auth, "kafka.store.auth", temp_dir),
-            "C4KEYSTORE_PATH": secret_part_as_file(kafka_certs, "kafka.keystore.jks", temp_dir),
-            "C4TRUSTSTORE_PATH": secret_part_as_file(kafka_certs, "kafka.truststore.jks", temp_dir),
-            "C4BOOTSTRAP_SERVERS": decode(kafka_auth("bootstrap_servers")),
-        }
-        proto_dir = os.environ["C4CI_PROTO_DIR"]
-        kafka_cmd = ["java", "--source", "15", f"{proto_dir}/kafka_info.java"]
-        topics_res = run_text_out((*kafka_cmd, "topics"), env=kafka_env)
-        topics = [cells[1] for cells in parse_table(topics_res) if cells[0] == "topic"]
-        topics_to_rm = filter_parts(need_rm, {"inbox", }, topics)
-        log(f"{len(topics)} topics found, {len(topics_to_rm)} to remove")
-        topics_to_rm_str = "".join(f"{topic}\n" for topic in topics_to_rm)
-        if topics_to_rm_str:
-            run((*kafka_cmd, "topics_rm"), env=kafka_env, text=True, input=topics_to_rm_str)
+    temp_dir_life = tempfile.TemporaryDirectory()
+    temp_dir = temp_dir_life.name
+    coursier_res = run_text_out(["coursier", "fetch", "--classpath", "org.apache.kafka:kafka-clients:2.8.0"])
+    classpath = coursier_res.split()[0]
+    kafka_auth = get_secret_data(kc, "kafka-auth")
+    kafka_certs = get_secret_data(kc, "kafka-certs")
+    kafka_env = {
+        **os.environ,
+        "JAVA_TOOL_OPTIONS": "",
+        "CLASSPATH": classpath,
+        "C4STORE_PASS_PATH": secret_part_as_file(kafka_auth, "kafka.store.auth", temp_dir),
+        "C4KEYSTORE_PATH": secret_part_as_file(kafka_certs, "kafka.keystore.jks", temp_dir),
+        "C4TRUSTSTORE_PATH": secret_part_as_file(kafka_certs, "kafka.truststore.jks", temp_dir),
+        "C4BOOTSTRAP_SERVERS": decode(kafka_auth("bootstrap_servers")),
+    }
+    proto_dir = os.environ.get("C4CI_PROTO_DIR")
+    kafka_cmd = ["java", "--source", "15", f"{proto_dir or ''}/kafka_info.java"]
+    topics_res = run_text_out((*kafka_cmd, "topics"), env=kafka_env)
+    topics = [cells[1] for cells in parse_table(topics_res) if cells[0] == "topic"]
+    topics_to_rm = filter_parts(need_rm, {"inbox", }, topics)
+    log(f"{len(topics)} topics found, {len(topics_to_rm)} to remove")
+    topics_to_rm_str = "".join(f"{topic}\n" for topic in topics_to_rm)
+    if topics_to_rm_str:
+        run((*kafka_cmd, "topics_rm"), env=kafka_env, text=True, input=topics_to_rm_str)
 
 
 def purge_inner(kc, need_rm):
@@ -65,16 +66,16 @@ def purge_inner(kc, need_rm):
     kafka_purge(kc, need_rm)
 
 
-def purge_mode_list(mode_list):
+def purge_mode_list(deploy_context, mode_list):
     modes = {*mode_list}
-    kc = get_kubectl(os.environ["C4DEPLOY_CONTEXT"])
+    kc = get_kubectl(deploy_context)
     active_prefixes = get_active_prefixes(kc)
     purge_inner(kc, lambda prefix: prefix.split("-")[0] in modes and prefix not in active_prefixes)
 
 
-def purge_prefix_list(prefix_list):
+def purge_prefix_list(deploy_context, prefix_list):
     prefixes = {*prefix_list}
-    kc = get_kubectl(os.environ["C4DEPLOY_CONTEXT"])
+    kc = get_kubectl(deploy_context)
     active_prefixes = get_active_prefixes(kc)
     conflicting = prefixes & active_prefixes
     if conflicting:

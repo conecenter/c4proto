@@ -310,16 +310,19 @@ my $conf_handler = { "consumer"=>$up_consumer, "gate"=>$up_gate };
 ###
 
 # /^(\w{16})(-\w{8}-\w{4}-\w{4}-\w{4}-\w{12}[-\w]*)$/
-my $with_context = sub{ my($comp)=@_; ((&$get_deployer_conf($comp,1,qw[context]))[0],$comp) };
+
 my $ci_run = sub{ &$py_run("ci_serve.py",&$encode([@_])) };
 push @tasks, ["snapshot_get", "$composes_txt [|snapshot|last]", sub{
     my($gate_comp,$arg)=@_;
-    my $op_list = ["snapshot_list", &$with_context($gate_comp)];
-    &$ci_run($op_list, (!defined $arg) ? ["dump"] : (["snapshot_get", $arg], ["snapshot_write", "."]));
+    &$ci_run(
+        ["kube_contexts", "all"],
+        (!defined $arg) ?
+            (["snapshot_list_dump", $gate_comp]) : (["snapshot_get", $gate_comp, $arg], ["snapshot_write", "."])
+    );
 }];
 push @tasks, ["snapshot_put", "$composes_txt <file_path|nil>", sub{
     my($gate_comp, $data_path_arg)=@_;
-    &$ci_run(["snapshot_read", $data_path_arg], ["snapshot_put", &$with_context($gate_comp)]);
+    &$ci_run(["kube_contexts", "all"], ["snapshot_read", $data_path_arg], ["snapshot_put", $gate_comp]);
 }];
 
 push @tasks, ["exec_bash","<pod|$composes_txt>",sub{
@@ -700,7 +703,7 @@ push @tasks, ["kafka","( topics | offsets <hours> | nodes | sizes <node> | topic
     sy("JAVA_TOOL_OPTIONS= CLASSPATH=$cp java --source 15 $gen_dir/kafka_info.java ".join" ",@args);
 }];
 
-my $co_list = sub{ [(&$single_or_undef(@_)||die "bad args")=~/([^,]+)/g] }
+my $co_list = sub{ [(&$single_or_undef(@_)||die "bad args")=~/([^,]+)/g] };
 push @tasks, ["purge_mode_list","<list>",sub{ &$ci_run(["purge_mode_list",&$co_list(@_)]) }];
 push @tasks, ["purge_prefix_list","<list>",sub{ &$ci_run(["purge_prefix_list",&$co_list(@_)]) }];
 
