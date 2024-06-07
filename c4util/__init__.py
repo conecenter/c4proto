@@ -40,17 +40,19 @@ def log(text):
     print(text, file=sys.stderr)
 
 
+def debug_args(hint, args):
+    log(f"{hint}: {' '.join(str(a) for a in args)}")
+    return args
+
+
 def run(args, **opt):
-    log("running: " + " ".join(str(a) for a in args))
     started = time.monotonic()
-    res = subprocess.run(args, check=True, **opt)
+    res = subprocess.run(debug_args("running", args), check=True, **opt)
     log(f"{time.monotonic() - started}s for {args[0]}")
     return res
 
 
-def Popen(args, **opt):
-    log("starting: "+" ".join(args))
-    return subprocess.Popen(args, **opt)
+def Popen(args, **opt): return subprocess.Popen(debug_args("starting", args), **opt)
 
 
 def wait_processes(processes):
@@ -61,11 +63,16 @@ def wait_processes(processes):
 
 
 def run_text_out(args, **opt):
-    log("running: "+" ".join(str(a) for a in args))
-    return subprocess.run(args, check=True, text=True, capture_output=True, **opt).stdout
+    return subprocess.run(debug_args("running", args), check=True, text=True, capture_output=True, **opt).stdout
+
+
+def run_no_die(args, **opt): return subprocess.run(debug_args("running", args), **opt).returncode == 0
 
 
 def never(a): raise Exception(a)
+
+
+def never_if(e): return never(e) if e else e
 
 
 def list_dir(d): return sorted(str(p) for p in pathlib.Path(d).iterdir())

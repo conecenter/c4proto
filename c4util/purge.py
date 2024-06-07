@@ -3,7 +3,7 @@ import os
 import pathlib
 import tempfile
 
-from . import parse_table, log, run_text_out, never, run, decode
+from . import parse_table, log, run_text_out, never_if, run, decode
 from .cluster import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl, get_secret_data
 
 
@@ -77,7 +77,5 @@ def purge_prefix_list(deploy_context, prefix_list):
     prefixes = {*prefix_list}
     kc = get_kubectl(deploy_context)
     active_prefixes = get_active_prefixes(kc)
-    conflicting = prefixes & active_prefixes
-    if conflicting:
-        never(f"{conflicting} are in use")
+    never_if([f"{conflicting} is in use" for conflicting in sorted(prefixes & active_prefixes)])
     purge_inner(kc, lambda prefix: prefix in prefixes)

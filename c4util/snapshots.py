@@ -2,20 +2,17 @@
 import json
 import pathlib
 import http.client
-import tempfile
-import os
 import hashlib
 import base64
 import time
 import urllib.parse
 
-from . import run, never, one, read_text, list_dir, run_text_out, Popen, wait_processes, log
-from .cluster import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl, get_secret_data
+from . import run, never_if, one, read_text, list_dir, run_text_out, log
+from .cluster import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl
 
 
 def s3get(line, try_count):
-    if try_count <= 0:
-        never("bad download")
+    never_if("bad download" if try_count <= 0 else None)
     data = run(line["cat"], capture_output=True).stdout
     return data if int(line["size"]) == len(data) else s3get(line, try_count-1)
 
@@ -61,19 +58,15 @@ def post_signed(kube_contexts, app, url, arg, data):
     salt = run((*app_pod_cmd_prefix, "cat $C4AUTH_KEY_FILE"), capture_output=True).stdout
     host = get_hostname(kc, app)
     headers = sign(salt, [url, arg])
+    post_request(host, url, data, headers)
+
+
+def post_request(host, url, data, headers):
     conn = http.client.HTTPSConnection(host, None)
     conn.request("POST", url, data, headers)
     resp = conn.getresponse()
     msg = resp.read()
-    if resp.status != 200:
-        never(f"request failed:\n{msg}")
-
-
-def clone_repo(key, branch):
-    dir_life = tempfile.TemporaryDirectory()
-    repo = read_text(os.environ[key])
-    run(("git", "clone", "-b", branch, "--depth", "1", "--", repo, "."), cwd=dir_life.name)
-    return dir_life
+    never_if(f"request failed:\n{msg}" if resp.status != 200 else None)
 
 
 def snapshot_list_dump(kube_contexts, app):
@@ -113,18 +106,13 @@ def snapshot_read(data_path_arg):
 
 
 def snapshot_put(data_fn, data, kube_contexts, app):
-    if len(data) > 800000000:
-        never("snapshot is too big")
+    never_if("snapshot is too big" if len(data) > 800000000 else None)
     post_signed(kube_contexts, app, "/put-snapshot", f"snapshots/{data_fn}", data)
 
 
-def injection_get(branch, subdir):
-    dir_life = clone_repo("C4INJECTION_REPO", branch)
-    return "\n".join(
-        line.replace("?", " ")
-        for path in list_dir(f"{dir_life.name}/{subdir}")
-        for line in read_text(path).splitlines() if not line.startswith("#")
-    )
+def injection_get(path): return "\n".join(
+    le.replace("?", " ") for path in list_dir(path) for le in read_text(path).splitlines() if not le.startswith("#")
+)
 
 
 def injection_post(data, kube_contexts, app):
@@ -144,12 +132,8 @@ def with_zero_offset(fn):
     return f"{'0' * offset_len}{minus}{postfix}" if minus == "-" and len(offset) == offset_len else None
 
 
-def snapshot_put_purged(data_fn, data, kube_context, to_prefix_list):
-    kc = get_kubectl(kube_context)
-    mc = s3init(kc)
-    for to_prefix in to_prefix_list:
-        to_bucket = f"{to_prefix}.snapshots"
-        run((*mc, "mb", s3path(to_bucket)))
-        if s3list(mc, s3path(to_bucket)):
-            never(f"{to_bucket} non-empty")
-        run((*mc, "pipe", s3path(f"{to_bucket}/{with_zero_offset(data_fn)}")), input=data)
+def snapshot_put_purged(data_fn, data, mc, to_prefix):
+    to_bucket = f"{to_prefix}.snapshots"
+    run((*mc, "mb", s3path(to_bucket)))
+    never_if(f"{to_bucket} non-empty" if s3list(mc, s3path(to_bucket)) else None)
+    run((*mc, "pipe", s3path(f"{to_bucket}/{with_zero_offset(data_fn)}")), input=data)

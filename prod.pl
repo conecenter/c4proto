@@ -296,7 +296,7 @@ my $up_gate = sub{
         "ingress:$hostname/"=>$inner_http_port,
         #"ingress:$hostname/sse"=>$inner_sse_port,
         ingress_secret_name => $$conf{ingress_secret_name} || $ingress_secret_name,
-        ingress_api_version => $ingress_api_version || "networking.k8s.io/v1",
+        $ingress_api_version ? (ingress_api_version => $ingress_api_version) : (),
         C4HTTP_PORT => $inner_http_port,
         C4SSE_PORT => $inner_sse_port,
         need_pod_ip => 1,
@@ -324,6 +324,7 @@ push @tasks, ["snapshot_put", "$composes_txt <file_path|nil>", sub{
     my($gate_comp, $data_path_arg)=@_;
     &$ci_run(["kube_contexts", "all"], ["snapshot_read", $data_path_arg], ["snapshot_put", $gate_comp]);
 }];
+push @tasks, ["cio_call", "<msg>", sub{ my($msg)=@_; &$ci_run(["remote_call", &$decode($msg)]) }];
 
 push @tasks, ["exec_bash","<pod|$composes_txt>",sub{
     my($arg)=@_;

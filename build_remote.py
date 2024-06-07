@@ -9,8 +9,8 @@ import uuid
 import tempfile
 import re
 from c4util import path_exists, read_text, changing_text, read_json, changing_text_observe, one, never, \
-    run, run_text_out, Popen, wait_processes, need_dir
-from c4util.build import run_no_die, run_pipe_no_die, kcd_args, kcd_run, need_pod, get_main_conf, \
+    run, run_text_out, Popen, wait_processes, need_dir, run_no_die
+from c4util.build import run_pipe_no_die, kcd_args, kcd_run, need_pod, get_main_conf, \
     get_temp_dev_pod, build_cached_by_content, setup_parser, secret_part_to_text, crane_image_exists, get_proto, \
     get_image_conf, crane_login
 
@@ -312,8 +312,8 @@ def build_type_ci_operator(context, out):
     get_plain_option = get_main_conf(context)
     deploy_context = get_plain_option("C4DEPLOY_CONTEXT")
     build_micro(context, out, [
-        "ci_serve.py", "c4util/snapshots.py", "c4util/purge.py", "c4util/cluster.py", "c4util/__init__.py",
-        "ci_prep.py", "ci_up.py", "kafka_info.java",
+        "c4util/snapshots.py", "c4util/purge.py", "c4util/cluster.py", "c4util/git.py", "c4util/__init__.py",
+        "ci_serve.py", "ci_prep.py", "ci_up.py", "kafka_info.java",
     ], [
         "FROM ubuntu:22.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /replink.pl /",  # replink for ci_prep
@@ -332,8 +332,9 @@ def build_type_ci_operator(context, out):
         "RUN curl -L -o /t.tgz" +
         " https://github.com/google/go-containerregistry/releases/download/v0.12.1/go-containerregistry_Linux_x86_64.tar.gz" +
         " && tar -C /tools -xzf /t.tgz crane && rm /t.tgz",  # ci_prep
+        "RUN perl install.pl curl https://dlcdn.apache.org/maven/maven-3/3.9.7/binaries/apache-maven-3.9.7-bin.tar.gz",
         "USER c4",
-        'ENV PATH=${PATH}:/tools:/tools/linux:/tools/jdk/bin',  # /tools/linux for ci_up/helm
+        'ENV PATH=${PATH}:/tools:/tools/linux:/tools/jdk/bin:/tools/apache/bin',  # /tools/linux for ci_up/helm, /tools/apache/bin for maven
         f"ENV C4DEPLOY_CONTEXT={deploy_context}",
         'ENTRYPOINT ["/tools/tini","--","python3","-u","/ci_serve.py"]',
     ])

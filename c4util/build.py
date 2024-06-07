@@ -5,15 +5,9 @@ import os
 import uuid
 import argparse
 import contextlib
-import pathlib
 import base64
 import hashlib
-from . import group_map, read_json, one, run, run_text_out, Popen, wait_processes, never, decode
-
-
-def run_no_die(args, **opt):
-    print("running: "+" ".join(args))
-    return subprocess.run(args, **opt).returncode == 0
+from . import group_map, read_json, one, run, run_text_out, Popen, wait_processes, never, decode, run_no_die
 
 
 def run_pipe_no_die(from_args, to_args):
