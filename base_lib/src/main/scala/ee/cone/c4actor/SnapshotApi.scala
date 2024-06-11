@@ -65,3 +65,7 @@ trait SnapshotLister {
   def list: List[SnapshotInfo]
   def listWithMTime: List[TimedSnapshotInfo]
 }
+
+trait SnapshotLast {
+  def get: Option[RawSnapshot]
+}

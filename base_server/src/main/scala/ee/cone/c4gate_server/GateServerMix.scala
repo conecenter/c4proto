@@ -69,7 +69,7 @@ trait SnapshotMakingAppBase extends TaskSignerApp with LOBrokerApp
   with S3RawSnapshotLoaderApp with S3ListerApp with S3RawSnapshotSaverApp
   with SnapshotListRequestHandlerApp
   with S3ManagerApp with SignedReqUtilImplApp
-  with ConfigSimpleSignerApp with SnapshotUtilImplApp
+  with ConfigSimpleSignerApp with SnapshotUtilImplApp with SnapshotSaverApp
   with SnapshotListProtocolApp
 trait SnapshotPutAppBase extends SignedReqUtilImplApp with SnapshotLoaderFactoryImplApp
 trait SignedReqUtilImplAppBase

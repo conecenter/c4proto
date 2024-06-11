@@ -324,6 +324,10 @@ push @tasks, ["snapshot_put", "$composes_txt <file_path|nil>", sub{
     my($gate_comp, $data_path_arg)=@_;
     &$ci_run(["kube_contexts", "all"], ["snapshot_read", $data_path_arg], ["snapshot_put", $gate_comp]);
 }];
+push @tasks, ["snapshot_make", "$composes_txt", sub{
+    my($gate_comp)=@_;
+    &$ci_run(["kube_contexts", "all"], ["snapshot_make", $gate_comp]);
+}];
 push @tasks, ["cio_call", "<msg>", sub{ my($msg)=@_; &$ci_run(["remote_call", &$decode($msg)]) }];
 
 push @tasks, ["exec_bash","<pod|$composes_txt>",sub{
