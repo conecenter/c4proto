@@ -132,6 +132,9 @@ def with_zero_offset(fn):
     return f"{'0' * offset_len}{minus}{postfix}" if minus == "-" and len(offset) == offset_len else None
 
 
+# this raw put do not conform to SnapshotPatchIgnore-s including filtering S_ReadyProcess
+# so if snapshot is taken and put at the same cluster
+# then source should be shutdown to prevent elector depending on source's active replica
 def snapshot_put_purged(data_fn, data, mc, to_prefix):
     to_bucket = f"{to_prefix}.snapshots"
     run((*mc, "mb", s3path(to_bucket)))

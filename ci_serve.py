@@ -104,7 +104,7 @@ def run_steps(ctx, sm_args, steps):
     patt = re.compile(r'\{(\w+)}|\{(\w+)\.name}')
     repl = (lambda a: (
         sm_args[a.group(1)] if a.group(1) and a.group(1) in sm_args else
-        ctx[a.group(2)].name if a.group(2) and a.group(2) in ctx else
+        # ctx[a.group(2)].name if a.group(2) and a.group(2) in ctx else
         a.group(0)
     ))
     for step in steps:
@@ -124,8 +124,8 @@ def clone_def_repo():
     return git.git_clone(repo, os.environ["C4CRON_BRANCH"])
 
 
-def start(script, act):
-    pr = Popen((*py_cmd(), script, json.dumps([["call", act]])), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+def start(script, cmd, **options):
+    pr = Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **options)
     Popen((*py_cmd(), script, "measure"), stdin=pr.stdout)
     return pr
 
@@ -143,7 +143,7 @@ def main_operator(script):
         def_list = load_def_list(dir_life)
         log(f"at {tm_abbr}")
         for act in select_def(def_list, "weekly", tm_abbr):
-            start(script, act)
+            start(script, (*py_cmd(), script, json.dumps([["call", act]])))
         time.sleep(30)
 
 
@@ -180,7 +180,17 @@ def get_step_handlers(): return {
         *select_def(load_def_list(clone_def_repo()), "def", msg["op"])
     )),
     "run": lambda ctx, cwd, cmd: {**ctx, "": run(cmd, cwd=ctx[cwd].name)},
-    "remote_call": lambda ctx, msg: {**ctx, "": remote_call(ctx["deploy_context"], msg)}
+    "remote_call": lambda ctx, msg: {**ctx, "": remote_call(ctx["deploy_context"], msg)},
+    "start": lambda ctx, cwd, cmd: {
+        **ctx, "proc": (*ctx.get("proc", []), start(ctx["script"], cmd, cwd=ctx[cwd].name))
+    },
+    "wait_all": lambda ctx: {**ctx, "proc": ([] if wait_processes(ctx.get("proc", [])) else never("failed"))},
+    "rsync_files": lambda ctx, rsync_files: {**ctx, "rsync_files": "".join(f"{f}\n" for f in rsync_files)},
+    "rsync_add": lambda ctx, fr, to: {
+        **ctx, "": run(
+            ("rsync", "-acr", "--files-from", "-", ctx[fr].name, ctx[to].name), text=True, input=ctx["rsync_files"]
+        )
+    },
 }
 
 
