@@ -26,7 +26,7 @@ import scala.util.control.NonFatal
 import scala.jdk.FutureConverters._
 
 @protocol("ChildElectorClientApp") object ElectorProtocol {
-  @Id(0x00B0) case class S_ReadyProcess(
+  @Id(0x00B4) case class S_ReadyProcess( // was 0x00B0
     @Id(0x00B1) electorClientId: SrcId,
     @Id(0x001A) txId: String,
     @Id(0x00B0) role: String,

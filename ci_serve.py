@@ -135,14 +135,18 @@ def main_operator(script):
     last_tm_abbr = ""
     while True:
         tm = time.gmtime()
-        tm_abbr = "ETKNRLP"[tm.tm_wday] + time.strftime("%H:%M", tm)
+        tm_abbr = ("ETKNRLP"[tm.tm_wday], time.strftime("%H:%M", tm))
         if last_tm_abbr == tm_abbr:
             continue
         last_tm_abbr = tm_abbr
         run(("git", "pull"), cwd=dir_life.name)
         def_list = load_def_list(dir_life)
         log(f"at {tm_abbr}")
-        for act in select_def(def_list, "weekly", tm_abbr):
+        acts = [
+            *select_def(def_list, "weekly", tm_abbr[0]+tm_abbr[1]),
+            *select_def(def_list, "daily", tm_abbr[1])
+        ]
+        for act in acts:
             start(script, (*py_cmd(), script, json.dumps([["call", act]])))
         time.sleep(30)
 
