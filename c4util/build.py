@@ -5,49 +5,16 @@ import os
 import uuid
 import argparse
 import contextlib
-import time
-import pathlib
 import base64
 import hashlib
-from . import group_map, read_json, one
+from . import group_map, read_json, one, run, run_text_out, Popen, wait_processes, never, decode, run_no_die
 
-def run(args, **opt):
-    print("running: " + " ".join(args))
-    started = time.monotonic()
-    res = subprocess.run(args, check=True, **opt)
-    print(f"{time.monotonic() - started}s for {args[0]}")
-    return res
-
-# def run(args, **opt):
-#     print("running: "+" ".join(args))
-#     return subprocess.run(args, check=True, **opt)
-
-def run_no_die(args, **opt):
-    print("running: "+" ".join(args))
-    return subprocess.run(args, **opt).returncode == 0
-
-def Popen(args, **opt):
-    print("starting: "+" ".join(args))
-    return subprocess.Popen(args, **opt)
-
-def wait_processes(processes):
-    for proc in processes:
-        proc.wait()
-        print(f"finished with: {proc.returncode}")
-    return all(proc.returncode == 0 for proc in processes)
 
 def run_pipe_no_die(from_args, to_args):
     from_proc = Popen(from_args, stdout=subprocess.PIPE)
     to_proc = Popen(to_args, stdin=from_proc.stdout)
     return wait_processes((from_proc, to_proc))
 
-def run_text_out(args, **opt):
-    print("running: "+" ".join(args))
-    return subprocess.run(args, check=True, text=True, capture_output=True, **opt).stdout
-
-def need_dir(dir):
-    pathlib.Path(dir).mkdir(parents=True, exist_ok=True)
-    return dir
 
 def kcd_args(*args):
     return ("kubectl","--context",os.environ["C4DEPLOY_CONTEXT"],*args)
@@ -86,8 +53,6 @@ def wait_pod(pod,timeout,phases):
 def need_pod(name, get_opt):
     if not run_no_die(kcd_args("get","pod",name)): apply_manifest(construct_pod({ **get_opt(), "name": name }))
     wait_pod(name,60,("Running",))
-
-def never(a): raise Exception(a)
 
 
 def crane_login(push_secret, repository):
@@ -160,7 +125,6 @@ def setup_parser(commands):
         parser.set_defaults(op=op)
     return main_parser
 
-def decode(bs): return bs.decode(encoding='utf-8', errors='strict')
 
 def get_secret_data(secret_name):
     secret = json.loads(run_text_out(kcd_args("get", "secret", secret_name, "-o", "json")))
@@ -168,13 +132,6 @@ def get_secret_data(secret_name):
 def secret_part_to_text(k8s_path):
     secret_name, secret_fn = k8s_path.split("/")
     return decode(get_secret_data(secret_name)(secret_fn))
-
-
-def get_env_values_from_deployments(env_key, deployments):
-    return {
-        e["value"] for d in deployments for c in d["spec"]["template"]["spec"]["containers"]
-        for e in c.get("env",[]) if e["name"] == env_key
-    }
 
 
 def get_main_conf(context):

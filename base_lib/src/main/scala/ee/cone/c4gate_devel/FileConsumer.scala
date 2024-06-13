@@ -39,9 +39,9 @@ import java.nio.file._
   }
 }
 
-@c4("FileConsumerApp") final class FileSnapshotMaker(dir: FileConsumerDir) extends SnapshotMaker {
-  def make(task: SnapshotTask): List[RawSnapshot] =
-    List(RawSnapshot(new String(Files.readAllBytes(dir.resolve("snapshot_name")), UTF_8)))
+@c4("FileConsumerApp") final class FileSnapshotLast(dir: FileConsumerDir) extends SnapshotLast {
+  def get: Option[RawSnapshot] =
+    Option(RawSnapshot(new String(Files.readAllBytes(dir.resolve("snapshot_name")), UTF_8)))
 }
 
 object InnerNoTxObserver extends Observer[RichContext] {

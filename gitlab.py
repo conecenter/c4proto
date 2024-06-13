@@ -80,7 +80,7 @@ def connect():
 
 def exchange(conn_url, method, resource, data):
     conn, project_url = conn_url
-    token_header = {"PRIVATE-TOKEN": e["C4CI_TOKEN"]}
+    token_header = {"PRIVATE-TOKEN": e["C4CI_TOKEN"]}  # Developer+api works; may be less?
     headers = {"Content-Type": "application/json", **token_header} if data else token_header
     conn.request(method, project_url + "/" + resource, dumps(data) if data else None, headers)
     resp = conn.getresponse()

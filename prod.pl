@@ -296,7 +296,7 @@ my $up_gate = sub{
         "ingress:$hostname/"=>$inner_http_port,
         #"ingress:$hostname/sse"=>$inner_sse_port,
         ingress_secret_name => $$conf{ingress_secret_name} || $ingress_secret_name,
-        ingress_api_version => $ingress_api_version || "networking.k8s.io/v1",
+        $ingress_api_version ? (ingress_api_version => $ingress_api_version) : (),
         C4HTTP_PORT => $inner_http_port,
         C4SSE_PORT => $inner_sse_port,
         need_pod_ip => 1,
@@ -310,17 +310,25 @@ my $conf_handler = { "consumer"=>$up_consumer, "gate"=>$up_gate };
 ###
 
 # /^(\w{16})(-\w{8}-\w{4}-\w{4}-\w{4}-\w{12}[-\w]*)$/
-my $with_context = sub{ my($comp)=@_; ((&$get_deployer_conf($comp,1,qw[context]))[0],$comp) };
-my $snapshot_run = sub{ &$py_run("snapshots.py",&$encode([@_])) };
+
+my $ci_run = sub{ &$py_run("ci_serve.py",&$encode([@_])) };
 push @tasks, ["snapshot_get", "$composes_txt [|snapshot|last]", sub{
     my($gate_comp,$arg)=@_;
-    my $op_list = ["snapshot_list", &$with_context($gate_comp)];
-    &$snapshot_run($op_list, (!defined $arg) ? ["dump"] : (["snapshot_get", $arg], ["snapshot_write", "."]));
+    &$ci_run(
+        ["kube_contexts", "all"],
+        (!defined $arg) ?
+            (["snapshot_list_dump", $gate_comp]) : (["snapshot_get", $gate_comp, $arg], ["snapshot_write", "."])
+    );
 }];
 push @tasks, ["snapshot_put", "$composes_txt <file_path|nil>", sub{
     my($gate_comp, $data_path_arg)=@_;
-    &$snapshot_run(["snapshot_read", $data_path_arg], ["snapshot_put", &$with_context($gate_comp)]);
+    &$ci_run(["kube_contexts", "all"], ["snapshot_read", $data_path_arg], ["snapshot_put", $gate_comp]);
 }];
+push @tasks, ["snapshot_make", "$composes_txt", sub{
+    my($gate_comp)=@_;
+    &$ci_run(["kube_contexts", "all"], ["snapshot_make", $gate_comp]);
+}];
+push @tasks, ["cio_call", "<msg>", sub{ my($msg)=@_; &$ci_run(["remote_call", &$decode($msg)]) }];
 
 push @tasks, ["exec_bash","<pod|$composes_txt>",sub{
     my($arg)=@_;
@@ -700,9 +708,9 @@ push @tasks, ["kafka","( topics | offsets <hours> | nodes | sizes <node> | topic
     sy("JAVA_TOOL_OPTIONS= CLASSPATH=$cp java --source 15 $gen_dir/kafka_info.java ".join" ",@args);
 }];
 
-push @tasks, ["purge_mode_list","--list <list>",sub{ &$py_run("ci.py","purge_mode_list",@_) }];
-
-push @tasks, ["purge_prefix_list","--list <list>",sub{ &$py_run("ci.py","purge_prefix_list",@_) }];
+my $co_list = sub{ [(&$single_or_undef(@_)||die "bad args")=~/([^,]+)/g] };
+push @tasks, ["purge_mode_list","<list>",sub{ &$ci_run(["purge_mode_list",&$co_list(@_)]) }];
+push @tasks, ["purge_prefix_list","<list>",sub{ &$ci_run(["purge_prefix_list",&$co_list(@_)]) }];
 
 push @tasks, ["resources","( top <ctx> <search_str> | suggest <ctx> <level (ex 70)> )",sub{
     &$py_run("resources.py",@_)

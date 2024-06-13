@@ -1,6 +1,7 @@
 package ee.cone.c4gate
 
 import ee.cone.c4actor._
+import ee.cone.c4actor_xml.S3ListerApp
 import ee.cone.c4di.c4
 
 trait ActorAccessAppBase
@@ -28,15 +29,15 @@ trait RoomsConfProtocolAppBase
 trait HttpUtilAppBase
 
 trait MergingSnapshotAppBase extends SnapshotLoaderFactoryImplApp with RemoteRawSnapshotLoaderImplApp
-trait RemoteRawSnapshotAppBase extends TaskSignerApp with ConfigSimpleSignerApp with RemoteRawSnapshotLoaderImplApp//?SnapshotUtilImplApp
-  with PrepareApp {
-    def prepare(): Unit = if(isInstanceOf[DisableDefaultRemoteRawSnapshotApp]) () else (
-      new RichDataCompApp with ExecutableApp with VMExecutionApp with EnvConfigCompApp with NoAssembleProfilerCompApp
-        with StartUpSnapshotApp with RemoteRawSnapshotApp
-    ).execution.run()
-  }
+trait RemoteRawSnapshotAppBase extends TaskSignerApp with ConfigSimpleSignerApp with RemoteRawSnapshotLoaderImplApp
+  with S3RawSnapshotLoaderApp with S3ListerApp with S3ManagerApp with SnapshotUtilImplApp
+//  with PrepareApp {
+//    def prepare(): Unit = if(isInstanceOf[DisableDefaultRemoteRawSnapshotApp]) () else (
+//      new RichDataCompApp with ExecutableApp with VMExecutionApp with EnvConfigCompApp with NoAssembleProfilerCompApp
+//        with StartUpSnapshotApp with RemoteRawSnapshotApp
+//    ).execution.run()
+//  }
 trait RemoteRawSnapshotLoaderImplAppBase extends HttpUtilApp
-trait DisableDefaultRemoteRawSnapshotAppBase
 
 trait DefaultMetricsAppBase
 trait PrometheusPostAppBase extends DefaultMetricsApp with HttpUtilApp

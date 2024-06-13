@@ -51,7 +51,7 @@ case class SnapshotPutTx(srcId: SrcId, requests: List[S_HttpRequest])(
     ))(local)
   }("put-snapshot"){ e =>
     respond(Nil,List(requests.head -> e.getMessage))(local)
-  }
+  } // failure can happen out of there: >1G request may result in >2G tx, that will be possible to txAdd, but impossible to commit later
 }
 
 @c4assemble("SnapshotPutApp") class SnapshotPutAssembleBase(putter: SnapshotPutter, signatureChecker: SimpleSigner, signedPostUtil: SignedReqUtil) {

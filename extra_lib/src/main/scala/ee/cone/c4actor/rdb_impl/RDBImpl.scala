@@ -240,7 +240,7 @@ case object RDBSleepUntilKey extends TransientLens[Map[SrcId,(Instant,Option[B_H
   //@tailrec final
   private def parseProp(key: String, value: List[String]): UniversalProp = {
     import universalNodeFactory._
-    val Array(xHex,handlerName) = key.split(splitter)
+    val Seq(xHex,handlerName) = key.split(splitter).toSeq
     val ("0x", hex) = xHex.splitAt(2)
     val tag = Integer.parseInt(hex, 16)
     handlerName match {

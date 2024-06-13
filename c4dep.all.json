@@ -30,6 +30,7 @@
   ["C4DEP", "base_lib.ee.cone.c4actor_s3", "base_lib.ee.cone.c4actor" ],
   ["C4DEP", "base_lib.ee.cone.c4actor_s3_minio", "base_lib.ee.cone.c4actor_s3" ],
   ["C4DEP", "base_lib.ee.cone.c4gate", "base_lib.ee.cone.c4actor" ],
+  ["C4DEP", "base_lib.ee.cone.c4gate", "base_lib.ee.cone.c4actor_xml" ],
   ["C4DEP", "base_lib.ee.cone.c4vdom_impl", "base_lib.ee.cone.c4vdom" ],
   ["C4DEP", "base_lib.ee.cone.c4vdom_mix", "base_lib.ee.cone.c4vdom_impl" ],
   ["C4DEP", "base_lib.ee.cone.c4ui", "base_lib.ee.cone.c4actor_branch" ],

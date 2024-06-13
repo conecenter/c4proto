@@ -26,7 +26,7 @@ import scala.util.control.NonFatal
 import scala.jdk.FutureConverters._
 
 @protocol("ChildElectorClientApp") object ElectorProtocol {
-  @Id(0x00B0) case class S_ReadyProcess(
+  @Id(0x00B4) case class S_ReadyProcess( // was 0x00B0
     @Id(0x00B1) electorClientId: SrcId,
     @Id(0x001A) txId: String,
     @Id(0x00B0) role: String,
@@ -235,7 +235,7 @@ case object PurgeReadyProcessStateKey extends TransientLens[Option[ElectorReques
 
 @c4("ElectorClientApp") final class ElectorRequestsFactory(
   config: Config, listConfig: ListConfig, val execution: Execution,
-  val clientProvider: HttpClientProvider
+  val clientProvider: HttpClientProvider, currentTxLogName: CurrentTxLogName,
 ) {
   def timeout: Long = 1000
   def createRequest(ownerObj: String, ownerSubj: String, address: String, period: Int): HttpRequest =
@@ -244,9 +244,10 @@ case object PurgeReadyProcessStateKey extends TransientLens[Option[ElectorReques
       .uri(URI.create(s"$address/lock/$ownerObj"))
       .headers("x-r-lock-owner",ownerSubj,"x-r-lock-period",s"$period")
       .POST(BodyPublishers.noBody()).build()
-  def createRequests(ownerObj: String, ownerSubj: String, period: Int, modeHint: String): ElectorRequests = {
+  def createRequests(ownerObjPostfix: String, ownerSubj: String, period: Int, modeHint: String): ElectorRequests = {
     val serversStr = config.get("C4ELECTOR_SERVERS")
     val addresses = serversStr.split(",").toList
+    val ownerObj = s"${currentTxLogName.value}.$ownerObjPostfix"
     val hint = s"$serversStr $ownerObj $ownerSubj $modeHint"
     new ElectorRequests(addresses.map(createRequest(ownerObj,ownerSubj,_,period)), period, hint, this)
   }

@@ -8,11 +8,11 @@ import typing
 import uuid
 import tempfile
 import re
-from c4util import path_exists, read_text, changing_text, read_json, changing_text_observe, one
-from c4util.build import never, run, run_no_die, run_text_out, run_pipe_no_die, Popen, \
-    wait_processes, need_dir, kcd_args, kcd_run, need_pod, get_main_conf, get_temp_dev_pod, \
-    build_cached_by_content, setup_parser, secret_part_to_text, crane_image_exists, get_proto, get_image_conf, \
-    crane_login
+from c4util import path_exists, read_text, changing_text, read_json, changing_text_observe, one, never, \
+    run, run_text_out, Popen, wait_processes, need_dir, run_no_die
+from c4util.build import run_pipe_no_die, kcd_args, kcd_run, need_pod, get_main_conf, \
+    get_temp_dev_pod, build_cached_by_content, setup_parser, secret_part_to_text, crane_image_exists, get_proto, \
+    get_image_conf, crane_login
 
 
 def perl_exec(*lines):
@@ -308,18 +308,35 @@ def build_type_kube_reporter(context, out):
     ])
 
 
-def build_type_snapshot_operator(context, out):
-    build_micro(context, out, ["snapshots.py"], [
+def build_type_ci_operator(context, out):
+    get_plain_option = get_main_conf(context)
+    deploy_context = get_plain_option("C4DEPLOY_CONTEXT")
+    build_micro(context, out, [
+        "c4util/snapshots.py", "c4util/purge.py", "c4util/cluster.py", "c4util/git.py", "c4util/__init__.py",
+        "ci_serve.py", "ci_prep.py", "ci_up.py", "kafka_info.java",
+    ], [
         "FROM ubuntu:22.04",
-        "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
+        "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /replink.pl /",  # replink for ci_prep
         "RUN perl install.pl useradd 1979",
-        "RUN perl install.pl apt curl ca-certificates python3 git",
-        "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl && chmod +x /tools/kubectl",
+        "RUN perl install.pl apt curl ca-certificates python3 git" +
+        " libjson-xs-perl" +  # for ci_prep/prod/deploy_info
+        " rsync",  # for ci_prep and steps
+        "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl" +
+        " && chmod +x /tools/kubectl",
         "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
         " && chmod +x /tools/tini",
+        "RUN perl install.pl curl https://get.helm.sh/helm-v3.12.1-linux-amd64.tar.gz",  # ci_up
+        "RUN perl install.pl curl https://download.bell-sw.com/java/17.0.8+7/bellsoft-jdk17.0.8+7-linux-amd64.tar.gz",  # kafka-purge, tests
+        "RUN perl install.pl curl https://github.com/coursier/launchers/raw/master/coursier" +
+        " && chmod +x /tools/coursier",  # kafka-purge
+        "RUN curl -L -o /t.tgz" +
+        " https://github.com/google/go-containerregistry/releases/download/v0.12.1/go-containerregistry_Linux_x86_64.tar.gz" +
+        " && tar -C /tools -xzf /t.tgz crane && rm /t.tgz",  # ci_prep
+        "RUN perl install.pl curl https://dlcdn.apache.org/maven/maven-3/3.9.7/binaries/apache-maven-3.9.7-bin.tar.gz",
         "USER c4",
-        'ENV PATH=${PATH}:/tools',
-        'ENTRYPOINT ["/tools/tini","--","python3","-u","/snapshots.py"]',
+        'ENV PATH=${PATH}:/tools:/tools/linux:/tools/jdk/bin:/tools/apache/bin',  # /tools/linux for ci_up/helm, /tools/apache/bin for maven
+        f"ENV C4DEPLOY_CONTEXT={deploy_context}",
+        'ENTRYPOINT ["/tools/tini","--","python3","-u","/ci_serve.py"]',
     ])
 
 
@@ -340,6 +357,9 @@ def build_micro(context, out, scripts, lines):
     proto_postfix, proto_dir = get_proto(context, get_plain_option)
     changing_text(f"{out}/Dockerfile", "\n".join(lines))
     for script in scripts:
+        subdir = script.rpartition("/")[0]
+        if subdir:
+            need_dir(f"{out}/{subdir}")
         changing_text(f"{out}/{script}", read_text(f"{proto_dir}/{script}"))
 
 
@@ -392,7 +412,7 @@ def main():
         "build_type-elector": lambda proj_tag: build_type_elector,
         "build_type-resource_tracker": lambda proj_tag: build_type_resource_tracker,
         "build_type-kube_reporter": lambda proj_tag: build_type_kube_reporter,
-        "build_type-snapshot_operator": lambda proj_tag: build_type_snapshot_operator,
+        "build_type-ci_operator": lambda proj_tag: build_type_ci_operator,
         "build_type-s3client": lambda proj_tag: build_type_s3client,
     }
     opt = setup_parser((

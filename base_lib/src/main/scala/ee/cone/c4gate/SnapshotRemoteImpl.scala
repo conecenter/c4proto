@@ -62,12 +62,9 @@ object ReqRetry {
 }
 
 @c4("RemoteRawSnapshotApp") final class EnvRemoteRawSnapshotProvider(
-  disable: Option[DisableDefaultRemoteRawSnapshot],
-  loaderFactory: RemoteRawSnapshotLoaderImplFactory, makerFactory: RemoteSnapshotMakerFactory, config: Config
+  makerFactory: RemoteSnapshotMakerFactory, config: Config
 ) {
-  private def url = config.get("C4HTTP_SERVER")
-  @provide def get: Seq[RawSnapshotLoader] = if(disable.nonEmpty) Nil else Seq(loaderFactory.create(url))
-  @provide def makers: Seq[SnapshotMaker] = if(disable.nonEmpty) Nil else Seq(makerFactory.create(url))
+  @provide def makers: Seq[SnapshotMaker] = Seq(makerFactory.create(config.get("C4HTTP_SERVER")))
 }
 
 @c4multi("RemoteRawSnapshotApp") final class RemoteSnapshotMaker(baseURL: String)(
@@ -76,5 +73,3 @@ object ReqRetry {
   def make(task: SnapshotTask): List[RawSnapshot] =
     util.request(baseURL, signer.sign(task, System.currentTimeMillis() + 3600*1000))()
 }
-
-@c4("DisableDefaultRemoteRawSnapshotApp") final class DisableDefaultRemoteRawSnapshot

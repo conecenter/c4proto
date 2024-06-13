@@ -214,7 +214,7 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
 }
 
 case class CurrentTxLogNameImpl(value: String) extends CurrentTxLogName
-@c4("ProtoApp") final class CurrentTxLogNameProvider(config: Config){
+@c4("EnvConfigCompApp") final class CurrentTxLogNameProvider(config: Config){
   @provide def get: Seq[CurrentTxLogName] =
     Seq(CurrentTxLogNameImpl(config.get("C4INBOX_TOPIC_PREFIX")))
 }

@@ -2,8 +2,8 @@
 import json
 import sys
 import pathlib
-from c4util import group_map, one, read_text, changing_text_observe, read_json
-from c4util.build import dir_sum, run
+from c4util import group_map, one, read_text, changing_text_observe, read_json, run
+from c4util.build import dir_sum
 
 
 ### util
