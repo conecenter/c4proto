@@ -1,8 +1,7 @@
 
 import sys
 import re
-from c4util import group_map, parse_table, read_json, read_text
-from c4util.build import run_text_out
+from c4util import group_map, parse_table, read_json, read_text, run_text_out
 
 
 def get_base(pkg, coll):
@@ -10,6 +9,7 @@ def get_base(pkg, coll):
 
 def chk_line(line,allow_pkg_dep):
     fr, arrow, *to = line
+    if fr == "Warning:": return True
     if arrow != "->": return False
     if fr=="classes": return True
     if "JDK" in to: return True
@@ -43,7 +43,7 @@ def handle_by_classpath(context, cp):
     bad = "".join(
         " ".join(line)+"\n" for line in parse_table(jdeps_res) if not chk_line(line,allow_pkg_dep)
     )
-    if bad: raise Exception(f"bad dep:\n{bad}")
+    if bad: raise Exception(f"bad dep:\n[{bad}]")
 
 
 def handle_by_text(context):

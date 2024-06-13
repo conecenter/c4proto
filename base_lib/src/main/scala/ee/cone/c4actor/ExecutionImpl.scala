@@ -140,7 +140,7 @@ abstract class BaseServerMain(app: ExecutableApp){
     Trace { // keep Trace here <-- execution construction may silently fail
       //ExecutionRun(app)
       println("this should be instant (actually not)")
-      Option(app).collect{ case pApp: PrepareApp => pApp }.foreach{ pApp => pApp.prepare() }
+      //Option(app).collect{ case pApp: PrepareApp => pApp }.foreach{ pApp => pApp.prepare() }
       val execution = app.execution
       println("before run")
       execution.run()

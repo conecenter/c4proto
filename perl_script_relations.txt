@@ -19,3 +19,59 @@ serve.pl:
     -> prod.pl need_certs
     -> do.pl run
     -> build.pl
+
+########################################################################################################################
+
+
+test_env.py was -- from j_a
+
+build.py -- initial generate sbt etc
+from: l4, dev_server, prod.pl
+
+build_env.py -- get paths of what was built
+from: do.pl, dev_server, prod/ci_rt_over, sandbox.pl
+
+
+build_remote.py/ci_prep -- from ci_prep.py
+build_remote.py/compile -- from sandbox.pl
+build_remote.py/build_inner -- self
+
+ceph.pl -- from: sandbox.pl, run.pl
+
+chk_pkg_dep.py -- from prod.pl
+
+ci.py -- purge_* -- from prod.pl
+
+ci_prep.py -- c4ci_prep -- from: manual, gitlab.py
+ci_up.py -- c4ci_up -- from: manual, gitlab.py
+
+do.pl -- manual tests
+
+gitlab.py -- from gitlab
+gitlab-gen.py -- from l4
+
+kube_reporter.py -- server
+
+make_manifests.pl -- from build_remote.py/ci_prep
+
+prod.pl
+  manual
+  ci_deploy_info, build_client, ci_rt_* -- from build_remote.py
+  build_client -- from sandbox.pl
+
+resources.py -- from: prod.pl, server
+run.pl -- server
+
+run_with_prefix.py -- from build_remote.py
+
+sandbox.pl -- server
+
+sync.pl -- from: sync_client.pl, dev_server, L4
+
+sync.py -- c4py -- from sync.bat -- seems not used
+
+sync_mem.pl -- from build_remote.py/ci_prep
+
+sync_setup.pl -- from: build_remote.py, agent
+
+vault.py -- from: sandbox.pl, run.pl

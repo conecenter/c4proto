@@ -23,6 +23,7 @@ trait SkipWorldPartsAppBase
 trait SnapshotLoaderFactoryImplAppBase
 trait SnapshotLoaderImplAppBase
 trait SnapshotUtilImplAppBase
+trait SnapshotSaverAppBase
 trait SyncTxFactoryImplAppBase
 trait TaskSignerAppBase
 trait TestVMRichDataCompAppBase extends RichDataCompApp with VMExecutionApp with EnvConfigCompApp
@@ -49,6 +50,7 @@ trait S3ManagerAppBase extends HttpClientApp
 trait LOBrokerAppBase extends S3ManagerApp
 
 trait S3RawSnapshotLoaderAppBase
+trait DisableDefaultS3RawSnapshotAppBase
 
 trait ProductCheckerAppBase
 

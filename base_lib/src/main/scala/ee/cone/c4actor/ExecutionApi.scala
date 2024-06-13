@@ -73,6 +73,6 @@ case class NanoTimer(startedAt: Long = System.nanoTime){
   def ms: Long = (System.nanoTime - startedAt) / 1000000
 }
 
-trait PrepareApp {
-  def prepare(): Unit
-}
+//trait PrepareApp {
+//  def prepare(): Unit
+//}
