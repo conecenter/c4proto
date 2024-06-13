@@ -110,8 +110,9 @@ def snapshot_put(data_fn, data, kube_contexts, app):
     post_signed(kube_contexts, app, "/put-snapshot", f"snapshots/{data_fn}", data)
 
 
-def injection_get(path): return "\n".join(
-    le.replace("?", " ") for path in list_dir(path) for le in read_text(path).splitlines() if not le.startswith("#")
+def injection_get(path, suffix): return "\n".join(
+    le.replace("?", " ")
+    for path in list_dir(path) if path.endswith(suffix) for le in read_text(path).splitlines() if not le.startswith("#")
 )
 
 

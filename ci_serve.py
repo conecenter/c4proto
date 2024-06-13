@@ -163,7 +163,10 @@ def get_step_handlers(): return {
     "snapshot_put_purged": lambda ctx, prefix: {
         **ctx, "": sn.snapshot_put_purged(*ctx["snapshot"], sn.s3init(cl.get_kubectl(ctx["deploy_context"])), prefix)
     },
-    "injection_get": lambda ctx, name, subdir: {**ctx, "injection": sn.injection_get(f'{ctx[name].name}/{subdir}')},
+    "injection_suffix": lambda ctx, suffix: {**ctx, "injection_suffix": suffix},
+    "injection_get": lambda ctx, name, subdir: {
+        **ctx, "injection": sn.injection_get(f'{ctx[name].name}/{subdir}', ctx["injection_suffix"])
+    },
     "injection_post": lambda ctx, app: {**ctx, "": sn.injection_post(ctx["injection"], ctx["kube_contexts"], app)},
     "injection_substitute": lambda ctx, fr, to: {**ctx, "injection": sn.injection_substitute(ctx["injection"], fr, to)},
     "injection_set": lambda ctx, value: {**ctx, "injection": value},
@@ -188,7 +191,7 @@ def get_step_handlers(): return {
     "start": lambda ctx, cwd, cmd: {
         **ctx, "proc": (*ctx.get("proc", []), start(ctx["script"], cmd, cwd=ctx[cwd].name))
     },
-    "wait_all": lambda ctx: {**ctx, "proc": ([] if wait_processes(ctx.get("proc", [])) else never("failed"))},
+    "wait_all": lambda ctx: {**ctx, "all_ok": wait_processes(ctx.get("proc", []))},
     "rsync_files": lambda ctx, rsync_files: {**ctx, "rsync_files": "".join(f"{f}\n" for f in rsync_files)},
     "rsync_add": lambda ctx, fr, to: {
         **ctx, "": run(
