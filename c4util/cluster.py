@@ -34,3 +34,12 @@ def s3list(mc, bucket): return [json.loads(line) for line in run_text_out((*mc, 
 
 def get_env_values_from_pods(env_key, pods):
     return {e["value"] for p in pods for c in p["spec"]["containers"] for e in c.get("env", []) if e["name"] == env_key}
+
+
+def get_all_contexts():
+    cmd = ("kubectl", "--kubeconfig", os.environ["C4KUBECONFIG"], "config", "get-contexts", "-o", "name")
+    return run_text_out(cmd).splitlines()
+
+
+def get_pods_json(kc, add):
+    return json.loads(run_text_out((*kc, "get", "pods", "-o", "json", *add), timeout=3))["items"]

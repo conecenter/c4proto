@@ -293,27 +293,12 @@ def build_type_resource_tracker(context, out):
     ])
 
 
-def build_type_kube_reporter(context, out):
-    build_micro(context, out, ["kube_reporter.py"], [
-        "FROM ubuntu:22.04",
-        "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
-        "RUN perl install.pl useradd 1979",
-        "RUN perl install.pl apt curl ca-certificates python3 git",
-        "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl && chmod +x /tools/kubectl",
-        "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
-        " && chmod +x /tools/tini",
-        "USER c4",
-        'ENV PATH=${PATH}:/tools',
-        'ENTRYPOINT ["/tools/tini","--","python3","/kube_reporter.py"]',
-    ])
-
-
 def build_type_ci_operator(context, out):
     get_plain_option = get_main_conf(context)
     deploy_context = get_plain_option("C4DEPLOY_CONTEXT")
     build_micro(context, out, [
-        "c4util/snapshots.py", "c4util/purge.py", "c4util/cluster.py", "c4util/git.py", "c4util/__init__.py",
-        "ci_serve.py", "ci_prep.py", "ci_up.py", "kafka_info.java",
+        "c4util/snapshots.py", "c4util/purge.py", "c4util/cluster.py", "c4util/git.py", "c4util/kube_reporter.py",
+        "c4util/__init__.py", "ci_serve.py", "ci_prep.py", "ci_up.py", "kafka_info.java",
     ], [
         "FROM ubuntu:22.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /replink.pl /",  # replink for ci_prep
@@ -411,7 +396,6 @@ def main():
         "build_type-de": lambda proj_tag: (lambda *args: build_type_de(proj_tag, *args)),
         "build_type-elector": lambda proj_tag: build_type_elector,
         "build_type-resource_tracker": lambda proj_tag: build_type_resource_tracker,
-        "build_type-kube_reporter": lambda proj_tag: build_type_kube_reporter,
         "build_type-ci_operator": lambda proj_tag: build_type_ci_operator,
         "build_type-s3client": lambda proj_tag: build_type_s3client,
     }

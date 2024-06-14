@@ -12,7 +12,9 @@ import c4util.snapshots as sn
 import c4util.purge as pu
 import c4util.cluster as cl
 import c4util.git as git
-from c4util import run, never, list_dir, log, Popen, wait_processes, run_text_out, read_json, one, read_text, never_if
+import c4util.kube_reporter as kr
+from c4util import run, never, list_dir, log, Popen, wait_processes, changing_text, read_json, one, read_text, \
+    never_if, need_dir
 
 
 def py_cmd(): return "python3", "-u"
@@ -63,12 +65,6 @@ def app_stop(kube_context, app):
     run((*py_cmd(), "/ci_up.py"), text=True, input=json.dumps(info), env=fix_kube_env(os.environ))
 
 
-def set_kube_contexts(kube_contexts): return (
-    run_text_out(("kubectl", "config", "get-contexts", "-o", "name")).splitlines() if kube_contexts == "all" else
-    kube_contexts
-)
-
-
 def remote_call(kube_context, act):
     arg = json.dumps([["call", act]])
     run((*cl.get_any_pod_exec(cl.get_kubectl(kube_context), "c4cio"), *py_cmd(), "/ci_serve.py", arg))
@@ -96,7 +92,7 @@ def measure():
     started = time.monotonic()
     with open(log_path, "w") as log_file:
         for line in sys.stdin:
-            print(f"{str(int(time.monotonic()-started)).zfill(5)} {line}", end="", file=log_file)
+            print(f"{str(int(time.monotonic()-started)).zfill(5)} {line}", end="", file=log_file, flush=True)
 
 
 def run_steps(ctx, sm_args, steps):
@@ -121,7 +117,9 @@ def git_access(kube_context, k8s_path): return cl.secret_part_to_text(cl.get_kub
 
 def clone_def_repo():
     repo = git_access(os.environ["C4DEPLOY_CONTEXT"], os.environ["C4CRON_REPO"])
-    return git.git_clone(repo, os.environ["C4CRON_BRANCH"])
+    dir_life = tempfile.TemporaryDirectory()
+    git.git_clone(repo, os.environ["C4CRON_BRANCH"], dir_life.name)
+    return dir_life
 
 
 def start(script, cmd, **options):
@@ -133,6 +131,7 @@ def start(script, cmd, **options):
 def main_operator(script):
     dir_life = clone_def_repo()
     last_tm_abbr = ""
+    services = {}
     while True:
         tm = time.gmtime()
         tm_abbr = ("ETKNRLP"[tm.tm_wday], time.strftime("%H:%M", tm))
@@ -148,11 +147,31 @@ def main_operator(script):
         ]
         for act in acts:
             start(script, (*py_cmd(), script, json.dumps([["call", act]])))
+        for tp, nm, steps in def_list:
+            if tp == "service" and (nm not in services or services[nm].poll() is not None):
+                services[nm] = start(script, (*py_cmd(), script, json.dumps(steps)))
+        time.sleep(30)
+
+
+def setup_dir(f):
+    life = tempfile.TemporaryDirectory()
+    f(life.name)
+    return life
+
+
+def kube_report_serve(script, d, a_dir):
+    while True:
+        wait_processes([Popen((
+            *py_cmd(), script, json.dumps([["kube_report_make", kube_context, f"{a_dir}/{kube_context}.pods.txt"]])
+        )) for kube_context in cl.get_all_contexts()])
+        git.git_save_changed(d)
         time.sleep(30)
 
 
 def get_step_handlers(): return {
-    "kube_contexts": lambda ctx, kube_contexts: {**ctx, "kube_contexts": set_kube_contexts(kube_contexts)},
+    "kube_contexts": lambda ctx, kube_contexts: {
+        **ctx, "kube_contexts": (cl.get_all_contexts() if kube_contexts == "all" else kube_contexts)
+    },
     "snapshot_list_dump": lambda ctx, app: {**ctx, "": sn.snapshot_list_dump(ctx["kube_contexts"], app)},
     "snapshot_get": lambda ctx, app, name: {**ctx, "snapshot": sn.snapshot_get(ctx["kube_contexts"], app, name)},
     "snapshot_write": lambda ctx, dir_path: {**ctx, "": sn.snapshot_write(dir_path, *ctx["snapshot"])},
@@ -173,9 +192,18 @@ def get_step_handlers(): return {
     "injection_dump": lambda ctx: {**ctx, "": log(f'injection:\n{ctx["injection"]}')},
     "git_repo": lambda ctx, name, k8s_path: {**ctx, f"repo-{name}": k8s_path},
     "git_clone": lambda ctx, name, branch: {
-        **ctx, name: git.git_clone(git_access(ctx["deploy_context"], ctx[f"repo-{name}"]), branch)
+        **ctx, name: setup_dir(
+            lambda d: git.git_clone(git_access(ctx["deploy_context"], ctx[f"repo-{name}"]), branch, d)
+        )
     },
-    "git_init": lambda ctx, name: {**ctx, name: git.git_init(git_access(ctx["deploy_context"], ctx[f"repo-{name}"]))},
+    "git_init": lambda ctx, name: {
+        **ctx, name: setup_dir(lambda d: git.git_init(git_access(ctx["deploy_context"], ctx[f"repo-{name}"]), d))
+    },
+    "git_clone_or_init": lambda ctx, name, br: {
+        **ctx, name: setup_dir(
+            lambda d: git.git_clone_or_init(git_access(ctx["deploy_context"], ctx[f"repo-{name}"]), br, d)
+        )
+    },
     "git_add_tagged": lambda ctx, cwd, tag: {**ctx, "": git.git_add_tagged(ctx[cwd].name, tag)},
     "app_start_purged": lambda ctx, name, apps: {
         **ctx, "": app_start_purged(ctx["deploy_context"], ctx[name].name, apps, lambda app: ctx[f"snapshot-{app}"])
@@ -198,13 +226,20 @@ def get_step_handlers(): return {
             ("rsync", "-acr", "--files-from", "-", ctx[fr].name, ctx[to].name), text=True, input=ctx["rsync_files"]
         )
     },
+    "kube_report_make": lambda ctx, kube_context, out_path: {
+        **ctx, "": changing_text(out_path, kr.get_cluster_report(cl.get_pods_json(cl.get_kubectl(kube_context), ())))
+    },
+    "kube_report_serve": lambda ctx, name, subdir: {
+        **ctx, "": kube_report_serve(ctx["script"], ctx[name].name, need_dir(f'{ctx[name].name}/{subdir}'))
+    },
+    "main": lambda ctx: {**ctx, "": main_operator(ctx["script"])},
+    "measure": lambda ctx: {**ctx, "": measure()},
 }
 
 
-def main(script, op): return (
-    main_operator(script) if op == "main" else measure() if op == "measure" else
-    run_steps({"script": script, "deploy_context": os.environ["C4DEPLOY_CONTEXT"]}, {}, json.loads(op))
-)
+def main(script, op):
+    ctx = {"script": script, "deploy_context": os.environ["C4DEPLOY_CONTEXT"]}
+    run_steps(ctx, {}, json.loads(op) if op.startswith("[") else [[op]])
 
 
 main(*sys.argv)
