@@ -392,6 +392,7 @@ def build_type_rt(proj_tag, context, out):
     push_compilation_cache(compile_options)
     wait_processes(client_proc_opt) or never("client build failed")
     wait_processes((check_proc,)) or never("check failed")
+    app_dir = need_dir(f"{out}/c4/app")
     #
     steps = [
         "FROM ubuntu:22.04",
@@ -419,7 +420,6 @@ def build_type_rt(proj_tag, context, out):
         "exec java ee.cone.c4actor.ServerMain"
     )))
     #
-    app_dir = need_dir(f"{out}/c4/app")
     re_cl = re.compile(r'\bclasses\b')
     wait_processes([(
         Popen(("cp", p, f'{app_dir}/{p.split("/")[-1]}')) if p.endswith(".jar") else
