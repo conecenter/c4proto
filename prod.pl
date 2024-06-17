@@ -30,12 +30,6 @@ my $get_text = sub{
     close FF or die;
     $res;
 };
-my $start = sub{
-    print join " ",@_,"\n";
-    open my $fh, "|-", @_ or die $!;
-    print "opened\n";
-    sub{ close $fh or die $! };
-};
 
 my @tasks;
 
@@ -426,93 +420,14 @@ my $build_client_changed = sub{
 };
 push @tasks, ["build_client","",sub{ &$build_client_changed(@_) }]; # abs dir
 
-my $chk_pkg_dep = sub{
-    my($gen_dir,$mod)=@_;
-    my $cp = &$get_text("$gen_dir/target/c4/mod.$mod.d/target/c4classpath");
-    &$py_run("chk_pkg_dep.py", "by_classpath", $gen_dir, $cp);
-};
 push @tasks, ["chk_pkg_dep"," ",sub{
     my $gen_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
     my $proto_dir = &$get_proto_dir();
     my $base = &$get_text("/c4/debug-tag");
     my $tag_info = &$get_tag_info($gen_dir,$base);
     my $mod = $$tag_info{mod} || die;
-    &$chk_pkg_dep($gen_dir,$mod);
-}];
-my $install_jdk = sub{(
-    "RUN perl install.pl curl https://download.bell-sw.com/java/17.0.8+7/bellsoft-jdk17.0.8+7-linux-amd64.tar.gz",
-    #"RUN perl install.pl curl https://download.bell-sw.com/java/17.0.2+9/bellsoft-jdk17.0.2+9-linux-amd64.tar.gz",
-)};
-
-push @tasks, ["ci_rt_chk","",sub{ &$chk_pkg_dep(@_) }];
-push @tasks, ["ci_rt_base","",sub{
-    my %opt = @_;
-    my $base = &$mandatory_of("--proj-tag", \%opt);
-    my $gen_dir = &$mandatory_of("--context", \%opt);
-    my $ctx_dir = &$mandatory_of("--out-context", \%opt);
-    my $tag_info = &$get_tag_info($gen_dir,$base);
-    my $add_steps = &$mandatory_of(steps => $tag_info);
-    my $proto_dir = &$get_proto_dir();
-    my @from_steps = grep{/^FROM\s/} @$add_steps;
-    &$put_text("$ctx_dir/Dockerfile", join "\n",
-        @from_steps ? @from_steps : "FROM ubuntu:22.04",
-        "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
-        "RUN perl install.pl useradd 1979",
-        "RUN perl install.pl apt".
-        " curl software-properties-common".
-        " lsof mc iputils-ping netcat-openbsd fontconfig".
-        " openssh-client". #repl
-        " python3", #vault
-        &$install_jdk(),
-        'ENV PATH=${PATH}:/tools/jdk/bin',
-        (grep{/^RUN\s/} @$add_steps),
-        "ENV JAVA_HOME=/tools/jdk",
-        "RUN chown -R c4:c4 /c4",
-        "WORKDIR /c4",
-        "USER c4",
-        'ENTRYPOINT ["perl","run.pl"]',
-    );
-}];
-
-push @tasks, ["ci_rt_over","",sub{
-    my %opt = @_;
-    my $base = &$mandatory_of("--proj-tag", \%opt);
-    my $gen_dir = &$mandatory_of("--context", \%opt);
-    my $ctx_dir = &$mandatory_of("--out-context", \%opt)."/c4";
-    my $proto_dir = &$get_proto_dir();
-    my $tag_info = &$get_tag_info($gen_dir,$base);
-    my ($mod,$main_cl) = map{$$tag_info{$_}||die} qw[mod main];
-    sy("mkdir $ctx_dir");
-    sy("cp $proto_dir/run.pl $proto_dir/vault.py $proto_dir/ceph.pl $ctx_dir/");
-    mkdir "$ctx_dir/app";
-    my $paths = &$decode(syf("python3 $proto_dir/build_env.py $gen_dir $mod"));
-    my @started = map{&$start($_)} map{
-        m{([^/]+\.jar)$} ? "cp $_ $ctx_dir/app/$1" :
-        m{\bclasses\b} ? "cd $_ && zip -q -r $ctx_dir/app/".&$md5_hex($_).".jar ." :
-        die $_
-    } $$paths{CLASSPATH}=~/([^\s:]+)/g;
-    &$_() for @started;
-    &$put_text("$ctx_dir/serve.sh", join "\n",
-        "export C4MODULES=$$paths{C4MODULES}",
-        "export C4APP_CLASS=ee.cone.c4actor.ParentElectorClientApp",
-        "export C4APP_CLASS_INNER=$main_cl",
-        "exec java ee.cone.c4actor.ServerMain"
-    );
-    #
-    my %has_mod = map{($_=>1)} $$paths{C4MODULES}=~/([^\s:]+)/g;
-    my @public_part = map{ my $dir = $_;
-        my @pub = map{ !/^(\S+)\s+\S+\s+(\S+)$/ ? die : $has_mod{$1} ? [$_,"$2"] : () }
-            &$get_text("$dir/c4gen.ht.links")=~/(.+)/g;
-        my $sync = [map{"$$_[1]\n"} @pub];
-        my $links = [map{"$$_[0]\n"}@pub];
-        @pub ? +{ dir=>$dir, sync=>$sync, links=>$links } : ()
-    } grep{-e $_} $$paths{C4PUBLIC_PATH}=~/([^\s:]+)/g;
-    for my $part(@public_part){
-        my $from_dir = $$part{dir} || die;
-        my $files = &$put_temp("sync", join "", @{$$part{sync}||die});
-        sy("rsync -av --files-from=$files $from_dir/ $ctx_dir/htdocs");
-    }
-    @public_part and &$put_text("$ctx_dir/htdocs/c4gen.ht.links",join"",map{@{$$_{links}||die}}@public_part);
+    my $cp = &$get_text("$gen_dir/target/c4/mod.$mod.d/target/c4classpath");
+    &$py_run("chk_pkg_dep.py", "by_classpath", $gen_dir, $cp);
 }];
 
 push @tasks, ["up_kc_host", "", sub{ # the last multi container kc

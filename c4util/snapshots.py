@@ -117,7 +117,7 @@ def injection_get(path, suffix): return "\n".join(
 
 
 def injection_post(data, kube_contexts, app):
-    post_signed(kube_contexts, app, "/injection", md5s([data.encode("utf-8")]).decode("utf-8"), data)
+    post_signed(kube_contexts, app, "/injection", md5s([data.encode("utf-8")]).decode("utf-8"), data.encode("utf-8"))
 
 
 def injection_substitute(data, from_str, to):
