@@ -425,7 +425,7 @@ def build_type_rt(proj_tag, context, out):
         Popen(("cp", p, f'{app_dir}/{p.split("/")[-1]}')) if p.endswith(".jar") else
         Popen(("zip", "-q", "-r", f'{app_dir}/{md5_hex(p)}.jar', "."), cwd=p) if re_cl.search(p) else
         never(f"bad path {p}")
-    ) for p in re_split.findall(paths["CLASSPATH"])])
+    ) for p in re_split.findall(paths["CLASSPATH"])]) or never("cp failed")
     #
     has_mod = {*re_split.findall(paths["C4MODULES"])}
     re_line = re.compile(r'(\S+)\s+\S+\s+(\S+)')
