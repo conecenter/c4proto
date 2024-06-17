@@ -104,11 +104,16 @@ def remote_compile(context, user, proj_tag):
     rsync(compile_options.deploy_context, None, pod, [path for path in full_sync_paths if path_exists(path)])
     kcd_run("exec", pod, "--", *sbt_args(mod_dir, compile_options.java_options))
     rsync(compile_options.deploy_context, pod, None, [cp_path])
-    rsync(compile_options.deploy_context, pod, None, [rm_dots(path) for path in read_text(cp_path).split(":")])
+    rsync(compile_options.deploy_context, pod, None, parse_classpath(read_text(cp_path)))
+
+
+def parse_classpath(s): return [rm_dots(path) for path in s.split(":") if len(path) > 0]
+
 
 def rm_dots(path):
     res = re.sub("""/[^/]+/\.\./""", "/", path, count=1)
     return res if path == res else rm_dots(res)
+
 
 def push_compilation_cache(compile_options):
     mod_dir = compile_options.mod_dir
@@ -386,7 +391,6 @@ def build_type_rt(proj_tag, context, out):
     mod_dir = compile_options.mod_dir
     run((*pre, f"=sbt=", *sbt_args(mod_dir, compile_options.java_options)))
     paths = json.loads(run_text_out(("python3", f"{proto_dir}/build_env.py", context, mod)))
-    re_split = re.compile(r'[^\s:]+')
     check_cmd = ("python3", "-u", f"{proto_dir}/chk_pkg_dep.py", "by_classpath", context, paths["CLASSPATH"])
     check_proc = Popen((*pre, "=check=", *check_cmd), env=pr_env)
     push_compilation_cache(compile_options)
@@ -425,8 +429,9 @@ def build_type_rt(proj_tag, context, out):
         Popen(("cp", p, f'{app_dir}/{p.split("/")[-1]}')) if p.endswith(".jar") else
         Popen(("zip", "-q", "-r", f'{app_dir}/{md5_hex(p)}.jar', "."), cwd=p) if re_cl.search(p) else
         never(f"bad path {p}")
-    ) for p in re_split.findall(paths["CLASSPATH"])]) or never("cp failed")
+    ) for p in parse_classpath(paths["CLASSPATH"])]) or never("cp failed")
     #
+    re_split = re.compile(r'[^\s:]+')
     has_mod = {*re_split.findall(paths["C4MODULES"])}
     re_line = re.compile(r'(\S+)\s+\S+\s+(\S+)')
     public_part = [
@@ -435,7 +440,7 @@ def build_type_rt(proj_tag, context, out):
         for pub in [[
             (link, sync)
             for link in read_text(f"{p_dir}/c4gen.ht.links").splitlines() if link
-            for l_mod, sync in [re_line.fullmatch(link).group(1,2)] if l_mod in has_mod
+            for l_mod, sync in [re_line.fullmatch(link).group(1, 2)] if l_mod in has_mod
         ]] if pub
     ]
     for p_dir, sync, links in public_part:

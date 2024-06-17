@@ -58,7 +58,8 @@ def Popen(args, **opt): return subprocess.Popen(debug_args("starting", args), **
 def wait_processes(processes):
     for proc in processes:
         proc.wait()
-        log(f"finished with: {proc.returncode if proc.returncode == 0 else debug_args(proc.returncode, proc.args)}")
+        hint = f"finished with {proc.returncode}"
+        log(hint) if proc.returncode == 0 else debug_args(hint, proc.args)
     return all(proc.returncode == 0 for proc in processes)
 
 
