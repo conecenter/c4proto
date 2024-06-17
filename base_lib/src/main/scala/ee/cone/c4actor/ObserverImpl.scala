@@ -106,7 +106,7 @@ class SerialObserver(localStates: Map[SrcId,TransientMap])(
     def activate(world: RichContext): Observer[RichContext] = {
       ex.send(transforms.get(world).withDefaultValue(transient =>
         if(world.offset < InnerReadAfterWriteOffsetKey.of(transient)) transient else {
-          transient.values.foreach{ case v: TransientFinisher => v.finish() case _ => () }
+          transient.values.collect{ case Some(v) => v }.collect{ case v: TransientFinisher => v }.foreach(_.finish())
           Map.empty
         }
       ))
