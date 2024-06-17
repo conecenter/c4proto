@@ -4,7 +4,7 @@ import pathlib
 import tempfile
 
 from . import parse_table, log, run_text_out, never_if, run, decode
-from .cluster import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl, get_secret_data
+from .cluster import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl, get_secret_data, get_pods_json
 
 
 def filter_parts(check_prefix, postfix_set, values):
@@ -15,9 +15,7 @@ def filter_parts(check_prefix, postfix_set, values):
     ]
 
 
-def get_active_prefixes(kc):
-    pods = json.loads(run_text_out((*kc, "get", "pods", "-o", "json")))["items"]
-    return get_env_values_from_pods("C4INBOX_TOPIC_PREFIX", pods)
+def get_active_prefixes(kc): return get_env_values_from_pods("C4INBOX_TOPIC_PREFIX", get_pods_json(kc, ()))
 
 
 def s3purge(kc, need_rm):

@@ -8,6 +8,7 @@ import typing
 import uuid
 import tempfile
 import re
+import hashlib
 from c4util import path_exists, read_text, changing_text, read_json, changing_text_observe, one, never, \
     run, run_text_out, Popen, wait_processes, need_dir, run_no_die
 from c4util.build import run_pipe_no_die, kcd_args, kcd_run, need_pod, get_main_conf, \
@@ -55,17 +56,20 @@ class CompileOptions(typing.NamedTuple):
     cache_path: str
     java_options: str
     deploy_context: str
+    main_cl: str
 
 
 def get_more_compile_options(context, commit, proj_tag):
     build_conf = read_json(f"{context}/target/c4/build.json")
-    mod = build_conf["tag_info"][proj_tag]["mod"]
+    tag_info = build_conf["tag_info"][proj_tag]
+    mod = tag_info["mod"]
+    main_cl = tag_info["main"]
     java_options = " ".join((line[2] for line in build_conf["plain"] if line[0] == "C4BUILD_JAVA_TOOL_OPTIONS"))
     mod_dir = f"{context}/target/c4/mod.{mod}.d"
     cache_pod_name = get_cb_name("cache")
     cache_path = f"/tmp/c4cache-{commit}-{proj_tag}"
     deploy_context, = {line[2] for line in build_conf["plain"] if line[0] == "C4DEPLOY_CONTEXT"}
-    return CompileOptions(mod, mod_dir, cache_pod_name, cache_path, java_options, deploy_context)
+    return CompileOptions(mod, mod_dir, cache_pod_name, cache_path, java_options, deploy_context, main_cl)
 
 
 def remote_compile(context, user, proj_tag):
@@ -100,11 +104,16 @@ def remote_compile(context, user, proj_tag):
     rsync(compile_options.deploy_context, None, pod, [path for path in full_sync_paths if path_exists(path)])
     kcd_run("exec", pod, "--", *sbt_args(mod_dir, compile_options.java_options))
     rsync(compile_options.deploy_context, pod, None, [cp_path])
-    rsync(compile_options.deploy_context, pod, None, [rm_dots(path) for path in read_text(cp_path).split(":")])
+    rsync(compile_options.deploy_context, pod, None, parse_classpath(read_text(cp_path)))
+
+
+def parse_classpath(s): return [rm_dots(path) for path in s.split(":") if len(path) > 0]
+
 
 def rm_dots(path):
     res = re.sub("""/[^/]+/\.\./""", "/", path, count=1)
     return res if path == res else rm_dots(res)
+
 
 def push_compilation_cache(compile_options):
     mod_dir = compile_options.mod_dir
@@ -293,27 +302,12 @@ def build_type_resource_tracker(context, out):
     ])
 
 
-def build_type_kube_reporter(context, out):
-    build_micro(context, out, ["kube_reporter.py"], [
-        "FROM ubuntu:22.04",
-        "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
-        "RUN perl install.pl useradd 1979",
-        "RUN perl install.pl apt curl ca-certificates python3 git",
-        "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl && chmod +x /tools/kubectl",
-        "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
-        " && chmod +x /tools/tini",
-        "USER c4",
-        'ENV PATH=${PATH}:/tools',
-        'ENTRYPOINT ["/tools/tini","--","python3","/kube_reporter.py"]',
-    ])
-
-
 def build_type_ci_operator(context, out):
     get_plain_option = get_main_conf(context)
     deploy_context = get_plain_option("C4DEPLOY_CONTEXT")
     build_micro(context, out, [
-        "c4util/snapshots.py", "c4util/purge.py", "c4util/cluster.py", "c4util/git.py", "c4util/__init__.py",
-        "ci_serve.py", "ci_prep.py", "ci_up.py", "kafka_info.java",
+        "c4util/snapshots.py", "c4util/purge.py", "c4util/cluster.py", "c4util/git.py", "c4util/kube_reporter.py",
+        "c4util/__init__.py", "ci_serve.py", "ci_prep.py", "ci_up.py", "kafka_info.java",
     ], [
         "FROM ubuntu:22.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /replink.pl /",  # replink for ci_prep
@@ -396,13 +390,68 @@ def build_type_rt(proj_tag, context, out):
     mod = compile_options.mod
     mod_dir = compile_options.mod_dir
     run((*pre, f"=sbt=", *sbt_args(mod_dir, compile_options.java_options)))
-    check_proc = Popen((*pre, "=check=", *prod, "ci_rt_chk", context, mod), env=pr_env)
+    paths = json.loads(run_text_out(("python3", f"{proto_dir}/build_env.py", context, mod)))
+    check_cmd = ("python3", "-u", f"{proto_dir}/chk_pkg_dep.py", "by_classpath", context, paths["CLASSPATH"])
+    check_proc = Popen((*pre, "=check=", *check_cmd), env=pr_env)
     push_compilation_cache(compile_options)
-    wait_processes(client_proc_opt) or never("client build failed")  # before ci_rt_base?
-    wait_processes((check_proc,)) or never("check failed")  # before ci_rt_base?
-    run((*prod, "ci_rt_base", "--context", context, "--proj-tag", proj_tag, "--out-context", out), env=pr_env)
-    run((*prod, "ci_rt_over", "--context", context, "--proj-tag", proj_tag, "--out-context", out), env=pr_env)
+    wait_processes(client_proc_opt) or never("client build failed")
+    wait_processes((check_proc,)) or never("check failed")
+    app_dir = need_dir(f"{out}/c4/app")
+    #
+    steps = [
+        "FROM ubuntu:22.04",
+        "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
+        "RUN perl install.pl useradd 1979",
+        "RUN perl install.pl apt" +
+        " curl software-properties-common" +
+        " lsof mc iputils-ping netcat-openbsd fontconfig" +
+        " openssh-client" +  # repl
+        " python3",  # vault
+        "RUN perl install.pl curl https://download.bell-sw.com/java/17.0.8+7/bellsoft-jdk17.0.8+7-linux-amd64.tar.gz",
+        'ENV PATH=${PATH}:/tools/jdk/bin',
+        "ENV JAVA_HOME=/tools/jdk",
+        "RUN chown -R c4:c4 /c4",
+        "WORKDIR /c4",
+        "USER c4",
+        'ENTRYPOINT ["perl","run.pl"]',
+    ]
+    changing_text(f"{out}/Dockerfile", "\n".join(steps))
+    run(("cp", f"{proto_dir}/run.pl", f"{proto_dir}/vault.py", f"{proto_dir}/ceph.pl", f"{out}/c4/"))
+    changing_text(f"{out}/c4/serve.sh", "\n".join((
+        f'export C4MODULES={paths["C4MODULES"]}',
+        "export C4APP_CLASS=ee.cone.c4actor.ParentElectorClientApp",
+        f"export C4APP_CLASS_INNER={compile_options.main_cl}",
+        "exec java ee.cone.c4actor.ServerMain"
+    )))
+    #
+    re_cl = re.compile(r'\bclasses\b')
+    wait_processes([(
+        Popen(("cp", p, f'{app_dir}/{p.split("/")[-1]}')) if p.endswith(".jar") else
+        Popen(("zip", "-q", "-r", f'{app_dir}/{md5_hex(p)}.jar', "."), cwd=p) if re_cl.search(p) else
+        never(f"bad path {p}")
+    ) for p in parse_classpath(paths["CLASSPATH"])]) or never("cp failed")
+    #
+    re_split = re.compile(r'[^\s:]+')
+    has_mod = {*re_split.findall(paths["C4MODULES"])}
+    re_line = re.compile(r'(\S+)\s+\S+\s+(\S+)')
+    public_part = [
+        (p_dir, "".join(f"{sync}\n" for link, sync in pub), "".join(f"{link}\n" for link, sync in pub))
+        for p_dir in re_split.findall(paths["C4PUBLIC_PATH"]) if path_exists(p_dir)
+        for pub in [[
+            (link, sync)
+            for link in read_text(f"{p_dir}/c4gen.ht.links").splitlines() if link
+            for l_mod, sync in [re_line.fullmatch(link).group(1, 2)] if l_mod in has_mod
+        ]] if pub
+    ]
+    for p_dir, sync, links in public_part:
+        run(("rsync", "-av", "--files-from", "-", f"{p_dir}/", f"{out}/c4/htdocs"), text=True, input=sync)
+    if public_part:
+        changing_text(f"{out}/c4/htdocs/c4gen.ht.links", "".join(links for p_dir, sync, links in public_part))
+    #
     changing_text(f"{out}/c4ref_descr", read_text(f"{context}/target/c4ref_descr"))
+
+
+def md5_hex(s): return hashlib.md5(s.encode("utf-8")).hexdigest()
 
 
 def main():
@@ -411,7 +460,6 @@ def main():
         "build_type-de": lambda proj_tag: (lambda *args: build_type_de(proj_tag, *args)),
         "build_type-elector": lambda proj_tag: build_type_elector,
         "build_type-resource_tracker": lambda proj_tag: build_type_resource_tracker,
-        "build_type-kube_reporter": lambda proj_tag: build_type_kube_reporter,
         "build_type-ci_operator": lambda proj_tag: build_type_ci_operator,
         "build_type-s3client": lambda proj_tag: build_type_s3client,
     }

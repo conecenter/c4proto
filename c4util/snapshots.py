@@ -8,7 +8,7 @@ import time
 import urllib.parse
 
 from . import run, never_if, one, read_text, list_dir, run_text_out, log
-from .cluster import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl
+from .cluster import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl, get_pods_json
 
 
 def s3get(line, try_count):
@@ -36,7 +36,7 @@ def sign(salt, args):
     return {"x-r-signed": "=".join([urllib.parse.quote_plus(e) for e in [md5s([salt, *u_data]), *u_data]])}
 
 
-def get_labeled_pods(kc, la): return json.loads(run_text_out((*kc, "get", "pods", "-o", "json", "-l", la)))["items"]
+def get_labeled_pods(kc, la): return get_pods_json(kc, ("-l", la))
 
 
 def get_app_pod_cmd_prefix(kc, pods):
@@ -117,7 +117,7 @@ def injection_get(path, suffix): return "\n".join(
 
 
 def injection_post(data, kube_contexts, app):
-    post_signed(kube_contexts, app, "/injection", md5s([data.encode("utf-8")]).decode("utf-8"), data)
+    post_signed(kube_contexts, app, "/injection", md5s([data.encode("utf-8")]).decode("utf-8"), data.encode("utf-8"))
 
 
 def injection_substitute(data, from_str, to):
