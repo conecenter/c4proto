@@ -13,6 +13,7 @@ import c4util.purge as pu
 import c4util.cluster as cl
 import c4util.git as git
 import c4util.kube_reporter as kr
+import c4util.notify as ny
 from c4util import run, never, list_dir, log, Popen, wait_processes, changing_text, read_json, one, read_text, \
     never_if, need_dir
 
@@ -86,9 +87,17 @@ def load_def_list(life):
     return [d for p in paths if p.endswith(".json") for c in [load_no_die(p)] if c for d in c]
 
 
-def measure():
+def log_message(log_path):
+    return f'starting task, to view log:\n\tkcd exec {os.environ["HOSTNAME"]} -- tail -f {log_path}'
+
+
+def start_log():
     log_path = f"/tmp/c4log-{random.random()}"
-    log(f'starting task, to view log:\n\tkcd exec {os.environ["HOSTNAME"]} -- tail -f {log_path}')
+    log(log_message(log_path))
+    return log_path
+
+
+def measure(log_path):
     started = time.monotonic()
     with open(log_path, "w") as log_file:
         for line in sys.stdin:
@@ -103,29 +112,35 @@ def run_steps(ctx, sm_args, steps):
         # ctx[a.group(2)].name if a.group(2) and a.group(2) in ctx else
         a.group(0)
     ))
+    need_def_list = (lambda ct: ct if "def_list" in ct else {**ct, "def_list": load_def_list(clone_def_repo())})
+    call = (lambda ct, msg: run_steps(ct, msg, one(*select_def(ct["def_list"], "def", msg["op"]))))
     for step in steps:
         step_str = patt.sub(repl, json.dumps(step))
         log(step_str)
         op, *step_args = json.loads(step_str)
-        ctx = handlers[op](ctx, *step_args)
-    log("OK")
+        ctx = call(need_def_list(ctx), step_args[0]) if op == "call" else {**ctx, **handlers[op](ctx, *step_args)}
     return ctx
 
 
-def git_access(kube_context, k8s_path): return cl.secret_part_to_text(cl.get_kubectl(kube_context), k8s_path)
+def access(kube_context, k8s_path): return cl.secret_part_to_text(cl.get_kubectl(kube_context), k8s_path)
 
 
 def clone_def_repo():
-    repo = git_access(os.environ["C4DEPLOY_CONTEXT"], os.environ["C4CRON_REPO"])
+    repo = access(os.environ["C4DEPLOY_CONTEXT"], os.environ["C4CRON_REPO"])
     dir_life = tempfile.TemporaryDirectory()
     git.git_clone(repo, os.environ["C4CRON_BRANCH"], dir_life.name)
     return dir_life
 
 
-def start(script, cmd, **options):
+def start(log_path, script, cmd, **options):
     pr = Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **options)
-    Popen((*py_cmd(), script, "measure"), stdin=pr.stdout)
+    Popen((*py_cmd(), script, json.dumps([["measure", log_path]])), stdin=pr.stdout)
     return pr
+
+
+def start_steps(script, steps):
+    log_path = start_log()
+    return start(log_path, script, (*py_cmd(), script, json.dumps([["log_path", log_path], *steps])))
 
 
 def main_operator(script):
@@ -146,10 +161,10 @@ def main_operator(script):
             *select_def(def_list, "daily", tm_abbr[1])
         ]
         for act in acts:
-            start(script, (*py_cmd(), script, json.dumps([["call", act]])))
+            start_steps(script, [["call", act]])
         for tp, nm, steps in def_list:
             if tp == "service" and (nm not in services or services[nm].poll() is not None):
-                services[nm] = start(script, (*py_cmd(), script, json.dumps(steps)))
+                services[nm] = start_steps(script, steps)
         time.sleep(30)
 
 
@@ -170,76 +185,85 @@ def kube_report_serve(script, d, a_dir):
 
 def get_step_handlers(): return {
     "kube_contexts": lambda ctx, kube_contexts: {
-        **ctx, "kube_contexts": (cl.get_all_contexts() if kube_contexts == "all" else kube_contexts)
+        "kube_contexts": (cl.get_all_contexts() if kube_contexts == "all" else kube_contexts)
     },
-    "snapshot_list_dump": lambda ctx, app: {**ctx, "": sn.snapshot_list_dump(ctx["kube_contexts"], app)},
-    "snapshot_get": lambda ctx, app, name: {**ctx, "snapshot": sn.snapshot_get(ctx["kube_contexts"], app, name)},
-    "snapshot_write": lambda ctx, dir_path: {**ctx, "": sn.snapshot_write(dir_path, *ctx["snapshot"])},
-    "snapshot_read": lambda ctx, data_path_arg: {**ctx, "snapshot": sn.snapshot_read(data_path_arg)},
-    "snapshot_put": lambda ctx, app: {**ctx, "": sn.snapshot_put(*ctx["snapshot"], ctx["kube_contexts"], app)},
-    "snapshot_make": lambda ctx, app: {**ctx, "": sn.snapshot_make(ctx["kube_contexts"], app)},
-    "snapshot_will": lambda ctx, app: {**ctx, f"snapshot-{app}": ctx["snapshot"]},
+    "snapshot_list_dump": lambda ctx, app: {"": sn.snapshot_list_dump(ctx["kube_contexts"], app)},
+    "snapshot_get": lambda ctx, app, name: {"snapshot": sn.snapshot_get(ctx["kube_contexts"], app, name)},
+    "snapshot_write": lambda ctx, dir_path: {"": sn.snapshot_write(dir_path, *ctx["snapshot"])},
+    "snapshot_read": lambda ctx, data_path_arg: {"snapshot": sn.snapshot_read(data_path_arg)},
+    "snapshot_put": lambda ctx, app: {"": sn.snapshot_put(*ctx["snapshot"], ctx["kube_contexts"], app)},
+    "snapshot_make": lambda ctx, app: {"": sn.snapshot_make(ctx["kube_contexts"], app)},
+    "snapshot_will": lambda ctx, app: {f"snapshot-{app}": ctx["snapshot"]},
     "snapshot_put_purged": lambda ctx, prefix: {
-        **ctx, "": sn.snapshot_put_purged(*ctx["snapshot"], sn.s3init(cl.get_kubectl(ctx["deploy_context"])), prefix)
+        "": sn.snapshot_put_purged(*ctx["snapshot"], sn.s3init(cl.get_kubectl(ctx["deploy_context"])), prefix)
     },
-    "injection_suffix": lambda ctx, suffix: {**ctx, "injection_suffix": suffix},
+    "injection_suffix": lambda ctx, suffix: {"injection_suffix": suffix},
     "injection_get": lambda ctx, name, subdir: {
-        **ctx, "injection": sn.injection_get(f'{ctx[name].name}/{subdir}', ctx["injection_suffix"])
+        "injection": sn.injection_get(f'{ctx[name].name}/{subdir}', ctx["injection_suffix"])
     },
-    "injection_post": lambda ctx, app: {**ctx, "": sn.injection_post(ctx["injection"], ctx["kube_contexts"], app)},
-    "injection_substitute": lambda ctx, fr, to: {**ctx, "injection": sn.injection_substitute(ctx["injection"], fr, to)},
-    "injection_set": lambda ctx, value: {**ctx, "injection": value},
-    "injection_dump": lambda ctx: {**ctx, "": log(f'injection:\n{ctx["injection"]}')},
-    "git_repo": lambda ctx, name, k8s_path: {**ctx, f"repo-{name}": k8s_path},
+    "injection_post": lambda ctx, app: {"": sn.injection_post(ctx["injection"], ctx["kube_contexts"], app)},
+    "injection_substitute": lambda ctx, fr, to: {"injection": sn.injection_substitute(ctx["injection"], fr, to)},
+    "injection_set": lambda ctx, value: {"injection": value},
+    "injection_dump": lambda ctx: {"": log(f'injection:\n{ctx["injection"]}')},
+    "empty_dir": lambda ctx, name: {name: setup_dir(lambda d: ())},
+    "git_repo": lambda ctx, name, k8s_path: {f"repo-{name}": k8s_path},
     "git_clone": lambda ctx, name, branch: {
-        **ctx, name: setup_dir(
-            lambda d: git.git_clone(git_access(ctx["deploy_context"], ctx[f"repo-{name}"]), branch, d)
-        )
+        name: setup_dir(lambda d: git.git_clone(access(ctx["deploy_context"], ctx[f"repo-{name}"]), branch, d))
     },
     "git_init": lambda ctx, name: {
-        **ctx, name: setup_dir(lambda d: git.git_init(git_access(ctx["deploy_context"], ctx[f"repo-{name}"]), d))
+        name: setup_dir(lambda d: git.git_init(access(ctx["deploy_context"], ctx[f"repo-{name}"]), d))
     },
     "git_clone_or_init": lambda ctx, name, br: {
-        **ctx, name: setup_dir(
-            lambda d: git.git_clone_or_init(git_access(ctx["deploy_context"], ctx[f"repo-{name}"]), br, d)
-        )
+        name: setup_dir(lambda d: git.git_clone_or_init(access(ctx["deploy_context"], ctx[f"repo-{name}"]), br, d))
     },
-    "git_add_tagged": lambda ctx, cwd, tag: {**ctx, "": git.git_add_tagged(ctx[cwd].name, tag)},
+    "git_add_tagged": lambda ctx, cwd, tag: {"": git.git_add_tagged(ctx[cwd].name, tag)},
     "app_start_purged": lambda ctx, name, apps: {
-        **ctx, "": app_start_purged(ctx["deploy_context"], ctx[name].name, apps, lambda app: ctx[f"snapshot-{app}"])
+        "": app_start_purged(ctx["deploy_context"], ctx[name].name, apps, lambda app: ctx[f"snapshot-{app}"])
     },
-    "app_stop": lambda ctx, kube_context, app: {**ctx, "": app_stop(kube_context, app)},
-    "purge_mode_list": lambda ctx, mode_list: {**ctx, "": pu.purge_mode_list(ctx["deploy_context"], mode_list)},
-    "purge_prefix_list": lambda ctx, prefix_list: {**ctx, "": pu.purge_prefix_list(ctx["deploy_context"], prefix_list)},
-    "call": lambda ctx, msg: run_steps(ctx, msg, one(
-        *select_def(load_def_list(clone_def_repo()), "def", msg["op"])
-    )),
-    "run": lambda ctx, cwd, cmd: {**ctx, "": run(cmd, cwd=ctx[cwd].name)},
-    "remote_call": lambda ctx, msg: {**ctx, "": remote_call(ctx["deploy_context"], msg)},
+    "app_stop": lambda ctx, kube_context, app: {"": app_stop(kube_context, app)},
+    "purge_mode_list": lambda ctx, mode_list: {"": pu.purge_mode_list(ctx["deploy_context"], mode_list)},
+    "purge_prefix_list": lambda ctx, prefix_list: {"": pu.purge_prefix_list(ctx["deploy_context"], prefix_list)},
+    "run": lambda ctx, cwd, cmd: {"": run(cmd, cwd=ctx[cwd].name)},
+    "remote_call": lambda ctx, msg: {"": remote_call(ctx["deploy_context"], msg)},
     "start": lambda ctx, cwd, cmd: {
-        **ctx, "proc": (*ctx.get("proc", []), start(ctx["script"], cmd, cwd=ctx[cwd].name))
+        "proc": (*ctx.get("proc", []), start(start_log(), ctx["script"], cmd, cwd=ctx[cwd].name))
     },
-    "wait_all": lambda ctx: {**ctx, "all_ok": wait_processes(ctx.get("proc", []))},
-    "rsync_files": lambda ctx, rsync_files: {**ctx, "rsync_files": "".join(f"{f}\n" for f in rsync_files)},
+    "wait_all": lambda ctx: {"all_ok": wait_processes(ctx.get("proc", []))},
+    "rsync_files": lambda ctx, rsync_files: {"rsync_files": "".join(f"{f}\n" for f in rsync_files)},
     "rsync_add": lambda ctx, fr, to: {
-        **ctx, "": run(
+        "": run(
             ("rsync", "-acr", "--files-from", "-", ctx[fr].name, ctx[to].name), text=True, input=ctx["rsync_files"]
         )
     },
     "kube_report_make": lambda ctx, kube_context, out_path: {
-        **ctx, "": changing_text(out_path, kr.get_cluster_report(cl.get_pods_json(cl.get_kubectl(kube_context), ())))
+        "": changing_text(out_path, kr.get_cluster_report(cl.get_pods_json(cl.get_kubectl(kube_context), ())))
     },
     "kube_report_serve": lambda ctx, name, subdir: {
-        **ctx, "": kube_report_serve(ctx["script"], ctx[name].name, need_dir(f'{ctx[name].name}/{subdir}'))
+        "": kube_report_serve(ctx["script"], ctx[name].name, need_dir(f'{ctx[name].name}/{subdir}'))
     },
-    "main": lambda ctx: {**ctx, "": main_operator(ctx["script"])},
-    "measure": lambda ctx: {**ctx, "": measure()},
+    "notify_auth": lambda ctx, auth: {"notify_auth": auth},
+    "notify_url": lambda ctx, url: {"notify_url": url},
+    "notify_started": lambda ctx, work_hours, valid_hours: {
+        "notify_succeeded": ny.notify_started(
+            (*py_cmd(), ctx["script"], json.dumps([["notify_wait_finish"]])),
+            ny.notify_create_requests(
+                access(ctx["deploy_context"], ctx["notify_auth"]), ctx["notify_url"],
+                time.time(), work_hours, valid_hours, log_message(ctx["log_path"])
+            )
+        )
+    },
+    "notify_succeeded": lambda ctx: {"": ctx["notify_succeeded"]()},
+    "notify_wait_finish": lambda ctx: {"": ny.notify_wait_finish()},
+    "main": lambda ctx: {"": main_operator(ctx["script"])},
+    "measure": lambda ctx, log_path: {"": measure(log_path)},
+    "log_path": lambda ctx, log_path: {"log_path": log_path},
 }
 
 
 def main(script, op):
     ctx = {"script": script, "deploy_context": os.environ["C4DEPLOY_CONTEXT"]}
     run_steps(ctx, {}, json.loads(op) if op.startswith("[") else [[op]])
+    log("OK")
 
 
 main(*sys.argv)

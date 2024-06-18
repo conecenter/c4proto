@@ -83,3 +83,12 @@ def need_dir(d):
     pathlib.Path(d).mkdir(parents=True, exist_ok=True)
     return d
 
+
+def http_exchange(conn, method, url, data, headers):
+    conn.request(method, url, data, headers)
+    resp = conn.getresponse()
+    msg = resp.read()
+    return resp.status, msg
+
+
+def http_check(status, msg): return msg if 200 <= status < 300 else never(f"request failed: {status}\n{msg}")

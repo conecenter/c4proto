@@ -1,17 +1,14 @@
-package ee.cone.c4gate_server
+package ee.cone.c4gate
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{assemble, by, c4assemble}
-import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpRequest}
-import ee.cone.c4di.c4
-import ee.cone.c4gate._
+import ee.cone.c4assemble.{by, c4assemble}
+import ee.cone.c4gate.HttpProtocol.S_HttpRequest
+import ee.cone.c4di.{c4, c4multi}
 import okio.ByteString
-
-import scala.collection.immutable.Seq
 
 class MemRawSnapshotLoader(relativePath: String, bytes: ByteString) extends RawSnapshotLoader {
   def load(snapshot: RawSnapshot): ByteString = {
@@ -36,8 +33,8 @@ class MemRawSnapshotLoader(relativePath: String, bytes: ByteString) extends RawS
   }
 }
 
-case class SnapshotPutTx(srcId: SrcId, requests: List[S_HttpRequest])(
-  putter: SnapshotPutter, signatureChecker: Signer[List[String]], signedPostUtil: SignedReqUtil
+@c4multi("SnapshotPutApp") final case class SnapshotPutTx(srcId: SrcId, requests: List[S_HttpRequest])(
+  putter: SnapshotPutter, signatureChecker: SimpleSigner, signedPostUtil: SignedReqUtil
 ) extends TxTransform {
   import signedPostUtil._
   def transform(local: Context): Context = catchNonFatal {
@@ -54,7 +51,9 @@ case class SnapshotPutTx(srcId: SrcId, requests: List[S_HttpRequest])(
   } // failure can happen out of there: >1G request may result in >2G tx, that will be possible to txAdd, but impossible to commit later
 }
 
-@c4assemble("SnapshotPutApp") class SnapshotPutAssembleBase(putter: SnapshotPutter, signatureChecker: SimpleSigner, signedPostUtil: SignedReqUtil) {
+@c4assemble("SnapshotPutApp") class SnapshotPutAssembleBase(
+  snapshotPutTxFactory: SnapshotPutTxFactory, putter: SnapshotPutter
+) {
   type PuttingId = SrcId
 
   def needConsumer(
@@ -73,7 +72,7 @@ case class SnapshotPutTx(srcId: SrcId, requests: List[S_HttpRequest])(
     key: SrcId,
     @by[PuttingId] requests: Values[S_HttpRequest]
   ): Values[(SrcId,TxTransform)] =
-    List(WithPK(SnapshotPutTx(key,requests.toList.sortBy(_.srcId))(putter,signatureChecker,signedPostUtil)))
+    List(WithPK(snapshotPutTxFactory.create(key,requests.toList.sortBy(_.srcId))))
 }
 
 // how to know if post failed?

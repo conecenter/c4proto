@@ -7,7 +7,7 @@ import base64
 import time
 import urllib.parse
 
-from . import run, never_if, one, read_text, list_dir, run_text_out, log
+from . import run, never_if, one, read_text, list_dir, run_text_out, log, http_exchange, http_check
 from .cluster import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl, get_pods_json
 
 
@@ -58,15 +58,7 @@ def post_signed(kube_contexts, app, url, arg, data):
     salt = run((*app_pod_cmd_prefix, "cat $C4AUTH_KEY_FILE"), capture_output=True).stdout
     host = get_hostname(kc, app)
     headers = sign(salt, [url, arg])
-    post_request(host, url, data, headers)
-
-
-def post_request(host, url, data, headers):
-    conn = http.client.HTTPSConnection(host, None)
-    conn.request("POST", url, data, headers)
-    resp = conn.getresponse()
-    msg = resp.read()
-    never_if(f"request failed:\n{msg}" if resp.status != 200 else None)
+    http_check(*http_exchange(http.client.HTTPSConnection(host, None), "POST", url, data, headers))
 
 
 def snapshot_list_dump(kube_contexts, app):

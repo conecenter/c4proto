@@ -1,10 +1,9 @@
-package ee.cone.c4gate_server
+package ee.cone.c4gate
 
 import ee.cone.c4actor._
 import ee.cone.c4gate.HttpProtocol._
-import ee.cone.c4gate_server.Time._
+import ee.cone.c4gate.Time._
 import ee.cone.c4di.c4
-import ee.cone.c4gate.{ByPathHttpPublication, Publisher}
 import ee.cone.c4proto.ToByteString
 import okio.ByteString
 

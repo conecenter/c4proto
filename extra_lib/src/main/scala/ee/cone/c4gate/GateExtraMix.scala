@@ -4,6 +4,7 @@ import ee.cone.c4actor.{ComponentProvider, ComponentProviderApp, ComponentRegist
 import ee.cone.c4gate.{HttpProtocolApp, PublishFromStringsProvider, PublishMimeTypesProvider}
 import ee.cone.c4di.{Component, ComponentsApp}
 import ComponentProvider.provide
+import ee.cone.c4gate.SnapshotPutApp
 
 
 trait PublishingApp extends PublishingCompApp with ComponentsApp {
@@ -24,7 +25,7 @@ trait PublishingApp extends PublishingCompApp with ComponentsApp {
     mimeTypesComponent :: publishFromStringsComponent :: super.components
 }
 
-@deprecated trait FileRawSnapshotApp extends RemoteRawSnapshotApp with ComponentProviderApp { // Remote!
+@deprecated trait FileRawSnapshotApp extends RemoteRawSnapshotApp with ComponentProviderApp with SnapshotPutApp { // Remote!
   lazy val snapshotTaskSigner: Signer[SnapshotTask] = resolveSingle(classOf[SnapshotTaskSigner])
   lazy val rawSnapshotLoaderFactory: RawSnapshotLoaderFactory = resolveSingle(classOf[RawSnapshotLoaderFactory])
   lazy val snapshotLoaderFactory: SnapshotLoaderFactory = resolveSingle(classOf[SnapshotLoaderFactory])

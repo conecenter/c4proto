@@ -46,6 +46,9 @@ trait PublisherAppBase extends HttpProtocolApp
 
 trait InjectionAppBase extends ConfigSimpleSignerApp
 
+trait SnapshotPutAppBase extends SignedReqUtilImplApp with SnapshotLoaderFactoryImplApp
+trait SignedReqUtilImplAppBase
+
 /*
 *
 * Usage:
