@@ -3,7 +3,6 @@ package ee.cone.c4actor
 import java.net.{URLDecoder, URLEncoder}
 import java.nio.file.{Files, Paths}
 import java.nio.charset.StandardCharsets.UTF_8
-
 import ee.cone.c4di.c4
 
 @c4("ConfigSimpleSignerApp") final class SimpleSignerImpl(
@@ -20,7 +19,7 @@ import ee.cone.c4di.c4
   }
 
   def retrieve(check: Boolean): Option[String]=>Option[List[String]] = _.flatMap{ signed =>
-    val hash :: untilStr :: data = signed.split("=").map(URLDecoder.decode(_,"UTF-8")).toList
+    val hash :: untilStr :: data = signed.split("=", -1).map(URLDecoder.decode(_,"UTF-8")).toList
     val until = untilStr.toLong
     if(!check) Option(data)
     else if(until < System.currentTimeMillis) None

@@ -105,10 +105,7 @@ class SerialObserver(localStates: Map[SrcId,TransientMap])(
   @provide def observers: Seq[TxObserver] = if(disable.nonEmpty) Nil else Seq(new TxObserver(new Observer[RichContext] {
     def activate(world: RichContext): Observer[RichContext] = {
       ex.send(transforms.get(world).withDefaultValue(transient =>
-        if(world.offset < InnerReadAfterWriteOffsetKey.of(transient)) transient else {
-          transient.values.collect{ case Some(v) => v }.collect{ case v: TransientFinisher => v }.foreach(_.finish())
-          Map.empty
-        }
+        if(world.offset < InnerReadAfterWriteOffsetKey.of(transient)) transient else Map.empty
       ))
       this
     }

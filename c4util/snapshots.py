@@ -52,12 +52,12 @@ def get_app_kc_pods(kube_contexts, app):
             return kc, pods
 
 
-def post_signed(kube_contexts, app, url, arg, data):
+def post_signed(kube_contexts, app, url, args, data):
     kc, pods = get_app_kc_pods(kube_contexts, app)
     app_pod_cmd_prefix = get_app_pod_cmd_prefix(kc, pods)
     salt = run((*app_pod_cmd_prefix, "cat $C4AUTH_KEY_FILE"), capture_output=True).stdout
     host = get_hostname(kc, app)
-    headers = sign(salt, [url, arg])
+    headers = sign(salt, [url, *args])
     http_check(*http_exchange(http.client.HTTPSConnection(host, None), "POST", url, data, headers))
 
 
@@ -75,7 +75,7 @@ def snapshot_list(kube_contexts, app):
 
 
 def snapshot_make(kube_contexts, app):
-    post_signed(kube_contexts, app, "/need-snapshot", "next", b'')
+    post_signed(kube_contexts, app, "/need-snapshot", ["next"], b'')
 
 
 def snapshot_get(kube_contexts, app, arg_name):
@@ -97,9 +97,9 @@ def snapshot_read(data_path_arg):
     )
 
 
-def snapshot_put(data_fn, data, kube_contexts, app):
+def snapshot_put(data_fn, data, kube_contexts, app, ignore):
     never_if("snapshot is too big" if len(data) > 800000000 else None)
-    post_signed(kube_contexts, app, "/put-snapshot", f"snapshots/{data_fn}", data)
+    post_signed(kube_contexts, app, "/put-snapshot", [f"snapshots/{data_fn}", ignore], data)
 
 
 def injection_get(path, suffix): return "\n".join(
@@ -109,7 +109,7 @@ def injection_get(path, suffix): return "\n".join(
 
 
 def injection_post(data, kube_contexts, app):
-    post_signed(kube_contexts, app, "/injection", md5s([data.encode("utf-8")]).decode("utf-8"), data.encode("utf-8"))
+    post_signed(kube_contexts, app, "/injection", [md5s([data.encode("utf-8")]).decode("utf-8")], data.encode("utf-8"))
 
 
 def injection_substitute(data, from_str, to):

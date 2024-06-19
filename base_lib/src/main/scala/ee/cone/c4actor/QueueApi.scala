@@ -409,8 +409,3 @@ trait AbstractIndentedParser {
 }
 
 case object TxAddAssembleDebugKey extends TransientLens[Boolean](false)
-
-// executes when no more txtr found; does not cover reset on errors yet
-trait TransientFinisher extends Product {
-  def finish(): Unit
-}

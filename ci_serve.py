@@ -191,7 +191,10 @@ def get_step_handlers(): return {
     "snapshot_get": lambda ctx, app, name: {"snapshot": sn.snapshot_get(ctx["kube_contexts"], app, name)},
     "snapshot_write": lambda ctx, dir_path: {"": sn.snapshot_write(dir_path, *ctx["snapshot"])},
     "snapshot_read": lambda ctx, data_path_arg: {"snapshot": sn.snapshot_read(data_path_arg)},
-    "snapshot_put": lambda ctx, app: {"": sn.snapshot_put(*ctx["snapshot"], ctx["kube_contexts"], app)},
+    "snapshot_ignore": lambda ctx, ignore: {"snapshot_ignore": ignore},
+    "snapshot_put": lambda ctx, app: {
+        "": sn.snapshot_put(*ctx["snapshot"], ctx["kube_contexts"], app, ctx.get("snapshot_ignore", ""))
+    },
     "snapshot_make": lambda ctx, app: {"": sn.snapshot_make(ctx["kube_contexts"], app)},
     "snapshot_will": lambda ctx, app: {f"snapshot-{app}": ctx["snapshot"]},
     "snapshot_put_purged": lambda ctx, prefix: {
