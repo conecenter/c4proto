@@ -307,7 +307,7 @@ def build_type_ci_operator(context, out):
     deploy_context = get_plain_option("C4DEPLOY_CONTEXT")
     build_micro(context, out, [
         "c4util/snapshots.py", "c4util/purge.py", "c4util/cluster.py", "c4util/git.py", "c4util/kube_reporter.py",
-        "c4util/__init__.py", "ci_serve.py", "ci_prep.py", "ci_up.py", "kafka_info.java",
+        "c4util/notify.py", "c4util/__init__.py", "ci_serve.py", "ci_prep.py", "ci_up.py", "kafka_info.java",
     ], [
         "FROM ubuntu:22.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /replink.pl /",  # replink for ci_prep

@@ -7,7 +7,9 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{by, c4assemble}
 import ee.cone.c4gate.HttpProtocol.S_HttpRequest
-import ee.cone.c4di.{c4, c4multi}
+import ee.cone.c4di.{c4, c4multi, provide}
+import ee.cone.c4gate.SnapshotPutProtocol.S_SnapshotPutDone
+import ee.cone.c4proto.{Id, protocol}
 import okio.ByteString
 
 class MemRawSnapshotLoader(relativePath: String, bytes: ByteString) extends RawSnapshotLoader {
@@ -33,29 +35,48 @@ class MemRawSnapshotLoader(relativePath: String, bytes: ByteString) extends RawS
   }
 }
 
+@c4("SnapshotPutApp") final class SnapshotPutIgnores {
+  @provide def get: Seq[GeneralSnapshotPatchIgnore] = Seq(new SnapshotPatchIgnore(classOf[S_SnapshotPutDone]))
+}
+
+@protocol("SnapshotPutApp") object SnapshotPutProtocol {
+  @Id(0x00B8) case class S_SnapshotPutDone(@Id(0x002A) srcId: String)
+}
+
 @c4multi("SnapshotPutApp") final case class SnapshotPutTx(srcId: SrcId, requests: List[S_HttpRequest])(
-  putter: SnapshotPutter, signatureChecker: SimpleSigner, signedPostUtil: SignedReqUtil,
-  //getS_FailedUpdates: GetByPK[S_FailedUpdates],
+  putter: SnapshotPutter, signatureChecker: SimpleSigner, signedPostUtil: SignedReqUtil, txAdd: LTxAdd,
+  getS_FailedUpdates: GetByPK[S_FailedUpdates], getS_SnapshotPutDone: GetByPK[S_SnapshotPutDone],
 ) extends TxTransform with LazyLogging {
   import signedPostUtil._
-  def transform(local: Context): Context = catchNonFatal {
-    //logger.info(s"${ReadAfterWriteOffsetKey.of(local)} : ${getS_FailedUpdates.ofA(local)}")
-    val request = requests.head
-    assert(request.method == "POST")
-    val (relativePath, addIgnore) = signatureChecker.retrieve(check=true)(signed(request.headers)) match {
-      case Some(Seq(putter.`url`,relativePath)) => (relativePath, Set.empty[Long])
-      case Some(Seq(putter.`url`,relativePath,ignoreStr)) =>
-        val ignoreSet =
-          (for(found <- """([0-9a-f]+)""".r.findAllIn(ignoreStr)) yield java.lang.Long.parseLong(found, 16)).toSet
-        (relativePath, ignoreSet)
-    }
-    Function.chain(Seq(
-      putter.merge(relativePath, request.body, addIgnore),
-      respond(List(request->Nil),requests.tail.map(_->"Ignored"))
-    ))(local)
-  }("put-snapshot"){ e =>
-    respond(Nil,List(requests.head -> e.getMessage))(local)
-  } // failure can happen out of there: >1G request may result in >2G tx, that will be possible to txAdd, but impossible to commit later
+
+  private def prevTxFailed(local: Context): Boolean =
+    getS_FailedUpdates.ofA(local).contains(ReadAfterWriteOffsetKey.of(local))
+
+  def transform(local: Context): Context = {
+    val reqSuccesses =
+      for{ req <- requests; done <- getS_SnapshotPutDone.ofA(local).get(req.srcId).toList } yield (req, done)
+    if(reqSuccesses.nonEmpty) Function.chain(Seq(
+      respond(reqSuccesses.map{ case (req, _) => req -> Nil }, Nil),
+      txAdd.add(reqSuccesses.flatMap{ case (_, done) => LEvent.delete(done) })
+    ))(local) else catchNonFatal {
+      assert(!prevTxFailed(local))
+      val request = requests.head
+      assert(request.method == "POST")
+      val (relativePath, addIgnore) = signatureChecker.retrieve(check=true)(signed(request.headers)) match {
+        case Some(Seq(putter.`url`,relativePath)) => (relativePath, Set.empty[Long])
+        case Some(Seq(putter.`url`,relativePath,ignoreStr)) =>
+          val ignoreSet =
+            (for(found <- """([0-9a-f]+)""".r.findAllIn(ignoreStr)) yield java.lang.Long.parseLong(found, 16)).toSet
+          (relativePath, ignoreSet)
+      }
+      Function.chain(Seq(
+        putter.merge(relativePath, request.body, addIgnore),
+        txAdd.add(LEvent.update(S_SnapshotPutDone(request.srcId)))
+      ))(local)
+    }("put-snapshot"){ e =>
+      respond(Nil,List(requests.head -> e.getMessage))(local)
+    } // failure can happen out of there: >1G request may result in >2G tx, that will be possible to txAdd, but impossible to commit later
+  }
 }
 
 @c4assemble("SnapshotPutApp") class SnapshotPutAssembleBase(
