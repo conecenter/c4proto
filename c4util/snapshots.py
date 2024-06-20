@@ -99,7 +99,7 @@ def snapshot_read(data_path_arg):
 
 def snapshot_put(data_fn, data, kube_contexts, app, ignore):
     never_if("snapshot is too big" if len(data) > 800000000 else None)
-    post_signed(kube_contexts, app, "/put-snapshot", [f"snapshots/{data_fn}", ignore], data)
+    post_signed(kube_contexts, app, "/put-snapshot", [f"snapshots/{data_fn}", *([ignore] if ignore else [])], data)
 
 
 def injection_get(path, suffix): return "\n".join(
