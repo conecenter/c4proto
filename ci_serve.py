@@ -24,18 +24,19 @@ def py_cmd(): return "python3", "-u"
 def fix_kube_env(e): return {**e, "KUBECONFIG": e["C4KUBECONFIG"]}
 
 
-def app_prep(app_dir, apps):
+def app_prep(apps, get_app_dir):
     out_dir_life = tempfile.TemporaryDirectory()
     for app in apps:
         up_path = f"{out_dir_life.name}/{app}.json"
         env = fix_kube_env(os.environ)
+        app_dir = get_app_dir(app)
         cmd = (*py_cmd(), "/ci_prep.py", "--context", app_dir, "--c4env", app, "--state", "main", "--info-out", up_path)
         run(cmd, env=env)
     return out_dir_life
 
 
-def app_start_purged(kube_context, app_dir, apps, get_app_snapshot):
-    out_dir_life = app_prep(app_dir, apps)
+def app_start_purged(kube_context, apps, get_app_dir, get_app_snapshot):
+    out_dir_life = app_prep(apps, get_app_dir)
     installs = [read_json(path) for path in list_dir(out_dir_life.name)]
     never_if([f'bad ctx {t["kube-context"]} of {t["c4env"]}' for t in installs if t["kube-context"] != kube_context])
     for it in installs:
@@ -220,8 +221,11 @@ def get_step_handlers(): return {
         name: setup_dir(lambda d: git.git_clone_or_init(access(ctx["deploy_context"], ctx[f"repo-{name}"]), br, d))
     },
     "git_add_tagged": lambda ctx, cwd, tag: {"": git.git_add_tagged(ctx[cwd].name, tag)},
-    "app_start_purged": lambda ctx, name, apps: {
-        "": app_start_purged(ctx["deploy_context"], ctx[name].name, apps, lambda app: ctx[f"snapshot-{app}"])
+    "app_ver": lambda ctx, app, cwd: {app: ctx[cwd]},
+    "app_start_purged": lambda ctx, apps: {
+        "": app_start_purged(
+            ctx["deploy_context"], apps, lambda app: ctx[app].name, lambda app: ctx[f"snapshot-{app}"]
+        )
     },
     "app_stop": lambda ctx, kube_context, app: {"": app_stop(kube_context, app)},
     "purge_mode_list": lambda ctx, mode_list: {"": pu.purge_mode_list(ctx["deploy_context"], mode_list)},
