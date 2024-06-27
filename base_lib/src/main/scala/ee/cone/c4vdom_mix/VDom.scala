@@ -8,6 +8,6 @@ import ee.cone.c4vdom_impl._
   lazy val childPairFactory: ChildPairFactory = new ChildPairFactoryImpl(new VDomFactoryImpl(MapVDomValueImpl))
   lazy val tagJsonUtils: TagJsonUtils = TagJsonUtilsImpl
   lazy val vDomHandlerFactory: VDomHandlerFactory =
-    new VDomHandlerFactoryImpl(diff,JsonToStringImpl,WasNoValueImpl,childPairFactory)
+    new VDomHandlerFactoryImpl(diff,FixDuplicateKeysImpl,JsonToStringImpl,WasNoValueImpl,childPairFactory)
   lazy val vDomResolver: VDomResolver = VDomResolverImpl
 }

@@ -7,6 +7,7 @@ import scala.annotation.tailrec
 
 class VDomHandlerFactoryImpl(
   diff: Diff,
+  fixDuplicateKeys: FixDuplicateKeys,
   jsonToString: JsonToString,
   wasNoValue: WasNoVDomValue,
   child: ChildPairFactory
@@ -17,7 +18,7 @@ class VDomHandlerFactoryImpl(
     vDomUntil: VDomUntil,
     vDomStateKey: VDomLens[State,Option[VDomState]]
   ): Receiver[State] =
-    VDomHandlerImpl(sender,view)(diff,jsonToString,wasNoValue,child,vDomUntil,vDomStateKey)
+    VDomHandlerImpl(sender,view)(diff,fixDuplicateKeys,jsonToString,wasNoValue,child,vDomUntil,vDomStateKey)
 }
 
 object VDomResolverImpl extends VDomResolver {
@@ -40,6 +41,7 @@ case class VDomHandlerImpl[State](
   view: VDomView[State]
 )(
   diff: Diff,
+  fixDuplicateKeys: FixDuplicateKeys,
   jsonToString: JsonToString,
   wasNoValue: WasNoVDomValue,
   child: ChildPairFactory,
@@ -53,7 +55,7 @@ case class VDomHandlerImpl[State](
     st=>st.copy(value = wasNoValue, seeds = Nil, until = 0)
   ))(state)
   private def init(state: State): State = vDomStateKey.modify(_.orElse(
-    Option(VDomState(wasNoValue,Nil,0,System.currentTimeMillis(),MakingViewStats(0,Nil,0)))
+    Option(VDomState(wasNoValue,Nil,0,System.currentTimeMillis(),MakingViewStats(0,Nil,0),failed=false))
   ))(state)
 
   private def pathHeader: VDomMessage => String = _.header("x-r-vdom-path")
@@ -75,14 +77,21 @@ case class VDomHandlerImpl[State](
     chain(List(init(_),dispatch(m,_),toAlien(m,_)))(state)
   }
 
-  private def diffSend(prev: VDomValue, send: sender.Send, state: State): State =
-    if(send.isEmpty) state else {
+  private def diffSend(prev: VDomValue, send: sender.Send, state: State, left: Int = 5): State =
+    if(send.isEmpty) state else try {
       val next = vDomStateKey.of(state).get.value
       val diffTree = diff.diff(prev, next)
       if(diffTree.isEmpty) state else {
         val diffStr = jsonToString(diffTree.get)
         send.get("showDiff",s"${sender.branchKey} $diffStr")(state)
       }
+    } catch {
+      case error: DuplicateKeysException if left > 0 =>
+        vDomStateKey.of(state).filterNot(_.failed).foreach(_=>println(error.getMessage))
+        chain[State](Seq(
+          vDomStateKey.modify(_.map{ v => v.copy(value = fixDuplicateKeys.fix(error, v.value), failed=true) }),
+          diffSend(prev, send, _, left = left - 1)
+        ))(state)
     }
 
   private def toAlien(exchange: VDomMessage, state: State): State = {

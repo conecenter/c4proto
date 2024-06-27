@@ -130,6 +130,7 @@ case class MakingViewStats(sum: Long, recent: List[MakingViewStat], stable: Long
 case class VDomState(
   value: VDomValue, seeds: List[(String,Product)], until: Long,
   startedAtMillis: Long, wasMakingViewMillis: MakingViewStats,
+  failed: Boolean,
 )
 
 trait VDomUntil {

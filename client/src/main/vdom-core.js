@@ -221,7 +221,7 @@ const elementWeakCache = weakCache(props=>{
             .filter(([k,v])=>Array.isArray(v))
             .map(([k,v])=>[k, resolveChildren(cProps,v)])
         )
-        return createElement(tp,{key,...at,...childAt})
+        return createElement(tp,{...at,key,...childAt}) // key may be fixed as duplicate, but at.key is not; is there reason why at.key had priority?
     }
     //lega:
     const {key,at:{tp,...at}} = props

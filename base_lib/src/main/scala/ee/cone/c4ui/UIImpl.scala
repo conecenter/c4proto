@@ -169,3 +169,7 @@ case class AggrRestPeriod(location: String, periods: List[N_RestPeriod])
   ): Values[(SrcId,AggrRestPeriod)] =
     List(WithPK(AggrRestPeriod(key,periods.sortBy(_.branchKey).toList)))
 }
+
+@c4("UICompApp") final class ViewFailedImpl extends ViewFailed {
+  def of(local: Context): Boolean = VDomStateKey.of(local).exists(_.failed)
+}

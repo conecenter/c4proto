@@ -26,3 +26,7 @@ case class DynamicViewRestPeriod(valueMillis: Long) extends ViewRestPeriod
 case class StaticViewRestPeriod(valueMillis: Long) extends ViewRestPeriod
 
 case object ViewRestPeriodKey extends TransientLens[Option[ViewRestPeriod]](None)
+
+trait ViewFailed {
+  def of(local: Context): Boolean
+}

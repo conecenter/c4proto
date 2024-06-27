@@ -1,5 +1,6 @@
 package ee.cone.c4vdom_impl
 
+import ee.cone.c4vdom.Types.VDomKey
 import ee.cone.c4vdom._
 
 trait JsonToString {
@@ -21,6 +22,11 @@ trait MapVDomValue extends VDomValue {
 
 trait Diff {
   def diff(prevValue: VDomValue, currValue: VDomValue): Option[MapVDomValue]
+}
+
+trait DuplicateKeysException extends Exception
+trait FixDuplicateKeys {
+  def fix(ex: DuplicateKeysException, value: VDomValue): VDomValue
 }
 
 trait SeedVDomValue extends VDomValue {
