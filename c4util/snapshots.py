@@ -7,7 +7,7 @@ import base64
 import time
 import urllib.parse
 
-from . import run, never_if, one, read_text, list_dir, run_text_out, log, http_exchange, http_check
+from . import run, never_if, one, read_text, list_dir, run_text_out, log, http_exchange, http_check, Popen
 from .cluster import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl, get_pods_json
 
 
@@ -36,20 +36,30 @@ def sign(salt, args):
     return {"x-r-signed": "=".join([urllib.parse.quote_plus(e) for e in [md5s([salt, *u_data]), *u_data]])}
 
 
-def get_labeled_pods(kc, la): return get_pods_json(kc, ("-l", la))
-
-
 def get_app_pod_cmd_prefix(kc, pods):
     pod_name = max(pod["metadata"]["name"] for pod in pods)
     return *kc, "exec", pod_name, "--", "sh", "-c"
 
 
+def find_kube_context(kube_contexts, app):
+    stm = ";".join((
+        'import sys, subprocess as sp',
+        'sys.exit(0 if sp.run(sys.argv[1:],check=True,text=True,capture_output=True,timeout=3).stdout.strip() else 1)',
+    ))
+    processes = [
+        (kube_ctx, Popen(("python3", "-c", stm, *kc, "get", "pods", "-o", "NAME", "-l", f"app={app}")))
+        for kube_ctx in kube_contexts for kc in [get_kubectl(kube_ctx)]
+    ]
+    return one(*[kube_ctx for kube_ctx, proc in processes if proc.wait() == 0])
+
+
+def get_app_pods(kc, app): return get_pods_json(kc, ("-l", f"app={app}"))
+
+
 def get_app_kc_pods(kube_contexts, app):
-    for kube_context in kube_contexts:
-        kc = get_kubectl(kube_context)
-        pods = get_labeled_pods(kc, f"app={app}")
-        if pods:
-            return kc, pods
+    kube_context = find_kube_context(kube_contexts, app)
+    kc = get_kubectl(kube_context)
+    return kc, get_app_pods(kc, app)
 
 
 def post_signed(kube_contexts, app, url, args, data):
