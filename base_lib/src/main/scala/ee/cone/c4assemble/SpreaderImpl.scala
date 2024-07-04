@@ -2,6 +2,7 @@ package ee.cone.c4assemble
 
 import ee.cone.c4di.c4
 
+@SuppressWarnings(Array("org.wartremover.warts.Var", "org.wartremover.warts.While"))
 @c4("AssembleApp") final class ArrayUtilImpl extends ArrayUtil {
   def spread[N](src: Array[N], itemCount: Int, partCount: Int, handler: SpreadHandler[N]): Array[Array[N]] = {
     val dest = handler.createRoot(partCount)

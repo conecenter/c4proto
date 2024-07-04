@@ -134,6 +134,7 @@ trait ParallelExecution {
   }
 }*/
 
+@SuppressWarnings(Array("org.wartremover.warts.Var", "org.wartremover.warts.While"))
 /**/@c4("AssembleApp") final class FJPParallelExecutionImpl() extends ParallelExecution {
   private final class LTask[S,T](task: S, calc: S => T) extends RecursiveTask[T] {
     def compute(): T = calc(task)
@@ -157,7 +158,7 @@ trait ParallelExecution {
   }
 }
 
-@SuppressWarnings(Array("org.wartremover.warts.TryPartial"))
+@SuppressWarnings(Array("org.wartremover.warts.TryPartial", "org.wartremover.warts.Var", "org.wartremover.warts.While"))
 @c4multi("AssembleApp") final class SchedulerImpl(
   val active: Seq[WorldPartRule], conf: SchedulerConf, joins: Seq[Join]
 )(
@@ -437,7 +438,7 @@ trait ParallelExecution {
   }
   private def addProfilingCounts(
     context: MutableSchedulingContext, pos: TaskPos, profilingCounts: AbstractProfilingCounts
-  ): Unit = context.profilingCountsList.add((pos, profilingCounts))
+  ): Unit = assert(context.profilingCountsList.add((pos, profilingCounts)))
   def emptyReadModel: ReadModel = conf.emptyReadModel
 
   def report(model: ReadModel): Unit = {
@@ -496,6 +497,7 @@ final class ImmArr[K<:Int,V<:Object](data: Array[Array[V]], nonEmptyCount: Int, 
   def apply(pos: K): V = data(pos >> ImmArr.innerPower)(pos & ImmArr.innerMask)
   def toMutable(debug: Option[CowArrDebug[K,V]]): COWArr[K,V] = new COWArr(data, nonEmptyCount, emptyItem, debug)
 }
+@SuppressWarnings(Array("org.wartremover.warts.Var"))
 final class COWArr[K<:Int,V<:Object](private var data: Array[Array[V]], private var nonEmptyCount: Int, emptyItem: V, debug: Option[CowArrDebug[K,V]]){
   def apply(pos: K): V = data(pos >> ImmArr.innerPower)(pos & ImmArr.innerMask)
   private var privateC: Long = 0L
@@ -547,6 +549,7 @@ class DebuggingPlanner(inner: MutablePlanner, report: (String,TaskPos)=>Unit) ex
   def reportStarted(): Unit = for(exprPos <- getStarted) report("is-started", exprPos)
 }
 
+@SuppressWarnings(Array("org.wartremover.warts.While"))
 class ThreadTracker extends Runnable {
   def run(): Unit = {
     val man = ManagementFactory.getThreadMXBean

@@ -167,7 +167,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   private val sumRefs = Seq(new AtomicLong(0L), new AtomicLong(0L))
   private val maxRefs = Seq[AtomicReference[List[(Long,Long)]]](new AtomicReference(Nil), new AtomicReference(Nil))
   def add(id: Int, value: Long): Unit = {
-    sumRefs(id).addAndGet(value)
+    val _ = sumRefs(id).addAndGet(value)
     addMax(id, value)
   }
   @tailrec private def addMax(id: Int, value: Long): Unit = {

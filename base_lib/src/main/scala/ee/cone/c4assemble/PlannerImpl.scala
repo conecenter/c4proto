@@ -13,7 +13,7 @@ class PlannerConfImpl(val taskUsers: Array[Array[TaskPos]]) extends PlannerConf
     new MutablePlannerImpl(conf match { case c: PlannerConfImpl =>c.taskUsers })
 }
 
-@SuppressWarnings(Array("org.wartremover.warts.Var"))
+@SuppressWarnings(Array("org.wartremover.warts.Var", "org.wartremover.warts.While"))
 final class MutablePlannerImpl(taskUsers: Array[Array[TaskPos]]) extends MutablePlanner {
   private val reasonCountByExprPos: Array[Int] = new Array(taskUsers.length)
   private var reasonedExprCount = 0
@@ -56,6 +56,7 @@ final class MutablePlannerImpl(taskUsers: Array[Array[TaskPos]]) extends Mutable
 trait RBitSetChangeHandler[K<:Int]{
   def handle(pos: K, dir: Int): Unit
 }
+@SuppressWarnings(Array("org.wartremover.warts.Var", "org.wartremover.warts.While"))
 final class RBitSet[K<:Int](maxSize: Int, changeHandler: RBitSetChangeHandler[K]){
   private val LogWL = 6
   private val WordLength = 64

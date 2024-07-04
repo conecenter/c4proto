@@ -7,6 +7,7 @@ import java.util.Comparator
 import scala.annotation.tailrec
 import scala.collection.mutable
 
+@SuppressWarnings(Array("org.wartremover.warts.Var"))
 final class RIndexImpl(
   val data: Array[RIndexBucket],
   val nonEmptyParts: Long,
@@ -51,6 +52,7 @@ final class RIndexSeq(val values: Array[RIndexItem], val start: Int, val length:
   }
 }
 
+@SuppressWarnings(Array("org.wartremover.warts.Var", "org.wartremover.warts.While"))
 abstract class RIndexSpread {
   def toPos(pair: RIndexPairImpl): Int
   def toDest(pos: Int): Array[RIndexPairImpl]
@@ -82,6 +84,7 @@ final class RNonEmptyChecker extends RKeyFoundHandler[Boolean] {
   def handleNonEmptyKey(keyRHash: Int, bucket: RIndexBucket, found: Int): Boolean = true
 }
 
+@SuppressWarnings(Array("org.wartremover.warts.Var", "org.wartremover.warts.While"))
 final class RIndexUtilImpl(
   arrayUtil: ArrayUtil,
   val emptyBucket: RIndexBucket = new RIndexBucket(

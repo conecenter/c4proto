@@ -261,6 +261,7 @@ object DOutAggregationBuffer {
     def createRoot(sz: Int): Array[Array[DOut]] = new Array(sz)
   }
 }
+@SuppressWarnings(Array("org.wartremover.warts.Var", "org.wartremover.warts.While"))
 final class DOutAggregationBuffer(arrayUtil: ArrayUtil, startedAt: Long = System.nanoTime) extends MutableDOutBuffer {
   import DOutAggregationBuffer._
   private var values: Array[RIndexPair] = emptyDOuts

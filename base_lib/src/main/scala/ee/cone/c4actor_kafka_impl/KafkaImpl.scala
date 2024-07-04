@@ -19,17 +19,7 @@ import org.apache.kafka.common.header.Header
 import org.apache.kafka.common.header.internals.RecordHeader
 import org.apache.kafka.common.serialization.{ByteArrayDeserializer, ByteArraySerializer}
 
-import scala.collection.immutable.Map
 import scala.jdk.CollectionConverters.{IterableHasAsScala,MapHasAsJava,MapHasAsScala,SeqHasAsJava}
-
-@c4("KafkaConfigApp") final class ConfigKafkaConfig(
-  config: Config
-) extends KafkaConfig(
-  bootstrapServers = config.get("C4BOOTSTRAP_SERVERS"),
-  keyStorePath = config.get("C4KEYSTORE_PATH"),
-  trustStorePath = config.get("C4TRUSTSTORE_PATH"),
-  keyPassPath = config.get("C4STORE_PASS_PATH"),
-)()
 
 @c4("KafkaProducerApp") final class KafkaRawQSenderProvider(
   factory: KafkaRawQSenderFactory, disable: List[DisableDefProducer]
@@ -88,25 +78,10 @@ object OffsetHex {
     (("0" * OffsetHexSize())+java.lang.Long.toHexString(offset)).takeRight(OffsetHexSize())
 }
 
-case class KafkaConfig(
-  bootstrapServers: String,
-  keyStorePath: String, trustStorePath: String, keyPassPath: String
-)(
-  ok: Unit = assert(Seq(
-    bootstrapServers, keyStorePath, trustStorePath, keyPassPath
-  ).forall(_.nonEmpty)),
-  keyPass: String = new String(Files.readAllBytes(Paths.get(keyPassPath)),UTF_8)
+@c4("KafkaConfigApp") final case class KafkaConfig()(config: Config)(
+  val ssl: Map[String,String] = config.get("C4KAFKA_CONFIG").split("\n").grouped(3)
+    .map{ case Array("C",k,v) => (k,v) case Array("E",k,v) => (k,Files.readString(Paths.get(config.get(v)))) }.toMap
 ){
-  def ssl: Map[String,String] = Map(
-    "bootstrap.servers"       -> bootstrapServers,
-    "security.protocol"       -> "SSL",
-    "ssl.keystore.location"   -> keyStorePath,
-    "ssl.keystore.password"   -> keyPass,
-    "ssl.key.password"        -> keyPass,
-    "ssl.truststore.location" -> trustStorePath,
-    "ssl.truststore.password" -> keyPass,
-    "ssl.endpoint.identification.algorithm" -> "",
-  )
   def topicNameToString(name: TxLogName): String = s"${name.value}.inbox"
 }
 
@@ -146,7 +121,6 @@ case class KafkaConfig(
         }
         val topicNameMap = fromList.map{ case(kv,_,_)=> kv }.toMap
         val topicPartitions = fromList.map{ case(_,topicPartition,_)=> topicPartition }
-        logger.info(s"server [${conf.bootstrapServers}]")
         consumer.assign(topicPartitions.asJava)
         for((_,topicPartition,offset)<-fromList){
           logger.info(s"from topic [${topicPartition.topic}] from offset [$offset]")

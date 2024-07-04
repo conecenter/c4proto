@@ -25,17 +25,13 @@ class History {
 
     public static void main(String[] args) {
         try{
-            final var keyPassPath = mandatoryEnv("C4STORE_PASS_PATH");
-            final var keyPass = Files.readString(Paths.get(keyPassPath));
             final var conf = new HashMap<String, Object>();
-            conf.put("bootstrap.servers",mandatoryEnv("C4BOOTSTRAP_SERVERS"));
-            conf.put("security.protocol","SSL");
-            conf.put("ssl.keystore.location",mandatoryEnv("C4KEYSTORE_PATH"));
-            conf.put("ssl.keystore.password",keyPass);
-            conf.put("ssl.key.password",keyPass);
-            conf.put("ssl.truststore.location",mandatoryEnv("C4TRUSTSTORE_PATH"));
-            conf.put("ssl.truststore.password",keyPass);
-            conf.put("ssl.endpoint.identification.algorithm","");
+            final var confLines = mandatoryEnv("C4KAFKA_CONFIG").split("\n",-1);
+            for(var i = 0; i < confLines.length; i+=3) switch(confLines[i]){
+                case "C": conf.put(confLines[i+1], confLines[i+2]); break;
+                case "E": conf.put(confLines[i+1], Files.readString(Paths.get(mandatoryEnv(confLines[i+2])))); break;
+                default: throw new Exception("bad config");
+            }
             //
             final var topicName = "bash_history";
             //

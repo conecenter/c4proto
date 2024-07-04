@@ -186,7 +186,7 @@ my $serve_history = sub{
     #
     my $env = {
         JAVA_TOOL_OPTIONS => "",
-        CLASSPATH => (syf("coursier fetch --classpath org.apache.kafka:kafka-clients:2.8.0")=~/(\S+)/ ? $1 : die),
+        CLASSPATH => (syf("coursier fetch --classpath org.apache.kafka:kafka-clients:3.7.1")=~/(\S+)/ ? $1 : die),
         C4HISTORY_PUT => "/c4/.bash_history_put",
         C4HISTORY_GET => "/c4/.bash_history_get",
     };

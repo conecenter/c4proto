@@ -33,7 +33,7 @@ def changing_text(path, will):
 def read_text(path_str): return pathlib.Path(path_str).read_text(encoding='utf-8', errors='strict')
 
 
-def decode(bs): return bs.decode(encoding='utf-8', errors='strict')
+def decode(bs): return bs.decode('utf-8')
 
 
 def log(text):

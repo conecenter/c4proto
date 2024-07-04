@@ -21,7 +21,7 @@ my $single = sub{ @_==1 ? $_[0] : die };
 my $distinct = sub{ my(@r,%was); $was{$_}++ or push @r,$_ for @_; @r };
 
 my $zoo_port = 8081;
-my $ssl_bootstrap_server = "localhost:8093"; #dup
+my $bootstrap_server = "localhost:8093"; #dup
 my $http_port = sub{8067+$_[0]*100}; #dup
 my $sse_port = sub{8068+$_[0]*100}; #dup
 my $get_repo_dir = sub{ $ENV{C4DS_BUILD_DIR} || die "no C4DS_BUILD_DIR" };
@@ -42,64 +42,12 @@ my $serve_zookeeper = sub{
     &$exec("zookeeper-server-start.sh","$data_dir/zookeeper.properties");
 };
 
-my $need_certs = sub{
-    my($dir,$fn_pre,$dir_pre,$cf_pre) = @_;
-    my $ca_auth = "$dir/simple.auth";
-    my $days = "16384";
-    my $ca_key = "$dir/ca-key";
-    my $ca_cert = "$dir/ca-cert";
-    my $ca_ts = "$dir/truststore.jks";
-    my $was_no_ca = !-e $ca_ts;
-    if($was_no_ca){
-        sy("mkdir -p $dir");
-        &$put_text($ca_auth, syf("uuidgen")=~/(\S+)/ ? $1 : die) if !-e $ca_auth;
-        sy("openssl req -new -x509 -keyout $ca_key -out $ca_cert -days $days -subj '/CN=CARoot' -nodes");
-        sy("keytool -keystore $ca_ts -storepass:file $ca_auth -alias CARoot -import -noprompt -file $ca_cert");
-    }
-    #
-    $dir_pre||die;
-    my $auth = "$dir_pre/simple.auth";
-    my $pre = "$dir_pre/$fn_pre";
-    my $ts = "$pre.truststore.jks";
-    my $ks = "$pre.keystore.jks";
-    my $csr = "$pre.unsigned";
-    my $signed = "$pre.signed";
-    my $keytool = "keytool -keystore $ks -storepass:file $auth -alias localhost -noprompt";
-    if(!-e $ts){
-        sy("cp $ca_auth $auth");
-        sy("$keytool -genkey -keyalg RSA -dname 'cn=localhost' -keypass:file $auth -validity $days");
-        sy("$keytool -certreq -file $csr");
-        sy("openssl x509 -req -CA $ca_cert -CAkey $ca_key -in $csr -out $signed -days $days -CAcreateserial");
-        sy("keytool -keystore $ks -storepass:file $auth -alias CARoot -noprompt -import -file $ca_cert -trustcacerts");
-        sy("$keytool -import -file $signed -trustcacerts");
-        sy("cp $ca_ts $ts");
-    }
-    #
-    if($cf_pre){
-        my $auth_data = `cat $auth`=~/^(\S+)\s*$/ ? $1 : die;
-        &$put_text("$pre.properties",join '', map{"$_\n"}
-            "ssl.keystore.location=$cf_pre/$fn_pre.keystore.jks",
-            "ssl.keystore.password=$auth_data",
-            "ssl.key.password=$auth_data",
-            "ssl.truststore.location=$cf_pre/$fn_pre.truststore.jks",
-            "ssl.truststore.password=$auth_data",
-            "ssl.endpoint.identification.algorithm=",
-            "", #broker
-            "ssl.client.auth=required",
-            #"security.inter.broker.protocol=SSL",
-        );
-    }
-    $was_no_ca;
-};
-
 my $serve_broker = sub{
     &$put_text("$data_dir/server.properties", join '', map{"$_\n"}
         "log.dirs=$data_dir/kafka-logs",
         "zookeeper.connect=127.0.0.1:$zoo_port",
-        "listeners=SSL://$ssl_bootstrap_server",
-        "inter.broker.listener.name=SSL",
+        "listeners=PLAINTEXT://$bootstrap_server",
     );
-    sy("cat $data_dir/cu.broker.properties >> $data_dir/server.properties");
     &$exec("kafka-server-start.sh","$data_dir/server.properties");
 };
 
@@ -192,16 +140,13 @@ my $get_consumer_env = sub{
         "http://127.0.0.1:$port"
     } 0..$elector_replicas-1;
     (
+        C4KAFKA_CONFIG => "C\nbootstrap.servers\n$bootstrap_server",
         C4STATE_TOPIC_PREFIX => $nm,
-        C4BOOTSTRAP_SERVERS => $ssl_bootstrap_server,
         C4INBOX_TOPIC_PREFIX => $inbox_topic_prefix,
         C4S3_CONF_DIR => $s3conf_dir,
         C4BROKER_MIN_LO_SIZE => "0",
         C4HTTP_SERVER => "http://127.0.0.1:1080",
         C4AUTH_KEY_FILE => "$data_dir/simple.auth",
-        C4STORE_PASS_PATH => "$data_dir/simple.auth",
-        C4KEYSTORE_PATH => "$data_dir/cu.def.keystore.jks",
-        C4TRUSTSTORE_PATH => "$data_dir/cu.def.truststore.jks",
         C4ELECTOR_SERVERS => $elector_servers,
         C4READINESS_PATH => $readiness_path,
     )
@@ -344,18 +289,8 @@ my $init_s3 = sub{
 my $init = sub{
     my($service_map) = @_;
     &$init_s3();
-    &$need_certs("$data_dir/ca", "cu.broker", $data_dir, $data_dir);
-    &$need_certs("$data_dir/ca", "cu.def", $data_dir);
-    #
-    #    my ($services_by_build_dir,$build_dirs) = &$group(
-    #        [$repo_dir=>"main"],
-    #        [$proto_dir=>"gate"],
-    #    );
-    #    my @builder_service_lines = map{
-    #        my $dir = $_;
-    #        my @services = &$services_by_build_dir($dir);
-    #        ["build_$services[0]", "build $dir ".join(",",@services)]
-    #    } @$build_dirs;
+    my $ca_auth = "$data_dir/simple.auth";
+    &$put_text($ca_auth, syf("uuidgen")=~/(\S+)/ ? $1 : die) if !-e $ca_auth;
     my @program_lines = map{(
         "[program:$$_[0]]",
         "command=perl $0 $$_[1]",
