@@ -41,8 +41,9 @@ class KafkaApp {
     public static void main(String[] args) {
         try{
             final var conf = new HashMap<String, Object>();
-            final var confLines = mandatoryEnv("C4KAFKA_CONFIG").split("\n",-1);
-            for(var i = 0; i < confLines.length; i+=3) switch(confLines[i]){
+            final var confLine = mandatoryEnv("C4KAFKA_CONFIG");
+            final var confLines = confLine.split(confLine.substring(0,1),-1);
+            for(var i = 1; i < confLines.length; i+=3) switch(confLines[i]){
                 case "C": conf.put(confLines[i+1], confLines[i+2]); break;
                 case "E": conf.put(confLines[i+1], Files.readString(Paths.get(mandatoryEnv(confLines[i+2])))); break;
                 default: throw new Exception("bad config");

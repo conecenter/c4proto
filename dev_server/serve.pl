@@ -140,7 +140,7 @@ my $get_consumer_env = sub{
         "http://127.0.0.1:$port"
     } 0..$elector_replicas-1;
     (
-        C4KAFKA_CONFIG => "C\nbootstrap.servers\n$bootstrap_server",
+        C4KAFKA_CONFIG => ";C;bootstrap.servers;$bootstrap_server",
         C4STATE_TOPIC_PREFIX => $nm,
         C4INBOX_TOPIC_PREFIX => $inbox_topic_prefix,
         C4S3_CONF_DIR => $s3conf_dir,

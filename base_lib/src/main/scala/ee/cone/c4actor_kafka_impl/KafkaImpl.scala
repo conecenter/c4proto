@@ -79,8 +79,11 @@ object OffsetHex {
 }
 
 @c4("KafkaConfigApp") final case class KafkaConfig()(config: Config)(
-  val ssl: Map[String,String] = config.get("C4KAFKA_CONFIG").split("\n").grouped(3)
-    .map{ case Array("C",k,v) => (k,v) case Array("E",k,v) => (k,Files.readString(Paths.get(config.get(v)))) }.toMap
+  val ssl: Map[String,String] = {
+    val line = config.get("C4KAFKA_CONFIG")
+    line.split(line.substring(0,1),-1).tail.grouped(3)
+      .map{ case Array("C",k,v) => (k,v) case Array("E",k,v) => (k,Files.readString(Paths.get(config.get(v)))) }.toMap
+  }
 ){
   def topicNameToString(name: TxLogName): String = s"${name.value}.inbox"
 }
