@@ -105,22 +105,48 @@ def measure(log_path):
             print(f"{str(int(time.monotonic()-started)).zfill(5)} {line}", end="", file=log_file, flush=True)
 
 
-def run_steps(ctx, sm_args, steps):
-    handlers = get_step_handlers()
-    patt = re.compile(r'\{(\w+)}|\{(\w+)\.name}')
-    repl = (lambda a: (
-        sm_args[a.group(1)] if a.group(1) and a.group(1) in sm_args else
-        # ctx[a.group(2)].name if a.group(2) and a.group(2) in ctx else
-        a.group(0)
-    ))
-    need_def_list = (lambda ct: ct if "def_list" in ct else {**ct, "def_list": load_def_list(clone_def_repo())})
-    call = (lambda ct, msg: run_steps(ct, msg, one(*select_def(ct["def_list"], "def", msg["op"]))))
-    for step in steps:
-        step_str = patt.sub(repl, json.dumps(step))
-        log(step_str)
-        op, *step_args = json.loads(step_str)
-        ctx = call(need_def_list(ctx), step_args[0]) if op == "call" else {**ctx, **handlers[op](ctx, *step_args)}
+def run_steps(ctx, steps):
+    full_handlers, handlers = get_step_handlers()
+    for op, *step_args in steps:
+        log(json.dumps([op, *step_args]))
+        ctx = full_handlers[op](ctx, *step_args) if op in full_handlers else {**ctx, **handlers[op](ctx, *step_args)}
     return ctx
+
+
+def arg_substitute(args, body):
+    patt = re.compile(r'\{(\w+)}')
+    repl = (lambda a: args[a.group(1)] if a.group(1) and a.group(1) in args else a.group(0))
+    return json.loads(patt.sub(repl, json.dumps(body)))
+
+
+def call(ctx, msg):
+    op = msg["op"]
+    body = ctx.get(op)
+    if body is None:
+        if "def_list" not in ctx:
+            ctx = {**ctx, "def_list": load_def_list(clone_def_repo())}
+        body = one(*select_def(ctx["def_list"], "def", op))
+    return run_steps(ctx, arg_substitute(msg, body))
+
+
+def handle_for(ctx, list_name, body):
+    for it in ctx[list_name]:
+        ctx = run_steps(ctx, arg_substitute({"it": it}, body))
+    return ctx
+
+
+def distribution_run(script, groups, task_list, cwd, cmd, resolve_dir):
+    tasks = iter(task_list)
+    processes = [(group, None) for group in groups]
+    mk_proc = (lambda l_cwd, l_cmd: start(start_log(), script, l_cmd, cwd=resolve_dir(l_cwd)))
+    replace = (lambda group, task: None if task is None else mk_proc(
+        *arg_substitute({"group": group, "task": task}, [cwd, cmd])
+    ))
+    while True:
+        processes = [(gr, pr if pr and pr.poll() is None else replace(gr, next(tasks, None))) for gr, pr in processes]
+        if all(proc is None for group, proc in processes):
+            return
+        time.sleep(1)
 
 
 def access(kube_context, k8s_path): return cl.secret_part_to_text(cl.get_kubectl(kube_context), k8s_path)
@@ -184,12 +210,16 @@ def kube_report_serve(script, d, a_dir):
         time.sleep(30)
 
 
-def get_step_handlers(): return {
+def get_step_handlers(): return ({
+    "call": call, "for": handle_for, "#": lambda ctx, *args: ctx
+}, {
     "kube_contexts": lambda ctx, kube_contexts: {
         "kube_contexts": (cl.get_all_contexts() if kube_contexts == "all" else kube_contexts)
     },
     "snapshot_list_dump": lambda ctx, app: {"": sn.snapshot_list_dump(ctx["kube_contexts"], app)},
-    "snapshot_get": lambda ctx, app, name: {"snapshot": sn.snapshot_get(ctx["kube_contexts"], app, name)},
+    "snapshot_get": lambda ctx, app, name: {
+        "snapshot": sn.snapshot_get(ctx["kube_contexts"], app, name, ctx.get("snapshot_try_count", 3))
+    },
     "snapshot_write": lambda ctx, dir_path: {"": sn.snapshot_write(dir_path, *ctx["snapshot"])},
     "snapshot_read": lambda ctx, data_path_arg: {"snapshot": sn.snapshot_read(data_path_arg)},
     "snapshot_ignore": lambda ctx, ignore: {"snapshot_ignore": ignore},
@@ -264,12 +294,18 @@ def get_step_handlers(): return {
     "main": lambda ctx: {"": main_operator(ctx["script"])},
     "measure": lambda ctx, log_path: {"": measure(log_path)},
     "log_path": lambda ctx, log_path: {"log_path": log_path},
-}
+    "def": lambda ctx, name, value: {name: value},
+    "distribution_run": lambda ctx, cwd, cmd: {
+        "": distribution_run(
+            ctx["script"], ctx["distribution_groups"], ctx["distribution_tasks"], cwd, cmd, lambda cw: ctx[cw].name
+        )
+    },
+})
 
 
 def main(script, op):
     ctx = {"script": script, "deploy_context": os.environ["C4DEPLOY_CONTEXT"]}
-    run_steps(ctx, {}, json.loads(op) if op.startswith("[") else [[op]])
+    run_steps(ctx, json.loads(op) if op.startswith("[") else [[op]])
     log("OK")
 
 

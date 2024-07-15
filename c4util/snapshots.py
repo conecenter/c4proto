@@ -88,10 +88,10 @@ def snapshot_make(kube_contexts, app):
     post_signed(kube_contexts, app, "/need-snapshot", ["next"], b'')
 
 
-def snapshot_get(kube_contexts, app, arg_name):
+def snapshot_get(kube_contexts, app, arg_name, try_count):
     lines = snapshot_list(kube_contexts, app)
     name = max(it["key"] for it in lines) if arg_name == "last" else arg_name
-    data, = [s3get(it, 3) for it in lines if it["key"] == name]
+    data, = [s3get(it, try_count) for it in lines if it["key"] == name]
     return name, data
 
 
