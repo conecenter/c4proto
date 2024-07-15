@@ -259,11 +259,14 @@ def get_step_handlers(): return ({
     },
     "git_add_tagged": lambda ctx, cwd, tag: {"": git.git_add_tagged(ctx[cwd].name, tag)},
     "app_ver": lambda ctx, app, cwd: {app: ctx[cwd], "app_to_start": [*ctx.get("app_to_start", []), app]},
-    "app_start_purged": lambda ctx, apps: {
+    "app_start_purged": lambda ctx, *apps: {
         "": app_start_purged(
-            ctx["deploy_context"],
-            ctx[apps] if isinstance(apps, str) else apps,
-            lambda app: ctx[app].name, lambda app: ctx[f"snapshot-{app}"]
+            ctx["deploy_context"], apps[0], lambda app: ctx[app].name, lambda app: ctx[f"snapshot-{app}"]
+        )
+    } if apps else {
+        "app_to_start": [],
+        "": app_start_purged(
+            ctx["deploy_context"], ctx["app_to_start"], lambda app: ctx[app].name, lambda app: ctx[f"snapshot-{app}"]
         )
     },
     "app_stop": lambda ctx, kube_context, app: {"": app_stop(kube_context, app)},
