@@ -69,7 +69,10 @@ def app_stop(kube_context, app):
 
 def remote_call(kube_context, act):
     arg = json.dumps([["call", act]])
-    run((*cl.get_any_pod_exec(cl.get_kubectl(kube_context), "c4cio"), *py_cmd(), "/ci_serve.py", arg))
+    cmd = (*cl.get_any_pod_exec(cl.get_kubectl(kube_context), "c4cio"), *py_cmd(), "/ci_serve.py", arg)
+    proc = Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    measure_inner(proc.stdout, sys.stdout)
+    wait_processes([proc]) or never("failed")
 
 
 def select_def(def_list, s0, s1): return [d[2] for d in def_list if d[0] == s0 and d[1] == s1]
@@ -99,10 +102,14 @@ def start_log():
 
 
 def measure(log_path):
-    started = time.monotonic()
     with open(log_path, "w") as log_file:
-        for line in sys.stdin:
-            print(f"{str(int(time.monotonic()-started)).zfill(5)} {line}", end="", file=log_file, flush=True)
+        measure_inner(sys.stdin, log_file)
+
+
+def measure_inner(a_in, a_out):
+    started = time.monotonic()
+    for line in a_in:
+        print(f"{str(int(time.monotonic()-started)).zfill(5)} {line}", end="", file=a_out, flush=True)
 
 
 def run_steps(ctx, steps):
@@ -251,10 +258,12 @@ def get_step_handlers(): return ({
         name: setup_dir(lambda d: git.git_clone_or_init(access(ctx["deploy_context"], ctx[f"repo-{name}"]), br, d))
     },
     "git_add_tagged": lambda ctx, cwd, tag: {"": git.git_add_tagged(ctx[cwd].name, tag)},
-    "app_ver": lambda ctx, app, cwd: {app: ctx[cwd]},
+    "app_ver": lambda ctx, app, cwd: {app: ctx[cwd], "app_to_start": [*ctx.get("app_to_start", []), app]},
     "app_start_purged": lambda ctx, apps: {
         "": app_start_purged(
-            ctx["deploy_context"], apps, lambda app: ctx[app].name, lambda app: ctx[f"snapshot-{app}"]
+            ctx["deploy_context"],
+            ctx[apps] if isinstance(apps, str) else apps,
+            lambda app: ctx[app].name, lambda app: ctx[f"snapshot-{app}"]
         )
     },
     "app_stop": lambda ctx, kube_context, app: {"": app_stop(kube_context, app)},
