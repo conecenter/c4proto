@@ -196,9 +196,11 @@ def main_operator(script):
         ]
         for act in acts:
             start_steps(script, [["call", act]])
-        for tp, nm, steps in def_list:
-            if tp == "service" and (nm not in services or services[nm].poll() is not None):
-                services[nm] = start_steps(script, steps)
+        for d in def_list:
+            if d and d[0] == "service":
+                nm = d[1]
+                if nm not in services or services[nm].poll() is not None:
+                    services[nm] = start_steps(script, d[2])
         time.sleep(30)
 
 
