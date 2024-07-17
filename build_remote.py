@@ -325,8 +325,9 @@ def build_type_ci_operator(context, out):
         " https://github.com/google/go-containerregistry/releases/download/v0.12.1/go-containerregistry_Linux_x86_64.tar.gz" +
         " && tar -C /tools -xzf /t.tgz crane && rm /t.tgz",  # ci_prep
         "RUN perl install.pl curl https://dlcdn.apache.org/maven/maven-3/3.9.7/binaries/apache-maven-3.9.7-bin.tar.gz",
+        "RUN perl install.pl curl https://github.com/sbt/sbt/releases/download/v1.9.3/sbt-1.9.3.tgz",
         "USER c4",
-        'ENV PATH=${PATH}:/tools:/tools/linux:/tools/jdk/bin:/tools/apache/bin',  # /tools/linux for ci_up/helm, /tools/apache/bin for maven
+        'ENV PATH=${PATH}:/tools:/tools/linux:/tools/jdk/bin:/tools/apache/bin:/tools/sbt/bin',  # /tools/linux for ci_up/helm, /tools/apache/bin for maven
         f"ENV C4DEPLOY_CONTEXT={deploy_context}",
         'ENTRYPOINT ["/tools/tini","--","python3","-u","/ci_serve.py"]',
     ])
