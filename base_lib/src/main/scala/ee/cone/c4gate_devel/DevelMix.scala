@@ -5,6 +5,7 @@ import ee.cone.c4actor_kafka_impl.{KafkaConsumerApp, LZ4DeCompressorApp, LZ4RawC
 import ee.cone.c4actor_logback_impl.BasicLoggingApp
 import ee.cone.c4actor_xml.S3ListerApp
 import ee.cone.c4di.c4app
+import ee.cone.c4gate.DevConfigApp
 
 @c4app class TopicToDirAppBase extends VMExecutionApp with ExecutableApp with BaseApp with ProtoApp
   with KafkaConsumerApp with SnapshotUtilImplApp with EnvConfigCompApp
@@ -21,7 +22,6 @@ trait ExtractTxAppBase extends TxGroupApp
 trait ReplayApp extends FileConsumerApp with WorldCheckerApp with DisableDefaultS3RawSnapshotApp
   with ExtractTxApp with SnapshotUtilImplApp
 
-trait DevConfigAppBase
 @c4app class OrigStatReplayAppBase extends VMExecutionApp with ExecutableApp with BaseApp with ProtoApp
   with FileConsumerApp with SnapshotUtilImplApp with EnvConfigCompApp with DevConfigApp
   with ExtractTxApp with SnapshotLoaderImplApp with LZ4RawCompressorApp with LZ4DeCompressorApp

@@ -93,3 +93,9 @@ trait SSEServerAppBase extends AlienProtocolApp
 // S0>W -- static content
 
 //provide httpHandler: FHttpHandler
+
+@c4app class SimpleMakerAppBase extends RichDataCompApp with ExecutableApp
+  with EnvConfigCompApp with VMExecutionApp
+  with SnapshotMakingApp with NoAssembleProfilerCompApp with KafkaConsumerApp with SnapshotLoaderImplApp
+  with LZ4RawCompressorApp with KafkaPurgerApp with DevConfigApp
+  with PublisherApp with BasicLoggingApp
