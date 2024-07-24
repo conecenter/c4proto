@@ -15,7 +15,7 @@ import c4util.git as git
 import c4util.kube_reporter as kr
 import c4util.notify as ny
 from c4util import run, never, list_dir, log, Popen, wait_processes, changing_text, read_json, one, read_text, \
-    never_if, need_dir
+    never_if, need_dir, group_map
 
 
 def py_cmd(): return "python3", "-u"
@@ -143,17 +143,27 @@ def handle_for(ctx, list_name, body):
 
 
 def distribution_run(script, groups, task_list, cwd, cmd, resolve_dir):
-    tasks = iter(task_list)
-    processes = [(group, None) for group in groups]
-    mk_proc = (lambda l_cwd, l_cmd: start(start_log(), script, l_cmd, cwd=resolve_dir(l_cwd)))
-    replace = (lambda group, task: None if task is None else mk_proc(
-        *arg_substitute({"group": group, "task": task}, [cwd, cmd])
-    ))
+    started = []
     while True:
-        processes = [(gr, pr if pr and pr.poll() is None else replace(gr, next(tasks, None))) for gr, pr in processes]
-        if all(proc is None for group, proc in processes):
-            return
-        time.sleep(1)
+        busy_groups = {g for g, t, p in started if p.returncode is None and p.poll() is None}
+        not_todo_tasks = {t for g, t, p in started if p.returncode is None or p.returncode == 0}
+        task_failures = [t for g, t, p in started if p.returncode is not None and p.returncode != 0]
+        task_failure_counts = {t: len(l) for t, l in group_map(task_failures, lambda t: (t, 1)).items()}
+        todo_tasks = [t for t in task_list if t not in not_todo_tasks]
+        prior_tasks = sorted(todo_tasks, key=lambda t: task_failure_counts.get(t, 0))
+        started_set = {(g, t) for g, t, p in started}
+        gt_iter = ((g, t) for g in groups if g not in busy_groups for t in prior_tasks if (g, t) not in started_set)
+        group_task = next(gt_iter, None)
+        if group_task is not None:
+            group, task = group_task
+            l_cwd, l_cmd = arg_substitute({"group": group, "task": task}, [cwd, cmd])
+            proc = start(start_log(), script, l_cmd, cwd=resolve_dir(l_cwd))
+            started.append((group, task, proc))
+        elif busy_groups:
+            time.sleep(1)
+        else:
+            break
+    log("\n".join(f"distribution was {g} {t} {p.returncode}" for g, t, p in started))
 
 
 def access(kube_context, k8s_path): return cl.secret_part_to_text(cl.get_kubectl(kube_context), k8s_path)
