@@ -201,7 +201,10 @@ class SnapshotSavers(val full: SnapshotSaver, val tx: SnapshotSaver)
             } else iteration(nWorld, endOffset, nSkip)
         }
       }
-      iteration(initialRawWorld, offsetOpt.getOrElse(consumer.endOffset),0L)
+      val consumerEndOffset = consumer.endOffset
+      val theEndOffset = offsetOpt.getOrElse(consumerEndOffset)
+      assert(theEndOffset <= consumerEndOffset)
+      iteration(initialRawWorld, theEndOffset, 0L)
     })
   }
 
