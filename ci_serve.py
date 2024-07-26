@@ -128,11 +128,14 @@ def arg_substitute(args, body):
 
 def call(ctx, msg):
     op = msg["op"]
-    body = ctx.get(op)
-    if body is None:
-        if "def_list" not in ctx:
-            ctx = {**ctx, "def_list": load_def_list(clone_def_repo())}
-        body = one(*select_def(ctx["def_list"], "def", op))
+    if op not in ctx:
+        ctx = run_steps(ctx, [d for d in load_def_list(clone_def_repo()) if d[0] == "def"])
+    args_body = ctx[op]
+    if isinstance(args_body, tuple):
+        args, body = args_body
+        never_if([f"bad arg {arg} of {op}" for arg in sorted(set(msg.keys()).symmetric_difference(["op", *args]))])
+    else:
+        body = args_body
     return run_steps(ctx, arg_substitute(msg, body))
 
 
@@ -142,7 +145,7 @@ def handle_for(ctx, list_name, body):
     return ctx
 
 
-def distribution_run(script, groups, task_list, cwd, cmd, resolve_dir):
+def distribution_run(groups, task_list, try_count, script, cwd, cmd, resolve_dir):
     started = []
     while True:
         busy_groups = {g for g, t, p in started if p.returncode is None and p.poll() is None}
@@ -150,9 +153,9 @@ def distribution_run(script, groups, task_list, cwd, cmd, resolve_dir):
         task_failures = [t for g, t, p in started if p.returncode is not None and p.returncode != 0]
         task_failure_counts = {t: len(l) for t, l in group_map(task_failures, lambda t: (t, 1)).items()}
         todo_tasks = [t for t in task_list if t not in not_todo_tasks]
-        prior_tasks = sorted(todo_tasks, key=lambda t: task_failure_counts.get(t, 0))
+        prior_tasks = sorted((c, t) for t in todo_tasks for c in [task_failure_counts.get(t, 0)] if c < try_count)
         started_set = {(g, t) for g, t, p in started}
-        gt_iter = ((g, t) for g in groups if g not in busy_groups for t in prior_tasks if (g, t) not in started_set)
+        gt_iter = ((g, t) for g in groups if g not in busy_groups for c, t in prior_tasks if (g, t) not in started_set)
         group_task = next(gt_iter, None)
         if group_task is not None:
             group, task = group_task
@@ -237,7 +240,7 @@ def get_step_handlers(): return ({
     },
     "snapshot_list_dump": lambda ctx, app: {"": sn.snapshot_list_dump(ctx["kube_contexts"], app)},
     "snapshot_get": lambda ctx, app, name: {
-        "snapshot": sn.snapshot_get(ctx["kube_contexts"], app, name, ctx.get("snapshot_try_count", 3))
+        "snapshot": sn.snapshot_get(ctx["kube_contexts"], app, name, int(ctx.get("snapshot_try_count", 3)))
     },
     "snapshot_write": lambda ctx, dir_path: {"": sn.snapshot_write(dir_path, *ctx["snapshot"])},
     "snapshot_read": lambda ctx, data_path_arg: {"snapshot": sn.snapshot_read(data_path_arg)},
@@ -318,10 +321,11 @@ def get_step_handlers(): return ({
     "main": lambda ctx: {"": main_operator(ctx["script"])},
     "measure": lambda ctx, log_path: {"": measure(log_path)},
     "log_path": lambda ctx, log_path: {"log_path": log_path},
-    "def": lambda ctx, name, value: {name: value},
+    "def": lambda ctx, k, *v: {k: v[0] if len(v) == 1 else tuple(v) if len(v) == 2 else never(f"bad def {k} {v}")},
     "distribution_run": lambda ctx, cwd, cmd: {
         "": distribution_run(
-            ctx["script"], ctx["distribution_groups"], ctx["distribution_tasks"], cwd, cmd, lambda cw: ctx[cw].name
+            ctx["distribution_groups"], ctx["distribution_tasks"], int(ctx.get("distribution_try_count", 1)),
+            ctx["script"], cwd, cmd, lambda cw: ctx[cw].name
         )
     },
 })
