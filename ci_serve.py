@@ -159,6 +159,7 @@ def distribution_run(groups, task_list, try_count, script, cwd, cmd):
         elif busy_groups:
             time.sleep(1)
         else:
+            log(f"todo: {json.dumps(todo_tasks)}")
             break
     log("\n".join(f"distribution was {g} {t} {p.returncode}" for g, t, p in started))
 
