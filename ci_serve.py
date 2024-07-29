@@ -24,42 +24,34 @@ def py_cmd(): return "python3", "-u"
 def fix_kube_env(e): return {**e, "KUBECONFIG": e["C4KUBECONFIG"]}
 
 
-def app_prep(apps, get_app_dir):
+def app_prep(app, app_dir, up_path): return Popen(
+    (*py_cmd(), "/ci_prep.py", "--context", app_dir, "--c4env", app, "--state", "main", "--info-out", up_path),
+    env=fix_kube_env(os.environ)
+)
+
+
+def app_up(up_path): run((*py_cmd(), "/ci_up.py"), stdin=open(up_path), env=fix_kube_env(os.environ))
+
+
+def app_purged_start_blocking(kube_context, app, app_dir, kube_contexts, snapshot_from_app, try_count):
     out_dir_life = tempfile.TemporaryDirectory()
-    for app in apps:
-        up_path = f"{out_dir_life.name}/{app}.json"
-        env = fix_kube_env(os.environ)
-        app_dir = get_app_dir(app)
-        cmd = (*py_cmd(), "/ci_prep.py", "--context", app_dir, "--c4env", app, "--state", "main", "--info-out", up_path)
-        run(cmd, env=env)
-    return out_dir_life
-
-
-def app_start_purged(kube_context, apps, get_app_dir, get_app_snapshot):
-    out_dir_life = app_prep(apps, get_app_dir)
-    installs = [read_json(path) for path in list_dir(out_dir_life.name)]
-    never_if([f'bad ctx {t["kube-context"]} of {t["c4env"]}' for t in installs if t["kube-context"] != kube_context])
-    for it in installs:
-        app_stop(kube_context, it["c4env"])
-    install_prefixes = [(it, one(*sn.get_env_values_from_pods("C4INBOX_TOPIC_PREFIX", [
+    up_path = f"{out_dir_life.name}/out.json"
+    prep_proc = app_prep(app, app_dir, up_path)
+    snapshot = sn.snapshot_get(kube_contexts, snapshot_from_app, "last", try_count)
+    wait_processes([prep_proc])
+    it = read_json(up_path)
+    never_if(f'bad ctx {it["kube-context"]} of {it["c4env"]}' if it["kube-context"] != kube_context else None)
+    app_stop(kube_context, it["c4env"])
+    install_prefix = one(*sn.get_env_values_from_pods("C4INBOX_TOPIC_PREFIX", [
         man["spec"]["template"] for man in it["manifests"] if man["kind"] == "Deployment"
-    ]))) for it in installs]
-    prefixes = {prefix for it, prefix in install_prefixes}
+    ]))
     kc = cl.get_kubectl(kube_context)
-    while prefixes & pu.get_active_prefixes(kc):
+    while install_prefix in pu.get_active_prefixes(kc):
         time.sleep(2)
-    prefix_list = sorted(prefixes)
-    pu.purge_prefix_list(kube_context, prefix_list)
+    pu.purge_prefix_list(kube_context, [install_prefix])
     mc = sn.s3init(kc)
-    for install, prefix in install_prefixes:
-        sn.snapshot_put_purged(*get_app_snapshot(install["c4env"]), mc, prefix)
-    app_up(out_dir_life.name)
-
-
-def app_up(d):
-    env = fix_kube_env(os.environ)
-    up_proc_list = [Popen((*py_cmd(), "/ci_up.py"), stdin=open(path), env=env) for path in list_dir(d)]
-    wait_processes(up_proc_list) or never("start failed")
+    sn.snapshot_put_purged(*snapshot, mc, install_prefix)
+    app_up(up_path)
 
 
 def app_stop(kube_context, app):
@@ -237,6 +229,9 @@ def kube_report_serve(script, d, a_dir):
         time.sleep(30)
 
 
+def setup_started(ctx, proc): return {"proc": (*ctx.get("proc", []), proc)}
+
+
 def get_step_handlers(): return ({
     "call": call, "for": handle_for, "#": lambda ctx, *args: ctx
 }, {
@@ -254,7 +249,6 @@ def get_step_handlers(): return ({
         "": sn.snapshot_put(*ctx["snapshot"], ctx["kube_contexts"], app, ctx.get("snapshot_ignore", ""))
     },
     "snapshot_make": lambda ctx, app: {"": sn.snapshot_make(ctx["kube_contexts"], app)},
-    "snapshot_will": lambda ctx, app: {f"snapshot-{app}": ctx["snapshot"]},
     "snapshot_put_purged": lambda ctx, prefix: {
         "": sn.snapshot_put_purged(*ctx["snapshot"], sn.s3init(cl.get_kubectl(ctx["deploy_context"])), prefix)
     },
@@ -277,28 +271,23 @@ def get_step_handlers(): return ({
         ctx, name, lambda d: git.git_clone_or_init(access(ctx["deploy_context"], ctx[f"repo-{name}"]), br, d)
     ),
     "git_add_tagged": lambda ctx, cwd, tag: {"": git.git_add_tagged(get_dir(ctx, cwd), tag)},
-    "app_ver": lambda ctx, app, cwd: {f"ver-{app}": cwd, "app_to_start": [*ctx.get("app_to_start", []), app]},
-    "app_start_purged": lambda ctx, *apps: {
-        "": app_start_purged(
-            ctx["deploy_context"], apps[0],
-            lambda app: get_dir(ctx, ctx[f"ver-{app}"]), lambda app: ctx[f"snapshot-{app}"]
-        )
-    } if apps else {
-        "app_to_start": [],
-        "": app_start_purged(
-            ctx["deploy_context"], ctx["app_to_start"],
-            lambda app: get_dir(ctx, ctx[f"ver-{app}"]), lambda app: ctx[f"snapshot-{app}"]
-        )
-    },
+    "app_purged_start_blocking": lambda ctx, opt: {"": app_purged_start_blocking(
+        ctx["deploy_context"], opt["app"], opt["app_dir"],
+        opt["kube_contexts"], opt["snapshot_from"], opt["try_count"]
+    )},
+    "app_purged_start": lambda ctx, opt: setup_started(ctx, start_steps(ctx["script"], [
+        ["app_purged_start_blocking", {
+            "app": opt["app"], "app_dir": get_dir(ctx, opt["ver"]),
+            "kube_contexts": ctx["kube_contexts"], "snapshot_from": opt["snapshot_from"], "try_count": opt["try_count"]
+        }]
+    ])),
     "app_stop": lambda ctx, kube_context, app: {"": app_stop(kube_context, app)},
     "purge_mode_list": lambda ctx, mode_list: {"": pu.purge_mode_list(ctx["deploy_context"], mode_list)},
     "purge_prefix_list": lambda ctx, prefix_list: {"": pu.purge_prefix_list(ctx["deploy_context"], prefix_list)},
     "run": lambda ctx, cwd, cmd: {"": run(cmd, cwd=get_dir(ctx, cwd))},
     "remote_call": lambda ctx, msg: {"": remote_call(ctx["deploy_context"], msg)},
-    "start": lambda ctx, cwd, cmd: {
-        "proc": (*ctx.get("proc", []), start(start_log(), ctx["script"], cmd, cwd=get_dir(ctx, cwd)))
-    },
-    "wait_all": lambda ctx: {"all_ok": wait_processes(ctx.get("proc", []))},
+    "start": lambda ctx, cwd, cmd: setup_started(ctx, start(start_log(), ctx["script"], cmd, cwd=get_dir(ctx, cwd))),
+    "wait_all": lambda ctx, need_ok: {"": wait_processes(ctx.get("proc", [])) or not need_ok or never("failed")},
     "rsync": lambda ctx, fr, to: {"": run(("rsync", "-acr", get_dir(ctx, fr)+"/", need_dir(get_dir(ctx, to))+"/"))},
     "kube_report_make": lambda ctx, kube_context, out_path: {
         "": changing_text(out_path, kr.get_cluster_report(cl.get_pods_json(cl.get_kubectl(kube_context), ())))
