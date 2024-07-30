@@ -59,6 +59,7 @@ def app_stop_start(kube_context, app):
     info = {"c4env": app, "state": "c4-off", "kube-context": kube_context, "manifests": []}
     proc = Popen((*py_cmd(), "/ci_up.py"), stdin=subprocess.PIPE, text=True, env=fix_kube_env(os.environ))
     print(json.dumps(info), file=proc.stdin, flush=True)
+    proc.stdin.close()
     return proc
 
 
