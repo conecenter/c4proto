@@ -38,10 +38,11 @@ def app_purged_start_blocking(kube_context, app, app_dir, kube_contexts, snapsho
     up_path = f"{out_dir_life.name}/out.json"
     prep_proc = app_prep(app, app_dir, up_path)
     snapshot = sn.snapshot_get(kube_contexts, snapshot_from_app, "last", try_count)
-    wait_processes([prep_proc])
+    wait_processes([prep_proc]) or never("prep failed")
     it = read_json(up_path)
     never_if(f'bad ctx {it["kube-context"]} of {it["c4env"]}' if it["kube-context"] != kube_context else None)
-    app_stop(kube_context, it["c4env"])
+    stop_proc = app_stop_start(kube_context, it["c4env"])
+    wait_processes([stop_proc]) or never("stop failed")
     install_prefix = one(*sn.get_env_values_from_pods("C4INBOX_TOPIC_PREFIX", [
         man["spec"]["template"] for man in it["manifests"] if man["kind"] == "Deployment"
     ]))
@@ -54,14 +55,17 @@ def app_purged_start_blocking(kube_context, app, app_dir, kube_contexts, snapsho
     app_up(up_path)
 
 
-def app_stop(kube_context, app):
+def app_stop_start(kube_context, app):
     info = {"c4env": app, "state": "c4-off", "kube-context": kube_context, "manifests": []}
-    run((*py_cmd(), "/ci_up.py"), text=True, input=json.dumps(info), env=fix_kube_env(os.environ))
+    proc = Popen((*py_cmd(), "/ci_up.py"), stdin=subprocess.PIPE, text=True, env=fix_kube_env(os.environ))
+    print(json.dumps(info), file=proc.stdin, flush=True)
+    return proc
 
 
 def remote_call(kube_context, act):
     arg = json.dumps([["call", act]])
-    cmd = (*cl.get_any_pod_exec(cl.get_kubectl(kube_context), "c4cio"), *py_cmd(), "/ci_serve.py", arg)
+    label = os.environ.get("C4CIO_LABEL", "c4cio")
+    cmd = (*cl.get_any_pod_exec(cl.get_kubectl(kube_context), label), *py_cmd(), "/ci_serve.py", arg)
     proc = Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     measure_inner(proc.stdout, sys.stdout)
     wait_processes([proc]) or never("failed")
@@ -282,7 +286,7 @@ def get_step_handlers(): return ({
             "kube_contexts": ctx["kube_contexts"], "snapshot_from": opt["snapshot_from"], "try_count": opt["try_count"]
         }]
     ])),
-    "app_stop": lambda ctx, kube_context, app: {"": app_stop(kube_context, app)},
+    "app_stop_start": lambda ctx, kube_context, app: setup_started(ctx, app_stop_start(kube_context, app)),
     "purge_mode_list": lambda ctx, mode_list: {"": pu.purge_mode_list(ctx["deploy_context"], mode_list)},
     "purge_prefix_list": lambda ctx, prefix_list: {"": pu.purge_prefix_list(ctx["deploy_context"], prefix_list)},
     "run": lambda ctx, cwd, cmd: {"": run(cmd, cwd=get_dir(ctx, cwd))},
