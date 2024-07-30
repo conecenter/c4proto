@@ -192,7 +192,7 @@ def generate_configs(build_path_str, tmp_part, conf_plain):
     out_conf = {
         "plain": conf_plain,
         "tag_info": {
-            tag: { **parse_main(*mains), "steps": get_list(conf,"C4STEP",tag) }
+            tag: parse_main(*mains)
             for tag, mains in conf["C4TAG"].items()
         },
         "allow_pkg_dep": {

@@ -12,6 +12,7 @@ import ee.cone.c4proto.ToByteString
 import ee.cone.c4di.c4
 import ee.cone.c4gate._
 import ee.cone.c4gate_server.RHttpTypes.RHttpHandlerCreate
+import ee.cone.c4gate.Time._
 import okio.ByteString
 
 import scala.annotation.tailrec
@@ -66,13 +67,6 @@ import scala.jdk.CollectionConverters.IterableHasAsScala
 object SnapshotMakingUtil {
   val url = "/need-snapshot"
 }
-
-object Time {
-  def hour: Long = 60L*minute
-  def minute: Long = 60L*1000L
-  def now: Long = System.currentTimeMillis
-}
-import ee.cone.c4gate_server.Time._
 
 case object DeferPeriodicSnapshotUntilKey extends TransientLens[Long](0L)
 
@@ -207,7 +201,10 @@ class SnapshotSavers(val full: SnapshotSaver, val tx: SnapshotSaver)
             } else iteration(nWorld, endOffset, nSkip)
         }
       }
-      iteration(initialRawWorld, offsetOpt.getOrElse(consumer.endOffset),0L)
+      val consumerEndOffset = consumer.endOffset
+      val theEndOffset = offsetOpt.getOrElse(consumerEndOffset)
+      assert(theEndOffset <= consumerEndOffset)
+      iteration(initialRawWorld, theEndOffset, 0L)
     })
   }
 

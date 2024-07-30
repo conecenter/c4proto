@@ -4,7 +4,7 @@ import ee.cone.c4actor_branch.BranchApp
 import ee.cone.c4gate.{AlienProtocolApp, HttpProtocolApp}
 import ee.cone.c4di.{c4, provide}
 import ee.cone.c4vdom.{ChildPairFactory, TagJsonUtils, VDomFactory, VDomHandlerFactory, VDomResolver}
-import ee.cone.c4vdom_impl.{ChildPairFactoryImpl, DiffImpl, JsonToStringImpl, MapVDomValueImpl, TagJsonUtilsImpl, VDomFactoryImpl, VDomHandlerFactoryImpl, VDomResolverImpl, WasNoValueImpl}
+import ee.cone.c4vdom_impl._
 
 trait AccessViewAppBase
 
@@ -22,6 +22,6 @@ trait AlienExchangeCompAppBase extends AlienProtocolApp with HttpProtocolApp
   @provide def childPairFactoryPr: Seq[ChildPairFactory] = List(childPairFactory)
   @provide def tagJsonUtilsPr: Seq[TagJsonUtils] = List(TagJsonUtilsImpl)
   @provide def vDomHandlerFactoryPr: Seq[VDomHandlerFactory] =
-    List(new VDomHandlerFactoryImpl(diff,JsonToStringImpl,WasNoValueImpl,childPairFactory))
+    List(new VDomHandlerFactoryImpl(diff,FixDuplicateKeysImpl,JsonToStringImpl,WasNoValueImpl,childPairFactory))
   @provide def vDomResolverPr: Seq[VDomResolver] = List(VDomResolverImpl)
 }

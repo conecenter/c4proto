@@ -3,14 +3,12 @@ package ee.cone.c4gate_devel
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.N_UpdateFrom
 import ee.cone.c4actor.Types.{SrcId, TypeId}
-import ee.cone.c4actor.{Consuming, Executable, ListConfig, NextSnapshotTask, QAdapterRegistry, QProtocol, SnapshotMaker, SnapshotUtil, ToUpdate, UpdateCompressionMinSize}
-import ee.cone.c4di.{c4, provide}
+import ee.cone.c4actor._
+import ee.cone.c4di.c4
 import ee.cone.c4gate_devel.OrigStatReplay.S_ExternalMarker
 import ee.cone.c4proto.{Id, ProtoAdapter, protocol}
 
-import java.nio.file.{Files, Path, Paths}
 import scala.annotation.tailrec
-import scala.jdk.CollectionConverters.ListHasAsScala
 
 @c4("OrigStatReplayApp") final class OrigStatReplay(
   toUpdate: ToUpdate, consuming: Consuming, snapshotMaker: SnapshotMaker, snapshotUtil: SnapshotUtil,
@@ -60,17 +58,3 @@ import scala.jdk.CollectionConverters.ListHasAsScala
 }
 
 @c4("OrigStatReplayApp") final class TheUpdateCompressionMinSize extends UpdateCompressionMinSize(0L)
-
-object FileConfigFactory {
-  def create(paths: List[Path]): Map[String, List[String]] = (for {
-    path <- paths if Files.exists(path)
-    l <- Files.readAllLines(path).asScala
-    p <- l.indexOf("=") match { case -1 => Nil case pos => Seq(l.substring(0,pos) -> l.substring(pos+1)) }
-  } yield p).groupMap(_._1)(_._2)
-}
-
-@c4("DevConfigApp") final class DevConfig(inner: ListConfig)(
-  fileEnvMap: Map[String, List[String]] = FileConfigFactory.create(inner.get("C4DEV_ENV").map(Paths.get(_)))
-) extends ListConfig {
-  def get(key: String): List[String] = fileEnvMap.getOrElse(key,Nil) ::: inner.get(key)
-}

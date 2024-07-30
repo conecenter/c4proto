@@ -7,8 +7,8 @@ import base64
 import time
 import urllib.parse
 
-from . import run, never_if, one, read_text, list_dir, run_text_out, log
-from .cluster import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl
+from . import run, never_if, one, read_text, list_dir, run_text_out, log, http_exchange, http_check, Popen
+from .cluster import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl, get_pods_json
 
 
 def s3get(line, try_count):
@@ -36,37 +36,39 @@ def sign(salt, args):
     return {"x-r-signed": "=".join([urllib.parse.quote_plus(e) for e in [md5s([salt, *u_data]), *u_data]])}
 
 
-def get_labeled_pods(kc, la): return json.loads(run_text_out((*kc, "get", "pods", "-o", "json", "-l", la)))["items"]
-
-
 def get_app_pod_cmd_prefix(kc, pods):
     pod_name = max(pod["metadata"]["name"] for pod in pods)
     return *kc, "exec", pod_name, "--", "sh", "-c"
 
 
+def find_kube_context(kube_contexts, app):
+    stm = ";".join((
+        'import sys, subprocess as sp',
+        'sys.exit(0 if sp.run(sys.argv[1:],check=True,text=True,capture_output=True,timeout=3).stdout.strip() else 1)',
+    ))
+    processes = [
+        (kube_ctx, Popen(("python3", "-c", stm, *kc, "get", "pods", "-o", "NAME", "-l", f"app={app}")))
+        for kube_ctx in kube_contexts for kc in [get_kubectl(kube_ctx)]
+    ]
+    return one(*[kube_ctx for kube_ctx, proc in processes if proc.wait() == 0])
+
+
+def get_app_pods(kc, app): return get_pods_json(kc, ("-l", f"app={app}"))
+
+
 def get_app_kc_pods(kube_contexts, app):
-    for kube_context in kube_contexts:
-        kc = get_kubectl(kube_context)
-        pods = get_labeled_pods(kc, f"app={app}")
-        if pods:
-            return kc, pods
+    kube_context = find_kube_context(kube_contexts, app)
+    kc = get_kubectl(kube_context)
+    return kc, get_app_pods(kc, app)
 
 
-def post_signed(kube_contexts, app, url, arg, data):
+def post_signed(kube_contexts, app, url, args, data):
     kc, pods = get_app_kc_pods(kube_contexts, app)
     app_pod_cmd_prefix = get_app_pod_cmd_prefix(kc, pods)
     salt = run((*app_pod_cmd_prefix, "cat $C4AUTH_KEY_FILE"), capture_output=True).stdout
     host = get_hostname(kc, app)
-    headers = sign(salt, [url, arg])
-    post_request(host, url, data, headers)
-
-
-def post_request(host, url, data, headers):
-    conn = http.client.HTTPSConnection(host, None)
-    conn.request("POST", url, data, headers)
-    resp = conn.getresponse()
-    msg = resp.read()
-    never_if(f"request failed:\n{msg}" if resp.status != 200 else None)
+    headers = sign(salt, [url, *args])
+    http_check(*http_exchange(http.client.HTTPSConnection(host, None), "POST", url, data, headers))
 
 
 def snapshot_list_dump(kube_contexts, app):
@@ -83,13 +85,13 @@ def snapshot_list(kube_contexts, app):
 
 
 def snapshot_make(kube_contexts, app):
-    post_signed(kube_contexts, app, "/need-snapshot", "next", b'')
+    post_signed(kube_contexts, app, "/need-snapshot", ["next"], b'')
 
 
-def snapshot_get(kube_contexts, app, arg_name):
+def snapshot_get(kube_contexts, app, arg_name, try_count):
     lines = snapshot_list(kube_contexts, app)
     name = max(it["key"] for it in lines) if arg_name == "last" else arg_name
-    data, = [s3get(it, 3) for it in lines if it["key"] == name]
+    data, = [s3get(it, try_count) for it in lines if it["key"] == name]
     return name, data
 
 
@@ -105,9 +107,9 @@ def snapshot_read(data_path_arg):
     )
 
 
-def snapshot_put(data_fn, data, kube_contexts, app):
+def snapshot_put(data_fn, data, kube_contexts, app, ignore):
     never_if("snapshot is too big" if len(data) > 800000000 else None)
-    post_signed(kube_contexts, app, "/put-snapshot", f"snapshots/{data_fn}", data)
+    post_signed(kube_contexts, app, "/put-snapshot", [f"snapshots/{data_fn}", *([ignore] if ignore else [])], data)
 
 
 def injection_get(path, suffix): return "\n".join(
@@ -117,7 +119,7 @@ def injection_get(path, suffix): return "\n".join(
 
 
 def injection_post(data, kube_contexts, app):
-    post_signed(kube_contexts, app, "/injection", md5s([data.encode("utf-8")]).decode("utf-8"), data)
+    post_signed(kube_contexts, app, "/injection", [md5s([data.encode("utf-8")]).decode("utf-8")], data.encode("utf-8"))
 
 
 def injection_substitute(data, from_str, to):

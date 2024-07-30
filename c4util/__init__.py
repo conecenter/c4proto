@@ -33,7 +33,7 @@ def changing_text(path, will):
 def read_text(path_str): return pathlib.Path(path_str).read_text(encoding='utf-8', errors='strict')
 
 
-def decode(bs): return bs.decode(encoding='utf-8', errors='strict')
+def decode(bs): return bs.decode('utf-8')
 
 
 def log(text):
@@ -58,7 +58,8 @@ def Popen(args, **opt): return subprocess.Popen(debug_args("starting", args), **
 def wait_processes(processes):
     for proc in processes:
         proc.wait()
-        log(f"finished with: {proc.returncode}")
+        hint = f"finished with {proc.returncode}"
+        log(hint) if proc.returncode == 0 else debug_args(hint, proc.args)
     return all(proc.returncode == 0 for proc in processes)
 
 
@@ -82,3 +83,12 @@ def need_dir(d):
     pathlib.Path(d).mkdir(parents=True, exist_ok=True)
     return d
 
+
+def http_exchange(conn, method, url, data, headers):
+    conn.request(method, url, data, headers)
+    resp = conn.getresponse()
+    msg = resp.read()
+    return resp.status, msg
+
+
+def http_check(status, msg): return msg if 200 <= status < 300 else never(f"request failed: {status}\n{msg}")

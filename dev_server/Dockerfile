@@ -17,7 +17,7 @@ RUN perl install.pl apt xz-utils
 RUN /install.pl curl https://nodejs.org/dist/v20.5.0/node-v20.5.0-linux-x64.tar.xz
 
 FROM c4downloader AS c4tools-kafka
-RUN /install.pl curl https://downloads.apache.org/kafka/3.5.1/kafka_2.13-3.5.1.tgz
+RUN /install.pl curl https://downloads.apache.org/kafka/3.7.1/kafka_2.13-3.7.1.tgz
 
 FROM c4downloader AS c4tools-minio
 RUN /install.pl curl https://dl.min.io/server/minio/release/linux-amd64/minio \

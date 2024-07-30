@@ -30,12 +30,6 @@ my $get_text = sub{
     close FF or die;
     $res;
 };
-my $start = sub{
-    print join " ",@_,"\n";
-    open my $fh, "|-", @_ or die $!;
-    print "opened\n";
-    sub{ close $fh or die $! };
-};
 
 my @tasks;
 
@@ -71,9 +65,9 @@ my $get_tmp_dir = sub{
 };
 
 my $decode = sub{ JSON::XS->new->decode(@_) };
-my $encode = sub{
-    my($generated) = @_;
-    my $yml_str = JSON::XS->new->canonical(1)->encode($generated);
+my $encode = sub{ JSON::XS->new->canonical(1)->encode(@_) };
+my $fix_bools = sub{
+    my($yml_str) = @_;
     $yml_str=~s/("\w+":\s*)"(true|false)"/$1$2/g;
     $yml_str
 };
@@ -252,17 +246,12 @@ my $get_consumer_options = sub{
     my($comp)=@_;
     my $conf = &$get_compose($comp);
     my $prefix = $$conf{C4INBOX_TOPIC_PREFIX};
-    my ($bootstrap_servers,$elector,$elector_port) =
-        &$get_deployer_conf($comp,1,qw[bootstrap_servers elector elector_port]);
+    my ($elector,$elector_port) = &$get_deployer_conf($comp,1,qw[elector elector_port]);
     (
         tty                  => "true",
         JAVA_TOOL_OPTIONS    => "-XX:-UseContainerSupport ", # -XX:ActiveProcessorCount=36
         C4AUTH_KEY_FILE      => "/c4conf-simple-seed/value",
         C4INBOX_TOPIC_PREFIX => ($prefix || die "no C4INBOX_TOPIC_PREFIX"),
-        C4STORE_PASS_PATH    => "/c4conf-kafka-auth/kafka.store.auth",
-        C4KEYSTORE_PATH      => "/c4conf-kafka-certs/kafka.keystore.jks",
-        C4TRUSTSTORE_PATH    => "/c4conf-kafka-certs/kafka.truststore.jks",
-        C4BOOTSTRAP_SERVERS  => ($bootstrap_servers || die "no host bootstrap_servers"),
         C4S3_CONF_DIR        => "/c4conf-ceph-client",
         C4HTTP_SERVER        => "http://$comp:$inner_http_port",
         C4ELECTOR_SERVERS    => join(",", map {"http://$elector-$_.$elector:$elector_port"} 0, 1, 2),
@@ -292,16 +281,13 @@ my $up_gate = sub{
         C4STATE_REFRESH_SECONDS => 1000,
         req_mem => "4Gi", req_cpu => "1000m",
         "port:$inner_http_port:$inner_http_port"=>"",
-        #"port:$inner_sse_port:$inner_sse_port"=>"",
         "ingress:$hostname/"=>$inner_http_port,
-        #"ingress:$hostname/sse"=>$inner_sse_port,
         ingress_secret_name => $$conf{ingress_secret_name} || $ingress_secret_name,
         $ingress_api_version ? (ingress_api_version => $ingress_api_version) : (),
         C4HTTP_PORT => $inner_http_port,
         C4SSE_PORT => $inner_sse_port,
         need_pod_ip => 1,
-        (map{($_=>&$mandatory_of($_=>$conf))} qw[C4KEEP_SNAPSHOTS replicas project]),
-        &$map($conf, sub{ my($k,$v)=@_; $k=~/^label:/ ? ($k,$v):() }),
+        %$conf,
     };
 };
 
@@ -368,7 +354,7 @@ push @tasks, ["log_debug","<pod|$composes_txt> [class]",sub{ # ee.cone
 
 push @tasks, ["ci_deploy_info", "", sub{
     my(%opt)=@_;
-    &$put_text(&$mandatory_of("--out",\%opt), &$encode([map{
+    &$put_text(&$mandatory_of("--out",\%opt), &$fix_bools(&$encode([map{
         my $comp = $_;
         my ($context, $image_pull_secrets) = &$get_deployer_conf($comp,1,qw[context image_pull_secrets]);
         my ($allow_src, $to_repo_prop) = &$get_deployer_conf($comp,0,qw[allow_source_repo sys_image_repo]);
@@ -377,7 +363,7 @@ push @tasks, ["ci_deploy_info", "", sub{
         my $tp = $$conf{type};
         my $options = $tp ? &{$$conf_handler{$tp} || die "no handler"}($comp) : $conf;
         +{ context=>$context, to_repo=>$to_repo, image_pull_secrets=>$image_pull_secrets, %$options, name=>$comp }
-    } map{ &$spaced_list(&$get_compose($_)->{parts}||[$_]) } &$mandatory_of("--env-state",\%opt)]));
+    } map{ &$spaced_list(&$get_compose($_)->{parts}||[$_]) } &$mandatory_of("--env-state",\%opt)])));
 }];
 
 my $get_tag_info = sub{
@@ -426,93 +412,14 @@ my $build_client_changed = sub{
 };
 push @tasks, ["build_client","",sub{ &$build_client_changed(@_) }]; # abs dir
 
-my $chk_pkg_dep = sub{
-    my($gen_dir,$mod)=@_;
-    my $cp = &$get_text("$gen_dir/target/c4/mod.$mod.d/target/c4classpath");
-    &$py_run("chk_pkg_dep.py", "by_classpath", $gen_dir, $cp);
-};
 push @tasks, ["chk_pkg_dep"," ",sub{
     my $gen_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
     my $proto_dir = &$get_proto_dir();
     my $base = &$get_text("/c4/debug-tag");
     my $tag_info = &$get_tag_info($gen_dir,$base);
     my $mod = $$tag_info{mod} || die;
-    &$chk_pkg_dep($gen_dir,$mod);
-}];
-my $install_jdk = sub{(
-    "RUN perl install.pl curl https://download.bell-sw.com/java/17.0.8+7/bellsoft-jdk17.0.8+7-linux-amd64.tar.gz",
-    #"RUN perl install.pl curl https://download.bell-sw.com/java/17.0.2+9/bellsoft-jdk17.0.2+9-linux-amd64.tar.gz",
-)};
-
-push @tasks, ["ci_rt_chk","",sub{ &$chk_pkg_dep(@_) }];
-push @tasks, ["ci_rt_base","",sub{
-    my %opt = @_;
-    my $base = &$mandatory_of("--proj-tag", \%opt);
-    my $gen_dir = &$mandatory_of("--context", \%opt);
-    my $ctx_dir = &$mandatory_of("--out-context", \%opt);
-    my $tag_info = &$get_tag_info($gen_dir,$base);
-    my $add_steps = &$mandatory_of(steps => $tag_info);
-    my $proto_dir = &$get_proto_dir();
-    my @from_steps = grep{/^FROM\s/} @$add_steps;
-    &$put_text("$ctx_dir/Dockerfile", join "\n",
-        @from_steps ? @from_steps : "FROM ubuntu:22.04",
-        "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
-        "RUN perl install.pl useradd 1979",
-        "RUN perl install.pl apt".
-        " curl software-properties-common".
-        " lsof mc iputils-ping netcat-openbsd fontconfig".
-        " openssh-client". #repl
-        " python3", #vault
-        &$install_jdk(),
-        'ENV PATH=${PATH}:/tools/jdk/bin',
-        (grep{/^RUN\s/} @$add_steps),
-        "ENV JAVA_HOME=/tools/jdk",
-        "RUN chown -R c4:c4 /c4",
-        "WORKDIR /c4",
-        "USER c4",
-        'ENTRYPOINT ["perl","run.pl"]',
-    );
-}];
-
-push @tasks, ["ci_rt_over","",sub{
-    my %opt = @_;
-    my $base = &$mandatory_of("--proj-tag", \%opt);
-    my $gen_dir = &$mandatory_of("--context", \%opt);
-    my $ctx_dir = &$mandatory_of("--out-context", \%opt)."/c4";
-    my $proto_dir = &$get_proto_dir();
-    my $tag_info = &$get_tag_info($gen_dir,$base);
-    my ($mod,$main_cl) = map{$$tag_info{$_}||die} qw[mod main];
-    sy("mkdir $ctx_dir");
-    sy("cp $proto_dir/run.pl $proto_dir/vault.py $proto_dir/ceph.pl $ctx_dir/");
-    mkdir "$ctx_dir/app";
-    my $paths = &$decode(syf("python3 $proto_dir/build_env.py $gen_dir $mod"));
-    my @started = map{&$start($_)} map{
-        m{([^/]+\.jar)$} ? "cp $_ $ctx_dir/app/$1" :
-        m{\bclasses\b} ? "cd $_ && zip -q -r $ctx_dir/app/".&$md5_hex($_).".jar ." :
-        die $_
-    } $$paths{CLASSPATH}=~/([^\s:]+)/g;
-    &$_() for @started;
-    &$put_text("$ctx_dir/serve.sh", join "\n",
-        "export C4MODULES=$$paths{C4MODULES}",
-        "export C4APP_CLASS=ee.cone.c4actor.ParentElectorClientApp",
-        "export C4APP_CLASS_INNER=$main_cl",
-        "exec java ee.cone.c4actor.ServerMain"
-    );
-    #
-    my %has_mod = map{($_=>1)} $$paths{C4MODULES}=~/([^\s:]+)/g;
-    my @public_part = map{ my $dir = $_;
-        my @pub = map{ !/^(\S+)\s+\S+\s+(\S+)$/ ? die : $has_mod{$1} ? [$_,"$2"] : () }
-            &$get_text("$dir/c4gen.ht.links")=~/(.+)/g;
-        my $sync = [map{"$$_[1]\n"} @pub];
-        my $links = [map{"$$_[0]\n"}@pub];
-        @pub ? +{ dir=>$dir, sync=>$sync, links=>$links } : ()
-    } grep{-e $_} $$paths{C4PUBLIC_PATH}=~/([^\s:]+)/g;
-    for my $part(@public_part){
-        my $from_dir = $$part{dir} || die;
-        my $files = &$put_temp("sync", join "", @{$$part{sync}||die});
-        sy("rsync -av --files-from=$files $from_dir/ $ctx_dir/htdocs");
-    }
-    @public_part and &$put_text("$ctx_dir/htdocs/c4gen.ht.links",join"",map{@{$$_{links}||die}}@public_part);
+    my $cp = &$get_text("$gen_dir/target/c4/mod.$mod.d/target/c4classpath");
+    &$py_run("chk_pkg_dep.py", "by_classpath", $gen_dir, $cp);
 }];
 
 push @tasks, ["up_kc_host", "", sub{ # the last multi container kc
@@ -527,8 +434,10 @@ push @tasks, ["up_kc_host", "", sub{ # the last multi container kc
         metadata => { name => $run_comp },
         rules => [
             {
-                apiGroups => ["","apps","extensions","metrics.k8s.io","networking.k8s.io"],
-                resources => ["statefulsets","secrets","services","deployments","ingresses","pods","replicasets"],
+                apiGroups => ["","apps","extensions","metrics.k8s.io","networking.k8s.io","kafka.strimzi.io"],
+                resources => [
+                    "statefulsets","secrets","services","deployments","ingresses","pods","replicasets","kafkatopics"
+                ],
                 verbs => ["get","create","patch","delete","update","list","watch"],
             },
             {
@@ -704,7 +613,7 @@ push @tasks, ["build"," ",sub{ &$py_run("build.py",&$mandatory_of(C4CI_BUILD_DIR
 push @tasks, ["kafka","( topics | offsets <hours> | nodes | sizes <node> | topics_rm )",sub{
     my @args = @_;
     my $gen_dir = &$get_proto_dir();
-    my $cp = syf("coursier fetch --classpath org.apache.kafka:kafka-clients:2.8.0")=~/(\S+)/ ? $1 : die;
+    my $cp = syf("coursier fetch --classpath org.apache.kafka:kafka-clients:3.7.1")=~/(\S+)/ ? $1 : die;
     sy("JAVA_TOOL_OPTIONS= CLASSPATH=$cp java --source 15 $gen_dir/kafka_info.java ".join" ",@args);
 }];
 

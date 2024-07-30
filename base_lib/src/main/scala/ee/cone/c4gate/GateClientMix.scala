@@ -46,6 +46,9 @@ trait PublisherAppBase extends HttpProtocolApp
 
 trait InjectionAppBase extends ConfigSimpleSignerApp
 
+trait SnapshotPutAppBase extends SignedReqUtilImplApp with SnapshotLoaderFactoryImplApp
+trait SignedReqUtilImplAppBase
+
 /*
 *
 * Usage:
@@ -53,3 +56,5 @@ trait InjectionAppBase extends ConfigSimpleSignerApp
 * curl 127.0.0.1:8067/manage/ee.cone.c4gate.TestPasswordApp -XPOST -Hx-r-world-key:SrcId,TxTransform -Hx-r-selection:all
 *
 * */
+
+trait DevConfigAppBase

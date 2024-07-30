@@ -30,7 +30,9 @@ import scala.annotation.tailrec
     GCLog("after loadRecent")
     startUpSpaceProfiler.out(world.assembled)
     consuming.process(world.offset, consumer => {
-      val initialRawObserver = progressObserverFactory.create(consumer.endOffset)
+      val endOffset = consumer.endOffset
+      assert(world.offset <= endOffset, s"bad consumer end offset $endOffset")
+      val initialRawObserver = progressObserverFactory.create(endOffset)
       iteration(consumer, world, initialRawObserver)
     })
   }

@@ -39,7 +39,7 @@ import scala.util.Try
 ) extends Executable with Early with LazyLogging {
   def run(): Unit = iter()
   @tailrec private def iter(): Unit = {
-    Try(tryIter())
+    val _ = Try(tryIter())
     Thread.sleep(settings.refreshRate)
     iter()
   }

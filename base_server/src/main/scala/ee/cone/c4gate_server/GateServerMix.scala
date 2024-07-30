@@ -25,7 +25,6 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
   with MortalFactoryCompApp
   with ManagementApp
   with SnapshotMakingApp
-  with SnapshotPutApp
   with LZ4RawCompressorApp
   with BasicLoggingApp
   with NoProxySSEConfigApp
@@ -71,8 +70,6 @@ trait SnapshotMakingAppBase extends TaskSignerApp with LOBrokerApp
   with S3ManagerApp with SignedReqUtilImplApp
   with ConfigSimpleSignerApp with SnapshotUtilImplApp with SnapshotSaverApp
   with SnapshotListProtocolApp
-trait SnapshotPutAppBase extends SignedReqUtilImplApp with SnapshotLoaderFactoryImplApp
-trait SignedReqUtilImplAppBase
 
 trait SSEServerAppBase extends AlienProtocolApp
 
@@ -96,3 +93,9 @@ trait SSEServerAppBase extends AlienProtocolApp
 // S0>W -- static content
 
 //provide httpHandler: FHttpHandler
+
+@c4app class SimpleMakerAppBase extends RichDataCompApp with ExecutableApp
+  with EnvConfigCompApp with VMExecutionApp
+  with SnapshotMakingApp with NoAssembleProfilerCompApp with KafkaConsumerApp with SnapshotLoaderImplApp
+  with LZ4RawCompressorApp with KafkaPurgerApp with DevConfigApp
+  with PublisherApp with BasicLoggingApp
