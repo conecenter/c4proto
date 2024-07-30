@@ -51,7 +51,7 @@ my $put_temp = sub{
     $path;
 };
 my $cleanup = sub{
-    sy("rm","-rf",$_) for grep{/(\d+)/ and $$ eq $1 ||!-e "/proc/$1"} <$tmp_root/*>;
+    sy("rm","-rf",$_) for grep{/(\d+)$/ and $$ eq $1 ||!-e "/proc/$1"} <$tmp_root/*>;
 };
 my $get_tmp_path; $get_tmp_path = sub{
     my($c)=@_;
