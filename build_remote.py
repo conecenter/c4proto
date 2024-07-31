@@ -312,7 +312,7 @@ def build_type_ci_operator(context, out):
         "FROM ubuntu:22.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /replink.pl /",  # replink for ci_prep
         "RUN perl install.pl useradd 1979",
-        "RUN perl install.pl apt curl ca-certificates python3 git" +
+        "RUN perl install.pl apt curl ca-certificates python3 git kafkacat" +
         " libjson-xs-perl" +  # for ci_prep/prod/deploy_info
         " rsync",  # for ci_prep and steps
         "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl" +
