@@ -59,7 +59,7 @@ def app_purged_start_blocking(kube_context, app, app_dir, kube_contexts, snapsho
 def wait_no_topic(prefix):
     cmd = ("kafkacat", "-L", "-J", "-F", os.environ["C4KCAT_CONFIG"])
     topic = f"{prefix}.inbox"
-    while any(t["topic"] == topic for t in json.loads(run_text_out(cmd)["topics"])):
+    while any(t["topic"] == topic for t in json.loads(run_text_out(cmd))["topics"]):
         time.sleep(2)
 
 
