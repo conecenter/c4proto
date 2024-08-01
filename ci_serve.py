@@ -15,7 +15,7 @@ import c4util.git as git
 import c4util.kube_reporter as kr
 import c4util.notify as ny
 from c4util import run, never, list_dir, log, Popen, wait_processes, changing_text, read_json, one, read_text, \
-    never_if, need_dir, group_map
+    never_if, need_dir, group_map, run_text_out
 
 
 def py_cmd(): return "python3", "-u"
