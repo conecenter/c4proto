@@ -183,7 +183,8 @@ def access(kube_context, k8s_path): return cl.secret_part_to_text(cl.get_kubectl
 def clone_def_repo():
     repo = access(os.environ["C4DEPLOY_CONTEXT"], os.environ["C4CRON_REPO"])
     dir_life = tempfile.TemporaryDirectory()
-    git.git_clone(repo, os.environ["C4CRON_BRANCH"], dir_life.name)
+    git.git_init(repo, dir_life.name)
+    git.git_fetch_checkout(os.environ["C4CRON_BRANCH"], dir_life.name, False)
     return dir_life
 
 
@@ -274,16 +275,11 @@ def get_step_handlers(): return ({
     "injection_substitute": lambda ctx, fr, to: {"injection": sn.injection_substitute(ctx["injection"], fr, to)},
     "injection_dump": lambda ctx: {"": log(f'injection:\n{ctx["injection"]}')},
     "empty_dir": lambda ctx, name: setup_dir(ctx, name, lambda d: ()),
-    "git_repo": lambda ctx, name, k8s_path: {f"repo-{name}": k8s_path},
-    "git_clone": lambda ctx, name, branch: setup_dir(
-        ctx, name, lambda d: git.git_clone(access(ctx["deploy_context"], ctx[f"repo-{name}"]), branch, d)
+    "git_repo": lambda ctx, name, k8s_path: setup_dir(
+        ctx, name, lambda d: git.git_init(access(ctx["deploy_context"], k8s_path), d)
     ),
-    "git_init": lambda ctx, name: setup_dir(
-        ctx, name, lambda d: git.git_init(access(ctx["deploy_context"], ctx[f"repo-{name}"]), d)
-    ),
-    "git_clone_or_init": lambda ctx, name, br: setup_dir(
-        ctx, name, lambda d: git.git_clone_or_init(access(ctx["deploy_context"], ctx[f"repo-{name}"]), br, d)
-    ),
+    "git_clone": lambda ctx, name, br: {"": git.git_fetch_checkout(br, get_dir(ctx, name), False)},
+    "git_clone_or_init": lambda ctx, name, br: {"": git.git_fetch_checkout(br, get_dir(ctx, name), True)},
     "git_add_tagged": lambda ctx, cwd, tag: {"": git.git_add_tagged(get_dir(ctx, cwd), tag)},
     "app_purged_start_blocking": lambda ctx, opt: {"": app_purged_start_blocking(
         ctx["deploy_context"], opt["app"], opt["app_dir"],

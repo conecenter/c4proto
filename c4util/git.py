@@ -1,8 +1,5 @@
 
-from . import run, run_no_die, run_text_out, log
-
-
-def git_clone(repo, branch, d): run(("git", "clone", "-b", branch, "--depth", "1", "--", repo, "."), cwd=d)
+from . import run, run_no_die, run_text_out, log, never
 
 
 def git_init(repo, d):
@@ -10,10 +7,10 @@ def git_init(repo, d):
     run(("git", "remote", "add", "origin", repo), cwd=d)
 
 
-def git_clone_or_init(repo, branch, d):
-    if not run_no_die(("git", "clone", "-b", branch, "--depth", "1", "--", repo, "."), cwd=d):
-        git_init(repo, d)
-        run(("git", "checkout", "-b", branch), cwd=d)
+def git_fetch_checkout(branch, d, fetch_can_fail):
+    fetched = run_no_die(("git", "fetch", "--depth", "1", "-k", "--", "origin", branch), cwd=d)
+    from_br = [f"origin/{branch}"] if fetched else [] if fetch_can_fail else never("fetch fail")
+    run(("git", "checkout", "-b", branch, *from_br), cwd=d)
 
 
 def git_set_user(d):
