@@ -324,6 +324,9 @@ def get_step_handlers(): return ({
             opt["groups"], opt["tasks"], opt["try_count"], ctx["script"], get_dir(ctx, opt["dir"]), opt["command"]
         )
     },
+    "secret_get": lambda ctx, fn, k8s_path: {
+        "": changing_text(get_dir(ctx, fn), access(ctx["deploy_context"], k8s_path))
+    },
 })
 
 
