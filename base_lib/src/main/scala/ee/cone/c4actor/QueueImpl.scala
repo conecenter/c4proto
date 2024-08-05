@@ -189,7 +189,10 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
         "D"*(if(u.fromValue.size > 0) 1 else 0) + "A"*(if(u.value.size > 0) 1 else 0) // D A DA are valid
       ))(_=>1)((a,b)=>a+b).toSeq.sorted.map{
         case ((id,dma),count) =>
-          s"\n  E2U $hint ${java.lang.Long.toHexString(id)}:$dma:$count\t${qAdapterRegistry.byId.get(id).flatMap(_.protoOrigMeta.shortName).getOrElse("")}"
+          val idStr = java.lang.Long.toHexString(id)
+          val idL = s"0x${"0"*Math.max(0, 4-idStr.length)}$idStr"
+          val name = qAdapterRegistry.byId.get(id).fold("")(_.protoOrigMeta.cl.getSimpleName)
+          s"\n\tE2U $hint $idL:$dma:$count\t$name"
       }.mkString
     )
     updates
