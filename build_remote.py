@@ -320,7 +320,7 @@ def build_type_ci_operator(context, out):
         "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
         " && chmod +x /tools/tini",
         "RUN perl install.pl curl https://get.helm.sh/helm-v3.12.1-linux-amd64.tar.gz",  # ci_up
-        "RUN perl install.pl curl https://download.bell-sw.com/java/17.0.8+7/bellsoft-jdk17.0.8+7-linux-amd64.tar.gz",  # tests
+        "RUN perl install.pl curl https://download.bell-sw.com/java/21.0.4+9/bellsoft-jdk21.0.4+9-linux-amd64.tar.gz", # tests
         "RUN curl -L -o /t.tgz" +
         " https://github.com/google/go-containerregistry/releases/download/v0.12.1/go-containerregistry_Linux_x86_64.tar.gz" +
         " && tar -C /tools -xzf /t.tgz crane && rm /t.tgz",  # ci_prep

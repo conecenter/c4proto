@@ -138,11 +138,9 @@ def call(ctx, msg):
     if op not in ctx:
         ctx = run_steps(ctx, [d for d in load_def_list(clone_def_repo()) if d[0] == "def"])
     args_body = ctx[op]
-    if isinstance(args_body, tuple):
-        args, body = args_body
-        never_if([f"bad arg {arg} of {op}" for arg in sorted(set(msg.keys()).symmetric_difference(["op", *args]))])
-    else:
-        body = args_body
+    never_if(None if isinstance(args_body, tuple) else f"bad def {op}")
+    args, body = args_body
+    never_if([f"bad arg {arg} of {op}" for arg in sorted(set(msg.keys()).symmetric_difference(["op", *args]))])
     return run_steps(ctx, arg_substitute(msg, body))
 
 
