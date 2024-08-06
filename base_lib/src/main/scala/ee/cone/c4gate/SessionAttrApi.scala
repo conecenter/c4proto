@@ -29,4 +29,9 @@ trait SessionAttrAccessFactory {
   def to[P <: Product](attr: SessionAttr[P]): Context => Access[P]
 }
 
+trait RawSessionAttrUtils {
+  def getAttrValue(sessionKey: String, pk: SrcId, attrId: Long, local: Context): Option[Product]
+  def setAttrValue[P <: Product](sessionKey: String, pk: SrcId, attrId: Long, value: Option[P]): Seq[LEvent[Product]]
+}
+
 case object CurrentSessionKey extends TransientLens[SrcId]("")
