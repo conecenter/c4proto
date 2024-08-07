@@ -63,7 +63,7 @@ case class DepFilterWrapperImpl[Model <: Product](
   depFactory: DepFactory
 ) extends DepFilterWrapper[Model] {
   def add[By <: Product, Field](
-    byDep: String => Dep[Option[Access[By]]],
+    byDep: String => Dep[Access[By]],
     lens: ProdGetter[Model, Field],
     byOptions: List[AbstractMetaAttr] = Nil
   )(
@@ -76,7 +76,7 @@ case class DepFilterWrapperImpl[Model <: Product](
       for {
         byResolved <- byDep(pk)
       } yield {
-        leaf[By, Field](lens, byResolved.get.initialValue, byOptions)(checker)
+        leaf[By, Field](lens, byResolved.initialValue, byOptions)(checker)
       }
     DepFilterWrapperImpl(
       newLeafs,
@@ -192,7 +192,7 @@ case class DepFilterWrapperPartImpl[Model <: Product](
 
 trait DepFilterWrapper[Model <: Product] extends Product {
   def add[By <: Product, Field](
-    byDep: String => Dep[Option[Access[By]]],
+    byDep: String => Dep[Access[By]],
     lens: ProdGetter[Model, Field],
     byOptions: List[AbstractMetaAttr] = Nil
   )(

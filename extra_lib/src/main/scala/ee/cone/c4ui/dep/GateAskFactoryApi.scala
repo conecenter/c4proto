@@ -7,9 +7,9 @@ import ee.cone.c4actor.time.{CurrentTime, T_Time}
 import ee.cone.c4gate.SessionAttr
 
 trait SessionAttrAskFactory {
-  def askSessionAttr[P <: Product](attr: SessionAttr[P]): Dep[Option[Access[P]]]
-  def askSessionAttrWithPK[P <: Product](attr: SessionAttr[P]): String => Dep[Option[Access[P]]]
-  def askSessionAttrWithDefault[P <: Product](attr: SessionAttr[P], default: SrcId => P): Dep[Option[Access[P]]]
+  def askSessionAttr[P <: Product](attr: SessionAttr[P]): Dep[Access[P]]
+  def askSessionAttrWithPK[P <: Product](attr: SessionAttr[P]): String => Dep[Access[P]]
+  def askSessionAttrWithDefault[P <: Product](attr: SessionAttr[P], default: SrcId => P): Dep[Access[P]]
 }
 
 /**

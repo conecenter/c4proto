@@ -75,7 +75,7 @@ import scala.annotation.tailrec
     )
 
     def getAccess(attr: SessionAttr[B_Content]): Option[Access[String]] =
-      sessionAttrAccess.to(attr)(local).map(_.to(TestContentAccess.value))
+      sessionAttrAccess.to(attr)(local).to(TestContentAccess.value)
 
     val baseURLAccessOpt = getAccess(TestTxLogAttrs.baseURL)
     val authKeyAccessOpt = getAccess(TestTxLogAttrs.authKey)

@@ -50,14 +50,14 @@ trait DeepSessionAttrAccessFactoryUtils {
   lazy val rawUserAdapter = qAdapterRegistry.byName(classOf[U_RawUserData].getName)
   lazy val rawRoleAdapter = qAdapterRegistry.byName(classOf[U_RawRoleData].getName)
 
-  def to[P <: Product](attr: SessionAttr[P]): Context => Option[Access[P]] =
+  def to[P <: Product](attr: SessionAttr[P]): Context => Access[P] =
     if (!attr.metaList.contains(UserLevelAttr)) {
       sessionAttrAccessFactory.to(attr)
     } else {
       toUser(attr)
     }
 
-  def toUser[P <: Product](attr: SessionAttr[P]): Context => Option[Access[P]] = local => {
+  def toUser[P <: Product](attr: SessionAttr[P]): Context => Access[P] = local => {
     val dataNode = N_RawDataNode(
       domainSrcId = attr.pk,
       fieldId = attr.id,
@@ -120,10 +120,10 @@ trait DeepSessionAttrAccessFactoryUtils {
     val data = DeepRawSessionData[P](rawDataOpt, rawUserDataOpt, rawRoleDataOpt, (defaultRawData, defaultRawUserData), (rawDataPK, rawUserDataPK, rawRoleDataPK))
     val lens = deepLens(attr)
     val access: AccessImpl[DeepRawSessionData[P]] = AccessImpl(data, Option(txDeepRawDataLensFactory.create(data)), NameMetaAttr("DeepRawSessionData") :: Nil)
-    Option(access.to(lens))
+    access.to(lens)
   }
 
-  def toRole[P <: Product](attr: SessionAttr[P]): Context => Option[Access[P]] = {
+  def toRole[P <: Product](attr: SessionAttr[P]): Context => Access[P] = {
     val dataNode = N_RawDataNode(
       domainSrcId = attr.pk,
       fieldId = attr.id,
@@ -154,7 +154,7 @@ trait DeepSessionAttrAccessFactoryUtils {
         lens.set(model)(stubRawRoleData.copy(srcId = pk))
       }
       )
-      modelAccessFactory.to(roleByPK, value).map(_.to(lens))
+      modelAccessFactory.to(roleByPK, value).to(lens)
     }
   }
 }

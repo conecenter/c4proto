@@ -32,12 +32,12 @@ import okio.ByteString
 
   @provide def askByPKs: Seq[AbstractAskByPK] = rawDataAsk :: rawUserDataAsk :: rawRoleDataAsk :: Nil
 
-  def askSessionAttrWithPK[P <: Product](attr: SessionAttr[P]): String => Dep[Option[Access[P]]] = pk => askSessionAttr(attr.withPK(pk))
+  def askSessionAttrWithPK[P <: Product](attr: SessionAttr[P]): String => Dep[Access[P]] = pk => askSessionAttr(attr.withPK(pk))
 
-  def askSessionAttr[P <: Product](attr: SessionAttr[P]): Dep[Option[Access[P]]] =
+  def askSessionAttr[P <: Product](attr: SessionAttr[P]): Dep[Access[P]] =
     askSessionAttrWithDefault(attr, srcId => modelFactory.create[P](attr.className)(srcId))
 
-  def askSessionAttrWithDefault[P <: Product](attr: SessionAttr[P], default: SrcId => P): Dep[Option[Access[P]]] =
+  def askSessionAttrWithDefault[P <: Product](attr: SessionAttr[P], default: SrcId => P): Dep[Access[P]] =
     if (attr.metaList.contains(UserLevelAttr))
       for {
         mockRoleOpt <- commonRequestFactory.askMockRole
@@ -58,7 +58,7 @@ import okio.ByteString
     else
       sessionAsk(attr, default)
 
-  def sessionAsk[P <: Product](attr: SessionAttr[P], default: SrcId => P): Dep[Option[Access[P]]] = {
+  def sessionAsk[P <: Product](attr: SessionAttr[P], default: SrcId => P): Dep[Access[P]] = {
 
     val lens = sessionLens(attr)(
       rawData => qAdapterRegistry.byId(rawData.dataNode.get.valueTypeId).decode(rawData.dataNode.get.value).asInstanceOf[P],
@@ -97,11 +97,11 @@ import okio.ByteString
         lens.set(model)(request.copy(srcId = pk))
       }
       )
-      modelAccessFactory.to(getU_RawSessionData, value).map(_.to(lens))
+      modelAccessFactory.to(getU_RawSessionData, value).to(lens)
     }
   }
 
-  def roleAsk[P <: Product](attr: SessionAttr[P], roleKey: RoleId, default: SrcId => P): Dep[Option[Access[P]]] = {
+  def roleAsk[P <: Product](attr: SessionAttr[P], roleKey: RoleId, default: SrcId => P): Dep[Access[P]] = {
     val dataNode = Option(
       N_RawDataNode(
         domainSrcId = attr.pk,
@@ -138,7 +138,7 @@ import okio.ByteString
         lens.set(model)(rawRoleData.copy(srcId = pk))
       }
       )
-      modelAccessFactory.to(getU_RawRoleData, value).map(_.to(lens))
+      modelAccessFactory.to(getU_RawRoleData, value).to(lens)
     }
   }
 
@@ -146,7 +146,7 @@ import okio.ByteString
   lazy val rawUserAdapter: ProtoAdapter[Product] with HasId = qAdapterRegistry.byName(classOf[U_RawUserData].getName)
   lazy val rawRoleAdapter: ProtoAdapter[Product] with HasId = qAdapterRegistry.byName(classOf[U_RawRoleData].getName)
 
-  def deepAsk[P <: Product](attr: SessionAttr[P], default: SrcId => P, userIdOpt: Option[UserId] = None, roleIdOpt: Option[RoleId] = None): Dep[Option[Access[P]]] = {
+  def deepAsk[P <: Product](attr: SessionAttr[P], default: SrcId => P, userIdOpt: Option[UserId] = None, roleIdOpt: Option[RoleId] = None): Dep[Access[P]] = {
     val dataNode = Option(
       N_RawDataNode(
         domainSrcId = attr.pk,
@@ -218,7 +218,7 @@ import okio.ByteString
       val data = DeepRawSessionData[P](rawSession, rawUser, rawRole, (defaultRawData, defaultRawUserData), (rawDataPK, rawUserDataPK, rawRoleDataPK))
       val lens = deepLens(attr)
       val access: AccessImpl[DeepRawSessionData[P]] = AccessImpl(data, Option(txDeepRawDataLensFactory.create(data)), NameMetaAttr("DeepRawSessionData") :: Nil)
-      Option(access.to(lens))
+      access.to(lens)
     }
   }
 }

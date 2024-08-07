@@ -7,10 +7,10 @@ import ee.cone.c4di._
 @c4("ModelAccessFactoryCompApp") final class RModelAccessFactoryImpl(
   txAdd: LTxAdd,
 ) extends RModelAccessFactory {
-  def to[P <: Product](key: GetByPK[P], product: P): Option[Access[P]] = {
+  def to[P <: Product](key: GetByPK[P], product: P): Access[P] = {
     val name = product.getClass.getName
     val lens = TxProtoLens[P](product)(key.ofA,txAdd)
-    Option(AccessImpl(product,Option(lens),NameMetaAttr(name) :: Nil))
+    AccessImpl(product,Option(lens),NameMetaAttr(name) :: Nil)
   }
 }
 

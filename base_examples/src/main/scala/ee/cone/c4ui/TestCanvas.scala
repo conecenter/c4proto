@@ -63,10 +63,9 @@ trait TestCanvasViewApp extends ByLocationHashViewsApp {
     val relocate = tags.divButton("relocate")(branchTask.relocate("todo"))(
       List(tags.text("caption", "relocate"))
     )
-    val state: Option[Access[B_TestCanvasState]] =
+    val canvasTask: Access[B_TestCanvasState] =
       sessionAttrAccessFactory.to(TestCanvasStateAccess.state)(local)
     val inputs = for {
-      canvasTask <- state.toList
       tags <- tTags.input(canvasTask to sizes) :: canvasSeed(canvasTask to sizes) :: Nil
     } yield tags
     relocate :: inputs ::: Nil

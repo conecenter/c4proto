@@ -31,7 +31,7 @@ case class FilterPredicateImpl[Model<:Product,By<:Product,Field](
   def add[SBy<:Product,SField](filterKey: SessionAttr[SBy], lens: ProdGetter[Model,SField])(
     implicit c: ConditionCheck[SBy,SField]
   ): FilterPredicate[Model] =
-    addAccess(sessionAttrAccessFactory.to(filterKey)(local).get, lens)
+    addAccess(sessionAttrAccessFactory.to(filterKey)(local), lens)
   def addAccess[SBy<:Product,SField](by: Access[SBy], lens: ProdGetter[Model,SField])(
     implicit c: ConditionCheck[SBy,SField]
   ): FilterPredicate[Model] = {
@@ -58,7 +58,7 @@ case class FilterPredicateImplWithPK[Model <: Product, By <: Product, Field](
         filterKey
       else
         filtersPKOpt.map(filterKey.withPK).getOrElse(filterKey)
-    addAccess(sessionAttrAccessFactory.to(preparedFilterKey)(local).get, lens)
+    addAccess(sessionAttrAccessFactory.to(preparedFilterKey)(local), lens)
   }
 
   def addAccess[SBy <: Product, SField](by: Access[SBy], lens: ProdGetter[Model, SField])(

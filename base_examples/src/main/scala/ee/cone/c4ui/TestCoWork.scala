@@ -44,8 +44,8 @@ trait TestCoWorkerViewApp extends ByLocationHashViewsApp {
   sessionAttrAccess: SessionAttrAccessFactory
 ) extends ByLocationHashView  {
   def view: Context => ViewRes = local => {
+    val content = (sessionAttrAccess to TestAttrs.contentFlt)(local)
     for {
-      content <- (sessionAttrAccess to TestAttrs.contentFlt)(local).toList
       tags <- tags.input(content to TestContentAccess.value) :: Nil
     } yield tags
   }

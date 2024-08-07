@@ -5,9 +5,9 @@ import ee.cone.c4actor.{Access, Context, AbstractMetaAttr, TransientLens}
 import ee.cone.c4gate.{SessionAttr, SessionAttrAccessFactory}
 
 trait DeepSessionAttrAccessFactory extends SessionAttrAccessFactory{
-  def toUser[P <: Product](attr: SessionAttr[P]): Context => Option[Access[P]]
+  def toUser[P <: Product](attr: SessionAttr[P]): Context => Access[P]
 
-  def toRole[P <: Product](attr: SessionAttr[P]): Context => Option[Access[P]]
+  def toRole[P <: Product](attr: SessionAttr[P]): Context => Access[P]
 }
 
 case object CurrentUserIdKey extends TransientLens[SrcId]("")
