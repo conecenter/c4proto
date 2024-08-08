@@ -46,21 +46,10 @@ def app_purged_start_blocking(kube_context, app, app_dir, kube_contexts, snapsho
     install_prefix = one(*sn.get_env_values_from_pods("C4INBOX_TOPIC_PREFIX", [
         man["spec"]["template"] for man in it["manifests"] if man["kind"] == "Deployment"
     ]))
-    kc = cl.get_kubectl(kube_context)
-    while install_prefix in pu.get_active_prefixes(kc):
-        time.sleep(2)
-    pu.purge_prefix_list(kube_context, [install_prefix])
-    wait_no_topic(install_prefix)
+    pu.purge_one_wait(kube_context, install_prefix)
     mc = sn.s3init(kc)
     sn.snapshot_put_purged(*snapshot, mc, install_prefix)
     app_up(up_path)
-
-
-def wait_no_topic(prefix):
-    cmd = ("kafkacat", "-L", "-J", "-F", os.environ["C4KCAT_CONFIG"])
-    topic = f"{prefix}.inbox"
-    while any(t["topic"] == topic for t in json.loads(run_text_out(cmd))["topics"]):
-        time.sleep(2)
 
 
 def app_stop_start(kube_context, app):
