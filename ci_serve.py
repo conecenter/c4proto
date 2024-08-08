@@ -47,6 +47,7 @@ def app_purged_start_blocking(kube_context, kcat_config, app, app_dir, kube_cont
         man["spec"]["template"] for man in it["manifests"] if man["kind"] == "Deployment"
     ]))
     pu.purge_one_wait(kube_context, kcat_config, install_prefix)
+    kc = cl.get_kubectl(kube_context)
     mc = sn.s3init(kc)
     sn.snapshot_put_purged(*snapshot, mc, install_prefix)
     app_up(up_path)
