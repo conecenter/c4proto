@@ -58,7 +58,7 @@ def purge_prefix_list(deploy_context, prefix_list):
     purge_inner(kc, lambda prefix: prefix in prefixes)
 
 
-def purge_one_wait(kube_context, prefix):
+def purge_one_wait(kube_context, kcat_config, prefix):
     kc = get_kubectl(kube_context)
     while prefix in get_active_prefixes(kc):
         time.sleep(2)
@@ -71,7 +71,7 @@ def purge_one_wait(kube_context, prefix):
             run((*mc, "rb", "--force", bucket))
             time.sleep(2)
     # wait no topic
-    cmd = ("kafkacat", "-L", "-J", "-F", os.environ["C4KCAT_CONFIG"])
+    cmd = ("kafkacat", "-L", "-J", "-F", kcat_config)
     topic = f"{prefix}.inbox"
     while any(t["topic"] == topic for t in json.loads(run_text_out(cmd))["topics"]):
         time.sleep(2)
