@@ -33,7 +33,7 @@ def app_prep(app, app_dir, up_path): return Popen(
 def app_up(up_path): run((*py_cmd(), "/ci_up.py"), stdin=open(up_path), env=fix_kube_env(os.environ))
 
 
-def app_purged_start_blocking(kube_context, app, app_dir, kube_contexts, snapshot_from_app, try_count):
+def app_purged_start_blocking(kube_context, kcat_config, app, app_dir, kube_contexts, snapshot_from_app, try_count):
     out_dir_life = tempfile.TemporaryDirectory()
     up_path = f"{out_dir_life.name}/out.json"
     prep_proc = app_prep(app, app_dir, up_path)
@@ -46,21 +46,11 @@ def app_purged_start_blocking(kube_context, app, app_dir, kube_contexts, snapsho
     install_prefix = one(*sn.get_env_values_from_pods("C4INBOX_TOPIC_PREFIX", [
         man["spec"]["template"] for man in it["manifests"] if man["kind"] == "Deployment"
     ]))
+    pu.purge_one_wait(kube_context, kcat_config, install_prefix)
     kc = cl.get_kubectl(kube_context)
-    while install_prefix in pu.get_active_prefixes(kc):
-        time.sleep(2)
-    pu.purge_prefix_list(kube_context, [install_prefix])
-    wait_no_topic(install_prefix)
     mc = sn.s3init(kc)
     sn.snapshot_put_purged(*snapshot, mc, install_prefix)
     app_up(up_path)
-
-
-def wait_no_topic(prefix):
-    cmd = ("kafkacat", "-L", "-J", "-F", os.environ["C4KCAT_CONFIG"])
-    topic = f"{prefix}.inbox"
-    while any(t["topic"] == topic for t in json.loads(run_text_out(cmd))["topics"]):
-        time.sleep(2)
 
 
 def app_stop_start(kube_context, app):
@@ -281,7 +271,7 @@ def get_step_handlers(): return ({
     "git_clone_or_init": lambda ctx, name, br: {"": git.git_fetch_checkout(br, get_dir(ctx, name), True)},
     "git_add_tagged": lambda ctx, cwd, tag: {"": git.git_add_tagged(get_dir(ctx, cwd), tag)},
     "app_purged_start_blocking": lambda ctx, opt: {"": app_purged_start_blocking(
-        ctx["deploy_context"], opt["app"], opt["app_dir"],
+        ctx["deploy_context"], os.environ["C4KCAT_CONFIG"], opt["app"], opt["app_dir"],
         opt["kube_contexts"], opt["snapshot_from"], opt["try_count"]
     )},
     "app_purged_start": lambda ctx, opt: setup_started(ctx, start_steps(ctx["script"], [

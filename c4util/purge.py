@@ -1,7 +1,8 @@
 import json
 import pathlib
+import time
 
-from . import run_text_out, never_if, run
+from . import run_text_out, never_if, run, run_no_die
 from .cluster import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl, get_pods_json
 
 
@@ -55,3 +56,22 @@ def purge_prefix_list(deploy_context, prefix_list):
     active_prefixes = get_active_prefixes(kc)
     never_if([f"{conflicting} is in use" for conflicting in sorted(prefixes & active_prefixes)])
     purge_inner(kc, lambda prefix: prefix in prefixes)
+
+
+def purge_one_wait(kube_context, kcat_config, prefix):
+    kc = get_kubectl(kube_context)
+    while prefix in get_active_prefixes(kc):
+        time.sleep(2)
+    purge_inner(kc, lambda pr: pr == prefix)
+    # s3 fix, when no bucket in list, but bucket has content
+    mc = s3init(kc)
+    for pf in ["snapshots","txr"]:
+        bucket = s3path(f"{prefix}.{pf}")
+        while run_no_die((*mc, "ls", "--json", bucket)):
+            run((*mc, "rb", "--force", bucket))
+            time.sleep(2)
+    # wait no topic
+    cmd = ("kafkacat", "-L", "-J", "-F", kcat_config)
+    topic = f"{prefix}.inbox"
+    while any(t["topic"] == topic for t in json.loads(run_text_out(cmd))["topics"]):
+        time.sleep(2)
