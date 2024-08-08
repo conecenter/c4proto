@@ -2,7 +2,7 @@ import json
 import pathlib
 import time
 
-from . import run_text_out, never_if, run
+from . import run_text_out, never_if, run, run_no_die
 from .cluster import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl, get_pods_json
 
 
@@ -62,15 +62,14 @@ def purge_one_wait(kube_context, prefix):
     kc = get_kubectl(kube_context)
     while prefix in get_active_prefixes(kc):
         time.sleep(2)
-    # s3 purge
+    purge_inner(kc, lambda pr: pr == prefix)
+    # s3 fix, when no bucket in list, but bucket has content
     mc = s3init(kc)
     for pf in ["snapshots","txr"]:
         bucket = s3path(f"{prefix}.{pf}")
-        while s3list(mc, bucket):
+        while run_no_die((*mc, "ls", "--json", bucket)):
             run((*mc, "rb", "--force", bucket))
             time.sleep(2)
-    # kafka
-    kafka_purge(kc, lambda pr: pr == prefix)
     # wait no topic
     cmd = ("kafkacat", "-L", "-J", "-F", os.environ["C4KCAT_CONFIG"])
     topic = f"{prefix}.inbox"
