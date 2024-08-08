@@ -91,9 +91,8 @@ def load_no_die(path):
         log(f"error parsing {path}: {e}")
 
 
-def load_def_list(life):
-    paths = list_dir(f'{life.name}/{os.environ["C4CRON_DIR"]}')
-    return [d for p in paths if p.endswith(".json") for c in [load_no_die(p)] if c for d in c]
+def load_def_list(life, d):
+    return [d for p in list_dir(f'{life.name}/{d}') if p.endswith(".json") for c in [load_no_die(p)] if c for d in c]
 
 
 def log_message(log_path): return (
@@ -136,11 +135,11 @@ def arg_substitute(args, body):
 def call(ctx, msg):
     op = msg["op"]
     if op not in ctx:
-        ctx = run_steps(ctx, [d for d in load_def_list(clone_def_repo()) if d[0] == "def"])
-    args_body = ctx[op]
-    never_if(None if isinstance(args_body, tuple) else f"bad def {op}")
-    args, body = args_body
-    never_if([f"bad arg {arg} of {op}" for arg in sorted(set(msg.keys()).symmetric_difference(["op", *args]))])
+        def_list = load_def_list(clone_def_repo(), os.environ["C4CRON_UTIL_DIR"])
+        ctx = run_steps(ctx, [d for d in def_list if d[0] == "def"])
+    args, body = (None, *ctx[op])[-2:]
+    bad_args = [] if args is None else sorted(set(msg.keys()).symmetric_difference(["op", *args]))
+    never_if([f"bad arg {arg} of {op}" for arg in bad_args])
     return run_steps(ctx, arg_substitute(msg, body))
 
 
@@ -208,7 +207,8 @@ def main_operator(script):
             continue
         last_tm_abbr = tm_abbr
         run(("git", "pull"), cwd=dir_life.name)
-        def_list = load_def_list(dir_life)
+        main_dir = os.environ.get("C4CRON_MAIN_DIR")
+        def_list = [] if main_dir is None else load_def_list(dir_life, main_dir)
         log(f"at {tm_abbr}")
         acts = [
             *select_def(def_list, "weekly", tm_abbr[0]+tm_abbr[1]),
@@ -253,7 +253,7 @@ def get_step_handlers(): return ({
     },
     "snapshot_list_dump": lambda ctx, app: {"": sn.snapshot_list_dump(ctx["kube_contexts"], app)},
     "snapshot_get": lambda ctx, app, name: {
-        "snapshot": sn.snapshot_get(ctx["kube_contexts"], app, name, int(ctx.get("snapshot_try_count", 3)))
+        "snapshot": sn.snapshot_get(ctx["kube_contexts"], app, name, one(*ctx.get("snapshot_try_count", [3])))
     },
     "snapshot_write": lambda ctx, dir_path: {"": sn.snapshot_write(dir_path, *ctx["snapshot"])},
     "snapshot_read": lambda ctx, data_path_arg: {"snapshot": sn.snapshot_read(data_path_arg)},
@@ -276,6 +276,7 @@ def get_step_handlers(): return ({
     "git_repo": lambda ctx, name, k8s_path: setup_dir(
         ctx, name, lambda d: git.git_init(access(ctx["deploy_context"], k8s_path), d)
     ),
+    "git_init": lambda ctx, name: {},
     "git_clone": lambda ctx, name, br: {"": git.git_fetch_checkout(br, get_dir(ctx, name), False)},
     "git_clone_or_init": lambda ctx, name, br: {"": git.git_fetch_checkout(br, get_dir(ctx, name), True)},
     "git_add_tagged": lambda ctx, cwd, tag: {"": git.git_add_tagged(get_dir(ctx, cwd), tag)},
@@ -295,7 +296,8 @@ def get_step_handlers(): return ({
     "run": lambda ctx, cwd, cmd: {"": run(cmd, cwd=get_dir(ctx, cwd))},
     "remote_call": lambda ctx, msg: {"": remote_call(ctx["deploy_context"], msg)},
     "start": lambda ctx, cwd, cmd: setup_started(ctx, start(start_log(), ctx["script"], cmd, cwd=get_dir(ctx, cwd))),
-    "wait_all": lambda ctx, need_ok: {"": wait_processes(ctx.get("proc", [])) or not need_ok or never("failed")},
+    "wait_all": lambda ctx: {"": wait_processes(ctx.get("proc", []))},
+    "wait_all_ok": lambda ctx: {"": wait_processes(ctx.get("proc", [])) or never("failed")},
     "rsync": lambda ctx, fr, to: {"": run(("rsync", "-acr", get_dir(ctx, fr)+"/", need_dir(get_dir(ctx, to))+"/"))},
     "kube_report_make": lambda ctx, kube_context, out_path: {
         "": changing_text(out_path, kr.get_cluster_report(cl.get_pods_json(cl.get_kubectl(kube_context), ())))
@@ -316,7 +318,7 @@ def get_step_handlers(): return ({
     "notify_wait_finish": lambda ctx: {"": ny.notify_wait_finish()},
     "main": lambda ctx: {"": main_operator(ctx["script"])},
     "measure": lambda ctx, log_path: {"": measure(log_path)},
-    "def": lambda ctx, k, *v: {k: v[0] if len(v) == 1 else tuple(v) if len(v) == 2 else never(f"bad def {k} {v}")},
+    "def": lambda ctx, k, *v: {k: v},
     "distribution_run": lambda ctx, opt: {
         "": distribution_run(
             opt["groups"], opt["tasks"], opt["try_count"], ctx["script"], get_dir(ctx, opt["dir"]), opt["command"]
