@@ -7,8 +7,8 @@ import base64
 import time
 import urllib.parse
 
-from . import run, never_if, one, read_text, list_dir, run_text_out, log, http_exchange, http_check, Popen
-from .cluster import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl, get_pods_json
+from . import run, never_if, one, read_text, list_dir, run_text_out, log, http_exchange, http_check, Popen, never
+from .cluster import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl, get_pods_json, get_active_prefixes
 
 
 def s3get(line, try_count):
@@ -44,7 +44,7 @@ def get_app_pod_cmd_prefix(kc, pods):
 def find_kube_context(kube_contexts, app):
     stm = ";".join((
         'import sys, subprocess as sp',
-        'sys.exit(0 if sp.run(sys.argv[1:],check=True,text=True,capture_output=True,timeout=3).stdout.strip() else 1)',
+        'sys.exit(0 if sp.run(sys.argv[1:],check=True,text=True,capture_output=True,timeout=8).stdout.strip() else 1)',
     ))
     processes = [
         (kube_ctx, Popen(("python3", "-c", stm, *kc, "get", "pods", "-o", "NAME", "-l", f"app={app}")))
@@ -59,11 +59,11 @@ def get_app_pods(kc, app): return get_pods_json(kc, ("-l", f"app={app}"))
 def get_app_kc_pods(kube_contexts, app):
     kube_context = find_kube_context(kube_contexts, app)
     kc = get_kubectl(kube_context)
-    return kc, get_app_pods(kc, app)
+    return kube_context, kc, get_app_pods(kc, app)
 
 
 def post_signed(kube_contexts, app, url, args, data):
-    kc, pods = get_app_kc_pods(kube_contexts, app)
+    kube_context, kc, pods = get_app_kc_pods(kube_contexts, app)
     app_pod_cmd_prefix = get_app_pod_cmd_prefix(kc, pods)
     salt = run((*app_pod_cmd_prefix, "cat $C4AUTH_KEY_FILE"), capture_output=True).stdout
     host = get_hostname(kc, app)
@@ -71,40 +71,31 @@ def post_signed(kube_contexts, app, url, args, data):
     http_check(*http_exchange(http.client.HTTPSConnection(host, None), "POST", url, data, headers))
 
 
-def snapshot_list_dump(kube_contexts, app):
-    for it in snapshot_list(kube_contexts, app):
+def snapshot_list_dump(fr):
+    for it in snapshot_list(*snapshot_prefix_resolve(fr["kube_contexts"], fr["app"])):
         log(f"\t{it['lastModified']}\t{it['size']}\t{it['key']}")
 
 
-def snapshot_list(kube_contexts, app):
-    kc, pods = get_app_kc_pods(kube_contexts, app)
-    inbox = one(*get_env_values_from_pods("C4INBOX_TOPIC_PREFIX", pods))
-    mc = s3init(kc)
-    bucket = s3path(f"{inbox}.snapshots")
+def snapshot_prefix_resolve(kube_contexts, app):
+    kube_context, kc, pods = get_app_kc_pods(kube_contexts, app)
+    return kube_context, one(*get_env_values_from_pods("C4INBOX_TOPIC_PREFIX", pods))
+
+
+def snapshot_list(kube_context, prefix):
+    mc = s3init(get_kubectl(kube_context))
+    bucket = s3path(f"{prefix}.snapshots")
     return [{**it, "cat": (*mc, "cat", f"{bucket}/{it['key']}")} for it in s3list(mc, bucket)]
 
 
-def snapshot_make(kube_contexts, app):
-    post_signed(kube_contexts, app, "/need-snapshot", ["next"], b'')
+def snapshot_make(to):
+    post_signed(to["kube_contexts"], to["app"], "/need-snapshot", ["next"], b'')
 
 
-def snapshot_get(kube_contexts, app, arg_name, try_count):
-    lines = snapshot_list(kube_contexts, app)
+def snapshot_get(kube_context, prefix, arg_name, try_count):
+    lines = snapshot_list(kube_context, prefix)
     name = max(it["key"] for it in lines) if arg_name == "last" else arg_name
     data, = [s3get(it, try_count) for it in lines if it["key"] == name]
     return name, data
-
-
-def snapshot_write(dir_path, name, data):
-    (pathlib.Path(dir_path)/name).write_bytes(data)
-
-
-def snapshot_read(data_path_arg):
-    data_path = pathlib.Path(data_path_arg)
-    return (
-        ("0000000000000000-d41d8cd9-8f00-3204-a980-0998ecf8427e", b"") if data_path_arg == "nil" else
-        (data_path.name, data_path.read_bytes())
-    )
 
 
 def snapshot_put(data_fn, data, kube_contexts, app, ignore):
@@ -129,17 +120,65 @@ def injection_substitute(data, from_str, to):
     return data.replace(from_str, mapped[to])
 
 
-def with_zero_offset(fn):
-    offset_len = 16
-    offset, minus, postfix = fn.partition("-")
-    return f"{'0' * offset_len}{minus}{postfix}" if minus == "-" and len(offset) == offset_len else None
-
-
 # this raw put do not conform to SnapshotPatchIgnore-s including filtering S_ReadyProcess
 # so if snapshot is taken and put at the same cluster
 # then source should be shutdown to prevent elector depending on source's active replica
-def snapshot_put_purged(data_fn, data, mc, to_prefix):
+def snapshot_put_cold(data_fn, data, kube_context, to_prefix):
+    kc = get_kubectl(kube_context)
+    #
+    while to_prefix in get_active_prefixes(kc):
+        time.sleep(2)
+    #
+    cp = read_text("/c4/kafka-clients-classpath").strip()
+    cmd = ("java", "-cp", cp, "--source", "21", "--enable-preview", "/kafka_send.java", f"{to_prefix}.inbox")
+    new_offset = f"{int(run_text_out(cmd).strip())+1:016x}"
+    #
+    old_offset, minus, postfix = data_fn.partition("-")
+    never_if(None if len(old_offset) == len(new_offset) else "bad name")
+    new_fn = f"{new_offset}{minus}{postfix}"
+    #
+    mc = s3init(kc)
     to_bucket = f"{to_prefix}.snapshots"
     run((*mc, "mb", s3path(to_bucket)))
-    never_if(f"{to_bucket} non-empty" if s3list(mc, s3path(to_bucket)) else None)
-    run((*mc, "pipe", s3path(f"{to_bucket}/{with_zero_offset(data_fn)}")), input=data)
+    never_if(None if all(it["key"] < new_fn for it in s3list(mc, s3path(to_bucket))) else "bad offset")
+    run((*mc, "pipe", s3path(f"{to_bucket}/{new_fn}")), input=data)
+
+
+def snapshot_get_outer(fr):
+    if fr == "nil":
+        return "0000000000000000-d41d8cd9-8f00-3204-a980-0998ecf8427e", b""
+    data_path_arg = fr.get("path")
+    prefix = fr.get("prefix")
+    app = fr.get("app")
+    never_if(None if [data_path_arg, prefix, app].count(None) == 2 else f"bad from {fr}")
+    if data_path_arg is not None:
+        data_path = pathlib.Path(data_path_arg)
+        return data_path.name, data_path.read_bytes()
+    kube_context, prefix = (
+        (fr["deploy_context"], prefix) if prefix is not None else
+        snapshot_prefix_resolve(fr["kube_contexts"], app) if app is not None else
+        never(f"bad from {fr}")
+    )
+    return snapshot_get(kube_context, prefix, fr.get("name", "last"), fr.get("try_count", 3))
+
+
+def snapshot_put_outer(snapshot, to):
+    to_nm, data = snapshot
+    if to == "pwd":
+        return pathlib.Path(to_nm).write_bytes(data)
+    prefix = to.get("prefix")
+    app = to.get("app")
+    never_if(None if [prefix, app].count(None) == 1 else f"bad to {to}")
+    if prefix is not None:
+        return snapshot_put_cold(to_nm, data, to["deploy_context"], prefix)
+    if app is not None:
+        return snapshot_put(to_nm, data, to["kube_contexts"], app, to.get("ignore", ""))
+    never(f"bad to {to}")
+
+
+def injection_make(fr, sub, to):
+    a_dir, suffix = fr.split("*")
+    injection = injection_get(a_dir, suffix)
+    for s_fr, s_to in sub:
+        injection = injection_substitute(injection, s_fr, s_to)
+    injection_post(injection, to["kube_contexts"], to["app"])

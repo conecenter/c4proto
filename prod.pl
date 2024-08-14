@@ -298,21 +298,28 @@ my $conf_handler = { "consumer"=>$up_consumer, "gate"=>$up_gate };
 # /^(\w{16})(-\w{8}-\w{4}-\w{4}-\w{4}-\w{12}[-\w]*)$/
 
 my $ci_run = sub{ &$py_run("ci_serve.py",&$encode([@_])) };
+my $get_kube_contexts = sub{
+    my $path = &$get_tmp_path_inner("kube_contexts");
+    &$ci_run(["kube_contexts", $path]);
+    &$decode(&$get_text($path));
+};
+
 push @tasks, ["snapshot_get", "$composes_txt [|snapshot|last]", sub{
-    my($gate_comp,$arg)=@_;
+    my($comp,@arg)=@_;
+    my %fr = (app => $comp, kube_contexts => &$get_kube_contexts());
     &$ci_run(
-        ["kube_contexts", "all"],
-        (!defined $arg) ?
-            (["snapshot_list_dump", $gate_comp]) : (["snapshot_get", $gate_comp, $arg], ["snapshot_write", "."])
+        @arg==0 ? ["snapshot_list_dump", \%fr] :
+        @arg==1 ? ["snapshot_copy", {from => {%fr,name=>$arg[0]}, to=>"pwd"}] : die
     );
 }];
 push @tasks, ["snapshot_put", "$composes_txt <file_path|nil>", sub{
     my($gate_comp, $data_path_arg)=@_;
-    &$ci_run(["kube_contexts", "all"], ["snapshot_read", $data_path_arg], ["snapshot_put", $gate_comp]);
+    my $fr = $data_path_arg eq "nil" ? "nil" : {"path"=>$data_path_arg};
+    &$ci_run(["snapshot_copy", { from=>$fr, to=>{ app=>$gate_comp, kube_contexts=>&$get_kube_contexts() }}]);
 }];
 push @tasks, ["snapshot_make", "$composes_txt", sub{
     my($gate_comp)=@_;
-    &$ci_run(["kube_contexts", "all"], ["snapshot_make", $gate_comp]);
+    &$ci_run(["snapshot_make", {app => $gate_comp, kube_contexts => &$get_kube_contexts()}]);
 }];
 push @tasks, ["cio_call", "<msg>", sub{ my($msg)=@_; &$ci_run(["remote_call", &$decode($msg)]) }];
 

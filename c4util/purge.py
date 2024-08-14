@@ -2,7 +2,7 @@ import json
 import pathlib
 
 from . import run_text_out, never_if, run
-from .cluster import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl, get_pods_json
+from .cluster import s3path, s3init, s3list, get_kubectl, get_active_prefixes
 
 
 def filter_parts(check_prefix, postfix_set, values):
@@ -11,9 +11,6 @@ def filter_parts(check_prefix, postfix_set, values):
         for parts in [value.split(".")]
         if len(parts) >= 2 and parts[-1] in postfix_set and check_prefix(".".join(parts[:-1]))
     ]
-
-
-def get_active_prefixes(kc): return get_env_values_from_pods("C4INBOX_TOPIC_PREFIX", get_pods_json(kc, ()))
 
 
 def s3purge(kc, need_rm):

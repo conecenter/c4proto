@@ -307,12 +307,12 @@ def build_type_ci_operator(context, out):
     deploy_context = get_plain_option("C4DEPLOY_CONTEXT")
     build_micro(context, out, [
         "c4util/snapshots.py", "c4util/purge.py", "c4util/cluster.py", "c4util/git.py", "c4util/kube_reporter.py",
-        "c4util/notify.py", "c4util/__init__.py", "ci_serve.py", "ci_prep.py", "ci_up.py",
+        "c4util/notify.py", "c4util/__init__.py", "ci_serve.py", "ci_prep.py", "ci_up.py", "kafka_send.java",
     ], [
         "FROM ubuntu:22.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /replink.pl /",  # replink for ci_prep
         "RUN perl install.pl useradd 1979",
-        "RUN perl install.pl apt curl ca-certificates python3 git kafkacat" +
+        "RUN perl install.pl apt curl ca-certificates python3 git" +
         " libjson-xs-perl" +  # for ci_prep/prod/deploy_info
         " rsync",  # for ci_prep and steps
         "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl" +
@@ -326,8 +326,10 @@ def build_type_ci_operator(context, out):
         " && tar -C /tools -xzf /t.tgz crane && rm /t.tgz",  # ci_prep
         "RUN perl install.pl curl https://dlcdn.apache.org/maven/maven-3/3.9.7/binaries/apache-maven-3.9.7-bin.tar.gz",
         "RUN perl install.pl curl https://github.com/sbt/sbt/releases/download/v1.9.3/sbt-1.9.3.tgz",
+        "RUN perl install.pl curl https://github.com/coursier/launchers/raw/master/coursier && chmod +x /tools/coursier",
         "USER c4",
         'ENV PATH=${PATH}:/tools:/tools/linux:/tools/jdk/bin:/tools/apache/bin:/tools/sbt/bin',  # /tools/linux for ci_up/helm, /tools/apache/bin for maven
+        "RUN coursier fetch --classpath org.apache.kafka:kafka-clients:3.7.1 > /c4/kafka-clients-classpath",
         f"ENV C4DEPLOY_CONTEXT={deploy_context}",
         'ENTRYPOINT ["/tools/tini","--","python3","-u","/ci_serve.py"]',
     ])

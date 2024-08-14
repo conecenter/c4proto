@@ -43,3 +43,6 @@ def get_all_contexts():
 
 def get_pods_json(kc, add):
     return json.loads(run_text_out((*kc, "get", "pods", "-o", "json", *add), timeout=3))["items"]
+
+
+def get_active_prefixes(kc): return get_env_values_from_pods("C4INBOX_TOPIC_PREFIX", get_pods_json(kc, ()))
