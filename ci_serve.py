@@ -186,7 +186,9 @@ def start(log_path, script, cmd, cwd):
     return pr
 
 
-def start_steps(log_path, script, steps): return start(log_path, script, (*py_cmd(), script, dumps(steps)), None)
+def start_steps(log_path, script, steps):
+    l_steps = arg_substitute({"log_path": log_path}, steps)
+    return start(log_path, script, (*py_cmd(), script, dumps(l_steps)), None)
 
 
 def main_operator(script, env):
@@ -209,13 +211,12 @@ def main_operator(script, env):
             *select_def(def_list, "daily", tm_abbr[1])
         ]
         for act in acts:
-            log_path = start_log(env)
-            start_steps(log_path, script, arg_substitute({"log_path": log_path}, [["call", act]]))
+            start_steps(start_log(env), script, [["call", act]])
         for d in def_list:
             if d and d[0] == "service":
                 nm = d[1]
                 if nm not in services or services[nm].poll() is not None:
-                    services[nm] = start_steps(start_log(env), script, d[2])
+                    services[nm] = start_steps(start_log(env), script, [["call", d[2]]])
         time.sleep(30)
 
 
