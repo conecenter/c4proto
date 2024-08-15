@@ -77,7 +77,7 @@ case class VDomHandlerImpl[State](
     chain(List(init(_),dispatch(m,_),toAlien(m,_)))(state)
   }
 
-  private def diffSend(prev: VDomValue, send: sender.Send, state: State, left: Int = 5): State =
+  private def diffSend(prev: VDomValue, send: sender.Send, state: State, left: Int = 50): State =
     if(send.isEmpty) state else try {
       val next = vDomStateKey.of(state).get.value
       val diffTree = diff.diff(prev, next)
