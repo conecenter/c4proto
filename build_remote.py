@@ -327,6 +327,7 @@ def build_type_ci_operator(context, out):
         "RUN perl install.pl curl https://dlcdn.apache.org/maven/maven-3/3.9.7/binaries/apache-maven-3.9.7-bin.tar.gz",
         "RUN perl install.pl curl https://github.com/sbt/sbt/releases/download/v1.9.3/sbt-1.9.3.tgz",
         "RUN perl install.pl curl https://github.com/coursier/launchers/raw/master/coursier && chmod +x /tools/coursier",
+        "RUN perl install.pl curl https://dl.min.io/client/mc/release/linux-amd64/mc && chmod +x /tools/mc",
         "USER c4",
         'ENV PATH=${PATH}:/tools:/tools/linux:/tools/jdk/bin:/tools/apache/bin:/tools/sbt/bin',  # /tools/linux for ci_up/helm, /tools/apache/bin for maven
         "RUN coursier fetch --classpath org.apache.kafka:kafka-clients:3.7.1 > /c4/kafka-clients-classpath",

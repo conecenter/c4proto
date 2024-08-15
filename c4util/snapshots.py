@@ -182,3 +182,6 @@ def injection_make(fr, sub, to):
     for s_fr, s_to in sub:
         injection = injection_substitute(injection, s_fr, s_to)
     injection_post(injection, to["kube_contexts"], to["app"])
+
+#'ENTRYPOINT /tools/mc alias set def' +
+#' $(cat $C4S3_CONF_DIR/address) $(cat $C4S3_CONF_DIR/key) $(cat $C4S3_CONF_DIR/secret) && exec sleep infinity '
