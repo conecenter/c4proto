@@ -305,10 +305,7 @@ def build_type_resource_tracker(context, out):
 def build_type_ci_operator(context, out):
     get_plain_option = get_main_conf(context)
     deploy_context = get_plain_option("C4DEPLOY_CONTEXT")
-    build_micro(context, out, [
-        "c4util/snapshots.py", "c4util/purge.py", "c4util/cluster.py", "c4util/git.py", "c4util/kube_reporter.py",
-        "c4util/notify.py", "c4util/__init__.py", "ci_serve.py", "ci_prep.py", "ci_up.py", "kafka_send.java",
-    ], [
+    build_micro(context, out, ["ci_serve.py"], [
         "FROM ubuntu:22.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /replink.pl /",  # replink for ci_prep
         "RUN perl install.pl useradd 1979",
@@ -327,8 +324,6 @@ def build_type_ci_operator(context, out):
         "RUN perl install.pl curl https://dlcdn.apache.org/maven/maven-3/3.9.7/binaries/apache-maven-3.9.7-bin.tar.gz",
         "RUN perl install.pl curl https://github.com/sbt/sbt/releases/download/v1.9.3/sbt-1.9.3.tgz",
         "RUN perl install.pl curl https://github.com/coursier/launchers/raw/master/coursier && chmod +x /tools/coursier",
-        #"RUN perl install.pl curl https://dl.min.io/client/mc/release/linux-amd64/mc && chmod +x /tools/mc",
-        "RUN perl install.pl apt s3curl s3cmd libs3-2", #temp
         "USER c4",
         'ENV PATH=${PATH}:/tools:/tools/linux:/tools/jdk/bin:/tools/apache/bin:/tools/sbt/bin',  # /tools/linux for ci_up/helm, /tools/apache/bin for maven
         "RUN coursier fetch --classpath org.apache.kafka:kafka-clients:3.7.1 > /c4/kafka-clients-classpath",

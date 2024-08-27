@@ -8,60 +8,68 @@ import tempfile
 import subprocess
 from json import dumps, loads, decoder as json_decoder
 
-import c4util.snapshots as sn
-import c4util.purge as pu
-import c4util.cluster as cl
-import c4util.git as git
-import c4util.kube_reporter as kr
-import c4util.notify as ny
-from c4util import run, never, list_dir, log, Popen, wait_processes, changing_text, read_json, one, read_text, \
+from . import snapshots as sn, purge as pu, cluster as cl, git, kube_reporter as kr, notify as ny
+from . import run, never, list_dir, log, Popen, wait_processes, changing_text, read_json, one, read_text, \
     never_if, need_dir, group_map
 
 
 def py_cmd(): return "python3", "-u"
 
 
+def py_proto_cmd(env, nm): return *py_cmd(), f'{env["C4CI_PROTO_DIR"]}/{nm}'
+
+
 def fix_kube_env(e): return {**e, "KUBECONFIG": e["C4KUBECONFIG"]}
 
 
-def app_prep(env, app, app_dir, up_path): return Popen(
-    (*py_cmd(), "/ci_prep.py", "--context", app_dir, "--c4env", app, "--state", "main", "--info-out", up_path),
+def app_prep_start(env, app, app_dir, up_path): return Popen(
+    (*py_proto_cmd(env, "ci_prep.py"), "--context", app_dir, "--c4env", app, "--state", "main", "--info-out", up_path),
     env=fix_kube_env(env)
 )
 
 
-def app_up(env,up_path): run((*py_cmd(), "/ci_up.py"), stdin=open(up_path), env=fix_kube_env(env))
+def app_up(it):
+    prune_list = [f"--prune-whitelist={v}" for v in (
+        "/v1/Service", "apps/v1/Deployment", "apps/v1/StatefulSet",
+        "networking.k8s.io/v1/Ingress", "extensions/v1beta1/Ingress"
+    )]
+    cmd = (*cl.get_kubectl(it["kube-context"]), "apply", "--prune", *prune_list, "-l", f'c4env={it["c4env"]}', "-f-")
+    run(cmd, text=True, input="\n".join(dumps(v) for v in it["manifests"]))
 
 
-def app_cold_start_blocking(env, kube_context, app, app_dir, snapshot_from):
+def app_cold_start_blocking(env, app, app_dir, snapshot_from):
+    deploy_context = env["C4DEPLOY_CONTEXT"]
+    #
     out_dir_life = tempfile.TemporaryDirectory()
     up_path = f"{out_dir_life.name}/out.json"
-    prep_proc = app_prep(env, app, app_dir, up_path)
-    snapshot = sn.snapshot_get_outer(snapshot_from)
+    prep_proc = app_prep_start(env, app, app_dir, up_path)
     wait_processes([prep_proc]) or never("prep failed")
+    #
     it = read_json(up_path)
-    never_if(f'bad ctx {it["kube-context"]} of {it["c4env"]}' if it["kube-context"] != kube_context else None)
-    stop_proc = app_stop_start(env, kube_context, it["c4env"])
+    never_if(f'bad ctx {it["kube-context"]} of {it["c4env"]}' if it["kube-context"] != deploy_context else None)
+    stop_proc = app_stop_start(deploy_context, it["c4env"])
     wait_processes([stop_proc]) or never("stop failed")
     install_prefix = one(*sn.get_env_values_from_pods("C4INBOX_TOPIC_PREFIX", [
         man["spec"]["template"] for man in it["manifests"] if man["kind"] == "Deployment"
     ]))
-    sn.snapshot_put_outer(snapshot, {"deploy_context": kube_context, "prefix": install_prefix})
-    app_up(env, up_path)
+    sn.snapshot_copy(env, snapshot_from, {"prefix": install_prefix})
+    app_up(it)
 
 
-def app_stop_start(env, kube_context, app):
-    info = {"c4env": app, "state": "c4-off", "kube-context": kube_context, "manifests": []}
-    proc = Popen((*py_cmd(), "/ci_up.py"), stdin=subprocess.PIPE, text=True, env=fix_kube_env(env))
-    print(dumps(info), file=proc.stdin, flush=True)
-    proc.stdin.close()
-    return proc
+def app_stop_start(kube_context, app):
+    return Popen((*cl.get_kubectl(kube_context), "delete", "service,deploy,statefulset,ingress", "-l", f'c4env={app}'))
+    # return Popen(("helm", "--kubeconfig", env["C4KUBECONFIG"], "--kube-context", kube_context, "un", "--keep-history", "--wait", app))
+    #
+    # info = {"c4env": app, "state": "c4-off", "kube-context": kube_context, "manifests": []}
+    # proc = Popen(py_proto_cmd(env, "ci_up.py"), stdin=subprocess.PIPE, text=True, env=fix_kube_env(env))
+    # print(dumps(info), file=proc.stdin, flush=True)
+    # proc.stdin.close()
+    # return proc
 
 
-def remote_call(env, kube_context, act):
-    arg = dumps([["call", act]])
+def remote_call(env, kube_context, steps):
     label = env.get("C4CIO_LABEL", "c4cio")
-    cmd = (*cl.get_any_pod_exec(cl.get_kubectl(kube_context), label), *py_cmd(), "/ci_serve.py", arg)
+    cmd = (*cl.get_any_pod_exec(cl.get_kubectl(kube_context), label), *py_cmd(), "/ci_serve.py", dumps(steps))
     proc = Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     measure_inner(proc.stdout, sys.stdout)
     wait_processes([proc]) or never("failed")
@@ -203,8 +211,7 @@ def main_operator(script, env):
             continue
         last_tm_abbr = tm_abbr
         run(("git", "pull"), cwd=dir_life.name)
-        main_dir = env.get("C4CRON_MAIN_DIR")
-        def_list = [] if main_dir is None else load_def_list(f'{dir_life.name}/{main_dir}')
+        def_list = load_def_list(f'{dir_life.name}/{env["C4CRON_MAIN_DIR"]}')
         log(f"at {tm_abbr}")
         acts = [
             *select_def(def_list, "weekly", tm_abbr[0]+tm_abbr[1]),
@@ -229,25 +236,14 @@ def kube_report_serve(script, d, a_dir):
         time.sleep(30)
 
 
-def with_kube_contexts(deploy_context, opt): return (
-    {**opt, "kube_contexts": [deploy_context]} if "app" in opt and "kube_contexts" not in opt else
-    {**opt, "deploy_context": deploy_context} if "prefix" in opt else opt
-)
-
-
 def get_step_handlers(script, env, deploy_context, get_dir, register, registered): return {
     "#": lambda *args: None,
     "called": lambda *args: None,
-    "kube_contexts": lambda out_path: changing_text(out_path, dumps(cl.get_all_contexts())),
-
-    "snapshot_list_dump": lambda opt: sn.snapshot_list_dump(with_kube_contexts(deploy_context, opt)),
-    "snapshot_copy": lambda opt: sn.snapshot_put_outer(
-        sn.snapshot_get_outer(with_kube_contexts(deploy_context, opt["from"])),
-        with_kube_contexts(deploy_context, opt["to"])
-    ),
-    "snapshot_make": lambda opt: sn.snapshot_make(with_kube_contexts(deploy_context, opt)),
+    "snapshot_list_dump": lambda opt: sn.snapshot_list_dump(deploy_context, opt),
+    "snapshot_copy": lambda opt: sn.snapshot_copy(env, opt["from"], opt["to"]),
+    "snapshot_make": lambda opt: sn.snapshot_make(deploy_context, opt),
     "injection_make": lambda opt: sn.injection_make(
-        get_dir(opt["from"]), opt.get("substitute", []), with_kube_contexts(deploy_context, opt["to"])
+        deploy_context, get_dir(opt["from"]), opt.get("substitute", []), opt["to"]
     ),
     "empty_dir": lambda name: need_dir(get_dir(name)),
     "git_repo": lambda name, k8s_path: git.git_init(access(deploy_context, k8s_path), need_dir(get_dir(name))),
@@ -255,16 +251,18 @@ def get_step_handlers(script, env, deploy_context, get_dir, register, registered
     "git_clone": lambda name, br: git.git_fetch_checkout(br, get_dir(name), False),
     "git_clone_or_init": lambda name, br: git.git_fetch_checkout(br, get_dir(name), True),
     "git_add_tagged": lambda cwd, tag: git.git_add_tagged(get_dir(cwd), tag),
-    "app_cold_start_blocking": lambda args: app_cold_start_blocking(env,*args),
+    "app_cold_start_blocking": lambda args: app_cold_start_blocking(env, *args),
     "app_cold_start": lambda opt: register("proc", start_steps(start_log(env), script, [[
-        "app_cold_start_blocking",
-        [deploy_context, opt["app"], get_dir(opt["ver"]), with_kube_contexts(deploy_context, opt["snapshot_from"])]
+        "app_cold_start_blocking", [opt["app"], get_dir(opt["ver"]), opt["snapshot_from"]]
     ]])),
-    "app_stop_start": lambda kube_context, app: register("proc", app_stop_start(env, kube_context, app)),
+    "app_stop_start": lambda kube_context, app: register("proc", app_stop_start(kube_context, app)),
+    "app_prep_start": lambda opt: register(
+        "proc", app_prep_start(env, opt["app"], get_dir(opt["ver"]), get_dir(opt["out"]))
+    ),
     "purge_mode_list": lambda mode_list: pu.purge_mode_list(deploy_context, mode_list),
     "purge_prefix_list": lambda prefix_list: pu.purge_prefix_list(deploy_context, prefix_list),
     "run": lambda cwd, cmd: run(cmd, cwd=get_dir(cwd)),
-    "remote_call": lambda msg: remote_call(env, deploy_context, msg),
+    "remote_call": lambda steps: remote_call(env, deploy_context, steps),
     "start": lambda cwd, cmd: register("proc", start(start_log(env), script, cmd, get_dir(cwd))),
     "wait_all": lambda: wait_processes(registered("proc")),
     "wait_all_ok": lambda: wait_processes(registered("proc")) or never("failed"),
@@ -297,9 +295,10 @@ def get_step_handlers(script, env, deploy_context, get_dir, register, registered
 }
 
 
-def main(env, script, op):
+def main():
+    env, script, op = (os.environ, *sys.argv)
     ctx = {}
-    steps = loads(op) if op.startswith("[") else [[op]]
+    steps = loads(op)
     need_plan = any(s[0] == "call" for s in steps)
     tmp_life = None
     if need_plan:
@@ -317,6 +316,3 @@ def main(env, script, op):
             log(dumps(step))
         handlers[step[0]](*step[1:])
     log("OK")
-
-
-main(os.environ, *sys.argv)

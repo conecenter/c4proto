@@ -297,31 +297,36 @@ my $conf_handler = { "consumer"=>$up_consumer, "gate"=>$up_gate };
 
 # /^(\w{16})(-\w{8}-\w{4}-\w{4}-\w{4}-\w{12}[-\w]*)$/
 
-my $ci_run = sub{ &$py_run("ci_serve.py",&$encode([@_])) };
-my $get_kube_contexts = sub{
-    my $path = &$get_tmp_path_inner("kube_contexts");
-    &$ci_run(["kube_contexts", $path]);
-    &$decode(&$get_text($path));
+my $ci_run = sub{ &$py_run("ci_serve.py",&$encode([["remote_call", [@_]]])) };
+my $get_snap_st = sub{
+    &$mandatory_of(HOSTNAME=>\%ENV)=~/^(de|sp)-(\w+-\w+-\w+)-/ ? (prefix=>"st-$2") : die;
 };
-
-push @tasks, ["snapshot_get", "$composes_txt [|snapshot|last]", sub{
+push @tasks, ["snapshot_get", "$composes_txt [snapshot|last]", sub{
     my($comp,@arg)=@_;
-    my %fr = (app => $comp, kube_contexts => &$get_kube_contexts());
+    my %fr = (app => $comp, kube_contexts => "all");
     &$ci_run(
         @arg==0 ? ["snapshot_list_dump", \%fr] :
-        @arg==1 ? ["snapshot_copy", {from => {%fr,name=>$arg[0]}, to=>"pwd"}] : die
+        @arg==1 ? ["snapshot_copy", {
+            from => {%fr,name=>$arg[0]}, to=>{&$get_snap_st()}
+        }] : die
     );
 }];
-push @tasks, ["snapshot_put", "$composes_txt <file_path|nil>", sub{
-    my($gate_comp, $data_path_arg)=@_;
-    my $fr = $data_path_arg eq "nil" ? "nil" : {"path"=>$data_path_arg};
-    &$ci_run(["snapshot_copy", { from=>$fr, to=>{ app=>$gate_comp, kube_contexts=>&$get_kube_contexts() }}]);
+push @tasks, ["snapshot_put", "$composes_txt [snapshot|last|nil]", sub{
+    my($gate_comp,@arg)=@_;
+    my %ss = &$get_snap_st();
+    &$ci_run(
+        @arg==0 ? ["snapshot_list_dump", \%ss] :
+        @arg==1 ? ["snapshot_copy", {
+            from => $arg[0] eq "nil" ? "nil" : {%ss,name=>$arg[0]},
+            to => { app=>$gate_comp, kube_contexts=>"all" }
+        }] : die
+    );
 }];
 push @tasks, ["snapshot_make", "$composes_txt", sub{
     my($gate_comp)=@_;
-    &$ci_run(["snapshot_make", {app => $gate_comp, kube_contexts => &$get_kube_contexts()}]);
+    &$ci_run(["snapshot_make", {app => $gate_comp, kube_contexts => "all"}]);
 }];
-push @tasks, ["cio_call", "<msg>", sub{ my($msg)=@_; &$ci_run(["remote_call", &$decode($msg)]) }];
+push @tasks, ["cio_call", "<msg>", sub{ my($msg)=@_; &$ci_run(["call",&$decode($msg)]) }];
 
 push @tasks, ["exec_bash","<pod|$composes_txt>",sub{
     my($arg)=@_;
@@ -443,7 +448,8 @@ push @tasks, ["up_kc_host", "", sub{ # the last multi container kc
             {
                 apiGroups => ["","apps","extensions","metrics.k8s.io","networking.k8s.io","kafka.strimzi.io"],
                 resources => [
-                    "statefulsets","secrets","services","deployments","ingresses","pods","replicasets","kafkatopics"
+                    "statefulsets","secrets","services","deployments","ingresses","pods","replicasets","kafkatopics",
+                    "deployments/scale"
                 ],
                 verbs => ["get","create","patch","delete","update","list","watch"],
             },
@@ -623,10 +629,6 @@ push @tasks, ["kafka","( topics | offsets <hours> | nodes | sizes <node> | topic
     my $cp = syf("coursier fetch --classpath org.apache.kafka:kafka-clients:3.7.1")=~/(\S+)/ ? $1 : die;
     sy("JAVA_TOOL_OPTIONS= CLASSPATH=$cp java --source 15 $gen_dir/kafka_info.java ".join" ",@args);
 }];
-
-my $co_list = sub{ [(&$single_or_undef(@_)||die "bad args")=~/([^,]+)/g] };
-push @tasks, ["purge_mode_list","<list>",sub{ &$ci_run(["purge_mode_list",&$co_list(@_)]) }];
-push @tasks, ["purge_prefix_list","<list>",sub{ &$ci_run(["purge_prefix_list",&$co_list(@_)]) }];
 
 push @tasks, ["resources","( top <ctx> <search_str> | suggest <ctx> <level (ex 70)> )",sub{
     &$py_run("resources.py",@_)
