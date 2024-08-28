@@ -9,7 +9,7 @@ def git_init(repo, d):
 
 def git_fetch_checkout(branch, d, fetch_can_fail):
     fetched = run_no_die(("git", "fetch", "--depth", "1", "-k", "--", "origin", branch), cwd=d)
-    from_br = ["FETCH_HEAD"] if fetched else [] if fetch_can_fail else never("fetch fail")
+    from_br = [f"origin/{branch}"] if fetched else [] if fetch_can_fail else never("fetch fail") # "FETCH_HEAD"
     run(("git", "checkout", "-b", branch, *from_br), cwd=d)
 
 
