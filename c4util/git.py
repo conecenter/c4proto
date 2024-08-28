@@ -1,5 +1,5 @@
 
-from . import run, run_no_die, run_text_out, log
+from . import run, run_no_die, run_text_out, log, never_if
 
 
 def git_init(repo, d):
@@ -7,9 +7,14 @@ def git_init(repo, d):
     run(("git", "remote", "add", "origin", repo), cwd=d)
 
 
-def git_fetch_checkout(branch, d):
-    run(("git", "fetch", "--depth", "1", "-k", "--", "origin", branch), cwd=d)
-    run(("git", "checkout", "FETCH_HEAD"), cwd=d)
+def git_clone(repo, branch, d):
+    run(("git", "clone", "--depth", "1", "-b", branch, "--", repo, d ))
+
+
+def git_pull(d):
+    branch = run_text_out(("git", "branch", "--show-current"), cwd=d).strip()
+    never_if(None if branch else "not a branch")
+    run(("git", "pull", "origin", branch), cwd=d)
 
 
 def git_set_user(d):
@@ -26,20 +31,16 @@ def git_add_tagged(d, tag):
     run(("git", "push", "--tags", "origin"), cwd=d)
 
 
-def git_fetch_checkout_or_create(branch, d):
-    if run_no_die(("git", "fetch", "--depth", "1", "-k", "--", "origin", branch), cwd=d):
-        run(("git", "checkout", branch), cwd=d)
-    else:
+def git_clone_or_init(repo, branch, d):
+    if not run_no_die(("git", "clone", "--depth", "1", "-b", branch, "--", repo, d)):
+        git_init(repo, d)
         run(("git", "checkout", "-b", branch), cwd=d)
         git_set_user(d)
         run(("git", "commit", "-m-", "--allow-empty"), cwd=d)
         run(("git", "push", "--set-upstream", "origin", branch), cwd=d)
 
 
-def git_save_changed(fr, d):
-    branch = run_text_out(("git", "rev-parse", "--abbrev-ref", "HEAD"), cwd=d).strip()
-    run(("git", "pull", "origin", branch), cwd=d)
-    run(("rsync", "-acr", "--exclude", ".git", f"{fr}/", f"{d}/"))
+def git_save_changed(d):
     if len(run_text_out(("git", "status", "--porcelain=v1"), cwd=d).strip()) > 0:
         git_set_user(d)
         run(("git", "add", "."), cwd=d)
