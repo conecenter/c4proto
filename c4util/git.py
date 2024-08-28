@@ -28,9 +28,9 @@ def git_add_tagged(d, tag):
 
 def git_fetch_checkout_or_create(branch, d):
     if run_no_die(("git", "fetch", "--depth", "1", "-k", "--", "origin", branch), cwd=d):
-        run(("git", "checkout", branch))
+        run(("git", "checkout", branch), cwd=d)
     else:
-        run(("git", "checkout", "-b", branch))
+        run(("git", "checkout", "-b", branch), cwd=d)
         git_set_user(d)
         run(("git", "commit", "-m-", "--allow-empty"), cwd=d)
         run(("git", "push", "--set-upstream", "origin", branch), cwd=d)
