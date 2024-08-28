@@ -154,7 +154,8 @@ def arg_substitute(args, body):
     return loads(patt.sub(repl, dumps(body)))
 
 
-def distribution_run(groups, task_list, try_count, script, env, cwd, cmd):
+def distribution_run(groups, task_list, try_count, script, env, cwd, cmd, check_task):
+    check_task_opt = [check_task] if check_task is not None else []
     started = []
     while True:
         busy_groups = {g for g, t, p in started if p.returncode is None and p.poll() is None}
@@ -164,11 +165,14 @@ def distribution_run(groups, task_list, try_count, script, env, cwd, cmd):
         todo_tasks = [t for t in task_list if t not in not_todo_tasks]
         prior_tasks = sorted((c, t) for t in todo_tasks for c in [task_failure_counts.get(t, 0)] if c < try_count)
         started_set = {(g, t) for g, t, p in started}
-        gt_iter = ((g, t) for g in groups if g not in busy_groups for c, t in prior_tasks if (g, t) not in started_set)
+        prior_tasks4group = (lambda g: (t for c, t in prior_tasks if (g, t) not in started_set))
+        is_group_last_ok = (lambda gr: next((p.returncode == 0 for g, t, p in reversed(started) if g == gr), False))
+        get_tasks4group = (lambda gr: prior_tasks4group(gr) if is_group_last_ok(gr) else check_task_opt)
+        gt_iter = ((g, t) for g in groups if g not in busy_groups for t in get_tasks4group(g))
         group_task = next(gt_iter, None)
         if group_task is not None:
             group, task = group_task
-            l_cwd, l_cmd = arg_substitute({"group": group, "task": task}, [cwd, cmd])
+            l_cwd, l_cmd = arg_substitute({"group": group, "task": task, "step": len(started)}, [cwd, cmd])
             proc = start(start_log(env), script, l_cmd, l_cwd)
             started.append((group, task, proc))
         elif busy_groups:
@@ -184,7 +188,7 @@ def access(kube_context, k8s_path): return cl.secret_part_to_text(cl.get_kubectl
 
 def clone_def_repo(env, a_dir):
     git.git_init(access(env["C4DEPLOY_CONTEXT"], env["C4CRON_REPO"]), a_dir)
-    git.git_fetch_checkout(env["C4CRON_BRANCH"], a_dir, False)
+    return lambda: git.git_fetch_checkout(env["C4CRON_BRANCH"], a_dir)
 
 
 
@@ -201,7 +205,7 @@ def start_steps(log_path, script, steps):
 
 def main_operator(script, env):
     dir_life = tempfile.TemporaryDirectory()
-    clone_def_repo(env, dir_life.name)
+    fetch = clone_def_repo(env, dir_life.name)
     last_tm_abbr = ""
     services = {}
     while True:
@@ -210,7 +214,7 @@ def main_operator(script, env):
         if last_tm_abbr == tm_abbr:
             continue
         last_tm_abbr = tm_abbr
-        run(("git", "pull"), cwd=dir_life.name)
+        fetch()
         def_list = load_def_list(f'{dir_life.name}/{env["C4CRON_MAIN_DIR"]}')
         log(f"at {tm_abbr}")
         acts = [
@@ -227,12 +231,14 @@ def main_operator(script, env):
         time.sleep(30)
 
 
-def kube_report_serve(script, d, a_dir):
+def kube_report_serve(script, d, subdir_pf):
     while True:
+        life = tempfile.TemporaryDirectory()
+        a_dir = need_dir(f"{life.name}/{subdir_pf}")
         wait_processes([Popen((
             *py_cmd(), script, dumps([["kube_report_make", kube_context, f"{a_dir}/{kube_context}.pods.txt"]])
         )) for kube_context in cl.get_all_contexts()])
-        git.git_save_changed(d)
+        git.git_save_changed(life.name, d)
         time.sleep(30)
 
 
@@ -248,8 +254,8 @@ def get_step_handlers(script, env, deploy_context, get_dir, register, registered
     "empty_dir": lambda name: need_dir(get_dir(name)),
     "git_repo": lambda name, k8s_path: git.git_init(access(deploy_context, k8s_path), need_dir(get_dir(name))),
     "git_init": lambda name: None,
-    "git_clone": lambda name, br: git.git_fetch_checkout(br, get_dir(name), False),
-    "git_clone_or_init": lambda name, br: git.git_fetch_checkout(br, get_dir(name), True),
+    "git_clone": lambda name, br: git.git_fetch_checkout(br, get_dir(name)),
+    "git_clone_or_init": lambda name, br: git.git_fetch_checkout_or_create(br, get_dir(name)),
     "git_add_tagged": lambda cwd, tag: git.git_add_tagged(get_dir(cwd), tag),
     "app_cold_start_blocking": lambda args: app_cold_start_blocking(env, *args),
     "app_cold_start": lambda opt: register("proc", start_steps(start_log(env), script, [[
@@ -270,9 +276,7 @@ def get_step_handlers(script, env, deploy_context, get_dir, register, registered
     "kube_report_make": lambda kube_context, out_path: changing_text(
         out_path, kr.get_cluster_report(cl.get_pods_json(cl.get_kubectl(kube_context), ()))
     ),
-    "kube_report_serve": lambda name, subdir: kube_report_serve(
-        script, get_dir(name), need_dir(get_dir(f'{name}/{subdir}'))
-    ),
+    "kube_report_serve": lambda name, subdir: kube_report_serve(script, get_dir(name), subdir),
     "notify_started": lambda opt: register(
         "notify_succeeded", ny.notify_started(
             (*py_cmd(), script, dumps([["notify_wait_finish"]])),
@@ -289,7 +293,7 @@ def get_step_handlers(script, env, deploy_context, get_dir, register, registered
     "distribution_run": lambda opt: distribution_run(
         opt["groups"],
         loads(read_text(get_dir(opt["tasks"]))) if isinstance(opt["tasks"], str) else opt["tasks"],
-        opt["try_count"], script, env, get_dir(opt["dir"]), opt["command"]
+        opt["try_count"], script, env, get_dir(opt["dir"]), opt["command"], opt.get("check_task")
     ),
     "secret_get": lambda fn, k8s_path: changing_text(get_dir(fn), access(deploy_context, k8s_path)),
 }
@@ -304,7 +308,7 @@ def main():
     if need_plan:
         tmp_life = tempfile.TemporaryDirectory()
         def_repo_dir = need_dir(f"{tmp_life.name}/def_repo")
-        clone_def_repo(env, def_repo_dir)
+        clone_def_repo(env, def_repo_dir)()
         steps = plan_steps((steps, (load_def_list(f'{def_repo_dir}/{env["C4CRON_UTIL_DIR"]}'), None)), ())
         log("plan:\n" + "\n".join(f"\t{dumps(step)}" for step in steps))
     get_dir = (lambda subdir: f'{tmp_life.name}/{subdir}')
