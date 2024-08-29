@@ -173,7 +173,8 @@ def distribution_run(groups, task_list, try_count, script, env, cwd, cmd, check_
         group_task = next(gt_iter, None)
         if group_task is not None:
             group, task = group_task
-            l_cwd, l_cmd = arg_substitute({"group": group, "task": task, "step": len(started)}, [cwd, cmd])
+            step = str(len(started))
+            l_cwd, l_cmd = arg_substitute({"group": group, "task": task, "step": step}, [cwd, cmd])
             proc = start(start_log(env), script, l_cmd, l_cwd)
             started.append((group, task, proc))
         elif busy_groups:
