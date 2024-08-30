@@ -1,6 +1,5 @@
 
 import random
-import re
 import sys
 import os
 import time
@@ -9,24 +8,20 @@ import subprocess
 from json import dumps, loads, decoder as json_decoder
 import pathlib
 
-from . import snapshots as sn, purge as pu, cluster as cl, git, kube_reporter as kr, notify as ny
+
+from . import snapshots as sn, purge as pu, cluster as cl, git, kube_reporter as kr, notify as ny, distribution
+from cio_preproc import arg_substitute, plan_steps
 from . import run, never, list_dir, log, Popen, wait_processes, changing_text, read_json, one, read_text, \
-    never_if, need_dir, group_map
+    never_if, need_dir
 
 
 def py_cmd(): return "python3", "-u"
 
 
-def py_proto_cmd(env, nm): return *py_cmd(), f'{env["C4CI_PROTO_DIR"]}/{nm}'
-
-
-def fix_kube_env(e): return {**e, "KUBECONFIG": e["C4KUBECONFIG"]}
-
-
-def app_prep_start(env, app, app_dir, up_path): return Popen(
-    (*py_proto_cmd(env, "ci_prep.py"), "--context", app_dir, "--c4env", app, "--state", "main", "--info-out", up_path),
-    env=fix_kube_env(env)
-)
+def app_prep_start(env, app, app_dir, up_path):
+    proto_dir = env["C4CI_PROTO_DIR"]
+    args = ("--context", app_dir, "--c4env", app, "--state", "main", "--info-out", up_path)
+    return Popen((*py_cmd(), f'{proto_dir}/ci_prep.py', *args), env={**env, "KUBECONFIG": env["C4KUBECONFIG"]})
 
 
 def app_up(it):
@@ -59,13 +54,6 @@ def app_cold_start_blocking(env, app, app_dir, snapshot_from):
 
 def app_stop_start(kube_context, app):
     return Popen((*cl.get_kubectl(kube_context), "delete", "service,deploy,statefulset,ingress", "-l", f'c4env={app}'))
-    # return Popen(("helm", "--kubeconfig", env["C4KUBECONFIG"], "--kube-context", kube_context, "un", "--keep-history", "--wait", app))
-    #
-    # info = {"c4env": app, "state": "c4-off", "kube-context": kube_context, "manifests": []}
-    # proc = Popen(py_proto_cmd(env, "ci_up.py"), stdin=subprocess.PIPE, text=True, env=fix_kube_env(env))
-    # print(dumps(info), file=proc.stdin, flush=True)
-    # proc.stdin.close()
-    # return proc
 
 
 def remote_call(env, kube_context, steps):
@@ -93,7 +81,7 @@ def load_def_list(a_dir):
 
 def log_message(env, log_path): return (
     'starting task' if log_path is None else
-    f'starting task, to view log:\n\tkcd exec {env["HOSTNAME"]} -- tail -f {log_path}'
+    f'starting task, to view log:\n\tkcd exec {env["HOSTNAME"]} -- tail -f {log_path} -n1000'
 )
 
 
@@ -114,77 +102,6 @@ def measure_inner(a_in, a_out):
         print(f"{str(int(time.monotonic()-started)).zfill(5)} {line}", end="", file=a_out, flush=True)
 
 
-def find_def(scope, name):
-    found = [st[2:] for st in scope[0] if st[0] == "def" and st[1] == name]
-    # noinspection PyTypeChecker
-    return (
-        find_def(scope[1], name) if len(found) < 1 and scope[1] is not None else
-        (*(None, *found[0])[-2:], scope) if len(found) == 1 else never(f"non-single {name}")
-    )
-
-
-def plan_steps(scope, planned):
-    for op, *step_args in scope[0]:
-        if op == "def":
-            pass
-        elif op == "for":
-            items, body = step_args
-            for it in items:
-                planned = plan_steps((arg_substitute({"it": it}, body), scope), planned)
-        elif op == "call":
-            msg, = step_args
-            name = msg["op"]
-            args, c_scope, p_scope = find_def(scope, name)
-            bad_args = [] if args is None else sorted(set(msg.keys()).symmetric_difference(["op", *args]))
-            never_if([f"bad arg {arg} of {name}" for arg in bad_args])
-            planned = plan_steps((arg_substitute(msg, c_scope), p_scope), planned)
-        elif op == "call_once": # not fair, by name only
-            name, = step_args
-            if not any(s for s in planned if s[0] == "called" and s[1] == name):
-                args, c_scope, p_scope = find_def(scope, name)
-                never_if(None if args == [] else f"bad args of {name}")
-                planned = plan_steps((c_scope, p_scope), (*planned, ("called", name)))
-        else:
-            planned = (*planned, (op, *step_args))
-    return planned
-
-
-def arg_substitute(args, body):
-    patt = re.compile(r'\{(\w+)}|"@(\w+)"')
-    repl = (lambda a: args.get(a.group(1), dumps(args[a.group(2)]) if a.group(2) in args else a.group(0)))
-    return loads(patt.sub(repl, dumps(body)))
-
-
-def distribution_run(groups, task_list, try_count, script, env, cwd, cmd, check_task):
-    check_task_opt = [check_task] if check_task is not None else []
-    started = []
-    while True:
-        busy_groups = {g for g, t, p in started if p.returncode is None and p.poll() is None}
-        not_todo_tasks = {t for g, t, p in started if p.returncode is None or p.returncode == 0}
-        task_failures = [t for g, t, p in started if p.returncode is not None and p.returncode != 0]
-        task_failure_counts = {t: len(l) for t, l in group_map(task_failures, lambda t: (t, 1)).items()}
-        todo_tasks = [t for t in task_list if t not in not_todo_tasks]
-        prior_tasks = sorted((c, t) for t in todo_tasks for c in [task_failure_counts.get(t, 0)] if c < try_count)
-        started_set = {(g, t) for g, t, p in started}
-        prior_tasks4group = (lambda g: (t for c, t in prior_tasks if (g, t) not in started_set))
-        is_group_last_ok = (lambda gr: next((p.returncode == 0 for g, t, p in reversed(started) if g == gr), False))
-        get_tasks4group = (lambda gr: prior_tasks4group(gr) if is_group_last_ok(gr) else check_task_opt)
-        gt_iter = ((g, t) for g in groups if g not in busy_groups for t in get_tasks4group(g))
-        group_task = next(gt_iter, None)
-        if group_task is not None:
-            group, task = group_task
-            step = str(len(started))
-            l_cwd, l_cmd = arg_substitute({"group": group, "task": task, "step": step}, [cwd, cmd])
-            proc = start(start_log(env), script, l_cmd, l_cwd)
-            started.append((group, task, proc))
-        elif busy_groups:
-            time.sleep(1)
-        else:
-            log(f"todo: {dumps(todo_tasks)}")
-            break
-    log("\n".join(f"distribution was {g} {t} {p.returncode}" for g, t, p in started))
-
-
 def access(kube_context, k8s_path): return cl.secret_part_to_text(cl.get_kubectl(kube_context), k8s_path)
 
 
@@ -194,13 +111,12 @@ def clone_def_repo(env, a_dir):
 
 def start(log_path, script, cmd, cwd):
     pr = Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=cwd)
-    Popen((*py_cmd(), script, dumps([["measure", log_path]])), stdin=pr.stdout)
+    Popen(script([["measure", log_path]]), stdin=pr.stdout)
     return pr
 
 
 def start_steps(log_path, script, steps):
-    l_steps = arg_substitute({"log_path": log_path}, steps)
-    return start(log_path, script, (*py_cmd(), script, dumps(l_steps)), None)
+    return start(log_path, script, script(arg_substitute({"log_path": log_path}, steps)), None)
 
 
 def main_operator(script, env):
@@ -234,9 +150,9 @@ def main_operator(script, env):
 def kube_report_serve(script, d, subdir_pf):
     while True:
         life = tempfile.TemporaryDirectory()
-        wait_processes([Popen((
-            *py_cmd(), script, dumps([["kube_report_make", kube_context, f"{life.name}/{kube_context}.pods.txt"]])
-        )) for kube_context in cl.get_all_contexts()])
+        wait_processes([Popen(
+            script([["kube_report_make", kube_context, f"{life.name}/{kube_context}.pods.txt"]])
+        ) for kube_context in cl.get_all_contexts()])
         git.git_pull(d)
         run(("rsync", "-acr", "--exclude", ".git", f"{life.name}/", f'{need_dir(f"{d}/{subdir_pf}")}/'))
         git.git_save_changed(d)
@@ -289,7 +205,7 @@ def get_step_handlers(script, env, deploy_context, get_dir, register, registered
     "kube_report_serve": lambda name, subdir: kube_report_serve(script, get_dir(name), subdir),
     "notify_started": lambda opt: register(
         "notify_succeeded", ny.notify_started(
-            (*py_cmd(), script, dumps([["notify_wait_finish"]])),
+            script([["notify_wait_finish"]]),
             ny.notify_create_requests(
                 access(deploy_context, opt["auth"]), opt["url"],
                 time.time(), opt["work_hours"], opt["valid_hours"], log_message(env, opt.get("log_path"))
@@ -300,17 +216,19 @@ def get_step_handlers(script, env, deploy_context, get_dir, register, registered
     "notify_wait_finish": lambda: ny.notify_wait_finish(),
     "main": lambda: main_operator(script, env),
     "measure": lambda log_path: measure(log_path),
-    "distribution_run": lambda opt: distribution_run(
-        opt["groups"],
-        loads(read_text(get_dir(opt["tasks"]))) if isinstance(opt["tasks"], str) else opt["tasks"],
-        opt["try_count"], script, env, get_dir(opt["dir"]), opt["command"], opt.get("check_task")
+    "distribution_run": lambda opt: distribution.distribution_run(
+        opt["groups"], loads(read_text(get_dir(opt["tasks"]))), opt["try_count"], opt["check_task"], opt["check_period"],
+        lambda arg: start(
+            start_log(env), script, arg_substitute(arg, opt["command"]), get_dir(arg_substitute(arg, opt["dir"]))
+        )
     ),
     "secret_get": lambda fn, k8s_path: changing_text(get_dir(fn), access(deploy_context, k8s_path)),
+    "write_lines": lambda fn, lines: changing_text(get_dir(fn), "\n".join(lines)),
 }
 
 
 def main():
-    env, script, op = (os.environ, *sys.argv)
+    env, script_path, op = (os.environ, *sys.argv)
     ctx = {}
     steps = loads(op)
     need_plan = any(s[0] == "call" for s in steps)
@@ -324,6 +242,7 @@ def main():
     get_dir = (lambda subdir: f'{tmp_life.name}/{subdir}')
     register = (lambda k, v: ctx.setdefault(k, []).append(v))
     registered = (lambda k: ctx.get(k, []))
+    script = (lambda arg: (*py_cmd(), script_path, dumps(arg))),
     handlers = get_step_handlers(script, env, env["C4DEPLOY_CONTEXT"], get_dir, register, registered)
     for step in steps:
         if need_plan:
