@@ -241,7 +241,7 @@ def main():
     get_dir = (lambda subdir: f'{tmp_life.name}/{subdir}')
     register = (lambda k, v: ctx.setdefault(k, []).append(v))
     registered = (lambda k: ctx.get(k, []))
-    script = (lambda arg: (*py_cmd(), script_path, dumps(arg))),
+    script = (lambda arg: (*py_cmd(), script_path, dumps(arg)))
     handlers = get_step_handlers(script, env, env["C4DEPLOY_CONTEXT"], get_dir, register, registered)
     for step in steps:
         if need_plan:
