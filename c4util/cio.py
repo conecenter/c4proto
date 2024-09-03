@@ -119,7 +119,7 @@ def clone_def_repo(env, a_dir):
 
 
 def get_log_path():
-    return f"/tmp/c4log-{datetime.now().isoformat().replace(':','-').split('.')[0]}-{random().split('.')[-1]}"
+    return f"/tmp/c4log-{datetime.now().isoformat().replace(':','-').split('.')[0]}-{str(random()).split('.')[-1]}"
 
 
 def start(env, cmd, cwd = None, log_path=None):
