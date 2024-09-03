@@ -17,7 +17,7 @@ from . import run, never, list_dir, log, Popen, wait_processes, changing_text, o
 
 
 def get_cmd(f:FunctionType,*args): return *py_cmd(), "-c", ";".join((
-    "from sys,os,json", "sys.path.append(os.environ['C4CI_PROTO_DIR'])",
+    "import sys,os,json", "sys.path.append(os.environ['C4CI_PROTO_DIR'])",
     f"from {f.__module__} import {f.__name__} as f",
     "f(*[(os.environ if a=='env' else a[0]) for a in json.loads(sys.argv[1])])"
 )), dumps([("env" if arg is environ else [arg]) for arg in args])
