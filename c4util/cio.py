@@ -8,6 +8,7 @@ import subprocess
 from json import dumps, loads, decoder as json_decoder
 import pathlib
 from datetime import datetime
+from types import FunctionType
 
 from . import snapshots as sn, purge as pu, cluster as cl, git, kube_reporter as kr, notify as ny, distribution
 from .cio_preproc import arg_substitute, plan_steps
@@ -15,7 +16,7 @@ from . import run, never, list_dir, log, Popen, wait_processes, changing_text, o
     path_exists
 
 
-def get_cmd(f:function,*args): return *py_cmd(), "-c", ";".join((
+def get_cmd(f:FunctionType,*args): return *py_cmd(), "-c", ";".join((
     "from sys,os,json", "sys.path.append(os.environ['C4CI_PROTO_DIR'])",
     f"from {f.__module__} import {f.__name__} as f",
     "f(*[(os.environ if a=='env' else a[0]) for a in json.loads(sys.argv[1])])"
