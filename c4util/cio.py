@@ -43,17 +43,18 @@ def app_up(it):
     run(cmd, text=True, input="\n".join(dumps(v) for v in it["manifests"]))
 
 
-def wait_load(path):
+def wait_val(period, f):
     while True:
-        it = load_no_die(path) if path_exists(path) else None
+        started = time.monotonic()
+        it = f()
         if it is not None:
             return it
-        log(f"waiting for {path}")
-        time.sleep(1)
+        time.sleep(max(0., period - time.monotonic() + started))
 
 
 def app_cold_start_blocking(env, conf_from, snapshot_from):
-    it =  wait_load(conf_from)
+    log(f"will load {conf_from}")
+    it = wait_val(1, lambda: load_no_die(conf_from) if path_exists(conf_from) else None)
     never_if(f'bad ctx {it["kube-context"]} {it["c4env"]}' if it["kube-context"] != env["C4DEPLOY_CONTEXT"] else None)
     pod_templates = [man["spec"]["template"] for man in it["manifests"] if man["kind"] == "Deployment"]
     install_prefix = one(*sn.get_env_values_from_pods("C4INBOX_TOPIC_PREFIX", pod_templates))
@@ -62,9 +63,7 @@ def app_cold_start_blocking(env, conf_from, snapshot_from):
 
 
 def wait_no_app(kube_context, app):
-    kc = cl.get_kubectl(kube_context)
-    while len(sn.get_app_pods(kc, app)) > 0:
-        time.sleep(2)
+    wait_val(2, lambda: None if len(sn.get_app_pods(cl.get_kubectl(kube_context), app)) > 0 else True)
 
 
 def app_stop_start(kube_context, app):
@@ -163,15 +162,13 @@ def main_operator(env):
 
 
 def kube_report_serve(d, subdir_pf):
-    while True:
-        life = tempfile.TemporaryDirectory()
-        wait_processes([Popen(
-            get_cmd(kube_report_make, kube_context, f"{life.name}/{kube_context}.pods.txt")
-        ) for kube_context in cl.get_all_contexts()])
-        git.git_pull(d)
-        run(("rsync", "-acr", "--exclude", ".git", f"{life.name}/", f'{need_dir(f"{d}/{subdir_pf}")}/'))
-        git.git_save_changed(d)
-        time.sleep(30)
+    life = tempfile.TemporaryDirectory()
+    wait_processes([Popen(
+        get_cmd(kube_report_make, kube_context, f"{life.name}/{kube_context}.pods.txt")
+    ) for kube_context in cl.get_all_contexts()])
+    git.git_pull(d)
+    run(("rsync", "-acr", "--exclude", ".git", f"{life.name}/", f'{need_dir(f"{d}/{subdir_pf}")}/'))
+    git.git_save_changed(d)
 
 
 def kube_report_make(kube_context, out_path):
@@ -179,8 +176,8 @@ def kube_report_make(kube_context, out_path):
 
 
 def local_kill_serve():
-    stat_paths = [f"{p}/status" for p in list_dir("/proc")]
-    to_kill = sorted(int(p.split("/")[-2]) for p in stat_paths if path_exists(p) and "\nPPid:\t1\n" in read_text(p))[1:]
+    stats = [f"{p}/status" for p in list_dir("/proc")]
+    to_kill = sorted(int(p.split("/")[-2]) for p in stats if path_exists(p) and "\nPPid:\t1\n" in read_text(p))[1:]
     run(("kill", *[str(p) for p in to_kill])) if len(to_kill) > 0 else log("nothing to kill")
 
 
@@ -224,7 +221,7 @@ def get_step_handlers(env, deploy_context, get_dir, register, registered): retur
     "wait_all": lambda: wait_processes(registered("proc")),
     "wait_all_ok": lambda: wait_processes(registered("proc")) or never("failed"),
     "rsync": lambda fr, to: run(("rsync", "-acr", get_dir(fr)+"/", need_dir(get_dir(to))+"/")),
-    "kube_report_serve": lambda name, subdir: kube_report_serve(get_dir(name), subdir),
+    "kube_report_serve": lambda name, subdir: wait_val(30, lambda: kube_report_serve(get_dir(name), subdir)),
     "notify_started": lambda opt: register(
         "notify_succeeded", ny.notify_started(
             get_cmd(ny.notify_wait_finish),
@@ -243,7 +240,7 @@ def get_step_handlers(env, deploy_context, get_dir, register, registered): retur
     "secret_get": lambda fn, k8s_path: changing_text(get_dir(fn), access(deploy_context, k8s_path)),
     "write_lines": lambda fn, lines: changing_text(get_dir(fn), "\n".join(lines)),
     "wait_no_app": lambda kube_context, app: wait_no_app(kube_context, app),
-    "local_kill_serve": lambda: local_kill_serve(),
+    "local_kill_serve": lambda: wait_val(5, lambda: local_kill_serve()),
 }
 
 
