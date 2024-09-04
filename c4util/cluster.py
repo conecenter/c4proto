@@ -22,11 +22,10 @@ def get_kubectl(kube_context): return "kubectl", "--kubeconfig", os.environ["C4K
 def s3path(path): return f"def/{path}"
 
 
-def get_any_pod_exec(kc, label):
-    return *kc, "exec", "-i", max(run_text_out((*kc, "get", "pods", "-o", "name", "-l", label)).splitlines()), "--"
+def get_any_pod(kc, label): return max(run_text_out((*kc, "get", "pods", "-o", "name", "-l", label)).splitlines())
 
 
-def s3init(kc): return *get_any_pod_exec(kc, "c4s3client"), "/tools/mc"
+def s3init(kc): return *kc, "exec", "-i", get_any_pod(kc, "c4s3client"), "--", "/tools/mc"
 
 
 def s3list(mc, bucket): return [json.loads(line) for line in run_text_out((*mc, "ls", "--json", bucket)).splitlines()]

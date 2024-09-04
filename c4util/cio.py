@@ -73,7 +73,8 @@ def app_stop_start(kube_context, app):
 
 def remote_call(env, kube_context, steps):
     label = env.get("C4CIO_LABEL", "c4cio")
-    cmd = (*cl.get_any_pod_exec(cl.get_kubectl(kube_context), label), *py_cmd(), "/ci_serve.py", dumps(steps))
+    kc = cl.get_kubectl(kube_context)
+    cmd = (*kc, "exec", "-i", cl.get_any_pod(kc, label), "--", *py_cmd(), "/ci_serve.py", dumps(steps)) # ? -it can make ^c kill proc-s, but leads to \r staircase bug
     proc = Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     measure_inner(proc.stdout, sys.stdout)
     wait_processes([proc]) or never("failed")
