@@ -177,7 +177,8 @@ def kube_report_make(kube_context, out_path):
 
 def local_kill_serve():
     stats = [f"{p}/status" for p in list_dir("/proc")]
-    to_kill = sorted(int(p.split("/")[-2]) for p in stats if path_exists(p) and "\nPPid:\t1\n" in read_text(p))[1:]
+    pids = [p.split("/")[-2] for p in stats if path_exists(p) and "\nPPid:\t1\n" in read_text(p)]
+    to_kill = sorted(int(p) for p in pids if p.isdigit())[1:]
     run(("kill", *[str(p) for p in to_kill])) if len(to_kill) > 0 else log("nothing to kill")
 
 
