@@ -178,6 +178,12 @@ def kube_report_make(kube_context, out_path):
     changing_text(out_path, kr.get_cluster_report(cl.get_pods_json(cl.get_kubectl(kube_context), ())))
 
 
+def local_kill_serve():
+    stat_paths = [f"{p}/status" for p in list_dir("/proc")]
+    to_kill = sorted(int(p.split("/")[-2]) for p in stat_paths if path_exists(p) and "\nPPid:\t1\n" in read_text(p))[1:]
+    run(("kill", *to_kill)) if len(to_kill) > 0 else log("nothing to kill")
+
+
 def access_once(deploy_context, d):
     path = f"{d}/.c4k8s_path"
     res = access(deploy_context, read_text(path))
@@ -237,6 +243,7 @@ def get_step_handlers(env, deploy_context, get_dir, register, registered): retur
     "secret_get": lambda fn, k8s_path: changing_text(get_dir(fn), access(deploy_context, k8s_path)),
     "write_lines": lambda fn, lines: changing_text(get_dir(fn), "\n".join(lines)),
     "wait_no_app": lambda kube_context, app: wait_no_app(kube_context, app),
+    "local_kill_serve": lambda: local_kill_serve(),
 }
 
 
