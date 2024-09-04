@@ -181,7 +181,7 @@ def kube_report_make(kube_context, out_path):
 def local_kill_serve():
     stat_paths = [f"{p}/status" for p in list_dir("/proc")]
     to_kill = sorted(int(p.split("/")[-2]) for p in stat_paths if path_exists(p) and "\nPPid:\t1\n" in read_text(p))[1:]
-    run(("kill", *to_kill)) if len(to_kill) > 0 else log("nothing to kill")
+    run(("kill", *[str(p) for p in to_kill])) if len(to_kill) > 0 else log("nothing to kill")
 
 
 def access_once(deploy_context, d):
