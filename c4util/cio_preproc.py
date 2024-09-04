@@ -14,30 +14,24 @@ def find_def(scope, name):
     )
 
 
-def plan_steps(scope, planned):
-    for op, *step_args in scope[0]:
-        if op == "def":
-            pass
-        elif op == "for":
-            items, body = step_args
-            for it in items:
-                planned = plan_steps((arg_substitute({"it": it}, body), scope), planned)
-        elif op == "call":
-            msg, = step_args
-            name = msg["op"]
-            args, c_scope, p_scope = find_def(scope, name)
-            bad_args = [] if args is None else sorted(set(msg.keys()).symmetric_difference(["op", *args]))
-            never_if([f"bad arg {arg} of {name}" for arg in bad_args])
-            planned = plan_steps((arg_substitute(msg, c_scope), p_scope), planned)
-        elif op == "call_once": # not fair, by name only
-            name, = step_args
-            if not any(s for s in planned if s[0] == "called" and s[1] == name):
-                args, c_scope, p_scope = find_def(scope, name)
-                never_if(None if args == [] else f"bad args of {name}")
-                planned = plan_steps((c_scope, p_scope), (*planned, ("called", name)))
-        else:
-            planned = (*planned, (op, *step_args))
-    return planned
+def plan_steps(scope): return [ps for step in scope[0] for ps in plan_step(scope, *step)]
+
+
+def plan_step(scope, op, *step_args):
+    if op == "def":
+        return ()
+    elif op == "for":
+        items, body = step_args
+        return [ps for it in items for ps in plan_steps((arg_substitute({"it": it}, body), scope))]
+    elif op == "call":
+        msg, = step_args
+        name = msg["op"]
+        args, c_scope, p_scope = find_def(scope, name)
+        bad_args = [] if args is None else sorted(set(msg.keys()).symmetric_difference(["op", *args]))
+        never_if([f"bad arg {arg} of {name}" for arg in bad_args])
+        return plan_steps((arg_substitute(msg, c_scope), p_scope))
+    else:
+        return [(op, *step_args)]
 
 
 def arg_substitute(args, body):
