@@ -253,7 +253,7 @@ def run_steps(env, steps):
         tmp_life = tempfile.TemporaryDirectory()
         def_repo_dir = need_dir(f"{tmp_life.name}/def_repo")
         clone_def_repo(env, def_repo_dir)
-        steps = plan_steps((steps, (load_def_list(f'{def_repo_dir}/{env["C4CRON_UTIL_DIR"]}'), None)), ())
+        steps = plan_steps((steps, (load_def_list(f'{def_repo_dir}/{env["C4CRON_UTIL_DIR"]}'), None)))
         log("plan:\n" + "\n".join(f"\t{dumps(step)}" for step in steps))
     get_dir = (lambda subdir: f'{tmp_life.name}/{subdir}')
     register = (lambda k, v: ctx.setdefault(k, []).append(v))
