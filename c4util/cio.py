@@ -9,6 +9,7 @@ from json import dumps, loads, decoder as json_decoder
 import pathlib
 from datetime import datetime
 from types import FunctionType
+import importlib
 
 from . import snapshots as sn, purge as pu, cluster as cl, git, kube_reporter as kr, notify as ny, distribution
 from .cio_preproc import arg_substitute, plan_steps
@@ -16,11 +17,15 @@ from . import run, never, list_dir, log, Popen, wait_processes, changing_text, o
     path_exists
 
 
-def get_cmd(f:FunctionType,*args): return *py_cmd(), "-c", ";".join((
-    "import sys,os,json", "sys.path.append(os.environ['C4CI_PROTO_DIR'])",
-    f"from {f.__module__} import {f.__name__} as f",
-    "f(*[(os.environ if a=='env' else a[0]) for a in json.loads(sys.argv[1])])"
-)), dumps([("env" if arg is environ else [arg]) for arg in args])
+def get_cmd(f:FunctionType,*args): return (
+    *py_cmd(),"-c","import sys,os;sys.path.append(os.environ['C4CI_PROTO_DIR']);from c4util.cio import run_cmd as f;f()",
+    dumps([f.__module__, f.__name__,*(("env",*args[1:]) if args and args[0] is environ else ("",*args))])
+)
+
+
+def run_cmd():
+    mod, fun, pre_arg, *args = loads(sys.argv[1])
+    getattr(importlib.import_module(mod), fun)(*([environ] if pre_arg=="env" else()),*args)
 
 
 def py_cmd(): return "python3", "-u"
