@@ -95,7 +95,7 @@ def load_def_list(a_dir):
 
 def log_message(env, log_path): return (
     'starting task' if log_path is None else
-    f'starting task, to view log:\n\tkcd exec {env["HOSTNAME"]} -- tail -f {log_path} -n1000'
+    f'starting task, to view log:\n\tkcd exec -it {env["HOSTNAME"]} -- tail -f {log_path} -n1000'
 )
 
 
