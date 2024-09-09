@@ -35,6 +35,11 @@ def plan_step(scope, op, *step_args):
 
 
 def arg_substitute(args, body):
-    patt = re.compile(r'\{(\w+)}|"@(\w+)"')
-    repl = (lambda a: args.get(a.group(1), dumps(args[a.group(2)]) if a.group(2) in args else a.group(0)))
+    patt = re.compile(r'\{(\w+)}|"@(\w+)"|"strange@(\w+)"')
+    repl = (lambda a: (
+        args[a.group(1)] if a.group(1) in args else
+        dumps(args[a.group(2)]) if a.group(2) in args else
+        dumps([str(n) for n in range(args[a.group(3)])]) if a.group(3) in args else
+        a.group(0)
+    ))
     return loads(patt.sub(repl, dumps(body)))
