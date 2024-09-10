@@ -10,6 +10,9 @@ import pathlib
 from datetime import datetime
 from types import FunctionType
 import importlib
+from threading import Thread
+import os
+import signal
 
 from . import snapshots as sn, purge as pu, cluster as cl, git, kube_reporter as kr, notify as ny, distribution
 from .cio_preproc import arg_substitute, plan_steps
@@ -246,6 +249,9 @@ def get_step_handlers(env, deploy_context, get_dir, register, registered): retur
     "write_lines": lambda fn, lines: changing_text(get_dir(fn), "\n".join(lines)),
     "wait_no_app": lambda kube_context, app: wait_no_app(kube_context, app),
     "local_kill_serve": lambda: wait_val(lambda delay: local_kill_serve(delay)),
+    "die_after": lambda per: Thread(daemon=True, target=lambda:(
+        time.sleep(int(per[:-1]) * {"m":60,"h":3600}[per[-1]]), os.kill(os.getpid(), signal.SIGINT)
+    )).start(),
 }
 
 
