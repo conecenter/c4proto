@@ -21,10 +21,10 @@ def s3purge(kc, need_rm):
         run((*mc, "rb", "--force", *(s3path(b) for b in buckets_to_rm)))
 
 
-def secret_part_as_file(secret, file_name, to_dir):
-    to_path = f"{to_dir}/{file_name}"
-    pathlib.Path(to_path).write_bytes(secret(file_name))
-    return to_path
+# def secret_part_as_file(secret, file_name, to_dir):
+#     to_path = f"{to_dir}/{file_name}"
+#     pathlib.Path(to_path).write_bytes(secret(file_name))
+#     return to_path
 
 
 def kafka_purge(kc, need_rm):
@@ -52,3 +52,11 @@ def purge_prefix_list(deploy_context, prefix_list):
     active_prefixes = get_active_prefixes(kc)
     never_if([f"{conflicting} is in use" for conflicting in sorted(prefixes & active_prefixes)])
     purge_inner(kc, lambda prefix: prefix in prefixes)
+
+
+
+# rm s3 not-last -- match 1st
+# --running : skip/scale-wait/die
+# rm-topic rename-last rm-txr?
+# rm-topic rm-last rm-txr?
+# aims: free s3, free kafka, fix coworker

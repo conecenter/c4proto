@@ -1,10 +1,11 @@
 
 import re
-import json
-import subprocess
-import sys
+from json import dumps
 import http.client
-from . import Popen, http_check, http_exchange, log
+from pathlib import Path
+
+from . import http_check, http_exchange, changing_text, read_json, run
+from .cmd import get_cmd
 
 
 # immutable, api specific:
@@ -21,24 +22,18 @@ def notify_create_requests(auth, full_url, now, work_hours, valid_hours, descr):
 
 
 # general:
-
-
-def notify_started(cmd, requests):
+def notify_started(get_dir, requests):
     notify_send_req(*requests["started"])
-    proc = Popen(cmd, stdin=subprocess.PIPE, text=True)
-    print(json.dumps(requests["failed"]), file=proc.stdin, flush=True)
-    return lambda: print(json.dumps(requests["succeeded"]), file=proc.stdin, flush=True)
+    changing_text(get_dir("fin.json"), dumps(get_cmd(notify_send_req, *requests["failed"])))
+    changing_text(get_dir("notify_succeeded.json"), dumps(get_cmd(notify_send_req, *requests["succeeded"])))
 
 
-def notify_wait_finish():
-    last_line = None
-    for line in sys.stdin:
-        last_line = line
-    #log(last_line)
-    notify_send_req(*json.loads(last_line))
+def notify_succeeded(get_dir):
+    run(read_json(get_dir("notify_succeeded.json")))
+    Path(get_dir("fin.json")).unlink()
 
 
 def notify_send_req(host, method, url, data, headers):
     conn = http.client.HTTPSConnection(host, None)
     # log([host, method, url, data, headers])
-    http_check(*http_exchange(conn, method, url, json.dumps(data).encode("utf-8"), headers))
+    http_check(*http_exchange(conn, method, url, dumps(data).encode("utf-8"), headers))
