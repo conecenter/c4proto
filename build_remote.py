@@ -172,7 +172,7 @@ def ci_prep(context, c4env, env_state, info_out):
     run(("perl", f"{proto_dir}/sync_mem.pl", context))
     commit = get_commit(context)  # after sync_mem
     descr = run_text_out(("git", "describe", "--all"), cwd=context).strip()
-    changing_text(f"{context}/target/c4ref_descr", descr)
+    changing_text(f"{context}/target/c4ref_descr", f"{descr}#{commit}") # descr content depends on how we make checkout, it can be w/o commit
     #
     info("making deploy info ...")
     out_path = f"{temp_root.name}/out"

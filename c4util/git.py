@@ -1,5 +1,5 @@
 
-from . import run, run_no_die, run_text_out, log, never
+from . import run, run_no_die, run_text_out, log, never_if
 
 
 def git_init(repo, d):
@@ -7,10 +7,14 @@ def git_init(repo, d):
     run(("git", "remote", "add", "origin", repo), cwd=d)
 
 
-def git_fetch_checkout(branch, d, fetch_can_fail):
-    fetched = run_no_die(("git", "fetch", "--depth", "1", "-k", "--", "origin", branch), cwd=d)
-    from_br = ["FETCH_HEAD"] if fetched else [] if fetch_can_fail else never("fetch fail")
-    run(("git", "checkout", "-b", branch, *from_br), cwd=d)
+def git_clone(repo, branch, d):
+    run(("git", "clone", "--depth", "1", "-b", branch, "--", repo, d ))
+
+
+def git_pull(d):
+    branch = run_text_out(("git", "branch", "--show-current"), cwd=d).strip()
+    never_if(None if branch else "not a branch")
+    run(("git", "pull", "origin", branch), cwd=d)
 
 
 def git_set_user(d):
@@ -27,13 +31,20 @@ def git_add_tagged(d, tag):
     run(("git", "push", "--tags", "origin"), cwd=d)
 
 
-def git_save_changed(context):
-    if len(run_text_out(("git", "status", "--porcelain=v1"), cwd=context).strip()) > 0:
-        git_set_user(context)
-        run(("git", "add", "."), cwd=context)
-        branch = run_text_out(("git", "rev-parse", "--abbrev-ref", "HEAD"), cwd=context).strip()
-        run_no_die(("git", "pull", "origin", branch), cwd=context)
-        run(("git", "commit", "-m-"), cwd=context)
-        run(("git", "push", "--set-upstream", "origin", branch), cwd=context)
+def git_clone_or_init(repo, branch, d):
+    if not run_no_die(("git", "clone", "--depth", "1", "-b", branch, "--", repo, d)):
+        git_init(repo, d)
+        run(("git", "checkout", "-b", branch), cwd=d)
+        git_set_user(d)
+        run(("git", "commit", "-m-", "--allow-empty"), cwd=d)
+        run(("git", "push", "--set-upstream", "origin", branch), cwd=d)
+
+
+def git_save_changed(d):
+    if len(run_text_out(("git", "status", "--porcelain=v1"), cwd=d).strip()) > 0:
+        git_set_user(d)
+        run(("git", "add", "."), cwd=d)
+        run(("git", "commit", "-m-"), cwd=d)
+        run(("git", "push"), cwd=d)
     else:
         log("unchanged")
