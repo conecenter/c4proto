@@ -3,30 +3,26 @@ from random import random
 import sys
 from os import environ
 import time
-from time import monotonic, sleep
+from time import sleep
 from tempfile import TemporaryDirectory
-import subprocess
 from json import dumps, loads, decoder as json_decoder
 from pathlib import Path
 from datetime import datetime
-from queue import Queue
-from threading import Thread
-import os
-import signal
 from http.client import HTTPConnection
-from http.server import HTTPServer, BaseHTTPRequestHandler
 from functools import reduce
+
 
 from . import snapshots as sn, purge as pu, cluster as cl, git, kube_reporter as kr, notify as ny, distribution
 from .cio_preproc import arg_substitute, plan_steps
 from . import run, list_dir, log, Popen, wait_processes, changing_text, one, read_text, never_if, need_dir, \
-    path_exists, read_json, debug_args, http_exchange, http_check
+    path_exists, read_json, http_exchange, http_check, never, debug_args
 from .cmd import get_cmd
-
+from .threads import TaskQ, daemon, TaskFin, open_piped
+from .http_server import http_serve, PostReq, http_q_exchange
 
 def app_prep_start(q, env, app, app_dir, up_path):
     changing_text(lock_path(up_path), "")
-    start(q, env, get_cmd(app_prep, env, app, app_dir, up_path), title=f'app_prep {up_path}')
+    q.submit(open_piped(get_cmd(app_prep, env, app, app_dir, up_path)), "", f'prep {up_path}')
 
 
 def app_prep(env, app, app_dir, up_path):
@@ -49,7 +45,7 @@ def lock_path(path): return f"{path}.proc"
 
 
 def app_cold_start(q, env, conf_from, snapshot_from):
-    start(q, env, get_cmd(app_cold_start_blocking, env, conf_from, snapshot_from), title=f'app_cold {conf_from}')
+    q.submit(open_piped(get_cmd(app_cold_start_blocking, env, conf_from, snapshot_from)), "", f'cold {conf_from}')
 
 
 def app_cold_start_blocking(env, conf_from, snapshot_from):
@@ -70,11 +66,13 @@ def app_stop_start(kube_context, app):
     return Popen((*cl.get_kubectl(kube_context), "delete", "service,deploy,statefulset,ingress", "-l", f'c4env={app}'))
 
 
+def app_substitute(fr, sub, to): changing_text(to, reduce(lambda t, s: t.replace(*s), sub, read_text(fr)))
+
+
 def select_def(def_list, s0, s1): return [d[2] for d in def_list if d[0] == s0 and d[1] == s1]
 
 
-def load_no_die(path):
-    s = read_text(path)
+def load_no_die(s, path):
     try:
         return loads(s)
     except json_decoder.JSONDecodeError as e:
@@ -82,7 +80,7 @@ def load_no_die(path):
 
 
 def load_def_list(a_dir):
-    return [d for p in list_dir(a_dir) if p.endswith(".json") for c in [load_no_die(p)] if c for d in c]
+    return [d for p in list_dir(a_dir) if p.endswith(".json") for c in [load_no_die(read_text(p), p)] if c for d in c]
 
 
 def log_message(env, log_path): return f'to view log: kcd exec -it {env["HOSTNAME"]} -- tail -f {log_path} -n1000'
@@ -94,74 +92,31 @@ def access(kube_context, k8s_path): return cl.secret_part_to_text(cl.get_kubectl
 def get_log_path():
     return f"/tmp/c4log-{datetime.now().isoformat().replace(':','-').split('.')[0]}-{str(random()).split('.')[-1]}"
 
-#
 
 def rsync_local(fr, to): run(("rsync", "-acr", fr+"/", need_dir(to)+"/"))
 
 
-class TaskQ:
-    q: Queue
-    count: int
+def make_task_q(env, to_title) -> TaskQ: return TaskQ(
+    get_log_path = get_log_path,
+    log_starting = lambda proc, log_path: (debug_args("starting", proc.args), log(log_message(env, log_path))),
+    log_finished = lambda msg: log(
+        f'{"succeeded" if msg.ok else "failed"} {to_title(msg.key, msg.value)}, {log_message(env, msg.log_path)}'
+    ),
+    log_progress = lambda count: log(f'{count} tasks in progress'),
+)
 
 
-def wait_q(q: TaskQ, need_ok):
-    never_if(need_ok and not q.c4ok)
-    while q.count > 0:
-        ok, opt = get_q(q)
-        q.c4ok = q.c4ok and ok
-        never_if(need_ok and not q.c4ok)
-
-
-def make_q():
-    q = TaskQ()
-    q.q = Queue()
-    q.count = 0
-    return q
-
-
-def get_q(q: TaskQ):
-    log(f'{q.count} tasks in progress')
-    ok, opt, text = q.q.get()
-    q.count -= 1
-    log(text)
-    return ok, opt
-
-
-def start(q: TaskQ, env, cmd, cwd = None, opt=None, title=None):
-    q.count += 1
-    done = (lambda ok, text: q.q.put((ok, opt, text)))
-    start_inner(env, cmd, cwd, get_log_path(), "task" if title is None else title, done)
-
-
-def start_inner(env, cmd, cwd, log_path, title, done):
-    to_view_txt = log_message(env, log_path)
-    debug_args(f'starting {title}', cmd)
-    log(to_view_txt)
-    started = monotonic()
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=cwd, env=env)
-    def inner():
-        with open(log_path, "w") as log_file:
-            for line in proc.stdout:
-                print(f"{str(int(monotonic()-started)).zfill(5)} {line}", end="", file=log_file, flush=True)
-        ok = proc.wait() == 0
-        None if done is None else done(ok, f'{"succeeded" if ok else "failed"} {title}, {to_view_txt}')
-    daemon(inner)
-    return proc
-
-
-def http_call_server_run(q, env):
-    class CallHandler(BaseHTTPRequestHandler):
-        def do_POST(self):
-            never_if(self.path != '/c4q')
-            service_name, step = loads(self.rfile.read(int(self.headers['Content-Length'])).decode("utf-8"))
-            log_path = get_log_path()
-            q.put((log_path, service_name, step))
-            self.send_response(200)
-            self.send_header("Content-Type", "text/plain")
-            self.end_headers()
-            self.wfile.write(f'starting, {log_message(env, log_path)}'.encode("utf-8"))
-    #noinspection PyTypeChecker
-    HTTPServer(get_cmd_addr(), CallHandler).serve_forever()
+def distribution_run_outer(env, groups, tasks, try_count, check_task, dir_te, command_te):
+    q = make_task_q(env, lambda group, task: f"group {group} task {task}")
+    def do_start(group, task):
+        arg = {"group": group, "task": task}
+        proc = open_piped(arg_substitute(arg, command_te), cwd=arg_substitute(arg, dir_te), env=env)
+        never_if(None if len(group) > 0 else "bad group")
+        q.submit(proc, group, task)
+    def do_get():
+        m = q.get()
+        return m.ok, m.key, m.value
+    distribution.distribution_run(groups, tasks, try_count, check_task, do_start, do_get)
 
 
 def cron_serve(env, def_repo_dir):
@@ -187,52 +142,46 @@ def cron_serve(env, def_repo_dir):
         time.sleep(30)
 
 
-def app_substitute(fr, sub, to): changing_text(to, reduce(lambda t, s: t.replace(*s), sub, read_text(fr)))
-
-
-def handle_command(env, main_dir, task_q, tasks):
-    log_path, service_name, step = task_q.get()
-    fin_path = lambda l: f"{l.name}/fin.json"
-    tasks = {k: (np, l) for k, pl in tasks.items() for p, l in [pl] for np in [
-        p if p.poll() is None else Popen(loads(read_text_once(fin_path(l)))) if path_exists(fin_path(l)) else None
-    ] if np is not None}
-    task_key = service_name if len(service_name) > 0 else log_path
-    if task_key in tasks:
-        return tasks
-    def_repo_dir = f"{main_dir}/def_repo"
-    git.git_pull(def_repo_dir) if path_exists(def_repo_dir) else git.git_clone(
-        access(env["C4DEPLOY_CONTEXT"], env["C4CRON_REPO"]), env["C4CRON_BRANCH"], def_repo_dir
-    )
-    life = TemporaryDirectory()
-    rsync_local(main_dir, life.name)
-    title = dumps(step)
-    steps = [["log_path", log_path], step]
-    proc = start_inner(env, get_cmd(run_steps, env, steps, life.name), None, log_path, title, None)
-    return {**tasks, task_key: (proc, life)}
-
-
 def main_serve(env):
-    task_q = Queue()
-    daemon(fatal, http_call_server_run, task_q, env)
-    daemon(fatal, repeat, lambda: (task_q.put([get_log_path(),"cron",["cron"]]), sleep(5)))
+    task_q = make_task_q(env, lambda task_key, life: read_text(f'{life.name}/req.json'))
+    daemon(http_serve, task_q.q, get_cmd_addr())
+    daemon(repeat, lambda: (http_q_exchange(task_q.q, "/c4q", dumps(["cron",["cron"]])), sleep(5)))
     dir_life = TemporaryDirectory()
-    repeat_st({}, lambda tasks: handle_command(env, dir_life.name, task_q, tasks))
-
-
-def fatal(f, *args):
-    try: f(*args)
-    finally: os.kill(os.getpid(), signal.SIGINT)
-
-
-def daemon(f, *args): Thread(target=f, args=args, daemon=True).start()
+    def handle_command():
+        msg = task_q.get()
+        if isinstance(msg, TaskFin):
+            task_key, life = msg.key, msg.value
+            fin_path = f"{life.name}/fin.json"
+            if path_exists(fin_path):
+                task_q.submit(open_piped(read_json(fin_path), env=env), task_key, life)
+        elif isinstance(msg, PostReq):
+            if msg.path != "/c4q":
+                return msg.respond_text(404,"Not Found")
+            parsed = load_no_die(msg.text, "post")
+            if parsed is None or len(parsed) != 2:
+                return msg.respond_text(400,"Bad Request")
+            service_name, step = parsed
+            if task_q.can_not_submit(service_name):
+                return msg.respond_text(302,"Found")
+            life = TemporaryDirectory()
+            #
+            def_repo_dir = f"{dir_life.name}/def_repo"
+            git.git_pull(def_repo_dir) if path_exists(def_repo_dir) else git.git_clone(
+                access(env["C4DEPLOY_CONTEXT"], env["C4CRON_REPO"]), env["C4CRON_BRANCH"], def_repo_dir
+            )
+            rsync_local(dir_life.name, life.name)
+            #
+            log_path = get_log_path()
+            changing_text(f'{life.name}/log_path', log_path)
+            changing_text(f'{life.name}/req.json', msg.text)
+            proc = open_piped(get_cmd(run_steps, env, [step], life.name), env=env)
+            task_q.submit(proc, service_name, life, log_path=log_path)
+            msg.respond_text(200,f'starting, {log_message(env, log_path)}')
+    repeat(handle_command)
 
 
 def repeat(f, exits=()):
     while f() not in exits: pass
-
-
-def repeat_st(st, f):
-    while True: st = f(st)
 
 
 def read_text_once(path):
@@ -240,14 +189,6 @@ def read_text_once(path):
     Path(path).unlink()
     return res
 
-
-def distribution_run_outer(env, q, groups, tasks, try_count, check_task, dir_te, command_te):
-    do_start = lambda arg: (
-        start(q, env, arg_substitute(arg, command_te), cwd=arg_substitute(arg, dir_te), opt=arg, title=arg["title"])
-    )
-    distribution.distribution_run(groups, tasks, try_count, check_task, do_start, lambda: get_q(q))
-
-#
 
 def kube_report_serve(d, subdir_pf):
     life = TemporaryDirectory()
@@ -297,26 +238,25 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "purge_mode_list": lambda mode_list: pu.purge_mode_list(deploy_context, mode_list),
     "purge_prefix_list": lambda prefix_list: pu.purge_prefix_list(deploy_context, prefix_list),
     "run": lambda cwd, cmd: run(cmd, cwd=get_dir(cwd)),
-    "start": lambda cwd, cmd: start(main_q, env, cmd, cwd=get_dir(cwd)),
-    "wait_all": lambda: wait_q(main_q, False),
-    "wait_all_ok": lambda: wait_q(main_q, True),
+    "start": lambda cwd, cmd: main_q.submit(open_piped(cmd, cwd=get_dir(cwd)), "", cmd[0]),
+    "wait_all": lambda: main_q.wait_all(False),
+    "wait_all_ok": lambda: main_q.wait_all(True),
     "rsync": lambda fr, to: rsync_local(get_dir(fr), get_dir(to)),
     "kube_report_serve": lambda name, subdir: repeat(lambda: kube_report_serve(get_dir(name), subdir)),
     "notify_started": lambda opt: ny.notify_started(get_dir, ny.notify_create_requests(
         access(deploy_context, opt["auth"]), opt["url"],
-        time.time(), opt["work_hours"], opt["valid_hours"], read_text(get_dir("log_message"))
+        time.time(), opt["work_hours"], opt["valid_hours"], log_message(env, read_text(get_dir("log_path")))
     )),
     "notify_succeeded": lambda: ny.notify_succeeded(get_dir),
     "distribution_run": lambda opt: distribution_run_outer(
-        env, make_q(), opt["groups"], loads(read_text(get_dir(opt["tasks"]))), opt["try_count"], opt["check_task"],
+        env, opt["groups"], loads(read_text(get_dir(opt["tasks"]))), opt["try_count"], opt["check_task"],
         get_dir(opt["dir"]), opt["command"]
     ),
     "secret_get": lambda fn, k8s_path: changing_text(get_dir(fn), access(deploy_context, k8s_path)),
     "write_lines": lambda fn, lines: changing_text(get_dir(fn), "\n".join(lines)),
     "wait_no_app": lambda kube_context, app: wait_no_app(kube_context, app),
     "local_kill_serve": lambda: repeat(local_kill_serve),
-    "die_after": lambda per: daemon(fatal, sleep, int(per[:-1]) * {"m":60, "h":3600}[per[-1]]),
-    "log_path": lambda log_path: changing_text(get_dir("log_message"), log_message(env, log_path)),
+    "die_after": lambda per: daemon(lambda: (sleep(int(per[:-1]) * {"m":60, "h":3600}[per[-1]]), never("expired"))),
     "cron": lambda: cron_serve(env, get_dir("def_repo")),
     "app_substitute": lambda opt: app_substitute(get_dir(opt["conf_from"]), opt["substitute"], get_dir(opt["conf_to"])),
 }
@@ -325,7 +265,8 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
 def run_steps(env, steps, tmp_dir):
     steps = plan_steps((steps, (load_def_list(f'{tmp_dir}/def_repo/{env["C4CRON_UTIL_DIR"]}'), None)))
     log("plan:\n" + "\n".join(f"\t{dumps(step)}" for step in steps))
-    handlers = get_step_handlers(env, env["C4DEPLOY_CONTEXT"], get_dir=(lambda nm: f'{tmp_dir}/{nm}'), main_q=make_q())
+    main_q = make_task_q(env, lambda key, title: title)
+    handlers = get_step_handlers(env, env["C4DEPLOY_CONTEXT"], get_dir=(lambda nm: f'{tmp_dir}/{nm}'), main_q=main_q)
     for step in steps:
         log(dumps(step))
         handlers[step[0]](*step[1:])

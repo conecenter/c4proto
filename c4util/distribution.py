@@ -32,16 +32,15 @@ def distribution_calc(groups, task_list, try_count, check_task, events):
 def distribution_run(groups, task_list, try_count, check_task, do_start, do_get):
     events = []
     started_at = monotonic()
-    add_ev = (lambda o, st: events.append((o["group"], o["task"], st, monotonic() - started_at)))
+    add_ev = (lambda *args: events.append((*args, monotonic() - started_at)))
     while True:
         to_starts, finally_failed = distribution_calc(groups, task_list, try_count, check_task, events)
         for group, task in to_starts:
-            opt = {"group": group, "task": task, "title": f'{group} {task}'}
-            add_ev(opt, "P")
-            do_start(opt)
+            add_ev(group, task, "P")
+            do_start(group, task)
         if finally_failed is None:
-            ok, opt = do_get()
-            add_ev(opt, "S" if ok else "F")
+            ok, group, task = do_get()
+            add_ev(group, task, "S" if ok else "F")
         else:
             log(f'todo: {dumps(finally_failed)}')
             log("\n".join(f"distribution was {s} {g} {t} {tm}" for g, t, s, tm in events))
