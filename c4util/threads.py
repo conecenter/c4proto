@@ -7,8 +7,6 @@ from signal import SIGINT
 from subprocess import Popen, PIPE, STDOUT
 from time import monotonic
 
-from c4util.cio import get_log_path
-
 
 class TaskFin(NamedTuple):
     ok: bool

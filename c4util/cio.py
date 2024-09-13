@@ -83,21 +83,17 @@ def load_def_list(a_dir):
     return [d for p in list_dir(a_dir) if p.endswith(".json") for c in [load_no_die(read_text(p), p)] if c for d in c]
 
 
-def log_message(env, log_path): return f'to view log: kcd exec -it {env["HOSTNAME"]} -- tail -f {log_path} -n1000'
+def log_message(env, log_path): return f'to view log: kcd exec -it {env["HOSTNAME"]} -- tail -f {log_path} -n 1000'
 
 
 def access(kube_context, k8s_path): return cl.secret_part_to_text(cl.get_kubectl(kube_context), k8s_path)
-
-
-def get_log_path():
-    return f"/tmp/c4log-{datetime.now().isoformat().replace(':','-').split('.')[0]}-{str(random()).split('.')[-1]}"
 
 
 def rsync_local(fr, to): run(("rsync", "-acr", fr+"/", need_dir(to)+"/"))
 
 
 def make_task_q(env, to_title) -> TaskQ: return TaskQ(
-    get_log_path = get_log_path,
+    get_log_path = lambda: f"/tmp/c4log-{datetime.now().isoformat().replace(':','-').split('.')[0]}-{str(random()).split('.')[-1]}",
     log_starting = lambda proc, log_path: (debug_args("starting", proc.args), log(log_message(env, log_path))),
     log_finished = lambda msg: log(
         f'{"succeeded" if msg.ok else "failed"} {to_title(msg.key, msg.value)}, {log_message(env, msg.log_path)}'
@@ -110,7 +106,7 @@ def distribution_run_outer(env, groups, tasks, try_count, check_task, dir_te, co
     q = make_task_q(env, lambda group, task: f"group {group} task {task}")
     def do_start(group, task):
         arg = {"group": group, "task": task}
-        proc = open_piped(arg_substitute(arg, command_te), cwd=arg_substitute(arg, dir_te), env=env)
+        proc = open_piped(arg_substitute(arg, command_te), cwd=arg_substitute(arg, dir_te))
         never_if(None if len(group) > 0 else "bad group")
         q.submit(proc, group, task)
     def do_get():
@@ -153,7 +149,7 @@ def main_serve(env):
             task_key, life = msg.key, msg.value
             fin_path = f"{life.name}/fin.json"
             if path_exists(fin_path):
-                task_q.submit(open_piped(read_json(fin_path), env=env), task_key, life)
+                task_q.submit(open_piped(loads(read_text_once(fin_path))), task_key, life)
         elif isinstance(msg, PostReq):
             if msg.path != "/c4q":
                 return msg.respond_text(404,"Not Found")
@@ -171,12 +167,13 @@ def main_serve(env):
             )
             rsync_local(dir_life.name, life.name)
             #
-            log_path = get_log_path()
+            log_path = task_q.get_log_path()
             changing_text(f'{life.name}/log_path', log_path)
             changing_text(f'{life.name}/req.json', msg.text)
-            proc = open_piped(get_cmd(run_steps, env, [step], life.name), env=env)
+            proc = open_piped(get_cmd(run_steps, env, [step], life.name))
             task_q.submit(proc, service_name, life, log_path=log_path)
-            msg.respond_text(200,f'starting, {log_message(env, log_path)}')
+            o = {"message":f'starting, {log_message(env, log_path)}', "command": ["tail", "-f", log_path, "-n", "1000"]}
+            msg.respond_text(200, dumps(o))
     repeat(handle_command)
 
 
@@ -279,7 +276,9 @@ def get_cmd_addr(): return "127.0.0.1", 8000
 
 def send(*args):
     conn = HTTPConnection(*get_cmd_addr())
-    log(http_check(*http_exchange(conn, "POST", "/c4q", dumps(args).encode("utf-8"), ())))
+    res = loads(http_check(*http_exchange(conn, "POST", "/c4q", dumps(args).encode("utf-8"), ())))
+    log(res["message"])
+    run(res["command"])
 
 # pod entrypoint -> cio ci_serve main -> cio ci_serve #-> cio main -> main_serve
 # prod cio_call/snapshot_* -> ##-> cio ci_serve #-> cio main -> http-client -> http-server -> main_serve
