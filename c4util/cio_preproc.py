@@ -22,6 +22,7 @@ def plan_step(scope, op, *step_args):
         return ()
     elif op == "for":
         items, body = step_args
+        isinstance(items, list) or never("need list")
         return [ps for it in items for ps in plan_steps((arg_substitute({"it": it}, body), scope))]
     elif op == "call":
         msg, = step_args

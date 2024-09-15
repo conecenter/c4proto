@@ -12,10 +12,10 @@ from http.client import HTTPConnection
 from functools import reduce
 
 
-from . import snapshots as sn, purge as pu, cluster as cl, git, kube_reporter as kr, notify as ny, distribution
+from . import snapshots as sn, cluster as cl, git, kube_reporter as kr, notify as ny, distribution
 from .cio_preproc import arg_substitute, plan_steps
 from . import run, list_dir, log, Popen, wait_processes, changing_text, one, read_text, never_if, need_dir, \
-    path_exists, read_json, http_exchange, http_check, never, debug_args
+    path_exists, read_json, http_exchange, http_check, never, debug_args, repeat, decode, run_no_die
 from .cmd import get_cmd
 from .threads import TaskQ, daemon, TaskFin, open_piped
 from .http_server import http_serve, PostReq, http_q_exchange
@@ -53,7 +53,7 @@ def app_cold_start_blocking(env, conf_from, snapshot_from):
     it = read_json(conf_from)
     never_if(f'bad ctx {it["kube-context"]} {it["c4env"]}' if it["kube-context"] != env["C4DEPLOY_CONTEXT"] else None)
     pod_templates = [man["spec"]["template"] for man in it["manifests"] if man["kind"] == "Deployment"]
-    install_prefix = one(*sn.get_env_values_from_pods("C4INBOX_TOPIC_PREFIX", pod_templates))
+    install_prefix = one(*sn.get_prefixes_from_pods(pod_templates))
     sn.snapshot_copy(env, snapshot_from, {"prefix": install_prefix})
     app_up(it)
 
@@ -86,7 +86,7 @@ def load_def_list(a_dir):
 def log_message(env, log_path): return f'to view log: kcd exec -it {env["HOSTNAME"]} -- tail -f {log_path} -n 1000'
 
 
-def access(kube_context, k8s_path): return cl.secret_part_to_text(cl.get_kubectl(kube_context), k8s_path)
+def access(kube_context, k8s_path): return decode(cl.get_secret_part(cl.get_kubectl(kube_context), k8s_path))
 
 
 def rsync_local(fr, to): run(("rsync", "-acr", fr+"/", need_dir(to)+"/"))
@@ -177,14 +177,45 @@ def main_serve(env):
     repeat(handle_command)
 
 
-def repeat(f, exits=()):
-    while f() not in exits: pass
-
-
 def read_text_once(path):
     res = read_text(path)
     Path(path).unlink()
     return res
+
+
+def kafka_client_serve(deploy_context, port_offset, conf):
+    life = TemporaryDirectory()
+    kc = cl.get_kubectl(deploy_context)
+    handlers = {
+        "is": lambda path, k, v: [("L",k,v)],
+        "is_content_of": lambda path, k, v: [("L",k,decode(cl.get_secret_part(kc,v)))],
+        "is_path_of": lambda path, k, v: [("L",k,path),("F",path,cl.get_secret_part(kc,v))]
+    }
+    todo = [r for i, (k, mode, v) in enumerate(conf) for r in handlers[mode](f"{life.name}/{i}",k,v)]
+    for c, k, v in todo: c == "F" and Path(k).write_bytes(v)
+    conf_path = f"{life.name}/kafka.conf"
+    changing_text(conf_path, "".join(f"{k}={v}\n" for c, k, v in todo if c == "L"))
+    cp = read_text("/c4/kafka-clients-classpath").strip()
+    src_path = str(Path(__file__).parent/"kafka.java")
+    run(("java", "--source", "21", "--enable-preview", "-cp", cp, src_path, str(cl.kafka_port(port_offset)), conf_path))
+
+
+def purge(env, prefix, clients):
+    kube_context = env["C4DEPLOY_CONTEXT"]
+    kc = cl.get_kubectl(kube_context)
+    cl.wait_no_active_prefix(kc, prefix)
+    mc = cl.s3init(kc)
+    ls = lambda tp: cl.s3list(mc, cl.s3path(f"{prefix}{tp}"))
+    run_no_die((*mc, "rm", *ls(".snapshots"), *ls(".txr")))
+    for id in clients:
+        cl.kafka_post(id, "rm", prefix)
+    never_if(ls(".snapshots"))
+
+
+def secret_part_as_file(secret, file_name, to_dir):
+    to_path = f"{to_dir}/{file_name}"
+    Path(to_path).write_bytes(secret(file_name))
+    return to_path
 
 
 def kube_report_serve(d, subdir_pf):
@@ -232,8 +263,11 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "app_cold_start": lambda opt: app_cold_start(main_q, env, get_dir(opt["conf_from"]), opt["snapshot_from"]),
     "app_stop_start": lambda kube_context, app: app_stop_start(kube_context, app),
     "app_prep_start": lambda opt: app_prep_start(main_q, env, opt["app"], get_dir(opt["ver"]), get_dir(opt["conf_to"])),
-    "purge_mode_list": lambda mode_list: pu.purge_mode_list(deploy_context, mode_list),
-    "purge_prefix_list": lambda prefix_list: pu.purge_prefix_list(deploy_context, prefix_list),
+    "app_substitute": lambda opt: app_substitute(get_dir(opt["conf_from"]), opt["substitute"], get_dir(opt["conf_to"])),
+    "app_scale": lambda app, n: run((*cl.get_kubectl(deploy_context), "scale", "--replicas", str(n), "deploy", app)),
+    "purge_start": lambda opt: main_q.submit(
+        open_piped(get_cmd(purge, env, opt["prefix"], opt["clients"])), "", f'purge {opt["prefix"]}'
+    ),
     "run": lambda cwd, cmd: run(cmd, cwd=get_dir(cwd)),
     "start": lambda cwd, cmd: main_q.submit(open_piped(cmd, cwd=get_dir(cwd)), "", cmd[0]),
     "wait_all": lambda: main_q.wait_all(False),
@@ -255,7 +289,7 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "local_kill_serve": lambda: repeat(local_kill_serve),
     "die_after": lambda per: daemon(lambda: (sleep(int(per[:-1]) * {"m":60, "h":3600}[per[-1]]), never("expired"))),
     "cron": lambda: cron_serve(env, get_dir("def_repo")),
-    "app_substitute": lambda opt: app_substitute(get_dir(opt["conf_from"]), opt["substitute"], get_dir(opt["conf_to"])),
+    "kafka_client_serve": lambda opt: kafka_client_serve(deploy_context, opt["port_offset"], opt["conf"])
 }
 
 

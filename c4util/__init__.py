@@ -92,3 +92,7 @@ def http_exchange(conn, method, url, data, headers):
 
 
 def http_check(status, msg): return msg if 200 <= status < 300 else never(f"request failed: {status}\n{msg}")
+
+
+def repeat(f, exits=()):
+    while f() not in exits: pass
