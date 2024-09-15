@@ -5,7 +5,7 @@ import os
 from http.client import HTTPConnection
 from time import sleep
 
-from . import run_text_out, decode, repeat, http_check, http_exchange
+from . import run_text_out, repeat, http_exchange
 
 
 def get_secret_data(kc, secret_name):
@@ -15,7 +15,7 @@ def get_secret_data(kc, secret_name):
 
 def get_secret_part(kc, k8s_path):
     secret_name, secret_fn = k8s_path.split("/")
-    return decode(get_secret_data(kc, secret_name)(secret_fn))
+    return get_secret_data(kc, secret_name)(secret_fn)
 
 
 def get_kubectl(kube_context): return "kubectl", "--kubeconfig", os.environ["C4KUBECONFIG"], "--context", kube_context
