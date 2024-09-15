@@ -310,7 +310,7 @@ def get_cmd_addr(): return "127.0.0.1", 8000
 
 def send(*args):
     conn = HTTPConnection(*get_cmd_addr())
-    res = loads(http_check(*http_exchange(conn, "POST", "/c4q", dumps(args).encode("utf-8"), ())))
+    res = loads(http_check(*http_exchange(conn, "POST", "/c4q", dumps(args).encode("utf-8"))))
     log(res["message"])
     run(res["command"])
 

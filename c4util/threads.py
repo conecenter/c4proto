@@ -61,7 +61,7 @@ def fatal(f, *args):
 
 def daemon(*args): Thread(target=fatal, args=args, daemon=True).start()
 
-def open_piped(cmd, cwd = None, env=None): return Popen(cmd, stdout=PIPE, stderr=STDOUT, cwd=cwd, env=env)
+def open_piped(cmd, cwd = None, env=None): return Popen(cmd, stdout=PIPE, stderr=STDOUT, text=True, cwd=cwd, env=env)
 
 def measure(proc, log_path):
     started = monotonic()

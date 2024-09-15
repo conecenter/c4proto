@@ -56,4 +56,4 @@ def wait_no_active_prefix(kc, prefix):
 def kafka_port(o): return 9000+o
 def kafka_post(id, op, prefix):
     conn = HTTPConnection("127.0.0.1", kafka_port(id))
-    return http_exchange(conn, "POST", f"/{op}/{prefix}.inbox", b'', ())
+    return http_exchange(conn, "POST", f"/{op}/{prefix}.inbox")
