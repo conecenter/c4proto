@@ -7,11 +7,9 @@ import time
 import urllib.parse
 import re
 
-from cluster import kafka_port, kafka_post
 from . import run, never_if, one, read_text, list_dir, run_text_out, http_exchange, http_check, Popen, never, log
 from .cluster import get_prefixes_from_pods, s3path, s3init, s3list, get_kubectl, get_pods_json, wait_no_active_prefix,\
-    get_all_contexts
-
+    get_all_contexts, kafka_post
 
 
 def s3get(cmd, size, try_count):
