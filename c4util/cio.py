@@ -13,6 +13,7 @@ import importlib
 from threading import Thread
 import os
 import signal
+from functools import reduce
 
 from . import snapshots as sn, purge as pu, cluster as cl, git, kube_reporter as kr, notify as ny, distribution
 from .cio_preproc import arg_substitute, plan_steps
@@ -75,6 +76,9 @@ def wait_no_app(kube_context, app):
 
 def app_stop_start(kube_context, app):
     return Popen((*cl.get_kubectl(kube_context), "delete", "service,deploy,statefulset,ingress", "-l", f'c4env={app}'))
+
+
+def app_substitute(fr, sub, to): changing_text(to, reduce(lambda t, s: t.replace(*s), sub, read_text(fr)))
 
 
 def remote_call(env, kube_context, steps):
@@ -221,6 +225,7 @@ def get_step_handlers(env, deploy_context, get_dir, register, registered): retur
     "app_prep_start": lambda opt: register(
         "proc", app_prep_start(env, opt["app"], get_dir(opt["ver"]), get_dir(opt["conf_to"]))
     ),
+    "app_substitute": lambda opt: app_substitute(get_dir(opt["conf_from"]), opt["substitute"], get_dir(opt["conf_to"])),
     "purge_mode_list": lambda mode_list: pu.purge_mode_list(deploy_context, mode_list),
     "purge_prefix_list": lambda prefix_list: pu.purge_prefix_list(deploy_context, prefix_list),
     "run": lambda cwd, cmd: run(cmd, cwd=get_dir(cwd)),
