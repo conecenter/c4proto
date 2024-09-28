@@ -1,11 +1,11 @@
 
-from queue import Queue
+from queue import Queue, Empty
 from typing import NamedTuple
 from threading import Thread
 from os import kill, getpid
 from signal import SIGINT
 from subprocess import Popen, PIPE, STDOUT
-from time import monotonic
+from time import monotonic, sleep
 
 
 class TaskFin(NamedTuple):
@@ -20,6 +20,7 @@ class TaskQ:
     all_ok: bool
     def __init__(
             self,
+            min_exec_time,
             get_log_path,
             log_starting = lambda proc, log_path: (),
             log_finished = lambda msg: (),
@@ -28,13 +29,14 @@ class TaskQ:
         self.q = Queue()
         self.active = set()
         self.all_ok = True
+        self.min_exec_time = min_exec_time
         self.get_log_path = get_log_path
         self.log_starting = log_starting
         self.log_finished = log_finished
         self.log_progress = log_progress
-    def get(self):
+    def get(self, timeout=None):
         self.log_progress(len(self.active))
-        msg = self.q.get()
+        msg = empty_no_die(lambda: self.q.get(timeout=timeout))
         if isinstance(msg, TaskFin):
             self.active.remove(msg.key)
             self.all_ok = self.all_ok and msg.ok
@@ -47,12 +49,23 @@ class TaskQ:
         self.log_starting(proc, log_path)
         if task_key in self.active: raise Exception(f"{task_key} exists")
         self.active.add(task_key)
-        daemon(lambda: self.q.put(TaskFin(measure(proc, log_path), task_key, value, log_path)))
+        daemon(with_min_exec_time(self.min_exec_time, lambda: self.q.put(
+            TaskFin(measure(proc, log_path), task_key, value, log_path)
+        )))
     def wait_all(self, need_ok):
         while True:
             if need_ok and not self.all_ok: raise Exception("failed")
             if len(self.active) == 0: break
             self.get()
+
+def empty_no_die(f):
+    try: return f()
+    except Empty: return
+
+def with_min_exec_time(t, f):
+    until = monotonic() + t
+    f()
+    sleep(max(0., until - monotonic()))
 
 def fatal(f, *args):
     res = []
@@ -65,7 +78,7 @@ def open_piped(cmd, cwd = None, env=None): return Popen(cmd, stdout=PIPE, stderr
 
 def measure(proc, log_path):
     started = monotonic()
-    with open(log_path, "w") as log_file:
+    with open(log_path, "a") as log_file:
         for line in proc.stdout:
             print(f"{str(int(monotonic()-started)).zfill(5)} {line}", end="", file=log_file, flush=True)
     return proc.wait() == 0

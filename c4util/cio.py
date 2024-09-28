@@ -1,4 +1,4 @@
-
+from queue import Empty, Queue
 from random import random
 import sys
 from os import environ
@@ -10,15 +10,15 @@ from pathlib import Path
 from datetime import datetime
 from http.client import HTTPConnection
 from functools import reduce
-
+from re import match
 
 from . import snapshots as sn, cluster as cl, git, kube_reporter as kr, notify as ny, distribution
 from .cio_preproc import arg_substitute, plan_steps
 from . import run, list_dir, log, Popen, wait_processes, changing_text, one, read_text, never_if, need_dir, \
-    path_exists, read_json, http_exchange, http_check, never, debug_args, repeat, decode, run_no_die
+    path_exists, read_json, http_exchange, http_check, never, debug_args, repeat, decode, run_no_die, group_map
 from .cmd import get_cmd
-from .threads import TaskQ, daemon, TaskFin, open_piped
-from .http_server import http_serve, PostReq, http_q_exchange
+from .threads import TaskQ, daemon, TaskFin, open_piped, empty_no_die
+from .http_server import http_serve, PostReq
 
 def app_prep_start(q, env, app, app_dir, up_path):
     changing_text(lock_path(up_path), "")
@@ -93,6 +93,7 @@ def rsync_local(fr, to): run(("rsync", "-acr", fr+"/", need_dir(to)+"/"))
 
 
 def make_task_q(env, to_title) -> TaskQ: return TaskQ(
+    min_exec_time = 2,
     get_log_path = lambda: f"/tmp/c4log-{datetime.now().isoformat().replace(':','-').split('.')[0]}-{str(random()).split('.')[-1]}",
     log_starting = lambda proc, log_path: (debug_args("starting", proc.args), log(log_message(env, log_path))),
     log_finished = lambda msg: log(
@@ -123,7 +124,7 @@ def cron_serve(env, def_repo_dir):
         if last_tm_abbr == tm_abbr:
             continue
         last_tm_abbr = tm_abbr
-        git.git_pull(def_repo_dir)
+        need_def_repo(env, def_repo_dir)
         def_list = load_def_list(f'{def_repo_dir}/{env["C4CRON_MAIN_DIR"]}')
         log(f"at {tm_abbr}")
         acts = [
@@ -131,40 +132,52 @@ def cron_serve(env, def_repo_dir):
             *select_def(def_list, "daily", tm_abbr[1])
         ]
         for act in acts:
-            send("", ["call", act])
+            send_wish([["call", act]])
         for d in def_list:
             if d and d[0] == "service":
-                send(d[1], ["call", d[2]])
+                send_wish([["queue","name",d[1]],["queue","skip","service"],["call", d[1]]])
         time.sleep(30)
 
+def need_def_repo(env, a_dir):
+    if path_exists(a_dir): git.git_pull(a_dir)
+    else: git.git_clone(access(env["C4DEPLOY_CONTEXT"], env["C4CRON_REPO"]), env["C4CRON_BRANCH"], a_dir)
+
+# todo send success/failure ["queue","name",...], ["queue","prepend",1], ["queue","skip","done"]}]
 
 def main_serve(env):
-    task_q = make_task_q(env, lambda task_key, life: read_text(f'{life.name}/req.json'))
+    task_q: TaskQ = make_task_q(env, lambda task_key, life: read_text(f'{life.name}/req.json'))
     daemon(http_serve, task_q.q, get_cmd_addr())
-    daemon(repeat, lambda: (http_q_exchange(task_q.q, "/c4q", dumps(["cron",["cron"]])), sleep(5)))
+    daemon(repeat, lambda: (task_q.q.put(PostReq("/c4q", dumps([["queue","name","cron"],["queue","skip","service"],["cron"]]).encode("utf-8"))), sleep(5)))
     dir_life = TemporaryDirectory()
+    tasks = {}
     def handle_command():
         msg = task_q.get()
-        if isinstance(msg, TaskFin):
-            task_key, life = msg.key, msg.value
-            fin_path = f"{life.name}/fin.json"
-            if path_exists(fin_path):
-                task_q.submit(open_piped(loads(read_text_once(fin_path))), task_key, life)
-        elif isinstance(msg, PostReq):
-            if msg.path != "/c4q":
-                return msg.respond_text(404,"Not Found")
-            parsed = load_no_die(msg.text, "post")
-            if parsed is None or len(parsed) != 2:
-                return msg.respond_text(400,"Bad Request")
-            service_name, step = parsed
-            if task_q.can_not_submit(service_name):
-                return msg.respond_text(302,"Found")
+        start_next(msg.key) if isinstance(msg, TaskFin) else handle_post(msg) if isinstance(msg, PostReq) else never(msg)
+    one_or_def = lambda items, default: one(*{*items}) if items else default
+    q_opt = lambda steps, k, default: one_or_def(select_def(steps, "queue", k), default)
+    def handle_post(msg: PostReq):
+        never_if(msg.path != "/c4q")
+        def_repo_dir = f"{dir_life.name}/def_repo"
+        need_def_repo(env, def_repo_dir)
+        steps = loads(msg.data.decode("utf-8"))
+        steps = plan_steps((steps, (load_def_list(f'{def_repo_dir}/{env["C4CRON_UTIL_DIR"]}'), None)))
+        task_key = q_opt(steps, "name", "def")
+        skip = q_opt(steps, "skip", None)
+        was_q = tasks.get(task_key, [])
+        kept_q = was_q if skip is None else [p_steps for p_steps in was_q if skip != q_opt(p_steps, "skip", None)]
+        tasks[task_key] = [steps, *kept_q] if q_opt(steps, "prepend", None) else [*kept_q, steps]
+        start_next(task_key)
+
+
+        # no fail post
+        l_q = tasks.get(task_key, [])
+        if l_q and not task_q.can_not_submit(task_key)
+        #l_q.pop()
+        log_hints = [one(d[1:]) for d in steps if d[0] == "log_hint"]
+
             life = TemporaryDirectory()
             #
-            def_repo_dir = f"{dir_life.name}/def_repo"
-            git.git_pull(def_repo_dir) if path_exists(def_repo_dir) else git.git_clone(
-                access(env["C4DEPLOY_CONTEXT"], env["C4CRON_REPO"]), env["C4CRON_BRANCH"], def_repo_dir
-            )
+
             rsync_local(dir_life.name, life.name)
             #
             log_path = task_q.get_log_path()
@@ -174,8 +187,12 @@ def main_serve(env):
             task_q.submit(proc, service_name, life, log_path=log_path)
             o = {"message":f'starting, {log_message(env, log_path)}', "command": ["tail", "-f", log_path, "-n", "1000"]}
             msg.respond_text(200, dumps(o))
+
+
     repeat(handle_command)
 
+
+#.decode("utf-8")
 
 def read_text_once(path):
     res = read_text(path)
@@ -274,11 +291,12 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "wait_all_ok": lambda: main_q.wait_all(True),
     "rsync": lambda fr, to: rsync_local(get_dir(fr), get_dir(to)),
     "kube_report_serve": lambda name, subdir: repeat(lambda: kube_report_serve(get_dir(name), subdir)),
-    "notify_started": lambda opt: ny.notify_started(get_dir, ny.notify_create_requests(
-        access(deploy_context, opt["auth"]), opt["url"],
-        time.time(), opt["work_hours"], opt["valid_hours"], log_message(env, read_text(get_dir("log_path")))
-    )),
-    "notify_succeeded": lambda: ny.notify_succeeded(get_dir),
+    # "notify_started": lambda opt: ny.notify_started(get_dir, ny.notify_create_requests(
+    #     access(deploy_context, opt["auth"]), opt["url"],
+    #     time.time(), opt["work_hours"], opt["valid_hours"], log_message(env, read_text(get_dir("log_path")))
+    # )),
+    # "notify_succeeded": lambda: ny.notify_succeeded(get_dir),
+    # todo replace "log_path"
     "distribution_run": lambda opt: distribution_run_outer(
         env, opt["groups"], loads(read_text(get_dir(opt["tasks"]))), opt["try_count"], opt["check_task"],
         get_dir(opt["dir"]), opt["command"]
@@ -294,7 +312,6 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
 
 
 def run_steps(env, steps, tmp_dir):
-    steps = plan_steps((steps, (load_def_list(f'{tmp_dir}/def_repo/{env["C4CRON_UTIL_DIR"]}'), None)))
     log("plan:\n" + "\n".join(f"\t{dumps(step)}" for step in steps))
     main_q = make_task_q(env, lambda key, title: title)
     handlers = get_step_handlers(env, env["C4DEPLOY_CONTEXT"], get_dir=(lambda nm: f'{tmp_dir}/{nm}'), main_q=main_q)
@@ -308,18 +325,21 @@ def run_steps(env, steps, tmp_dir):
 
 def get_cmd_addr(): return "127.0.0.1", 8000
 
-def send(*args):
+def rand_id(): return str(random()).split('.')[-1]
+
+def send_wish(steps):
     conn = HTTPConnection(*get_cmd_addr())
-    res = loads(http_check(*http_exchange(conn, "POST", "/c4q", dumps(args).encode("utf-8"))))
-    log(res["message"])
-    run(res["command"])
+    http_check(*http_exchange(conn, "POST", f"/c4q", dumps(steps).encode("utf-8")))
 
 # pod entrypoint -> cio ci_serve main -> cio ci_serve #-> cio main -> main_serve
 # prod cio_call/snapshot_* -> ##-> cio ci_serve #-> cio main -> http-client -> http-server -> main_serve
 #   main_serve -> run_steps
 def main():
-    step = one(*loads(one(*sys.argv[1:])))
-    main_serve(environ) if step == ["main"] else send("",step)
+    steps = loads(one(*sys.argv[1:]))
+    if steps == [["main"]]: return main_serve(environ)
+    log_hint = rand_id()
+    print(log_hint)
+    send_wish([["log_hint",log_hint],*steps])
 
 
 

@@ -22,6 +22,8 @@ def notify_create_requests(auth, full_url, now, work_hours, valid_hours, descr):
 
 
 # general:
+
+#todo fix fin-ion
 def notify_started(get_dir, requests):
     notify_send_req(*requests["started"])
     changing_text(get_dir("fin.json"), dumps(get_cmd(notify_send_req, *requests["failed"])))
