@@ -1,28 +1,29 @@
-from queue import Empty, Queue
-from random import random
-import sys
-from os import environ
-import time
-from time import sleep
-from tempfile import TemporaryDirectory
-from json import dumps, loads, decoder as json_decoder
-from pathlib import Path
-from datetime import datetime
-from http.client import HTTPConnection
-from functools import reduce
-from re import match
 
-from . import snapshots as sn, cluster as cl, git, kube_reporter as kr, notify as ny, distribution
-from .cio_preproc import arg_substitute, plan_steps
-from . import run, list_dir, log, Popen, wait_processes, changing_text, one, read_text, never_if, need_dir, \
-    path_exists, read_json, http_exchange, http_check, never, debug_args, repeat, decode, run_no_die, group_map
+from time import sleep, strftime
+from tempfile import TemporaryDirectory
+from json import dumps, loads
+from pathlib import Path
+from functools import reduce
+from uuid import uuid4
+from queue import Queue
+
+from .threads import TaskQ, open_piped, daemon
+from .cio_client import post_json
+from . import snapshots as sn, cluster as cl, git, kube_reporter as kr, distribution
+from .cio_preproc import arg_substitute
+from . import run, list_dir, Popen, wait_processes, changing_text, one, read_text, never_if, need_dir, \
+    path_exists, read_json, never, repeat, decode, run_no_die, log
 from .cmd import get_cmd
-from .threads import TaskQ, daemon, TaskFin, open_piped, empty_no_die
-from .http_server import http_serve, PostReq
+
+
+def task_kv(arg):
+    uid = str(uuid4())
+    return uid, f'{uid.split("-")[0]}-{arg}'
+
 
 def app_prep_start(q, env, app, app_dir, up_path):
     changing_text(lock_path(up_path), "")
-    q.submit(open_piped(get_cmd(app_prep, env, app, app_dir, up_path)), "", f'prep {up_path}')
+    q.submit(open_piped(get_cmd(app_prep, env, app, app_dir, up_path)), task_kv(f'prep {up_path}'))
 
 
 def app_prep(env, app, app_dir, up_path):
@@ -45,7 +46,7 @@ def lock_path(path): return f"{path}.proc"
 
 
 def app_cold_start(q, env, conf_from, snapshot_from):
-    q.submit(open_piped(get_cmd(app_cold_start_blocking, env, conf_from, snapshot_from)), "", f'cold {conf_from}')
+    q.submit(open_piped(get_cmd(app_cold_start_blocking, env, conf_from, snapshot_from)), task_kv(f'cold {conf_from}'))
 
 
 def app_cold_start_blocking(env, conf_from, snapshot_from):
@@ -69,135 +70,18 @@ def app_stop_start(kube_context, app):
 def app_substitute(fr, sub, to): changing_text(to, reduce(lambda t, s: t.replace(*s), sub, read_text(fr)))
 
 
-def select_def(def_list, s0, s1): return [d[2] for d in def_list if d[0] == s0 and d[1] == s1]
-
-
-def load_no_die(s, path):
-    try:
-        return loads(s)
-    except json_decoder.JSONDecodeError as e:
-        log(f"error parsing {path}: {e}")
-
-
-def load_def_list(a_dir):
-    return [d for p in list_dir(a_dir) if p.endswith(".json") for c in [load_no_die(read_text(p), p)] if c for d in c]
-
-
-def log_message(env, log_path): return f'to view log: kcd exec -it {env["HOSTNAME"]} -- tail -f {log_path} -n 1000'
-
-
-def access(kube_context, k8s_path): return decode(cl.get_secret_part(cl.get_kubectl(kube_context), k8s_path))
-
-
 def rsync_local(fr, to): run(("rsync", "-acr", fr+"/", need_dir(to)+"/"))
 
 
-def make_task_q(env, to_title) -> TaskQ: return TaskQ(
-    min_exec_time = 2,
-    get_log_path = lambda: f"/tmp/c4log-{datetime.now().isoformat().replace(':','-').split('.')[0]}-{str(random()).split('.')[-1]}",
-    log_starting = lambda proc, log_path: (debug_args("starting", proc.args), log(log_message(env, log_path))),
-    log_finished = lambda msg: log(
-        f'{"succeeded" if msg.ok else "failed"} {to_title(msg.key, msg.value)}, {log_message(env, msg.log_path)}'
-    ),
-    log_progress = lambda count: log(f'{count} tasks in progress'),
-)
-
-
-def distribution_run_outer(env, groups, tasks, try_count, check_task, dir_te, command_te):
-    q = make_task_q(env, lambda group, task: f"group {group} task {task}")
+def distribution_run_outer(groups, tasks, try_count, check_task, dir_te, command_te):
+    task_q = TaskQ(Queue(), 2, log)
     def do_start(group, task):
         arg = {"group": group, "task": task}
-        proc = open_piped(arg_substitute(arg, command_te), cwd=arg_substitute(arg, dir_te))
-        never_if(None if len(group) > 0 else "bad group")
-        q.submit(proc, group, task)
+        task_q.submit(open_piped(arg_substitute(arg, command_te), cwd=arg_substitute(arg, dir_te)), (group, task))
     def do_get():
-        m = q.get()
+        m = task_q.get()
         return m.ok, m.key, m.value
     distribution.distribution_run(groups, tasks, try_count, check_task, do_start, do_get)
-
-
-def cron_serve(env, def_repo_dir):
-    last_tm_abbr = ""
-    while True:
-        tm = time.gmtime()
-        tm_abbr = ("ETKNRLP"[tm.tm_wday], time.strftime("%H:%M", tm))
-        if last_tm_abbr == tm_abbr:
-            continue
-        last_tm_abbr = tm_abbr
-        need_def_repo(env, def_repo_dir)
-        def_list = load_def_list(f'{def_repo_dir}/{env["C4CRON_MAIN_DIR"]}')
-        log(f"at {tm_abbr}")
-        acts = [
-            *select_def(def_list, "weekly", tm_abbr[0]+tm_abbr[1]),
-            *select_def(def_list, "daily", tm_abbr[1])
-        ]
-        for act in acts:
-            send_wish([["call", act]])
-        for d in def_list:
-            if d and d[0] == "service":
-                send_wish([["queue","name",d[1]],["queue","skip","service"],["call", d[1]]])
-        time.sleep(30)
-
-def need_def_repo(env, a_dir):
-    if path_exists(a_dir): git.git_pull(a_dir)
-    else: git.git_clone(access(env["C4DEPLOY_CONTEXT"], env["C4CRON_REPO"]), env["C4CRON_BRANCH"], a_dir)
-
-# todo send success/failure ["queue","name",...], ["queue","prepend",1], ["queue","skip","done"]}]
-
-def main_serve(env):
-    task_q: TaskQ = make_task_q(env, lambda task_key, life: read_text(f'{life.name}/req.json'))
-    daemon(http_serve, task_q.q, get_cmd_addr())
-    daemon(repeat, lambda: (task_q.q.put(PostReq("/c4q", dumps([["queue","name","cron"],["queue","skip","service"],["cron"]]).encode("utf-8"))), sleep(5)))
-    dir_life = TemporaryDirectory()
-    tasks = {}
-    def handle_command():
-        msg = task_q.get()
-        start_next(msg.key) if isinstance(msg, TaskFin) else handle_post(msg) if isinstance(msg, PostReq) else never(msg)
-    one_or_def = lambda items, default: one(*{*items}) if items else default
-    q_opt = lambda steps, k, default: one_or_def(select_def(steps, "queue", k), default)
-    def handle_post(msg: PostReq):
-        never_if(msg.path != "/c4q")
-        def_repo_dir = f"{dir_life.name}/def_repo"
-        need_def_repo(env, def_repo_dir)
-        steps = loads(msg.data.decode("utf-8"))
-        steps = plan_steps((steps, (load_def_list(f'{def_repo_dir}/{env["C4CRON_UTIL_DIR"]}'), None)))
-        task_key = q_opt(steps, "name", "def")
-        skip = q_opt(steps, "skip", None)
-        was_q = tasks.get(task_key, [])
-        kept_q = was_q if skip is None else [p_steps for p_steps in was_q if skip != q_opt(p_steps, "skip", None)]
-        tasks[task_key] = [steps, *kept_q] if q_opt(steps, "prepend", None) else [*kept_q, steps]
-        start_next(task_key)
-
-
-        # no fail post
-        l_q = tasks.get(task_key, [])
-        if l_q and not task_q.can_not_submit(task_key)
-        #l_q.pop()
-        log_hints = [one(d[1:]) for d in steps if d[0] == "log_hint"]
-
-            life = TemporaryDirectory()
-            #
-
-            rsync_local(dir_life.name, life.name)
-            #
-            log_path = task_q.get_log_path()
-            changing_text(f'{life.name}/log_path', log_path)
-            changing_text(f'{life.name}/req.json', msg.text)
-            proc = open_piped(get_cmd(run_steps, env, [step], life.name))
-            task_q.submit(proc, service_name, life, log_path=log_path)
-            o = {"message":f'starting, {log_message(env, log_path)}', "command": ["tail", "-f", log_path, "-n", "1000"]}
-            msg.respond_text(200, dumps(o))
-
-
-    repeat(handle_command)
-
-
-#.decode("utf-8")
-
-def read_text_once(path):
-    res = read_text(path)
-    Path(path).unlink()
-    return res
 
 
 def kafka_client_serve(deploy_context, port_offset, conf):
@@ -224,8 +108,8 @@ def purge(env, prefix, clients):
     mc = cl.s3init(kc)
     ls = lambda tp: cl.s3list(mc, cl.s3path(f"{prefix}{tp}"))
     run_no_die((*mc, "rm", *ls(".snapshots"), *ls(".txr")))
-    for id in clients:
-        cl.kafka_post(id, "rm", prefix)
+    for cl_id in clients:
+        cl.kafka_post(cl_id, "rm", prefix)
     never_if(ls(".snapshots"))
 
 
@@ -256,12 +140,17 @@ def local_kill_serve():
     run(("kill", *[str(p) for p in to_kill])) if len(to_kill) > 0 else sleep(5)
 
 
-def access_once(deploy_context, d): return access(deploy_context, read_text_once(f"{d}/.c4k8s_path"))
+def access_once(deploy_context, d):
+    path = f"{d}/.c4k8s_path"
+    res = read_text(path)
+    Path(path).unlink()
+    return decode(cl.get_secret_part(cl.get_kubectl(deploy_context), res))
 
 
 def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "#": lambda *args: None,
     "called": lambda *args: None,
+    "queue": lambda *args: None,
     "snapshot_list_dump": lambda opt: sn.snapshot_list_dump(deploy_context, opt),
     "snapshot_copy": lambda opt: sn.snapshot_copy(env, opt["from"], opt["to"]),
     "snapshot_make": lambda opt: sn.snapshot_make(deploy_context, opt),
@@ -283,65 +172,45 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "app_substitute": lambda opt: app_substitute(get_dir(opt["conf_from"]), opt["substitute"], get_dir(opt["conf_to"])),
     "app_scale": lambda app, n: run((*cl.get_kubectl(deploy_context), "scale", "--replicas", str(n), "deploy", app)),
     "purge_start": lambda opt: main_q.submit(
-        open_piped(get_cmd(purge, env, opt["prefix"], opt["clients"])), "", f'purge {opt["prefix"]}'
+        open_piped(get_cmd(purge, env, opt["prefix"], opt["clients"])), task_kv(f'purge {opt["prefix"]}')
     ),
     "run": lambda cwd, cmd: run(cmd, cwd=get_dir(cwd)),
-    "start": lambda cwd, cmd: main_q.submit(open_piped(cmd, cwd=get_dir(cwd)), "", cmd[0]),
+    "start": lambda cwd, cmd: main_q.submit(open_piped(cmd, cwd=get_dir(cwd)), task_kv(cmd[0])),
     "wait_all": lambda: main_q.wait_all(False),
     "wait_all_ok": lambda: main_q.wait_all(True),
     "rsync": lambda fr, to: rsync_local(get_dir(fr), get_dir(to)),
     "kube_report_serve": lambda name, subdir: repeat(lambda: kube_report_serve(get_dir(name), subdir)),
-    # "notify_started": lambda opt: ny.notify_started(get_dir, ny.notify_create_requests(
-    #     access(deploy_context, opt["auth"]), opt["url"],
-    #     time.time(), opt["work_hours"], opt["valid_hours"], log_message(env, read_text(get_dir("log_path")))
-    # )),
-    # "notify_succeeded": lambda: ny.notify_succeeded(get_dir),
-    # todo replace "log_path"
     "distribution_run": lambda opt: distribution_run_outer(
-        env, opt["groups"], loads(read_text(get_dir(opt["tasks"]))), opt["try_count"], opt["check_task"],
+        opt["groups"], loads(read_text(get_dir(opt["tasks"]))), opt["try_count"], opt["check_task"],
         get_dir(opt["dir"]), opt["command"]
     ),
-    "secret_get": lambda fn, k8s_path: changing_text(get_dir(fn), access(deploy_context, k8s_path)),
+    "secret_get": lambda fn, k8s_path: changing_text(get_dir(fn), decode(
+        cl.get_secret_part(cl.get_kubectl(deploy_context), k8s_path)
+    )),
     "write_lines": lambda fn, lines: changing_text(get_dir(fn), "\n".join(lines)),
     "wait_no_app": lambda kube_context, app: wait_no_app(kube_context, app),
     "local_kill_serve": lambda: repeat(local_kill_serve),
     "die_after": lambda per: daemon(lambda: (sleep(int(per[:-1]) * {"m":60, "h":3600}[per[-1]]), never("expired"))),
-    "cron": lambda: cron_serve(env, get_dir("def_repo")),
-    "kafka_client_serve": lambda opt: kafka_client_serve(deploy_context, opt["port_offset"], opt["conf"])
+    "kafka_client_serve": lambda opt: kafka_client_serve(deploy_context, opt["port_offset"], opt["conf"]),
+    "queue_report": lambda opt, report: post_json(opt["port"], opt["path"], report),
 }
 
 
-def run_steps(env, steps, tmp_dir):
+def run_steps(env, steps):
+    life = TemporaryDirectory()
+    task_q = TaskQ(Queue(), 2, log)
     log("plan:\n" + "\n".join(f"\t{dumps(step)}" for step in steps))
-    main_q = make_task_q(env, lambda key, title: title)
-    handlers = get_step_handlers(env, env["C4DEPLOY_CONTEXT"], get_dir=(lambda nm: f'{tmp_dir}/{nm}'), main_q=main_q)
+    handlers = get_step_handlers(env, env["C4DEPLOY_CONTEXT"], get_dir=(lambda nm: f'{life.name}/{nm}'), main_q=task_q)
     for step in steps:
         log(dumps(step))
         handlers[step[0]](*step[1:])
-    log("OK")
 
-
-## above is used for "main" only
-
-def get_cmd_addr(): return "127.0.0.1", 8000
-
-def rand_id(): return str(random()).split('.')[-1]
-
-def send_wish(steps):
-    conn = HTTPConnection(*get_cmd_addr())
-    http_check(*http_exchange(conn, "POST", f"/c4q", dumps(steps).encode("utf-8")))
 
 # pod entrypoint -> cio ci_serve main -> cio ci_serve #-> cio main -> main_serve
 # prod cio_call/snapshot_* -> ##-> cio ci_serve #-> cio main -> http-client -> http-server -> main_serve
 #   main_serve -> run_steps
-def main():
-    steps = loads(one(*sys.argv[1:]))
-    if steps == [["main"]]: return main_serve(environ)
-    log_hint = rand_id()
-    print(log_hint)
-    send_wish([["log_hint",log_hint],*steps])
 
 
-
-
-
+# f"/tmp/c4log-{datetime.now().isoformat().replace(':','-').split('.')[0]}-{str(random()).split('.')[-1]}",
+#["tail", "-f", log_path, "-n", "1000"]
+# print(f"{str(int(monotonic()-started)).zfill(5)} {line}", end="", file=log_file, flush=True)

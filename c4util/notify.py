@@ -7,6 +7,12 @@ from pathlib import Path
 from . import http_check, http_exchange, changing_text, read_json, run
 from .cmd import get_cmd
 
+# "notify_started": lambda opt: ny.notify_started(get_dir, ny.notify_create_requests(
+#     access(deploy_context, opt["auth"]), opt["url"],
+#     time.time(), opt["work_hours"], opt["valid_hours"], log_message(env, read_text(get_dir("log_path")))
+# )),
+# "notify_succeeded": lambda: ny.notify_succeeded(get_dir),
+# todo replace "log_path"
 
 # immutable, api specific:
 def notify_create_requests(auth, full_url, now, work_hours, valid_hours, descr):

@@ -5,7 +5,7 @@ import os
 from http.client import HTTPConnection
 from time import sleep
 
-from . import run_text_out, repeat, http_exchange
+from . import run_text_out, repeat, http_exchange, decode
 
 
 def get_secret_data(kc, secret_name):

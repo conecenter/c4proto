@@ -6,8 +6,7 @@ from importlib import import_module
 
 
 def get_cmd(f, *args): return (
-    "python3", "-u", "-c",
-    "import sys,os;sys.path.append(os.environ['C4CI_PROTO_DIR']);from c4util.cmd import run_cmd as f;f()",
+    "python3", "-u", "-c", "from c4util.cmd import run_cmd as f;f()",
     dumps([f.__module__, f.__name__,*(("env",*args[1:]) if args and args[0] is environ else ("",*args))])
 )
 
