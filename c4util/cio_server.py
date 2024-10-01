@@ -45,7 +45,7 @@ def load_def_list(d):
     return [d for p in list_dir(d) if p.endswith(".json") for c in [load_no_die(read_text(p), p)] if c for d in c]
 
 def get_service_steps(main_def_list): return [
-    [["queue","name",d[1]],["queue","skip",d[1]],["call", d[1]]] for d in main_def_list if d and d[0] == "service"
+    [["queue","name",d[1]],["queue","skip",d[1]],["call",{"op":d[1]}]] for d in main_def_list if d and d[0] == "service"
 ]
 
 def get_cron_steps(main_def_list, last_tm_abbr):
