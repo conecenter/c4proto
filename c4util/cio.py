@@ -197,11 +197,10 @@ def run_steps(env, steps):
         handlers[step[0]](*step[1:])
 
 
-# pod entrypoint -> cio ci_serve main -> cio ci_serve #-> cio main -> main_serve
-# prod cio_call/snapshot_* -> ##-> cio ci_serve #-> cio main -> http-client -> http-server -> main_serve
-#   main_serve -> run_steps
+# process tree part: pod entrypoint tini -> /main.py -> cio_server.py main -> cio.py run_steps
+# prod cio_call/snapshot_* -> ##-> cio /ci_serve.py -> cio_client.py main -> http-client -> http-server
+# inside server: http-server -> PostReq -> requested_steps -> tasks/PlainTask -> submit -> run_steps
 
-
-# f"/tmp/c4log-{datetime.now().isoformat().replace(':','-').split('.')[0]}-{str(random()).split('.')[-1]}",
-#["tail", "-f", log_path, "-n", "1000"]
+# "PYTHONPATH": environ["C4CI_PROTO_DIR"]
+#
 # print(f"{str(int(monotonic()-started)).zfill(5)} {line}", end="", file=log_file, flush=True)

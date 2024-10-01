@@ -25,5 +25,3 @@ def main():
     hint = task_kv("call")[-1]
     post_json(cmd_addr(), "/c4q", [["queue","hint",hint],*steps])
     return hint
-
-# "PYTHONPATH": environ["C4CI_PROTO_DIR"]
