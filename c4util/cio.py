@@ -201,6 +201,6 @@ def run_steps(env, steps):
 # prod cio_call/snapshot_* -> ##-> cio /ci_serve.py -> cio_client.py main -> http-client -> http-server
 # inside server: http-server -> PostReq -> requested_steps -> tasks/PlainTask -> submit -> run_steps
 
-# "PYTHONPATH": environ["C4CI_PROTO_DIR"]
-#
+
+
 # print(f"{str(int(monotonic()-started)).zfill(5)} {line}", end="", file=log_file, flush=True)

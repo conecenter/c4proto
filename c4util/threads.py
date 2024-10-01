@@ -1,13 +1,13 @@
 
 from queue import Queue
-from typing import NamedTuple, Callable
+from typing import NamedTuple
 from threading import Thread
 from os import kill, getpid
 from signal import SIGINT
 from subprocess import Popen, PIPE, STDOUT
 from time import monotonic, sleep
 from socket import socket
-from datetime import now
+from datetime import datetime
 
 class TaskFin(NamedTuple):
     ok: bool
@@ -57,7 +57,7 @@ class TaskQ:
             if len(self.active) == 0: break
             self.get()
 
-def now_str(): return now().isoformat().split('.')[0]
+def now_str(): return datetime.now().isoformat().split('.')[0]
 
 def fatal(f, *args):
     res = []
