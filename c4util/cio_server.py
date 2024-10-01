@@ -7,8 +7,9 @@ from json import loads, decoder as json_decoder
 from time import sleep, gmtime, strftime
 from tempfile import TemporaryDirectory
 from functools import reduce
+from logging import exception, info
 
-from . import list_dir, log, repeat, read_text, one, group_map, decode
+from . import list_dir, repeat, read_text, one, group_map, decode
 from .git import git_pull, git_clone
 from .cmd import get_cmd
 from .threads import TaskQ, daemon, TaskFin
@@ -38,7 +39,7 @@ def select_def(def_list, s0, s1): return [d[2] for d in def_list if d[0] == s0 a
 
 def load_no_die(s, path):
     try: return loads(s)
-    except json_decoder.JSONDecodeError as e: log(f"error parsing {path}: {e}")
+    except json_decoder.JSONDecodeError as e: exception(f"error parsing {path}", e)
 
 def load_def_list(d):
     return [d for p in list_dir(d) if p.endswith(".json") for c in [load_no_die(read_text(p), p)] if c for d in c]
@@ -51,7 +52,7 @@ def get_cron_steps(main_def_list, last_tm_abbr):
     tm = gmtime()
     tm_abbr = ("ETKNRLP"[tm.tm_wday], strftime("%H:%M", tm))
     same_tm = last_tm_abbr == tm_abbr
-    same_tm or log(f"at {tm_abbr}")
+    same_tm or info(f"at {tm_abbr}")
     return tm_abbr, [] if same_tm else [[["call", act]] for act in [
         *select_def(main_def_list, "weekly", tm_abbr[0]+tm_abbr[1]),
         *select_def(main_def_list, "daily", tm_abbr[1])
@@ -73,7 +74,7 @@ def tasks_push_skip(tasks, task):
 def main():
     env = environ
     msg_q = Queue()
-    task_q = TaskQ(msg_q, 2, log, log_addr())
+    task_q = TaskQ(msg_q, 2, log_addr())
     daemon(tcp_serve, log_addr(), lambda b: msg_q.put(LogLine(b)), lambda: msg_q.put(LogFin()))
     daemon(http_serve, cmd_addr(), {"/c4q": lambda d: msg_q.put(PostReq(d))})
     daemon(repeat, lambda: (msg_q.put(CronCheck()), sleep(30)))
@@ -93,7 +94,8 @@ def main():
                 if task is None: break
                 tasks = [t for t in tasks if t is not task]
                 task_q.submit(task.key, task.value)(task.cmd)
-        except Exception as e: log(e)
+        except Exception as e:
+            exception(e)
 
 def handle_any(env, def_repo_dir, report, tasks, requested_steps, tm_abbr, msg):
     reschedule = False

@@ -8,6 +8,7 @@ from subprocess import Popen, PIPE, STDOUT
 from time import monotonic, sleep
 from socket import socket
 from datetime import datetime
+from logging import debug, info
 
 class TaskFin(NamedTuple):
     ok: bool
@@ -19,15 +20,14 @@ class TaskQ:
     active: dict
     all_ok: bool
     min_exec_time: int
-    def __init__(self, q, min_exec_time, log, log_addr):
+    def __init__(self, q, min_exec_time, log_addr):
         self.q = q
         self.active = {}
         self.all_ok = True
         self.min_exec_time = min_exec_time
-        self.log = log
         self.log_addr = log_addr
     def get(self):
-        self.log(f'{len(self.active)} tasks in progress')
+        debug(f'{len(self.active)} tasks in progress')
         msg = self.q.get()
         if isinstance(msg, TaskFin):
             del self.active[msg.key]
@@ -37,7 +37,7 @@ class TaskQ:
     def submit(self, task_key, value):
         if task_key in self.active: raise Exception(f"{task_key} exists")
         self.active[task_key] = value
-        self.log(f'{value} [{task_key}] submitted')
+        info(f'{value} [{task_key}] submitted')
         return lambda cmd, cwd = None, env=None: daemon(self.follow, task_key, value, cmd, cwd, env)
     def follow(self, task_key, value, cmd, cwd, env):
         until = monotonic() + self.min_exec_time

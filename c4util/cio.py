@@ -5,13 +5,14 @@ from json import dumps, loads
 from pathlib import Path
 from functools import reduce
 from queue import Queue
+from logging import info, debug
 
 from .threads import TaskQ, daemon
 from .cio_client import post_json, task_kv, log_addr, localhost
 from . import snapshots as sn, cluster as cl, git, kube_reporter as kr, distribution
 from .cio_preproc import arg_substitute
 from . import run, list_dir, Popen, wait_processes, changing_text, one, read_text, never_if, need_dir, \
-    path_exists, read_json, never, repeat, decode, run_no_die, log
+    path_exists, read_json, never, repeat, decode, run_no_die
 from .cmd import get_cmd
 
 
@@ -44,7 +45,7 @@ def app_cold_start(q, env, conf_from, snapshot_from):
 
 
 def app_cold_start_blocking(env, conf_from, snapshot_from):
-    repeat(lambda: (log("..."), sleep(1)) if path_exists(lock_path(conf_from)) else True, (True,))
+    repeat(lambda: (debug("..."), sleep(1)) if path_exists(lock_path(conf_from)) else True, (True,))
     it = read_json(conf_from)
     never_if(f'bad ctx {it["kube-context"]} {it["c4env"]}' if it["kube-context"] != env["C4DEPLOY_CONTEXT"] else None)
     pod_templates = [man["spec"]["template"] for man in it["manifests"] if man["kind"] == "Deployment"]
@@ -68,7 +69,7 @@ def rsync_local(fr, to): run(("rsync", "-acr", fr+"/", need_dir(to)+"/"))
 
 
 def distribution_run_outer(groups, tasks, try_count, check_task, dir_te, command_te):
-    task_q = TaskQ(Queue(), 2, log, log_addr())
+    task_q = TaskQ(Queue(), 2, log_addr())
     def do_start(group, task):
         arg = {"group": group, "task": task}
         task_q.submit(group, task)(arg_substitute(arg, command_te), cwd=arg_substitute(arg, dir_te))
@@ -181,7 +182,7 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "die_after": lambda per: daemon(lambda: (sleep(int(per[:-1]) * {"m":60, "h":3600}[per[-1]]), never("expired"))),
     "kafka_client_serve": lambda opt: kafka_client_serve(deploy_context, opt["port_offset"], opt["conf"]),
     "queue_report": lambda opt, report: (
-        log(dumps(report, indent=4, sort_keys=True)),
+        info(dumps(report, indent=4, sort_keys=True)),
         opt and post_json((localhost(),opt["port"]), opt["path"], report)
     ),
 }
@@ -189,11 +190,11 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
 
 def run_steps(env, steps):
     life = TemporaryDirectory()
-    task_q = TaskQ(Queue(), 2, log, log_addr())
-    log("plan:\n" + "\n".join(f"\t{dumps(step)}" for step in steps))
+    task_q = TaskQ(Queue(), 2, log_addr())
+    info("plan:\n" + "\n".join(f"\t{dumps(step)}" for step in steps))
     handlers = get_step_handlers(env, env["C4DEPLOY_CONTEXT"], get_dir=(lambda nm: f'{life.name}/{nm}'), main_q=task_q)
     for step in steps:
-        log(dumps(step))
+        info(dumps(step))
         handlers[step[0]](*step[1:])
 
 
