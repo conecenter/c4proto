@@ -1,14 +1,13 @@
 
-from time import sleep, strftime
+from time import sleep
 from tempfile import TemporaryDirectory
 from json import dumps, loads
 from pathlib import Path
 from functools import reduce
-from uuid import uuid4
 from queue import Queue
 
-from .threads import TaskQ, open_piped, daemon
-from .cio_client import post_json
+from .threads import TaskQ, daemon
+from .cio_client import post_json, task_kv, log_addr, localhost
 from . import snapshots as sn, cluster as cl, git, kube_reporter as kr, distribution
 from .cio_preproc import arg_substitute
 from . import run, list_dir, Popen, wait_processes, changing_text, one, read_text, never_if, need_dir, \
@@ -16,14 +15,9 @@ from . import run, list_dir, Popen, wait_processes, changing_text, one, read_tex
 from .cmd import get_cmd
 
 
-def task_kv(arg):
-    uid = str(uuid4())
-    return uid, f'{uid.split("-")[0]}-{arg}'
-
-
 def app_prep_start(q, env, app, app_dir, up_path):
     changing_text(lock_path(up_path), "")
-    q.submit(open_piped(get_cmd(app_prep, env, app, app_dir, up_path)), task_kv(f'prep {up_path}'))
+    q.submit(*task_kv(f'prep {up_path}'))(get_cmd(app_prep, env, app, app_dir, up_path))
 
 
 def app_prep(env, app, app_dir, up_path):
@@ -46,7 +40,7 @@ def lock_path(path): return f"{path}.proc"
 
 
 def app_cold_start(q, env, conf_from, snapshot_from):
-    q.submit(open_piped(get_cmd(app_cold_start_blocking, env, conf_from, snapshot_from)), task_kv(f'cold {conf_from}'))
+    q.submit(*task_kv(f'cold {conf_from}'))(get_cmd(app_cold_start_blocking, env, conf_from, snapshot_from))
 
 
 def app_cold_start_blocking(env, conf_from, snapshot_from):
@@ -74,10 +68,10 @@ def rsync_local(fr, to): run(("rsync", "-acr", fr+"/", need_dir(to)+"/"))
 
 
 def distribution_run_outer(groups, tasks, try_count, check_task, dir_te, command_te):
-    task_q = TaskQ(Queue(), 2, log)
+    task_q = TaskQ(Queue(), 2, log, log_addr())
     def do_start(group, task):
         arg = {"group": group, "task": task}
-        task_q.submit(open_piped(arg_substitute(arg, command_te), cwd=arg_substitute(arg, dir_te)), (group, task))
+        task_q.submit(group, task)(arg_substitute(arg, command_te), cwd=arg_substitute(arg, dir_te))
     def do_get():
         m = task_q.get()
         return m.ok, m.key, m.value
@@ -111,12 +105,6 @@ def purge(env, prefix, clients):
     for cl_id in clients:
         cl.kafka_post(cl_id, "rm", prefix)
     never_if(ls(".snapshots"))
-
-
-def secret_part_as_file(secret, file_name, to_dir):
-    to_path = f"{to_dir}/{file_name}"
-    Path(to_path).write_bytes(secret(file_name))
-    return to_path
 
 
 def kube_report_serve(d, subdir_pf):
@@ -171,11 +159,11 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "app_prep_start": lambda opt: app_prep_start(main_q, env, opt["app"], get_dir(opt["ver"]), get_dir(opt["conf_to"])),
     "app_substitute": lambda opt: app_substitute(get_dir(opt["conf_from"]), opt["substitute"], get_dir(opt["conf_to"])),
     "app_scale": lambda app, n: run((*cl.get_kubectl(deploy_context), "scale", "--replicas", str(n), "deploy", app)),
-    "purge_start": lambda opt: main_q.submit(
-        open_piped(get_cmd(purge, env, opt["prefix"], opt["clients"])), task_kv(f'purge {opt["prefix"]}')
+    "purge_start": lambda opt: main_q.submit(*task_kv(f'purge {opt["prefix"]}'))(
+        get_cmd(purge, env, opt["prefix"], opt["clients"])
     ),
     "run": lambda cwd, cmd: run(cmd, cwd=get_dir(cwd)),
-    "start": lambda cwd, cmd: main_q.submit(open_piped(cmd, cwd=get_dir(cwd)), task_kv(cmd[0])),
+    "start": lambda cwd, cmd: main_q.submit(*task_kv(cmd[0]))(cmd, cwd=get_dir(cwd)),
     "wait_all": lambda: main_q.wait_all(False),
     "wait_all_ok": lambda: main_q.wait_all(True),
     "rsync": lambda fr, to: rsync_local(get_dir(fr), get_dir(to)),
@@ -192,13 +180,16 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "local_kill_serve": lambda: repeat(local_kill_serve),
     "die_after": lambda per: daemon(lambda: (sleep(int(per[:-1]) * {"m":60, "h":3600}[per[-1]]), never("expired"))),
     "kafka_client_serve": lambda opt: kafka_client_serve(deploy_context, opt["port_offset"], opt["conf"]),
-    "queue_report": lambda opt, report: post_json(opt["port"], opt["path"], report),
+    "queue_report": lambda opt, report: (
+        log(dumps(report, indent=4, sort_keys=True)),
+        opt and post_json((localhost(),opt["port"]), opt["path"], report)
+    ),
 }
 
 
 def run_steps(env, steps):
     life = TemporaryDirectory()
-    task_q = TaskQ(Queue(), 2, log)
+    task_q = TaskQ(Queue(), 2, log, log_addr())
     log("plan:\n" + "\n".join(f"\t{dumps(step)}" for step in steps))
     handlers = get_step_handlers(env, env["C4DEPLOY_CONTEXT"], get_dir=(lambda nm: f'{life.name}/{nm}'), main_q=task_q)
     for step in steps:
