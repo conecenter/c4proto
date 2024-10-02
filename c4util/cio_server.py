@@ -7,7 +7,7 @@ from json import loads, decoder as json_decoder
 from time import sleep, gmtime, strftime
 from tempfile import TemporaryDirectory
 from functools import reduce
-from logging import exception, info
+from logging import exception, info, debug
 
 from . import list_dir, repeat, read_text, one, group_map, decode
 from .git import git_pull, git_clone
@@ -44,16 +44,23 @@ def load_no_die(s, path):
 def load_def_list(d):
     return [d for p in list_dir(d) if p.endswith(".json") for c in [load_no_die(read_text(p), p)] if c for d in c]
 
-def get_service_steps(main_def_list): return [
-    [["queue","name",d[1]],["queue","skip",d[1]],["call",{"op":d[1]}]] for d in main_def_list if d and d[0] == "service"
-]
+def fallback(fb, f, *args):
+    try: return f(*args)
+    except Exception as e:
+        exception(e)
+        return fb
 
-def get_cron_steps(main_def_list, last_tm_abbr):
+def get_service_steps(def_list):
+    services = [one(*d[1:]) for d in def_list if d and d[0] == "service"]
+    return [[["queue","name",s],["queue","skip",s],["call",{"op":s}]] for s in services]
+
+def get_tm_abbr():
     tm = gmtime()
-    tm_abbr = ("ETKNRLP"[tm.tm_wday], strftime("%H:%M", tm))
-    same_tm = last_tm_abbr == tm_abbr
-    same_tm or info(f"at {tm_abbr}")
-    return tm_abbr, [] if same_tm else [[["call", act]] for act in [
+    return "ETKNRLP"[tm.tm_wday], strftime("%H:%M", tm)
+
+def get_cron_steps(main_def_list, tm_abbr):
+    info(f"at {tm_abbr}")
+    return [[["call", act]] for act in [
         *select_def(main_def_list, "weekly", tm_abbr[0]+tm_abbr[1]),
         *select_def(main_def_list, "daily", tm_abbr[1])
     ]]
@@ -111,13 +118,15 @@ def handle_any(env, def_repo_dir, report, tasks, requested_steps, tm_abbr, msg):
             reschedule = True
         case TaskFin(ok, key, _):
             if ok and key == "pull":
-                main_def_list = load_def_list(f'{def_repo_dir}/{env["C4CRON_MAIN_DIR"]}')
-                util_def_list = load_def_list(f'{def_repo_dir}/{env["C4CRON_UTIL_DIR"]}')
-                service_steps = get_service_steps(main_def_list)
-                tm_abbr, cron_steps = get_cron_steps(main_def_list, tm_abbr)
-                steps = [*requested_steps,*cron_steps,*service_steps]
-                new_tasks = [steps_to_task(env, report, util_def_list, ss) for ss in steps]
-                tasks = reduce(tasks_push_skip, new_tasks, tasks)
+                main_dir, util_dir = env["C4CRON_MAIN_DIR"], env["C4CRON_UTIL_DIR"]
+                def_lists = {k: load_def_list(f'{def_repo_dir}/{k}') for k in sorted({main_dir, util_dir})}
+                service_steps = fallback((), get_service_steps, def_lists[main_dir])
+                tm_abbr, was_tm_abbr = get_tm_abbr(), tm_abbr
+                same_tm = was_tm_abbr == tm_abbr
+                cron_steps = () if same_tm else fallback((), get_cron_steps, def_lists[main_dir], tm_abbr)
+                for ss in [*requested_steps,*cron_steps,*service_steps]:
+                    task = fallback(None, steps_to_task, env, report, def_lists[util_dir], ss)
+                    if task is not None: tasks = tasks_push_skip(tasks, task)
                 requested_steps = ()
             reschedule = True
     return tasks, requested_steps, tm_abbr, reschedule
