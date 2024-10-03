@@ -6,6 +6,8 @@ from pathlib import Path
 from functools import reduce
 from queue import Queue
 from logging import info, debug
+from os import kill
+from signal import SIGTERM
 
 from .threads import TaskQ, daemon
 from .cio_client import post_json, task_kv, log_addr, localhost
@@ -125,8 +127,14 @@ def kube_report_make(kube_context, out_path):
 
 def local_kill_serve():
     stats = [f"{p}/status" for p in list_dir("/proc") if p.split("/")[-1].isdigit()]
-    to_kill = sorted(int(p.split("/")[-2]) for p in stats if path_exists(p) and "\nPPid:\t1\n" in read_text(p))[1:]
-    run(("kill", *[str(p) for p in to_kill])) if len(to_kill) > 0 else sleep(5)
+    def path_text_contains_no_die(p, substr):
+        try: return path_exists(p) and substr in read_text(p)
+        except FileNotFoundError: return False
+    to_kill = sorted(int(p.split("/")[-2]) for p in stats if path_text_contains_no_die(p, "\nPPid:\t1\n"))[1:]
+    for p in to_kill:
+        try: kill(p, SIGTERM)
+        except ProcessLookupError: pass
+    sleep(1 if to_kill else 5)
 
 
 def access_once(deploy_context, d):
