@@ -10,11 +10,13 @@ def http_serve(addr, routes: dict):
     #noinspection PyTypeChecker
     HTTPServer(addr, CallHandler).serve_forever()
 
+# noinspection PyTypeChecker
 def tcp_serve(addr, on_line, on_fin):
     from socketserver import ThreadingTCPServer, StreamRequestHandler
     class LogHandler(StreamRequestHandler):
         def handle(self):
             for line in self.rfile: on_line(line)
             on_fin()
-    # noinspection PyTypeChecker
-    ThreadingTCPServer(addr, LogHandler).serve_forever()
+    class LogServer(ThreadingTCPServer):
+        allow_reuse_address = True
+    LogServer(addr, LogHandler).serve_forever()
