@@ -57,7 +57,7 @@ class TaskQ:
             if len(self.active) == 0: break
             self.get()
 
-def now_str(): return datetime.now().isoformat().split('.')[0]
+def now_str(): return datetime.now().isoformat()
 
 def fatal(f, *args):
     res = []

@@ -52,7 +52,7 @@ def fallback(fb, f, *args):
 
 def get_service_steps(def_list):
     services = [one(*d[1:]) for d in def_list if d and d[0] == "service"]
-    return [[["queue","name",s],["queue","skip",s],["call",{"op":s}]] for s in services]
+    return [[["queue","name",s],["queue","hint",s],["queue","skip",s],["call",{"op":s}]] for s in services]
 
 def get_tm_abbr():
     tm = gmtime()
