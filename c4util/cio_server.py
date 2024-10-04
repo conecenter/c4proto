@@ -16,7 +16,7 @@ from .threads import TaskQ, daemon, TaskFin
 from .servers import http_serve, tcp_serve
 from .cluster import get_kubectl, get_secret_part
 from .cio_preproc import plan_steps
-from .cio_client import log_addr, cmd_addr, task_kv
+from .cio_client import log_addr, cmd_addr, task_hint
 from .cio import run_steps
 
 class LogLine(NamedTuple):
@@ -52,7 +52,7 @@ def fallback(fb, f, *args):
 
 def get_service_steps(def_list):
     services = [one(*d[1:]) for d in def_list if d and d[0] == "service"]
-    return [[["queue","name",s],["queue","hint",s],["queue","skip",s],["call",{"op":s}]] for s in services]
+    return [[["queue","name",s],["queue","hint",task_hint(s)],["queue","skip",s],["call",{"op":s}]] for s in services]
 
 def get_tm_abbr():
     tm = gmtime()
@@ -70,10 +70,10 @@ def steps_to_task(env, report, def_list, steps):
     steps = [([*d,report()] if d[0] == "queue_report" else d) for d in steps]
     cmd = get_cmd(run_steps, env, steps)
     opt = {k:one(*{*vs}) for k, vs in group_map([d[1:] for d in steps if d[0] == "queue"], lambda d: d).items()}
-    return PlainTask(opt.get("name", "def"), opt.get("hint", task_kv("script")[-1]), opt.get("skip"), cmd)
+    return PlainTask(opt.get("name", "def"), opt.get("hint", task_hint("script")), opt.get("skip"), cmd)
 
 def get_pull_task(def_repo_dir):
-    return PlainTask("pull", task_kv("pull")[-1], "pull", get_cmd(git_pull, def_repo_dir))
+    return PlainTask("pull", task_hint("pull"), "pull", get_cmd(git_pull, def_repo_dir))
 
 def tasks_push_skip(tasks, task):
     return [*[t for t in tasks if task.skip is None or task.skip != t.skip], task]
