@@ -89,7 +89,7 @@ def main():
     def_repo_dir = f"{dir_life.name}/def_repo"
     repo = decode(get_secret_part(get_kubectl(env["C4DEPLOY_CONTEXT"]), env["C4CRON_REPO"]))
     git_clone(repo, env["C4CRON_BRANCH"], def_repo_dir)
-    report = lambda: {"active": {*task_q.active}, "pending": [[t.key, t.value] for t in tasks]}
+    report = lambda: {"active": {**task_q.active}, "pending": [[t.key, t.value] for t in tasks]}
     tasks, requested_steps, tm_abbr = (), (), ()
     while True:
         try: # here we try to change state atom-ly
