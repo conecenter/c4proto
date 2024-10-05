@@ -132,7 +132,9 @@ def local_kill_serve():
         except FileNotFoundError: return False
     to_kill = sorted(int(p.split("/")[-2]) for p in stats if path_text_contains_no_die(p, "\nPPid:\t1\n"))[1:]
     for p in to_kill:
-        try: kill(p, SIGTERM)
+        try:
+            debug(f"will kill {p}")
+            kill(p, SIGTERM)
         except ProcessLookupError: pass
     sleep(1 if to_kill else 5)
 
