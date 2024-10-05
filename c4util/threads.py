@@ -19,12 +19,10 @@ class TaskQ:
     q: Queue
     active: dict
     all_ok: bool
-    min_exec_time: int
-    def __init__(self, q, min_exec_time, log_addr):
+    def __init__(self, q, log_addr):
         self.q = q
         self.active = {}
         self.all_ok = True
-        self.min_exec_time = min_exec_time
         self.log_addr = log_addr
     def get(self):
         debug(f'{len(self.active)} tasks in progress')
@@ -34,13 +32,13 @@ class TaskQ:
             self.all_ok = self.all_ok and msg.ok
         return msg
     def can_not_submit(self, task_key): return task_key in self.active
-    def submit(self, task_key, value):
+    def submit(self, task_key, value, min_exec_time=0):
         if task_key in self.active: raise Exception(f"{task_key} exists")
         self.active[task_key] = value
         info(f'{value} [{task_key}] submitted')
-        return lambda cmd, cwd = None, env=None: daemon(self.follow, task_key, value, cmd, cwd, env)
-    def follow(self, task_key, value, cmd, cwd, env):
-        until = monotonic() + self.min_exec_time
+        return lambda cmd, cwd = None, env=None: daemon(self.follow, task_key, value, min_exec_time, cmd, cwd, env)
+    def follow(self, task_key, value, min_exec_time, cmd, cwd, env):
+        until = monotonic() + min_exec_time
         title = f'{value} [{task_key}]'
         with Popen(cmd, stdout=PIPE, stderr=STDOUT, cwd=cwd, env=env) as proc, socket() as sock:
             sock.connect(self.log_addr)

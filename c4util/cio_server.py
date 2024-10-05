@@ -81,7 +81,7 @@ def tasks_push_skip(tasks, task):
 def main():
     env = environ
     msg_q = Queue()
-    task_q = TaskQ(msg_q, 2, log_addr())
+    task_q = TaskQ(msg_q, log_addr())
     daemon(tcp_serve, log_addr(), lambda b: msg_q.put(LogLine(b)), lambda: msg_q.put(LogFin()))
     daemon(http_serve, cmd_addr(), {"/c4q": lambda d: msg_q.put(PostReq(d))})
     daemon(repeat, lambda: (msg_q.put(CronCheck()), sleep(30)))

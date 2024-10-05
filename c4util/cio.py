@@ -71,10 +71,10 @@ def rsync_local(fr, to): run(("rsync", "-acr", fr+"/", need_dir(to)+"/"))
 
 
 def distribution_run_outer(groups, tasks, try_count, check_task, dir_te, command_te):
-    task_q = TaskQ(Queue(), 2, log_addr())
+    task_q = TaskQ(Queue(), log_addr())
     def do_start(group, task):
         arg = {"group": group, "task": task}
-        task_q.submit(group, task)(arg_substitute(arg, command_te), cwd=arg_substitute(arg, dir_te))
+        task_q.submit(group, task, min_exec_time=2)(arg_substitute(arg, command_te), cwd=arg_substitute(arg, dir_te))
     def do_get():
         m = task_q.get()
         return m.ok, m.key, m.value
@@ -200,7 +200,7 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
 
 def run_steps(env, steps):
     life = TemporaryDirectory()
-    task_q = TaskQ(Queue(), 2, log_addr())
+    task_q = TaskQ(Queue(), log_addr())
     info("plan:\n" + "\n".join(f"\t{dumps(step)}" for step in steps))
     handlers = get_step_handlers(env, env["C4DEPLOY_CONTEXT"], get_dir=(lambda nm: f'{life.name}/{nm}'), main_q=task_q)
     for step in steps:
