@@ -6,7 +6,7 @@ from os import environ
 from json import loads, decoder as json_decoder
 from time import sleep, gmtime, strftime
 from tempfile import TemporaryDirectory
-from logging import exception, info, basicConfig, DEBUG
+from logging import exception, info, basicConfig, DEBUG, INFO
 
 from . import list_dir, repeat, read_text, one, group_map, decode
 from .git import git_pull, git_clone
@@ -79,7 +79,7 @@ def tasks_push_skip(tasks, task):
 
 def main():
     env = environ
-    basicConfig(level=DEBUG)
+    basicConfig(level=INFO)
     msg_q = Queue()
     task_q = TaskQ(msg_q, log_addr())
     daemon(tcp_serve, log_addr(), lambda b: msg_q.put(LogLine(b)), lambda: msg_q.put(LogFin()))
@@ -108,7 +108,8 @@ def handle_any(env, def_repo_dir, report, tasks, requested_steps, tm_abbr, msg):
     reschedule = False
     match msg:
         case LogLine(bs): stderr.write(decode(bs))
-        case LogFin(): stderr.write("FIN\n")
+        case LogFin():
+            pass #stderr.write("FIN\n")
         case PostReq(data):
             tasks = tasks_push_skip(tasks, get_pull_task(def_repo_dir))
             requested_steps = (*requested_steps, loads(decode(data)))
