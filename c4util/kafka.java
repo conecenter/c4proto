@@ -67,6 +67,7 @@ void main(String[] args){
             });
             //server.setExecutor(null)
             server.start();
+            Thread.sleep(Long.MAX_VALUE);
         }
     } catch(Exception e){
         //noinspection CallToPrintStackTrace
