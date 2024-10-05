@@ -6,8 +6,7 @@ from os import environ
 from json import loads, decoder as json_decoder
 from time import sleep, gmtime, strftime
 from tempfile import TemporaryDirectory
-from functools import reduce
-from logging import exception, info, debug
+from logging import exception, info, basicConfig, DEBUG
 
 from . import list_dir, repeat, read_text, one, group_map, decode
 from .git import git_pull, git_clone
@@ -80,6 +79,7 @@ def tasks_push_skip(tasks, task):
 
 def main():
     env = environ
+    basicConfig(level=DEBUG)
     msg_q = Queue()
     task_q = TaskQ(msg_q, log_addr())
     daemon(tcp_serve, log_addr(), lambda b: msg_q.put(LogLine(b)), lambda: msg_q.put(LogFin()))
