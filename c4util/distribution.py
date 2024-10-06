@@ -49,5 +49,5 @@ def distribution_run(groups, task_list, try_count, check_task, do_start, do_get)
             events.append(Event(group, task, "S" if ok else "F", get_time()))
         else:
             warning(f'todo: {dumps(finally_failed)}')
-            info("\n".join(f"distribution was {ev.status} {ev.group} {ev.task} {ev.time}" for ev in events))
+            info("".join(f"\ndistribution was {ev.status} {ev.group} {ev.task} {ev.time}" for ev in events))
             break

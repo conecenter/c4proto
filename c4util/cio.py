@@ -108,7 +108,7 @@ def purge(env, prefix, clients):
         return [f'{p}/{line["key"]}' for line in cl.s3list(mc, p)]
     run_no_die((*mc, "rm", *ls(".snapshots"), *ls(".txr")))
     for cl_id in clients:
-        cl.kafka_post(cl_id, "rm", prefix)
+        info(cl.kafka_post(cl_id, "rm", prefix))
     never_if(ls(".snapshots"))
 
 
