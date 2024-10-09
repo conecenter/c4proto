@@ -106,7 +106,7 @@ def purge(env, prefix, clients):
     mc = cl.s3init(kc)
     def ls(tp):
         bucket = cl.s3path(f"{prefix}{tp}")
-        proc = sp_run(debug_args(*mc, "ls", "--json", bucket), check=False, text=True, capture_output=True)
+        proc = sp_run(debug_args("",(*mc, "ls", "--json", bucket)), check=False, text=True, capture_output=True)
         return [f'{bucket}/{loads(line)["key"]}' for line in proc.stdout.splitlines()] if proc.returncode == 0 else []
     run_no_die((*mc, "rm", *ls(".snapshots"), *ls(".txr")))
     for cl_id in clients:
