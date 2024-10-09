@@ -108,9 +108,9 @@ def purge(env, prefix, clients):
         bucket = cl.s3path(f"{prefix}{tp}")
         proc = sp_run(debug_args("",(*mc, "ls", "--json", bucket)), check=False, text=True, capture_output=True)
         return [f'{bucket}/{loads(line)["key"]}' for line in proc.stdout.splitlines()] if proc.returncode == 0 else []
-    run_no_die((*mc, "rm", *ls(".snapshots"), *ls(".txr")))
-    for cl_id in clients:
-        info(cl.kafka_post(cl_id, "rm", prefix))
+    to_rm = (*ls(".snapshots"), *ls(".txr"))
+    if to_rm: run_no_die((*mc, "rm", *to_rm))
+    for cl_id in clients: info(cl.kafka_post(cl_id, "rm", prefix))
     never_if(ls(".snapshots"))
 
 
