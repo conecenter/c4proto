@@ -50,10 +50,11 @@ def app_cold_start(q, env, conf_from, snapshot_from):
 def app_cold_start_blocking(env, conf_from, snapshot_from):
     repeat(lambda: (debug("..."), sleep(1)) if path_exists(lock_path(conf_from)) else True, (True,))
     it = read_json(conf_from)
-    never_if(f'bad ctx {it["kube-context"]} {it["c4env"]}' if it["kube-context"] != env["C4DEPLOY_CONTEXT"] else None)
-    pod_templates = [man["spec"]["template"] for man in it["manifests"] if man["kind"] == "Deployment"]
-    install_prefix = one(*sn.get_prefixes_from_pods(pod_templates))
-    sn.snapshot_copy(env, snapshot_from, {"prefix": install_prefix})
+    if snapshot_from is not None:
+        never_if(f'bad ctx {it["kube-context"]} {it["c4env"]}' if it["kube-context"] != env["C4DEPLOY_CONTEXT"] else None)
+        pod_templates = [man["spec"]["template"] for man in it["manifests"] if man["kind"] == "Deployment"]
+        install_prefix = one(*sn.get_prefixes_from_pods(pod_templates))
+        sn.snapshot_copy(env, snapshot_from, {"prefix": install_prefix})
     app_up(it)
 
 
@@ -169,7 +170,7 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     ),
     "git_add_tagged": lambda cwd, tag: git.git_add_tagged(get_dir(cwd), tag),
     "git_save_changed": lambda cwd: git.git_save_changed(get_dir(cwd)),
-    "app_cold_start": lambda opt: app_cold_start(main_q, env, get_dir(opt["conf_from"]), opt["snapshot_from"]),
+    "app_cold_start": lambda opt: app_cold_start(main_q, env, get_dir(opt["conf_from"]), opt.get("snapshot_from")),
     "app_stop_start": lambda kube_context, app: app_stop_start(kube_context, app),
     "app_prep_start": lambda opt: app_prep_start(main_q, env, opt["app"], get_dir(opt["ver"]), get_dir(opt["conf_to"])),
     "app_substitute": lambda opt: app_substitute(get_dir(opt["conf_from"]), opt["substitute"], get_dir(opt["conf_to"])),

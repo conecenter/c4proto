@@ -14,7 +14,7 @@ from .cmd import get_cmd
 from .threads import TaskQ, daemon, TaskFin
 from .servers import http_serve, tcp_serve
 from .cluster import get_kubectl, get_secret_part
-from .cio_preproc import plan_steps
+from .cio_preproc import plan_steps, arg_substitute
 from .cio_client import log_addr, cmd_addr, task_hint
 from .cio import run_steps
 
@@ -66,6 +66,7 @@ def get_cron_steps(main_def_list, tm_abbr):
 
 def steps_to_task(env, report, def_list, steps):
     steps = plan_steps((steps, (def_list, None)))
+    steps = arg_substitute({"group":"{group}","task":"{task}"}, steps, die_on_undef=True)
     steps = [([*d,report()] if d[0] == "queue_report" else d) for d in steps]
     cmd = get_cmd(run_steps, env, steps)
     opt = {k:one(*{*vs}) for k, vs in group_map([d[1:] for d in steps if d[0] == "queue"], lambda d: d).items()}
