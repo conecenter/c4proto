@@ -8,13 +8,14 @@ from queue import Queue
 from logging import info, debug
 from os import kill
 from signal import SIGTERM
+from subprocess import run as sp_run
 
 from .threads import TaskQ, daemon
 from .cio_client import post_json, task_kv, log_addr, localhost
 from . import snapshots as sn, cluster as cl, git, kube_reporter as kr, distribution
 from .cio_preproc import arg_substitute
 from . import run, list_dir, Popen, wait_processes, changing_text, one, read_text, never_if, need_dir, \
-    path_exists, read_json, never, repeat, decode, run_no_die
+    path_exists, read_json, never, repeat, decode, run_no_die, debug_args
 from .cmd import get_cmd
 
 
@@ -104,8 +105,9 @@ def purge(env, prefix, clients):
     cl.wait_no_active_prefix(kc, prefix)
     mc = cl.s3init(kc)
     def ls(tp):
-        p = cl.s3path(f"{prefix}{tp}")
-        return [f'{p}/{line["key"]}' for line in cl.s3list(mc, p)]
+        bucket = cl.s3path(f"{prefix}{tp}")
+        proc = sp_run(debug_args(*mc, "ls", "--json", bucket), check=False, text=True, capture_output=True)
+        return [f'{bucket}/{loads(line)["key"]}' for line in proc.stdout.splitlines()] if proc.returncode == 0 else []
     run_no_die((*mc, "rm", *ls(".snapshots"), *ls(".txr")))
     for cl_id in clients:
         info(cl.kafka_post(cl_id, "rm", prefix))
