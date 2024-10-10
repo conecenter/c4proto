@@ -20,7 +20,7 @@ my $serve = sub{
     # with G1/ZGC unused RAM is released back to OS
     # G1 gets many GCLocker oom errors on ubuntu 20.04, so we tried ZGC, but it was too hungry, then GCLockerRetryAllocationCount was found
     local $ENV{C4PUBLIC_PATH} = "htdocs";
-    local $ENV{CLASSPATH} = join ":", sort <app/*.jar>;
+    local $ENV{CLASSPATH} = "app/*"; # join ":", sort <app/*.jar>;
     &$exec("sh", "serve.sh");
 };
 
