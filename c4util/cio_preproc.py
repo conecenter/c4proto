@@ -22,6 +22,7 @@ def plan_step(scope, op, *step_args):
         return ()
     elif op == "for":
         items, body = step_args
+        isinstance(items, list) or never("need list")
         return [ps for it in items for ps in plan_steps((arg_substitute({"it": it}, body), scope))]
     elif op == "call":
         msg, = step_args
@@ -34,12 +35,12 @@ def plan_step(scope, op, *step_args):
         return [(op, *step_args)]
 
 
-def arg_substitute(args, body):
+def arg_substitute(args, body, die_on_undef=False):
     patt = re.compile(r'\{(\w+)}|"@(\w+)"|"strange@(\w+)"')
     repl = (lambda a: (
         args[a.group(1)] if a.group(1) in args else
         dumps(args[a.group(2)]) if a.group(2) in args else
         dumps([str(n) for n in range(args[a.group(3)])]) if a.group(3) in args else
-        a.group(0)
+        never(f'missing {a.group(0)}') if die_on_undef else a.group(0)
     ))
     return loads(patt.sub(repl, dumps(body)))

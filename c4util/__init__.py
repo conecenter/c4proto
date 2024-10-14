@@ -4,6 +4,8 @@ import pathlib
 import subprocess
 import time
 import sys
+from types import MappingProxyType
+
 
 def group_map(l,f):
     res = {}
@@ -84,7 +86,7 @@ def need_dir(d):
     return d
 
 
-def http_exchange(conn, method, url, data, headers):
+def http_exchange(conn, method, url, data=b'', headers=MappingProxyType({})):
     conn.request(method, url, data, headers)
     resp = conn.getresponse()
     msg = resp.read()
@@ -92,3 +94,7 @@ def http_exchange(conn, method, url, data, headers):
 
 
 def http_check(status, msg): return msg if 200 <= status < 300 else never(f"request failed: {status}\n{msg}")
+
+
+def repeat(f, exits=()):
+    while f() not in exits: pass

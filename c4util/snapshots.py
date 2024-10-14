@@ -1,7 +1,6 @@
 
 import json
-import pathlib
-import http.client
+from http.client import HTTPConnection, HTTPSConnection
 import hashlib
 import base64
 import time
@@ -9,9 +8,8 @@ import urllib.parse
 import re
 
 from . import run, never_if, one, read_text, list_dir, run_text_out, http_exchange, http_check, Popen, never, log
-from .cluster import get_env_values_from_pods, s3path, s3init, s3list, get_kubectl, get_pods_json, get_active_prefixes,\
-    get_all_contexts
-
+from .cluster import get_prefixes_from_pods, s3path, s3init, s3list, get_kubectl, get_pods_json, wait_no_active_prefix,\
+    get_all_contexts, kafka_post
 
 
 def s3get(cmd, size, try_count):
@@ -71,7 +69,7 @@ def post_signed(kube_contexts, app, url, args, data):
     salt = run((*app_pod_cmd_prefix, "cat $C4AUTH_KEY_FILE"), capture_output=True).stdout
     host = get_hostname(kc, app)
     headers = sign(salt, [url, *args])
-    http_check(*http_exchange(http.client.HTTPSConnection(host, None), "POST", url, data, headers))
+    http_check(*http_exchange(HTTPSConnection(host, None), "POST", url, data, headers))
 
 
 def snapshot_list_dump(deploy_context, fr):
@@ -85,7 +83,7 @@ def snapshot_prefix_resolve(deploy_context, opt):
         return deploy_context, opt["prefix"]
     elif opt["type"] == "app":
         kube_context, kc, pods = get_app_kc_pods(opt["kube_contexts"], opt["app"])
-        return kube_context, one(*get_env_values_from_pods("C4INBOX_TOPIC_PREFIX", pods))
+        return kube_context, one(*get_prefixes_from_pods(pods))
     else:
         never("bad from/to")
 
@@ -137,12 +135,9 @@ def snapshot_copy(env, fr, to):
         util_dir = f'{env["C4CI_PROTO_DIR"]}/c4util'
         java = ("java", "--source", "21", "--enable-preview")
         #
-        while to_prefix in get_active_prefixes(to_kc):
-            time.sleep(2)
+        wait_no_active_prefix(to_kc, to_prefix)
         #
-        cp = read_text("/c4/kafka-clients-classpath").strip()
-        cmd = (*java, "-cp", cp, f"{util_dir}/kafka_send.java", f"{to_prefix}.inbox")
-        new_offset = f"{int(run_text_out(cmd).strip())+1:016x}"
+        new_offset = f'{int(http_check(*kafka_post(0, "send", to_prefix)).strip())+1:016x}'
         #
         old_offset, minus, postfix = name.partition("-")
         never_if(None if minus == "-" and len(old_offset) == len(new_offset) else "bad name")
@@ -166,7 +161,7 @@ def snapshot_copy(env, fr, to):
             proto, splitter, host = read_text(f'{env["C4S3_CONF_DIR"]}/address').partition("://")
             never_if(None if proto == "http" and splitter == "://" else "bad address")
             headers = {**add_head, "x-amz-copy-source": source}
-            http_check(*http_exchange(http.client.HTTPConnection(host, None), "PUT", url, b'', headers))
+            http_check(*http_exchange(HTTPConnection(host, None), "PUT", url, b'', headers))
         else:
             run((*to_mc, "pipe", s3path(f"{to_bucket}/{new_fn}")), input=get_data())
     elif to["type"] == "app":

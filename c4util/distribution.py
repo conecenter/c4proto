@@ -1,44 +1,53 @@
 
 from itertools import islice
 from functools import reduce
-from time import sleep, monotonic
+from time import monotonic
 from json import dumps
-from . import group_map, log
+from typing import NamedTuple
+from logging import info, warning
 
+from . import group_map
 
-def tupled(f): return lambda t: f(*t)
+class Event(NamedTuple):
+    group: str
+    task: str
+    status: str
+    time: float
 
-
-def distribution_calc(groups, task_list, try_count, check_task, started):
+def distribution_calc(groups, task_list, try_count, check_task, events: list[Event]):
     last_res = (lambda d, k: d[k][-1] if k in d else "F")
     # tasks: Processing, Succeeded, Failed, FinallyFailed
     # groups: Processing, Succeeded, Failed
-    t2rs = group_map(started, tupled(lambda g, t, r: (t,r)))
-    g2rs = group_map(started, tupled(lambda g, t, r: (g,r)))
+    t2rs = group_map(events, lambda ev: (ev.task, ev.status))
+    g2rs = group_map(events, lambda ev: (ev.group, ev.status))
     last_r2ts = group_map(task_list, lambda t: (last_res(t2rs, t), t))
     last_r2gs = group_map(groups   , lambda g: (last_res(g2rs, g), g))
     check_to_starts = [(g, check_task) for g in last_r2gs.get("F",())]
-    get_try_count = (lambda t: len(t2rs[t]) if t in t2rs else 0)
+    t2rsp = group_map((ev.task for ev in events if ev.status == "P"), lambda t: (t, True))
+    get_try_count = (lambda t: len(t2rsp[t]) if t in t2rsp else 0)
     todo_tasks = sorted((t for t in last_r2ts.get("F",()) if get_try_count(t) < try_count), key=get_try_count)
-    started_set = {(g, t) for g, t, r in started}
+    started_set = {(ev.group, ev.task) for ev in events}
     was_task = (lambda starts, g, t: (g, t) in started_set or any(t==t0 for g0, t0 in starts))
     find_starts = (lambda starts, g: islice(((g, t) for t in todo_tasks if not was_task(starts, g, t)), 0, 1))
     task_to_starts = reduce(lambda starts, g: (*starts, *find_starts(starts, g)), last_r2gs.get("S",()), ())
-    return (*check_to_starts, *task_to_starts), None if "P" in last_r2ts or todo_tasks else last_r2ts.get("F",())
+    finally_failed = None if "P" in last_r2ts or todo_tasks else last_r2ts.get("F",())
+    return (*check_to_starts, *task_to_starts), finally_failed, len(todo_tasks)
 
 
-def distribution_run(groups, task_list, try_count, check_task, check_period, do_start):
-    codes = {None:"P",0:"S"}
-    get_code = (lambda p: codes.get(p.poll() if p.returncode is None else p.returncode, "F"))
-    started = []
+def distribution_run(groups, task_list, try_count, check_task, do_start, do_get):
+    events: list[Event] = []
+    started_at = monotonic()
+    get_time = lambda: monotonic() - started_at
     while True:
-        started_with_codes = [(g, t, get_code(p)) for g, t, p, tm in started]
-        to_starts, finally_failed = distribution_calc(groups, task_list, try_count, check_task, started_with_codes)
+        to_starts, finally_failed, todo_count = distribution_calc(groups, task_list, try_count, check_task, events)
+        info(f"todo: {todo_count}")
         for group, task in to_starts:
-            started.append((group, task, do_start({"group": group, "task": task}), monotonic()))
+            events.append(Event(group, task, "P", get_time()))
+            do_start(group, task)
         if finally_failed is None:
-            sleep(check_period)
+            ok, group, task = do_get()
+            events.append(Event(group, task, "S" if ok else "F", get_time()))
         else:
-            log(f'todo: {dumps(finally_failed)}')
-            log("\n".join(f"distribution was {g} {t} {p.returncode} {tm}" for g, t, p, tm in started))
+            warning(f'todo: {dumps(finally_failed)}')
+            info("".join(f"\ndistribution was {ev.status} {ev.group} {ev.task} {ev.time}" for ev in events))
             break

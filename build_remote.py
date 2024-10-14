@@ -305,7 +305,13 @@ def build_type_resource_tracker(context, out):
 def build_type_ci_operator(context, out):
     get_plain_option = get_main_conf(context)
     deploy_context = get_plain_option("C4DEPLOY_CONTEXT")
-    build_micro(context, out, ["ci_serve.py"], [
+    changing_text(f"{out}/ci_serve.py", "from c4util.cio_client import main;main()")
+    changing_text(f"{out}/main.py", "\n".join((
+        'from os import environ as e', 'from time import sleep', 'from subprocess import run',
+        'run(("git","clone","-b",e["C4CI_PROTO_BRANCH"],"--depth","1","--",e["C4CI_PROTO_REPO"],e["C4CI_PROTO_DIR"]))',
+        'while True: (run(("python3", "-u", "-c", "from c4util.cio_server import main;main()")), sleep(10))',
+    )))
+    build_micro(context, out, [], [
         "FROM ubuntu:22.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /replink.pl /",  # replink for ci_prep
         "RUN perl install.pl useradd 1979",
@@ -328,7 +334,7 @@ def build_type_ci_operator(context, out):
         'ENV PATH=${PATH}:/tools:/tools/linux:/tools/jdk/bin:/tools/apache/bin:/tools/sbt/bin',  # /tools/linux for ci_up/helm, /tools/apache/bin for maven
         "RUN coursier fetch --classpath org.apache.kafka:kafka-clients:3.7.1 > /c4/kafka-clients-classpath",
         f"ENV C4DEPLOY_CONTEXT={deploy_context}",
-        'ENTRYPOINT ["/tools/tini","--","python3","-u","/ci_serve.py"]',
+        'ENTRYPOINT ["/tools/tini","--","python3","-u","/main.py"]',
     ])
 
 

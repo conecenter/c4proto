@@ -297,7 +297,12 @@ my $conf_handler = { "consumer"=>$up_consumer, "gate"=>$up_gate };
 
 # /^(\w{16})(-\w{8}-\w{4}-\w{4}-\w{4}-\w{12}[-\w]*)$/
 
-my $ci_run = sub{ &$py_run("ci_serve.py",&$encode([["remote_call", [@_]]])) };
+my $ci_run = sub{
+    my $deploy_context = &$mandatory_of(C4DEPLOY_CONTEXT=>\%ENV);
+    my $label = $ENV{C4CIO_LABEL} || "c4cio";
+    my $pod = syf("kubectl --context $deploy_context get po -l $label -o name")=~/^\s*(\S+)\s*$/ ? $1 : die;
+    sy("kubectl", "--context", $deploy_context, "exec", $pod, "--", "python3", "-u", "/ci_serve.py", &$encode([@_]));
+};
 my $get_snap_st = sub{
     &$mandatory_of(HOSTNAME=>\%ENV)=~/^(de|sp)-(\w+-\w+-\w+)-/ ? (prefix=>"st-$2") : die;
 };
