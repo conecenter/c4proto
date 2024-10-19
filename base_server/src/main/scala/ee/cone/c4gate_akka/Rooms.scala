@@ -110,36 +110,16 @@ object Rooms {
 }
 
 @c4multi("AkkaGatewayApp") final class RoomsRequestHandler(val pathPrefix: String)(
-  roomsManager: RoomsManager, akkaMat: AkkaMat
+  roomsManager: RoomsManager, webSocketUtil: WebSocketUtil
 ) extends AkkaRequestHandler {
-  def getData(message: Message)(implicit ec: ExecutionContext): Future[ByteString] =
-    for {
-      mat <- akkaMat.get
-      data <- message match {
-        case m: BinaryMessage =>
-          m.toStrict(1.seconds)(mat).map(_.data)
-        case m: TextMessage =>
-          m.toStrict(1.seconds)(mat).map(tm=>ByteString(tm.text))
-      }
-    } yield data
-
-  def handleWebSocket(
-    req: HttpRequest
-  )(implicit ec: ExecutionContext): Option[Flow[ByteString,ByteString,_]=>HttpResponse] =
-    req.header[UpgradeToWebSocket]
-      .map(upgrade=>innerFlow=>upgrade.handleMessages(
-        Flow[Message].mapAsync(1)(getData(_)).via(innerFlow).map(BinaryMessage(_))
-      ))
-
   def handleAsync(req: HttpRequest)(implicit ec: ExecutionContext): Future[HttpResponse] =
-    handleWebSocket(req)
-    .fold(Future.successful(HttpResponse(400, entity = ""))){handle=>
+    req.header[UpgradeToWebSocket].fold(Future.successful(HttpResponse(400, entity = ""))){ upgrade =>
       val promise = Promise[Option[Flow[ByteString, ByteString, NotUsed]]]()
       val path = req.uri.path.toString
       if(roomsManager.isReady){ // may be better skip to next handler in AkkaHttpServer if this not ready
         roomsManager.send(RoomFlowReq(path, promise))
         for(respOpt <- promise.future)
-          yield respOpt.fold(HttpResponse(404, entity = ""))(handle)
+          yield respOpt.fold(HttpResponse(404, entity = ""))(webSocketUtil.toResponse(upgrade, _))
       } else {
         Future.successful(HttpResponse(502, entity = "")) // check reconnecting; check pongs distribution
       }

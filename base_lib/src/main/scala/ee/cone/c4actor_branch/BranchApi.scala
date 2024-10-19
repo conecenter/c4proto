@@ -53,7 +53,17 @@ trait BranchOperations {
 
 case class BranchRel(srcId: SrcId, seed: S_BranchResult, parentSrcId: SrcId, parentIsSession: Boolean)
 
+class SessionObservingImpl(){
+  def save(observerSessionKey: String, observableSessionKeys: List[String]): List[LEvent[Product]] = {
 
+
+  }
+}
+case class S_SessionObservingPair(
+  srcId: SrcId,
+  observerSessionKey: String,
+  observableSessionKey: String,
+)
 
 @protocol("BranchApp") object BranchProtocol   {
   @Id(0x0040) case class S_BranchResult(
