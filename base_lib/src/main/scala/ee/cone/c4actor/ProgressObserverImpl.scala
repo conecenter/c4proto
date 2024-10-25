@@ -7,16 +7,37 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{c4assemble,Single}
+import ee.cone.c4assemble.{Replace, Single, c4assemble}
 import ee.cone.c4di.{c4, c4app, c4multi, provide}
-
 
 import java.time.Instant
 
+class EnabledObserver(txObservers: List[TxObserver]) extends Observer[RichContext]{
+  def activate(world: RichContext): Observer[RichContext] = {
+    for(o <- txObservers) o.activate(world)
+    this
+  }
+}
+
+object NoObserver extends Observer[RichContext] {
+  def activate(world: RichContext): Observer[RichContext] = this
+}
+
+class ReportingObserver(replace: Replace) extends Observer[RichContext] {
+  def activate(world: RichContext): Observer[RichContext] = {
+    replace.report(world.assembled)
+    NoObserver
+  }
+}
+
 @c4("ServerCompApp") final
 class ProgressObserverFactoryImpl(
-  val inner: TxObserver, val execution: Execution,
+  txObservers: List[TxObserver], disable: List[DisableDefObserver], replace: Replace,
+  val execution: Execution,
   val config: Config, val sender: RawQSenderExecutable,
+)(
+  val inner: Observer[RichContext] =
+    if(disable.nonEmpty) new ReportingObserver(replace) else new EnabledObserver(txObservers)
 ) extends ProgressObserverFactory {
   def create(endOffset: NextOffset): Observer[RichContext] =
     new ProgressObserverImpl(endOffset,0, this)
@@ -38,7 +59,7 @@ class ProgressObserverImpl(
       val path = config.get("C4READINESS_PATH") match { case "" => throw new Exception case p => p }
       ignoreTheSamePath(Files.write(Paths.get(path),Array.empty[Byte]))
       execution.fatal(Future(sender.run())(_))
-      inner.value.activate(rawWorld)
+      inner.activate(rawWorld)
     }
   private def ignoreTheSamePath(path: Path): Unit = ()
 }

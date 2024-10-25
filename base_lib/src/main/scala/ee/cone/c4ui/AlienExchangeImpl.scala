@@ -1,48 +1,24 @@
 package ee.cone.c4ui
 
-import java.net.URL
-import java.util.UUID
 import ee.cone.c4actor_branch.BranchTypes.BranchKey
-import ee.cone.c4actor.LEvent.{delete, update}
+import ee.cone.c4actor.LEvent.delete
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
+import ee.cone.c4actor_branch.BranchProtocol.U_Redraw
 import ee.cone.c4actor_branch._
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble, c4assemble}
-import ee.cone.c4gate.AlienProtocol.{U_FromAlienConnected, U_FromAlienState, U_ToAlienWrite}
+import ee.cone.c4assemble.c4assemble
+import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
 import ee.cone.c4gate.HttpProtocol.S_HttpRequest
 import ee.cone.c4gate.LocalHttpConsumer
-import ee.cone.c4di.c4
+import ee.cone.c4vdom.VDomMessage
 import okio.ByteString
-import scala.collection.immutable.Seq
-
-case object ToAlienPriorityKey extends TransientLens[java.lang.Long](0L)
-
-@c4("AlienExchangeCompApp") final class ToAlienSenderImpl(
-  txAdd: LTxAdd,
-  getU_FromAlienConnected: GetByPK[U_FromAlienConnected],
-) extends ToAlienSender {
-  def send(sessionKeys: Seq[String], evType: String, data: String): Context => Context = local =>
-    if(sessionKeys.isEmpty) local else doSend(sessionKeys, evType, data, local)
-  private def doSend(sessionKeys: Seq[String], evType: String, data: String, local: Context): Context = {
-    val priority = ToAlienPriorityKey.of(local)
-    val messages = sessionKeys.zipWithIndex.flatMap{
-      case (sessionKey,i) =>
-        val id = UUID.randomUUID.toString
-        update(U_ToAlienWrite(id,sessionKey,evType,data,priority+i))
-    }
-    //println(s"messages: $messages")
-    ToAlienPriorityKey.modify(_+sessionKeys.size).andThen(txAdd.add(messages))(local)
-  }
-  def getConnectionKey(sessionKey: String, local: Context): Option[String] =
-    getU_FromAlienConnected.ofA(local).get(sessionKey).map(_.connectionKey)
-}
 
 case class MessageFromAlienImpl(
   srcId: String,
   headers: Map[String,String],
   request: S_HttpRequest
-) extends BranchMessage {
+) extends BranchMessage with VDomMessage {
   def method: String = request.method match { case "" => "POST" case m => m }
   def header: String => String = k => headers.getOrElse(k,"")
   def body: ByteString = request.body
@@ -61,41 +37,23 @@ case class MessageFromAlienImpl(
     index <- headers.get("x-r-index").map(_.toLong)
   ) yield branchKey -> MessageFromAlienImpl(req.srcId,headers,req)
 
-
   def consumersForHandlers(
     key: SrcId,
-    h: Each[BranchHandler]
+    session: Each[U_AuthenticatedSession]
   ): Values[(SrcId,LocalHttpConsumer)] =
-    List(WithPK(LocalHttpConsumer(h.branchKey)))
-
+    List(WithPK(LocalHttpConsumer(session.logKey)))
 }
 
-@c4assemble("AlienExchangeCompApp") class FromAlienBranchAssembleBase(operations: BranchOperations)   {
-  // more rich session may be joined
-  def fromAliensToSeeds(
+@c4assemble("AlienExchangeCompApp") class RedrawAssembleBase {
+  def redrawByBranch(
     key: SrcId,
-    fromAlien: Each[U_FromAlienState]
-  ): Values[(BranchKey, BranchRel)] = {
-    val child = operations.toSeed(fromAlien)
-    List(operations.toRel(child, fromAlien.sessionKey, parentIsSession = true))
-  }
+    redraw: Each[U_Redraw]
+  ): Values[(BranchKey, BranchMessage)] = List(redraw.branchKey -> RedrawBranchMessage(redraw))
 }
 
-@assemble class FromAlienTaskAssembleBase(file: String) {
-  def mapBranchTaskByLocationHash(
-    key: SrcId,
-    task: Each[BranchTask]
-  ): Values[(SrcId, FromAlienTask)] =
-    for (
-      fromAlien <- List(task.product).collect { case s: U_FromAlienState => s };
-      url <- Option(new URL(fromAlien.location))
-        if /*url.getHost == host && (*/ url.getFile == file || url.getPath == file
-    ) yield task.branchKey -> FromAlienTask(
-      task.branchKey,
-      task,
-      fromAlien,
-      Option(url.getQuery).getOrElse(""),
-      Option(url.getRef).getOrElse("")
-    )
+case class RedrawBranchMessage(redraw: U_Redraw) extends BranchMessage with VDomMessage {
+  def method: String = "POST"
+  def header: String => String = { case "x-r-op" => "redraw" case _ => "" }
+  def body: okio.ByteString = okio.ByteString.EMPTY
+  def deletes: Seq[LEvent[Product]] = LEvent.delete(redraw)
 }
-

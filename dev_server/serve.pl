@@ -23,7 +23,6 @@ my $distinct = sub{ my(@r,%was); $was{$_}++ or push @r,$_ for @_; @r };
 my $zoo_port = 8081;
 my $bootstrap_server = "localhost:8093"; #dup
 my $http_port = sub{8067+$_[0]*100}; #dup
-my $sse_port = sub{8068+$_[0]*100}; #dup
 my $get_repo_dir = sub{ $ENV{C4DS_BUILD_DIR} || die "no C4DS_BUILD_DIR" };
 my $get_proto_dir = sub{ $ENV{C4DS_PROTO_DIR} || die "no C4DS_PROTO_DIR" };
 my $elector_dir = $ENV{C4DS_ELECTOR_DIR} || die "no C4DS_ELECTOR_DIR";
@@ -78,9 +77,6 @@ my $serve_proxy = sub{
         "  default-server check", # w/o it all servers considered ok and req-s gets 503
         "  server be_http_0 127.0.0.1:".&$http_port(0),
         "  server be_http_1 127.0.0.1:".&$http_port(1),
-        #"backend be_sse",
-        #"  mode http",
-        #"  server se_sse 127.0.0.1:$sse_port",
         # this is for HA elector test:
         (map{
             my $from_port = $elector_proxy_port_base + $_;
@@ -155,11 +151,8 @@ my $get_consumer_env = sub{
 my $get_gate_env = sub{
     my($replica)=@_;
     (
-        C4STATE_REFRESH_SECONDS=>100,
         C4ROOMS_CONF=>"/tmp/rooms.conf",
         C4HTTP_PORT => &$http_port($replica),
-        C4SSE_PORT => &$sse_port($replica),
-        C4POD_IP => "127.0.0.1",
         C4KEEP_SNAPSHOTS => "default",
     )
 };

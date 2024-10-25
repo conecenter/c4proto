@@ -9,7 +9,7 @@ export default function Feedback(sessionStorage,location,fetch,setTimeout){
             url: state.pongURL,
             options: {
                 headers: {
-                    "x-r-reload": state.reloadKey||never(),
+                    "x-r-reload": //state.reloadKey||never(), todo uuid
                     "x-r-connection": state.connectionKey,
                     "x-r-location": location+""
                 }

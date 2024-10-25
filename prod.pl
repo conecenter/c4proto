@@ -239,8 +239,6 @@ my $spaced_list = sub{ map{ ref($_) ? @$_ : /(\S+)/g } @_ };
 my @req_big = (req_mem=>"10Gi",req_cpu=>"1000m");
 
 my $inner_http_port = 8067;
-my $inner_sse_port = 8068;
-
 
 my $get_consumer_options = sub{
     my($comp)=@_;
@@ -278,15 +276,12 @@ my $up_gate = sub{
     +{
         %consumer_options,
         C4STATE_TOPIC_PREFIX => "gate",
-        C4STATE_REFRESH_SECONDS => 1000,
         req_mem => "4Gi", req_cpu => "1000m",
         "port:$inner_http_port:$inner_http_port"=>"",
         "ingress:$hostname/"=>$inner_http_port,
         ingress_secret_name => $$conf{ingress_secret_name} || $ingress_secret_name,
         $ingress_api_version ? (ingress_api_version => $ingress_api_version) : (),
         C4HTTP_PORT => $inner_http_port,
-        C4SSE_PORT => $inner_sse_port,
-        need_pod_ip => 1,
         %$conf,
     };
 };

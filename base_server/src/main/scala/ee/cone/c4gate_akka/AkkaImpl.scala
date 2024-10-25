@@ -147,23 +147,6 @@ import scala.util.control.NonFatal
     Future.successful(income)
 }
 
-class AkkaStatefulReceiver[Message](ref: ActorRef) extends StatefulReceiver[Message] {
-  def send(message: Message): Unit = ref ! message
-}
-@c4("AkkaStatefulReceiverFactoryApp") final class AkkaStatefulReceiverFactory(execution: Execution, akkaMat: AkkaMat) extends StatefulReceiverFactory {
-  def create[Message](inner: List[Observer[Message]])(implicit executionContext: ExecutionContext): Future[StatefulReceiver[Message]] =
-    for {
-      mat <- akkaMat.get
-      source = Source.actorRef[Message](100, OverflowStrategy.fail)
-      sink = Sink.fold(inner)((st, msg: Message) => st.map(_.activate(msg)))
-      (actorRef,resF) = source.toMat(sink)(Keep.both).run()(mat)
-    } yield {
-      execution.fatal(_ => resF)
-      new AkkaStatefulReceiver[Message](actorRef)
-    }
-}
-
-
 //execution: Execution,
 //implicit val ec: ExecutionContextExecutor = system.dispatcher
 // List[RunnableGraph[Future[_]]]

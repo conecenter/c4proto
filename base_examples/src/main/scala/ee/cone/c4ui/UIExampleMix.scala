@@ -10,17 +10,6 @@ import ee.cone.c4gate.{AuthProtocolApp, AvailabilityApp, ManagementApp, MergingS
 
 trait CanvasAppBase
 
-@c4app class TestSSEAppBase extends ServerCompApp
-  with EnvConfigCompApp with VMExecutionApp
-  with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp
-  with BranchApp
-  with AlienExchangeCompApp
-  with NoAssembleProfilerCompApp
-  with ManagementApp with PublishingCompApp
-  with RemoteRawSnapshotApp
-  with BasicLoggingApp
-
 trait TestTagsAppBase
 
 trait ReactHtmlAppBase

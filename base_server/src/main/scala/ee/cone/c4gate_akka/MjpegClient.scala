@@ -25,6 +25,7 @@ case class MjpegCamConf(
   execution: Execution,
   akkaMat: AkkaMat,
   akkaHttp: AkkaHttp,
+  webSocketUtil: WebSocketUtil,
 ) extends RoomFactory {
   def pathPrefix: String = "/mjpeg/"
 
@@ -95,14 +96,12 @@ case class MjpegCamConf(
             .toMat(BroadcastHub.sink[ByteString])(Keep.right)
             .run()(mat) //check?
           execution.success(commonSourcePromise,commonSource) // need to be before ignoredOK resolution
-          commonSource.toMat(Sink.ignore)(Keep.right).run()(mat)
+          commonSource.toMat(Sink.ignore)(Keep.right).run()(mat)// ignore stream -- so cam will work w/o client; ? this ignore
         }
       } yield ignoredOK
     }
     val source = Source.fromFutureSource(commonSourcePromise.future)
       .buffer(size = 2, overflowStrategy = OverflowStrategy.dropHead)
-      .keepAlive(1.seconds,()=>ByteString.empty)
-    val sink = Flow[ByteString].idleTimeout(5.seconds).to(Sink.ignore) // ignore stream -- so cam will work w/o client
-    Flow.fromSinkAndSourceCoupled(sink,source)
+    Flow.fromSinkAndSourceCoupled(Flow[ByteString].to(Sink.ignore), source)
   }
 }

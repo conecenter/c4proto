@@ -3,11 +3,10 @@ package ee.cone.c4actor
 import java.time.Instant
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.{SrcId, TransientMap}
-import ee.cone.c4di.{c4, provide}
+import ee.cone.c4di.c4
 
 import java.util.concurrent.LinkedBlockingQueue
 import scala.annotation.tailrec
-import scala.collection.immutable.{Map, Seq}
 import scala.concurrent.Future
 
 trait TxTransforms {
@@ -82,45 +81,19 @@ abstract class InnerTransientLens[Item](key: TransientLens[Item]) extends Abstra
     value => m => m + (key -> value.asInstanceOf[Object])
 }
 
-@c4("SerialObserversApp") final class SerialTxObserver(
-  transforms: TxTransforms
-) extends TxObserver(new SerialObserver(Map.empty)(transforms))
-
-class SerialObserver(localStates: Map[SrcId,TransientMap])(
-  transforms: TxTransforms
-) extends Observer[RichContext] {
-  def activate(global: RichContext): Observer[RichContext] = {
-    val nLocalStates = transforms.get(global).transform{ case(key,handle) =>
-      handle(localStates.getOrElse(key,Map.empty))
-    }
-    new SerialObserver(nLocalStates)(transforms)
-  }
-}
-
-@c4("ParallelObserversApp") final class ParallelObserverProvider(
-  transforms: TxTransforms,
-  ex: ParallelObserverExecutable,
-  disable: List[DisableDefObserver]
-) {
-  @provide def observers: Seq[TxObserver] = if(disable.nonEmpty) Nil else Seq(new TxObserver(new Observer[RichContext] {
-    def activate(world: RichContext): Observer[RichContext] = {
-      ex.send(transforms.get(world).withDefaultValue(transient =>
-        if(world.offset < InnerReadAfterWriteOffsetKey.of(transient)) transient else Map.empty
-      ))
-      this
-    }
-  }))
-}
-
 @c4("ParallelObserversApp") final class ParallelObserverExecutable(
-  execution: Execution
-) extends Executable with Early {
+  execution: Execution, transforms: TxTransforms
+) extends TxObserver with Executable with Early {
   private sealed trait ObservedEvent
   private final class TodoEv(val value: Map[SrcId, TransientMap => TransientMap]) extends ObservedEvent
   private final class DoneEv(val key: SrcId, val value: TransientMap) extends ObservedEvent
   private val queue = new LinkedBlockingQueue[ObservedEvent]
-  def send(actions: Map[SrcId,TransientMap=>TransientMap]): Unit =
+  def activate(world: RichContext): Unit = {
+    val actions: Map[SrcId,TransientMap=>TransientMap] = transforms.get(world).withDefaultValue(transient =>
+      if(world.offset < InnerReadAfterWriteOffsetKey.of(transient)) transient else Map.empty
+    )
     queue.put(new TodoEv(actions))
+  }
   def run(): Unit = iteration(Map.empty)
   private class ActorState(
     val transient: TransientMap, val todo: Option[TransientMap=>TransientMap], val inProgress: Boolean

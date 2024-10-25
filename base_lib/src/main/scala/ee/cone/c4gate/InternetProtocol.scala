@@ -54,32 +54,15 @@ import ee.cone.c4proto._
   )
 }
 
-@protocol("TcpProtocolApp") object TcpProtocol   {
-  @Id(0x0026) case class S_TcpWrite(
-    @Id(0x002A) srcId: String,
-    @Id(0x0027) connectionKey: String,
-    @Id(0x0023) body: okio.ByteString,
-    @Id(0x002B) priority: Long
-  )
-  @Id(0x0028) case class S_TcpConnection(@Id(0x0027) connectionKey: String)
-  @Id(0x0029) case class S_TcpDisconnect(@Id(0x0027) connectionKey: String)
-  //0x002F
-}
+// WAS classes: 0x0026 0x0028 0x0029 ?0x002F 0x0030 0x0037 0x00B3
 
 @protocol("AlienProtocolApp") object AlienProtocol   {
-  @Id(0x0030) case class U_ToAlienWrite(
-    @Id(0x0031) srcId: String,
-    @Id(0x0032) sessionKey: String,
-    @Id(0x0033) event: String,
-    @Id(0x0034) data: String,
-    @Id(0x0035) priority: Long
-  )
 
   @Id(0x0036) case class U_FromAlienState(
     @Id(0x0032) sessionKey: String,
     @Id(0x0037) location: String,
-    @Id(0x0036) reloadKey: String, // we need to affect branchKey
-    @Id(0x003A) userName: Option[String]
+    // @Id(0x0036) reloadKey: String, // we need to affect branchKey
+    @deprecated @Id(0x003A) userName: Option[String]
   )
 
   @Id(0x003B) case class E_HttpConsumer(
@@ -95,9 +78,9 @@ import ee.cone.c4proto._
     @Id(0x005C) isOnline: Boolean
   )
 
-  @Id(0x0037) case class U_FromAlienConnected(
+  @Id(0x0032) case class U_ToAlienAck(
     @Id(0x0032) sessionKey: String,
-    @Id(0x0039) connectionKey: String
+    @Id(0x0030) values: List[N_Header]
   )
 }
 
@@ -134,6 +117,7 @@ import ee.cone.c4proto._
     @Id(0x0058) userName: String,
     @Id(0x005B) untilSecond: Long,
     @Id(0x0022) headers: List[N_Header],
+    @Id(0x0020) logKey: String,
   )
 }
 
@@ -143,17 +127,3 @@ import ee.cone.c4proto._
     //classOf[S_HttpPublicationV2], classOf[S_Manifest],
   ).map(new SnapshotPatchIgnore(_))
 }
-
-@c4("AlienProtocolApp") final class AlienSnapshotPatchIgnores {
-  @provide def get: Seq[GeneralSnapshotPatchIgnore] = Seq(
-    classOf[U_ToAlienWrite],
-    //classOf[U_FromAlienState], classOf[U_FromAlienStatus],
-    //classOf[U_FromAlienConnected],
-  ).map(new SnapshotPatchIgnore(_))
-}
-
-//@c4("AuthProtocolApp") final class AuthSnapshotPatchIgnores {
-//  @provide def get: Seq[GeneralSnapshotPatchIgnore] = Seq(
-//    classOf[U_AuthenticatedSession],
-//  ).map(new SnapshotPatchIgnore(_))
-//}

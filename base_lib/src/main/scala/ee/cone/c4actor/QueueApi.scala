@@ -156,6 +156,7 @@ object Types {
   type TypeKey = ee.cone.c4di.TypeKey
   type UpdateKey = (Long,SrcId)
   type UpdateMap = Map[UpdateKey,N_UpdateFrom]
+  type LEvents = Seq[LEvent[Product]]
 }
 
 
@@ -254,7 +255,10 @@ trait Observer[Message] {
   def activate(world: Message): Observer[Message]
 }
 
-class TxObserver(val value: Observer[RichContext])
+trait TxObserver {
+  def activate(world: RichContext): Unit
+}
+
 final class DisableDefObserver
 final class DisableDefConsuming
 final class DisableDefProducer
