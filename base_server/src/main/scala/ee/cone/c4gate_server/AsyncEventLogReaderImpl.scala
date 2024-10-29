@@ -1,7 +1,7 @@
 package ee.cone.c4gate_server
-import ee.cone.c4actor.{EventLogUtil, GetByPK}
+import ee.cone.c4actor.GetByPK
 import ee.cone.c4di.c4
-import ee.cone.c4gate.ByPathHttpPublicationUntil
+import ee.cone.c4gate.{ByPathHttpPublicationUntil, EventLogUtil}
 
 import java.time.Instant
 import scala.concurrent.Future

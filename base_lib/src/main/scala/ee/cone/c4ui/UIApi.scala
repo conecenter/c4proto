@@ -46,3 +46,5 @@ trait FromAlienTask extends Product {
   def locationQuery: String
   def locationHash: String
 }
+
+case object CurrentBranchKey extends TransientLens[SrcId]("")

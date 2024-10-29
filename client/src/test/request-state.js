@@ -1,5 +1,8 @@
 
-import {splitFirst}    from "../main/util"
+export function splitFirst(splitter,data){
+    const i = data.indexOf(splitter)
+    return [data.substring(0,i), data.substring(i+1)]
+}
 
 export function ExampleRequestState(sender){
     const send = (ctx, target) => {

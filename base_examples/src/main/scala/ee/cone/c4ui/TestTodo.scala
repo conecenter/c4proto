@@ -77,11 +77,6 @@ abstract class SetField[T](val make: (SrcId,String)=>T) extends Product
   @c4el("ExampleButton") def button(key: String, activate: Receiver[C], caption: String = ""): ToChildPair
 }
 
-@c4("ReactHtmlApp") final class ReactHtmlFromAlienTaskAssembleBase {
-  @provide def subAssembles: Seq[Assemble] =
-    new FromAlienTaskAssemble("/react-app.html") :: Nil
-}
-
 @c4("ReactHtmlApp") final class ReactHtmlProvider extends PublishFromStringsProvider {
   def get: List[(String, String)] = {
     val now = System.currentTimeMillis
@@ -95,18 +90,19 @@ abstract class SetField[T](val make: (SrcId,String)=>T) extends Product
         s"""<!DOCTYPE html><meta charset="UTF-8">
          <style> @import '/src/c4p/test/todo-app.css'; </style>
          <body>
-            <script  type="module" src="/src/c4p/test/todo-app.js"></script>
+            <script  type="module" src="/src/c4p/test/todo-app.js?$now"></script>
          </body>""",
+
+      "/ws-app.html" -> (
+        """<!DOCTYPE html><meta charset="UTF-8">""" +
+        s"""<body><script  type="module" src="/src/c4p/test/ws-app.js?$now"></script></body>"""
+      ),
+
     )
   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-@c4("TestTodoApp") final class TestTodoUrlProvider {
-  @provide def assembles: Seq[Assemble] =
-    new FromAlienTaskAssemble("/todo-app.html") :: Nil
-}
 
 @protocol("TestTodoApp") object TestTodoProtocol {
   @Id(0x0001) case class B_TodoTask(@Id(0x0002) srcId: String, @Id(0x0003) createdAt: Long)

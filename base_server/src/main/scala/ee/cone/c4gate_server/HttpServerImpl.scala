@@ -128,11 +128,12 @@ object AuthOperations {
         }
         else RHttpResponse(None, LEvent.update(request.copy(body = okio.ByteString.EMPTY)).toList)
       case Some("branch") =>
-        val headerOpt = for {
+        val sessionOpt = for {
           sessionKey <- ReqGroup.header(request,"x-r-session")
           session <- getU_AuthenticatedSession.ofA(local).get(sessionKey)
-        } yield N_Header("x-r-branch", session.logKey)
-        httpResponseFactory.directResponse(request, r=>r.copy(headers = headerOpt.toList ::: r.headers))
+        } yield session
+        val header = sessionOpt.fold(N_Header("x-r-error", "missing"))(session=>N_Header("x-r-branch", session.logKey))
+        httpResponseFactory.directResponse(request, r=>r.copy(headers = header :: r.headers))
       case _ => throw new Exception("unsupported auth action")
     }
   }

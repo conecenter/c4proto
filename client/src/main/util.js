@@ -7,7 +7,7 @@ export function mergeAll(list){
 
 export function spreadAll(...args){ return Object.assign({},...args) }
 
-export function merger(resolve){
+function merger(resolve){
     const mergePair = (left,right) => (
         isObj(left) && isObj(right) ?
         spreadAll(left,right,...Object.keys(right).filter(k => k in left).map(
@@ -17,10 +17,3 @@ export function merger(resolve){
     )
     return mergePair
 }
-
-export function splitFirst(splitter,data){
-    const i = data.indexOf(splitter)
-    return [data.substring(0,i), data.substring(i+1)]
-}
-
-export function oValues(o){ return Object.keys(o||{}).sort().map(k=>o[k]) }
