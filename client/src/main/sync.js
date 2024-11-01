@@ -1,16 +1,7 @@
 
-import {createElement,useState,useCallback} from "react"
-import {spreadAll,mergeAll}    from "../main/util.js"
-import {createSyncProviders} from "../../c4f/main/vdom-hooks.js"
-import {weakCache} from "../../c4f/main/vdom-util.js"
-
-const useEventListener = (el,evName,callback) => {
-    useEffect(()=>{
-        if(!callback || !el) return undefined
-        el.addEventListener(evName,callback)
-        return ()=>el.removeEventListener(evName,callback)
-    }, [el,evName,callback])
-}
+// @ts-check
+import {createElement,useState,useCallback,useEffect,useContext,createContext,useMemo} from "react"
+import {spreadAll,mergeAll,manageEventListener,weakCache,identityAt} from "../main/util.js"
 
 const getLastKey = ctx => ctx && (ctx.key || getLastKey(ctx.parent))
 function setupIncomingDiff(by,content,parent) {
@@ -48,7 +39,7 @@ function update(object,spec){
 }
 
 const resolveChildren = (o,keys) => keys.map(k=>elementWeakCache(o[k]))
-export const elementWeakCache = weakCache(props=>{
+const elementWeakCache = weakCache(props=>{
     const {key,at:{tp,...at},...cProps} = props
     const childAt = props.at.identity ? Object.fromEntries(
         Object.entries(cProps).filter(([k,v])=>Array.isArray(v)).map(([k,v])=>[k, resolveChildren(cProps,v)])
@@ -59,75 +50,14 @@ export const elementWeakCache = weakCache(props=>{
     return createElement(tp,{...at,key,...childAt}) // ? todo rm at.key
 })
 
+export const ctxToPath = ctx => !ctx ? "" : ctxToPath(ctx.parent) + (ctx.key ? "/"+ctx.key : "")
+
 ////
-
-export const doCreateRoot = (parentNativeElement,reactElement) => {
-    const rootNativeElement = parentNativeElement.ownerDocument.createElement("span")
-    parentNativeElement.appendChild(rootNativeElement)
-    const root = createRoot(rootNativeElement)
-    root.render(reactElement)
-    return () => {
-        root.unmount()
-        rootNativeElement.parentElement.removeChild(rootNativeElement)
-    }
-}
-
-function IsolatedFrame({children,...props}){
-    const [frameElement,ref] = setState()
-    const [theBody,setBody] = setState()
-    const frame = useCallback(()=>{
-        const body = frameElement?.contentWindow?.document.body
-        if(body.id) setBody(body)
-    }, [frameElement,setBody])
-    useAnimationFrame(frameElement, !theBody && frame)
-    useEffect(() => theBody && doCreateRoot(theBody,createElement("span",{children})), [theBody,children])
-    const srcdoc = '<!DOCTYPE html><meta charset="UTF-8"><body id="blank"></body>'
-    return createElement("iframe",{...props,srcdoc,ref})
-}
-//? fontSize = frameElement && frameElement.style.fontSize
-// body.style.fontSize = fontSize || ""
-
-const stateKey = "c4sessionKey"
-export const useSession = () => {
-    const [state, setState] = useState({})
-    //
-    useEffect(()=>{
-        const sessionKey = sessionStorage.getItem(stateKey)
-        sessionStorage.removeItem(stateKey)
-        sessionKey && setState({sessionKey})
-    },[setState])
-    const saveSessionKey = useCallback(()=>sessionStorage.setItem(stateKey, sessionKey), [sessionKey])
-    const win = element && element.ownerDocument.defaultView
-    useEventListener(win, "beforeunload", saveSessionKey)
-    //
-    const login = useCallback((user, pass)=>{
-        setState({})
-        fin = sessionKey => setState(sessionKey ? {sessionKey} : {error:true})
-        fetch("/connect",{ method: "POST", body: `${user}\n${pass}`, headers: {"x-r-auth":"check"}})
-            .then(resp => fin(resp.headers.get("x-r-session")), error => fin(null))
-    },[setState])
-    //
-    const {sessionKey} = state
-    const reloadBranchKey = useCallback(()=>{
-        const fin = (branchKey,sessionError) => setState(was => (
-            sessionKey !== was.sessionKey ? was :
-            branchKey ? {...was,branchKey} :
-            sessionError ? setState({}) :
-            !was.branchKey ? {...was,error:true} : was
-        ))
-        sessionKey && fetch("/connect",{ method: "POST", headers: {"x-r-auth":"branch","x-r-session":sessionKey}})
-            .then(resp => fin(resp.headers.get("x-r-branch"), resp.headers.get("x-r-error")), error => fin(null,null))
-    },[sessionKey,setState])
-    //
-    useEffect(reloadBranchKey, [reloadBranchKey])
-    return {...state,login,reloadBranchKey}
-}
-
-
 
 const useWebsocket = ({url, pongMessage, onData, onClose})=>{
     const [theConnected,setConnected] = useState(null)
-    const needConnected = !theConnected ? true : Date.now() < theConnected.at + 5000
+    const {ws,at} = theConnected || {}
+    const needConnected = url && (!at || Date.now() < at + 5000)
     useEffect(()=>{
         if(!needConnected) return
         const ws = new WebSocket(url)
@@ -144,57 +74,123 @@ const useWebsocket = ({url, pongMessage, onData, onClose})=>{
             onClose && onClose()
         }
     }, [setConnected,url,onData,needConnected])
-    useEffect(()=>{
-        theConnected && theConnected.ws && theConnected.ws.send(pongMessage)
-    },[theConnected,pongMessage])
+    useEffect(() => ws?.send(pongMessage),[ws,at,pongMessage])
+    return ws
 }
 
-
-export function SyncRoot({branchKey,reloadBranchKey,isRoot,transforms,sender}){
-    const [theAvailability, setAvailability] = useState(0) //todo theAvailability to context
-    const [theIncoming, setIncoming] = useState({})
-    const onData = useCallback(data=>{
+const Receiver = ({branchKey, transforms, setState}) => {
+    const tp = {AckElement,LocationElement}
+    const activeTransforms = mergeAll([{ identity: { ctx: ctx => ctx }, tp }, transforms])
+    const receive = data => {
         const {availability,log} = JSON.parse(data)
-        setAvailability(availability)
-        const ctx = {branchKey} //todo? do we need `modify` here
-        const
-        const activeTransforms = mergeAll([{
-            identity: { ctx: ctx => ctx },
-            tp: {AckElement},
-        }, transforms])
-        setIncoming(was => log.reduce((res,d) => update(res, setupIncomingDiff(activeTransforms,d,ctx)), was || {}))
-    },[branchKey,setAvailability,setIncoming,activeTransforms])
-    //
-    useWebsocket({ url: `/eventlog/${branchKey}`, pongMessage: isRoot ? "L":"", onData, onClose: reloadBranchKey })
-    //
-    const {clientKey} = sender
-    const [ack, setAck] = useState()
-    const doAck = useCallback((argClientKey, indexStr) => setAck(was=>{
-        const index = parseInt(indexStr)
-        return clientKey !== argClientKey || ack && was.index >= index ? was : {index}
-    }),[clientKey,setAck])
-    //
-    createSyncProviders({ ack, doAck, isRoot, branchKey, sender, children: elementWeakCache(theIncoming) })
-}
-
-// todo: SenderContext for doAck; clientKey in sender
-function AckElement({clientKey,index}){
-    const {doAck} = useContext(SenderContext)
-    useEffect(()=>doAck(clientKey,index),[doAck,clientKey,index])
-}
-
-export const changeIdOf = identityAt('change')
-function LocationElement({value}){
-    const [patches,enqueuePatch] = useSync(changeIdOf(identity))
-    //relocateHash: location.href = "#"+data
-
-}
-
-function InpSender(sender){
-    const enqueue = (identityCtx,patch) => {
-        const sent = sender.send(identityCtx,patch)
-        return parseInt(sent["x-r-index"])
+        const ctx = {branchKey}
+        setState(was => ({
+            incoming: log.reduce((res,d) => update(res, setupIncomingDiff(activeTransforms,d,ctx)), was.incoming),
+            availability
+        }))
     }
+    return {receive}
+}
+const useReceiverRoot = ({branchKey, transforms}) => {
+    const [state, setState] = useState(()=>({incoming:{},availability:0}))
+    const receiver = useMemo(()=>Receiver({branchKey, transforms, setState}), [branchKey, transforms, setState])
+    const {receive} = receiver
+    const {incoming, availability} = state
+    return {receive, incoming, availability}
+}
 
-    return {enqueue, ctxToPath, busyFor: sender.busyFor, ack}
+const getIndex = patch => patch.headers["x-r-index"]
+const getPath = patch => patch.headers["x-r-vdom-path"]
+const eqBy = (was, will, by) => JSON.stringify(was.map(by)) === JSON.stringify(will.map(by))
+const serialize = o => Object.entries(o).toSorted().flatMap(([k,v])=>v.split("\n").map(l=>`${k}:${l}`)).join("\n")
+const sendOnce = (ws, patch) => {
+    if(ws.lastSentIndex === undefined || ws.lastSentIndex < getIndex(patch)){
+        ws.send(serialize(patch.headers))
+        ws.lastSentIndex = getIndex(patch)
+    }
+}
+const useSenderRoot = ({sessionKey, branchKey, ws}) => {
+    const [state, setState] = 
+        useState(()=>({reloadKey: crypto.randomUUID(), nextPatchIndex:0, patches:[], observers: {}}))
+    const sender = useMemo(()=>Sender({sessionKey, branchKey, ws, setState}), [sessionKey, branchKey, ws, setState])
+    const {patches, observers} = state
+    useEffect(() => sender.send(patches), [sender, patches])
+    useEffect(() => sender.notifyObservers(patches, observers), [sender, patches, observers])
+    return sender
+}
+const Sender = ({sessionKey, branchKey, ws, setState}) => {
+    const enqueue = (identity,patch,set) => setState(was => {
+        const path = ctxToPath(identity)
+        const headers = {
+            ...patch.headers, value: patch.value,
+            "x-r-session": sessionKey, "x-r-branch": branchKey, "x-r-vdom-path": path,
+            "x-r-reload": was.reloadKey, "x-r-index": was.nextPatchIndex, "x-r-alien-date": Date.now(),
+        }
+        const skip = p => p.skipByPath && getPath(p)===getPath(patch)
+        const patches = [...was.patches.filter(p=>!skip(p)), {...patch,headers,set}]
+        return {...was, nextPatchIndex: was.nextPatchIndex+1, patches} 
+    })
+    const doAck = (clientKey, index) => setState(was => (
+        was.reloadKey===clientKey ? {...was, patches: was.patches.filter(patch=>getIndex(patch) > index)} : was
+    ))
+    const send = patches => {
+        const last = patches.findLastIndex(patch=>!patch.defer)
+        patches.forEach((patch, n) => n <= last && sendOnce(ws, patch))
+    }
+    const notifyObservers = (patches, observers) => {
+        const patchesByPath = Object.groupBy(patches, getPath)
+        observers.forEach(observer => {
+            const will = patchesByPath[observer.path]||[]
+            observer.set(was => eqBy(was, will, getIndex) ? was : will)
+        })
+        const willObservers = Object.keys(patchesByPath).toSorted().map(path=>({path,set:patchesByPath[path][0].set}))
+        setState(was => eqBy(was.observers, willObservers, o=>o.path) ? was : {...was, observers: willObservers})
+    }
+    return {enqueue, doAck, send, notifyObservers}
+}
+
+const SyncContext = createContext()
+export const useSyncRoot = ({sessionKey,branchKey,reloadBranchKey,isRoot,transforms}) => {
+    const {receive, incoming, availability} = useReceiverRoot({branchKey, transforms})
+    const url = branchKey && `/eventlog/${branchKey}`
+    const ws = useWebsocket({ url, pongMessage: isRoot ? "L":"", onData: receive, onClose: reloadBranchKey })
+    const {enqueue, doAck} = useSenderRoot({sessionKey, branchKey, ws})
+    const [element, ref] = useState()
+    const win = element?.ownerDocument.defaultView
+    const provided = useMemo(()=>({enqueue,isRoot,doAck,win}), [enqueue,isRoot,doAck,win])
+    const children = useMemo(()=>[
+        createElement("span", {ref}), 
+        createElement(SyncContext.Provider,{value: provided, children: elementWeakCache(incoming)}),
+    ], [provided,incoming,ref])
+    return {children, enqueue, availability, branchKey}
+}
+
+function AckElement({clientKey,index}){
+    const {doAck} = useContext(SyncContext)
+    useEffect(()=>doAck(clientKey, parseInt(index)),[doAck,clientKey,index])
+    return [] //createElement("span",{})
+}
+
+export const useSyncSimple = (incomingValue, identity) => {
+    const [patches, setPatches] = useState([])
+    const {enqueue} = useContext(SyncContext)
+    const setValue = 
+        useCallback(v => enqueue(identity, {value: v, skipByPath: true}, setPatches), [enqueue, identity, setPatches])
+    const patch = patches.slice(-1)[0]
+    const value = patch ? patch.value : incomingValue
+    return {value, setValue, patches}
+}
+
+const changeIdOf = identityAt('change')
+function LocationElement({value: incomingValue, identity}){
+    const {value, setValue} = useSyncSimple(incomingValue, changeIdOf(identity))
+    const {isRoot,win} = useContext(SyncContext)
+    const rootWin = isRoot && win
+    const location = rootWin?.location
+    useEffect(()=>{
+        if(location && !value) setValue(location.href)
+        else if(location && location.href !== value) location.href = value //? = "#"+data
+    }, [location, value, setValue])
+    useEffect(() => manageEventListener(rootWin, "hashchange", ev => setValue(ev.newURL)), [rootWin,setValue])
+    return []
 }

@@ -2,6 +2,7 @@
 package ee.cone.c4gate_server
 
 import akka.util.ByteString
+import ee.cone.c4actor.Types.LEvents
 import ee.cone.c4actor._
 import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
 import ee.cone.c4gate.HttpProtocol.N_Header
@@ -11,7 +12,7 @@ import okio.ByteString
 import scala.concurrent.{ExecutionContext, Future}
 
 // inner (TxTr-like) handler api
-case class RHttpResponse(instantResponse: Option[S_HttpResponse], events: List[LEvent[Product]])
+case class RHttpResponse(response: S_HttpResponse, events: LEvents)
 object RHttpTypes {
   type RHttpHandler = (S_HttpRequest,Context)=>RHttpResponse
   type RHttpHandlerCreate = RHttpHandler=>RHttpHandler
@@ -25,14 +26,11 @@ trait FHttpHandler {
 
 trait RHttpResponseFactory {
   def directResponse(request: S_HttpRequest, patch: S_HttpResponse=>S_HttpResponse): RHttpResponse
+  def deferredResponse(request: S_HttpRequest, patch: S_HttpResponse=>S_HttpResponse, events: LEvents): RHttpResponse
 }
 
-class TxRes[R](val value: R, val next: RichContext=>Boolean)
 trait WorldProvider {
-  def tx[R](cond: RichContext=>Boolean)(
-    f: Context=>(List[LEvent[Product]],R)
-  )(implicit executionContext: ExecutionContext): Future[TxRes[R]]
-  //def sync(local: Option[Context])(implicit executionContext: ExecutionContext): Future[Context]
+  def tx[R](f: (Option[R],Context)=>(Option[R],LEvents))(implicit executionContext: ExecutionContext): Future[R]
 }
 
 trait WorldSource {

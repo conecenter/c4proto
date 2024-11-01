@@ -2,6 +2,41 @@
 import {spreadAll}     from "../main/util"
 import {dictKeys,rootCtx,ctxToPath,chain,someKeys,ifInputsChanged} from "../main/vdom-util"
 import {weakCache} from "../../c4f/main/vdom-util.js"
+import {spreadAll} from "../main/util.js"
+
+function rootCtx(ctx){ return ctx.parent ? rootCtx(ctx.parent) : ctx }
+
+const chain = functions => arg => functions.reduce((res,f)=>f(res), arg) //canvas
+const deleted = ks => st => spreadAll(...Object.keys(st).filter(ck=>!ks[ck]).map(ck=>({[ck]:st[ck]})))
+
+const oneKey = (k,by) => st => {
+    const was = st && st[k]
+    const will = by(was)
+    return was === will ? st : will ? {...(st||{}), [k]: will} : !st ? st : deleted({[k]:1})(st)
+
+}
+const someKeys = bys => chain(Object.keys(bys).map(k=>oneKey(k,bys[k]))) //canvas
+const allKeys = by => state => state ? chain(Object.keys(state).map(k=>oneKey(k,by)))(state) : state
+const dictKeys = f => ({ //canvas
+    one: (k,by) => someKeys(f(oneKey(k,by))),
+    all: by => someKeys(f(allKeys(by)))
+})
+
+const ifInputsChanged = log => (cacheKey,inpKeysObj,f) => {
+    const inpKeys = Object.keys(inpKeysObj)
+    const changed = state => {
+        const will = spreadAll(...inpKeys.map(k=>({[k]: state && state[k]})))
+        return ({...state, [cacheKey]:will})
+    }
+    const doRun = f(changed)
+    return state => {
+        const was = state && state[cacheKey]
+        if(inpKeys.every(k=>(was && was[k])===(state && state[k]))) return state
+        const res = doRun(state)
+        log({hint:cacheKey, status:state===res?"deferred":"done", state:res})
+        return res
+    }
+}
 
 const replaceArrayTree = replace => root => {
     const traverse = arr => {

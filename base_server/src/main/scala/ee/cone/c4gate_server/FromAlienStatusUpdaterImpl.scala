@@ -38,7 +38,7 @@ object FromAlienStatusUpdaterImpl {
       }
       val willLogStates = (for((stOpt,_)<-res; st<-stOpt) yield st.logKey->st).toMap
       val lEvents = for((_,evs)<-res; ev<-evs) yield ev
-      execution.aWait(worldProvider.tx(_=>true)(_=>(lEvents.toList,()))(_))
+      execution.aWait(worldProvider.tx(_=>Left(lEvents.toList))(_))
       iteration(willLogStates, now)
     }
   }

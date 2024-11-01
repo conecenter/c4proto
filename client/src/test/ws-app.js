@@ -1,58 +1,74 @@
+// @ts-check
+import {createElement,useState,useCallback,useContext,createContext,useMemo} from "react"
+import {useSession,login} from "../main/session.js"
+import {doCreateRoot,IsolatedFrame} from "../main/frames.js"
+import {useSyncRoot,useSyncSimple} from "../main/sync.js"
 
-import {createElement,useState,useCallback} from "react"
+const DIContext = createContext()
+const AvailabilityContext = createContext()
 
-import {useSession,ClientRoot,changeIdOf,doCreateRoot} from "../main/sync.js"
-
-const changeEventToPatch = ev => ({value: ev.target.value, skipByPath: true, retry: true})
-export function useSyncInput(incomingValue, identity){
-    const [patches,enqueuePatch] = useSync(identity)
-    const onChange = useCallback(ev => enqueuePatch(changeEventToPatch(ev)), [enqueuePatch])
-    const patch = patches.slice(-1)[0]
-    const value = patch ? patch.value : incomingValue
-    const changing = patch ? "1" : undefined
-    return ({value,changing,onChange})
-}
-function ExampleInput({value}){
-    const {value,onChange} = useSyncInput(value, changeIdOf(identity))
-    return createElement("input", {value,onChange})
+function ExampleInput({value: incomingValue, identity}){
+    const {value, enqueueValue, patches} = useSyncSimple(incomingValue, identity)
+    const onChange = useCallback(ev => enqueueValue(ev.target.value), [enqueueValue])
+    const changing = patches.length > 0 ? "1" : undefined
+    const backgroundColor = changing ? "yellow" : "white"
+    return createElement("input", {value,onChange,style:{backgroundColor}})
 }
 
-function Login({login,error}){
+function ExampleFrame({branchKey}){
+    const {transforms, sessionKey} = useContext(DIContext)
+    const children = [createElement(SyncRoot, {sessionKey, branchKey, reloadBranchKey: null, isRoot: false, transforms, children: []})]
+    return createElement(IsolatedFrame, {children})
+}
+
+function Login({setSessionKey}){
     const [user, setUser] = useState()
     const [pass, setPass] = useState()
-    const onClick = useCallback(ev => login(user, pass), [login,user,pass])
-    return createElement("div",{},[
-        "Username ",
-        createElement("input", {value: user, onChange: setUser, type:"text"}, null),
-        ", password ",
-        createElement("input", {value: pass, onChange: setPass, type:"password"}, null),
-        " ",
-        createElement("input", {type:"button", onClick, value: "sign in"}, null),
-        error ? " FAILED" : ""
-    ])
+    const [error, setError] = useState(false)
+    const onClick = useCallback(ev => {
+        setSessionKey(null)
+        setError(false)
+        login(user, pass).then(setSessionKey, err=>setError(true))
+    }, [login,user,pass])
+    return createElement("div", {
+        children: [
+            "Username ",
+            createElement("input", {value: user, onChange: setUser, type:"text"}),
+            ", password ",
+            createElement("input", {value: pass, onChange: setPass, type:"password"}),
+            " ",
+            createElement("input", {type:"button", onClick, value: "sign in"}),
+            error ? " FAILED" : ""
+        ]
+    })
 }
 
-function ClientRoot({transforms,sender}){
-    const [theElement, setElement] = useState()
-    const {sessionKey,branchKey,error,login,reloadBranchKey} = useSession(theElement)
-    return createElement("div", {ref:setElement}, [
-        branchKey ? createElement(SyncRoot,{branchKey,reloadBranchKey,isRoot:true,transforms,sender}) :
-        createElement(Login,{login,error},null)
-    ])
+function Availability(){
+    const {availability} = useContext(AvailabilityContext)
+    return createElement("div", {children: [`availability ${availability}`]})
 }
 
+function FailureElement({value}){
+    return createElement("div", {children: [`VIEW FAILED: ${value}`]})
+}
+
+function SyncRoot({sessionKey, branchKey, reloadBranchKey, isRoot, transforms, children: addChildren}){
+    const {children, availability} = useSyncRoot({sessionKey, branchKey, reloadBranchKey, isRoot, transforms})
+    const provided = useMemo(()=>({transforms,sessionKey}),[transforms,sessionKey])
+    return createElement(DIContext.Provider, {value: provided, children: [
+        createElement(AvailabilityContext.Provider, {value: availability, children: [
+            ...addChildren,...children
+        ]})
+    ]})
+}
+
+function App({transforms,win}){
+    const {sessionKey, setSessionKey, branchKey, reloadBranchKey} = useSession(win)
+    const children = [createElement(Availability, {}), branchKey ? "" : createElement(Login,{setSessionKey})]
+    return createElement(SyncRoot, {sessionKey, branchKey, reloadBranchKey, isRoot: true, transforms, children})
+}
 
 (()=>{
-    // todo: activeTransforms, sender
-    const inpSender = InpSender(sender)
-    const transforms = {Login,ExampleInput}
-    doCreateRoot(document.body, createElement(ClientRoot,{transforms,sender:inpSender},null))
+    const transforms = {FailureElement,ExampleInput,ExampleFrame}
+    doCreateRoot(document.body, [createElement(App,{transforms, win: window})])
 })()
-/*
-no SSEConnection, SessionReload
-no .wasModificationError handling
-no .loadKey making
-move -- VDomAttributes, elementWeakCache-ver -- to c4e
-
-
-*/

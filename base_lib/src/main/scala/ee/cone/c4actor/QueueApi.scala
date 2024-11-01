@@ -113,6 +113,7 @@ trait QMessages {
   // worldProvider can be not in App, but passed to richServer.init(worldProvider),
   // where richServers wrapped with txTr with AtomicRef;
   // HOWEVER READ-AFTER-WRITE problem here is harder
+  def doSend(updates: List[N_UpdateFrom]): NextOffset
 }
 
 class LongTxWarnPeriod(val value: Long)
@@ -401,7 +402,7 @@ trait SnapshotPatchIgnoreRegistry {
 }
 
 trait UpdateFromUtil {
-  def get(local: Context, updates: Seq[N_Update]): Seq[N_UpdateFrom]
+  def get(local: AssembledContext, updates: Seq[N_Update]): Seq[N_UpdateFrom]
 }
 
 trait AssembleStatsAccumulator {
