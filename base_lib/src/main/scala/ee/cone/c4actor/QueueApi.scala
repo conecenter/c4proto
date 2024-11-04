@@ -11,6 +11,7 @@ import ee.cone.c4proto._
 import okio.ByteString
 
 import java.net.http.HttpClient
+import java.util.concurrent.BlockingQueue
 import scala.collection.immutable.{Map, Queue, Seq}
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -256,8 +257,8 @@ trait Observer[Message] {
   def activate(world: Message): Observer[Message]
 }
 
-trait TxObserver {
-  def activate(world: RichContext): Unit
+trait WorldSource {
+  def doWith[M,R](queue: BlockingQueue[Either[RichContext,M]], f: ()=>R): R
 }
 
 final class DisableDefObserver

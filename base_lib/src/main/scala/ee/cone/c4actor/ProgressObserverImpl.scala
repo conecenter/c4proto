@@ -2,19 +2,43 @@ package ee.cone.c4actor
 
 import java.lang.management.ManagementFactory
 import java.nio.file.{Files, Path, Paths}
-import scala.concurrent.{Future, Promise}
+import scala.concurrent.Future
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Replace, Single, c4assemble}
-import ee.cone.c4di.{c4, c4app, c4multi, provide}
-
+import ee.cone.c4assemble.{Replace, c4assemble}
+import ee.cone.c4di.{c4, c4multi}
 import java.time.Instant
+import java.util.concurrent.{BlockingQueue, LinkedBlockingQueue}
+import scala.annotation.tailrec
 
-class EnabledObserver(txObservers: List[TxObserver]) extends Observer[RichContext]{
+@c4("ServerCompApp") final class WorldSourceImpl extends WorldSource with Executable with Early {
+  private sealed trait Message
+  private class RichMessage(val world: RichContext) extends Message
+  private class Subscribe[M](val queue: BlockingQueue[Either[RichContext,M]]) extends Message
+  private class Unsubscribe[M](val queue: BlockingQueue[Either[RichContext,M]]) extends Message
+  private val worldQueue = new LinkedBlockingQueue[Message]
+  def put(world: RichContext): Unit = worldQueue.put(new RichMessage(world))
+  def doWith[M,R](queue: BlockingQueue[Either[RichContext,M]], f: ()=>R): R = try{
+    worldQueue.put(new Subscribe(queue))
+    f()
+  } finally worldQueue.put(new Unsubscribe(queue))
+  def run(): Unit = iteration(None, Nil)
+  @tailrec private def iteration(worldOpt: Option[RichContext], subscribers: List[BlockingQueue[Either[RichContext,_]]]): Unit = worldQueue.take() match {
+    case m: RichMessage =>
+      subscribers.foreach(_.put(Left(m.world)))
+      iteration(Option(m.world), subscribers)
+    case m: Subscribe[_] =>
+      worldOpt.foreach(w=>m.queue.put(Left(w)))
+      iteration(worldOpt, m :: subscribers)
+    case m: Unsubscribe[_] => iteration(worldOpt, subscribers.filterNot(_ eq m.queue))
+  }
+}
+
+class EnabledObserver(worldSource: WorldSourceImpl) extends Observer[RichContext]{
   def activate(world: RichContext): Observer[RichContext] = {
-    for(o <- txObservers) o.activate(world)
+    worldSource.put(world)
     this
   }
 }
@@ -32,12 +56,12 @@ class ReportingObserver(replace: Replace) extends Observer[RichContext] {
 
 @c4("ServerCompApp") final
 class ProgressObserverFactoryImpl(
-  txObservers: List[TxObserver], disable: List[DisableDefObserver], replace: Replace,
+  worldSource: WorldSourceImpl, disable: List[DisableDefObserver], replace: Replace,
   val execution: Execution,
   val config: Config, val sender: RawQSenderExecutable,
 )(
   val inner: Observer[RichContext] =
-    if(disable.nonEmpty) new ReportingObserver(replace) else new EnabledObserver(txObservers)
+    if(disable.nonEmpty) new ReportingObserver(replace) else new EnabledObserver(worldSource)
 ) extends ProgressObserverFactory {
   def create(endOffset: NextOffset): Observer[RichContext] =
     new ProgressObserverImpl(endOffset,0, this)

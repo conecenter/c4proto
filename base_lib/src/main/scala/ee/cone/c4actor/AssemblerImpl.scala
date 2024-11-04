@@ -252,17 +252,6 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     })
 }
 
-@c4("RichDataCompApp") final class TxSendImpl( // todo
-  toUpdate: ToUpdate,
-  proc: OuterUpdateProcessor,
-  util: UpdateFromUtil,
-  qMessages: QMessages,
-){
-  def send(context: AssembledContext, lEvents: LEvents): Option[NextOffset] =
-    if(lEvents.isEmpty) None
-    else Option(qMessages.doSend(util.get(context, proc.process(lEvents.map(toUpdate.toUpdate), 0)).toList))
-}
-
 trait OuterUpdateProcessor extends UpdateProcessor
 @c4("RichDataCompApp") final class OuterUpdateProcessorImpl(
   updateProcessor: Option[UpdateProcessor],

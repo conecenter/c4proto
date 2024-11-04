@@ -23,7 +23,8 @@ import ee.cone.c4gate._
 import ee.cone.c4gate_server.RHttpTypes.{RHttpHandler, RHttpHandlerCreate}
 
 import scala.collection.immutable.Seq
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.util.{Failure, Success}
 
 @c4("AbstractHttpGatewayApp") final class RHttpResponseFactoryImpl extends RHttpResponseFactory {
   def response(request: S_HttpRequest): S_HttpResponse =
@@ -245,25 +246,38 @@ object ReqGroup {
 @c4multi("AbstractHttpGatewayApp") final class FHttpHandlerImpl(handler: RHttpHandler)(
   worldProvider: WorldProvider, requestByPK: GetByPK[S_HttpRequest], responseByPK: GetByPK[S_HttpResponse],
 ) extends FHttpHandler with LazyLogging {
+  import WorldProvider._
+  private val dummyInj = new Injected{}
+  def respond(promise: Promise[S_HttpResponse], response: S_HttpResponse): Ctl=>Ctl = {
+    promise.success(response.copy(headers = normalize(response.headers)))
+    identity[Ctl]
+  }
+  private def fail(promise: Promise[S_HttpResponse], err: Throwable): Unit = {
+    promise.failure(err)
+    logger.error("http handling error", err)
+  }
+  private val syncSaveHeader = N_Header("x-r-sync", "save")
   def handle(request: FHttpRequest)(implicit executionContext: ExecutionContext): Future[S_HttpResponse] = {
     val now = System.currentTimeMillis
     val headers = normalize(request.headers)
     val id = UUID.randomUUID.toString
     val requestEv = S_HttpRequest(id, request.method, request.path, request.rawQueryString, headers, request.body, now)
-    val res = worldProvider.tx[S_HttpResponse]{ (was, local) =>
-      val reqOpt = requestByPK.ofA(local).get(id)
-      val respOpt = responseByPK.ofA(local).get(id)
-      if(reqOpt.nonEmpty) (None, Nil) // step 2
-      else if(respOpt.nonEmpty) (respOpt, respOpt.toSeq.flatMap(LEvent.delete)) // step 3
-      else if(was.nonEmpty) (was, Nil) // step 4
-      else { // step 1
-        val result = handler(requestEv,local)
-        if(result.events.isEmpty) (Option(result.response), Nil)
-        else (None, LEvent.update(result.response) ++ result.events)
-      }
-    }.map(response => response.copy(headers = normalize(response.headers)))
-    for(e <- res.failed) logger.error("http handling error",e)
-    res
+    val isSyncSaveOnly = headers.contains(syncSaveHeader)
+    val promise = Promise[S_HttpResponse]()
+    Future(worldProvider.run(List(
+      world => handler(requestEv, new Context(dummyInj, world.assembled, world.executionContext, Map.empty)) match {
+        case result if result.events.isEmpty => respond(promise, result.response)(Stop())
+        case result => Next(LEvent.update(result.response) ++ result.events)
+      },
+      world => (!isSyncSaveOnly && requestByPK.ofA(world).contains(id), responseByPK.ofA(world)(id)) match {
+        case (true, _) => Redo() case (false, resp) => respond(promise, resp)(Next(LEvent.delete(resp)))
+      },
+      world => if(responseByPK.ofA(world).contains(id)) throw new Exception else Stop()
+    ))).onComplete{
+      case Success(_) => if(!promise.isCompleted) fail(promise, new Exception("missing result"))
+      case Failure(exception) => fail(promise, exception)
+    }
+    promise.future
   }
   private def normalize(headers: List[N_Header]): List[N_Header] =
     headers.map(h=>h.copy(key = h.key.toLowerCase(Locale.ENGLISH)))

@@ -79,7 +79,7 @@ const useWebsocket = ({url, pongMessage, onData, onClose})=>{
 }
 
 const Receiver = ({branchKey, transforms, setState}) => {
-    const tp = {AckElement,LocationElement}
+    const tp = {AckElement,StatusElement}
     const activeTransforms = mergeAll([{ identity: { ctx: ctx => ctx }, tp }, transforms])
     const receive = data => {
         const {availability,log} = JSON.parse(data)
@@ -153,7 +153,13 @@ const SyncContext = createContext()
 export const useSyncRoot = ({sessionKey,branchKey,reloadBranchKey,isRoot,transforms}) => {
     const {receive, incoming, availability} = useReceiverRoot({branchKey, transforms})
     const url = branchKey && `/eventlog/${branchKey}`
-    const ws = useWebsocket({ url, pongMessage: isRoot ? "L":"", onData: receive, onClose: reloadBranchKey })
+    const pongMessage = useMemo(
+        () => isRoot ? serialize({
+            "x-r-op": "online", "x-r-session": sessionKey, "x-r-branch": branchKey, value: "1"
+        }) : "",
+        [isRoot, sessionKey, branchKey]
+    )
+    const ws = useWebsocket({ url, pongMessage, onData: receive, onClose: reloadBranchKey })
     const {enqueue, doAck} = useSenderRoot({sessionKey, branchKey, ws})
     const [element, ref] = useState()
     const win = element?.ownerDocument.defaultView
@@ -181,9 +187,9 @@ export const useSyncSimple = (incomingValue, identity) => {
     return {value, setValue, patches}
 }
 
-const changeIdOf = identityAt('change')
-function LocationElement({value: incomingValue, identity}){
-    const {value, setValue} = useSyncSimple(incomingValue, changeIdOf(identity))
+const locationChangeIdOf = identityAt('locationChange')
+const useLocation = (incomingValue, identity) => {
+    const {value, setValue} = useSyncSimple(incomingValue, identity)
     const {isRoot,win} = useContext(SyncContext)
     const rootWin = isRoot && win
     const location = rootWin?.location
@@ -192,5 +198,8 @@ function LocationElement({value: incomingValue, identity}){
         else if(location && location.href !== value) location.href = value //? = "#"+data
     }, [location, value, setValue])
     useEffect(() => manageEventListener(rootWin, "hashchange", ev => setValue(ev.newURL)), [rootWin,setValue])
+}
+function StatusElement({location, identity}){
+    useLocation(location, locationChangeIdOf(identity))
     return []
 }

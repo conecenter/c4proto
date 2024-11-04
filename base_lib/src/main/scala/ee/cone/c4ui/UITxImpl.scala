@@ -103,9 +103,11 @@ import scala.Function.chain
   private def resetUntil: Context => Context = VDomStateKey.modify(_.map(st=>st.copy(until = 0)))
   private def handle(local: Context, request: BranchMessage with VDomMessage): (Context, LEvents) =
     measure(s"branch $branchKey tx begin ${request.header("x-r-alien-date")}"){() =>
+
       val (nLocal, lEvents) =
         catchNonFatal{ dispatch(local, request) }(s"branch $branchKey tx failed")(handleError(local, _))
       (nLocal, lEvents ++ ack(local, request))
+      
     }(t => s"branch $branchKey tx done in $t ms")
   private def handleView(local: Context): (Context, LEvents) =
     vDomHandler.preView(VDomStateKey.of(local)).fold((local,Nil:LEvents)){ preViewRes =>
@@ -117,7 +119,7 @@ import scala.Function.chain
   private def handleReView(local: Context, preViewRes: PreViewResult): (Context, LEvents) = {
     val sessionKey = Single(sessionKeys)
     val location = sessionUtil.location(local, sessionKey)
-    val locationEl = rootTags.locationElement("location", location, setLocationReceiverFactory.create(sessionKey))
+    val statusEl = rootTags.statusElement("status", location, setLocationReceiverFactory.create(sessionKey))
     val ackList = sessionUtil.ackList(local, sessionKey)
       .map(h => rootTags.ackElement(s"ack-${h.key}", h.key, h.value))
     val viewOpt = getView.ofA(local).get(branchKey)
@@ -125,7 +127,7 @@ import scala.Function.chain
       val message = err match { case b: BranchError => b.message(local) case _ => "Internal Error" }
       rootTags.failureElement("failure", message).toChildPair :: Nil
     }
-    val nextDom = rootTags.rootElement("root", (locationEl::ackList).map(_.toChildPair) ::: children)
+    val nextDom = rootTags.rootElement("root", (statusEl::ackList).map(_.toChildPair) ::: children)
       .toChildPair.asInstanceOf[VPair].value
     val res = vDomHandler.postView(preViewRes, nextDom)
     val seeds = res.seeds.collect{ case r: N_BranchResult => r }
@@ -165,6 +167,6 @@ import scala.Function.chain
 @c4tags("UICompApp") trait RootTags {
   @c4el("RootElement") def rootElement(key: String, children: ViewRes): ToChildPair
   @c4el("AckElement") def ackElement(key: String, clientKey: String, index: String): ToChildPair
-  @c4el("LocationElement") def locationElement(key: String, value: String, change: Receiver[Context]): ToChildPair
+  @c4el("StatusElement") def statusElement(key: String, location: String, locationChange: Receiver[Context]): ToChildPair
   @c4el("FailureElement") def failureElement(key: String, value: String): ToChildPair
 }

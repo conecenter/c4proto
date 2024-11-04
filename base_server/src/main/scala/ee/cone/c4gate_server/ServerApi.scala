@@ -1,14 +1,9 @@
 
 package ee.cone.c4gate_server
 
-import akka.util.ByteString
 import ee.cone.c4actor.Types.LEvents
 import ee.cone.c4actor._
-import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
-import ee.cone.c4gate.HttpProtocol.N_Header
-import ee.cone.c4gate.HttpProtocol.{S_HttpRequest, S_HttpResponse}
-import okio.ByteString
-
+import ee.cone.c4gate.HttpProtocol._
 import scala.concurrent.{ExecutionContext, Future}
 
 // inner (TxTr-like) handler api
@@ -19,7 +14,7 @@ object RHttpTypes {
 }
 
 // outer handler api
-case class FHttpRequest(method: String, path: String, rawQueryString: Option[String], headers: List[N_Header], body: ByteString)
+case class FHttpRequest(method: String, path: String, rawQueryString: Option[String], headers: List[N_Header], body: okio.ByteString)
 trait FHttpHandler {
   def handle(request: FHttpRequest)(implicit executionContext: ExecutionContext): Future[S_HttpResponse]
 }
@@ -29,18 +24,27 @@ trait RHttpResponseFactory {
   def deferredResponse(request: S_HttpRequest, patch: S_HttpResponse=>S_HttpResponse, events: LEvents): RHttpResponse
 }
 
+object WorldProvider{
+  sealed trait Ctl
+  case class Next(events: LEvents) extends Ctl
+  case class Redo() extends Ctl
+  case class Stop() extends Ctl
+  type Steps = List[AssembledContext=>Ctl]
+}
 trait WorldProvider {
-  def tx[R](f: (Option[R],Context)=>(Option[R],LEvents))(implicit executionContext: ExecutionContext): Future[R]
+  import WorldProvider._
+  def run(steps: Steps): Unit
 }
 
-trait WorldSource {
-  def take[T](by: RichContext=>Option[T]): Future[T]
+trait EventLogReader {
+  def read(logKey: String, pos: Long): (Long, String)
 }
 
-trait FromAlienStatusUpdater {
-  def pong(logKey: String, value: String): Unit
+trait FromAlienUpdaterFactory {
+  def create(): FromAlienUpdater
+}
+trait FromAlienUpdater {
+  def send(was: Long, value: String)(implicit executionContext: ExecutionContext): Future[Long]
+  def stop()(implicit executionContext: ExecutionContext): Future[Unit]
 }
 
-trait AsyncEventLogReader {
-  def read(logKey: String, pos: Long): Future[(Long, String)]
-}
