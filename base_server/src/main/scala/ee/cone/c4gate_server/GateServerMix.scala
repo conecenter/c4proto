@@ -28,6 +28,9 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
   with SafeToRunApp
   with WorldProviderApp
   with SkipWorldPartsApp
+  with EventLogApp
+  with SessionUtilApp
+  with AlienProtocolApp
 
 @c4("AbstractHttpGatewayApp") final class DefFHttpHandlerProvider(
   fHttpHandlerFactory: FHttpHandlerImplFactory,

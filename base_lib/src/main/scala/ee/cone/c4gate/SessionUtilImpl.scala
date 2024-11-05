@@ -11,7 +11,7 @@ import ee.cone.c4gate.HttpProtocol.N_Header
 
 import java.time.Instant
 
-@c4("SessionAttrCompApp") class SessionUtilImpl(
+@c4("SessionUtilApp") final class SessionUtilImpl(
   idGenUtil: IdGenUtil, eventLogUtil: EventLogUtil,
   getAuthenticatedSession: GetByPK[U_AuthenticatedSession],
   getFromAlienState: GetByPK[U_FromAlienState],

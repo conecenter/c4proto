@@ -57,3 +57,7 @@ trait SignedReqUtilImplAppBase
 * */
 
 trait DevConfigAppBase
+
+trait EventLogAppBase
+
+trait SessionUtilAppBase

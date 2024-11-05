@@ -95,7 +95,6 @@ my $serve_proxy = sub{
 my $serve_node = sub{
     my $repo_dir = &$get_repo_dir();
     my $vite_run_dir = "$repo_dir/target/c4/client";
-    my $conf_dir = "$vite_run_dir/src/c4f/vite";
     my $conf = JSON::XS->new->decode(syf("cat $repo_dir/c4dep.main.json"));
     my %will = map{ ref && $$_[0] eq "C4CLIENT" ? ("$vite_run_dir/src/$$_[1]","$repo_dir/$$_[2]/src"):() } @$conf;
     #$will{$_} or ^rm $_^ for <$vite_run_dir/src/*>;
@@ -103,8 +102,13 @@ my $serve_node = sub{
         sy("mkdir", "-p", $_);
         sy("rsync", "-a", "$will{$_}/", $_);
     }
-    sy("cd $vite_run_dir && cp $conf_dir/package.json $conf_dir/vite.config.js . && npm install");
-    &$exec_at($vite_run_dir,{},"npm","run","dev","--","--port","$vite_port");
+    &$put_text("$vite_run_dir/package.json", JSON::XS->new->encode({
+        "devDependencies" => {"vite" => "^5.4.10"},
+        "dependencies" => { "react" => "^18.3.1", "react-dom" => "^18.3.1" },
+    }));
+    #$vite_run_dir/vite.config.js export default { optimizeDeps: { entries: [] }, hmr: false }
+    sy("cd $vite_run_dir && npm install");
+    &$exec_at($vite_run_dir,{},"./node_modules/vite/bin/vite.js","--port","$vite_port");
 };
 
 my $get_compilable_services = sub{

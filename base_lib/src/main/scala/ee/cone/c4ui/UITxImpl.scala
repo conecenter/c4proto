@@ -37,8 +37,8 @@ import scala.Function.chain
     @by[BranchKey] requests: Values[BranchMessage],
   ): Values[(SrcId,TxTransform)] = tasks match {
     case Seq(task) =>
-      def long(v: String) = if(v.isEmpty) 0L else try v.toLong catch { case e: NumberFormatException => 0L }
-      val req = requests.collect{case m: VDomMessage => m}.minByOption(r=>(long(r.header("x-r-index")),ToPrimaryKey(r)))
+      def long(v: String) = if(v.isEmpty) 0L else try v.toLong catch { case _: NumberFormatException => 0L }
+      val req = requests.minByOption(r=>(long(r.header("x-r-index")),ToPrimaryKey(r)))
       List(WithPK(txFactory.create(key, task.fromAlienState.sessionKey, req)))
     case _ => Nil
   }
@@ -61,7 +61,7 @@ import scala.Function.chain
 @c4("UICompApp") final class EnableBranchScaling extends EnableSimpleScaling(classOf[UITx])
 
 @c4multi("UICompApp") final case class UIPostHandler(
-  branchKey: String, sessionKey: String, request: BranchMessage with VDomMessage
+  branchKey: String, sessionKey: String, request: BranchMessage
 )(
   listConfig: ListConfig, branchErrorSaver: Option[BranchErrorSaver], catchNonFatal: CatchNonFatal,
   sessionUtil: SessionUtil, vDomResolver: VDomResolver,
@@ -88,7 +88,7 @@ import scala.Function.chain
         val path = request.header("x-r-vdom-path")
         if(path.nonEmpty) vDomResolver.resolve(path)(VDomStateKey.of(local).map(_.value)) match {
           case Some(v: Receiver[_]) =>
-            (resetUntil(v.asInstanceOf[Receiver[Context]].receive(request)(local)), Nil)
+            (resetUntil(v.asInstanceOf[Receiver[Context]].receive(request.asInstanceOf[VDomMessage])(local)), Nil)
           case v =>
             logger.warn(s"$path ($v) can not receive")
             (local, Nil)
@@ -115,7 +115,7 @@ import scala.Function.chain
 @c4multi("UICompApp") final case class UIViewer(branchKey: String, sessionKey: String)(
   catchNonFatal: CatchNonFatal, sessionUtil: SessionUtil, eventLogUtil: EventLogUtil,
   branchOperations: BranchOperations, getView: GetByPK[View], vDomHandler: VDomHandler, vDomUntil: VDomUntil,
-  rootTags: RootTags, setLocationReceiverFactory: SetLocationReceiverFactory,
+  rootTags: RootTags[Context], setLocationReceiverFactory: SetLocationReceiverFactory,
 ){
   private def eventLogChanges(local: Context, res: PostViewResult): LEvents =
     if(res.diff.isEmpty && res.snapshot.isEmpty) Nil
@@ -148,7 +148,7 @@ import scala.Function.chain
 }
 
 @c4multi("UICompApp") final case class UITx(
-  branchKey: String, sessionKey: String, reqOpt: Option[BranchMessage with VDomMessage]
+  branchKey: String, sessionKey: String, reqOpt: Option[BranchMessage]
 )(
   txAdd: LTxAdd, sessionUtil: SessionUtil, branchOperations: BranchOperations,
   uiViewerFactory: UIViewerFactory, uiPostHandlerFactory: UIPostHandlerFactory,
@@ -171,7 +171,7 @@ import scala.Function.chain
   }
 }
 
-@c4multi("UICompApp") case class SetLocationReceiver(sessionKey: String)(
+@c4multi("UICompApp") final case class SetLocationReceiver(sessionKey: String)(
   sessionUtil: SessionUtil, txAdd: LTxAdd,
 ) extends Receiver[Context] {
   def receive: Handler = message => local => {
@@ -181,9 +181,9 @@ import scala.Function.chain
   }
 }
 
-@c4tags("UICompApp") trait RootTags {
+@c4tags("UICompApp") trait RootTags[C] {
   @c4el("RootElement") def rootElement(key: String, children: ViewRes): ToChildPair
   @c4el("AckElement") def ackElement(key: String, clientKey: String, index: String): ToChildPair
-  @c4el("StatusElement") def statusElement(key: String, location: String, locationChange: Receiver[Context]): ToChildPair
+  @c4el("StatusElement") def statusElement(key: String, location: String, locationChange: Receiver[C]): ToChildPair
   @c4el("FailureElement") def failureElement(key: String, value: String): ToChildPair
 }

@@ -4,13 +4,69 @@ import {useSession,login} from "../main/session.js"
 import {doCreateRoot,IsolatedFrame} from "../main/frames.js"
 import {useSyncRoot,useSyncSimple} from "../main/sync.js"
 
+const commentsChangeIdOf = identityAt('commentsChange')
+const removeIdOf = identityAt('remove')
+const commentsFilterChangeIdOf = identityAt('commentsFilterChange')
+const addIdOf = identityAt('add')
+function ExampleTodoTask({commentsValue,identity}){
+    return createElement("tr", {
+        children: [
+            createElement("td", { children: [
+                createElement(ExampleInput, {value: commentsValue, identity: commentsChangeIdOf(identity)})
+            ] }),
+            createElement("td", { children: [
+                createElement(ExampleButton, {caption: "x", identity: removeChangeIdOf(identity)})
+            ] }),
+        ]
+    })
+}
+function ExampleTodoTasks({commentsFilterValue,tasks}){
+    return createElement("div", {
+        children: [
+            createElement("table", {
+                style: { border: "1px solid silver" },
+                children: [
+                    createElement("tr", {
+                        children: [
+                            createElement("td", { children: [
+                                "Comments contain ",
+                                createElement(ExampleInput, {
+                                    value: commentsFilterValue, identity: commentsFilterChangeIdOf(identity)
+                                })
+                            ] }),
+                            createElement("td", { children: [
+                                createElement(ExampleButton, {caption: "+", identity: addChangeIdOf(identity)})
+                            ] }),
+                        ]
+                    }),
+                    createElement("tr", {
+                        children: [
+                            createElement("th", { children: ["Comments"] })
+                        ]
+                    }),
+                    ...tasks
+                ]
+            })
+        ]
+    })
+}
+
+
 const DIContext = createContext()
 const AvailabilityContext = createContext()
+
+function ExampleButton({caption, identity}){
+    const {enqueueValue, patches} = useSyncSimple(incomingValue, identity)
+    const onClick = useCallback(ev => enqueueValue("1"), [enqueueValue])
+    const changing = patches.length > 0
+    const backgroundColor = changing ? "yellow" : "white"
+    return createElement("input", {type:"button",value:caption,onClick,style:{backgroundColor}})
+}
 
 function ExampleInput({value: incomingValue, identity}){
     const {value, enqueueValue, patches} = useSyncSimple(incomingValue, identity)
     const onChange = useCallback(ev => enqueueValue(ev.target.value), [enqueueValue])
-    const changing = patches.length > 0 ? "1" : undefined
+    const changing = patches.length > 0
     const backgroundColor = changing ? "yellow" : "white"
     return createElement("input", {value,onChange,style:{backgroundColor}})
 }

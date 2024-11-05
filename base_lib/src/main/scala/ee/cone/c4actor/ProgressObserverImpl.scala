@@ -14,25 +14,26 @@ import java.util.concurrent.{BlockingQueue, LinkedBlockingQueue}
 import scala.annotation.tailrec
 
 @c4("ServerCompApp") final class WorldSourceImpl extends WorldSource with Executable with Early {
+  type Q = BlockingQueue[Either[RichContext,_]]
   private sealed trait Message
   private class RichMessage(val world: RichContext) extends Message
-  private class Subscribe[M](val queue: BlockingQueue[Either[RichContext,M]]) extends Message
-  private class Unsubscribe[M](val queue: BlockingQueue[Either[RichContext,M]]) extends Message
+  private class Subscribe(val queue: Q) extends Message
+  private class Unsubscribe(val queue: Q) extends Message
   private val worldQueue = new LinkedBlockingQueue[Message]
   def put(world: RichContext): Unit = worldQueue.put(new RichMessage(world))
   def doWith[M,R](queue: BlockingQueue[Either[RichContext,M]], f: ()=>R): R = try{
-    worldQueue.put(new Subscribe(queue))
+    worldQueue.put(new Subscribe(queue.asInstanceOf[Q]))
     f()
-  } finally worldQueue.put(new Unsubscribe(queue))
+  } finally worldQueue.put(new Unsubscribe(queue.asInstanceOf[Q]))
   def run(): Unit = iteration(None, Nil)
-  @tailrec private def iteration(worldOpt: Option[RichContext], subscribers: List[BlockingQueue[Either[RichContext,_]]]): Unit = worldQueue.take() match {
+  @tailrec private def iteration(worldOpt: Option[RichContext], subscribers: List[Q]): Unit = worldQueue.take() match {
     case m: RichMessage =>
       subscribers.foreach(_.put(Left(m.world)))
       iteration(Option(m.world), subscribers)
-    case m: Subscribe[_] =>
+    case m: Subscribe =>
       worldOpt.foreach(w=>m.queue.put(Left(w)))
-      iteration(worldOpt, m :: subscribers)
-    case m: Unsubscribe[_] => iteration(worldOpt, subscribers.filterNot(_ eq m.queue))
+      iteration(worldOpt, m.queue :: subscribers)
+    case m: Unsubscribe => iteration(worldOpt, subscribers.filterNot(_ eq m.queue))
   }
 }
 

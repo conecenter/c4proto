@@ -5,88 +5,41 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4di._
 import ee.cone.c4actor._
 import ee.cone.c4vdom._
-import ee.cone.c4vdom.Types.ViewRes
+import ee.cone.c4vdom.Types.{ElList, ViewRes}
+
+trait ReplicaEl extends ToChildPair
+@c4tags("TestTodoApp") trait ExampleReplicaTags[C] {
+  @c4el("ExampleReplica") def replica(
+    key: String,
+    role: String, startedAt: String, hostname: String, version: String, completion: String,
+    complete: Receiver[C], forceRemove: Receiver[C]
+  ): TodoTaskEl
+  @c4el("ExampleReplicas") def replicas(key: String, replicas: ElList[ReplicaEl]): ToChildPair
+}
 
 @c4("TestTodoApp") final case class ReplicaListRootView(locationHash: String = "replicas")(
   untilPolicy: UntilPolicy,
-  exampleTagsProvider: ExampleTagsProvider,
-  listTagsProvider: ListTagsProvider,
+  exampleTagsProvider: ExampleReplicaTagsProvider,
   getReadyProcesses: GetByPK[ReadyProcesses],
   actorName: ActorName,
-  simpleReceiverFactory: SimpleReceiverFactory,
-  replicaCompleteReceiverFactory: ReplicaCompleteReceiverFactory,
+  updatingReceiverFactory: UpdatingReceiverFactory,
 )(
-  exampleTags: ExampleTags[Context] = exampleTagsProvider.get[Context],
-  listTags: ListTags[Context] = listTagsProvider.get[Context],
+  tags: ExampleReplicaTags[Context] = exampleTagsProvider.get[Context],
 ) extends ByLocationHashView {
-  import listTags._
+  def rc: Updater => UpdatingReceiver = updatingReceiverFactory.create
   def view: Context => ViewRes = untilPolicy.wrap { local =>
     val processes = getReadyProcesses.ofA(local).get(actorName.value).fold(List.empty[ReadyProcess])(_.all)
-    val rows = processes.map(_.id).map(gridRow(_))
-    val cols = List(
-      gridCol(colKey = "role", width = boundGridColWidth(5, 10), hideWill = 0),
-      gridCol(colKey = "startedAt", width = boundGridColWidth(10, 20), hideWill = 0),
-      gridCol(colKey = "hostname", width = boundGridColWidth(10, 20), hideWill = 0),
-      gridCol(colKey = "version", width = boundGridColWidth(10, 20), hideWill = 0),
-      gridCol(colKey = "completion", width = boundGridColWidth(5, 20), hideWill = 0),
-      gridCol(colKey = "remove", width = boundGridColWidth(5, 10), hideWill = 0),
-    )
-    val headCells = for {
-      (key,text) <- List(
-        ("role","Role"),("startedAt","Started At"),("hostname","Hostname"),("version","Version"),("completion","Completion")
-      )
-    } yield gridCell(
-      colKey = key, rowKey = "head", classNames = HeaderCSSClassName :: Nil,
-      children = List(exampleTags.text("text", text).toChildPair[OfDiv])
-    )
-    val bodyCells = for {
-      p <- processes
-      cell <- List(
-        gridCell(
-          colKey = "role", rowKey = p.id,
-          children = List(exampleTags.text("text", p.role).toChildPair[OfDiv])
-        ),
-        gridCell(
-          colKey = "startedAt", rowKey = p.id,
-          children = List(exampleTags.text("text",
-            Instant.ofEpochMilli(p.startedAt).toString
-          ).toChildPair[OfDiv])
-        ),
-        gridCell(
-          colKey = "hostname", rowKey = p.id,
-          children = List(exampleTags.text("text", p.hostname).toChildPair[OfDiv])
-        ),
-        gridCell(
-          colKey = "version", rowKey = p.id,
-          children = List(exampleTags.text("text", p.refDescr).toChildPair[OfDiv])
-        ),
-        gridCell(
-          colKey = "completion", rowKey = p.id,
-          children = p.completionReqAt.toList.map(at=>exampleTags.text("text", at.toString).toChildPair[OfDiv])
-        ),
-        gridCell(
-          colKey = "remove", rowKey = p.id,
-          children = List(
-            exampleTags.button(
-              "complete", activate = replicaCompleteReceiverFactory.create(p), caption = "x..."
-            ).toChildPair[OfDiv],
-            exampleTags.button(
-              "force-remove", activate = simpleReceiverFactory.create(p.halt), caption = "x("
-            ).toChildPair[OfDiv],
-          )
-        ),
-      )
-    } yield cell
-    List(gridRoot("replicaList",
-      dragCol = TaskNoReceiver, dragRow = TaskNoReceiver, rows = rows, cols = cols, children = headCells ::: bodyCells
-    ).toChildPair[OfDiv])
+    val res = tags.replicas("replicas", for(p <- processes) yield tags.replica(
+      key = p.id, role = p.role, startedAt = Instant.ofEpochMilli(p.startedAt).toString, hostname = p.hostname,
+      version = p.refDescr, completion = p.completionReqAt.fold("")(_.toString),
+      complete = rc(ReplicaCompleteReceiver(p)), forceRemove = rc(SimpleReceiver(p.halt)),
+    ))
+    List(res.toChildPair)
   }
 }
 
-@c4multi("TestTodoApp") final case class ReplicaCompleteReceiver(process: ReadyProcess)(
-  txAdd: LTxAdd
-) extends Receiver[Context] {
-  def receive: Handler = message => local => txAdd.add(process.complete(Instant.now.plusSeconds(5)))(local)
+case class ReplicaCompleteReceiver(process: ReadyProcess) extends Updater {
+  def receive: Handler = _ => _ => process.complete(Instant.now.plusSeconds(5))
 }
 
 @c4("TestTodoApp") final case class ReplicaBadShutdown(execution: Execution) extends Executable with LazyLogging {
@@ -95,3 +48,17 @@ import ee.cone.c4vdom.Types.ViewRes
     val ignoreRemove = execution.onShutdown("Bad",() => Thread.sleep(10000))
   }
 }
+
+/*
+val cols = List(
+  gridCol(colKey = "role", width = boundGridColWidth(5, 10), hideWill = 0),
+  gridCol(colKey = "startedAt", width = boundGridColWidth(10, 20), hideWill = 0),
+  gridCol(colKey = "hostname", width = boundGridColWidth(10, 20), hideWill = 0),
+  gridCol(colKey = "version", width = boundGridColWidth(10, 20), hideWill = 0),
+  gridCol(colKey = "completion", width = boundGridColWidth(5, 20), hideWill = 0),
+  gridCol(colKey = "remove", width = boundGridColWidth(5, 10), hideWill = 0),
+)
+("role","Role"),("startedAt","Started At"),("hostname","Hostname"),("version","Version"),("completion","Completion")
+"complete" "x..."
+"force-remove" "x("
+ */

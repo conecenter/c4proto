@@ -245,17 +245,17 @@ object ReqGroup {
 
 @c4multi("AbstractHttpGatewayApp") final class FHttpHandlerImpl(handler: RHttpHandler)(
   worldProvider: WorldProvider, requestByPK: GetByPK[S_HttpRequest], responseByPK: GetByPK[S_HttpResponse],
+  execution: Execution,
 ) extends FHttpHandler with LazyLogging {
   import WorldProvider._
   private val dummyInj = new Injected{}
   def respond(promise: Promise[S_HttpResponse], response: S_HttpResponse): Ctl=>Ctl = {
-    promise.success(response.copy(headers = normalize(response.headers)))
+    execution.success(promise, response.copy(headers = normalize(response.headers)))
     identity[Ctl]
   }
-  private def fail(promise: Promise[S_HttpResponse], err: Throwable): Unit = {
-    promise.failure(err)
-    logger.error("http handling error", err)
-  }
+  private def failInner(prom: Promise[S_HttpResponse], err: Throwable): Unit = logger.error("http handling error", err)
+  private def fail(prom: Promise[S_HttpResponse], err: Throwable): Unit = failInner(prom.failure(err), err)
+
   private val syncSaveHeader = N_Header("x-r-sync", "save")
   def handle(request: FHttpRequest)(implicit executionContext: ExecutionContext): Future[S_HttpResponse] = {
     val now = System.currentTimeMillis
