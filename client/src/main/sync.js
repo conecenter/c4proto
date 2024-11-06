@@ -47,7 +47,7 @@ const elementWeakCache = weakCache(props=>{
         children: at.content && at.content[0] === "rawMerge" ? cProps :
           cProps.chl ? resolveChildren(cProps,cProps.chl) : at.content
     }
-    return createElement(tp,{...at,key,...childAt}) // ? todo rm at.key
+    return createElement(tp,{...at,...childAt,key}) // ? todo rm at.key
 })
 
 export const ctxToPath = ctx => !ctx ? "" : ctxToPath(ctx.parent) + (ctx.key ? "/"+ctx.key : "")
@@ -111,7 +111,7 @@ const sendOnce = (ws, patch) => {
 }
 const useSenderRoot = ({sessionKey, branchKey, ws}) => {
     const [state, setState] = 
-        useState(()=>({reloadKey: crypto.randomUUID(), nextPatchIndex:0, patches:[], observers: {}}))
+        useState(()=>({reloadKey: crypto.randomUUID(), nextPatchIndex:0, patches:[], observers: []}))
     const sender = useMemo(()=>Sender({sessionKey, branchKey, ws, setState}), [sessionKey, branchKey, ws, setState])
     const {patches, observers} = state
     useEffect(() => sender.send(patches), [sender, patches])
@@ -154,7 +154,7 @@ export const useSyncRoot = ({sessionKey,branchKey,reloadBranchKey,isRoot,transfo
     const {receive, incoming, availability} = useReceiverRoot({branchKey, transforms})
     const url = branchKey && `/eventlog/${branchKey}`
     const pongMessage = useMemo(
-        () => isRoot ? serialize({
+        () => isRoot && sessionKey && branchKey ? serialize({
             "x-r-op": "online", "x-r-session": sessionKey, "x-r-branch": branchKey, value: "1"
         }) : "",
         [isRoot, sessionKey, branchKey]
@@ -165,8 +165,8 @@ export const useSyncRoot = ({sessionKey,branchKey,reloadBranchKey,isRoot,transfo
     const win = element?.ownerDocument.defaultView
     const provided = useMemo(()=>({enqueue,isRoot,doAck,win}), [enqueue,isRoot,doAck,win])
     const children = useMemo(()=>[
-        createElement("span", {ref}), 
-        createElement(SyncContext.Provider,{value: provided, children: elementWeakCache(incoming)}),
+        createElement("span", {ref, key: "sync-ref"}),
+        incoming.tp && createElement(SyncContext.Provider,{key: "sync-prov", value: provided, children: elementWeakCache(incoming)}),
     ], [provided,incoming,ref])
     return {children, enqueue, availability, branchKey}
 }
@@ -174,7 +174,7 @@ export const useSyncRoot = ({sessionKey,branchKey,reloadBranchKey,isRoot,transfo
 function AckElement({clientKey,index}){
     const {doAck} = useContext(SyncContext)
     useEffect(()=>doAck(clientKey, parseInt(index)),[doAck,clientKey,index])
-    return [] //createElement("span",{})
+    return []
 }
 
 export const useSyncSimple = (incomingValue, identity) => {

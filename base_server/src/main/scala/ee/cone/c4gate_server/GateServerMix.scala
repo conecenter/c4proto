@@ -31,6 +31,7 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
   with EventLogApp
   with SessionUtilApp
   with AlienProtocolApp
+  with AuthOperationsApp
 
 @c4("AbstractHttpGatewayApp") final class DefFHttpHandlerProvider(
   fHttpHandlerFactory: FHttpHandlerImplFactory,

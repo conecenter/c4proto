@@ -1,34 +1,20 @@
 package ee.cone.c4ui
 
 import java.util.UUID
-import okio.ByteString
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LEvent.{delete, update}
-import ee.cone.c4actor.Types.{LEvents, SrcId}
+import ee.cone.c4actor.QProtocol.S_Firstborn
+import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{by, c4assemble}
 import ee.cone.c4di.{c4, c4multi}
-import ee.cone.c4gate.PublishFromStringsProvider
+import ee.cone.c4gate.AuthProtocol.C_PasswordHashOfUser
+import ee.cone.c4gate.{AuthOperations, PublishFromStringsProvider}
 import ee.cone.c4ui.TestTodoProtocol.{B_TodoTask, B_TodoTaskComments, B_TodoTaskCommentsContains}
 import ee.cone.c4proto._
 import ee.cone.c4vdom.Types._
 import ee.cone.c4vdom._
-
-trait ViewUpdater extends Product {
-  type Handler = String => Context => ViewAction => LEvents
-  def receive: Handler
-}
-trait ViewAction extends Product
-
-@c4multi("TestTodoApp") final case class UpdatingReceiver(updater: ViewUpdater, action: ViewAction)(
-  txAdd: LTxAdd
-) extends Receiver[Context] {
-  def receive: Handler = m => local => {
-    val value = m.body match { case b: ByteString => b.utf8() }
-    txAdd.add(updater.receive(value)(local)(action))(local)
-  }
-}
 
 @c4("ReactHtmlApp") final class ReactHtmlProvider extends PublishFromStringsProvider {
   def get: List[(String, String)] = {
@@ -49,10 +35,32 @@ trait ViewAction extends Product
 */
       "/ws-app.html" -> (
         """<!DOCTYPE html><meta charset="UTF-8">""" +
-        s"""<body><script  type="module" src="/src/c4p/test/ws-app.js?$now"></script></body>"""
+        s"""<body><script  type="module" src="/src/c4p/test/ws-app.jsx?$now"></script></body>"""
       ),
 
     )
+  }
+}
+
+object TestUser {
+  val name = "test"
+}
+
+@c4assemble("TestTodoApp") class TestUserAssembleBase(factory: TestUserCreateTxFactory){
+  private type ByUserName = String
+  def map(key: SrcId, firstborn: Each[S_Firstborn]): Values[(ByUserName, S_Firstborn)] = List(TestUser.name->firstborn)
+  def join(
+    key: SrcId, @by[ByUserName] firstborn: Each[S_Firstborn], hashes: Values[C_PasswordHashOfUser]
+  ): Values[(SrcId, TxTransform)] = if(hashes.nonEmpty) Nil else List(WithPK(factory.create()))
+}
+
+@c4multi("TestTodoApp") final case class TestUserCreateTx(srcId: SrcId = "TestUserCreateTx")(
+  txAdd: LTxAdd, authOperations: AuthOperations
+) extends TxTransform {
+  def transform(local: Context): Context = {
+    val pass = TestUser.name
+    val lEvents = update(C_PasswordHashOfUser(TestUser.name, Option(authOperations.createHash(pass, None))))
+    txAdd.add(lEvents)(local)
   }
 }
 
@@ -70,7 +78,7 @@ object TodoTasks {
 }
 case class TodoTask(orig: B_TodoTask, comments: String)
 case class TodoTasks(srcId: SrcId, commentsContains: String, tasks: List[TodoTask])
-@c4assemble class TodoTaskAssembleBase{
+@c4assemble("TestTodoApp") class TodoTaskAssembleBase{
   def joinTask(key: SrcId, task: Each[B_TodoTask], comments: Values[B_TodoTaskComments]): Values[(SrcId, TodoTask)] =
     List(WithPK(TodoTask(task, comments.map(_.value).mkString)))
 
@@ -90,7 +98,7 @@ trait TodoTaskEl extends ToChildPair
   @c4el("ExampleTodoTask") def todoTask(
     key: String, commentsValue: String, commentsChange: Receiver[C], remove: Receiver[C]
   ): TodoTaskEl
-  @c4el("ExampleTodoTasks") def todoTasks(
+  @c4el("ExampleTodoTaskList") def todoTaskList(
     key: String, commentsFilterValue: String, commentsFilterChange: Receiver[C], add: Receiver[C],
     tasks: ElList[TodoTaskEl]
   ): ToChildPair
@@ -109,7 +117,7 @@ trait TodoTaskEl extends ToChildPair
   val rc: ViewAction => Receiver[Context] = updatingReceiverFactory.create(this, _)
   def view: Context => ViewRes = untilPolicy.wrap{ local =>
     val tasksOpt = getTodoTasks.ofA(local).get(listKey)
-    val res = exampleTags.todoTasks(
+    val res = exampleTags.todoTaskList(
       key = listKey,
       commentsFilterValue = tasksOpt.fold("")(_.commentsContains),
       commentsFilterChange = rc(CommentsContainsChange(listKey)),

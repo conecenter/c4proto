@@ -61,3 +61,5 @@ trait DevConfigAppBase
 trait EventLogAppBase
 
 trait SessionUtilAppBase
+
+trait AuthOperationsAppBase

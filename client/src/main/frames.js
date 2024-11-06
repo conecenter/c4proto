@@ -1,6 +1,5 @@
 // @ts-check
-import {useState,useCallback,useEffect,createElement} from "react"
-import {createRoot} from "react-dom"
+import {useState,useCallback,useEffect} from "react"
 
 const useAnimationFrame = (element,callback) => {
     useEffect(()=>{
@@ -17,7 +16,7 @@ const useAnimationFrame = (element,callback) => {
 
 ////
 
-export function IsolatedFrame({children,...props}){
+export function useIsolatedFrame(createRoot,children){
     const [frameElement,ref] = useState()
     const [theBody,setBody] = useState()
     const frame = useCallback(()=>{
@@ -25,12 +24,12 @@ export function IsolatedFrame({children,...props}){
         if(body.id) setBody(body)
     }, [frameElement,setBody])
     useAnimationFrame(frameElement, !theBody && frame)
-    useEffect(() => theBody && doCreateRoot(theBody,children), [theBody,children])
+    useEffect(() => theBody && doCreateRoot(createRoot, theBody, children), [theBody,children])
     const srcdoc = '<!DOCTYPE html><meta charset="UTF-8"><body id="blank"></body>'
-    return createElement("iframe",{...props,srcdoc,ref})
+    return [{srcdoc},ref]
 }
 
-export const doCreateRoot = (parentNativeElement,children) => {
+export const doCreateRoot = (createRoot, parentNativeElement, children) => {
     const rootNativeElement = parentNativeElement.ownerDocument.createElement("span")
     parentNativeElement.appendChild(rootNativeElement)
     const root = createRoot(rootNativeElement)

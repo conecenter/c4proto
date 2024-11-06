@@ -66,30 +66,13 @@ import scala.util.{Failure, Success}
 
 }
 
-object AuthOperations {
-  private def generateSalt(size: Int): okio.ByteString = {
-    val random = new SecureRandom()
-    val salt = new Array[Byte](size)
-    random.nextBytes(salt)
-    ToByteString(salt)
-  }
-  private def pbkdf2(password: String, template: N_SecureHash): N_SecureHash = {
-    val spec = new PBEKeySpec(password.toCharArray, template.salt.toByteArray, template.iterations, template.hashSizeInBytes * 8)
-    val skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1")
-    template.copy(hash=ToByteString(skf.generateSecret(spec).getEncoded))
-  }
-  def createHash(password: String, userHashOpt: Option[N_SecureHash]): N_SecureHash =
-    pbkdf2(password, userHashOpt.getOrElse(N_SecureHash(64000, 18, generateSalt(24), okio.ByteString.EMPTY)))
-  def verify(password: String, correctHash: N_SecureHash): Boolean =
-    correctHash == pbkdf2(password, correctHash)
-}
-
 @c4("AbstractHttpGatewayApp") final class AuthHttpHandler(
   httpResponseFactory: RHttpResponseFactory,
   getC_PasswordRequirements: GetByPK[C_PasswordRequirements],
   getC_PasswordHashOfUser: GetByPK[C_PasswordHashOfUser],
   getU_AuthenticatedSession: GetByPK[U_AuthenticatedSession],
   sessionUtil: SessionUtil,
+  authOperations: AuthOperations
 ) extends LazyLogging {
 
   def wire: RHttpHandlerCreate = next => (request,local) => {
@@ -108,7 +91,7 @@ object AuthOperations {
           val prevHashOpt = Single.option(usernameAdd)
             .flatMap(getC_PasswordHashOfUser.ofA(local).get)
             .map(_.hash.get)
-          val hash: Option[N_SecureHash] = Option(AuthOperations.createHash(password, prevHashOpt))
+          val hash: Option[N_SecureHash] = Option(authOperations.createHash(password, prevHashOpt))
           S_PasswordChangeRequest(request.srcId, hash) ::
             authPost(okio.ByteString.encodeUtf8(request.srcId))(0) :: Nil
         }
@@ -121,7 +104,7 @@ object AuthOperations {
         val hashesByUser = getC_PasswordHashOfUser.ofA(local)
         val hashOpt = hashesByUser.get(userName).flatMap(_.hash)
         val endTime = System.currentTimeMillis() + 1000
-        val hashOK = hashOpt.exists(hash => AuthOperations.verify(password, hash))
+        val hashOK = hashOpt.exists(hash => authOperations.verify(password, hash))
         Thread.sleep(Math.max(0,endTime-System.currentTimeMillis()))
         if(hashOK) {
           val (sessionKey, events) = sessionUtil.create(userName, request.headers)

@@ -115,8 +115,9 @@ import scala.Function.chain
 @c4multi("UICompApp") final case class UIViewer(branchKey: String, sessionKey: String)(
   catchNonFatal: CatchNonFatal, sessionUtil: SessionUtil, eventLogUtil: EventLogUtil,
   branchOperations: BranchOperations, getView: GetByPK[View], vDomHandler: VDomHandler, vDomUntil: VDomUntil,
-  rootTags: RootTags[Context], setLocationReceiverFactory: SetLocationReceiverFactory,
+  rootTagsProvider: RootTagsProvider, setLocationReceiverFactory: SetLocationReceiverFactory,
 ){
+  val rootTags: RootTags[Context] = rootTagsProvider.get[Context]
   private def eventLogChanges(local: Context, res: PostViewResult): LEvents =
     if(res.diff.isEmpty && res.snapshot.isEmpty) Nil
     else eventLogUtil.write(local, branchKey, res.diff, Option(res.snapshot).filter(_.nonEmpty))
