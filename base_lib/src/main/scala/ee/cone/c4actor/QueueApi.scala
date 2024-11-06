@@ -380,7 +380,7 @@ trait LOBroker {
 trait Reverting {
   def getSavepoint: Context=>Option[NextOffset]
   def revertToSavepoint: Context=>Context
-  def makeSavepoint: Context=>Context
+  def makeSavepoint: LEvents
 }
 
 trait UpdateMapping {

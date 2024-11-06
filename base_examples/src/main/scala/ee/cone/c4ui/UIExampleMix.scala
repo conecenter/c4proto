@@ -6,7 +6,7 @@ import ee.cone.c4actor_kafka_impl._
 import ee.cone.c4actor_logback_impl.BasicLoggingApp
 import ee.cone.c4actor_repl_impl.SSHDebugApp
 import ee.cone.c4di.c4app
-import ee.cone.c4gate.{AuthProtocolApp, AvailabilityApp, ManagementApp, MergingSnapshotApp, PublisherApp, PublishingCompApp, RemoteRawSnapshotApp, SessionAttrCompApp}
+import ee.cone.c4gate.{AuthProtocolApp, AvailabilityApp, ManagementApp, MergingSnapshotApp, PublisherApp, PublishingCompApp, RemoteRawSnapshotApp, SessionAttrCompApp, SessionUtilApp}
 
 trait CanvasAppBase
 
@@ -84,5 +84,5 @@ trait TestTxLogAppBase
   with ReactHtmlApp
   with PublisherApp
   with SkipWorldPartsApp
-  with FrontApp
   with LZ4RawCompressorApp
+  with SessionUtilApp

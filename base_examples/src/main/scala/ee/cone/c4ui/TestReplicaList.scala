@@ -13,7 +13,7 @@ trait ReplicaEl extends ToChildPair
     key: String,
     role: String, startedAt: String, hostname: String, version: String, completion: String,
     complete: Receiver[C], forceRemove: Receiver[C]
-  ): TodoTaskEl
+  ): ReplicaEl
   @c4el("ExampleReplicas") def replicas(key: String, replicas: ElList[ReplicaEl]): ToChildPair
 }
 
@@ -25,21 +25,26 @@ trait ReplicaEl extends ToChildPair
   updatingReceiverFactory: UpdatingReceiverFactory,
 )(
   tags: ExampleReplicaTags[Context] = exampleTagsProvider.get[Context],
-) extends ByLocationHashView {
-  def rc: Updater => UpdatingReceiver = updatingReceiverFactory.create
+) extends ByLocationHashView with ViewUpdater {
+  import ReplicaListRootView._
+  val rc: ViewAction => Receiver[Context] = updatingReceiverFactory.create(this, _)
   def view: Context => ViewRes = untilPolicy.wrap { local =>
     val processes = getReadyProcesses.ofA(local).get(actorName.value).fold(List.empty[ReadyProcess])(_.all)
     val res = tags.replicas("replicas", for(p <- processes) yield tags.replica(
       key = p.id, role = p.role, startedAt = Instant.ofEpochMilli(p.startedAt).toString, hostname = p.hostname,
-      version = p.refDescr, completion = p.completionReqAt.fold("")(_.toString),
-      complete = rc(ReplicaCompleteReceiver(p)), forceRemove = rc(SimpleReceiver(p.halt)),
+      version = p.refDescr, completion = p.completionReqAt.fold("")(_.toString), complete = rc(Complete(p)),
+      forceRemove = rc(ForceRemove(p)),
     ))
     List(res.toChildPair)
   }
+  def receive: Handler = _ => _ => {
+    case Complete(p) => p.complete(Instant.now.plusSeconds(5))
+    case ForceRemove(p) => p.halt
+  }
 }
-
-case class ReplicaCompleteReceiver(process: ReadyProcess) extends Updater {
-  def receive: Handler = _ => _ => process.complete(Instant.now.plusSeconds(5))
+object ReplicaListRootView {
+  private case class Complete(process: ReadyProcess) extends ViewAction
+  private case class ForceRemove(process: ReadyProcess) extends ViewAction
 }
 
 @c4("TestTodoApp") final case class ReplicaBadShutdown(execution: Execution) extends Executable with LazyLogging {

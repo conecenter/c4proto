@@ -6,6 +6,8 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LEvent.{delete, update}
 import ee.cone.c4actor.Types.{LEvents, SrcId}
 import ee.cone.c4actor._
+import ee.cone.c4assemble.Types.{Each, Values}
+import ee.cone.c4assemble.{by, c4assemble}
 import ee.cone.c4di.{c4, c4multi}
 import ee.cone.c4gate.PublishFromStringsProvider
 import ee.cone.c4ui.TestTodoProtocol.{B_TodoTask, B_TodoTaskComments, B_TodoTaskCommentsContains}
@@ -13,29 +15,20 @@ import ee.cone.c4proto._
 import ee.cone.c4vdom.Types._
 import ee.cone.c4vdom._
 
-trait Updater {
-  type Handler = VDomMessage => Context => LEvents
-  def receive: Handler
-}
-@c4multi("TestTodoApp") final case class UpdatingReceiver(updater: Updater)(txAdd: LTxAdd) extends Receiver[Context] {
-  def receive: Handler = m => local => txAdd.add(updater.receive(m)(local))(local)
-}
-
-abstract class SetField[T](val make: (SrcId,String)=>T) extends Product
-case class OnChangeReceiver[T<:Product](srcId: SrcId, make: SetField[T]) extends Updater {
-  def receive: Handler = message => _ => {
-    val value = message.body match { case b: ByteString => b.utf8() }
-    update(make.make(srcId,value))
-  }
-}
-case class SimpleReceiver(events: Seq[LEvent[Product]]) extends Updater {
-  def receive: Handler = _ => _ => events
-}
-
 trait ViewUpdater extends Product {
   type Handler = String => Context => ViewAction => LEvents
+  def receive: Handler
 }
 trait ViewAction extends Product
+
+@c4multi("TestTodoApp") final case class UpdatingReceiver(updater: ViewUpdater, action: ViewAction)(
+  txAdd: LTxAdd
+) extends Receiver[Context] {
+  def receive: Handler = m => local => {
+    val value = m.body match { case b: ByteString => b.utf8() }
+    txAdd.add(updater.receive(value)(local)(action))(local)
+  }
+}
 
 @c4("ReactHtmlApp") final class ReactHtmlProvider extends PublishFromStringsProvider {
   def get: List[(String, String)] = {
@@ -72,6 +65,26 @@ trait ViewAction extends Product
   @Id(0x0004) case class B_TodoTaskCommentsContains(@Id(0x0002) srcId: SrcId, @Id(0x0003) value: String)
 }
 
+object TodoTasks {
+  def listKey = "taskList"
+}
+case class TodoTask(orig: B_TodoTask, comments: String)
+case class TodoTasks(srcId: SrcId, commentsContains: String, tasks: List[TodoTask])
+@c4assemble class TodoTaskAssembleBase{
+  def joinTask(key: SrcId, task: Each[B_TodoTask], comments: Values[B_TodoTaskComments]): Values[(SrcId, TodoTask)] =
+    List(WithPK(TodoTask(task, comments.map(_.value).mkString)))
+
+  type ToList = SrcId
+  def mapTask(key: SrcId, task: Each[TodoTask]): Values[(ToList, TodoTask)] = List(TodoTasks.listKey->task)
+  def joinList(
+    key: SrcId, @by[ToList] tasks: Values[TodoTask], filters: Values[B_TodoTaskCommentsContains]
+  ): Values[(SrcId, TodoTasks)] = {
+    val commentsContainsValue = filters.map(_.value).mkString
+    val filteredTasks = tasks.filter(_.comments.contains(commentsContainsValue)).sortBy(-_.orig.createdAt).toList
+    List(WithPK(TodoTasks(key, commentsContainsValue, filteredTasks)))
+  }
+}
+
 trait TodoTaskEl extends ToChildPair
 @c4tags("TestTodoApp") trait ExampleTags[C] {
   @c4el("ExampleTodoTask") def todoTask(
@@ -86,32 +99,25 @@ trait TodoTaskEl extends ToChildPair
 @c4("TestTodoApp") final case class TestTodoRootView(locationHash: String = "todo")(
   updatingReceiverFactory: UpdatingReceiverFactory,
   untilPolicy: UntilPolicy,
-  getB_TodoTask: GetByPK[B_TodoTask],
-  getB_TodoTaskComments: GetByPK[B_TodoTaskComments],
-  getB_TodoTaskCommentsContains: GetByPK[B_TodoTaskCommentsContains],
+  getTodoTasks: GetByPK[TodoTasks],
   exampleTagsProvider: ExampleTagsProvider,
 )(
   exampleTags: ExampleTags[Context] = exampleTagsProvider.get[Context]
 ) extends ByLocationHashView with ViewUpdater with LazyLogging {
   import TestTodoRootView._
-  def rc: ViewAction => Receiver[Context] = updatingReceiverFactory.create
+  import TodoTasks.listKey
+  val rc: ViewAction => Receiver[Context] = updatingReceiverFactory.create(this, _)
   def view: Context => ViewRes = untilPolicy.wrap{ local =>
-    val listKey = "taskList"
-    val commentsContainsValue = getB_TodoTaskCommentsContains.ofA(local).get(listKey).fold("")(_.value)
-    val comments = getB_TodoTaskComments.ofA(local)
+    val tasksOpt = getTodoTasks.ofA(local).get(listKey)
     val res = exampleTags.todoTasks(
       key = listKey,
-      commentsFilterValue = commentsContainsValue, commentsFilterChange = rc(CommentsContainsChange(listKey)),
+      commentsFilterValue = tasksOpt.fold("")(_.commentsContains),
+      commentsFilterChange = rc(CommentsContainsChange(listKey)),
       add = rc(Add()),
-      tasks = getB_TodoTask.ofA(local).values.map(task => (task,comments.get(task.srcId).fold("")(_.value)))
-        .filter{ case (_, comment) => comment.contains(commentsContainsValue) }
-        .toList.sortBy{ case (task, _) => -task.createdAt }
-        .map{ case (task, comment) =>
-          exampleTags.todoTask(
-            key = task.srcId,
-            commentsValue = comment, commentsChange = rc(CommentsChange(task.srcId)), remove = rc(Remove(task)),
-          )
-        }
+      tasks = tasksOpt.fold(List.empty[TodoTask])(_.tasks).map{ task => exampleTags.todoTask(
+        key = task.orig.srcId, commentsValue = task.comments, commentsChange = rc(CommentsChange(task.orig.srcId)),
+        remove = rc(Remove(task.orig)),
+      )}
     )
     List(res.toChildPair)
   }

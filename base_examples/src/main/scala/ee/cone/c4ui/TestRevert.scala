@@ -5,38 +5,33 @@ import ee.cone.c4actor._
 import ee.cone.c4vdom._
 import ee.cone.c4vdom.Types.ViewRes
 
-@c4("TestTodoApp") final case class RevertRootView(locationHash: String = "revert")(
-  revert: Reverting,
-  untilPolicy: UntilPolicy,
-  exampleTagsProvider: ExampleTagsProvider,
-  makeSavepointReceiver: MakeSavepointReceiver,
-  revertToSavepointReceiver: RevertToSavepointReceiver,
-)(
-  exampleTags: ExampleTags[Context] = exampleTagsProvider.get[Context],
-) extends ByLocationHashView {
-  def view: Context => ViewRes = untilPolicy.wrap { local =>
+@c4tags("TestTodoApp") trait RevertRootViewTags[C] {
+  @c4el("ExampleReverting") def reverting(
+    key: String, makeSavepoint: Receiver[C], revertToSavepoint: Receiver[C], offset: String,
+  ): ToChildPair
+}
 
-    exampleTags.button("makeSavepoint",
-      activate = makeSavepointReceiver,
-      caption = "makeSavepoint",
-    ).toChildPair[OfDiv] ::
-    revert.getSavepoint(local).toList.map(offset=>
-      exampleTags.button("revertToSavepoint",
-        activate = revertToSavepointReceiver,
-        caption = s"revertTo $offset",
-      ).toChildPair[OfDiv]
+@c4("TestTodoApp") final case class RevertRootView(locationHash: String = "revert")(
+  revert: Reverting, untilPolicy: UntilPolicy, revertRootViewTagsProvider: RevertRootViewTagsProvider,
+  updatingReceiverFactory: UpdatingReceiverFactory,
+)(
+  tags: RevertRootViewTags[Context] = revertRootViewTagsProvider.get[Context],
+) extends ByLocationHashView with ViewUpdater {
+  import RevertRootView._
+  val rc: ViewAction => Receiver[Context] = updatingReceiverFactory.create(this, _)
+  def view: Context => ViewRes = untilPolicy.wrap { local =>
+    val res = tags.reverting(
+      key = "reverting", makeSavepoint = rc(MakeSavepoint()), revertToSavepoint = rc(RevertToSavepoint()),
+      offset = revert.getSavepoint(local).toList.mkString
     )
+    List(res.toChildPair)
+  }
+  def receive: Handler = value => local => {
+    case MakeSavepoint() => revert.makeSavepoint
+    //todo case RevertToSavepoint() => revert.revertToSavepoint(local)
   }
 }
-
-@c4("TestTodoApp") final case class MakeSavepointReceiver()(
-  revert: Reverting,
-) extends Receiver[Context] {
-  def receive: Handler = message => revert.makeSavepoint
-}
-
-@c4("TestTodoApp") final case class RevertToSavepointReceiver()(
-  revert: Reverting,
-) extends Receiver[Context] {
-  def receive: Handler = message => revert.revertToSavepoint
+object RevertRootView {
+  private case class MakeSavepoint() extends ViewAction
+  private case class RevertToSavepoint() extends ViewAction
 }
