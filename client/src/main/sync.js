@@ -122,8 +122,7 @@ const Sender = ({sessionKey, branchKey, ws, setState}) => {
     const enqueue = (identity,patch,set) => setState(was => {
         const path = ctxToPath(identity)
         const headers = {
-            ...patch.headers, value: patch.value,
-            "x-r-session": sessionKey, "x-r-branch": branchKey, "x-r-vdom-path": path,
+            ...patch.headers, value: patch.value, "x-r-vdom-path": path,
             "x-r-reload": was.reloadKey, "x-r-index": was.nextPatchIndex, "x-r-alien-date": Date.now(),
         }
         const skip = p => p.skipByPath && getPath(p)===getPath(patch)
@@ -154,9 +153,7 @@ export const useSyncRoot = ({sessionKey,branchKey,reloadBranchKey,isRoot,transfo
     const {receive, incoming, availability} = useReceiverRoot({branchKey, transforms})
     const url = branchKey && `/eventlog/${branchKey}`
     const pongMessage = useMemo(
-        () => isRoot && sessionKey && branchKey ? serialize({
-            "x-r-op": "online", "x-r-session": sessionKey, "x-r-branch": branchKey, value: "1"
-        }) : "",
+        () => isRoot && sessionKey && branchKey ? serialize({"x-r-op": "online", value: "1"}) : "",
         [isRoot, sessionKey, branchKey]
     )
     const ws = useWebsocket({ url, pongMessage, onData: receive, onClose: reloadBranchKey })

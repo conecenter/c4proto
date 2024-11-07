@@ -12,7 +12,6 @@ object BranchTypes {
 }
 
 trait BranchMessage extends Product {
-  def method: String
   def header: String=>String
   def body: okio.ByteString
   def deletes: Seq[LEvent[Product]]

@@ -1,12 +1,11 @@
 package ee.cone.c4ui
 
 import ee.cone.c4actor._
-import ee.cone.c4actor_branch.BranchApp
 import ee.cone.c4actor_kafka_impl._
 import ee.cone.c4actor_logback_impl.BasicLoggingApp
 import ee.cone.c4actor_repl_impl.SSHDebugApp
 import ee.cone.c4di.c4app
-import ee.cone.c4gate.{AlienProtocolApp, AuthProtocolApp, AvailabilityApp, EventLogApp, ManagementApp, MergingSnapshotApp, PublisherApp, PublishingCompApp, RemoteRawSnapshotApp, SessionAttrCompApp, SessionUtilApp}
+import ee.cone.c4gate.{AlienProtocolApp, AuthOperationsApp, AuthProtocolApp, AvailabilityApp, EventLogApp, ManagementApp, MergingSnapshotApp, PublisherApp, PublishingCompApp, RemoteRawSnapshotApp, SessionAttrCompApp, SessionUtilApp}
 
 trait CanvasAppBase
 

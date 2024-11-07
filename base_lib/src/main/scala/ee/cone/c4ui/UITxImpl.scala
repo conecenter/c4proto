@@ -79,7 +79,6 @@ import scala.Function.chain
   }
   //dispatches incoming message // can close / set refresh time
   private def dispatch(local: Context): (Context, LEvents) = catchNonFatal{
-    assert(request.method == "POST")
     request.header("x-r-op") match {
       case "redraw" => (resetUntil(local), Nil)
       case "online" =>

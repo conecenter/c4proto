@@ -94,6 +94,7 @@ import ee.cone.c4proto._
   )
   @Id(0x0054) case class S_PasswordChangeRequest(
     @Id(0x0055) srcId: String,
+    @Id(0x0058) userName: String,
     @Id(0x0056) hash: Option[N_SecureHash]
   )
   @Id(0x0057) case class C_PasswordHashOfUser(

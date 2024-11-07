@@ -25,7 +25,7 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
       case parsed => handle(req(parsed)).map(_ => until)
     }
   def stop()(implicit executionContext: ExecutionContext): Future[Unit] =
-    if(offlineReqP.isCompleted) for(req <- offlineReqP.future; _ <- handler.handle(req)) yield ()
+    if(offlineReqP.isCompleted) for(req <- offlineReqP.future; _ <- handle(req)) yield ()
     else Future.successful(())
   private def req(dict: Map[String,String]): FHttpRequest = {
     val headers =  (("x-r-sync", "save") :: dict.removed("value").toList).sorted.map{ case (k,v) => N_Header(k, v) }
@@ -35,3 +35,45 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
   private def parse(value: String) =
     value.split("\n").map(line => line.span(_!=':')).groupMapReduce(_._1)(_._2.tail)((a,b)=>"$a\n$b")
 }
+
+/*
+  ws:
+  check log/session exists
+  dos protection with backpressure (from SelfDosProtectionHttpHandler)
+  die if x-r-auth; work with reqId on react level
+  saving handler
+
+  http statuses do not affect socket -- keep delivery!
+
+  session do not need consumer
+*/
+
+/*
+@c4("AbstractHttpGatewayApp") final class SelfDosProtectionHttpHandler(
+  httpResponseFactory: RHttpResponseFactory,
+  getHttpRequestCount: GetByPK[HttpRequestCount],
+) extends LazyLogging {
+  val sessionWaitingRequests = 8
+  def wire: RHttpHandlerCreate = next => (request,local) =>
+    if((for{
+      sessionKey <- ReqGroup.session(request)
+      count <- getHttpRequestCount.ofA(local).get(sessionKey) if count.count > sessionWaitingRequests
+    } yield true).nonEmpty){
+      logger.warn(s"429 ${request.path}")
+      logger.debug(s"429 ${request.path} ${request.headers}")
+      httpResponseFactory.directResponse(request,_.copy(status=429)) // Too Many Requests
+    } else next(request,local)
+}*/
+/*
+  def aliveBySession(
+    key: SrcId,
+    @distinct @by[Alive] request: Each[S_HttpRequest]
+  ): Values[(ASessionKey, S_HttpRequest)] =
+    ReqGroup.session(request).map(_->request).toList
+
+  def count(
+    key: SrcId,
+    @by[ASessionKey] requests: Values[S_HttpRequest]
+  ): Values[(SrcId, HttpRequestCount)] =
+    WithPK(HttpRequestCount(key,requests.size)) :: Nil*/
+case class HttpRequestCount(sessionKey: SrcId, count: Long)

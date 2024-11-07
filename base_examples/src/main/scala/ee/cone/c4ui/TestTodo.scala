@@ -43,11 +43,11 @@ import ee.cone.c4vdom._
 }
 
 object TestUser {
-  val name = "test"
+  val name = "test0"
 }
 
 @c4assemble("TestTodoApp") class TestUserAssembleBase(factory: TestUserCreateTxFactory){
-  private type ByUserName = String
+  type ByUserName = String
   def map(key: SrcId, firstborn: Each[S_Firstborn]): Values[(ByUserName, S_Firstborn)] = List(TestUser.name->firstborn)
   def join(
     key: SrcId, @by[ByUserName] firstborn: Each[S_Firstborn], hashes: Values[C_PasswordHashOfUser]
@@ -56,9 +56,10 @@ object TestUser {
 
 @c4multi("TestTodoApp") final case class TestUserCreateTx(srcId: SrcId = "TestUserCreateTx")(
   txAdd: LTxAdd, authOperations: AuthOperations
-) extends TxTransform {
+) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = {
     val pass = TestUser.name
+    logger.info(s"creating ${TestUser.name}")
     val lEvents = update(C_PasswordHashOfUser(TestUser.name, Option(authOperations.createHash(pass, None))))
     txAdd.add(lEvents)(local)
   }
