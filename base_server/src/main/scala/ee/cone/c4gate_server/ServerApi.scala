@@ -1,9 +1,10 @@
 
 package ee.cone.c4gate_server
 
-import ee.cone.c4actor.Types.LEvents
+import ee.cone.c4actor.Types.{LEvents, NextOffset}
 import ee.cone.c4actor._
 import ee.cone.c4gate.HttpProtocol._
+
 import scala.concurrent.{ExecutionContext, Future}
 
 // inner (TxTr-like) handler api
@@ -35,16 +36,19 @@ trait WorldProvider {
   import WorldProvider._
   def run(steps: Steps): Unit
 }
+trait TxSend {
+  def send(context: AssembledContext, lEvents: LEvents): NextOffset
+}
 
 trait EventLogReader {
   def read(logKey: String, pos: Long): (Long, String)
 }
 
 trait FromAlienUpdaterFactory {
-  def create(): FromAlienUpdater
+  def create(logKey: String): FromAlienUpdater
 }
 trait FromAlienUpdater {
-  def send(was: Long, value: String)(implicit executionContext: ExecutionContext): Future[Long]
-  def stop()(implicit executionContext: ExecutionContext): Future[Unit]
+  def send(value: String): Unit
+  def stop(): Unit
 }
 

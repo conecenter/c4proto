@@ -18,8 +18,8 @@ import scala.concurrent.{ExecutionContext, Future}
       val source = Source.unfoldAsync(0L){ pos =>
         for((pos,msg) <- Future(eventLogReader.read(logKey, pos))) yield Option((pos,ByteString(msg)))
       }
-      val updater = fromAlienUpdaterFactory.create()
-      val sink = Sink.foldAsync[Long,ByteString](0L)((st,bs) => updater.send(st, bs.utf8String))
+      val updater = fromAlienUpdaterFactory.create(logKey)
+      val sink = Sink.foreach[ByteString](bs => updater.send(bs.utf8String))
       val flow = Flow.fromSinkAndSourceCoupled(sink, source).watchTermination(){ (nu,doneF) =>
         doneF.onComplete(_=>updater.stop())
         nu

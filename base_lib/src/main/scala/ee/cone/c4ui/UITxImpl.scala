@@ -38,7 +38,7 @@ import scala.Function.chain
   ): Values[(SrcId,TxTransform)] = tasks match {
     case Seq(task) =>
       def long(v: String) = if(v.isEmpty) 0L else try v.toLong catch { case _: NumberFormatException => 0L }
-      val req = requests.minByOption(r=>(long(r.header("x-r-index")),ToPrimaryKey(r)))
+      val req = requests.minByOption(r=>(long(r.header("x-r-index)),ToPrimaryKey(r)))
       List(WithPK(txFactory.create(key, task.fromAlienState.sessionKey, req)))
     case _ => Nil
   }
@@ -67,7 +67,6 @@ import scala.Function.chain
   sessionUtil: SessionUtil, vDomResolver: VDomResolver,
 ) extends LazyLogging {
   // do
-  private val sessionTimeoutSec = Single.option(listConfig.get("C4STATE_REFRESH_SECONDS")).fold(100L)(_.toLong)
   private def handleError(local: Context, err: Throwable) =
     (local, branchErrorSaver.toSeq.flatMap(_.saveErrors(local, branchKey, err)))
   private def measure[T](before: String)(f: ()=>T)(after: Long=>String): T = {
@@ -78,11 +77,9 @@ import scala.Function.chain
     res
   }
   //dispatches incoming message // can close / set refresh time
-  private def dispatch(local: Context): (Context, LEvents) = catchNonFatal{
+  private def dispatch(local: Context): (Context, LEvents) =
     request.header("x-r-op") match {
       case "redraw" => (resetUntil(local), Nil)
-      case "online" =>
-        (local, sessionUtil.setStatus(local, sessionKey, sessionTimeoutSec, request.body.size > 0))
       case "" =>
         val path = request.header("x-r-vdom-path")
         if(path.nonEmpty) vDomResolver.resolve(path)(VDomStateKey.of(local).map(_.value)) match {
@@ -93,21 +90,13 @@ import scala.Function.chain
             (local, Nil)
         } else (local, Nil)
     }
-  }(s"branch $branchKey dispatch failed")(handleError(local, _))
   private def resetUntil: Context => Context = VDomStateKey.modify(_.map(st=>st.copy(until = 0)))
-  private def dedupAck(local: Context): (Context, LEvents) = catchNonFatal{
-    (request.header("x-r-reload"), request.header("x-r-index")) match {
-      case ("", "") => dispatch(local)
-      case (k, vStr) if k.nonEmpty && vStr.nonEmpty =>
-        if(sessionUtil.ackList(local, sessionKey).exists(h => h.key == k && vStr.toLong <= h.value.toLong)) (local, Nil)
-        else dispatch(local) match {
-          case (nLocal, lEvents) => (nLocal, lEvents ++ sessionUtil.addAck(local, sessionKey, k, vStr))
-        }
-    }
-  }(s"branch $branchKey dedupAck failed")(handleError(local, _))
   def handle(local: Context): (Context, LEvents) =
-    measure(s"branch $branchKey tx begin ${request.header("x-r-alien-date)}"){() =>
-      dedupAck(local)
+    measure(s"branch $branchKey tx begin ${request.index}"){() =>
+      val (nLocal, lEvents) = catchNonFatal{
+        dispatch(local)
+      }(s"branch $branchKey dispatch failed")(handleError(local, _))
+      (nLocal, lEvents ++ sessionUtil.addAck(branchKey, sessionKey, request.index))
     }(t => s"branch $branchKey tx done in $t ms")
 }
 
@@ -123,14 +112,12 @@ import scala.Function.chain
   private def handleReView(local: Context, preViewRes: PreViewResult): (Context, LEvents) = {
     val location = sessionUtil.location(local, sessionKey)
     val statusEl = rootTags.statusElement("status", location, setLocationReceiverFactory.create(sessionKey))
-    val ackList = sessionUtil.ackList(local, sessionKey)
-      .map(h => rootTags.ackElement(s"ack-${h.key}", h.key, h.value))
     val viewOpt = getView.ofA(local).get(branchKey)
     val children = catchNonFatal{ viewOpt.fold(Nil:ViewRes)(_.view(local)) }("view failed"){ err =>
       val message = err match { case b: BranchError => b.message(local) case _ => "Internal Error" }
       rootTags.failureElement("failure", message).toChildPair :: Nil
     }
-    val nextDom = rootTags.rootElement("root", (statusEl::ackList).map(_.toChildPair) ::: children)
+    val nextDom = rootTags.rootElement("root", statusEl.toChildPair :: children)
       .toChildPair.asInstanceOf[VPair].value
     val res = vDomHandler.postView(preViewRes, nextDom)
     val seeds = res.seeds.collect{ case r: N_BranchResult => r }
@@ -183,7 +170,6 @@ import scala.Function.chain
 
 @c4tags("UICompApp") trait RootTags[C] {
   @c4el("RootElement") def rootElement(key: String, children: ViewRes): ToChildPair
-  @c4el("AckElement") def ackElement(key: String, clientKey: String, index: String): ToChildPair
   @c4el("StatusElement") def statusElement(key: String, location: String, locationChange: Receiver[C]): ToChildPair
   @c4el("FailureElement") def failureElement(key: String, value: String): ToChildPair
 }

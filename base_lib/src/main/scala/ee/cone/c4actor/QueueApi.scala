@@ -259,6 +259,7 @@ trait Observer[Message] {
 
 trait WorldSource {
   def doWith[M,R](queue: BlockingQueue[Either[RichContext,M]], f: ()=>R): R
+  def ready(world: RichContext, readAfterWriteOffsetOpt: Option[NextOffset]): Boolean
 }
 
 final class DisableDefObserver

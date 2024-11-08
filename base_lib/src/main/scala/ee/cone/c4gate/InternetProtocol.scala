@@ -79,16 +79,18 @@ import ee.cone.c4proto._
   )
 
   @Id(0x0032) case class U_ToAlienAck(
-    @Id(0x0032) sessionKey: String,
-    @Id(0x0030) values: List[N_Header]
-  )
-
-  @Id(0x0031) case class U_FromAlienWishes(
-    @Id(0x0036) reloadKey: String,
+    @Id(0x002A) srcId: String,
     @Id(0x0020) logKey: String,
     @Id(0x0032) sessionKey: String,
-    @Id(0x0030) values: List[N_Header],
-    @Id(0x002D) time: Long,
+    @Id(0x0030) index: Long,
+  )
+
+  case class N_FromAlienWish(@Id(0x0030) index: Long, @Id(0x0025) value: String)
+  @Id(0x0031) case class U_FromAlienWishes(
+    @Id(0x002A) srcId: String,
+    @Id(0x0020) logKey: String,
+    @Id(0x0032) sessionKey: String,
+    @Id(0x0031) values: List[N_FromAlienWish],
   )
 }
 
