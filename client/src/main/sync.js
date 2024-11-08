@@ -54,12 +54,22 @@ export const ctxToPath = ctx => !ctx ? "" : ctxToPath(ctx.parent) + (ctx.key ? "
 
 ////
 
-const useWebsocket = ({url, pongMessage, onData, onClose})=>{
-    const [theConnected,setConnected] = useState(null)
-    const {ws,at} = theConnected || {}
-    const needConnected = url && (!at || Date.now() < at + 5000)
+const manageInterval = (f,t) => {
+    const h = setInterval(f, t)
+    return () => clearInterval(h)
+}
+const useSecCounter = ()=>{
+    const [counter,setCounter] = useState(0)
+    useEffect(()=>manageInterval(()=>setCounter(was=>was+1),1000),[setCounter])
+}
+
+const useWebsocket = ({url, stateToSend, onData, onClose})=>{
+    useSecCounter()
+    // connect/recv
+    const [{ws,at},setConnected] = useState({})
+    const isBadConnection = at && Date.now() > at + 5000 // needs counter (no ping -- no render)
     useEffect(()=>{
-        if(!needConnected) return
+        if(!url || isBadConnection) return
         const ws = new WebSocket(url)
         setConnected({at:Date.now()})
         ws.onmessage = ev => {
@@ -70,11 +80,16 @@ const useWebsocket = ({url, pongMessage, onData, onClose})=>{
         }
         return ()=>{
             ws.close()
-            setConnected(null)
+            setConnected({})
             onClose && onClose()
         }
-    }, [setConnected,url,onData,needConnected])
-    useEffect(() => ws?.send(pongMessage),[ws,at,pongMessage])
+    }, [setConnected,url,onData,isBadConnection])
+    // pong
+    useEffect(() => ws?.send(""), [ws,at]) // 
+    // send
+    const mountedAt = useMemo(()=>Date.now(),[])
+    const age = Math.floor((Date.now()-mountedAt)/30000)
+    useEffect(() => ws?.send(stateToSend), [ws, stateToSend, age])
     return ws
 }
 
@@ -92,38 +107,33 @@ const Receiver = ({branchKey, transforms, setState}) => {
     return {receive}
 }
 const useReceiverRoot = ({branchKey, transforms}) => {
-    const [state, setState] = useState(()=>({incoming:{},availability:0}))
-    const receiver = useMemo(()=>Receiver({branchKey, transforms, setState}), [branchKey, transforms, setState])
-    const {receive} = receiver
-    const {incoming, availability} = state
+    const [{incoming, availability}, setState] = useState(()=>({incoming:{},availability:0}))
+    const {receive} = useMemo(()=>Receiver({branchKey, transforms, setState}), [branchKey, transforms, setState])
     return {receive, incoming, availability}
 }
+
+const serializePairs = pairs => pairs.map(([k,v])=>`${k}\n ${v.replaceAll("\n","\n ")}`).join("\n")
+const serializeState = ({sessionKey, isRoot, reloadKey, patches}) => reloadKey && sessionKey ? serializePairs([
+    ["x-r-reload",reloadKey], ["x-r-session",sessionKey], ...(isRoot ? [["x-r-is-main","1"]] : []),
+    ...patches.map(patch => ["x-r-patch",serializePairs(Object.entries(patch.headers).toSorted())])
+]) : ""
 
 const getIndex = patch => patch.headers["x-r-index"]
 const getPath = patch => patch.headers["x-r-vdom-path"]
 const eqBy = (was, will, by) => JSON.stringify(was.map(by)) === JSON.stringify(will.map(by))
-const serialize = o => Object.entries(o).toSorted().flatMap(([k,v])=>v.split("\n").map(l=>`${k}:${l}`)).join("\n")
-const sendOnce = (ws, patch) => {
-    if(ws.lastSentIndex === undefined || ws.lastSentIndex < getIndex(patch)){
-        ws.send(serialize(patch.headers))
-        ws.lastSentIndex = getIndex(patch)
-    }
-}
-const useSenderRoot = ({sessionKey, branchKey, ws}) => {
-    const [state, setState] = 
+const usePatchManager = () => {
+    const [{reloadKey, patches, observers}, setState] = 
         useState(()=>({reloadKey: crypto.randomUUID(), nextPatchIndex:0, patches:[], observers: []}))
-    const sender = useMemo(()=>Sender({sessionKey, branchKey, ws, setState}), [sessionKey, branchKey, ws, setState])
-    const {patches, observers} = state
-    useEffect(() => sender.send(patches), [sender, patches])
-    useEffect(() => sender.notifyObservers(patches, observers), [sender, patches, observers])
-    return sender
+    const {enqueue, doAck, notifyObservers} = useMemo(()=>PatchManager(setState), [setState])
+    useEffect(() => notifyObservers(patches, observers), [notifyObservers, patches, observers])
+    return {enqueue, doAck, reloadKey, patches}
 }
-const Sender = ({sessionKey, branchKey, ws, setState}) => {
+const PatchManager = setState => {
     const enqueue = (identity,patch,set) => setState(was => {
         const path = ctxToPath(identity)
         const headers = {
             ...patch.headers, value: patch.value, "x-r-vdom-path": path,
-            "x-r-reload": was.reloadKey, "x-r-index": was.nextPatchIndex, "x-r-alien-date": Date.now(),
+            "x-r-index": was.nextPatchIndex,
         }
         const skip = p => p.skipByPath && getPath(p)===getPath(patch)
         const patches = [...was.patches.filter(p=>!skip(p)), {...patch,headers,set}]
@@ -132,10 +142,6 @@ const Sender = ({sessionKey, branchKey, ws, setState}) => {
     const doAck = (clientKey, index) => setState(was => (
         was.reloadKey===clientKey ? {...was, patches: was.patches.filter(patch=>getIndex(patch) > index)} : was
     ))
-    const send = patches => {
-        const last = patches.findLastIndex(patch=>!patch.defer)
-        patches.forEach((patch, n) => n <= last && sendOnce(ws, patch))
-    }
     const notifyObservers = (patches, observers) => {
         const patchesByPath = Object.groupBy(patches, getPath)
         observers.forEach(observer => {
@@ -145,19 +151,20 @@ const Sender = ({sessionKey, branchKey, ws, setState}) => {
         const willObservers = Object.keys(patchesByPath).toSorted().map(path=>({path,set:patchesByPath[path][0].set}))
         setState(was => eqBy(was.observers, willObservers, o=>o.path) ? was : {...was, observers: willObservers})
     }
-    return {enqueue, doAck, send, notifyObservers}
+    return {enqueue, doAck, notifyObservers}
 }
 
 const SyncContext = createContext()
 export const useSyncRoot = ({sessionKey,branchKey,reloadBranchKey,isRoot,transforms}) => {
     const {receive, incoming, availability} = useReceiverRoot({branchKey, transforms})
-    const url = branchKey && `/eventlog/${branchKey}`
-    const pongMessage = useMemo(
-        () => isRoot && sessionKey && branchKey ? serialize({"x-r-op": "online", value: "1"}) : "",
-        [isRoot, sessionKey, branchKey]
+    const {enqueue, doAck, reloadKey, patches} = usePatchManager()
+    const stateToSend = useMemo(
+        () => serializeState({sessionKey, isRoot, reloadKey, patches}), 
+        [sessionKey, isRoot, reloadKey, patches]
     )
-    const ws = useWebsocket({ url, pongMessage, onData: receive, onClose: reloadBranchKey })
-    const {enqueue, doAck} = useSenderRoot({sessionKey, branchKey, ws})
+    const url = branchKey && `/eventlog/${branchKey}`
+    useWebsocket({ url, stateToSend, onData: receive, onClose: reloadBranchKey })
+    
     const [element, ref] = useState()
     const win = element?.ownerDocument.defaultView
     const provided = useMemo(()=>({enqueue,isRoot,doAck,win}), [enqueue,isRoot,doAck,win])

@@ -1,9 +1,7 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.{Context, GetByPK, IdGenUtil, LEvent, WithPK}
-import ee.cone.c4actor.Types.{LEvents, SrcId}
-import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.c4assemble
+import ee.cone.c4actor.{Context, GetByPK, IdGenUtil, LEvent}
+import ee.cone.c4actor.Types.LEvents
 import ee.cone.c4di.c4
 import ee.cone.c4gate.AlienProtocol.{U_ToAlienAck, U_FromAlienState, U_FromAlienStatus}
 import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession

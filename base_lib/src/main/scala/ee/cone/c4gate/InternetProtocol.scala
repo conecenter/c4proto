@@ -72,7 +72,7 @@ import ee.cone.c4proto._
     //isSynchronous: Boolean
   )
 
-  @Id(0x003F) case class U_FromAlienStatus(
+  @Id(0x003F) case class U_FromAlienStatus(//use it?
     @Id(0x0032) sessionKey: String,
     @Id(0x0038) expirationSecond: Long,
     @Id(0x005C) isOnline: Boolean
@@ -81,6 +81,14 @@ import ee.cone.c4proto._
   @Id(0x0032) case class U_ToAlienAck(
     @Id(0x0032) sessionKey: String,
     @Id(0x0030) values: List[N_Header]
+  )
+
+  @Id(0x0031) case class U_FromAlienWishes(
+    @Id(0x0036) reloadKey: String,
+    @Id(0x0020) logKey: String,
+    @Id(0x0032) sessionKey: String,
+    @Id(0x0030) values: List[N_Header],
+    @Id(0x002D) time: Long,
   )
 }
 

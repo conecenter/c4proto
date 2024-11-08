@@ -23,7 +23,7 @@ case class MessageFromAlienImpl(
   def deletes: Seq[LEvent[Product]] = delete(request)
 }
 
-case class S_MessageFromAlien(srcId: String, logKey: String, headers: List[N_Header])
+//case class S_MessageFromAlien(srcId: String, logKey: String, headers: List[N_Header])
 
 @c4assemble("AlienExchangeCompApp") class MessageFromAlienAssembleBase   {
   def mapHttpReqByBranch(

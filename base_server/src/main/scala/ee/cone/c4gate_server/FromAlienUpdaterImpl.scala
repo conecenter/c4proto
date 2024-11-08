@@ -77,3 +77,13 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
   ): Values[(SrcId, HttpRequestCount)] =
     WithPK(HttpRequestCount(key,requests.size)) :: Nil*/
 case class HttpRequestCount(sessionKey: SrcId, count: Long)
+
++wishlist send
+  online/offline
+protect by sessionKey
+wishlist recv gate
+wishlist recv main
+wishlist purge
+  redraw
+
+FromAlienStatus life?

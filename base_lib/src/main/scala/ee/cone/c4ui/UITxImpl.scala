@@ -106,7 +106,7 @@ import scala.Function.chain
     }
   }(s"branch $branchKey dedupAck failed")(handleError(local, _))
   def handle(local: Context): (Context, LEvents) =
-    measure(s"branch $branchKey tx begin ${request.header("x-r-alien-date")}"){() =>
+    measure(s"branch $branchKey tx begin ${request.header("x-r-alien-date)}"){() =>
       dedupAck(local)
     }(t => s"branch $branchKey tx done in $t ms")
 }
