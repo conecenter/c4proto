@@ -63,14 +63,14 @@ const useSecCounter = ()=>{
     useEffect(()=>manageInterval(()=>setCounter(was=>was+1),1000),[setCounter])
 }
 
-const useWebsocket = ({url, stateToSend, onData, onClose})=>{
+const useWebsocket = ({url, protocols, stateToSend, onData, onClose})=>{
     useSecCounter()
     // connect/recv
     const [{ws,at},setConnected] = useState({})
     const isBadConnection = at && Date.now() > at + 5000 // needs counter (no ping -- no render)
     useEffect(()=>{
         if(!url || isBadConnection) return
-        const ws = new WebSocket(url)
+        const ws = new WebSocket(url, protocols)
         setConnected({at:Date.now()})
         ws.onmessage = ev => {
             //console.log(ev)
@@ -83,7 +83,7 @@ const useWebsocket = ({url, stateToSend, onData, onClose})=>{
             setConnected({})
             onClose && onClose()
         }
-    }, [setConnected,url,onData,isBadConnection])
+    }, [setConnected,url,protocols,onData,isBadConnection])
     // pong
     useEffect(() => ws?.send(""), [ws,at]) // 
     // send
@@ -113,12 +113,9 @@ const useReceiverRoot = ({branchKey, transforms}) => {
 }
 
 const serializeVals = vs => vs.map(v=>`-${v.replaceAll("\n","\n ")}`).join("\n")
-const serializeState = ({sessionKey, isRoot, patches}) => sessionKey ? serializeVals([
-    "x-r-session", sessionKey, ...(isRoot ? ["x-r-is-main","1"] : []),
-    "x-r-patches", serializeVals(
-        patches.flatMap(patch => [patch.index,serializeVals(Object.entries(patch.headers).toSorted().flat())])
-    )
-]) : ""
+const serializeState = patches => serializeVals(
+    patches.flatMap(patch => [patch.index,serializeVals(Object.entries(patch.headers).toSorted().flat())])
+)
 
 const getIndex = patch => patch.index
 const getPath = patch => patch.headers["x-r-vdom-path"]
@@ -158,9 +155,10 @@ const SyncContext = createContext()
 export const useSyncRoot = ({sessionKey,branchKey,reloadBranchKey,isRoot,transforms}) => {
     const {receive, incoming, availability, ack} = useReceiverRoot({branchKey, transforms})
     const {enqueue, patches} = usePatchManager(ack)
-    const stateToSend = useMemo(() => serializeState({sessionKey, isRoot, patches}), [sessionKey, isRoot, patches])
-    const url = branchKey && `/eventlog/${branchKey}`
-    useWebsocket({ url, stateToSend, onData: receive, onClose: reloadBranchKey })
+    const stateToSend = useMemo(() => serializeState(patches), [patches])
+    const protocols = branchKey && sessionKey && `ee.cone.c4bs1.${isRoot?"m":"s"}.${branchKey}.${sessionKey}`
+    const url = protocols && "/eventlog"
+    useWebsocket({ url, protocols, stateToSend, onData: receive, onClose: reloadBranchKey })
     const [element, ref] = useState()
     const win = element?.ownerDocument.defaultView
     const provided = useMemo(()=>({enqueue,isRoot,win}), [enqueue,isRoot,win])

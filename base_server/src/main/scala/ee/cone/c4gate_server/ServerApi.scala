@@ -26,29 +26,23 @@ trait RHttpResponseFactory {
 }
 
 object WorldProvider{
-  sealed trait Ctl
-  case class Next(events: LEvents) extends Ctl
-  case class Redo() extends Ctl
-  case class Stop() extends Ctl
-  type Steps = List[AssembledContext=>Ctl]
+  sealed trait Ctl[R]
+  case class Next[R](events: LEvents) extends Ctl[R]
+  case class Redo[R]() extends Ctl[R]
+  case class Stop[R](value: R) extends Ctl[R]
+  type Steps[R] = List[AssembledContext=>Ctl[R]]
 }
 trait WorldProvider {
   import WorldProvider._
-  def run(steps: Steps): Unit
-}
-trait TxSend {
-  def send(context: AssembledContext, lEvents: LEvents): NextOffset
+  def run[R](steps: Steps[R]): R
+  def runUpdCheck(f: AssembledContext=>LEvents): Unit
 }
 
-trait EventLogReader {
-  def read(logKey: String, pos: Long): (Long, String)
+trait AlienConnectionFactory {
+  def create(value: String): AlienConnection
 }
-
-trait FromAlienUpdaterFactory {
-  def create(logKey: String): FromAlienUpdater
-}
-trait FromAlienUpdater {
+trait AlienConnection {
+  def read(pos: Long): (Long, String)
   def send(value: String): Unit
   def stop(): Unit
 }
-

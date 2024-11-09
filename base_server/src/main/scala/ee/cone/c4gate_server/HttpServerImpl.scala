@@ -119,39 +119,26 @@ object ReqGroup {
 
 @c4multi("AbstractHttpGatewayApp") final class FHttpHandlerImpl(handler: RHttpHandler)(
   worldProvider: WorldProvider, requestByPK: GetByPK[S_HttpRequest], responseByPK: GetByPK[S_HttpResponse],
-  execution: Execution,
 ) extends FHttpHandler with LazyLogging {
   import WorldProvider._
   private val dummyInj = new Injected{}
-  def respond(promise: Promise[S_HttpResponse], response: S_HttpResponse): Ctl=>Ctl = {
-    execution.success(promise, response.copy(headers = normalize(response.headers)))
-    identity[Ctl]
-  }
-  private def failInner(prom: Promise[S_HttpResponse], err: Throwable): Unit = logger.error("http handling error", err)
-  private def fail(prom: Promise[S_HttpResponse], err: Throwable): Unit = failInner(prom.failure(err), err)
-
-  private val syncSaveHeader = N_Header("x-r-sync", "save")
-  def handle(request: FHttpRequest)(implicit executionContext: ExecutionContext): Future[S_HttpResponse] = {
+  def handle(request: FHttpRequest)(implicit executionContext: ExecutionContext): Future[S_HttpResponse] = Future{
     val now = System.currentTimeMillis
     val headers = normalize(request.headers)
     val id = UUID.randomUUID.toString
     val requestEv = S_HttpRequest(id, request.method, request.path, request.rawQueryString, headers, request.body, now)
-    val isSyncSaveOnly = headers.contains(syncSaveHeader)
-    val promise = Promise[S_HttpResponse]()
-    Future(worldProvider.run(List(
+    val resp: S_HttpResponse = worldProvider.run(List(
       world => handler(requestEv, new Context(dummyInj, world.assembled, world.executionContext, Map.empty)) match {
-        case result if result.events.isEmpty => respond(promise, result.response)(Stop())
+        case result if result.events.isEmpty => Stop(result.response)
         case result => Next(LEvent.update(result.response) ++ result.events)
       },
-      world => (!isSyncSaveOnly && requestByPK.ofA(world).contains(id), responseByPK.ofA(world)(id)) match {
-        case (true, _) => Redo() case (false, resp) => respond(promise, resp)(Next(LEvent.delete(resp)))
+      world => {
+        val resp = responseByPK.ofA(world)(id) // need to fail here if resp was not saved
+        if(requestByPK.ofA(world).contains(id)) Redo() else Stop(resp)
       },
-      world => if(responseByPK.ofA(world).contains(id)) throw new Exception else Stop()
-    ))).onComplete{
-      case Success(_) => if(!promise.isCompleted) fail(promise, new Exception("missing result"))
-      case Failure(exception) => fail(promise, exception)
-    }
-    promise.future
+    ))
+    worldProvider.runUpdCheck(world => responseByPK.ofA(world).get(id).toSeq.flatMap(LEvent.delete))
+    resp
   }
   private def normalize(headers: List[N_Header]): List[N_Header] =
     headers.map(h=>h.copy(key = h.key.toLowerCase(Locale.ENGLISH)))

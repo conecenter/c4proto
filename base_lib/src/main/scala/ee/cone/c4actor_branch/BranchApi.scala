@@ -11,12 +11,6 @@ object BranchTypes {
   type BranchKey = SrcId
 }
 
-trait BranchMessage extends Product {
-  def header: String=>String
-  def body: okio.ByteString
-  def index: Long
-}
-
 trait BranchErrorSaver {
   def saveErrors(local: Context, branchKey: BranchKey, error: Throwable): Seq[LEvent[Product]]
 }

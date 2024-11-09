@@ -35,8 +35,6 @@ import scala.annotation.tailrec
       iteration(worldOpt, m.queue :: subscribers)
     case m: Unsubscribe => iteration(worldOpt, subscribers.filterNot(_ eq m.queue))
   }
-  def ready(world: RichContext, readAfterWriteOffsetOpt: Option[NextOffset]): Boolean =
-    !readAfterWriteOffsetOpt.exists(world.offset < _)
 }
 
 class EnabledObserver(worldSource: WorldSourceImpl) extends Observer[RichContext]{
