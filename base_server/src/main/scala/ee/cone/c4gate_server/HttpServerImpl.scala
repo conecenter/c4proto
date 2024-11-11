@@ -136,7 +136,7 @@ object ReqGroup {
         val resp = responseByPK.ofA(world)(id) // need to fail here if resp was not saved
         if(requestByPK.ofA(world).contains(id)) Redo() else Stop(resp)
       },
-    ))
+    ):Steps[S_HttpResponse])
     worldProvider.runUpdCheck(world => responseByPK.ofA(world).get(id).toSeq.flatMap(LEvent.delete))
     resp
   }

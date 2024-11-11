@@ -22,7 +22,11 @@ function merger(resolve){
 export const manageEventListener = (el, evName, callback) => {
     if(!callback || !el) return undefined
     el.addEventListener(evName,callback)
-    return ()=>el.removeEventListener(evName,callback)
+    //console.log(`on ${evName}`)
+    return ()=>{
+        el.removeEventListener(evName,callback)
+        //console.log(`off ${evName}`)
+    }
 }
 
 export const weakCache = f => {

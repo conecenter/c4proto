@@ -82,9 +82,9 @@ object FromAlienWishUtilImpl{
   case class ObsWish(srcId: SrcId, sessionKey: String, index: Long, value: String)
 }
 import FromAlienWishUtilImpl.ObsWish
-@c4assemble("SessionUtilApp") final class FromAlienWishAssembleBase {
+@c4assemble("SessionUtilApp") class FromAlienWishAssembleBase {
   type ByBranch = SrcId
-  def map(key: SrcId, wishes: Each[U_FromAlienWishes], ackList: Values[U_ToAlienAck]): Values[(ByBranch,Obs)] = {
+  def map(key: SrcId, wishes: Each[U_FromAlienWishes], ackList: Values[U_ToAlienAck]): Values[(ByBranch,ObsWish)] = {
     val ackIndex = ackList.map(_.index).maxOption.getOrElse(0L)
     wishes.values.filter(_.index > ackIndex).minByOption(_.index)
       .map(wish => wishes.logKey -> ObsWish(wishes.srcId, wishes.sessionKey, wish.index, wish.value)).toSeq

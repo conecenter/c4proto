@@ -38,5 +38,5 @@ import scala.annotation.tailrec
   def runUpdCheck(f: AssembledContext=>LEvents): Unit = run(List(
     world => f(world) match { case Seq() => Stop() case lEvents => Next(lEvents) },
     world => f(world) match { case Seq() => Stop() case _ => throw new Exception },
-  ))
+  ):Steps[Unit])
 }

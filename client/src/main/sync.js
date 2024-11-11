@@ -69,7 +69,7 @@ const useWebsocket = ({url, protocols, stateToSend, onData, onClose})=>{
     const [{ws,at},setConnected] = useState({})
     const isBadConnection = at && Date.now() > at + 5000 // needs counter (no ping -- no render)
     useEffect(()=>{
-        if(!url || isBadConnection) return
+        if(!url || !protocols || isBadConnection) return
         const ws = new WebSocket(url, protocols)
         setConnected({at:Date.now()})
         ws.onmessage = ev => {
@@ -136,9 +136,7 @@ const PatchManager = setState => {
         const patches = [...was.patches.filter(p=>!skip(p)), {...patch,headers,set,index}]
         return {...was, nextPatchIndex: was.nextPatchIndex+1, patches} 
     })
-    const doAck = index => setState(was => (
-        was.reloadKey===clientKey ? {...was, patches: was.patches.filter(patch=>getIndex(patch) > index)} : was
-    ))
+    const doAck = index => setState(was => ({...was, patches: was.patches.filter(patch=>getIndex(patch) > index)}))
     const notifyObservers = (patches, observers) => {
         const patchesByPath = Object.groupBy(patches, getPath)
         observers.forEach(observer => {

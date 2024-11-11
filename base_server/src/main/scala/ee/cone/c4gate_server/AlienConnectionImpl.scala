@@ -39,7 +39,7 @@ import java.time.Instant
         val message = s"""{"availability":$availability,"log":$log,"ack":$ack}"""
         Stop((readRes.next, message))
       } else Redo()
-    }))
+    }):Steps[(Long, String)])
   }
   private def prepStatus(isOnline: Boolean): AssembledContext=>LEvents =
     if(isMain){

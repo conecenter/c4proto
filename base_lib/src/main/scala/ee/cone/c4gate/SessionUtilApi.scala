@@ -4,7 +4,6 @@ import ee.cone.c4actor.{AssembledContext, Context}
 import ee.cone.c4actor.Types.LEvents
 import ee.cone.c4gate.HttpProtocol.N_Header
 
-
 trait SessionUtil {
   def create(userName: String, headers: List[N_Header]): (String, LEvents)
   def purge(local: Context, sessionKey: String): LEvents

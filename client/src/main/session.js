@@ -5,7 +5,7 @@ import {manageEventListener} from "../main/util.js"
 
 const never = cause => { throw new Error(cause) }
 export const login = (user, pass) => fetch("/auth/check",{ method: "POST", body: `${user}\n${pass}` })
-                                        .then(resp => resp.ok && resp.json().sessionKey || never("failed"))
+    .then(r => r.json()).then(rj => rj.sessionKey || never("failed"))
 
 const stateKey = "c4sessionKey"
 const useSessionRestoreOnRefresh = ({win, sessionKey, setSessionKey}) => {
@@ -16,7 +16,10 @@ const useSessionRestoreOnRefresh = ({win, sessionKey, setSessionKey}) => {
         sessionKey && setSessionKey(sessionKey)
     }, [win, setSessionKey])
     useEffect(()=>{
-        return manageEventListener(win, "beforeunload", ()=>win.sessionStorage.setItem(stateKey, sessionKey))
+        return manageEventListener(win, "beforeunload", ()=>{
+            //console.log(`set sk`)
+            win.sessionStorage.setItem(stateKey, sessionKey)
+        })
     }, [win, sessionKey])
 }
 
@@ -28,8 +31,9 @@ const useLoadBranchKey = (sessionKey,setSessionKey) => {
             resp?.branchKey ? setBranchBySession(was=>({...was, [sessionKey]: resp.branchKey})) :
             resp?.error || !branchKey ? setSessionKey(null) : null
         }
-        sessionKey && fetch("/auth/branch",{method: "POST", headers: {"x-r-session":sessionKey}})
-            .then(resp => fin(resp.json()), error => fin(null))
+        //console.log(`sk [${sessionKey}] ${sessionKey && "ok"}`)
+        sessionKey && fetch("/auth/branch",{method: "POST", headers: {"x-r-session":sessionKey}}).then(r => r.json())
+            .then(rj => fin(rj), error => fin(null))
     },[sessionKey,setBranchBySession])
     useEffect(reloadBranchKey, [reloadBranchKey])
     return [branchKey, reloadBranchKey]
