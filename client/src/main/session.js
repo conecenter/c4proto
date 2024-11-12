@@ -17,8 +17,7 @@ const useSessionRestoreOnRefresh = ({win, sessionKey, setSessionKey}) => {
     }, [win, setSessionKey])
     useEffect(()=>{
         return manageEventListener(win, "beforeunload", ()=>{
-            //console.log(`set sk`)
-            win.sessionStorage.setItem(stateKey, sessionKey)
+            sessionKey && win.sessionStorage.setItem(stateKey, sessionKey)
         })
     }, [win, sessionKey])
 }
@@ -31,7 +30,6 @@ const useLoadBranchKey = (sessionKey,setSessionKey) => {
             resp?.branchKey ? setBranchBySession(was=>({...was, [sessionKey]: resp.branchKey})) :
             resp?.error || !branchKey ? setSessionKey(null) : null
         }
-        //console.log(`sk [${sessionKey}] ${sessionKey && "ok"}`)
         sessionKey && fetch("/auth/branch",{method: "POST", headers: {"x-r-session":sessionKey}}).then(r => r.json())
             .then(rj => fin(rj), error => fin(null))
     },[sessionKey,setBranchBySession])

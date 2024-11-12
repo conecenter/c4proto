@@ -17,7 +17,7 @@ object RHttpTypes {
 // outer handler api
 case class FHttpRequest(method: String, path: String, rawQueryString: Option[String], headers: List[N_Header], body: okio.ByteString)
 trait FHttpHandler {
-  def handle(request: FHttpRequest)(implicit executionContext: ExecutionContext): Future[S_HttpResponse]
+  def handle(request: FHttpRequest): S_HttpResponse
 }
 
 trait RHttpResponseFactory {
@@ -38,11 +38,9 @@ trait WorldProvider {
   def runUpdCheck(f: AssembledContext=>LEvents): Unit
 }
 
-trait AlienConnectionFactory {
-  def create(value: String): AlienConnection
-}
-trait AlienConnection {
-  def read(pos: Long): (Long, String)
-  def send(value: String): Unit
-  def stop(): Unit
+trait AlienExchangeState extends Product
+trait AlienUtil {
+  def read(state: AlienExchangeState): (AlienExchangeState, String)
+  def send(stateOpt: Option[AlienExchangeState], value: String): Option[AlienExchangeState]
+  def stop(state: AlienExchangeState): Unit
 }

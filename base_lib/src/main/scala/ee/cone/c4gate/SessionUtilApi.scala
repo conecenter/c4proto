@@ -19,6 +19,7 @@ trait FromAlienWishUtil {
   def ack(world: AssembledContext, branchKey: String, sessionKey: String): Long
   def addAck(wish: BranchWish): LEvents
   def setWishes(world: AssembledContext, branchKey: String, sessionKey: String, value: String): LEvents
+  def parseSeq(value: String): Seq[String]
   def parsePairs(value: String): Seq[(String,String)]
   def redraw(world: AssembledContext, branchKey: String, actorKey: String): LEvents
   def purgeAllExpired(world: AssembledContext): LEvents

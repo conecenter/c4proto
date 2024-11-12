@@ -63,9 +63,10 @@ import java.time.Instant
     if (getFromAlienWishes.ofA(world).get(wishes.srcId).contains(wishes)) Nil else LEvent.update(wishes)
   }
   private def pk(branchKey: String, sessionKey: String): SrcId = idGenUtil.srcIdFromStrings(branchKey, sessionKey)
-  def parsePairs(value: String): Seq[(String,String)] = (value match {
+  def parseSeq(value: String): Seq[String] = value match {
     case "" => Nil case v if v.startsWith("-") => v.substring(1).split("\n-").map(_.replace("\n ","\n")).toSeq
-  }).grouped(2).map{ case Seq(k,v) => k->v }.toSeq
+  }
+  def parsePairs(value: String): Seq[(String,String)] = parseSeq(value).grouped(2).map{ case Seq(k,v) => k->v }.toSeq
   private def serialize(vs: Seq[String]): String = vs.map(v=>s"""-${v.replace("\n","\n ")}""").mkString("\n")
   def redraw(world: AssembledContext, branchKey: String, actorKey: String): LEvents = {
     val wishes = serialize(Seq(System.currentTimeMillis.toString, serialize(Seq("x-r-op","redraw"))))

@@ -28,7 +28,8 @@ import scala.Function.chain
     key: SrcId,
     session: Each[U_AuthenticatedSession],
     fromAlien: Each[U_FromAlienState]
-  ): Values[(SrcId, FromAlienTask)] = new URL(fromAlien.location) match { case url =>
+  ): Values[(SrcId, FromAlienTask)] = if(fromAlien.location.isEmpty) Nil else {
+    val url = new URL(fromAlien.location)
     List(WithPK(taskFactory.create(
       session.logKey, fromAlien, Option(url.getQuery).getOrElse(""), Option(url.getRef).getOrElse("")
     )))

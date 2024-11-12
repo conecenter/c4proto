@@ -58,39 +58,57 @@ const manageInterval = (f,t) => {
     const h = setInterval(f, t)
     return () => clearInterval(h)
 }
-const useSecCounter = ()=>{
-    const [counter,setCounter] = useState(0)
-    useEffect(()=>manageInterval(()=>setCounter(was=>was+1),1000),[setCounter])
-}
-
-const useWebsocket = ({url, protocols, stateToSend, onData, onClose})=>{
-    useSecCounter()
+const getUntil = () => Date.now()+5000
+const useWebsocket = ({url, stateToSend, onData, onClose})=>{
+    const [{connIndex},setConnected] = useState(()=>({connIndex:0,until:getUntil()}))
+    const [ws, setWs] = useState()
+    useEffect(() => {
+        if(!ws) return
+        return manageInterval(() => {
+            console.log("pong")
+            ws.send("")
+            setConnected(was => Date.now() > was.until ? {until:getUntil(),connIndex:was.connIndex+1} : was)
+        }, 1000)
+    }, [setConnected,ws])
     // connect/recv
-    const [{ws,at},setConnected] = useState({})
-    const isBadConnection = at && Date.now() > at + 5000 // needs counter (no ping -- no render)
     useEffect(()=>{
-        if(!url || !protocols || isBadConnection) return
-        const ws = new WebSocket(url, protocols)
-        setConnected({at:Date.now()})
-        ws.onmessage = ev => {
-            //console.log(ev)
-            if(ev.data) onData(ev.data)
-            const at = Date.now()
-            setConnected(was => was && ws === was.ws && at < was.at+1000 ? was : {at,ws})
-        }
+        console.log("ws-pre")
+        if(!url) return;
+        console.log("ws-init")
+        const ws = new WebSocket(url)
+        const unOpen = manageEventListener(ws, "open", ev => {
+            console.log("ws-onopen")
+            setWs(ws)
+        })
+        const unMessage = manageEventListener(ws, "message", ev => {
+            console.log("ws-onmessage")
+            if(ev.data && onData) onData(ev.data)
+            setConnected(was => ({...was,until:getUntil()}))
+        })
+
+        // ws.addEventListener("message", (event) => {
+        //     console.log("Message from server ", event.data);
+        //   });
+
         return ()=>{
+            console.log("ws-close")
+            unOpen()
+            unMessage()
             ws.close()
-            setConnected({})
+            setWs(null)
             onClose && onClose()
         }
-    }, [setConnected,url,protocols,onData,isBadConnection])
-    // pong
-    useEffect(() => ws?.send(""), [ws,at]) // 
+    }, [setWs,setConnected,url,onData,connIndex])
+    useEffect(()=>{console.log(`changed onData`)},[onData])
+    useEffect(()=>{console.log(`changed url ${url}`)},[url])
+    useEffect(()=>{console.log(`changed connIndex ${connIndex}`)},[connIndex])
     // send
-    const mountedAt = useMemo(()=>Date.now(),[])
-    const age = Math.floor((Date.now()-mountedAt)/30000)
-    useEffect(() => ws?.send(stateToSend), [ws, stateToSend, age])
-    return ws
+    const [age, setAge] = useState(0)
+    useEffect(()=>manageInterval(()=>setAge(was=>was+1), 30000), [setAge]) //online
+    useEffect(() => {
+        console.log("ws-send" + ws + ":" + stateToSend)
+        ws?.send(stateToSend)
+    }, [ws, stateToSend, age])
 }
 
 const Receiver = ({branchKey, transforms, setState}) => {
@@ -113,9 +131,10 @@ const useReceiverRoot = ({branchKey, transforms}) => {
 }
 
 const serializeVals = vs => vs.map(v=>`-${v.replaceAll("\n","\n ")}`).join("\n")
-const serializeState = patches => serializeVals(
-    patches.flatMap(patch => [patch.index,serializeVals(Object.entries(patch.headers).toSorted().flat())])
-)
+const serializeState = ({isRoot,sessionKey,branchKey,patches}) => branchKey && sessionKey ? serializeVals([
+    "bs1", isRoot?"m":"s", branchKey, sessionKey,
+    serializeVals(patches.flatMap(patch => [patch.index,serializeVals(Object.entries(patch.headers).toSorted().flat())]))
+]) : ""
 
 const getIndex = patch => patch.index
 const getPath = patch => patch.headers["x-r-vdom-path"]
@@ -152,11 +171,15 @@ const PatchManager = setState => {
 const SyncContext = createContext()
 export const useSyncRoot = ({sessionKey,branchKey,reloadBranchKey,isRoot,transforms}) => {
     const {receive, incoming, availability, ack} = useReceiverRoot({branchKey, transforms})
+
+    useEffect(()=>{console.log(`changed branchKey`)},[branchKey])
+    useEffect(()=>{console.log(`changed transforms`)},[transforms])
+    useEffect(()=>{console.log(`changed receive`)},[receive])
+
     const {enqueue, patches} = usePatchManager(ack)
-    const stateToSend = useMemo(() => serializeState(patches), [patches])
-    const protocols = branchKey && sessionKey && `ee.cone.c4bs1.${isRoot?"m":"s"}.${branchKey}.${sessionKey}`
-    const url = protocols && "/eventlog"
-    useWebsocket({ url, protocols, stateToSend, onData: receive, onClose: reloadBranchKey })
+    const stateToSend = useMemo(() => serializeState({isRoot,sessionKey,branchKey,patches}), [isRoot,sessionKey,branchKey,patches])
+    const url = branchKey && sessionKey && "/eventlog"
+    useWebsocket({ url, stateToSend, onData: receive, onClose: reloadBranchKey })
     const [element, ref] = useState()
     const win = element?.ownerDocument.defaultView
     const provided = useMemo(()=>({enqueue,isRoot,win}), [enqueue,isRoot,win])

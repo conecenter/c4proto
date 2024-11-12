@@ -55,8 +55,8 @@ function ExampleFrame({branchKey}){
 }
 
 function Login({setSessionKey}){
-    const [user, setUser] = useState()
-    const [pass, setPass] = useState()
+    const [user, setUser] = useState("")
+    const [pass, setPass] = useState("")
     const [error, setError] = useState(false)
     const onClick = useCallback(ev => {
         setSessionKey(null)

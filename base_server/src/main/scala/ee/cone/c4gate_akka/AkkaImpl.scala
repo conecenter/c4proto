@@ -79,7 +79,7 @@ import scala.util.control.NonFatal
         logger.trace(s"req headers: $rHeaders")
         FHttpRequest(method, path, req.uri.rawQueryString, rHeaders, body)
       }
-      rResp <- handler.handle(rReq)
+      rResp <- Future(handler.handle(rReq))
       response <- {
         val status = Math.toIntExact(rResp.status)
         val(ctHeaders,rHeaders) = rResp.headers.partition(_.key=="content-type")
