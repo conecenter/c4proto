@@ -65,7 +65,7 @@ case class SimpleSeedElement(seed: N_BranchResult) extends SeedVDomValue {
         Metric("c4view_rest_period_max", labels, values.max),
       )
     } yield {
-      logger.info(s"${metric}")
+      logger.debug(s"${metric}")
       metric
     }
 }

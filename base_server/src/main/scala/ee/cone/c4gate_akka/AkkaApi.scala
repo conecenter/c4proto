@@ -9,7 +9,7 @@ import akka.stream.SharedKillSwitch
 import akka.stream.scaladsl.{Flow, Source}
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.http.scaladsl.HttpExt
-import akka.http.scaladsl.model.ws.UpgradeToWebSocket
+import akka.http.scaladsl.model.ws.{Message, UpgradeToWebSocket}
 
 trait AkkaMat {
   def get: Future[ActorMaterializer]
@@ -37,8 +37,4 @@ trait AkkaRequestHandler {
 trait RoomFactory {
   def pathPrefix: String
   def createRoom(will: String/*RoomConf*/, killSwitch: SharedKillSwitch): Flow[ByteString,ByteString,NotUsed]
-}
-
-trait WebSocketUtil {
-  def toResponse(up: UpgradeToWebSocket, flow: Flow[ByteString, ByteString, NotUsed])(implicit ec: ExecutionContext): HttpResponse
 }

@@ -41,6 +41,6 @@ trait WorldProvider {
 trait AlienExchangeState extends Product
 trait AlienUtil {
   def read(state: AlienExchangeState): (AlienExchangeState, String)
-  def send(stateOpt: Option[AlienExchangeState], value: String): Option[AlienExchangeState]
+  def send(value: String): AlienExchangeState
   def stop(state: AlienExchangeState): Unit
 }

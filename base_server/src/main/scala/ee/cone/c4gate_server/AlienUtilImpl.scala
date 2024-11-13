@@ -42,19 +42,14 @@ case class AlienExchangeStateImpl(
       world => sessionUtil.trySetStatus(world, st.sessionKey, until, isOnline)
     } else _=>Nil
   }
-  def send(stateOpt: Option[AlienExchangeState], value: String): Option[AlienExchangeState] = if(value.nonEmpty){
-    logger.info("07+")
+  def send(value: String): AlienExchangeState = {
     val Seq("bs1", modeStr, branchKey, sessionKey, patches) = fromAlienWishUtil.parseSeq(value)
-    logger.info("08")
     val isMain = modeStr match { case "m" => true case "s" => false }
-    logger.info("09")
     val willState = AlienExchangeStateImpl(isMain, branchKey, sessionKey, 0L)
-    logger.info("08")
-    assert(stateOpt.forall(_==willState))
     val setStatus = prepStatus(willState, isOnline = true)
     runUpdCheck(world => setStatus(world) ++ fromAlienWishUtil.setWishes(world, branchKey, sessionKey, patches))
-    Option(willState)
-  } else None
+    willState
+  }
   def stop(state: AlienExchangeState): Unit = {
     val setStatus = prepStatus(state, isOnline = false)
     runUpdCheck(world => setStatus(world))

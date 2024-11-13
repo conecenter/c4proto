@@ -1,6 +1,7 @@
 package ee.cone.c4gate_akka
 
-import akka.http.scaladsl.model.ws.UpgradeToWebSocket
+import akka.NotUsed
+import akka.http.scaladsl.model.ws.{Message, TextMessage, UpgradeToWebSocket}
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.util.ByteString
@@ -9,11 +10,11 @@ import ee.cone.c4actor.Execution
 import ee.cone.c4di.c4
 import ee.cone.c4gate_server.{AlienExchangeState, AlienUtil}
 
+import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future, Promise}
-import scala.util.control.NonFatal
 
 @c4("AkkaGatewayApp") final class EventLogHandler(
-  webSocketUtil: WebSocketUtil, alienUtil: AlienUtil, execution: Execution,
+  alienUtil: AlienUtil, execution: Execution, akkaMat: AkkaMat,
 ) extends AkkaRequestHandler with LazyLogging {
   def pathPrefix: String = "/eventlog"
   def handleAsync(req: HttpRequest)(implicit ec: ExecutionContext): Future[HttpResponse] =
@@ -21,34 +22,32 @@ import scala.util.control.NonFatal
       assert(req.uri.path.toString == pathPrefix)
       val stateP = Promise[AlienExchangeState]()
       val source = Source.unfoldAsync(stateP.future){ wasStF =>
-        logger.info("01")
         for {
           wasSt <- wasStF
-          _ = logger.info("02")
           (willSt,msg) = alienUtil.read(wasSt)
-          _ = logger.info("03")
-        } yield Option((Future.successful(willSt),ByteString(msg)))
-      }
-      val sink = Sink.foldAsync[Option[AlienExchangeState],ByteString](None)((wasStOpt, bs) => Future {
-        logger.info("04+++")
-        try {
-          val willStOpt = alienUtil.send(wasStOpt, bs.utf8String)
-          logger.info(s"06 ${willStOpt.nonEmpty}")
-          for (st <- willStOpt if !stateP.isCompleted) execution.success(stateP, st)
-          willStOpt
-        } catch {
-          case NonFatal(e) =>
-            logger.error("hut",e)
-            throw e
-        }
-      })
-      val flow = Flow.fromSinkAndSourceCoupledMat(sink, source)(Keep.left).watchTermination(){ (nu,doneF) =>
-          doneF.onComplete{ res =>
-            for(st <- stateP.future) alienUtil.stop(st)
-            logger.info(s"05+${res}")
+        } yield Option((Future.successful(willSt),msg))
+      }.keepAlive(1.seconds,()=>"").map(TextMessage(_))
+      val sink = Flow[Message]
+        .mapAsync(1)(message=>
+          for {
+            mat <- akkaMat.get
+            data <- message match { case m: TextMessage => m.toStrict(1.seconds)(mat) }
+          } yield data
+        )
+        .idleTimeout(5.seconds)
+        .foldAsync[Option[AlienExchangeState]](None)((wasStOpt, message) => Future {
+          if(message.text.isEmpty) wasStOpt else {
+            val willSt = alienUtil.send(message.text)
+            assert(wasStOpt.forall(_==willSt))
+            if(!stateP.isCompleted) execution.success(stateP, willSt)
+            Option(willSt)
           }
-          nu
-        }
-      Future.successful(webSocketUtil.toResponse(upgrade, flow))
+        }).to(Sink.onComplete{
+          res =>
+            logger.info(s"ws ${res}")
+            for(st <- stateP.future) alienUtil.stop(st)
+        })
+      val flow = Flow.fromSinkAndSourceCoupled(sink, source)
+      Future.successful(upgrade.handleMessages(flow))
     }
 }

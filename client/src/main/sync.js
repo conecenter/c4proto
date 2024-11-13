@@ -65,33 +65,20 @@ const useWebsocket = ({url, stateToSend, onData, onClose})=>{
     useEffect(() => {
         if(!ws) return
         return manageInterval(() => {
-            console.log("pong")
             ws.send("")
             setConnected(was => Date.now() > was.until ? {until:getUntil(),connIndex:was.connIndex+1} : was)
         }, 1000)
     }, [setConnected,ws])
     // connect/recv
     useEffect(()=>{
-        console.log("ws-pre")
         if(!url) return;
-        console.log("ws-init")
         const ws = new WebSocket(url)
-        const unOpen = manageEventListener(ws, "open", ev => {
-            console.log("ws-onopen")
-            setWs(ws)
-        })
+        const unOpen = manageEventListener(ws, "open", ev => setWs(ws))
         const unMessage = manageEventListener(ws, "message", ev => {
-            console.log("ws-onmessage")
             if(ev.data && onData) onData(ev.data)
             setConnected(was => ({...was,until:getUntil()}))
         })
-
-        // ws.addEventListener("message", (event) => {
-        //     console.log("Message from server ", event.data);
-        //   });
-
         return ()=>{
-            console.log("ws-close")
             unOpen()
             unMessage()
             ws.close()
@@ -99,16 +86,10 @@ const useWebsocket = ({url, stateToSend, onData, onClose})=>{
             onClose && onClose()
         }
     }, [setWs,setConnected,url,onData,connIndex])
-    useEffect(()=>{console.log(`changed onData`)},[onData])
-    useEffect(()=>{console.log(`changed url ${url}`)},[url])
-    useEffect(()=>{console.log(`changed connIndex ${connIndex}`)},[connIndex])
     // send
     const [age, setAge] = useState(0)
     useEffect(()=>manageInterval(()=>setAge(was=>was+1), 30000), [setAge]) //online
-    useEffect(() => {
-        console.log("ws-send" + ws + ":" + stateToSend)
-        ws?.send(stateToSend)
-    }, [ws, stateToSend, age])
+    useEffect(() => { ws?.send(stateToSend) }, [ws, stateToSend, age])
 }
 
 const Receiver = ({branchKey, transforms, setState}) => {
@@ -171,11 +152,6 @@ const PatchManager = setState => {
 const SyncContext = createContext()
 export const useSyncRoot = ({sessionKey,branchKey,reloadBranchKey,isRoot,transforms}) => {
     const {receive, incoming, availability, ack} = useReceiverRoot({branchKey, transforms})
-
-    useEffect(()=>{console.log(`changed branchKey`)},[branchKey])
-    useEffect(()=>{console.log(`changed transforms`)},[transforms])
-    useEffect(()=>{console.log(`changed receive`)},[receive])
-
     const {enqueue, patches} = usePatchManager(ack)
     const stateToSend = useMemo(() => serializeState({isRoot,sessionKey,branchKey,patches}), [isRoot,sessionKey,branchKey,patches])
     const url = branchKey && sessionKey && "/eventlog"

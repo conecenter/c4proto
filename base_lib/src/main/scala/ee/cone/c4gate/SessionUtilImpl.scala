@@ -64,7 +64,7 @@ import java.time.Instant
   }
   private def pk(branchKey: String, sessionKey: String): SrcId = idGenUtil.srcIdFromStrings(branchKey, sessionKey)
   def parseSeq(value: String): Seq[String] = value match {
-    case "" => Nil case v if v.startsWith("-") => v.substring(1).split("\n-").map(_.replace("\n ","\n")).toSeq
+    case "" => Nil case v if v.startsWith("-") => v.substring(1).split("\n-",-1).map(_.replace("\n ","\n")).toSeq
   }
   def parsePairs(value: String): Seq[(String,String)] = parseSeq(value).grouped(2).map{ case Seq(k,v) => k->v }.toSeq
   private def serialize(vs: Seq[String]): String = vs.map(v=>s"""-${v.replace("\n","\n ")}""").mkString("\n")
