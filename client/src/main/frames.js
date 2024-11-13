@@ -1,5 +1,5 @@
 // @ts-check
-import {useState,useCallback,useEffect} from "react"
+import {useState,useCallback,useEffect} from "./hooks.js"
 
 const useAnimationFrame = (element,callback) => {
     useEffect(()=>{

@@ -1,10 +1,10 @@
 // @ts-check
 import React from "react"
-import {useState,useCallback,useContext,createContext,useMemo} from "react"
+import {useState,useCallback,useContext,createContext,useMemo} from "../main/hooks.js"
 import {createRoot} from "react-dom/client"
 import {useSession,login} from "../main/session.js"
 import {doCreateRoot,useIsolatedFrame} from "../main/frames.js"
-import {useSyncRoot,useSyncSimple} from "../main/sync.js"
+import {useSyncRoot,useSyncSimple,useLocation} from "../main/sync.js"
 import {identityAt} from "../main/util.js"
 
 const commentsChangeIdOf = identityAt('commentsChange')
@@ -18,30 +18,30 @@ function ExampleTodoTask({commentsValue,identity}){
     </tr>
 }
 function ExampleTodoTaskList({commentsFilterValue,tasks,identity}){
-    return <table style={{border: "1px solid silver"}}>
+    return <table style={{border: "1px solid silver"}}><tbody>
         <tr>
             <td key="comment">Comments contain <ExampleInput value={commentsFilterValue} identity={commentsFilterChangeIdOf(identity)}/></td>
             <td key="add"><ExampleButton caption="+" identity={addIdOf(identity)}/></td>
         </tr>
         <tr><th>Comments</th></tr>
-        {...tasks}
-    </table>
+        {tasks}
+    </tbody></table>
 }
 
 const DIContext = createContext()
 const AvailabilityContext = createContext()
 
 function ExampleButton({caption, identity}){
-    const {enqueueValue, patches} = useSyncSimple("", identity)
-    const onClick = useCallback(ev => enqueueValue("1"), [enqueueValue])
+    const {setValue, patches} = useSyncSimple("", identity)
+    const onClick = useCallback(ev => setValue("1"), [setValue])
     const changing = patches.length > 0
     const backgroundColor = changing ? "yellow" : "white"
     return <input type="button" value={caption} onClick={onClick} style={{backgroundColor}} />
 }
 
 function ExampleInput({value: incomingValue, identity}){
-    const {value, enqueueValue, patches} = useSyncSimple(incomingValue, identity)
-    const onChange = useCallback(ev => enqueueValue(ev.target.value), [enqueueValue])
+    const {value, setValue, patches} = useSyncSimple(incomingValue, identity)
+    const onChange = useCallback(ev => setValue(ev.target.value), [setValue])
     const changing = patches.length > 0
     const backgroundColor = changing ? "yellow" : "white"
     return <input type="text" value={value} onChange={onChange} style={{backgroundColor}} />
@@ -73,16 +73,22 @@ function Login({setSessionKey}){
 
 function Availability(){
     const {availability} = useContext(AvailabilityContext)
+    console.log("2)"+availability)
     return <div>availability {availability}</div>
 }
 
-function FailureElement({value}){
-    return <div>VIEW FAILED: {value}</div>
+function RootElement({location, identity, failure, children}){
+    const {availability} = useContext(AvailabilityContext)
+    console.log("3)"+availability)
+    useLocation({location, identity})
+    return [...(children??[]), failure ? <div>VIEW FAILED: {failure}</div> : ""]
 }
 
 function SyncRoot({sessionKey, branchKey, reloadBranchKey, isRoot, transforms, children: addChildren}){
     const {children, availability} = useSyncRoot({sessionKey, branchKey, reloadBranchKey, isRoot, transforms})
     const provided = useMemo(()=>({transforms,sessionKey}),[transforms,sessionKey])
+    console.log("1)"+availability)
+    console.log("ch "+children.length)
     return <DIContext.Provider value={provided}>
         <AvailabilityContext.Provider value={availability}>
             {...addChildren}{...children}
@@ -97,6 +103,6 @@ function App({transforms,win}){
 }
 
 (()=>{
-    const transforms = {FailureElement,ExampleInput,ExampleFrame}
+    const transforms = {tp:{RootElement,ExampleTodoTaskList,ExampleTodoTask,ExampleInput,ExampleFrame}}
     doCreateRoot(createRoot, document.body, <App transforms={transforms} win={window}/>)
 })()

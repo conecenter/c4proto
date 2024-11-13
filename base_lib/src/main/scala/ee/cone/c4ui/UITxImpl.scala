@@ -7,7 +7,7 @@ import ee.cone.c4actor._
 import ee.cone.c4actor_branch._
 import ee.cone.c4actor_branch.BranchProtocol.{N_BranchResult, N_RestPeriod}
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.c4assemble
+import ee.cone.c4assemble.{by, c4assemble}
 import ee.cone.c4di.{c4, c4multi}
 import ee.cone.c4gate.AlienProtocol.U_FromAlienState
 import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
@@ -25,21 +25,20 @@ import scala.Function.chain
   txFactory: UITxFactory, taskFactory: FromAlienTaskImplFactory, purgerFactory: UIAlienPurgerTxFactory,
 ){
   def mapTask(
-    key: SrcId,
-    session: Each[U_AuthenticatedSession],
-    fromAlien: Each[U_FromAlienState]
+    key: SrcId, session: Each[U_AuthenticatedSession], fromAlien: Each[U_FromAlienState]
   ): Values[(SrcId, FromAlienTask)] = if(fromAlien.location.isEmpty) Nil else {
     val url = new URL(fromAlien.location)
     List(WithPK(taskFactory.create(
       session.logKey, fromAlien, Option(url.getQuery).getOrElse(""), Option(url.getRef).getOrElse("")
     )))
   }
-
-  def joinBranchHandler(key: SrcId, tasks: Values[FromAlienTask]): Values[(SrcId,TxTransform)] = tasks match {
-    case Seq(task) => List(WithPK(txFactory.create(key, task.fromAlienState.sessionKey)))
-    case _ => Nil
-  }
-
+  //
+  type ByBranch = SrcId
+  def mapSession(key: SrcId, session: Each[U_AuthenticatedSession]): Values[(ByBranch, U_AuthenticatedSession)] =
+    Seq(session.logKey -> session)
+  def joinHandler(key: SrcId, @by[ByBranch] sessions: Values[U_AuthenticatedSession]): Values[(SrcId,TxTransform)] =
+    Seq(WithPK(txFactory.create(key, sessions.map(_.sessionKey).min)))
+  //
   def purger(key: SrcId, firstborn: Each[S_Firstborn]): Values[(SrcId,TxTransform)] =
     Seq(WithPK(purgerFactory.create()))
 }
@@ -130,14 +129,14 @@ case class VDomMessageImpl(wish: BranchWish, headerMap: Map[String, String]) ext
     else eventLogUtil.write(local, branchKey, res.diff, Option(res.snapshot).filter(_.nonEmpty))
   private def handleReView(local: Context, preViewRes: PreViewResult): (Context, LEvents) = {
     val location = sessionUtil.location(local, sessionKey)
-    val statusEl = rootTags.statusElement("status", location, setLocationReceiverFactory.create(sessionKey))
+    val locationChange = setLocationReceiverFactory.create(sessionKey)
     val viewOpt = getView.ofA(local).get(branchKey)
-    val children = catchNonFatal{ viewOpt.fold(Nil:ViewRes)(_.view(local)) }("view failed"){ err =>
-      val message = err match { case b: BranchError => b.message(local) case _ => "Internal Error" }
-      rootTags.failureElement("failure", message).toChildPair :: Nil
+    val (children, failure) = catchNonFatal{ (viewOpt.fold(Nil:ViewRes)(_.view(local)), "") }("view failed"){ err =>
+      (Nil, err match { case b: BranchError => b.message(local) case _ => "Internal Error" })
     }
-    val nextDom = rootTags.rootElement("root", statusEl.toChildPair :: children)
-      .toChildPair.asInstanceOf[VPair].value
+    val nextDom = rootTags.rootElement(
+      key = "root", location = location, locationChange = locationChange, failure = failure, children = children,
+    ).toChildPair.asInstanceOf[VPair].value
     val res = vDomHandler.postView(preViewRes, nextDom)
     val seeds = res.seeds.collect{ case r: N_BranchResult => r }
     val nState = res.cache.copy(until = System.currentTimeMillis + vDomUntil.get(seeds))
@@ -185,7 +184,7 @@ case class VDomMessageImpl(wish: BranchWish, headerMap: Map[String, String]) ext
 }
 
 @c4tags("UICompApp") trait RootTags[C] {
-  @c4el("RootElement") def rootElement(key: String, children: ViewRes): ToChildPair
-  @c4el("StatusElement") def statusElement(key: String, location: String, locationChange: Receiver[C]): ToChildPair
-  @c4el("FailureElement") def failureElement(key: String, value: String): ToChildPair
+  @c4el("RootElement") def rootElement(
+    key: String, location: String, locationChange: Receiver[C], failure: String, children: ViewRes,
+  ): ToChildPair
 }

@@ -40,3 +40,9 @@ export const weakCache = f => {
 }
 
 export const identityAt = key => weakCache(parent => ({ parent, key }))
+
+const includes = (big,small) => Object.entries(small).every(([k,v]) => k in big && big[k] === v)
+export const ifChanged = f => was => {
+    const will = f(was)
+    return includes(will, was) && includes(was, will) ? was : will
+}

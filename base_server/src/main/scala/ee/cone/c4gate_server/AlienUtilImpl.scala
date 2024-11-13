@@ -27,7 +27,7 @@ case class AlienExchangeStateImpl(
       val readRes = eventLogUtil.read(world, st.branchKey, st.pos)
       val now = Instant.now
       if (readRes.events.nonEmpty || now.isAfter(until)) {
-        val availability = getPublication.ofA(world).get("/availability").fold(0L)(_.until - now.toEpochMilli)
+        val availability = getPublication.ofA(world).get("/availability").exists(_.until > now.toEpochMilli)
         val log = readRes.events.filter(_.nonEmpty).mkString("[",",","]")
         val ack = fromAlienWishUtil.ack(world, st.branchKey, st.sessionKey)
         val message = s"""{"availability":$availability,"log":$log,"ack":$ack}"""

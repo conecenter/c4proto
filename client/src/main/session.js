@@ -1,7 +1,7 @@
 // @ts-check
 
-import {useState,useCallback,useEffect} from "react"
-import {manageEventListener} from "../main/util.js"
+import {useState,useCallback,useEffect} from "./hooks.js"
+import {manageEventListener,ifChanged} from "./util.js"
 
 const never = cause => { throw new Error(cause) }
 export const login = (user, pass) => fetch("/auth/check",{ method: "POST", body: `${user}\n${pass}` })
@@ -27,7 +27,7 @@ const useLoadBranchKey = (sessionKey,setSessionKey) => {
     const branchKey = branchBySession[sessionKey]
     const reloadBranchKey = useCallback(()=>{
         const fin = resp => {
-            resp?.branchKey ? setBranchBySession(was=>({...was, [sessionKey]: resp.branchKey})) :
+            resp?.branchKey ? setBranchBySession(ifChanged(was=>({...was, [sessionKey]: resp.branchKey}))) :
             resp?.error || !branchKey ? setSessionKey(null) : null
         }
         sessionKey && fetch("/auth/branch",{method: "POST", headers: {"x-r-session":sessionKey}}).then(r => r.json())

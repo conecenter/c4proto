@@ -25,8 +25,8 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
         for {
           wasSt <- wasStF
           (willSt,msg) = alienUtil.read(wasSt)
-        } yield Option((Future.successful(willSt),msg))
-      }.keepAlive(1.seconds,()=>"").map(TextMessage(_))
+        } yield Option((Future.successful(willSt),TextMessage(msg)))
+      } //.keepAlive(1.seconds,()=>"").map(TextMessage(_))
       val sink = Flow[Message]
         .mapAsync(1)(message=>
           for {
