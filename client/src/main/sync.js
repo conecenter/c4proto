@@ -55,45 +55,43 @@ export const ctxToPath = ctx => !ctx ? "" : ctxToPath(ctx.parent) + (ctx.key ? "
 ////
 
 const manageInterval = (f,t) => {
+    f()
     const h = setInterval(f, t)
     return () => clearInterval(h)
 }
 
-const manageWebSocket = ({url,setWs,setConnectionIndex,onData,onClose}) => {
-    if(!url) return;
-    let pingWasAt = Date.now()
-    const ws = new WebSocket(url)
-    const unOpen = manageEventListener(ws, "open", ev => setWs(ws))
-    const unMessage = manageEventListener(ws, "message", ev => {
+const WebSocketManager = ({setState,url,onData,onClose}) => {
+    let wasAt = Date.now()
+    const check = () => (Date.now() - wasAt > 5000) && setState(was => ({connectionCounter:was.connectionCounter+1}))
+    const onMessage = (ws,ev) => {
         if(ev.data && onData) onData(ev.data)
-        if(Date.now() - pingWasAt > 1000){
+        if(Date.now() - wasAt > 1000){
             ws.send("")
-            pingWasAt = Date.now()
+            wasAt = Date.now()
         }
-    })
-    const unInterval = manageInterval(() => {
-        if(Date.now() - pingWasAt > 5000) setConnectionIndex(was => was+1)
-    }, 1000)
-    return ()=>{
-        unOpen()
-        unMessage()
-        unInterval()
-        ws.close()
-        setWs(null)
-        onClose && onClose()
     }
+    const manage = () => {
+        const ws = new WebSocket(url)
+        const unOpen = manageEventListener(ws, "open", ev => setState(was => ({...was,ws})))
+        const unMessage = manageEventListener(ws, "message", ev => onMessage(ws,ev))
+        return ()=>{
+            unOpen()
+            unMessage()
+            ws.close()
+            onClose && onClose()
+        }
+    }
+    return {manage,check}
 }
 
-const useWebsocket = ({url, stateToSend, onData, onClose})=>{
-    const [connectionIndex,setConnectionIndex] = useState(0)
-    const [ws, setWs] = useState()
-    useEffect(()=>manageWebSocket({
-        url,setWs,setConnectionIndex,onData,onClose
-    }),[url,setWs,setConnectionIndex,onData,onClose,connectionIndex])
-    useEffect(() => {
-        ws?.send(stateToSend) 
-        return manageInterval(()=>ws?.send(stateToSend), 30000) //online
-    }, [ws, stateToSend])
+const useWebSocket = ({url, stateToSend, onData, onClose})=>{
+    const [{ws,connectionCounter},setState] = useState({connectionCounter:0})
+    const {manage,check} = useMemo(()=>WebSocketManager({
+        setState,url,onData,onClose
+    }),[setState,url,onData,onClose])
+    useEffect(() => manageInterval(check, 1000), [check])
+    useEffect(() => manage(), [manage,connectionCounter])
+    useEffect(() => manageInterval(()=>ws?.send(stateToSend), 30000), [ws, stateToSend])
 }
 
 const Receiver = ({branchKey, transforms, setState}) => {
@@ -160,9 +158,10 @@ const SyncContext = createContext()
 export const useSyncRoot = ({sessionKey,branchKey,reloadBranchKey,isRoot,transforms}) => {
     const {receive, incoming, availability, ack} = useReceiverRoot({branchKey, transforms})
     const {enqueue, patches} = usePatchManager(ack)
-    const stateToSend = useMemo(() => serializeState({isRoot,sessionKey,branchKey,patches}), [isRoot,sessionKey,branchKey,patches])
-    const url = branchKey && sessionKey && "/eventlog"
-    useWebsocket({ url, stateToSend, onData: receive, onClose: reloadBranchKey })
+    const stateToSend = useMemo(() => serializeState({
+        isRoot,sessionKey,branchKey,patches
+    }),[isRoot,sessionKey,branchKey,patches])
+    useWebSocket({ url: "/eventlog", stateToSend, onData: receive, onClose: reloadBranchKey })
     const [element, ref] = useState()
     const win = element?.ownerDocument.defaultView
     const provided = useMemo(()=>({enqueue,isRoot,win}), [enqueue,isRoot,win])
