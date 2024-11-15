@@ -29,8 +29,8 @@ case class AlienExchangeStateImpl(
       if (readRes.events.nonEmpty || now.isAfter(until)) {
         val availability = getPublication.ofA(world).get("/availability").exists(_.until > now.toEpochMilli)
         val log = readRes.events.filter(_.nonEmpty).mkString("[",",","]")
-        val ack = fromAlienWishUtil.ack(world, st.branchKey, st.sessionKey)
-        val message = s"""{"availability":$availability,"log":$log,"ack":$ack}"""
+        val observerKey = fromAlienWishUtil.observerKey(st.branchKey, st.sessionKey)
+        val message = s"""{"availability":$availability,"observerKey":"$observerKey","log":$log}"""
         Stop((st.copy(pos=readRes.next), message))
       } else Redo()
     }):Steps[(AlienExchangeState, String)])
@@ -47,7 +47,7 @@ case class AlienExchangeStateImpl(
     val isMain = modeStr match { case "m" => true case "s" => false }
     val willState = AlienExchangeStateImpl(isMain, branchKey, sessionKey, 0L)
     val setStatus = prepStatus(willState, isOnline = true)
-    runUpdCheck(world => setStatus(world) ++ fromAlienWishUtil.setWishes(world, branchKey, sessionKey, patches))
+    runUpdCheck(world => setStatus(world) ++ fromAlienWishUtil.trySetWishes(world, branchKey, sessionKey, patches))
     willState
   }
   def stop(state: AlienExchangeState): Unit = {

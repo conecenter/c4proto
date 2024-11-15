@@ -1,10 +1,10 @@
 
-// @ts-check
+
 import {createElement,useState,useCallback,useEffect,useContext,createContext,useMemo} from "react"
 
-const useStateWrap = (...args) => {
-    const [state, setState] = useStateOrig(...args)
-    const setStateWrapper = useCallback((...sArgs) => {
+const useStateWrap = <S>(initialState: S | (() => S)) => {
+    const [state, setState] = useState(initialState)
+    const setStateWrapper: React.Dispatch<React.SetStateAction<S>> = useCallback((...sArgs) => {
         console.trace("setState")
         setState(...sArgs)
     }, [setState])

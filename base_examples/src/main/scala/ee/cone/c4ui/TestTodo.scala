@@ -35,7 +35,7 @@ import ee.cone.c4vdom._
 */
       "/ws-app.html" -> (
         """<!DOCTYPE html><meta charset="UTF-8">""" +
-        s"""<body><script  type="module" src="/src/c4p/test/ws-app.jsx?$now"></script></body>"""
+        s"""<body><script  type="module" src="/src/c4p/test/ws-app.tsx?$now"></script></body>"""
       ),
 
     )
@@ -133,7 +133,9 @@ trait TodoTaskEl extends ToChildPair
   def receive: Handler = value => _ => {
     case CommentsContainsChange(id) => update(B_TodoTaskCommentsContains(id, value))
     case Add() => update(B_TodoTask(UUID.randomUUID.toString,System.currentTimeMillis))
-    case CommentsChange(id) => update(B_TodoTaskComments(id, value))
+    case CommentsChange(id) =>
+      //Thread.sleep(500)
+      update(B_TodoTaskComments(id, value))
     case Remove(task) => delete(task)
   }
 }

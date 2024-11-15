@@ -1,5 +1,5 @@
-// @ts-check
-import {useState,useCallback,useEffect} from "./hooks.js"
+
+import {useState,useCallback,useEffect} from "./hooks"
 
 const useAnimationFrame = (element,callback) => {
     useEffect(()=>{
@@ -17,8 +17,8 @@ const useAnimationFrame = (element,callback) => {
 ////
 
 export function useIsolatedFrame(createRoot,children){
-    const [frameElement,ref] = useState()
-    const [theBody,setBody] = useState()
+    const [frameElement,ref] = useState<HTMLIFrameElement>()
+    const [theBody,setBody] = useState<HTMLElement>()
     const frame = useCallback(()=>{
         const body = frameElement?.contentWindow?.document.body
         if(body.id) setBody(body)
@@ -26,7 +26,7 @@ export function useIsolatedFrame(createRoot,children){
     useAnimationFrame(frameElement, !theBody && frame)
     useEffect(() => theBody && doCreateRoot(createRoot, theBody, children), [theBody,children])
     const srcdoc = '<!DOCTYPE html><meta charset="UTF-8"><body id="blank"></body>'
-    return [{srcdoc},ref]
+    return {srcdoc,ref}
 }
 
 export const doCreateRoot = (createRoot, parentNativeElement, children) => {

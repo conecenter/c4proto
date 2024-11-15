@@ -119,7 +119,8 @@ case class VDomMessageImpl(wish: BranchWish, headerMap: Map[String, String]) ext
 }
 
 @c4multi("UICompApp") final case class UIViewer(branchKey: String, sessionKey: String)(
-  catchNonFatal: CatchNonFatal, sessionUtil: SessionUtil, eventLogUtil: EventLogUtil,
+  catchNonFatal: CatchNonFatal,
+  sessionUtil: SessionUtil, eventLogUtil: EventLogUtil, fromAlienWishUtil: FromAlienWishUtil,
   branchOperations: BranchOperations, getView: GetByPK[View], vDomHandler: VDomHandler, vDomUntil: VDomUntil,
   rootTagsProvider: RootTagsProvider, setLocationReceiverFactory: SetLocationReceiverFactory,
 ){
@@ -134,8 +135,11 @@ case class VDomMessageImpl(wish: BranchWish, headerMap: Map[String, String]) ext
     val (children, failure) = catchNonFatal{ (viewOpt.fold(Nil:ViewRes)(_.view(local)), "") }("view failed"){ err =>
       (Nil, err match { case b: BranchError => b.message(local) case _ => "Internal Error" })
     }
+    val ackEls = fromAlienWishUtil.ackList(local, branchKey)
+      .map{ case (k,v) => rootTags.ackElement(k,k,v.toString).toChildPair }
     val nextDom = rootTags.rootElement(
-      key = "root", location = location, locationChange = locationChange, failure = failure, children = children,
+      key = "root", location = location, locationChange = locationChange, failure = failure,
+      children = children ++ ackEls,
     ).toChildPair.asInstanceOf[VPair].value
     val res = vDomHandler.postView(preViewRes, nextDom)
     val seeds = res.seeds.collect{ case r: N_BranchResult => r }
@@ -187,4 +191,5 @@ case class VDomMessageImpl(wish: BranchWish, headerMap: Map[String, String]) ext
   @c4el("RootElement") def rootElement(
     key: String, location: String, locationChange: Receiver[C], failure: String, children: ViewRes,
   ): ToChildPair
+  @c4el("AckElement") def ackElement(key: String, observerKey: String, indexStr: String): ToChildPair
 }

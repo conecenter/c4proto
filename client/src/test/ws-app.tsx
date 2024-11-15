@@ -1,11 +1,12 @@
-// @ts-check
+
 import React from "react"
-import {useState,useCallback,useContext,createContext,useMemo} from "../main/hooks.js"
+import {StrictMode} from "react"
+import {useState,useCallback,useContext,createContext,useMemo} from "../main/hooks"
 import {createRoot} from "react-dom/client"
-import {useSession,login} from "../main/session.js"
-import {doCreateRoot,useIsolatedFrame} from "../main/frames.js"
-import {useSyncRoot,useSyncSimple,useLocation} from "../main/sync.js"
-import {identityAt} from "../main/util.js"
+import {useSession,login} from "../main/session"
+import {doCreateRoot,useIsolatedFrame} from "../main/frames"
+import {useSyncRoot,useSyncSimple,useLocation} from "../main/sync"
+import {identityAt} from "../main/util"
 
 const commentsChangeIdOf = identityAt('commentsChange')
 const removeIdOf = identityAt('remove')
@@ -28,8 +29,8 @@ function ExampleTodoTaskList({commentsFilterValue,tasks,identity}){
     </tbody></table>
 }
 
-const DIContext = createContext()
-const AvailabilityContext = createContext()
+const DIContext = createContext({transforms:{},sessionKey:null})
+const AvailabilityContext = createContext(false)
 
 function ExampleButton({caption, identity}){
     const {setValue, patches} = useSyncSimple("", identity)
@@ -50,7 +51,7 @@ function ExampleInput({value: incomingValue, identity}){
 function ExampleFrame({branchKey}){
     const {transforms, sessionKey} = useContext(DIContext)
     const child = <SyncRoot {...{sessionKey,branchKey,reloadBranchKey:null,isRoot:false,transforms,children:[]}}/>
-    const [props, ref] = useIsolatedFrame(createRoot, [child])
+    const {ref,...props} = useIsolatedFrame(createRoot, [child])
     return <iframe {...props} ref={ref} />
 }
 
@@ -72,14 +73,11 @@ function Login({setSessionKey}){
 }
 
 function Availability(){
-    const {availability} = useContext(AvailabilityContext)
-    console.log("2)"+availability)
-    return <div>availability {availability}</div>
+    const availability = useContext(AvailabilityContext)
+    return <div>availability {availability?"yes":"no"}</div>
 }
 
 function RootElement({location, identity, failure, children}){
-    const {availability} = useContext(AvailabilityContext)
-    console.log("3)"+availability)
     useLocation({location, identity})
     return [...(children??[]), failure ? <div>VIEW FAILED: {failure}</div> : ""]
 }
@@ -87,8 +85,6 @@ function RootElement({location, identity, failure, children}){
 function SyncRoot({sessionKey, branchKey, reloadBranchKey, isRoot, transforms, children: addChildren}){
     const {children, availability} = useSyncRoot({sessionKey, branchKey, reloadBranchKey, isRoot, transforms})
     const provided = useMemo(()=>({transforms,sessionKey}),[transforms,sessionKey])
-    console.log("1)"+availability)
-    console.log("ch "+children.length)
     return <DIContext.Provider value={provided}>
         <AvailabilityContext.Provider value={availability}>
             {...addChildren}{...children}
@@ -98,11 +94,15 @@ function SyncRoot({sessionKey, branchKey, reloadBranchKey, isRoot, transforms, c
 
 function App({transforms,win}){
     const {sessionKey, setSessionKey, branchKey, reloadBranchKey} = useSession(win)
-    const children = [<Availability/>, branchKey ? "" : <Login {...{setSessionKey}}/>]
-    return <SyncRoot {...{sessionKey, branchKey, reloadBranchKey, isRoot: true, transforms, children}}/>
+    return [
+        sessionKey && branchKey ? <SyncRoot {...{
+            sessionKey, branchKey, reloadBranchKey, isRoot: true, transforms, children: [<Availability/>] 
+        }} key={branchKey}/> : 
+        !sessionKey ? <Login {...{setSessionKey}} key="login"/> : ""
+    ]
 }
 
 (()=>{
-    const transforms = {tp:{RootElement,ExampleTodoTaskList,ExampleTodoTask,ExampleInput,ExampleFrame}}
-    doCreateRoot(createRoot, document.body, <App transforms={transforms} win={window}/>)
+    const transforms = {tp:{RootElement,ExampleTodoTaskList,ExampleTodoTask,ExampleInput,ExampleFrame,Availability}}
+    doCreateRoot(createRoot, document.body, <StrictMode><App transforms={transforms} win={window}/></StrictMode>)
 })()

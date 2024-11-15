@@ -1,7 +1,7 @@
 // @ts-check
 
-import {useState,useCallback,useEffect} from "./hooks.js"
-import {manageEventListener,ifChanged} from "./util.js"
+import {useState,useMemo,useEffect} from "./hooks"
+import {manageEventListener} from "./util"
 
 const never = cause => { throw new Error(cause) }
 export const login = (user, pass) => fetch("/auth/check",{ method: "POST", body: `${user}\n${pass}` })
@@ -22,24 +22,24 @@ const useSessionRestoreOnRefresh = ({win, sessionKey, setSessionKey}) => {
     }, [win, sessionKey])
 }
 
-const useLoadBranchKey = (sessionKey,setSessionKey) => {
-    const [branchBySession, setBranchBySession] = useState({})
-    const branchKey = branchBySession[sessionKey]
-    const reloadBranchKey = useCallback(()=>{
-        const fin = resp => {
-            resp?.branchKey ? setBranchBySession(ifChanged(was=>({...was, [sessionKey]: resp.branchKey}))) :
-            resp?.error || !branchKey ? setSessionKey(null) : null
-        }
+const SessionBranchManager = setState => {
+    const setSessionKey = sessionKey => setState(was => was.sessionKey === sessionKey ? was : {sessionKey})
+    const reloadBranchKeyInner = sessionKey =>{
+        const fin = resp => setState(was => (
+            resp?.branchKey && !was.branchKey && was.sessionKey === sessionKey ? 
+                {...was,branchKey:resp?.branchKey} : resp?.error || !was.branchKey ? {} : was
+        ))
         sessionKey && fetch("/auth/branch",{method: "POST", headers: {"x-r-session":sessionKey}}).then(r => r.json())
             .then(rj => fin(rj), error => fin(null))
-    },[sessionKey,setBranchBySession])
-    useEffect(reloadBranchKey, [reloadBranchKey])
-    return [branchKey, reloadBranchKey]
+    }
+    const reloadBranchKey = () => setState(was => ({...was, reloadBranchCounter: was.reloadBranchCounter+1}))
+    return {setSessionKey,reloadBranchKey,reloadBranchKeyInner}
 }
 
 export const useSession = win => {
-    const [sessionKey, setSessionKey] = useState()
+    const [{sessionKey,branchKey,reloadBranchCounter}, setState] = useState({sessionKey:null,branchKey:null,reloadBranchCounter:0})
+    const {setSessionKey,reloadBranchKey,reloadBranchKeyInner} = useMemo(()=>SessionBranchManager(setState), [setState])
+    useEffect(()=>reloadBranchKeyInner(sessionKey), [reloadBranchKeyInner,sessionKey,reloadBranchCounter])
     useSessionRestoreOnRefresh({win, sessionKey, setSessionKey})
-    const [branchKey, reloadBranchKey] = useLoadBranchKey(sessionKey, setSessionKey)
     return {sessionKey, setSessionKey, branchKey, reloadBranchKey}
 }

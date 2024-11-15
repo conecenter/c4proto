@@ -1,7 +1,7 @@
 package ee.cone.c4gate
 
 import ee.cone.c4actor.{AssembledContext, Context}
-import ee.cone.c4actor.Types.LEvents
+import ee.cone.c4actor.Types.{LEvents, SrcId}
 import ee.cone.c4gate.HttpProtocol.N_Header
 
 trait SessionUtil {
@@ -16,9 +16,10 @@ trait SessionUtil {
 case class BranchWish(branchKey: String, sessionKey: String, index: Long, value: String)
 trait FromAlienWishUtil {
   def getBranchWish(local: AssembledContext, branchKey: String): Option[BranchWish]
-  def ack(world: AssembledContext, branchKey: String, sessionKey: String): Long
+  def observerKey(branchKey: String, sessionKey: String): SrcId
+  def ackList(world: AssembledContext, branchKey: String): List[(String,Long)]
   def addAck(wish: BranchWish): LEvents
-  def setWishes(world: AssembledContext, branchKey: String, sessionKey: String, value: String): LEvents
+  def trySetWishes(world: AssembledContext, branchKey: String, sessionKey: String, value: String): LEvents
   def parseSeq(value: String): Seq[String]
   def parsePairs(value: String): Seq[(String,String)]
   def redraw(world: AssembledContext, branchKey: String, actorKey: String): LEvents

@@ -7,6 +7,7 @@ import ee.cone.c4assemble.{OutFactory, Single, by, c4assemble}
 import ee.cone.c4di.c4
 import ee.cone.c4gate.AlienProtocol.{N_FromAlienWish, U_FromAlienState, U_FromAlienStatus, U_FromAlienWishes, U_ToAlienAck}
 import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
+import ee.cone.c4gate.FromAlienWishUtilImpl._
 import ee.cone.c4gate.HttpProtocol.N_Header
 
 import java.time.Instant
@@ -47,22 +48,30 @@ import java.time.Instant
 
 @c4("SessionUtilApp") final class FromAlienWishUtilImpl(
   idGenUtil: IdGenUtil, sessionUtil: SessionUtil,
-  getBranchWish: GetByPK[BranchWish], getFromAlienWishes: GetByPK[U_FromAlienWishes],
+  getFromAlienWishes: GetByPK[U_FromAlienWishes], getObsForBranch: GetByPK[ObsForBranch],
   getToAlienAck: GetByPK[U_ToAlienAck],
 ) extends FromAlienWishUtil {
-  def getBranchWish(local: AssembledContext, branchKey: String): Option[BranchWish] =
-    getBranchWish.ofA(local).get(branchKey)
-  def ack(world: AssembledContext, branchKey: String, sessionKey: String): Long =
-    getToAlienAck.ofA(world).get(pk(branchKey, sessionKey)).fold(0L)(_.index)
+  import sessionUtil.expired
+  import LEvent.{delete,update}
+  def getBranchWish(world: AssembledContext, branchKey: String): Option[BranchWish] = (for {
+    obsForBranch <- getObsForBranch.ofA(world).get(branchKey).toSeq
+    o <- obsForBranch.values
+    w <- o.wish
+  } yield BranchWish(branchKey, o.sessionKey, w.index, w.value)).headOption
+  def ackList(world: AssembledContext, branchKey: String): List[(String,Long)] = for {
+    obsForBranch <- getObsForBranch.ofA(world).get(branchKey).toList
+    o <- obsForBranch.values
+  } yield (o.srcId, o.ack)
+  def observerKey(branchKey: String, sessionKey: String): SrcId = idGenUtil.srcIdFromStrings(branchKey, sessionKey)
   def addAck(wish: BranchWish): LEvents =
-    LEvent.update(U_ToAlienAck(pk(wish.branchKey, wish.sessionKey), wish.branchKey, wish.sessionKey, wish.index))
-  def setWishes(world: AssembledContext, branchKey: String, sessionKey: String, value: String): LEvents = {
-    val values = parsePairs(value).map{ case (k,v) => (k.toLong,v) }.toList
-    val srcId = pk(branchKey, sessionKey)
-    val wishes = U_FromAlienWishes(srcId, branchKey, sessionKey, values.map{ case (i,v) => N_FromAlienWish(i,v)})
-    if (getFromAlienWishes.ofA(world).get(wishes.srcId).contains(wishes)) Nil else LEvent.update(wishes)
-  }
-  private def pk(branchKey: String, sessionKey: String): SrcId = idGenUtil.srcIdFromStrings(branchKey, sessionKey)
+    update(U_ToAlienAck(observerKey(wish.branchKey, wish.sessionKey), wish.branchKey, wish.sessionKey, wish.index))
+  def trySetWishes(world: AssembledContext, branchKey: String, sessionKey: String, value: String): LEvents =
+    if(expired(world, sessionKey)) Nil else {
+      val values = parsePairs(value).map{ case (k,v) => (k.toLong,v) }.toList
+      val srcId = observerKey(branchKey, sessionKey)
+      val wishes = U_FromAlienWishes(srcId, branchKey, sessionKey, values.map{ case (i,v) => N_FromAlienWish(i,v)})
+      if (getFromAlienWishes.ofA(world).get(wishes.srcId).contains(wishes)) Nil else update(wishes)
+    }
   def parseSeq(value: String): Seq[String] = value match {
     case "" => Nil case v if v.startsWith("-") => v.substring(1).split("\n-",-1).map(_.replace("\n ","\n")).toSeq
   }
@@ -70,26 +79,25 @@ import java.time.Instant
   private def serialize(vs: Seq[String]): String = vs.map(v=>s"""-${v.replace("\n","\n ")}""").mkString("\n")
   def redraw(world: AssembledContext, branchKey: String, actorKey: String): LEvents = {
     val wishes = serialize(Seq(System.currentTimeMillis.toString, serialize(Seq("x-r-op","redraw"))))
-    setWishes(world, branchKey, actorKey, wishes)
+    trySetWishes(world, branchKey, actorKey, wishes)
   }
-  import sessionUtil.expired
-  import LEvent.delete
   def purgeAllExpired(world: AssembledContext): LEvents = (
     delete(getFromAlienWishes.ofA(world).values.filter(w => expired(world, w.sessionKey)).toSeq.sortBy(_.srcId)) ++
     delete(getToAlienAck.ofA(world).values.filter(ack => expired(world, ack.sessionKey)).toSeq.sortBy(_.srcId))
   )
 }
 object FromAlienWishUtilImpl{
-  case class ObsWish(srcId: SrcId, sessionKey: String, index: Long, value: String)
+  case class Obs(srcId: SrcId, sessionKey: String, wish: Option[N_FromAlienWish], ack: Long)
+  case class ObsForBranch(branchKey: String, values: List[Obs])
 }
-import FromAlienWishUtilImpl.ObsWish
+
 @c4assemble("SessionUtilApp") class FromAlienWishAssembleBase {
   type ByBranch = SrcId
-  def map(key: SrcId, wishes: Each[U_FromAlienWishes], ackList: Values[U_ToAlienAck]): Values[(ByBranch,ObsWish)] = {
+  def map(key: SrcId, wishes: Each[U_FromAlienWishes], ackList: Values[U_ToAlienAck]): Values[(ByBranch,Obs)] = {
     val ackIndex = ackList.map(_.index).maxOption.getOrElse(0L)
-    wishes.values.filter(_.index > ackIndex).minByOption(_.index)
-      .map(wish => wishes.logKey -> ObsWish(wishes.srcId, wishes.sessionKey, wish.index, wish.value)).toSeq
+    val wishOpt = wishes.values.filter(_.index > ackIndex).minByOption(_.index)
+    Seq(wishes.logKey -> Obs(wishes.srcId, wishes.sessionKey, wishOpt, ackIndex))
   }
-  def join(key: SrcId, @by[ByBranch] wishes: Values[ObsWish]): Values[(SrcId,BranchWish)] =
-    wishes.minByOption(_.srcId).map(w => WithPK(BranchWish(key,w.sessionKey,w.index,w.value))).toList
+  def join(key: SrcId, @by[ByBranch] obs: Values[Obs]): Values[(SrcId,ObsForBranch)] =
+    Seq(WithPK(ObsForBranch(key, obs.sortBy(_.srcId).toList)))
 }
