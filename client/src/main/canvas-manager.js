@@ -1,42 +1,15 @@
+// @ ts-check
+import {spreadAll,weakCache}     from "../main/util"
 
-import {spreadAll}     from "../main/util"
-import {dictKeys,rootCtx,ctxToPath,chain,someKeys,ifInputsChanged} from "../main/vdom-util"
-import {weakCache} from "../../c4f/main/vdom-util.js"
-import {spreadAll} from "../main/util.js"
-
-function rootCtx(ctx){ return ctx.parent ? rootCtx(ctx.parent) : ctx }
-
-const chain = functions => arg => functions.reduce((res,f)=>f(res), arg) //canvas
-const deleted = ks => st => spreadAll(...Object.keys(st).filter(ck=>!ks[ck]).map(ck=>({[ck]:st[ck]})))
+const chain = functions => arg => functions.reduce((res,f)=>f(res), arg)
+const deleted = ks => st => spreadAll(Object.keys(st).filter(ck=>!ks[ck]).map(ck=>({[ck]:st[ck]})))
 
 const oneKey = (k,by) => st => {
     const was = st && st[k]
     const will = by(was)
     return was === will ? st : will ? {...(st||{}), [k]: will} : !st ? st : deleted({[k]:1})(st)
-
 }
-const someKeys = bys => chain(Object.keys(bys).map(k=>oneKey(k,bys[k]))) //canvas
-const allKeys = by => state => state ? chain(Object.keys(state).map(k=>oneKey(k,by)))(state) : state
-const dictKeys = f => ({ //canvas
-    one: (k,by) => someKeys(f(oneKey(k,by))),
-    all: by => someKeys(f(allKeys(by)))
-})
-
-const ifInputsChanged = log => (cacheKey,inpKeysObj,f) => {
-    const inpKeys = Object.keys(inpKeysObj)
-    const changed = state => {
-        const will = spreadAll(...inpKeys.map(k=>({[k]: state && state[k]})))
-        return ({...state, [cacheKey]:will})
-    }
-    const doRun = f(changed)
-    return state => {
-        const was = state && state[cacheKey]
-        if(inpKeys.every(k=>(was && was[k])===(state && state[k]))) return state
-        const res = doRun(state)
-        log({hint:cacheKey, status:state===res?"deferred":"done", state:res})
-        return res
-    }
-}
+const someKeys = bys => chain(Object.keys(bys).map(k=>oneKey(k,bys[k])))
 
 const replaceArrayTree = replace => root => {
     const traverse = arr => {
@@ -96,72 +69,38 @@ const colorInject = (commands,ctx) => res => {
 const gatherDataFromPathTree = weakCache(root => {
     const {commandsBuffer,colorToContextBuffer} = chainFromTree(
         node => colorInject(node.at.commands||[], node.at.ctx),
-        node => (node.chl||[]).map(key=>node[key]),
+        node => (node["@children"]||[]).map(key=>node[key]),
         node => addCommands(node.at.commandsFinally||[])
     )(root)({ colorIndex: 0 })
     const commands = bufferToArray(commandsBuffer)
-    const colorToContext = spreadAll(...bufferToArray(colorToContextBuffer))
+    const colorToContext = spreadAll(bufferToArray(colorToContextBuffer))
     return [commands,colorToContext]
 })
 
-export default function CanvasManager(react, canvasFactory, sender, log){
-    //todo: prop.options are considered only once; do we need to rebuild canvas if they change?
-    // todo branches cleanup?
-    const canvasByKey = dictKeys(f=>({canvasByKey:f}))
-    const canvasRef = prop => parentNode => {
-        const ctx = prop.ctx
-        const rCtx = rootCtx(ctx)
-        const branchKey = rCtx.branchKey
-        const path = ctxToPath(ctx)
-        const aliveUntil = parentNode ? null : Date.now()+200
-        rCtx.modify("CANVAS_UPD",canvasByKey.one(branchKey+":"+path, state => ({...state, branchKey, aliveUntil, prop, parentNode})))
-    }
+////
 
-    const canvasStyle = prop => {
-        if(prop.isGreedy || !prop.value) return prop.style;
-        const [cmdUnitsPerEMZoom,aspectRatioX,aspectRatioY,pxMapH] = prop.value.split(",") // eslint-disable-line no-unused-vars
-        return ({ ...prop.style, height: pxMapH+"px" })
-    }
+import {createElement,useEffect,createContext,useContext,useMemo,useState} from "./hooks"
+import {manageAnimationFrame} from "./util"
 
-    const Canvas = prop => {
-        return react.createElement("div",{ style: canvasStyle(prop), ref: canvasRef(prop) },[])
-    }
+export const CanvasContext = createContext({sizesSyncEnabled:false/*isRoot*/, canvasFactory: null, send: null})
 
-    const checkIsRootBranch = (allSt,branchKey) => allSt && allSt.activeBranchesStr && allSt.activeBranchesStr.startsWith(branchKey)
-
-    const passSyncEnabled = allSt => state => {
-        const sizesSyncEnabled = checkIsRootBranch(allSt,state.branchKey)
-        if(sizesSyncEnabled === state.sizesSyncEnabled) return state
-        return ({...state, sizesSyncEnabled})
-    }
-
-    const setup = ifInputsChanged(log)("commandsFrom", {prop:1}, changed => state => {
-        const prop = state.prop || {}
-        const [commands,colorToContext] = gatherDataFromPathTree(prop.children)
+const getHeight = value => {
+    const [cmdUnitsPerEMZoom,aspectRatioX,aspectRatioY,pxMapH] = value.split(",") // eslint-disable-line no-unused-vars
+    return pxMapH
+}
+export const Canvas = prop => {
+    const {isGreedy, value, style: argStyle, options} = prop
+    const [parentNode, ref] = useState()
+    const {sizesSyncEnabled, canvasFactory, send} = useContext(CanvasContext)
+    const canvas = useMemo(()=>canvasFactory(options||{}), [canvasFactory, options])
+    useEffect(()=>{
+        const [commands,colorToContext] = gatherDataFromPathTree(prop.children)/*raw*/
         const parsed = {...prop,commands}
-        const sendToServer = (target,color) => sender.send(colorToContext[color], target) //?move closure
-        const canvas = state.canvas || canvasFactory(prop.options||{})
-        return ({...changed(state), canvas, parsed, sendToServer})
+        const sendToServer = (target,color) => send(colorToContext[color], target) //?move closure
+        const state = {parentNode,sizesSyncEnabled,canvas,parsed,sendToServer}
+        return parentNode && canvas && manageAnimationFrame(parentNode, ()=>canvas.checkActivate(state))
     })
-
-    const innerActivate = state => {
-        const canvas = state && state.canvas
-        const checkActivate = canvas && canvas.checkActivate
-        return checkActivate ? checkActivate(state) : state
-    }
-
-    const beMortal = state => {
-        if(state && state.aliveUntil && Date.now() > state.aliveUntil) {
-            state.canvas.remove()
-            return null
-        } else return state
-    }
-
-    const checkActivate = modify => modify("CANVAS_FRAME",allSt=>canvasByKey.all(
-        state=>beMortal(innerActivate(setup(passSyncEnabled(allSt)(state))))
-    )(allSt))
-
-    const transforms = { tp: ({Canvas}) };
-    return ({transforms,checkActivate});
-
+    useEffect(()=>()=>{ canvas?.remove() }, [canvas])
+    const style = isGreedy || !value ? argStyle : {...argStyle, height: getHeight(value)+"px"}
+    return createElement("div",{ style, ref },[])
 }

@@ -2,23 +2,25 @@
 import React from "react"
 import {StrictMode} from "react"
 import {useState,useCallback,useContext,createContext,useMemo} from "../main/hooks"
-import {createRoot} from "react-dom/client"
 import {useSession,login} from "../main/session"
 import {doCreateRoot,useIsolatedFrame} from "../main/frames"
-import {useSyncRoot,useSyncSimple,useLocation} from "../main/sync"
-import {identityAt} from "../main/util"
+import {useSyncRoot,useSyncSimple,useLocation,identityAt,Transforms,Identity} from "../main/sync"
+import {SetState} from "../main/util"
 
 const commentsChangeIdOf = identityAt('commentsChange')
 const removeIdOf = identityAt('remove')
 const commentsFilterChangeIdOf = identityAt('commentsFilterChange')
 const addIdOf = identityAt('add')
-function ExampleTodoTask({commentsValue,identity}){
+function ExampleTodoTask({commentsValue,identity}:{commentsValue:string,identity:Identity}){
     return <tr>
         <td key="comment"><ExampleInput value={commentsValue} identity={commentsChangeIdOf(identity)}/></td>
         <td key="remove"><ExampleButton caption="x" identity={removeIdOf(identity)}/></td>
     </tr>
 }
-function ExampleTodoTaskList({commentsFilterValue,tasks,identity}){
+function ExampleTodoTaskList(
+    {commentsFilterValue,tasks,identity}:
+    {commentsFilterValue:string,tasks:React.ReactElement[],identity:Identity}
+){
     return <table style={{border: "1px solid silver"}}><tbody>
         <tr>
             <td key="comment">Comments contain <ExampleInput value={commentsFilterValue} identity={commentsFilterChangeIdOf(identity)}/></td>
@@ -29,38 +31,38 @@ function ExampleTodoTaskList({commentsFilterValue,tasks,identity}){
     </tbody></table>
 }
 
-const DIContext = createContext({transforms:{},sessionKey:null})
+const DIContext = createContext<{transforms:Transforms,sessionKey?:string}>({transforms:{tp:{}}})
 const AvailabilityContext = createContext(false)
 
-function ExampleButton({caption, identity}){
+function ExampleButton({caption, identity}:{caption:string,identity:Identity}){
     const {setValue, patches} = useSyncSimple("", identity)
-    const onClick = useCallback(ev => setValue("1"), [setValue])
+    const onClick = useCallback((ev: Event) => setValue("1"), [setValue])
     const changing = patches.length > 0
     const backgroundColor = changing ? "yellow" : "white"
     return <input type="button" value={caption} onClick={onClick} style={{backgroundColor}} />
 }
 
-function ExampleInput({value: incomingValue, identity}){
+function ExampleInput({value: incomingValue, identity}:{value: string, identity: Identity}){
     const {value, setValue, patches} = useSyncSimple(incomingValue, identity)
-    const onChange = useCallback(ev => setValue(ev.target.value), [setValue])
+    const onChange: ChangeEventHandler<HTMLInputElement> = useCallback(ev => setValue(ev?.target.value), [setValue])
     const changing = patches.length > 0
     const backgroundColor = changing ? "yellow" : "white"
     return <input type="text" value={value} onChange={onChange} style={{backgroundColor}} />
 }
 
-function ExampleFrame({branchKey}){
+function ExampleFrame({branchKey}:{branchKey:string}){
     const {transforms, sessionKey} = useContext(DIContext)
     const child = <SyncRoot {...{sessionKey,branchKey,reloadBranchKey:null,isRoot:false,transforms,children:[]}}/>
-    const {ref,...props} = useIsolatedFrame(createRoot, [child])
+    const {ref,...props} = useIsolatedFrame([child])
     return <iframe {...props} ref={ref} />
 }
 
-function Login({setSessionKey}){
+function Login({setSessionKey} : {setSessionKey: (sessionKey?: string)=>void}){
     const [user, setUser] = useState("")
     const [pass, setPass] = useState("")
     const [error, setError] = useState(false)
-    const onClick = useCallback(ev => {
-        setSessionKey(null)
+    const onClick = useCallback((ev: Event) => {
+        setSessionKey(undefined)
         setError(false)
         login(user, pass).then(setSessionKey, err=>setError(true))
     }, [login,user,pass])
@@ -77,12 +79,18 @@ function Availability(){
     return <div>availability {availability?"yes":"no"}</div>
 }
 
-function RootElement({location, identity, failure, children}){
+function RootElement(
+    {location, identity, failure, children}:
+    {location: string, identity: Identity, failure: string, children: React.ReactElement[]}
+){
     useLocation({location, identity})
     return [...(children??[]), failure ? <div>VIEW FAILED: {failure}</div> : ""]
 }
 
-function SyncRoot({sessionKey, branchKey, reloadBranchKey, isRoot, transforms, children: addChildren}){
+function SyncRoot(
+    {sessionKey, branchKey, reloadBranchKey, isRoot, transforms, children: addChildren}:
+    {sessionKey: string, branchKey: string, reloadBranchKey: ()=>void, isRoot: boolean, transforms: Transforms, children: React.ReactElement[]}
+){
     const {children, availability} = useSyncRoot({sessionKey, branchKey, reloadBranchKey, isRoot, transforms})
     const provided = useMemo(()=>({transforms,sessionKey}),[transforms,sessionKey])
     return <DIContext.Provider value={provided}>
@@ -92,7 +100,7 @@ function SyncRoot({sessionKey, branchKey, reloadBranchKey, isRoot, transforms, c
     </DIContext.Provider>
 }
 
-function App({transforms,win}){
+function App({transforms,win}:{transforms:Transforms,win:Window}){
     const {sessionKey, setSessionKey, branchKey, reloadBranchKey} = useSession(win)
     return [
         sessionKey && branchKey ? <SyncRoot {...{
@@ -104,5 +112,5 @@ function App({transforms,win}){
 
 (()=>{
     const transforms = {tp:{RootElement,ExampleTodoTaskList,ExampleTodoTask,ExampleInput,ExampleFrame,Availability}}
-    doCreateRoot(createRoot, document.body, <StrictMode><App transforms={transforms} win={window}/></StrictMode>)
+    doCreateRoot(document.body, <StrictMode><App transforms={transforms} win={window}/></StrictMode>)
 })()

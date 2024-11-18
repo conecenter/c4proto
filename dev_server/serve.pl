@@ -53,7 +53,6 @@ my $serve_broker = sub{
 my $elector_port_base = 6000;
 my $elector_proxy_port_base = 6010;
 my $elector_replicas = 3;
-my $vite_port = 5173;
 
 my $serve_proxy = sub{
     &$put_text("$data_dir/haproxy.cfg", join '', map{"$_\n"}
@@ -64,14 +63,7 @@ my $serve_proxy = sub{
         "frontend fe_http",
         "  mode http",
         "  bind :1080",
-        #"  use_backend be_sse if { path_beg /sse }",
-        "  use_backend be_src if { path_beg /src/ }",
-        "  use_backend be_src if { path_beg /\@ }",
-        "  use_backend be_src if { path_beg /node_modules/ }",
         "  default_backend be_http",
-        "backend be_src",
-        "  mode http",
-        "  server se_src 127.0.0.1:$vite_port",
         "backend be_http",
         "  mode http",
         "  default-server check", # w/o it all servers considered ok and req-s gets 503
@@ -97,19 +89,22 @@ my $serve_node = sub{
     my $vite_run_dir = "$repo_dir/target/c4/client";
     my $conf = JSON::XS->new->decode(syf("cat $repo_dir/c4dep.main.json"));
     my %will = map{ ref && $$_[0] eq "C4CLIENT" ? ("$vite_run_dir/src/$$_[1]","$repo_dir/$$_[2]/src"):() } @$conf;
-    #$will{$_} or ^rm $_^ for <$vite_run_dir/src/*>;
-    for(sort keys %will){
-        sy("mkdir", "-p", $_);
-        sy("rsync", "-a", "$will{$_}/", $_);
-    }
+    sy("mkdir", "-p", "$vite_run_dir/src");
+    symlink $will{$_}, $_ for sort keys %will; #todo recreate
     &$put_text("$vite_run_dir/package.json", JSON::XS->new->encode({
-        "devDependencies" => {"vite" => "^5.4.10"},
+        "devDependencies" => {"esbuild" => "^0.21.5"},
         "dependencies" => { "react" => "^18.3.1", "react-dom" => "^18.3.1" },
     }));
-    #$vite_run_dir/vite.config.js export default { optimizeDeps: { entries: [] }, hmr: false }
     sy("cd $vite_run_dir && npm install");
-    &$exec_at($vite_run_dir,{},"./node_modules/vite/bin/vite.js","--port","$vite_port");
+    #
+    sy("mkdir", "-p", "$vite_run_dir/out");
+    my @apps = map{ ref && $$_[0] eq "C4CLIENT_APP" ? [@$_[1,2]] : () } @$conf;
+    sy("cd $vite_run_dir && ./node_modules/esbuild/bin/esbuild src/$$_[1] --bundle --outfile=out/$$_[0].js") for @apps;
+    &$put_text("$vite_run_dir/out/c4gen.ht.links", join "\n", map{"base_lib.ee.cone.c4gate /$$_[0].js $$_[0].js"} @apps);
+    &$put_text("$vite_run_dir/out/publish_time", time);
+    sleep 1 while 1;
 };
+
 
 my $get_compilable_services = sub{
     my $repo_dir = &$get_repo_dir();

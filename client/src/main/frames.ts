@@ -1,41 +1,27 @@
 
-import {useState,useCallback,useEffect} from "./hooks"
+import {useState,useEffect,createRoot} from "./hooks"
+import {manageAnimationFrame} from "./util"
 
-const useAnimationFrame = (element,callback) => {
-    useEffect(()=>{
-        if(!callback || !element) return
-        const {requestAnimationFrame,cancelAnimationFrame} = element.ownerDocument.defaultView
-        const animate = () => {
-            callback()
-            req = requestAnimationFrame(animate,element)
-        }
-        let req = requestAnimationFrame(animate,element)
-        return () => cancelAnimationFrame(req)
-    }, [element,callback])    
-}
-
-////
-
-export function useIsolatedFrame(createRoot,children){
+export const useIsolatedFrame = (children: React.ReactNode) => {
     const [frameElement,ref] = useState<HTMLIFrameElement>()
     const [theBody,setBody] = useState<HTMLElement>()
-    const frame = useCallback(()=>{
+    useEffect(() => frameElement && !theBody ? manageAnimationFrame(frameElement, ()=>{
         const body = frameElement?.contentWindow?.document.body
-        if(body.id) setBody(body)
-    }, [frameElement,setBody])
-    useAnimationFrame(frameElement, !theBody && frame)
-    useEffect(() => theBody && doCreateRoot(createRoot, theBody, children), [theBody,children])
+        if(body?.id) setBody(body)
+    }) : undefined, [theBody, setBody, frameElement])
+    useEffect(() => theBody && doCreateRoot(theBody, children), [theBody,children])
     const srcdoc = '<!DOCTYPE html><meta charset="UTF-8"><body id="blank"></body>'
     return {srcdoc,ref}
 }
-
-export const doCreateRoot = (createRoot, parentNativeElement, children) => {
+//type Root = { render(children: React.ReactNode): void, unmount(): void }
+//type CreateRoot = (container: ReactDOM.Container) => Root
+export const doCreateRoot = (parentNativeElement: HTMLElement, children: React.ReactNode) => {
     const rootNativeElement = parentNativeElement.ownerDocument.createElement("span")
     parentNativeElement.appendChild(rootNativeElement)
     const root = createRoot(rootNativeElement)
     root.render(children)
     return () => {
         root.unmount()
-        rootNativeElement.parentElement.removeChild(rootNativeElement)
+        rootNativeElement.parentElement?.removeChild(rootNativeElement)
     }
 }

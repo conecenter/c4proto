@@ -35,7 +35,7 @@ import ee.cone.c4vdom._
 */
       "/ws-app.html" -> (
         """<!DOCTYPE html><meta charset="UTF-8">""" +
-        s"""<body><script  type="module" src="/src/c4p/test/ws-app.tsx?$now"></script></body>"""
+        s"""<body><script  type="module" src="/ws-app.js?$now"></script></body>"""
       ),
 
     )

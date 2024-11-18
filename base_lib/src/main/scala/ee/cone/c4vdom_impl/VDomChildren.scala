@@ -4,10 +4,11 @@ import ee.cone.c4vdom.{ChildPair, ChildPairFactory, MutableJsonBuilder, ToChildP
 import ee.cone.c4vdom.Types.{VDomKey, ViewRes}
 import scala.annotation.tailrec
 
-case class ChildOrderPair[C](jsonKey: String, value: VDomValue) extends ChildPair[C] with VPair { //priv
+case class ChildOrderPair[C](rawKey: String, value: VDomValue) extends ChildPair[C] with VPair { //priv
+  def jsonKey: String = s"@${rawKey}"
   def key: VDomKey = throw new Exception(s"$jsonKey -- $value")
   def sameKey(other: VPair): Boolean = other match {
-    case o: ChildOrderPair[_] => jsonKey == o.jsonKey
+    case o: ChildOrderPair[_] => rawKey == o.rawKey
     case _ => false
   }
   def withValue(value: VDomValue) = copy(value=value)
@@ -23,7 +24,7 @@ case class ChildOrderValue(value: Seq[VDomKey], hint: String) extends VDomValue 
 case class ChildGroup(key: String, elements: ViewRes)
 class ChildPairFactoryImpl(inner: VDomFactory) extends ChildPairFactory {
   def apply[C](key: VDomKey, theElement: VDomValue, elements: List[ChildPair[_]]): ChildPair[C] =
-    inner.create(key,theElement,inner.addGroup(key,"chl",elements,Nil))
+    inner.create(key,theElement,inner.addGroup(key,"children",elements,Nil))
 }
 
 class VDomFactoryImpl(createMapValue: List[VPair]=>MapVDomValue) extends VDomFactory {

@@ -1,25 +1,11 @@
 
-function isObj(a){ return a.constructor===Object }
+export const spreadAll = <T>(args: T[]): T => Object.assign({},...args)
 
-export function mergeAll(list){
-    return list.reduce(merger((left,right) => { throw ["unable to merge",left,right] }), {})
+type ObservableElement = {
+    addEventListener: <E>(evName: string, callback: (ev: E) => void) => void
+    removeEventListener: <E>(evName: string, callback: (ev: E) => void) => void
 }
-
-export function spreadAll(...args){ return Object.assign({},...args) }
-
-function merger(resolve){
-    const mergePair = (left,right) => (
-        isObj(left) && isObj(right) ?
-        spreadAll(left,right,...Object.keys(right).filter(k => k in left).map(
-            k => ({[k]: mergePair(left[k],right[k]) })
-        )) :
-        resolve(left,right)
-    )
-    return mergePair
-}
-
-export const manageEventListener = (el, evName, callback) => {
-    if(!callback || !el) return undefined
+export const manageEventListener = <E>(el: ObservableElement, evName: string, callback: (ev: E) => void) => { //EventTarget,Event
     el.addEventListener(evName,callback)
     //console.log(`on ${evName}`)
     return ()=>{
@@ -28,9 +14,9 @@ export const manageEventListener = (el, evName, callback) => {
     }
 }
 
-export const weakCache = f => {
+export const weakCache = <K extends WeakKey,V>(f: (key: K)=>V): (key: K)=>V => {
     const map = new WeakMap
-    return arg => {
+    return (arg:K) => {
         if(map.has(arg)) return map.get(arg)
         const res = f(arg)
         map.set(arg,res)
@@ -38,4 +24,18 @@ export const weakCache = f => {
     }
 }
 
-export const identityAt = key => weakCache(parent => ({ parent, key }))
+export type SetState<S> = (f: (was: S) => S) => void
+
+export const assertNever = (m: string) => { throw new Error(m) }
+
+export const manageAnimationFrame = (element: HTMLElement, callback: ()=>void) => {
+    const win = element.ownerDocument.defaultView
+    if(!win) return
+    const {requestAnimationFrame,cancelAnimationFrame} = win
+    const animate = () => {
+        callback()
+        req = requestAnimationFrame(animate)
+    }
+    let req = requestAnimationFrame(animate)
+    return () => cancelAnimationFrame(req)
+}
