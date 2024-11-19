@@ -5,7 +5,6 @@ import {useState,useCallback,useContext,createContext,useMemo} from "../main/hoo
 import {useSession,login} from "../main/session"
 import {doCreateRoot,useIsolatedFrame} from "../main/frames"
 import {useSyncRoot,useSyncSimple,useLocation,identityAt,Transforms,Identity} from "../main/sync"
-import {SetState} from "../main/util"
 
 const commentsChangeIdOf = identityAt('commentsChange')
 const removeIdOf = identityAt('remove')
@@ -58,15 +57,15 @@ function ExampleFrame({branchKey}:{branchKey:string}){
     return <iframe {...props} ref={ref} />
 }
 
-function Login({setSessionKey} : {setSessionKey: (sessionKey?: string)=>void}){
+function Login({win,setSessionKey} : {win: Window, setSessionKey: (sessionKey?: string)=>void}){
     const [user, setUser] = useState("")
     const [pass, setPass] = useState("")
     const [error, setError] = useState(false)
     const onClick = useCallback(() => {
         setSessionKey(undefined)
         setError(false)
-        login(user, pass).then(setSessionKey, err=>setError(true))
-    }, [login,user,pass])
+        login(win, user, pass).then(setSessionKey, err=>setError(true))
+    }, [win,login,user,pass])
     return <div>
         Username <input type="text" value={user} onChange={ev=>setUser(ev.target.value)}/>,
         password <input type="password" value={pass} onChange={ev=>setPass(ev.target.value)}/>&nbsp;
@@ -107,11 +106,13 @@ function App({transforms,win}:{transforms:Transforms,win:Window}){
         sessionKey && branchKey ? <SyncRoot {...{
             sessionKey, branchKey, reloadBranchKey, isRoot: true, transforms, children: [<Availability/>] 
         }} key={branchKey}/> : 
-        !sessionKey ? <Login {...{setSessionKey}} key="login"/> : ""
+        !sessionKey ? <Login {...{win,setSessionKey}} key="login"/> : ""
     ]
 }
 
+
+declare var window: Window
 (()=>{
     const transforms = {tp:{RootElement,ExampleTodoTaskList,ExampleTodoTask,ExampleInput,ExampleFrame,Availability}}
-    doCreateRoot(document.body, <StrictMode><App transforms={transforms} win={window}/></StrictMode>)
+    doCreateRoot(window.document.body, <StrictMode><App transforms={transforms} win={window}/></StrictMode>)
 })()

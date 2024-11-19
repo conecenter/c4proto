@@ -1,38 +1,52 @@
 
 import {createElement,useState,useCallback,useEffect,useContext,createContext,useMemo} from "./hooks"
-import {manageEventListener,weakCache,SetState,assertNever,spreadAll} from "./util"
+import {manageEventListener,weakCache,SetState,assertNever,getKey,asObject,asString} from "./util"
 
-type Incoming = Partial<{ at: {}, [x: `@${string}`]: unknown[], [x: `:${string}`]: Incoming, key: string, identity: string}>
+type ObjS<T> = { [x: string]: T }
+
+type Incoming = {key: string, identity: string, at: {}, [x: `@${string}`]: unknown[], [x: `:${string}`]: Incoming }
 export type Identity = string // identity is string, it should not change on patch, it's in many hook deps
 
 const isIncomingKey = (key: string): key is `:${string}` => key.startsWith(":")
 const isChildOrderKey = (key: string): key is `@${string}` => key.startsWith("@")
 
-const asObject = (u: unknown): {} => typeof u === "object" && u !== null && !Array.isArray(u) ? u : assertNever("bad object")
 const asArray = (u: unknown): unknown[] => Array.isArray(u) ? u : assertNever("bad array")
 const asBoolean = (u: unknown) => typeof u === "boolean" ? u : assertNever("bad boolean")
-const asString = (u: unknown) => typeof u === "string" ? u : assertNever("bad string")
-const getKey = (o: { [K: string]: unknown }, k: string): unknown => k in o ? o[k] : assertNever(`no key (${k})`)
+
 const jsonParse = (data: string): unknown => JSON.parse(data)
 
 const resolve = (identity: Identity, key: string) => identity+'/'+key
 
+
+
+function setupIncomingDiff(content,pKey,identity) {
+    
+    const res = {...content}
+    Object.keys(content).forEach(key=>{
+        if(key.substring(0,1)===":" || key === "at") res[key] = setupIncomingDiff(content[key],key,resolve(identity,key))
+        else if(key === "$set") res[key] = setupIncomingDiff(content[key],pKey,identity)  
+    })
+
+//key === identity && value === "ctx" && pKey === "at" ? 
+
+    return changes.length>0 ? spreadAll(content, ...changes) : content
+}
+
+
+
+
 const setupIncomingDiff = (inc: {}, pKey: string, identity: string): Incoming => {
-    const res: Incoming = {key: pKey, identity} // we can not put to `at` here, it can change by its own `$set` later
+    const res: Incoming = {key: pKey, identity, at: asObject(getKey(inc,"at"))} // we can not put to `at` here, it can change by its own `$set` later
     Object.keys(inc).forEach(key => {
         if(isIncomingKey(key)) res[key] = setupIncomingDiff(asObject(getKey(inc, key)), key, resolve(identity, key))
         else if(isChildOrderKey(key)) res[key] = asArray(getKey(inc, key))
-        else if(key === "at") res[key] = asObject(getKey(inc, key))
+        else if(key === "at") {}
         else assertNever(`bad key in diff (${key})`)
     })
     return res
 }
 const update = (inc: Incoming, spec: {}): Incoming => {
-    if("$set" in spec){
-        const key = inc.key ?? assertNever("bad diff")
-        const identity = inc.identity ?? assertNever("bad diff")
-        return setupIncomingDiff(asObject(spec["$set"]), key, identity)
-    } 
+    if("$set" in spec) return setupIncomingDiff(asObject(getKey(spec,"$set")), inc.key, inc.identity)
     const res = {...inc}
     Object.keys(spec).forEach(key=>{
         if(isIncomingKey(key)) res[key] = update(inc[key] ?? assertNever(`no key (${key})`), asObject(getKey(spec,key)))
@@ -57,7 +71,7 @@ const Transformer = (transforms: Transforms) => {
         const tp = asString(getKey(asObject(at), "tp"))
         //if(!key || !identity) return assertNever("bad diff")
         const constr = activeTransforms[tp] ?? tp
-        const childAt: Record<string,React.ReactElement[]> = Object.fromEntries(Object.keys(cProps).map(key => {
+        const childAt: ObjS<React.ReactElement[]> = Object.fromEntries(Object.keys(cProps).map(key => {
             if(!isChildOrderKey(key)) return undefined
             const children = (cProps[key] ?? assertNever("never")).map(kU => {
                 const k = asString(kU)
@@ -65,22 +79,23 @@ const Transformer = (transforms: Transforms) => {
             })
             return [key.substring(1), children]
         }).filter(it => it !== undefined))
-        return createElement(constr,{...at,...childAt,tp,identity:resolve(asString(identity),"at"),key}) // ? todo rm at.key
+        return createElement(constr,{...at,...childAt,tp,identity:resolve(identity,"at"),key}) // ? todo rm at.key
     })
     return {elementWeakCache}
 }
 
 ////
 
-const manageInterval = (handler: ()=>void, timeout: number) => {
+const manageInterval = (win: Window, handler: ()=>void, timeout: number) => {
+    const {setInterval, clearInterval} = win
     handler()
     const h = setInterval(handler, timeout)
     return () => clearInterval(h)
 }
 
 type WebSocketState = {connectionCounter: number, ws?: WebSocket}
-type WebSocketParams = {url: string, onData: (value: string)=>void, onIdle: ()=>void}
-const WebSocketManager = ({setState, url, onData, onIdle}: WebSocketParams & {setState: SetState<WebSocketState>}) => {
+type WebSocketParams = {url: string, onData: (value: string)=>void, onIdle: ()=>void, win: Window|null }
+const WebSocketManager = ({setState, url, onData, onIdle, win}: WebSocketParams & {setState: SetState<WebSocketState>}) => {
     let wasAt = Date.now()
     const check = () => {
         if(Date.now() - wasAt > 5000){
@@ -96,9 +111,11 @@ const WebSocketManager = ({setState, url, onData, onIdle}: WebSocketParams & {se
         }
     }
     const manage = () => {
+        if(!win) return
+        const {WebSocket} = win
         const ws = new WebSocket(url)
         const unOpen = manageEventListener(ws, "open", ev => setState(was => ({...was,ws})))
-        const unMessage = manageEventListener<MessageEvent>(ws, "message", ev => onMessage(ws,ev))
+        const unMessage = manageEventListener(ws, "message", ev => onMessage(ws,ev))
         return ()=>{
             unOpen()
             unMessage()
@@ -108,32 +125,32 @@ const WebSocketManager = ({setState, url, onData, onIdle}: WebSocketParams & {se
     return {manage,check}
 }
 
-const useWebSocket = ({url, stateToSend, onData, onIdle}: WebSocketParams & {stateToSend: string})=>{
+const useWebSocket = ({win, url, stateToSend, onData, onIdle}: WebSocketParams & {stateToSend: string })=>{
     const [{ws,connectionCounter},setState] = useState<WebSocketState>({connectionCounter:0})
-    const {manage,check} = useMemo(()=>WebSocketManager({setState,url,onData,onIdle}),[setState,url,onData,onIdle])
-    useEffect(() => manageInterval(check, 1000), [check])
+    const {manage,check} = useMemo(()=>WebSocketManager({setState,url,onData,onIdle,win}),[setState,url,onData,onIdle,win])
+    useEffect(() => win ? manageInterval(win,check, 1000) : undefined, [win,check])
     useEffect(() => manage(), [manage,connectionCounter])
-    useEffect(() => manageInterval(()=>ws?.send(stateToSend), 30000), [ws, stateToSend])
+    useEffect(() => win ? manageInterval(win,()=>ws?.send(stateToSend), 30000) : undefined, [win, ws, stateToSend])
 }
 
 ////
 
 type SetPatches = (f: (was: Patch[])=>Patch[]) => void
-type UnsubmittedPatch = { skipByPath: boolean, value: string, headers?: Record<string, string> }
+type UnsubmittedPatch = { skipByPath: boolean, value: string, headers?: ObjS<string> }
 type Patch = UnsubmittedPatch & { set: SetPatches, index: number, path: string }
 type PatchObserver = { path: string, set: SetPatches }
 type EnqueuePatch = (identity: Identity, patch: UnsubmittedPatch, set: SetPatches)=>void
 type AckPatches = (observerKey: string, index: number)=>void
-type SyncContext = {enqueue: EnqueuePatch, isRoot: boolean, win?: Window, doAck: AckPatches}
+type SyncContext = {enqueue: EnqueuePatch, isRoot: boolean, win: Window|null, doAck: AckPatches}
 type SyncRootState = {
     incoming: Incoming, availability: boolean, observerKey?: string,
-    nextPatchIndex: number, patches: Array<Patch>, observers: Array<PatchObserver>
+    nextPatchIndex: number, patches: Patch[], observers: PatchObserver[]
 }
 
-const includes = <T>(big: Record<string,T>, small: Record<string,T>) => (
+const includes = <T>(big: ObjS<T>, small: ObjS<T>) => (
     Object.entries(small).every(([k,v]) => k in big && big[k] === v)
 )
-export const ifChanged = <T, S extends Record<string,T>>(f: ((was: S) => S)) => (was: S) => {
+export const ifChanged = <T, S extends ObjS<T>>(f: ((was: S) => S)) => (was: S) => {
     const will = f(was)
     return includes(will, was) && includes(was, will) ? was : will
 }
@@ -144,6 +161,7 @@ const Receiver = ({branchKey, setState}: {branchKey: string, setState: SetState<
         const availability = asBoolean(getKey(message,"availability"))
         const observerKey = asString(getKey(message,"observerKey"))
         setState(ifChanged(was => {
+            console.log("I", was.incoming, log)
             const incoming = log.reduce((res:Incoming,d) => update(res, asObject(d)), was.incoming)
             return {...was, availability, observerKey, incoming}
         }))
@@ -155,9 +173,10 @@ const serializeVals = (vs: Array<string|number>) => vs.map(v=>{
     //if(!{string:1,number:1}[typeof v]) console.log(vs)
     return `-${v}`.replaceAll("\n","\n ")
 }).join("\n")
-const serializePatch = (patch: Patch) => serializeVals(
-    Object.entries({...patch.headers, value: patch.value, "x-r-vdom-path": patch.path}).toSorted().flat()
-)
+const serializePatch = (patch: Patch) => {
+    const h: ObjS<string> = {...patch.headers, value: patch.value, "x-r-vdom-path": patch.path}
+    return serializeVals(Object.keys(h).toSorted().flatMap(k => [k, h[k] ?? assertNever("never")]))
+}
 const serializePatches = (patches: Patch[]) => serializeVals(
     patches.flatMap(patch => [patch.index, serializePatch(patch)])
 )
@@ -167,7 +186,7 @@ const serializeState = (
     ["bs1", isRoot?"m":"s", branchKey, sessionKey, serializePatches(patches)]
 ) : ""
 
-const eqBy = <E>(was: Array<E>, will: Array<E>, by: (item: E)=>(string|number)) => (
+const eqBy = <E>(was: E[], will: E[], by: (item: E)=>(string|number)) => (
     JSON.stringify(was.map(by)) === JSON.stringify(will.map(by))
 )
 
@@ -182,14 +201,14 @@ const PatchManager = (setState: SetState<SyncRootState>) => {
     const doAck: AckPatches = (observerKey, index) => setState(
         was => was.observerKey === observerKey ? {...was, patches: was.patches.filter(p=>p.index > index)} : was
     )
-    const notifyObservers = (patches: Array<Patch>, observers: Array<PatchObserver>) => {
-        const patchesByPath = Object.groupBy(patches, p=>p.path)
+    const notifyObservers = (patches: Patch[], observers: PatchObserver[]) => {
+        const patchesByPath = Object.groupBy<string,Patch>(patches, p=>p.path)
         observers.forEach(observer => {
             const will = patchesByPath[observer.path] ?? []
             observer.set(was => eqBy(was, will, p => p.index) ? was : will)
         })
         const willObservers = Object.keys(patchesByPath).toSorted().map(path=>(
-            {path,set:(patchesByPath[path]||[])[0].set}
+            {path,set:(patchesByPath[path] ?? [])[0]?.set ?? assertNever("bad patch")}
         ))
         setState(was => eqBy(was.observers, willObservers, o=>o.path) ? was : {...was, observers: willObservers})
     }
@@ -197,7 +216,7 @@ const PatchManager = (setState: SetState<SyncRootState>) => {
 }
 
 const failNoContext = () => { throw Error("no context") }
-const SyncContext = createContext<SyncContext>({ enqueue: failNoContext, isRoot: false, doAck: failNoContext })
+const SyncContext = createContext<SyncContext>({ enqueue: failNoContext, isRoot: false, doAck: failNoContext, win: null })
 export const useSyncRoot = (
     {sessionKey,branchKey,reloadBranchKey,isRoot,transforms}:
     {sessionKey: string, branchKey: string, reloadBranchKey: ()=>void, isRoot: boolean, transforms: Transforms}
@@ -213,9 +232,9 @@ export const useSyncRoot = (
     const stateToSend = useMemo(() => serializeState({
         isRoot,sessionKey,branchKey,patches
     }),[isRoot,sessionKey,branchKey,patches])
-    useWebSocket({ url: "/eventlog", stateToSend, onData: receive, onIdle: reloadBranchKey })
     const [element, ref] = useState<HTMLElement>()
-    const win = element?.ownerDocument.defaultView ?? undefined
+    const win = element?.ownerDocument.defaultView ?? null
+    useWebSocket({ url: "/eventlog", stateToSend, onData: receive, onIdle: reloadBranchKey, win })
     const provided: SyncContext = useMemo(()=>({enqueue,isRoot,win,doAck}), [enqueue,isRoot,win,doAck])
     const children = useMemo(()=>[
         createElement("span", {ref, key: "sync-ref"}),
@@ -256,7 +275,7 @@ export const useLocation = ({location: incomingValue, identity}:{location: strin
         if(location && value && location.href !== value) location.href = value //? = "#"+data
     }, [location, value, setValue])
     useEffect(() => {
-        return rootWin && manageEventListener<HashChangeEvent>(rootWin, "hashchange", ev => setValue(ev.newURL))
+        return !rootWin ? undefined : manageEventListener(rootWin, "hashchange", ev => setValue(ev.newURL))
     }, [rootWin,setValue])
 }
 

@@ -1,11 +1,7 @@
 
-export const spreadAll = <T>(args: T[]): T => Object.assign({},...args)
-
-type ObservableElement = {
-    addEventListener: <E>(evName: string, callback: (ev: E) => void) => void
-    removeEventListener: <E>(evName: string, callback: (ev: E) => void) => void
-}
-export const manageEventListener = <E>(el: ObservableElement, evName: string, callback: (ev: E) => void) => { //EventTarget,Event
+export const manageEventListener = <K extends keyof EventMap>(
+    el: EventTarget, evName: K, callback: (ev: EventMap[K]) => void
+) => {
     el.addEventListener(evName,callback)
     //console.log(`on ${evName}`)
     return ()=>{
@@ -14,10 +10,11 @@ export const manageEventListener = <E>(el: ObservableElement, evName: string, ca
     }
 }
 
-export const weakCache = <K extends WeakKey,V>(f: (key: K)=>V): (key: K)=>V => {
-    const map = new WeakMap
+export const weakCache = <K extends object,V>(f: (key: K)=>V): (key: K)=>V => {
+    const map = new WeakMap<K,V>
     return (arg:K) => {
-        if(map.has(arg)) return map.get(arg)
+        const cachedRes = map.get(arg)
+        if(cachedRes !== undefined) return cachedRes
         const res = f(arg)
         map.set(arg,res)
         return res
@@ -26,7 +23,7 @@ export const weakCache = <K extends WeakKey,V>(f: (key: K)=>V): (key: K)=>V => {
 
 export type SetState<S> = (f: (was: S) => S) => void
 
-export const assertNever = (m: string) => { throw new Error(m) }
+export const assertNever = (m: string) => { throw Error(m) }
 
 export const manageAnimationFrame = (element: HTMLElement, callback: ()=>void) => {
     const win = element.ownerDocument.defaultView
@@ -39,3 +36,7 @@ export const manageAnimationFrame = (element: HTMLElement, callback: ()=>void) =
     let req = requestAnimationFrame(animate)
     return () => cancelAnimationFrame(req)
 }
+
+export const getKey = (o: { [K: string]: unknown }, k: string): unknown => k in o ? o[k] : assertNever(`no key (${k})`)
+export const asObject = (u: unknown): {} => typeof u === "object" && u !== null && !Array.isArray(u) ? u : assertNever("bad object")
+export const asString = (u: unknown) => typeof u === "string" ? u : assertNever("bad string")

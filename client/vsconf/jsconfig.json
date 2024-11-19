@@ -2,7 +2,13 @@
     "compilerOptions": {
         "target": "ESNext",
         "jsx": "react-jsx",
-        "moduleResolution":"node",
-        "strict": true
+        "moduleResolution":"bundler",
+        "strict": true,
+        "exactOptionalPropertyTypes": true,
+        "noImplicitReturns": true,
+        "noPropertyAccessFromIndexSignature": true,
+        "noUncheckedIndexedAccess": true,
+        "strictFunctionTypes": true,
+        "noLib": true
     }
 }

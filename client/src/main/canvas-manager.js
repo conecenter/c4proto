@@ -1,6 +1,7 @@
 // @ ts-check
-import {spreadAll,weakCache}     from "../main/util"
+import {weakCache}     from "../main/util"
 
+const spreadAll = (args) => Object.assign({},...args)
 const chain = functions => arg => functions.reduce((res,f)=>f(res), arg)
 const deleted = ks => st => spreadAll(Object.keys(st).filter(ck=>!ks[ck]).map(ck=>({[ck]:st[ck]})))
 
