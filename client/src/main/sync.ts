@@ -2,31 +2,42 @@
 import {createElement,useState,useCallback,useEffect,useContext,createContext,useMemo} from "./hooks"
 import {manageEventListener,weakCache,SetState,assertNever,spreadAll} from "./util"
 
-type Incoming = { at: IncomingAt, [x: `@${string}`]: string[], [x: `:${string}`]: Incoming, key: string, identity: string}
-type Diff = { "$set": Incoming } | 
-    { at: { "$set": IncomingAt }, [x: `@${string}`]: { "$set": string[] }, [x: `:${string}`]: Diff }
-type IncomingAt = { [K in string]: object|number|string } & { tp: string }
+type Incoming = Partial<{ at: {}, [x: `@${string}`]: unknown[], [x: `:${string}`]: Incoming, key: string, identity: string}>
 export type Identity = string // identity is string, it should not change on patch, it's in many hook deps
 
 const isIncomingKey = (key: string): key is `:${string}` => key.startsWith(":")
 const isChildOrderKey = (key: string): key is `@${string}` => key.startsWith("@")
+
+const asObject = (u: unknown): {} => typeof u === "object" && u !== null && !Array.isArray(u) ? u : assertNever("bad object")
+const asArray = (u: unknown): unknown[] => Array.isArray(u) ? u : assertNever("bad array")
+const asBoolean = (u: unknown) => typeof u === "boolean" ? u : assertNever("bad boolean")
+const asString = (u: unknown) => typeof u === "string" ? u : assertNever("bad string")
+const getKey = (o: { [K: string]: unknown }, k: string): unknown => k in o ? o[k] : assertNever(`no key (${k})`)
+const jsonParse = (data: string): unknown => JSON.parse(data)
+
 const resolve = (identity: Identity, key: string) => identity+'/'+key
-const setupIncomingDiff = (inc: Incoming, key: string, identity: string): Incoming => {
-    const res: Incoming = {...inc, key, identity} // we can not put to `at` here, it can change by its own `$set` later
+
+const setupIncomingDiff = (inc: {}, pKey: string, identity: string): Incoming => {
+    const res: Incoming = {key: pKey, identity} // we can not put to `at` here, it can change by its own `$set` later
     Object.keys(inc).forEach(key => {
-        if(isIncomingKey(key)) res[key] = setupIncomingDiff(inc[key], key, resolve(identity, key))
+        if(isIncomingKey(key)) res[key] = setupIncomingDiff(asObject(getKey(inc, key)), key, resolve(identity, key))
+        else if(isChildOrderKey(key)) res[key] = asArray(getKey(inc, key))
+        else if(key === "at") res[key] = asObject(getKey(inc, key))
+        else assertNever(`bad key in diff (${key})`)
     })
     return res
 }
-const isDiffSet = (spec: Diff): spec is { "$set": Incoming } => "$set" in spec
-const update = (inc: Incoming, spec: Diff): Incoming => {
-    //if(!inc.key || !inc.identity) return assertNever("bad diff")
-    if(isDiffSet(spec)) return setupIncomingDiff(spec["$set"], inc.key, inc.identity)
+const update = (inc: Incoming, spec: {}): Incoming => {
+    if("$set" in spec){
+        const key = inc.key ?? assertNever("bad diff")
+        const identity = inc.identity ?? assertNever("bad diff")
+        return setupIncomingDiff(asObject(spec["$set"]), key, identity)
+    } 
     const res = {...inc}
     Object.keys(spec).forEach(key=>{
-        if(isIncomingKey(key)) res[key] = update(inc[key], spec[key])
-        else if(isChildOrderKey(key)) res[key] = spec[key]["$set"] ?? assertNever("bad diff")
-        else if(key === "at") res[key] = spec[key]["$set"] ?? assertNever("bad diff")
+        if(isIncomingKey(key)) res[key] = update(inc[key] ?? assertNever(`no key (${key})`), asObject(getKey(spec,key)))
+        else if(isChildOrderKey(key)) res[key] = asArray(getKey(asObject(getKey(spec,key)),"$set"))
+        else if(key === "at") res[key] = asObject(getKey(asObject(getKey(spec,key)),"$set"))
         else assertNever(`bad key in diff (${key})`)
     })
     return res
@@ -42,16 +53,19 @@ type TypeTransforms = { [K: string]: React.FC<any> }
 const Transformer = (transforms: Transforms) => {
     const activeTransforms: TypeTransforms = {AckElement,...transforms.tp}
     const elementWeakCache: (props:Incoming)=>React.ReactElement  = weakCache((props:Incoming)=>{
-        const {key,identity,at:{tp,...at},...cProps} = transforms.eachNode ? transforms.eachNode(props) : props
+        const {key,identity,at,...cProps} = transforms.eachNode ? transforms.eachNode(props) : props
+        const tp = asString(getKey(asObject(at), "tp"))
         //if(!key || !identity) return assertNever("bad diff")
         const constr = activeTransforms[tp] ?? tp
         const childAt: Record<string,React.ReactElement[]> = Object.fromEntries(Object.keys(cProps).map(key => {
             if(!isChildOrderKey(key)) return undefined
-            const children = 
-                cProps[key].map(k => isIncomingKey(k) ? elementWeakCache(cProps[k]) : assertNever("bad diff"))
+            const children = (cProps[key] ?? assertNever("never")).map(kU => {
+                const k = asString(kU)
+                return elementWeakCache(isIncomingKey(k) && cProps[k] || assertNever("bad diff"))
+            })
             return [key.substring(1), children]
         }).filter(it => it !== undefined))
-        return createElement(constr,{...at,...childAt,identity:resolve(identity,"at"),key}) // ? todo rm at.key
+        return createElement(constr,{...at,...childAt,tp,identity:resolve(asString(identity),"at"),key}) // ? todo rm at.key
     })
     return {elementWeakCache}
 }
@@ -125,10 +139,13 @@ export const ifChanged = <T, S extends Record<string,T>>(f: ((was: S) => S)) => 
 }
 const Receiver = ({branchKey, setState}: {branchKey: string, setState: SetState<SyncRootState>}) => {
     const receive = (data: string) => {
-        const {log, ...parsed}: {availability: boolean, log: Array<Diff>, observerKey: string} = JSON.parse(data)
+        const message = asObject(jsonParse(data))
+        const log = asArray(getKey(message,"log"))
+        const availability = asBoolean(getKey(message,"availability"))
+        const observerKey = asString(getKey(message,"observerKey"))
         setState(ifChanged(was => {
-            const incoming = log.reduce((res,d) => update(res, d), was.incoming)
-            return {...was, ...parsed, incoming}
+            const incoming = log.reduce((res:Incoming,d) => update(res, asObject(d)), was.incoming)
+            return {...was, availability, observerKey, incoming}
         }))
     }
     return {receive}

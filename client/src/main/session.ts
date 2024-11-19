@@ -25,7 +25,7 @@ const useSessionRestoreOnRefresh = (
 }
 
 const SessionBranchManager = (setState: SetState<SessionState>) => {
-    const setSessionKey = (sessionKey: string) => setState(was => was.sessionKey === sessionKey ? was : {sessionKey})
+    const setSessionKey = (sessionKey?: string) => setState(was => was.sessionKey === sessionKey ? was : {sessionKey})
     const reloadBranchKeyInner = (sessionKey?: string) =>{
         const fin = (resp: {branchKey?:string, error?:string}) => setState(was => (
             resp?.branchKey && !was.branchKey && was.sessionKey === sessionKey ? 

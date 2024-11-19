@@ -36,7 +36,7 @@ const AvailabilityContext = createContext(false)
 
 function ExampleButton({caption, identity}:{caption:string,identity:Identity}){
     const {setValue, patches} = useSyncSimple("", identity)
-    const onClick = useCallback((ev: Event) => setValue("1"), [setValue])
+    const onClick = useCallback(() => setValue("1"), [setValue])
     const changing = patches.length > 0
     const backgroundColor = changing ? "yellow" : "white"
     return <input type="button" value={caption} onClick={onClick} style={{backgroundColor}} />
@@ -44,15 +44,16 @@ function ExampleButton({caption, identity}:{caption:string,identity:Identity}){
 
 function ExampleInput({value: incomingValue, identity}:{value: string, identity: Identity}){
     const {value, setValue, patches} = useSyncSimple(incomingValue, identity)
-    const onChange: ChangeEventHandler<HTMLInputElement> = useCallback(ev => setValue(ev?.target.value), [setValue])
+    const onChange = useCallback((ev: React.ChangeEvent<HTMLInputElement>) => setValue(ev?.target.value), [setValue])
     const changing = patches.length > 0
     const backgroundColor = changing ? "yellow" : "white"
     return <input type="text" value={value} onChange={onChange} style={{backgroundColor}} />
 }
 
+const noReloadBranchKey = ()=>{}
 function ExampleFrame({branchKey}:{branchKey:string}){
     const {transforms, sessionKey} = useContext(DIContext)
-    const child = <SyncRoot {...{sessionKey,branchKey,reloadBranchKey:null,isRoot:false,transforms,children:[]}}/>
+    const child = sessionKey && <SyncRoot {...{sessionKey,branchKey,reloadBranchKey:noReloadBranchKey,isRoot:false,transforms,children:[]}}/>
     const {ref,...props} = useIsolatedFrame([child])
     return <iframe {...props} ref={ref} />
 }
@@ -61,7 +62,7 @@ function Login({setSessionKey} : {setSessionKey: (sessionKey?: string)=>void}){
     const [user, setUser] = useState("")
     const [pass, setPass] = useState("")
     const [error, setError] = useState(false)
-    const onClick = useCallback((ev: Event) => {
+    const onClick = useCallback(() => {
         setSessionKey(undefined)
         setError(false)
         login(user, pass).then(setSessionKey, err=>setError(true))
