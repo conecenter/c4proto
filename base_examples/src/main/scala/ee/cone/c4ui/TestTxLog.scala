@@ -1,5 +1,5 @@
 package ee.cone.c4ui
-
+/*
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.QProtocol.N_TxRef
 import ee.cone.c4actor._
@@ -17,7 +17,7 @@ import ee.cone.c4vdom.Types.ViewRes
 
 import scala.annotation.tailrec
 
-/*trait TestTxLogApp extends TestTxLogAutoApp {
+trait TestTxLogApp extends TestTxLogAutoApp {
   def tags: Tags
   def untilPolicy: UntilPolicy
   def snapshotMerger: SnapshotMerger
@@ -35,6 +35,8 @@ import scala.annotation.tailrec
     testTxLogView :: super.byLocationHashViews
 }*/
 
+
+/*
 @c4("TestTxLogApp") final class TestTxLogMortalAssembleBase(mortal: MortalFactory) {
   @provide def subAssembles: Seq[Assemble] =
     mortal(classOf[N_TxRef]) :: mortal(classOf[D_TxAddMeta]) :: Nil
@@ -165,3 +167,4 @@ case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount
   } yield WithPK(item.ref)
 
 }
+*/

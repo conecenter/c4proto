@@ -10,7 +10,7 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{by, c4assemble}
 import ee.cone.c4di.{c4, c4multi}
 import ee.cone.c4gate.AuthProtocol.C_PasswordHashOfUser
-import ee.cone.c4gate.{AuthOperations, PublishFromStringsProvider}
+import ee.cone.c4gate.{AuthOperations, PublishFromStringsProvider, SessionListUtil}
 import ee.cone.c4ui.TestTodoProtocol.{B_TodoTask, B_TodoTaskComments, B_TodoTaskCommentsContains}
 import ee.cone.c4proto._
 import ee.cone.c4vdom.Types._
@@ -20,27 +20,15 @@ import ee.cone.c4vdom._
   def get: List[(String, String)] = {
     val now = System.currentTimeMillis
     List(
-      /*
-      "/react-app.html" ->
-        s"""<!DOCTYPE html><meta charset="UTF-8"><body>
-            <script type="text/javascript" src="vendor.js?$now"></script>
-            <script type="text/javascript" src="react-app.js?$now"></script>
-        </body>""",
-      "/todo-app.html" ->
-        s"""<!DOCTYPE html><meta charset="UTF-8">
-         <style> @import '/src/c4p/test/todo-app.css'; </style>
-         <body>
-            <script  type="module" src="/src/c4p/test/todo-app.js?$now"></script>
-         </body>""",
-*/
       "/ws-app.html" -> (
         """<!DOCTYPE html><meta charset="UTF-8">""" +
         s"""<body><script  type="module" src="/ws-app.js?$now"></script></body>"""
       ),
-
     )
   }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 object TestUser {
   val name = "test0"
@@ -78,20 +66,15 @@ object TodoTasks {
   def listKey = "taskList"
 }
 case class TodoTask(orig: B_TodoTask, comments: String)
-case class TodoTasks(srcId: SrcId, commentsContains: String, tasks: List[TodoTask])
+case class TodoTasks(srcId: SrcId, tasks: List[TodoTask])
 @c4assemble("TestTodoApp") class TodoTaskAssembleBase{
   def joinTask(key: SrcId, task: Each[B_TodoTask], comments: Values[B_TodoTaskComments]): Values[(SrcId, TodoTask)] =
     List(WithPK(TodoTask(task, comments.map(_.value).mkString)))
 
   type ToList = SrcId
   def mapTask(key: SrcId, task: Each[TodoTask]): Values[(ToList, TodoTask)] = List(TodoTasks.listKey->task)
-  def joinList(
-    key: SrcId, @by[ToList] tasks: Values[TodoTask], filters: Values[B_TodoTaskCommentsContains]
-  ): Values[(SrcId, TodoTasks)] = {
-    val commentsContainsValue = filters.map(_.value).mkString
-    val filteredTasks = tasks.filter(_.comments.contains(commentsContainsValue)).sortBy(-_.orig.createdAt).toList
-    List(WithPK(TodoTasks(key, commentsContainsValue, filteredTasks)))
-  }
+  def joinList(key: SrcId, @by[ToList] tasks: Values[TodoTask]): Values[(SrcId, TodoTasks)] =
+    List(WithPK(TodoTasks(key, tasks.sortBy(-_.orig.createdAt).toList)))
 }
 
 trait TodoTaskEl extends ToChildPair
@@ -108,7 +91,7 @@ trait TodoTaskEl extends ToChildPair
 @c4("TestTodoApp") final case class TestTodoRootView(locationHash: String = "todo")(
   updatingReceiverFactory: UpdatingReceiverFactory,
   untilPolicy: UntilPolicy,
-  getTodoTasks: GetByPK[TodoTasks],
+  getTodoTasks: GetByPK[TodoTasks], getTodoTaskCommentsContains: GetByPK[B_TodoTaskCommentsContains],
   exampleTagsProvider: ExampleTagsProvider,
 )(
   exampleTags: ExampleTags[Context] = exampleTagsProvider.get[Context]
@@ -118,15 +101,18 @@ trait TodoTaskEl extends ToChildPair
   val rc: ViewAction => Receiver[Context] = updatingReceiverFactory.create(this, _)
   def view: Context => ViewRes = untilPolicy.wrap{ local =>
     val tasksOpt = getTodoTasks.ofA(local).get(listKey)
+    val branchKey = CurrentBranchKey.of(local)
+    val commentsContainsValue = getTodoTaskCommentsContains.ofA(local).get(branchKey).fold("")(_.value)
     val res = exampleTags.todoTaskList(
       key = listKey,
-      commentsFilterValue = tasksOpt.fold("")(_.commentsContains),
-      commentsFilterChange = rc(CommentsContainsChange(listKey)),
+      commentsContainsValue, commentsFilterChange = rc(CommentsContainsChange(branchKey)),
       add = rc(Add()),
-      tasks = tasksOpt.fold(List.empty[TodoTask])(_.tasks).map{ task => exampleTags.todoTask(
-        key = task.orig.srcId, commentsValue = task.comments, commentsChange = rc(CommentsChange(task.orig.srcId)),
-        remove = rc(Remove(task.orig)),
-      )}
+      tasks = tasksOpt.fold(List.empty[TodoTask])(_.tasks)
+        .filter(_.comments.contains(commentsContainsValue))
+        .map{ task => exampleTags.todoTask(
+          key = task.orig.srcId, commentsValue = task.comments, commentsChange = rc(CommentsChange(task.orig.srcId)),
+          remove = rc(Remove(task.orig)),
+        )}
     )
     List(res.toChildPair)
   }
@@ -146,6 +132,45 @@ object TestTodoRootView {
   private case class Remove(task: B_TodoTask) extends ViewAction
 }
 
+////////////////////////////
+
+trait TestSessionEl extends ToChildPair
+@c4tags("TestTodoApp") trait TestSessionListTags[C] {
+  @c4el("TestSession") def session(key: String, branchKey: String, userName: String, isOnline: Boolean): TestSessionEl
+  @c4el("TestSessionList") def sessionList(key: String, sessions: ElList[TestSessionEl]): ToChildPair
+}
+
+@c4("TestTodoApp") final case class TestCoLeaderView(locationHash: String = "leader")(
+  untilPolicy: UntilPolicy, sessionListUtil: SessionListUtil,
+  testSessionListTagsProvider: TestSessionListTagsProvider,
+)(
+  tags: TestSessionListTags[Context] = testSessionListTagsProvider.get[Context]
+) extends ByLocationHashView with LazyLogging {
+  def view: Context => ViewRes = untilPolicy.wrap{ local =>
+    val sessionItems = for {
+      s <- sessionListUtil.list(local) if !s.location.endsWith(s"#${locationHash}")
+    } yield tags.session(s.branchKey, s.branchKey, s.userName, s.isOnline)
+    val res = tags.sessionList("sessionList", sessionItems.toList)
+    List(res.toChildPair)
+  }
+}
+
+
+
+//      styles.width(100), styles.height(100)), "/blank.html")(Nil)
+/*
+"/react-app.html" ->
+  s"""<!DOCTYPE html><meta charset="UTF-8"><body>
+      <script type="text/javascript" src="vendor.js?$now"></script>
+      <script type="text/javascript" src="react-app.js?$now"></script>
+  </body>""",
+"/todo-app.html" ->
+  s"""<!DOCTYPE html><meta charset="UTF-8">
+   <style> @import '/src/c4p/test/todo-app.css'; </style>
+   <body>
+      <script  type="module" src="/src/c4p/test/todo-app.js?$now"></script>
+   </body>""",
+*/
 
     // filter minWidth = 11, maxWidth = 20,"Comments contains"
     //  "+"

@@ -6,6 +6,18 @@ import {useSession,login} from "../main/session"
 import {doCreateRoot,useIsolatedFrame} from "../main/frames"
 import {useSyncRoot,useSyncSimple,useLocation,identityAt,Transforms,Identity} from "../main/sync"
 
+
+function TestSession({branchKey,userName,isOnline}:{branchKey:string,userName:string,isOnline:boolean}){
+    return <div>
+        User: {userName} {isOnline ? "online" : "offline"}<br/>
+        <ExampleFrame {...{branchKey,style:{width:"30%",height:"400px"}}} />
+    </div>
+}
+function TestSessionList({sessions}:{sessions:React.ReactElement[]}){
+    return <div>{sessions}</div>
+}
+
+
 const commentsChangeIdOf = identityAt('commentsChange')
 const removeIdOf = identityAt('remove')
 const commentsFilterChangeIdOf = identityAt('commentsFilterChange')
@@ -50,11 +62,11 @@ function ExampleInput({value: incomingValue, identity}:{value: string, identity:
 }
 
 const noReloadBranchKey = ()=>{}
-function ExampleFrame({branchKey}:{branchKey:string}){
+function ExampleFrame({branchKey,style}:{branchKey:string,style:{[K:string]:string}}){
     const {transforms, sessionKey} = useContext(DIContext)
     const child = sessionKey && <SyncRoot {...{sessionKey,branchKey,reloadBranchKey:noReloadBranchKey,isRoot:false,transforms,children:[]}}/>
     const {ref,...props} = useIsolatedFrame([child])
-    return <iframe {...props} ref={ref} />
+    return <iframe {...props} {...{style}} ref={ref} />
 }
 
 function Login({win,setSessionKey} : {win: Window, setSessionKey: (sessionKey?: string)=>void}){
@@ -113,6 +125,6 @@ function App({transforms,win}:{transforms:Transforms,win:Window}){
 
 declare var window: Window
 (()=>{
-    const transforms = {tp:{RootElement,ExampleTodoTaskList,ExampleTodoTask,ExampleInput,ExampleFrame,Availability}}
+    const transforms = {tp:{RootElement,ExampleTodoTaskList,ExampleTodoTask,ExampleInput,ExampleFrame,Availability,TestSessionList,TestSession}}
     doCreateRoot(window.document.body, <StrictMode><App transforms={transforms} win={window}/></StrictMode>)
 })()

@@ -25,3 +25,8 @@ trait FromAlienWishUtil {
   def redraw(world: AssembledContext, branchKey: String, actorKey: String): LEvents
   def purgeAllExpired(world: AssembledContext): LEvents
 }
+
+case class SessionListItem(branchKey: String, userName: String, location: String, isOnline: Boolean)
+trait SessionListUtil {
+  def list(world: AssembledContext): Seq[SessionListItem]
+}

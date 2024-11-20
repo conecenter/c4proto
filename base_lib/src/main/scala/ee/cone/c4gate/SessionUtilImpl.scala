@@ -101,3 +101,19 @@ object FromAlienWishUtilImpl{
   def join(key: SrcId, @by[ByBranch] obs: Values[Obs]): Values[(SrcId,ObsForBranch)] =
     Seq(WithPK(ObsForBranch(key, obs.sortBy(_.srcId).toList)))
 }
+
+@c4("SessionUtilApp") final class SessionListUtilImpl(
+  getAuthenticatedSession: GetByPK[U_AuthenticatedSession],
+  getFromAlienState: GetByPK[U_FromAlienState],
+  getFromAlienStatus: GetByPK[U_FromAlienStatus],
+) extends SessionListUtil {
+  def list(world: AssembledContext): Seq[SessionListItem] = {
+    val statuses = getFromAlienStatus.ofA(world)
+    val states = getFromAlienState.ofA(world)
+    getAuthenticatedSession.ofA(world).values.toSeq.sortBy(_.logKey).map{ session =>
+      val isOnline = statuses.get(session.sessionKey).exists(_.isOnline)
+      val location = states.get(session.sessionKey).fold("")(_.location)
+      SessionListItem(branchKey = session.logKey, userName = session.userName, location = location, isOnline = isOnline)
+    }
+  }
+}

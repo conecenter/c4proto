@@ -32,6 +32,7 @@ trait TestTxLogAppBase
   with BasicLoggingApp
   with ReactHtmlApp
 
+/*
 @c4app class TestCoWorkAppBase extends ServerCompApp
   with EnvConfigCompApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
@@ -49,7 +50,7 @@ trait TestTxLogAppBase
   with TestTxLogApp
   with SSHDebugApp
   with BasicLoggingApp
-  with ReactHtmlApp
+  with ReactHtmlApp*/
 
 @c4app class TestPasswordAppBase extends ServerCompApp
   with EnvConfigCompApp with VMExecutionApp
