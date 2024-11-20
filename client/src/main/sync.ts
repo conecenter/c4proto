@@ -20,12 +20,13 @@ const resolve = (identity: Identity, key: string) => identity+'/'+key
 export const ctxToPath = (ctx: Identity): string => ctx
 export const identityAt = (key: string): (identity: Identity)=>Identity => identity => resolve(identity, key)
 
+export const asObjectOrArray = (u: unknown): {}|unknown[] => typeof u === "object" && u ? u : assertNever("bad object")
 const update = (inc: Incoming|undefined, spec: ObjS<unknown>, pKey: string, pIdentity: string): Incoming => {
     const res = {...inc}
     Object.keys(spec).forEach(key=>{
-        console.log("U",key,spec[key])
-        const sValue: ObjS<unknown> = asObject(spec[key])
-        const value = sValue["$set"] ?? sValue
+        //console.log("U",key,spec[key])
+        const sValue: ObjS<unknown>|unknown[] = asObjectOrArray(spec[key])
+        const value = Array.isArray(sValue) ? sValue : sValue["$set"] ?? sValue
         const cIdentity = pIdentity === "root" ? "" : resolve(pIdentity, key)
         if(isIncomingKey(key)) 
             res[key] = update(sValue !== value || !inc ? undefined : inc[key], asObject(value), key, cIdentity)
