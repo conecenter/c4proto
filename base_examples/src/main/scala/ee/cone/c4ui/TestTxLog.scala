@@ -37,6 +37,14 @@ trait TestTxLogApp extends TestTxLogAutoApp {
 
 
 /*
+
+@protocol("TestCoWorkApp") object TestFilterProtocol {
+  @Id(0x0005) case class B_Content(
+    @Id(0x0006) sessionKey: String,
+    @Id(0x0007) value: String
+  )
+}
+
 @c4("TestTxLogApp") final class TestTxLogMortalAssembleBase(mortal: MortalFactory) {
   @provide def subAssembles: Seq[Assemble] =
     mortal(classOf[N_TxRef]) :: mortal(classOf[D_TxAddMeta]) :: Nil
