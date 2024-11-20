@@ -99,7 +99,7 @@ my $serve_node = sub{
     #
     sy("mkdir", "-p", "$vite_run_dir/out");
     my @apps = map{ ref && $$_[0] eq "C4CLIENT_APP" ? [@$_[1,2]] : () } @$conf;
-    sy("cd $vite_run_dir && ./node_modules/esbuild/bin/esbuild src/$$_[1] --bundle --outfile=out/$$_[0].js") for @apps;
+    sy("cd $vite_run_dir && ./node_modules/esbuild/bin/esbuild src/$$_[1] --bundle --outfile=out/$$_[0].js --preserve-symlinks") for @apps;
     &$put_text("$vite_run_dir/out/c4gen.ht.links", join "\n", map{"base_lib.ee.cone.c4gate /$$_[0].js $$_[0].js"} @apps);
     &$put_text("$vite_run_dir/out/publish_time", time);
     sleep 1 while 1;

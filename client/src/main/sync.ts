@@ -4,72 +4,45 @@ import {manageEventListener,weakCache,SetState,assertNever,getKey,asObject,asStr
 
 type ObjS<T> = { [x: string]: T }
 
-type Incoming = {key: string, identity: string, at: {}, [x: `@${string}`]: unknown[], [x: `:${string}`]: Incoming }
+const asArray = (u: unknown): unknown[] => Array.isArray(u) ? u : assertNever("bad array")
+const asBoolean = (u: unknown) => typeof u === "boolean" ? u : assertNever("bad boolean")
+const jsonParse = (data: string): unknown => JSON.parse(data)
+
+////
+
+type Incoming = { at?: {}, [x: `@${string}`]: unknown[], [x: `:${string}`]: Incoming }
 export type Identity = string // identity is string, it should not change on patch, it's in many hook deps
 
 const isIncomingKey = (key: string): key is `:${string}` => key.startsWith(":")
 const isChildOrderKey = (key: string): key is `@${string}` => key.startsWith("@")
 
-const asArray = (u: unknown): unknown[] => Array.isArray(u) ? u : assertNever("bad array")
-const asBoolean = (u: unknown) => typeof u === "boolean" ? u : assertNever("bad boolean")
-
-const jsonParse = (data: string): unknown => JSON.parse(data)
-
 const resolve = (identity: Identity, key: string) => identity+'/'+key
-
-
-
-function setupIncomingDiff(content,pKey,identity) {
-    
-    const res = {...content}
-    Object.keys(content).forEach(key=>{
-        if(key.substring(0,1)===":" || key === "at") res[key] = setupIncomingDiff(content[key],key,resolve(identity,key))
-        else if(key === "$set") res[key] = setupIncomingDiff(content[key],pKey,identity)  
-    })
-
-//key === identity && value === "ctx" && pKey === "at" ? 
-
-    return changes.length>0 ? spreadAll(content, ...changes) : content
-}
-
-
-
-
-const setupIncomingDiff = (inc: {}, pKey: string, identity: string): Incoming => {
-    const res: Incoming = {key: pKey, identity, at: asObject(getKey(inc,"at"))} // we can not put to `at` here, it can change by its own `$set` later
-    Object.keys(inc).forEach(key => {
-        if(isIncomingKey(key)) res[key] = setupIncomingDiff(asObject(getKey(inc, key)), key, resolve(identity, key))
-        else if(isChildOrderKey(key)) res[key] = asArray(getKey(inc, key))
-        else if(key === "at") {}
-        else assertNever(`bad key in diff (${key})`)
-    })
-    return res
-}
-const update = (inc: Incoming, spec: {}): Incoming => {
-    if("$set" in spec) return setupIncomingDiff(asObject(getKey(spec,"$set")), inc.key, inc.identity)
-    const res = {...inc}
-    Object.keys(spec).forEach(key=>{
-        if(isIncomingKey(key)) res[key] = update(inc[key] ?? assertNever(`no key (${key})`), asObject(getKey(spec,key)))
-        else if(isChildOrderKey(key)) res[key] = asArray(getKey(asObject(getKey(spec,key)),"$set"))
-        else if(key === "at") res[key] = asObject(getKey(asObject(getKey(spec,key)),"$set"))
-        else assertNever(`bad key in diff (${key})`)
-    })
-    return res
-}
-
-export const ctxToPath = (ctx: string): string => ctx
+export const ctxToPath = (ctx: Identity): string => ctx
 export const identityAt = (key: string): (identity: Identity)=>Identity => identity => resolve(identity, key)
 
-////
+const update = (inc: Incoming|undefined, spec: ObjS<unknown>, pKey: string, pIdentity: string): Incoming => {
+    const res = {...inc}
+    Object.keys(spec).forEach(key=>{
+        console.log("U",key,spec[key])
+        const sValue: ObjS<unknown> = asObject(spec[key])
+        const value = sValue["$set"] ?? sValue
+        const cIdentity = pIdentity === "root" ? "" : resolve(pIdentity, key)
+        if(isIncomingKey(key)) 
+            res[key] = update(sValue !== value || !inc ? undefined : inc[key], asObject(value), key, cIdentity)
+        else if(isChildOrderKey(key)) res[key] = asArray(value)
+        else if(key === "at") res[key] = {...asObject(value), key: pKey, identity: cIdentity}
+        else assertNever(`bad key in diff (${key})`)
+    })
+    return res
+}
 
 export type Transforms = { tp: TypeTransforms, eachNode?: (incoming: Incoming)=>Incoming }
 type TypeTransforms = { [K: string]: React.FC<any> }
 const Transformer = (transforms: Transforms) => {
     const activeTransforms: TypeTransforms = {AckElement,...transforms.tp}
     const elementWeakCache: (props:Incoming)=>React.ReactElement  = weakCache((props:Incoming)=>{
-        const {key,identity,at,...cProps} = transforms.eachNode ? transforms.eachNode(props) : props
+        const {at,...cProps} = transforms.eachNode ? transforms.eachNode(props) : props
         const tp = asString(getKey(asObject(at), "tp"))
-        //if(!key || !identity) return assertNever("bad diff")
         const constr = activeTransforms[tp] ?? tp
         const childAt: ObjS<React.ReactElement[]> = Object.fromEntries(Object.keys(cProps).map(key => {
             if(!isChildOrderKey(key)) return undefined
@@ -79,7 +52,7 @@ const Transformer = (transforms: Transforms) => {
             })
             return [key.substring(1), children]
         }).filter(it => it !== undefined))
-        return createElement(constr,{...at,...childAt,tp,identity:resolve(identity,"at"),key}) // ? todo rm at.key
+        return createElement(constr,{...at,...childAt,tp}) // ? todo rm at.key
     })
     return {elementWeakCache}
 }
@@ -161,8 +134,11 @@ const Receiver = ({branchKey, setState}: {branchKey: string, setState: SetState<
         const availability = asBoolean(getKey(message,"availability"))
         const observerKey = asString(getKey(message,"observerKey"))
         setState(ifChanged(was => {
-            console.log("I", was.incoming, log)
-            const incoming = log.reduce((res:Incoming,d) => update(res, asObject(d)), was.incoming)
+            const incoming = log.reduce((res:Incoming,d) => {
+                //console.log("I", res, d)
+                const setCh = "@children" in res ? {} : {"@children":{"$set":[":root"]}}
+                return update(res, {":root":d,...setCh}, "root", "root")
+            }, was.incoming)
             return {...was, availability, observerKey, incoming}
         }))
     }
@@ -222,7 +198,7 @@ export const useSyncRoot = (
     {sessionKey: string, branchKey: string, reloadBranchKey: ()=>void, isRoot: boolean, transforms: Transforms}
 ) => {
     const [{incoming, availability, patches, observers}, setState] = useState<SyncRootState>(()=>({ 
-        availability: false, incoming: {key:"",identity:"",at:{tp:"span"}}, 
+        availability: false, incoming: {at:{tp:"span"}},
         nextPatchIndex: Date.now(), patches: [], observers: [] 
     }))
     const {elementWeakCache} = useMemo(()=>Transformer(transforms), [transforms])
