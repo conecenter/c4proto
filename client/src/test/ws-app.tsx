@@ -7,30 +7,22 @@ import {doCreateRoot,useIsolatedFrame} from "../main/frames"
 import {useSyncRoot,useSyncSimple,useLocation,identityAt,Transforms,Identity} from "../main/sync"
 
 
-function TestSession({branchKey,userName,isOnline}:{branchKey:string,userName:string,isOnline:boolean}){
-    return <div>
-        User: {userName} {isOnline ? "online" : "offline"}<br/>
-        <ExampleFrame {...{branchKey,style:{width:"30%",height:"400px"}}} />
-    </div>
+function TestSessionList({sessions}:{sessions:{branchKey:string,userName:string,isOnline:boolean}[]}){
+    return <div>{sessions.map(({branchKey,userName,isOnline})=>(
+        <div>
+            User: {userName} {isOnline ? "online" : "offline"}<br/>
+            <ExampleFrame {...{branchKey,style:{width:"30%",height:"400px"}}} />
+        </div>
+    ))}</div>
 }
-function TestSessionList({sessions}:{sessions:React.ReactElement[]}){
-    return <div>{sessions}</div>
-}
-
 
 const commentsChangeIdOf = identityAt('commentsChange')
 const removeIdOf = identityAt('remove')
 const commentsFilterChangeIdOf = identityAt('commentsFilterChange')
 const addIdOf = identityAt('add')
-function ExampleTodoTask({commentsValue,identity}:{commentsValue:string,identity:Identity}){
-    return <tr>
-        <td key="comment"><ExampleInput value={commentsValue} identity={commentsChangeIdOf(identity)}/></td>
-        <td key="remove"><ExampleButton caption="x" identity={removeIdOf(identity)}/></td>
-    </tr>
-}
 function ExampleTodoTaskList(
     {commentsFilterValue,tasks,identity}:
-    {commentsFilterValue:string,tasks:React.ReactElement[],identity:Identity}
+    {commentsFilterValue:string,tasks:{commentsValue:string,identity:Identity}[],identity:Identity}
 ){
     return <table style={{border: "1px solid silver"}}><tbody>
         <tr>
@@ -38,7 +30,12 @@ function ExampleTodoTaskList(
             <td key="add"><ExampleButton caption="+" identity={addIdOf(identity)}/></td>
         </tr>
         <tr><th>Comments</th></tr>
-        {tasks}
+        {tasks.map(({commentsValue,identity})=>(
+        <tr>
+            <td key="comment"><ExampleInput value={commentsValue} identity={commentsChangeIdOf(identity)}/></td>
+            <td key="remove"><ExampleButton caption="x" identity={removeIdOf(identity)}/></td>
+        </tr>
+        ))}
     </tbody></table>
 }
 
@@ -125,6 +122,6 @@ function App({transforms,win}:{transforms:Transforms,win:Window}){
 
 declare var window: Window
 (()=>{
-    const transforms = {tp:{RootElement,ExampleTodoTaskList,ExampleTodoTask,ExampleInput,ExampleFrame,Availability,TestSessionList,TestSession}}
+    const transforms = {tp:{RootElement,ExampleTodoTaskList,TestSessionList}}
     doCreateRoot(window.document.body, <StrictMode><App transforms={transforms} win={window}/></StrictMode>)
 })()

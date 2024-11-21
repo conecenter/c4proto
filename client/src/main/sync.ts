@@ -10,7 +10,9 @@ const jsonParse = (data: string): unknown => JSON.parse(data)
 
 ////
 
-type Incoming = { at?: {}, [x: `@${string}`]: unknown[], [x: `:${string}`]: Incoming }
+type IncomingAt = ObjS<unknown> & {tp:string}
+type Incoming = { at: IncomingAt, [x: `@${string}`]: unknown[], [x: `:${string}`]: Incoming }
+const emptyIncoming: Incoming = {at:{tp:"span"}}
 export type Identity = string // identity is string, it should not change on patch, it's in many hook deps
 
 const isIncomingKey = (key: string): key is `:${string}` => key.startsWith(":")
@@ -20,8 +22,8 @@ const resolve = (identity: Identity, key: string) => identity+'/'+key
 export const ctxToPath = (ctx: Identity): string => ctx
 export const identityAt = (key: string): (identity: Identity)=>Identity => identity => resolve(identity, key)
 
-export const asObjectOrArray = (u: unknown): {}|unknown[] => typeof u === "object" && u ? u : assertNever("bad object")
-const update = (inc: Incoming|undefined, spec: ObjS<unknown>, pKey: string, pIdentity: string): Incoming => {
+const asObjectOrArray = (u: unknown): {}|unknown[] => typeof u === "object" && u ? u : assertNever("bad object")
+const update = (inc: Incoming, spec: ObjS<unknown>, pKey: string, pIdentity: string): Incoming => {
     const res = {...inc}
     Object.keys(spec).forEach(key=>{
         //console.log("U",key,spec[key])
@@ -29,22 +31,19 @@ const update = (inc: Incoming|undefined, spec: ObjS<unknown>, pKey: string, pIde
         const value = Array.isArray(sValue) ? sValue : sValue["$set"] ?? sValue
         const cIdentity = pIdentity === "root" ? "" : resolve(pIdentity, key)
         if(isIncomingKey(key)) 
-            res[key] = update(sValue !== value || !inc ? undefined : inc[key], asObject(value), key, cIdentity)
+            res[key] = update((sValue !== value || !inc ? undefined : inc[key]) ?? emptyIncoming, asObject(value), key, cIdentity)
         else if(isChildOrderKey(key)) res[key] = asArray(value)
-        else if(key === "at") res[key] = {...asObject(value), key: pKey, identity: cIdentity}
+        else if(key === "at") res[key] = {...emptyIncoming.at,...asObject(value), key: pKey, identity: cIdentity}
         else assertNever(`bad key in diff (${key})`)
     })
     return res
 }
 
-export type Transforms = { tp: TypeTransforms, eachNode?: (incoming: Incoming)=>Incoming }
-type TypeTransforms = { [K: string]: React.FC<any> }
+export type Transforms = { tp: TypeTransforms }
+type TypeTransforms = { [K: string]: React.FC<any>|string }
 const Transformer = (transforms: Transforms) => {
-    const activeTransforms: TypeTransforms = {AckElement,...transforms.tp}
-    const elementWeakCache: (props:Incoming)=>React.ReactElement  = weakCache((props:Incoming)=>{
-        const {at,...cProps} = transforms.eachNode ? transforms.eachNode(props) : props
-        const tp = asString(getKey(asObject(at), "tp"))
-        const constr = activeTransforms[tp] ?? tp
+    const activeTransforms: TypeTransforms = {span:"span",AckElement,...transforms.tp}
+    const elementWeakCache: (props:Incoming) => object = weakCache(({at:{tp,...at},...cProps}:Incoming)=>{
         const childAt: ObjS<React.ReactElement[]> = Object.fromEntries(Object.keys(cProps).map(key => {
             if(!isChildOrderKey(key)) return undefined
             const children = (cProps[key] ?? assertNever("never")).map(kU => {
@@ -53,7 +52,8 @@ const Transformer = (transforms: Transforms) => {
             })
             return [key.substring(1), children]
         }).filter(it => it !== undefined))
-        return createElement(constr,{...at,...childAt,tp}) // ? todo rm at.key
+        const constr = activeTransforms[tp]
+        return constr ? createElement(constr,{...at,...childAt}) : {tp,...at,...childAt}
     })
     return {elementWeakCache}
 }
@@ -199,7 +199,7 @@ export const useSyncRoot = (
     {sessionKey: string, branchKey: string, reloadBranchKey: ()=>void, isRoot: boolean, transforms: Transforms}
 ) => {
     const [{incoming, availability, patches, observers}, setState] = useState<SyncRootState>(()=>({ 
-        availability: false, incoming: {at:{tp:"span"}},
+        availability: false, incoming: emptyIncoming,
         nextPatchIndex: Date.now(), patches: [], observers: [] 
     }))
     const {elementWeakCache} = useMemo(()=>Transformer(transforms), [transforms])
@@ -215,7 +215,7 @@ export const useSyncRoot = (
     const provided: SyncContext = useMemo(()=>({enqueue,isRoot,win,doAck}), [enqueue,isRoot,win,doAck])
     const children = useMemo(()=>[
         createElement("span", {ref, key: "sync-ref"}),
-        incoming && createElement(SyncContext.Provider,{key: "sync-prov", value: provided, children: elementWeakCache(incoming)}),
+        createElement(SyncContext.Provider,{key: "sync-prov", value: provided, children: elementWeakCache(incoming)}),
     ], [provided,incoming,ref])
     return {children, enqueue, availability, branchKey}
 }
@@ -234,17 +234,10 @@ export const useSyncSimple = (incomingValue: string, identity: Identity) => {
 
 const locationChangeIdOf = identityAt('locationChange')
 export const useLocation = ({location: incomingValue, identity}:{location: string, identity: Identity}) => {
-    // console.log("II+",identity)
     const {value, setValue} = useSyncSimple(incomingValue, locationChangeIdOf(identity))
     const {isRoot,win} = useContext(SyncContext)
     const rootWin = isRoot ? win : undefined
     const location = rootWin?.location
-
-    // useEffect(()=>{console.log(`location`)}, [location])
-    // useEffect(()=>{console.log(`setValue`)}, [setValue])
-    // useEffect(()=>{console.log(`value`)}, [value])
-    // useEffect(()=>{console.log(`rootWin`)}, [rootWin])
-
     useEffect(()=>{
         if(location) setValue(location.href)
     }, [location, setValue])
