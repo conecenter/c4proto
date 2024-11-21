@@ -1,8 +1,6 @@
 
 import {createElement,useState,useCallback,useEffect,useContext,createContext,useMemo} from "./hooks"
-import {manageEventListener,weakCache,SetState,assertNever,getKey,asObject,asString} from "./util"
-
-type ObjS<T> = { [x: string]: T }
+import {manageEventListener,weakCache,SetState,assertNever,getKey,asObject,asString,ObjS,Identity,SetPatches,EnqueuePatch,Patch} from "./util"
 
 const asArray = (u: unknown): unknown[] => Array.isArray(u) ? u : assertNever("bad array")
 const asBoolean = (u: unknown) => typeof u === "boolean" ? u : assertNever("bad boolean")
@@ -13,7 +11,6 @@ const jsonParse = (data: string): unknown => JSON.parse(data)
 type IncomingAt = ObjS<unknown> & {tp:string}
 type Incoming = { at: IncomingAt, [x: `@${string}`]: unknown[], [x: `:${string}`]: Incoming }
 const emptyIncoming: Incoming = {at:{tp:"span"}}
-export type Identity = string // identity is string, it should not change on patch, it's in many hook deps
 
 const isIncomingKey = (key: string): key is `:${string}` => key.startsWith(":")
 const isChildOrderKey = (key: string): key is `@${string}` => key.startsWith("@")
@@ -109,16 +106,11 @@ const useWebSocket = ({win, url, stateToSend, onData, onIdle}: WebSocketParams &
 
 ////
 
-type SetPatches = (f: (was: Patch[])=>Patch[]) => void
-type UnsubmittedPatch = { skipByPath: boolean, value: string, headers?: ObjS<string> }
-type Patch = UnsubmittedPatch & { set: SetPatches, index: number, path: string }
-type PatchObserver = { path: string, set: SetPatches }
-type EnqueuePatch = (identity: Identity, patch: UnsubmittedPatch, set: SetPatches)=>void
 type AckPatches = (observerKey: string, index: number)=>void
 type SyncContext = {enqueue: EnqueuePatch, isRoot: boolean, win: Window|null, doAck: AckPatches}
 type SyncRootState = {
     incoming: Incoming, availability: boolean, observerKey?: string,
-    nextPatchIndex: number, patches: Patch[], observers: PatchObserver[]
+    nextPatchIndex: number, patches: Patch[], observed: Patch[]
 }
 
 const includes = <T>(big: ObjS<T>, small: ObjS<T>) => (
@@ -151,7 +143,7 @@ const serializeVals = (vs: Array<string|number>) => vs.map(v=>{
     return `-${v}`.replaceAll("\n","\n ")
 }).join("\n")
 const serializePatch = (patch: Patch) => {
-    const h: ObjS<string> = {...patch.headers, value: patch.value, "x-r-vdom-path": patch.path}
+    const h: ObjS<string> = {...patch.headers, value: patch.value, "x-r-vdom-path": ctxToPath(patch.identity)}
     return serializeVals(Object.keys(h).toSorted().flatMap(k => [k, h[k] ?? assertNever("never")]))
 }
 const serializePatches = (patches: Patch[]) => serializeVals(
@@ -163,49 +155,43 @@ const serializeState = (
     ["bs1", isRoot?"m":"s", branchKey, sessionKey, serializePatches(patches)]
 ) : ""
 
-const eqBy = <E>(was: E[], will: E[], by: (item: E)=>(string|number)) => (
-    JSON.stringify(was.map(by)) === JSON.stringify(will.map(by))
-)
-
+const getIndexStr = (patches: Patch[]) => patches.map(p => p.index).join(" ")
+const distinct = <T>(value: T, index: number, array: T[]): boolean => array.indexOf(value) === index
 const PatchManager = (setState: SetState<SyncRootState>) => {
-    const enqueue: EnqueuePatch = (identity, patch, set) => setState(was => {
-        const path = ctxToPath(identity)
+    const enqueue: EnqueuePatch = patch => setState(was => {
         const index = was.nextPatchIndex
-        const skip = (p: Patch) => p.skipByPath && p.path===path
-        const patches = [...was.patches.filter(p=>!skip(p)), {...patch,set,index,path}]
+        const skip = (p: Patch) => p.skipByPath && p.identity === patch.identity
+        const patches = [...was.patches.filter(p=>!skip(p)), {...patch,index}]
         return {...was, nextPatchIndex: was.nextPatchIndex+1, patches} 
     })
     const doAck: AckPatches = (observerKey, index) => setState(
         was => was.observerKey === observerKey ? {...was, patches: was.patches.filter(p=>p.index > index)} : was
     )
-    const notifyObservers = (patches: Patch[], observers: PatchObserver[]) => {
-        const patchesByPath = Object.groupBy<string,Patch>(patches, p=>p.path)
-        observers.forEach(observer => {
-            const will = patchesByPath[observer.path] ?? []
-            observer.set(was => eqBy(was, will, p => p.index) ? was : will)
+    const notifyObservers = (patches: Patch[], observed: Patch[]) => {
+        observed.map(p => p.set).filter(distinct).forEach(set => {
+            const will = patches.filter(p => p.set === set)
+            set(was => getIndexStr(was) === getIndexStr(will) ? was : will)
         })
-        const willObservers = Object.keys(patchesByPath).toSorted().map(path=>(
-            {path,set:(patchesByPath[path] ?? [])[0]?.set ?? assertNever("bad patch")}
-        ))
-        setState(was => eqBy(was.observers, willObservers, o=>o.path) ? was : {...was, observers: willObservers})
+        setState(was => was.observed === patches ? was : {...was, observed: patches})
     }
     return {enqueue, doAck, notifyObservers}
 }
 
+const initSyncRootState = (): SyncRootState => {
+    const patches: Patch[] = []
+    return { availability: false, incoming: emptyIncoming, nextPatchIndex: Date.now(), patches, observed: patches }
+}
 const failNoContext = () => { throw Error("no context") }
 const SyncContext = createContext<SyncContext>({ enqueue: failNoContext, isRoot: false, doAck: failNoContext, win: null })
 export const useSyncRoot = (
     {sessionKey,branchKey,reloadBranchKey,isRoot,transforms}:
     {sessionKey: string, branchKey: string, reloadBranchKey: ()=>void, isRoot: boolean, transforms: Transforms}
 ) => {
-    const [{incoming, availability, patches, observers}, setState] = useState<SyncRootState>(()=>({ 
-        availability: false, incoming: emptyIncoming,
-        nextPatchIndex: Date.now(), patches: [], observers: [] 
-    }))
+    const [{incoming, availability, patches, observed}, setState] = useState<SyncRootState>(initSyncRootState)
     const {elementWeakCache} = useMemo(()=>Transformer(transforms), [transforms])
     const {receive} = useMemo(()=>Receiver({branchKey, setState}), [branchKey, setState])
     const {enqueue, doAck, notifyObservers} = useMemo(()=>PatchManager(setState), [setState])
-    useEffect(() => notifyObservers(patches, observers), [notifyObservers, patches, observers])
+    useEffect(() => notifyObservers(patches, observed), [notifyObservers, patches, observed])
     const stateToSend = useMemo(() => serializeState({
         isRoot,sessionKey,branchKey,patches
     }),[isRoot,sessionKey,branchKey,patches])
@@ -225,7 +211,7 @@ export const useSyncSimple = (incomingValue: string, identity: Identity) => {
     const [patches, setPatches] = useState<Patch[]>([])
     const {enqueue} = useContext(SyncContext)
     const setValue = useCallback((v: string) => {
-        enqueue(identity, {value: v, skipByPath: true}, setPatches)
+        enqueue({identity, value: v, skipByPath: true, set: setPatches})
     }, [enqueue, identity, setPatches])
     const patch = patches.slice(-1)[0]
     const value = patch ? patch.value : incomingValue

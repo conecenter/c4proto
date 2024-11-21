@@ -154,3 +154,48 @@ trait TestSessionEl extends ToChildPair
     List(res.toChildPair)
   }
 }
+
+////////////////////////////
+
+@protocol("TestTodoApp") object TestCanvasProtocol   {
+  @Id(0x0008) case class B_TestCanvasState(
+    @Id(0x0009) srcId: String,
+    @Id(0x000A) sizes: String
+  )
+}
+
+trait ExampleFigureEl extends ToChildPair
+@c4tags("TestTodoApp") trait ExampleCancasTags[C] {
+  @c4el("ExampleFigure") def figure(key: String, offset: Int, activate: Receiver[C]): ExampleFigureEl
+  @c4el("ExampleCanvas") def canvas(
+    key: String, sizesValue: String, sizesChange: Receiver[C], figures: ElList[ExampleFigureEl]
+  ): ToChildPair
+}
+
+@c4("TestTodoApp") final case class TestCanvasView(locationHash: String = "rectangle")(
+  untilPolicy: UntilPolicy,
+  getTestCanvasState: GetByPK[B_TestCanvasState],
+  exampleCancasTagsProvider: ExampleCancasTagsProvider,
+)(
+  exampleCancasTags: ExampleCancasTags[Context] =  exampleCancasTagsProvider.get[Context]
+) extends ByLocationHashView with ViewUpdater {
+  import TestCanvasView._
+  val rc: ViewAction => Receiver[Context] = updatingReceiverFactory.create(this, _)
+  def view: Context => ViewRes = untilPolicy.wrap { local =>
+    val sessionKey = CurrentSessionKey.of(local)
+    val sizes = getTestCanvasState.ofA(local).get(sessionKey).fold("")(_.sizes)
+    val res = exampleCancasTags.canvas("testCanvas", sizes, rc(SizesChange(sessionKey)), List(
+      exampleCancasTags.figure("0",  0, rc(Activate("0"))),
+      exampleCancasTags.figure("1", 50, rc(Activate("1"))),
+    ))
+    List(res.toChildPair)
+  }
+  def receive: Handler = value => _ => {
+    case SizesChange(sessionKey) => update(B_TestCanvasState(sessionKey, value))
+    case Activate(id) => println(s"$id activated"); Nil
+  }
+}
+object TestCanvasView {
+  private case class SizesChange(sessionKey: String) extends ViewAction
+  private case class Activate(id: String) extends ViewAction
+}

@@ -11,6 +11,7 @@ interface String {
     replaceAll(searchValue: string | RegExp, replaceValue: string): string;
     startsWith(searchString: string, position?: number): boolean
     substring(start: number, end?: number): string
+    split(by: string): string[]
 }
 declare function parseInt(string: string, radix?: number): number
 
@@ -34,15 +35,17 @@ interface Array<T> {
     [Symbol.iterator](): ArrayIterator<T>
     length: number
     every<S extends T>(predicate: (value: T, index: number, array: T[]) => value is S): this is S[]
-    every(predicate: (value: T, index: number, array: T[]) => boolean, thisArg?: any): boolean
+    every(predicate: (value: T, index: number, array: T[]) => boolean): boolean
     filter<S extends T>(predicate: (value: T, index: number, array: T[]) => value is S): S[]
-    filter(predicate: (value: T, index: number, array: T[]) => boolean, thisArg?: any): T[]
+    filter(predicate: (value: T, index: number, array: T[]) => boolean): T[]
     flatMap<U>(callback: (value: T, index: number, array: T[]) => U | U[]): U[]
     forEach(callbackfn: (value: T, index: number, array: T[]) => void): void
+    indexOf(value: T): number
     join(separator: string): string
     map<U>(callbackfn: (value: T, index: number, array: T[]) => U): U[]
     reduce<U>(callbackfn: (previousValue: U, currentValue: T, currentIndex: number, array: T[]) => U, initialValue: U): U
     slice(start?: number, end?: number): T[]
+    some(predicate: (value: T, index: number, array: T[]) => boolean): boolean
     toSorted(compareFn?: (a: T, b: T) => number): T[]
 }
 declare var Array: {

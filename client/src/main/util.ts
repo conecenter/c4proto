@@ -21,8 +21,6 @@ export const weakCache = <K extends object,V>(f: (key: K)=>V): (key: K)=>V => {
     }
 }
 
-export type SetState<S> = (f: (was: S) => S) => void
-
 export const assertNever = (m: string) => { throw Error(m) }
 
 export const manageAnimationFrame = (element: HTMLElement, callback: ()=>void) => {
@@ -40,3 +38,11 @@ export const manageAnimationFrame = (element: HTMLElement, callback: ()=>void) =
 export const getKey = (o: { [K: string]: unknown }, k: string): unknown => k in o ? o[k] : assertNever(`no key (${k})`)
 export const asObject = (u: unknown): {} => typeof u === "object" && u !== null && !Array.isArray(u) ? u : assertNever("bad object")
 export const asString = (u: unknown) => typeof u === "string" ? u : assertNever("bad string")
+
+export type ObjS<T> = { [x: string]: T }
+export type SetState<S> = (f: (was: S) => S) => void
+export type Identity = string // identity is string, it should not change on patch, it's in many hook deps
+export type UnsubmittedPatch = { identity: Identity, set: SetPatches, skipByPath: boolean, value: string, headers?: ObjS<string> }
+export type Patch = UnsubmittedPatch & { index: number }
+export type SetPatches = (f: (was: Patch[])=>Patch[]) => void
+export type EnqueuePatch = (patch: UnsubmittedPatch) => void

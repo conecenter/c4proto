@@ -2,9 +2,28 @@
 import React from "react"
 import {StrictMode} from "react"
 import {useState,useCallback,useContext,createContext,useMemo} from "../main/hooks"
+import {Identity} from "../main/util"
 import {useSession,login} from "../main/session"
 import {doCreateRoot,useIsolatedFrame} from "../main/frames"
-import {useSyncRoot,useSyncSimple,useLocation,identityAt,Transforms,Identity} from "../main/sync"
+import {useSyncRoot,useSyncSimple,useLocation,identityAt,Transforms} from "../main/sync"
+
+
+/*
+  height(512),widthAll
+
+    path(key,
+      Rect(10+offset,20,30,40),
+      GotoClick(key),
+      FillStyle("rgb(255,0,0)"), StrokeStyle("#000000"),
+      path("3",
+        Translate(0,50), Rotate(0.1),
+        path("3",Rect(0,0,20,20),FillStyle("rgb(0,0,0)"))
+      ),
+      path("4")
+    )
+  CanvasToJson.appendCanvasJson, PathFactory
+
+}*/
 
 
 function TestSessionList({sessions}:{sessions:{branchKey:string,userName:string,isOnline:boolean}[]}){

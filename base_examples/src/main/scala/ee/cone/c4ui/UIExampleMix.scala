@@ -7,30 +7,11 @@ import ee.cone.c4actor_repl_impl.SSHDebugApp
 import ee.cone.c4di.c4app
 import ee.cone.c4gate.{AlienProtocolApp, AuthOperationsApp, AuthProtocolApp, AvailabilityApp, EventLogApp, ManagementApp, MergingSnapshotApp, PublisherApp, PublishingCompApp, RemoteRawSnapshotApp, SessionAttrCompApp, SessionUtilApp}
 
-trait CanvasAppBase
-
 trait TestTagsAppBase
 
 trait ReactHtmlAppBase
 
 trait TestTxLogAppBase
-
-@c4app class TestCanvasAppBase extends ServerCompApp
-  with EnvConfigCompApp with VMExecutionApp
-  with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp
-  with UICompApp
-  with TestTagsApp
-  with CanvasApp
-  with NoAssembleProfilerCompApp
-  with ManagementApp with PublishingCompApp
-  with RemoteRawSnapshotApp
-  with PublicViewAssembleApp
-  with ModelAccessFactoryCompApp
-  with SessionAttrCompApp
-  with MortalFactoryCompApp
-  with BasicLoggingApp
-  with ReactHtmlApp
 
 // TestTxLogApp MergingSnapshotApp SSHDebugApp
 
