@@ -1,5 +1,5 @@
 
-import {createElement,useEffect,createContext,useContext,useMemo,useState} from "./hooks"
+import {createElement,useEffect,useMemo,useState} from "./hooks"
 import {weakCache,manageAnimationFrame,assertNever,Identity,Patch,EnqueuePatch, mergeSimple, ObjS} from "./util"
 
 const Buffer = <T>(): [()=>T[], (...items: T[])=>void] => {
@@ -29,10 +29,14 @@ type C4Canvas = {
     remove(): void
 }
 type CanvasOptions = {[K:string]:unknown}
-type CanvasFactory = (opt: CanvasOptions)=>C4Canvas
-type CanvasContext = { isRoot: boolean, canvasFactory: CanvasFactory|null, enqueue: EnqueuePatch|null }
-export const CanvasContext = 
-    createContext<CanvasContext>({isRoot:false/*isRoot*/, canvasFactory: null, enqueue: null})
+export type CanvasFactory = (opt: CanvasOptions)=>C4Canvas
+export type CanvasBranchContext = { 
+    isRoot: boolean, enqueue: EnqueuePatch 
+    appContext: { canvasFactory: CanvasFactory}, 
+}
+type CanvasProps = CanvasPart & {
+    context: CanvasBranchContext, isGreedy: boolean, value: string, style: {[K:string]:string}, options: CanvasOptions
+}
 
 const replaceArrayTree = (root: unknown[], replace: (item: unknown)=>unknown) => {
     const traverse = (arr: unknown[]): unknown[] => {
@@ -66,7 +70,7 @@ const gatherDataFromPathTree = weakCache((prop: CanvasPart): [CanvasCommands,{[K
         node.commandsFinally && addCommands(...node.commandsFinally)
     }
     traverse(prop)
-    return [takeCommands(),Object.fromEntries(takeColors)]
+    return [takeCommands(),Object.fromEntries(takeColors())]
 })
 
 const parseValue = (value: string) => {
@@ -74,20 +78,16 @@ const parseValue = (value: string) => {
     return {cmdUnitsPerEMZoom,aspectRatioX,aspectRatioY,pxMapH}
 }
 
-type CanvasProps = CanvasPart & {
-    isGreedy: boolean, value: string, style: {[K:string]:string}, options: CanvasOptions
-}
-
 export const Canvas = (prop:CanvasProps) => {
-    const {isGreedy, style: argStyle, options} = prop
+    const {context, isGreedy, style: argStyle, options} = prop
     const [parentNode, ref] = useState()
     const [sizePatches, setSizePatches] = useState<Patch[]>([])
     const [actPatches, setActPatches] = useState<Patch[]>([])
-    const {isRoot, canvasFactory, enqueue} = useContext(CanvasContext)
-    const canvas = useMemo(()=>canvasFactory && canvasFactory(options||{}), [canvasFactory, options])
+    const {isRoot, appContext: {canvasFactory}, enqueue} = context
+    const canvas = useMemo(()=>canvasFactory(options||{}), [canvasFactory, options])
     const value = mergeSimple(prop.value, sizePatches)
     useEffect(()=>{
-        if(!parentNode || !canvas || !enqueue) return
+        if(!parentNode || !canvas) return
         const [commands,colorToContext] = gatherDataFromPathTree(prop)
         const onChange = ({target:{value}}:{target:{value:string}}) => {
             enqueue({value, skipByPath: true, identity: prop.identity, set: setSizePatches})

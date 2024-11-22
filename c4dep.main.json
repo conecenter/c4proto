@@ -15,7 +15,7 @@
   ["C4GENERATOR_MAIN", "ee.cone.c4generator.Main", "generator.ee.cone.c4generator" ],
 
   ["C4CLIENT", "c4p", "client" ],
-  ["C4CLIENT_APP", "ws-app", "c4p/test/ws-app.tsx"],
+  ["C4CLIENT_APP", "ws-app", "c4p/test/ws-app.js"],
 
   ["C4SRC", "generator", "generator/src/main/scala" ],
   ["C4SRC", "base_lib", "base_lib/src/main/scala" ],

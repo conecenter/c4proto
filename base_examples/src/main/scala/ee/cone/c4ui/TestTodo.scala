@@ -10,7 +10,7 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{by, c4assemble}
 import ee.cone.c4di.{c4, c4multi}
 import ee.cone.c4gate.AuthProtocol.C_PasswordHashOfUser
-import ee.cone.c4gate.{AuthOperations, PublishFromStringsProvider, SessionListUtil}
+import ee.cone.c4gate.{AuthOperations, PublishFromStringsProvider, SessionListUtil, CurrentSessionKey}
 import ee.cone.c4ui.TestTodoProtocol.{B_TodoTask, B_TodoTaskComments, B_TodoTaskCommentsContains}
 import ee.cone.c4proto._
 import ee.cone.c4vdom.Types._
@@ -163,6 +163,7 @@ trait TestSessionEl extends ToChildPair
     @Id(0x000A) sizes: String
   )
 }
+import TestCanvasProtocol.B_TestCanvasState
 
 trait ExampleFigureEl extends ToChildPair
 @c4tags("TestTodoApp") trait ExampleCancasTags[C] {
@@ -173,6 +174,7 @@ trait ExampleFigureEl extends ToChildPair
 }
 
 @c4("TestTodoApp") final case class TestCanvasView(locationHash: String = "rectangle")(
+  updatingReceiverFactory: UpdatingReceiverFactory,
   untilPolicy: UntilPolicy,
   getTestCanvasState: GetByPK[B_TestCanvasState],
   exampleCancasTagsProvider: ExampleCancasTagsProvider,

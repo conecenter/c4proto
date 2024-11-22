@@ -12,7 +12,7 @@ import ee.cone.c4di.{c4, c4multi}
 import ee.cone.c4gate.AlienProtocol.U_FromAlienState
 import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
 import ee.cone.c4gate.{BranchWish, EventLogUtil, FromAlienWishUtil, SessionUtil}
-import ee.cone.c4vdom.Types.ViewRes
+import ee.cone.c4vdom.Types.{ElList, ViewRes}
 import ee.cone.c4vdom._
 import ee.cone.c4vdom_impl.VPair
 import okio.ByteString
@@ -135,11 +135,10 @@ case class VDomMessageImpl(wish: BranchWish, headerMap: Map[String, String]) ext
     val (children, failure) = catchNonFatal{ (viewOpt.fold(Nil:ViewRes)(_.view(local)), "") }("view failed"){ err =>
       (Nil, err match { case b: BranchError => b.message(local) case _ => "Internal Error" })
     }
-    val ackEls = fromAlienWishUtil.ackList(local, branchKey)
-      .map{ case (k,v) => rootTags.ackElement(k,k,v.toString).toChildPair }
+    val ackEls = fromAlienWishUtil.ackList(local, branchKey).map{ case (k,v) => rootTags.ackElement(k,k,v.toString) }
     val nextDom = rootTags.rootElement(
-      key = "root", location = location, locationChange = locationChange, failure = failure,
-      children = children ++ ackEls,
+      key = "root", location = location, locationChange = locationChange, failure = failure, ackList = ackEls,
+      children = children,
     ).toChildPair.asInstanceOf[VPair].value
     val res = vDomHandler.postView(preViewRes, nextDom)
     val seeds = res.seeds.collect{ case r: N_BranchResult => r }
@@ -187,9 +186,11 @@ case class VDomMessageImpl(wish: BranchWish, headerMap: Map[String, String]) ext
   }
 }
 
+trait AckEl extends ToChildPair
 @c4tags("UICompApp") trait RootTags[C] {
   @c4el("RootElement") def rootElement(
-    key: String, location: String, locationChange: Receiver[C], failure: String, children: ViewRes,
+    key: String, location: String, locationChange: Receiver[C], failure: String,
+    ackList: ElList[AckEl], children: ViewRes,
   ): ToChildPair
-  @c4el("AckElement") def ackElement(key: String, observerKey: String, indexStr: String): ToChildPair
+  @c4el("AckElement") def ackElement(key: String, observerKey: String, indexStr: String): AckEl
 }

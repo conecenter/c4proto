@@ -1,5 +1,5 @@
 
-import {createElement,useState,useCallback,useEffect,useContext,createContext,useMemo} from "./hooks"
+import {createElement,useState,useCallback,useEffect,useMemo} from "./hooks"
 import {manageEventListener,weakCache,SetState,assertNever,getKey,asObject,asString,ObjS,Identity,mergeSimple,EnqueuePatch,Patch} from "./util"
 
 const asArray = (u: unknown): unknown[] => Array.isArray(u) ? u : assertNever("bad array")
@@ -36,10 +36,8 @@ const update = (inc: Incoming, spec: ObjS<unknown>, pKey: string, pIdentity: str
     return res
 }
 
-export type Transforms = { tp: TypeTransforms }
-type TypeTransforms = { [K: string]: React.FC<any>|string }
-const Transformer = (transforms: Transforms) => {
-    const activeTransforms: TypeTransforms = {span:"span",AckElement,...transforms.tp}
+export type TypeTransforms = { [K: string]: React.FC<any>|string }
+const Transformer = (transforms: TypeTransforms) => {
     const elementWeakCache: (props:Incoming) => object = weakCache(({at:{tp,...at},...cProps}:Incoming)=>{
         const childAt: ObjS<React.ReactElement[]> = Object.fromEntries(Object.keys(cProps).map(key => {
             if(!isChildOrderKey(key)) return undefined
@@ -49,7 +47,7 @@ const Transformer = (transforms: Transforms) => {
             })
             return [key.substring(1), children]
         }).filter(it => it !== undefined))
-        const constr = activeTransforms[tp]
+        const constr = transforms[tp]
         return constr ? createElement(constr,{...at,...childAt}) : {tp,...at,...childAt}
     })
     return {elementWeakCache}
@@ -107,7 +105,6 @@ const useWebSocket = ({win, url, stateToSend, onData, onIdle}: WebSocketParams &
 ////
 
 type AckPatches = (observerKey: string, index: number)=>void
-type SyncContext = {enqueue: EnqueuePatch, isRoot: boolean, win: Window|null, doAck: AckPatches}
 type SyncRootState = {
     incoming: Incoming, availability: boolean, observerKey?: string,
     nextPatchIndex: number, patches: Patch[], observed: Patch[]
@@ -177,50 +174,57 @@ const PatchManager = (setState: SetState<SyncRootState>) => {
     return {enqueue, doAck, notifyObservers}
 }
 
+export const useMemoObj = <T extends ObjS<unknown>>(obj: T) => {
+    const keys = Object.keys(obj).toSorted()
+    return useMemo(()=>obj, [keys.join(" "), ...keys.map(k=>obj[k])])
+}
+
 const initSyncRootState = (): SyncRootState => {
     const patches: Patch[] = []
     return { availability: false, incoming: emptyIncoming, nextPatchIndex: Date.now(), patches, observed: patches }
 }
-const failNoContext = () => { throw Error("no context") }
-const SyncContext = createContext<SyncContext>({ enqueue: failNoContext, isRoot: false, doAck: failNoContext, win: null })
-export const useSyncRoot = (
-    {sessionKey,branchKey,reloadBranchKey,isRoot,transforms}:
-    {sessionKey: string, branchKey: string, reloadBranchKey: ()=>void, isRoot: boolean, transforms: Transforms}
-) => {
+
+export type PreLoginBranchContext = { appContext: { typeTransforms: TypeTransforms }, win: Window }
+export type PreSyncBranchContext = 
+    PreLoginBranchContext & { sessionKey: string, isRoot: boolean, branchKey: string, reloadBranchKey: ()=>void }
+export type SyncBranchContext = PreSyncBranchContext & { enqueue: EnqueuePatch, doAck: AckPatches }
+
+export const useSyncRoot = ({sessionKey,branchKey,reloadBranchKey,isRoot,win,appContext}:PreSyncBranchContext) => {
+    const {typeTransforms} = appContext
     const [{incoming, availability, patches, observed}, setState] = useState<SyncRootState>(initSyncRootState)
-    const {elementWeakCache} = useMemo(()=>Transformer(transforms), [transforms])
+    const {elementWeakCache} = useMemo(()=>Transformer(typeTransforms), [typeTransforms])
     const {receive} = useMemo(()=>Receiver({branchKey, setState}), [branchKey, setState])
     const {enqueue, doAck, notifyObservers} = useMemo(()=>PatchManager(setState), [setState])
     useEffect(() => notifyObservers(patches, observed), [notifyObservers, patches, observed])
-    const stateToSend = useMemo(() => serializeState({
-        isRoot,sessionKey,branchKey,patches
-    }),[isRoot,sessionKey,branchKey,patches])
-    const [element, ref] = useState<HTMLElement>()
-    const win = element?.ownerDocument.defaultView ?? null
+    const stateToSerialize = useMemoObj({isRoot,sessionKey,branchKey,patches})
+    const stateToSend = useMemo(() => serializeState(stateToSerialize),[stateToSerialize])
     useWebSocket({ url: "/eventlog", stateToSend, onData: receive, onIdle: reloadBranchKey, win })
-    const provided: SyncContext = useMemo(()=>({enqueue,isRoot,win,doAck}), [enqueue,isRoot,win,doAck])
-    const children = useMemo(()=>[
-        createElement("span", {ref, key: "sync-ref"}),
-        createElement(SyncContext.Provider,{key: "sync-prov", value: provided, children: elementWeakCache(incoming)}),
-    ], [provided,incoming,ref])
-    return {children, enqueue, availability, branchKey}
+    const children = elementWeakCache(incoming)
+    return {children, enqueue, doAck, availability}
 }
 
 
-export const useSyncSimple = (identity: Identity): [Patch[], (value: string)=>void] => {
+export const useSyncSimple = (context: SyncBranchContext, identity: Identity): [Patch[], (value: string)=>void] => {
     const [patches, setPatches] = useState<Patch[]>([])
-    const {enqueue} = useContext(SyncContext)
+    const {enqueue} = context
     const setValue = useCallback((v: string) => {
         enqueue({identity, value: v, skipByPath: true, set: setPatches})
     }, [enqueue, identity, setPatches])
     return [patches, setValue]
 }
 
+type AckList = {observerKey: string, indexStr: string}[]
+type UseLocationArgs = {context: SyncBranchContext, location: string, identity: Identity}
+type UseAckListArgs = {context: SyncBranchContext, ackList?: AckList}
+export type RootElementProps = {
+    location: string, identity: Identity, failure: string, ackList: AckList, children: React.ReactElement[]
+}
+
 const locationChangeIdOf = identityAt('locationChange')
-export const useLocation = ({location: incomingValue, identity}:{location: string, identity: Identity}) => {
-    const [patches, setValue] = useSyncSimple(locationChangeIdOf(identity))
+const useLocation = ({context, location: incomingValue, identity}: UseLocationArgs) => {
+    const [patches, setValue] = useSyncSimple(context, locationChangeIdOf(identity))
     const value = mergeSimple(incomingValue, patches)
-    const {isRoot,win} = useContext(SyncContext)
+    const {isRoot,win} = context
     const rootWin = isRoot ? win : undefined
     const location = rootWin?.location
     useEffect(()=>{
@@ -233,9 +237,11 @@ export const useLocation = ({location: incomingValue, identity}:{location: strin
         return !rootWin ? undefined : manageEventListener(rootWin, "hashchange", ev => setValue(ev.newURL))
     }, [rootWin,setValue])
 }
-
-const AckElement = ({observerKey, indexStr}:{observerKey: string, indexStr: string}): React.ReactElement[] => {
-    const {doAck} = useContext(SyncContext)
-    useEffect(()=>doAck(observerKey,parseInt(indexStr)), [doAck,observerKey,indexStr])
-    return []
+const useAckList = ({context,ackList}:UseAckListArgs) => {
+    const {doAck} = context
+    useEffect(() => ackList && ackList.forEach(a=>doAck(a.observerKey,parseInt(a.indexStr))), [doAck,ackList])
+}
+export const useRoot = (prop: UseLocationArgs & UseAckListArgs) => {
+    useLocation(prop)
+    useAckList(prop)
 }

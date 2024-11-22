@@ -20,7 +20,9 @@ declare var Symbol: {
 }
 
 interface Iterator<T,U=any,V=any> {}
-interface Iterable<T,U=any,V=any> {}
+interface Iterable<T,U=any,V=any> {
+    [Symbol.iterator](): Iterator<T,U,V>
+}
 
 declare var Object: {
     entries<T>(o: { [s: string]: T }): [string, T][]
@@ -34,6 +36,7 @@ interface Array<T> {
     [n: number]: T
     [Symbol.iterator](): ArrayIterator<T>
     length: number
+    at(index: number): T
     every<S extends T>(predicate: (value: T, index: number, array: T[]) => value is S): this is S[]
     every(predicate: (value: T, index: number, array: T[]) => boolean): boolean
     filter<S extends T>(predicate: (value: T, index: number, array: T[]) => value is S): S[]
