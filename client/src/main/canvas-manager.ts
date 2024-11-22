@@ -1,6 +1,6 @@
 
 import {createElement,useEffect,createContext,useContext,useMemo,useState} from "./hooks"
-import {weakCache,manageAnimationFrame,assertNever,Identity,Patch,EnqueuePatch} from "./util"
+import {weakCache,manageAnimationFrame,assertNever,Identity,Patch,EnqueuePatch, mergeSimple, ObjS} from "./util"
 
 const Buffer = <T>(): [()=>T[], (...items: T[])=>void] => {
     let finished = 0
@@ -22,7 +22,7 @@ type CanvasPart = {
 type CanvasState = {
     parentNode: Node, sizesSyncEnabled: boolean, canvas: C4Canvas, 
     parsed: CanvasProps & { commands: CanvasCommands }, 
-    sendToServer: (target: Patch, color: string) => void
+    sendToServer: (target: {headers: ObjS<string>}, color: string) => void
 }
 type C4Canvas = {
     checkActivate(state: CanvasState): void
@@ -77,18 +77,26 @@ const parseValue = (value: string) => {
 type CanvasProps = CanvasPart & {
     isGreedy: boolean, value: string, style: {[K:string]:string}, options: CanvasOptions
 }
+
 export const Canvas = (prop:CanvasProps) => {
-    const {isGreedy, value, style: argStyle, options} = prop
-    const [patches, setPatches] = useState<Patch[]>([])
+    const {isGreedy, style: argStyle, options} = prop
     const [parentNode, ref] = useState()
+    const [sizePatches, setSizePatches] = useState<Patch[]>([])
+    const [actPatches, setActPatches] = useState<Patch[]>([])
     const {isRoot, canvasFactory, enqueue} = useContext(CanvasContext)
     const canvas = useMemo(()=>canvasFactory && canvasFactory(options||{}), [canvasFactory, options])
+    const value = mergeSimple(prop.value, sizePatches)
     useEffect(()=>{
         if(!parentNode || !canvas || !enqueue) return
         const [commands,colorToContext] = gatherDataFromPathTree(prop)
-        const parsed = {...prop,commands}
-        const sendToServer = 
-            (patch: Patch, color: string) => colorToContext[color] && enqueue(colorToContext[color], patch, setPatches) //?move closure
+        const onChange = ({target:{value}}:{target:{value:string}}) => {
+            enqueue({value, skipByPath: true, identity: prop.identity, set: setSizePatches})
+        }
+        const parsed = {...prop,commands,value,onChange}
+        const sendToServer = (patch: {headers: ObjS<string>}, color: string) => {
+            if(!colorToContext[color]) return
+            enqueue({value: "", skipByPath: false, ...patch, identity: colorToContext[color], set: setActPatches}) //?move closure
+        }
         const state = {parentNode,sizesSyncEnabled:isRoot,canvas,parsed,sendToServer}
         return manageAnimationFrame(parentNode, ()=>canvas.checkActivate(state))
     })

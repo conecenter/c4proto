@@ -46,3 +46,8 @@ export type UnsubmittedPatch = { identity: Identity, set: SetPatches, skipByPath
 export type Patch = UnsubmittedPatch & { index: number }
 export type SetPatches = (f: (was: Patch[])=>Patch[]) => void
 export type EnqueuePatch = (patch: UnsubmittedPatch) => void
+
+export const mergeSimple = (value: string, patches: Patch[]): string => {
+    const patch = patches.slice(-1)[0]
+    return patch ? patch.value : value
+}

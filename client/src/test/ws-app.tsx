@@ -2,14 +2,36 @@
 import React from "react"
 import {StrictMode} from "react"
 import {useState,useCallback,useContext,createContext,useMemo} from "../main/hooks"
-import {Identity} from "../main/util"
+import {Identity, mergeSimple} from "../main/util"
 import {useSession,login} from "../main/session"
 import {doCreateRoot,useIsolatedFrame} from "../main/frames"
 import {useSyncRoot,useSyncSimple,useLocation,identityAt,Transforms} from "../main/sync"
+import {Canvas} from "../main/canvas-manager"
 
+const sizesChangeIdOf = identityAt('sizesChange')
+function ExampleCanvas({sizesValue,identity,figures}:{sizesValue: string, identity: Identity, figures: {offset: number, identity: Identity}[]}){
 
+    const cProps = {
+        value: sizesValue, identity: sizesChangeIdOf(identity), style: {width:"100%",height:"512px"},
+        width: 100, height: 100, options: {noOverlay:false}, zoomSteps: 4096, minCmdUnitsPerEMZoom: 0, initialFit: "x", isGreedy: true,
+        commands: [
+            [], "setMainContext",
+            [], "save",
+
+        ],
+        commandsFinally: [
+            [], "setMainContext",
+            [], "restore",
+        ],
+    }
+    
+
+    //commands, commandsFinally, children
+    return <Canvas {...cProps}/>
+}
 /*
-  height(512),widthAll
+
+
 
     path(key,
       Rect(10+offset,20,30,40),
@@ -62,7 +84,7 @@ const DIContext = createContext<{transforms:Transforms,sessionKey?:string}>({tra
 const AvailabilityContext = createContext(false)
 
 function ExampleButton({caption, identity}:{caption:string,identity:Identity}){
-    const {setValue, patches} = useSyncSimple("", identity)
+    const [patches, setValue] = useSyncSimple(identity)
     const onClick = useCallback(() => setValue("1"), [setValue])
     const changing = patches.length > 0
     const backgroundColor = changing ? "yellow" : "white"
@@ -70,7 +92,8 @@ function ExampleButton({caption, identity}:{caption:string,identity:Identity}){
 }
 
 function ExampleInput({value: incomingValue, identity}:{value: string, identity: Identity}){
-    const {value, setValue, patches} = useSyncSimple(incomingValue, identity)
+    const [patches, setValue] = useSyncSimple(identity)
+    const value = mergeSimple(incomingValue, patches)
     const onChange = useCallback((ev: React.ChangeEvent<HTMLInputElement>) => setValue(ev?.target.value), [setValue])
     const changing = patches.length > 0
     const backgroundColor = changing ? "yellow" : "white"

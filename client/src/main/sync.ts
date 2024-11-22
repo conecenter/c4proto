@@ -1,6 +1,6 @@
 
 import {createElement,useState,useCallback,useEffect,useContext,createContext,useMemo} from "./hooks"
-import {manageEventListener,weakCache,SetState,assertNever,getKey,asObject,asString,ObjS,Identity,SetPatches,EnqueuePatch,Patch} from "./util"
+import {manageEventListener,weakCache,SetState,assertNever,getKey,asObject,asString,ObjS,Identity,mergeSimple,EnqueuePatch,Patch} from "./util"
 
 const asArray = (u: unknown): unknown[] => Array.isArray(u) ? u : assertNever("bad array")
 const asBoolean = (u: unknown) => typeof u === "boolean" ? u : assertNever("bad boolean")
@@ -207,20 +207,19 @@ export const useSyncRoot = (
 }
 
 
-export const useSyncSimple = (incomingValue: string, identity: Identity) => {
+export const useSyncSimple = (identity: Identity): [Patch[], (value: string)=>void] => {
     const [patches, setPatches] = useState<Patch[]>([])
     const {enqueue} = useContext(SyncContext)
     const setValue = useCallback((v: string) => {
         enqueue({identity, value: v, skipByPath: true, set: setPatches})
     }, [enqueue, identity, setPatches])
-    const patch = patches.slice(-1)[0]
-    const value = patch ? patch.value : incomingValue
-    return {value, setValue, patches}
+    return [patches, setValue]
 }
 
 const locationChangeIdOf = identityAt('locationChange')
 export const useLocation = ({location: incomingValue, identity}:{location: string, identity: Identity}) => {
-    const {value, setValue} = useSyncSimple(incomingValue, locationChangeIdOf(identity))
+    const [patches, setValue] = useSyncSimple(locationChangeIdOf(identity))
+    const value = mergeSimple(incomingValue, patches)
     const {isRoot,win} = useContext(SyncContext)
     const rootWin = isRoot ? win : undefined
     const location = rootWin?.location
