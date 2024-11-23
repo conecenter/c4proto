@@ -1,5 +1,5 @@
 
-import {useState,useMemo,useEffect} from "./hooks"
+import {useState,useMemo,useEffect} from "./react"
 import {manageEventListener,SetState,getKey,asObject,asString} from "./util"
 
 export const login = (win: Window, user: string, pass: string): Promise<string> => (

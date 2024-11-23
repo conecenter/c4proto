@@ -41,6 +41,7 @@ interface Array<T> {
     every(predicate: (value: T, index: number, array: T[]) => boolean): boolean
     filter<S extends T>(predicate: (value: T, index: number, array: T[]) => value is S): S[]
     filter(predicate: (value: T, index: number, array: T[]) => boolean): T[]
+    find(predicate: (value: T, index: number, array: T[]) => boolean): T|undefined
     flatMap<U>(callback: (value: T, index: number, array: T[]) => U | U[]): U[]
     forEach(callbackfn: (value: T, index: number, array: T[]) => void): void
     indexOf(value: T): number

@@ -1,6 +1,7 @@
 
-import {createElement,useEffect,useMemo,useState} from "./hooks"
-import {weakCache,manageAnimationFrame,assertNever,Identity,Patch,EnqueuePatch, mergeSimple, ObjS} from "./util"
+import {createElement,useEffect,useMemo,useState} from "./react"
+import { mergeSimple, patchFromValue, useSender, useSync } from "./sync-hooks"
+import {weakCache,manageAnimationFrame,assertNever,Identity,Patch,ObjS} from "./util"
 
 const Buffer = <T>(): [()=>T[], (...items: T[])=>void] => {
     let finished = 0
@@ -30,12 +31,11 @@ type C4Canvas = {
 }
 type CanvasOptions = {[K:string]:unknown}
 export type CanvasFactory = (opt: CanvasOptions)=>C4Canvas
-export type CanvasBranchContext = { 
-    isRoot: boolean, enqueue: EnqueuePatch 
-    appContext: { canvasFactory: CanvasFactory}, 
-}
+export type CanvasAppContext = { canvasFactory: CanvasFactory }
+
 type CanvasProps = CanvasPart & {
-    context: CanvasBranchContext, isGreedy: boolean, value: string, style: {[K:string]:string}, options: CanvasOptions
+    identity: Identity, appContext: CanvasAppContext, 
+    isGreedy: boolean, value: string, style: {[K:string]:string}, options: CanvasOptions
 }
 
 const replaceArrayTree = (root: unknown[], replace: (item: unknown)=>unknown) => {
@@ -79,28 +79,32 @@ const parseValue = (value: string) => {
 }
 
 export const Canvas = (prop:CanvasProps) => {
-    const {context, isGreedy, style: argStyle, options} = prop
+    const {identity, value: incomingValue, appContext, isGreedy, style: argStyle, options} = prop
+    const {canvasFactory} = appContext
     const [parentNode, ref] = useState()
-    const [sizePatches, setSizePatches] = useState<Patch[]>([])
-    const [actPatches, setActPatches] = useState<Patch[]>([])
-    const {isRoot, appContext: {canvasFactory}, enqueue} = context
-    const canvas = useMemo(()=>canvasFactory(options||{}), [canvasFactory, options])
-    const value = mergeSimple(prop.value, sizePatches)
+    const {enqueue,isRoot} = useSender()
+    const [sizePatches, enqueueSizePatch] = useSync(identity)
+    const value = mergeSimple(incomingValue, sizePatches)
+    const [canvas, setCanvas] = useState<C4Canvas|undefined>()
+    useEffect(()=>{
+        const canvas = canvasFactory(options||{})
+        setCanvas(canvas)
+        return ()=>{ canvas.remove() }
+    }, [canvasFactory, options])
     useEffect(()=>{
         if(!parentNode || !canvas) return
         const [commands,colorToContext] = gatherDataFromPathTree(prop)
         const onChange = ({target:{value}}:{target:{value:string}}) => {
-            enqueue({value, skipByPath: true, identity: prop.identity, set: setSizePatches})
+            enqueueSizePatch(patchFromValue(value))
         }
         const parsed = {...prop,commands,value,onChange}
         const sendToServer = (patch: {headers: ObjS<string>}, color: string) => {
             if(!colorToContext[color]) return
-            enqueue({value: "", skipByPath: false, ...patch, identity: colorToContext[color], set: setActPatches}) //?move closure
+            enqueue({value: "", skipByPath: false, ...patch, identity: colorToContext[color]}) //?move closure
         }
         const state = {parentNode,sizesSyncEnabled:isRoot,canvas,parsed,sendToServer}
         return manageAnimationFrame(parentNode, ()=>canvas.checkActivate(state))
     })
-    useEffect(()=>()=>{ canvas?.remove() }, [canvas])
     const style = isGreedy || !value ? argStyle : {...argStyle, height: parseValue(value).pxMapH+"px"}
     return createElement("div",{ style, ref },[])
 }

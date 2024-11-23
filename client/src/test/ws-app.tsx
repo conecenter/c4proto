@@ -1,17 +1,18 @@
 
-import React, { isValidElement } from "react"
+import React from "react"
 import {StrictMode} from "react"
-import {useState,useCallback,useContext,createContext,useMemo} from "../main/hooks"
-import {assertNever, Identity, mergeSimple, ObjS} from "../main/util"
+import {useState,useCallback,useMemo,useEffect,isValidElement,createElement} from "../main/react"
+import {assertNever, CreateNode, Identity, identityAt, ObjS} from "../main/util"
 import {useSession,login} from "../main/session"
 import {doCreateRoot,useIsolatedFrame} from "../main/frames"
-import {useSyncRoot,useSyncSimple,useRoot,identityAt,SyncBranchContext,RootElementProps,useMemoObj,PreSyncBranchContext,PreLoginBranchContext} from "../main/sync"
-import {Canvas,CanvasBranchContext,CanvasFactory} from "../main/canvas-manager"
+import {initSyncRootState, SyncRootState} from "../main/sync-root"
+import {Canvas,CanvasAppContext,CanvasFactory} from "../main/canvas-manager"
+import { AckContext, ABranchContext, LocationElement, useSync, patchFromValue, useSender, mergeSimple } from "../main/sync-hooks"
 
 const sizesChangeIdOf = identityAt('sizesChange')
 type ExampleFigure = {offset: number, identity: Identity}
-function ExampleCanvas({sizesValue,identity,figures}:{sizesValue: string, identity: Identity, figures: ExampleFigure[]}){
-    const context = useBranchContext()
+function ExampleCanvas({appContext,sizesValue,identity,figures}:{appContext: AppContext,sizesValue: string, identity: Identity, figures: ExampleFigure[]}){
+    
     const cmd = (...args: unknown[]) => [args.slice(0,-1),args.at(-1)]
     const rect = (x: number, y: number, w: number, h: number) => [
         ...cmd(x,y,"moveTo"), ...cmd(x+w,y,"lineTo"), ...cmd(x+w,y+h,"lineTo"), ...cmd(x,y+h,"lineTo"), ...cmd(x,y,"lineTo"),
@@ -53,7 +54,7 @@ function ExampleCanvas({sizesValue,identity,figures}:{sizesValue: string, identi
         ],
     })
     const cProps = {
-        context,
+        appContext,
         value: sizesValue, identity: sizesChangeIdOf(identity), style: {height:"100vh"},
         width: 100, height: 100, options: {noOverlay:false}, zoomSteps: 4096, minCmdUnitsPerEMZoom: 0, initialFit: "xy", isGreedy: true,
         commands: [], children: figures.map(figure), commandsFinally: [],
@@ -80,11 +81,11 @@ function ExampleCanvas({sizesValue,identity,figures}:{sizesValue: string, identi
 }*/
 
 
-function TestSessionList({sessions}:{sessions:{key:string,branchKey:string,userName:string,isOnline:boolean}[]}){
+function TestSessionList({appContext,sessions}:{appContext:AppContext,sessions:{key:string,branchKey:string,userName:string,isOnline:boolean}[]}){
     return <div>{sessions.map(({key,branchKey,userName,isOnline})=>(
         <div key={key}>
             User: {userName} {isOnline ? "online" : "offline"}<br/>
-            <ExampleFrame key="frame" {...{branchKey,style:{width:"30%",height:"400px"}}} />
+            <ExampleFrame key="frame" {...{appContext,branchKey,style:{width:"30%",height:"400px"}}} />
         </div>
     ))}</div>
 }
@@ -95,7 +96,7 @@ const commentsFilterChangeIdOf = identityAt('commentsFilterChange')
 const addIdOf = identityAt('add')
 function ExampleTodoTaskList(
     {commentsFilterValue,tasks,identity}:
-    {commentsFilterValue:string,tasks:{key:string,commentsValue:string,identity:Identity}[],identity:Identity}
+    {commentsFilterValue:string,tasks?:{key:string,commentsValue:string,identity:Identity}[],identity:Identity}
 ){
     return <table style={{border: "1px solid silver"}}><tbody>
         <tr>
@@ -103,7 +104,7 @@ function ExampleTodoTaskList(
             <td key="add"><ExampleButton caption="+" identity={addIdOf(identity)}/></td>
         </tr>
         <tr><th>Comments</th></tr>
-        {tasks.map(({key,commentsValue,identity})=>(
+        {(tasks??[]).map(({key,commentsValue,identity})=>(
         <tr key={key}>
             <td key="comment"><ExampleInput value={commentsValue} identity={commentsChangeIdOf(identity)}/></td>
             <td key="remove"><ExampleButton caption="x" identity={removeIdOf(identity)}/></td>
@@ -113,27 +114,27 @@ function ExampleTodoTaskList(
 }
 
 function ExampleButton({caption, identity}:{caption:string,identity:Identity}){
-    const context = useBranchContext()
-    const [patches, setValue] = useSyncSimple(context, identity)
-    const onClick = useCallback(() => setValue("1"), [setValue])
+    const [patches, enqueuePatch] = useSync(identity)
+    const onClick = useCallback(() => enqueuePatch(patchFromValue("1")), [enqueuePatch])
     const changing = patches.length > 0
     const backgroundColor = changing ? "yellow" : "white"
     return <input type="button" value={caption} onClick={onClick} style={{backgroundColor}} />
 }
 
 function ExampleInput({value: incomingValue, identity}:{value: string, identity: Identity}){
-    const context = useBranchContext()
-    const [patches, setValue] = useSyncSimple(context, identity)
+    const [patches, enqueuePatch] = useSync(identity)
     const value = mergeSimple(incomingValue, patches)
-    const onChange = useCallback((ev: React.ChangeEvent<HTMLInputElement>) => setValue(ev?.target.value), [setValue])
+    const onChange = useCallback((ev: React.ChangeEvent<HTMLInputElement>) => { 
+        enqueuePatch(patchFromValue(ev?.target.value)) 
+    }, [enqueuePatch])
     const changing = patches.length > 0
     const backgroundColor = changing ? "yellow" : "white"
     return <input type="text" value={value} onChange={onChange} style={{backgroundColor}} />
 }
 
 const noReloadBranchKey = ()=>{}
-function ExampleFrame({branchKey,style}:{branchKey:string,style:{[K:string]:string}}){
-    const {appContext,sessionKey} = useBranchContext()
+function ExampleFrame({appContext,branchKey,style}:{appContext:AppContext,branchKey:string,style:{[K:string]:string}}){
+    const {sessionKey} = useSender()
     const {ref,...props} = useIsolatedFrame(body => {
         const win = body.ownerDocument.defaultView ?? assertNever("no window")
         return <SyncRoot {...{appContext,sessionKey,branchKey,reloadBranchKey:noReloadBranchKey,isRoot:false,win}}/>
@@ -158,8 +159,7 @@ function Login({win,setSessionKey} : {win: Window, setSessionKey: (sessionKey?: 
     </div>
 }
 
-function Menu(){
-    const availability = useContext(AvailabilityContext)
+function Menu({availability}: {availability: boolean}){
     return <div>
         availability {availability?"yes":"no"} | 
         <a href="#todo">todo-list</a> | 
@@ -168,28 +168,36 @@ function Menu(){
     </div>
 }
 
-function RootElement({children, failure, ...prop}: RootElementProps){
-    const context = useBranchContext()
-    useRoot({...prop, context})
-    return [<Menu/>,...(children??[]), failure ? <div>VIEW FAILED: {failure}</div> : ""]
+type PreLoginBranchContext = { appContext: AppContext, win: Window }
+type PreSyncBranchContext = 
+     PreLoginBranchContext & { sessionKey: string, isRoot: boolean, branchKey: string, reloadBranchKey: ()=>void }
+
+function SyncRoot(prop: PreSyncBranchContext){
+    const { appContext, isRoot, sessionKey, branchKey, win, reloadBranchKey } = prop
+    const {createNode} = appContext
+    const [{manager, children, availability, ack, failure}, setState] = useState<SyncRootState>(initSyncRootState)
+    const {start, enqueue, stop} = manager
+    useEffect(()=>{
+        start({createNode, setState, isRoot, sessionKey, branchKey, win, reloadBranchKey})
+        return () => stop()
+    }, [start, createNode, setState, isRoot, sessionKey, branchKey, win, reloadBranchKey, stop])
+    const branchContextValue = useMemo(()=>({
+        branchKey, sessionKey, enqueue, isRoot, win
+    }),[
+        branchKey, sessionKey, enqueue, isRoot, win
+    ])
+    return <StrictMode>
+        <ABranchContext.Provider value={branchContextValue}>
+            <AckContext.Provider value={ack}>
+                <Menu key="menu" availability={availability}/>, 
+                {failure ? <div>VIEW FAILED: {failure}</div> : ""}
+                {isValidElement(children) ? children : []}
+            </AckContext.Provider>
+        </ABranchContext.Provider>
+    </StrictMode>
 }
 
-const AvailabilityContext = createContext(false)
-const useBranchContext = () => useContext(BranchContext) ?? assertNever("no DIContext")
-const BranchContext = createContext<BranchContext|undefined>(undefined)
-type AppBranchContext = { appContext: BranchContext['appContext'] }
-
-function SyncRoot(prop: AppBranchContext & PreSyncBranchContext){
-    const {children, enqueue, doAck, availability} = useSyncRoot(prop)
-    const provided = useMemoObj({...prop, enqueue, doAck})
-    return <BranchContext.Provider value={provided}>
-        <AvailabilityContext.Provider value={availability}>
-            {isValidElement(children) ? children : []}
-        </AvailabilityContext.Provider>
-    </BranchContext.Provider> 
-}
-
-function App({appContext,win}:AppBranchContext & PreLoginBranchContext){
+function App({appContext,win}:PreLoginBranchContext){
     const {sessionKey, setSessionKey, branchKey, reloadBranchKey} = useSession(win)
     return [
         sessionKey && branchKey ? <SyncRoot {...{
@@ -199,10 +207,18 @@ function App({appContext,win}:AppBranchContext & PreLoginBranchContext){
     ]
 }
 
-type BranchContext = SyncBranchContext & CanvasBranchContext
+type SyncAppContext = { createNode: CreateNode }
+type AppContext = CanvasAppContext & SyncAppContext
 
 export const main = ({win, canvasFactory}: {win: Window, canvasFactory: CanvasFactory }) => {
-    const typeTransforms = {span:"span",RootElement,ExampleTodoTaskList,TestSessionList,ExampleCanvas}
-    const appContext = {typeTransforms, canvasFactory}
-    doCreateRoot(win.document.body, <StrictMode><App appContext={appContext} win={win}/></StrictMode>)
+    const typeTransforms: ObjS<React.FC<any>|string> = {
+        span: "span", LocationElement, 
+        ExampleTodoTaskList, TestSessionList, ExampleCanvas
+    }
+    const createNode: CreateNode = ({tp,...at}, childAt) => {
+        return typeTransforms[tp] ? 
+            createElement(typeTransforms[tp], {appContext, ...at, ...childAt}) : {tp, ...at, ...childAt}
+    }
+    const appContext = {createNode, canvasFactory}
+    doCreateRoot(win.document.body, <App appContext={appContext} win={win}/>)
 }

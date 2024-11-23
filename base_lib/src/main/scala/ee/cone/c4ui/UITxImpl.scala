@@ -136,9 +136,9 @@ case class VDomMessageImpl(wish: BranchWish, headerMap: Map[String, String]) ext
       (Nil, err match { case b: BranchError => b.message(local) case _ => "Internal Error" })
     }
     val ackEls = fromAlienWishUtil.ackList(local, branchKey).map{ case (k,v) => rootTags.ackElement(k,k,v.toString) }
+    val locationEl = rootTags.location("location", location, locationChange).toChildPair
     val nextDom = rootTags.rootElement(
-      key = "root", location = location, locationChange = locationChange, failure = failure, ackList = ackEls,
-      children = children,
+      key = "root", failure = failure, ackList = ackEls, children = locationEl :: children,
     ).toChildPair.asInstanceOf[VPair].value
     val res = vDomHandler.postView(preViewRes, nextDom)
     val seeds = res.seeds.collect{ case r: N_BranchResult => r }
@@ -189,8 +189,8 @@ case class VDomMessageImpl(wish: BranchWish, headerMap: Map[String, String]) ext
 trait AckEl extends ToChildPair
 @c4tags("UICompApp") trait RootTags[C] {
   @c4el("RootElement") def rootElement(
-    key: String, location: String, locationChange: Receiver[C], failure: String,
-    ackList: ElList[AckEl], children: ViewRes,
+    key: String, failure: String, ackList: ElList[AckEl], children: ViewRes
   ): ToChildPair
   @c4el("AckElement") def ackElement(key: String, observerKey: String, indexStr: String): AckEl
+  @c4el("LocationElement") def location(key: String, value: String, change: Receiver[C]): ToChildPair
 }

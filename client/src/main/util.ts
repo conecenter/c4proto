@@ -42,12 +42,12 @@ export const asString = (u: unknown) => typeof u === "string" ? u : assertNever(
 export type ObjS<T> = { [x: string]: T }
 export type SetState<S> = (f: (was: S) => S) => void
 export type Identity = string // identity is string, it should not change on patch, it's in many hook deps
-export type UnsubmittedPatch = { identity: Identity, set: SetPatches, skipByPath: boolean, value: string, headers?: ObjS<string> }
+export type UnsubmittedPatch = { identity: Identity, skipByPath: boolean, value: string, headers?: ObjS<string> }
 export type Patch = UnsubmittedPatch & { index: number }
-export type SetPatches = (f: (was: Patch[])=>Patch[]) => void
-export type EnqueuePatch = (patch: UnsubmittedPatch) => void
+export type EnqueuePatch = (patch: UnsubmittedPatch) => number
+export type CreateNode = (at: ObjS<unknown> & {tp:string}, childAt: ObjS<unknown[]>)=>object
+export type BranchContext = { branchKey: string, sessionKey: string, enqueue: EnqueuePatch, isRoot: boolean, win:Window }
 
-export const mergeSimple = (value: string, patches: Patch[]): string => {
-    const patch = patches.slice(-1)[0]
-    return patch ? patch.value : value
-}
+export const resolve = (identity: Identity, key: string) => identity+'/'+key
+export const identityAt = (key: string): (identity: Identity)=>Identity => identity => resolve(identity, key)
+export const ctxToPath = (ctx: Identity): string => ctx

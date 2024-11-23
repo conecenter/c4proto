@@ -1,5 +1,5 @@
 
-import {useState,useEffect,createRoot} from "./hooks"
+import {useState,useEffect,createRoot} from "./react"
 import {manageAnimationFrame} from "./util"
 
 export const useIsolatedFrame = (makeChildren: (body: HTMLElement)=>React.ReactNode) => {
