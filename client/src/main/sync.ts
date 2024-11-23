@@ -55,60 +55,56 @@ const Transformer = (transforms: TypeTransforms) => {
 
 ////
 
-const manageInterval = (win: Window, handler: ()=>void, timeout: number) => {
-    const {setInterval, clearInterval} = win
-    handler()
-    const h = setInterval(handler, timeout)
-    return () => clearInterval(h)
+type ConnectionParams = {win: Window, url: string, onData: (value: string)=>void, stateToSend: ()=>string}
+const ReConnection = (args: ConnectionParams) => {
+    const {win} = args
+    let connection = Connection(args)
+    const hShort = win.setInterval(() => {
+        connection.ping()
+        if(connection.expired()){
+            connection.close()
+            connection = Connection(args)
+        }
+    }, 1000)
+    const hLong = win.setInterval(()=>connection.doSend(), 30000)
+    const close = () => {
+        win.clearInterval(hShort)
+        win.clearInterval(hLong)
+        connection.close()
+    }
+    const doSend = ()=>connection.doSend()
+    return {close, doSend}
 }
-
-type WebSocketState = {connectionCounter: number, ws?: WebSocket}
-type WebSocketParams = {url: string, onData: (value: string)=>void, onIdle: ()=>void, win: Window|null }
-const WebSocketManager = ({setState, url, onData, onIdle, win}: WebSocketParams & {setState: SetState<WebSocketState>}) => {
+const Connection = ({win,url,onData,stateToSend}:ConnectionParams) => {
+    let ready = false
     let wasAt = Date.now()
-    const check = () => {
-        if(Date.now() - wasAt > 5000){
-            onIdle()
-            setState(was => ({connectionCounter:was.connectionCounter+1}))
-        }
-    }
-    const onMessage = (ws: WebSocket, ev: MessageEvent) => {
+    const ping = () => ready && ws.send("")
+    const doSend = () => ready && ws.send(stateToSend())
+    const expired = () => Date.now() - wasAt > 5000
+    const onMessage = (ev: MessageEvent) => {
         if(ev.data && onData) onData(ev.data)
-        if(Date.now() - wasAt > 1000){
-            ws.send("")
-            wasAt = Date.now()
-        }
+        wasAt = Date.now()
     }
-    const manage = () => {
-        if(!win) return
-        const {WebSocket} = win
-        const ws = new WebSocket(url)
-        const unOpen = manageEventListener(ws, "open", ev => setState(was => ({...was,ws})))
-        const unMessage = manageEventListener(ws, "message", ev => onMessage(ws,ev))
-        return ()=>{
-            unOpen()
-            unMessage()
-            ws.close()
-        }
+    const onOpen = () => {
+        ready = true
+        doSend()
     }
-    return {manage,check}
+    const ws = new win.WebSocket(url)
+    ws.addEventListener("open", onOpen)
+    ws.addEventListener("message", onMessage)
+    const close = () => {
+        ws.removeEventListener("message", onMessage)
+        ws.removeEventListener("open", onOpen)
+        try { ws.close() } catch(e){ console.trace(e) }
+    }
+    return {close, doSend, ping, expired}
 }
 
-const useWebSocket = ({win, url, stateToSend, onData, onIdle}: WebSocketParams & {stateToSend: string })=>{
-    const [{ws,connectionCounter},setState] = useState<WebSocketState>({connectionCounter:0})
-    const {manage,check} = useMemo(()=>WebSocketManager({setState,url,onData,onIdle,win}),[setState,url,onData,onIdle,win])
-    useEffect(() => win ? manageInterval(win,check, 1000) : undefined, [win,check])
-    useEffect(() => manage(), [manage,connectionCounter])
-    useEffect(() => win ? manageInterval(win,()=>ws?.send(stateToSend), 30000) : undefined, [win, ws, stateToSend])
-}
 
 ////
 
-type AckPatches = (observerKey: string, index: number)=>void
-type SyncRootState = {
-    incoming: Incoming, availability: boolean, observerKey?: string,
-    nextPatchIndex: number, patches: Patch[], observed: Patch[]
-}
+type AckPatches = (index: number)=>void
+type SyncRootState = { incoming: Incoming, availability: boolean, observerKey?: string }
 
 const includes = <T>(big: ObjS<T>, small: ObjS<T>) => (
     Object.entries(small).every(([k,v]) => k in big && big[k] === v)
@@ -117,7 +113,7 @@ export const ifChanged = <T, S extends ObjS<T>>(f: ((was: S) => S)) => (was: S) 
     const will = f(was)
     return includes(will, was) && includes(was, will) ? was : will
 }
-const Receiver = ({branchKey, setState}: {branchKey: string, setState: SetState<SyncRootState>}) => {
+const Receiver = (setState: SetState<SyncRootState>) => {
     const receive = (data: string) => {
         const message = asObject(jsonParse(data))
         const log = asArray(getKey(message,"log"))
@@ -154,24 +150,28 @@ const serializeState = (
 
 const getIndexStr = (patches: Patch[]) => patches.map(p => p.index).join(" ")
 const distinct = <T>(value: T, index: number, array: T[]): boolean => array.indexOf(value) === index
-const PatchManager = (setState: SetState<SyncRootState>) => {
-    const enqueue: EnqueuePatch = patch => setState(was => {
-        const index = was.nextPatchIndex
+const PatchManager = () => {
+    let nextPatchIndex = Date.now()
+    let patches: Patch[] = []
+    let observed = patches
+    const enqueue: EnqueuePatch = patch => {
         const skip = (p: Patch) => p.skipByPath && p.identity === patch.identity
-        const patches = [...was.patches.filter(p=>!skip(p)), {...patch,index}]
-        return {...was, nextPatchIndex: was.nextPatchIndex+1, patches} 
-    })
-    const doAck: AckPatches = (observerKey, index) => setState(
-        was => was.observerKey === observerKey ? {...was, patches: was.patches.filter(p=>p.index > index)} : was
-    )
-    const notifyObservers = (patches: Patch[], observed: Patch[]) => {
-        observed.map(p => p.set).filter(distinct).forEach(set => {
+        patches = [...patches.filter(p=>!skip(p)), {...patch, index: nextPatchIndex++}]
+        notifyObservers()
+    }
+    const doAck: AckPatches = (index: number) => { // todo observerKey
+        patches = patches.filter(p=>p.index > index)
+        notifyObservers()
+    }
+    const notifyObservers = () => {
+        [...observed,...patches].map(p => p.set).filter(distinct).forEach(set => {
             const will = patches.filter(p => p.set === set)
             set(was => getIndexStr(was) === getIndexStr(will) ? was : will)
         })
-        setState(was => was.observed === patches ? was : {...was, observed: patches})
+        observed = patches
     }
-    return {enqueue, doAck, notifyObservers}
+    const getPatches = () => patches
+    return {enqueue, doAck, getPatches}
 }
 
 export const useMemoObj = <T extends ObjS<unknown>>(obj: T) => {
@@ -189,16 +189,29 @@ export type PreSyncBranchContext =
     PreLoginBranchContext & { sessionKey: string, isRoot: boolean, branchKey: string, reloadBranchKey: ()=>void }
 export type SyncBranchContext = PreSyncBranchContext & { enqueue: EnqueuePatch, doAck: AckPatches }
 
+const SyncManager = ({typeTransforms, setState, isRoot, sessionKey, branchKey, win}:{}) => {
+    const {elementWeakCache} = Transformer(typeTransforms)
+    const {receive} = Receiver(setState)
+    const {enqueue, doAck, getPatches} = PatchManager()
+    const stateToSend = () => serializeState({isRoot, sessionKey, branchKey, patches: getPatches()})
+    const {close, doSend} = ReConnection({win, url: "/eventlog", onData: receive, stateToSend}) // onIdle: reloadBranchKey
+    const send = (patch: Patch) => {
+        enqueue(patch)
+        doSend()
+    }
+    return {enqueue: send, doAck, elementWeakCache, close}
+}
+
+
 export const useSyncRoot = ({sessionKey,branchKey,reloadBranchKey,isRoot,win,appContext}:PreSyncBranchContext) => {
     const {typeTransforms} = appContext
-    const [{incoming, availability, patches, observed}, setState] = useState<SyncRootState>(initSyncRootState)
-    const {elementWeakCache} = useMemo(()=>Transformer(typeTransforms), [typeTransforms])
-    const {receive} = useMemo(()=>Receiver({branchKey, setState}), [branchKey, setState])
-    const {enqueue, doAck, notifyObservers} = useMemo(()=>PatchManager(setState), [setState])
-    useEffect(() => notifyObservers(patches, observed), [notifyObservers, patches, observed])
-    const stateToSerialize = useMemoObj({isRoot,sessionKey,branchKey,patches})
-    const stateToSend = useMemo(() => serializeState(stateToSerialize),[stateToSerialize])
-    useWebSocket({ url: "/eventlog", stateToSend, onData: receive, onIdle: reloadBranchKey, win })
+    const [{incoming, availability, observerKey}, setState] = useState<SyncRootState>(initSyncRootState)
+    
+    
+    
+    const {enqueue, doAck, elementWeakCache} = 
+    
+    
     const children = elementWeakCache(incoming)
     return {children, enqueue, doAck, availability}
 }
