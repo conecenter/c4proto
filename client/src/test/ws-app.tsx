@@ -6,79 +6,44 @@ import {assertNever, CreateNode, Identity, identityAt, ObjS, SetState} from "../
 import {useSession,login} from "../main/session"
 import {doCreateRoot,useIsolatedFrame} from "../main/frames"
 import {initSyncRootState, SyncRootState} from "../main/sync-root"
-import {Canvas,CanvasAppContext,CanvasFactory} from "../main/canvas-manager"
+import {CanvasAppContext, CanvasFactory, useCanvas} from "../main/canvas-manager"
 import { AckContext, ABranchContext, LocationElement, useSync, patchFromValue, useSender, mergeSimple } from "../main/sync-hooks"
 
+const activateIdOf = identityAt("activate")
 const sizesChangeIdOf = identityAt('sizesChange')
-type ExampleFigure = {offset: number, identity: Identity}
-function ExampleCanvas({appContext,sizesValue,identity,figures}:{appContext: AppContext,sizesValue: string, identity: Identity, figures: ExampleFigure[]}){
-    
+type ExampleFigure = {offset: number, identity: Identity, isActive: boolean}
+function ExampleCanvas({appContext,sizesValue,identity,figures}:{appContext: AppContext,sizesValue: string, identity: Identity, figures: ExampleFigure[]}){ 
     const cmd = (...args: unknown[]) => [args.slice(0,-1),args.at(-1)]
     const rect = (x: number, y: number, w: number, h: number) => [
         ...cmd(x,y,"moveTo"), ...cmd(x+w,y,"lineTo"), ...cmd(x+w,y+h,"lineTo"), ...cmd(x,y+h,"lineTo"), ...cmd(x,y,"lineTo"),
     ]
-
-
-    const figure = ({offset, identity}:ExampleFigure) => ({
-        identity,
+    const layer = (name: string, fill: string, stroke: string) => cmd(name,[
+        ...cmd("beginPath"), ...cmd("applyPath"), 
+        ...cmd("fillStyle", fill, "set"), ...cmd("strokeStyle", stroke, "set"), ...cmd("fill"), ...cmd("stroke"),
+    ],"inContext")
+    const figure = ({offset, identity, isActive}: ExampleFigure) => ({
+        identity: activateIdOf(identity),
         commands: [
-            ...cmd("setMainContext"),
-            ...cmd("save"),
-            //...cmd(0,50,"translate"),
-            ...cmd(0.1,"rotate"),
-            ...cmd("applyPath",[
-                ...rect(10+offset,20,30,40),
-                ...cmd("closePath"),
-            ],"definePath"),
-            ...cmd("preparingCtx",[
-                ...cmd("beginPath"),
-                ...cmd("applyPath"),
-                ...cmd("fillStyle", "rgb(255,0,0)", "set"),
-                ...cmd("strokeStyle", "#c9c4c3", "set"),
-                ...cmd("fill"),
-                ...cmd("stroke"),
-            ],"inContext"),
-            ...cmd("reactiveCtx",[
-                ...cmd("beginPath"),
-                ...cmd("applyPath"),
-                ...cmd("fillStyle", "[colorPH]", "set"),
-                ...cmd("strokeStyle", "[colorPH]", "set"),
-                ...cmd("fill"),
-                ...cmd("stroke"),                
-            ],"inContext"),
+            ...cmd("setMainContext"), ...cmd("save"),
+            ...cmd(offset,0,"translate"), ...cmd(0.1,"rotate"),   
+            ...cmd("applyPath",[...rect(10,20,30,40), ...cmd("closePath")], "definePath"),
+            ...layer("preparingCtx", isActive ? "rgb(0,255,0)":"rgb(255,0,0)", "#c9c4c3"),
+            ...layer("reactiveCtx", "[colorPH]", "[colorPH]"),
         ],
         children: [],
-        commandsFinally: [
-            ...cmd("setMainContext"),
-            ...cmd("restore"),
-        ],
+        commandsFinally: [...cmd("setMainContext"), ...cmd("restore")],
     })
+    const [parentNode, ref] = useState<HTMLElement|undefined>()
+    const options = useMemo(()=>({noOverlay:false}),[])
     const cProps = {
-        appContext,
+        appContext, parentNode,
         value: sizesValue, identity: sizesChangeIdOf(identity), style: {height:"100vh"},
-        width: 100, height: 100, options: {noOverlay:false}, zoomSteps: 4096, minCmdUnitsPerEMZoom: 0, initialFit: "xy", isGreedy: true,
+        width: 100, height: 100, options, zoomSteps: 4096, minCmdUnitsPerEMZoom: 0, initialFit: "xy", isGreedy: true,
         commands: [], children: figures.map(figure), commandsFinally: [],
     }
-    //commands, commandsFinally, children
-    return <Canvas {...cProps}/>
+    const style = useCanvas(cProps)
+    return createElement("div",{ style, ref },[])
 }
-/*
-
-
-
-    path(key,
-      Rect(10+offset,20,30,40),
-      GotoClick(key),
-      FillStyle("rgb(255,0,0)"), StrokeStyle("#000000"),
-      path("3",
-        Translate(0,50), Rotate(0.1),
-        path("3",Rect(0,0,20,20),FillStyle("rgb(0,0,0)"))
-      ),
-      path("4")
-    )
-  CanvasToJson.appendCanvasJson, PathFactory
-
-}*/
 
 
 function TestSessionList({appContext,sessions}:{appContext:AppContext,sessions:{key:string,branchKey:string,userName:string,isOnline:boolean}[]}){
@@ -192,7 +157,7 @@ function SyncRoot(prop: PreSyncBranchContext){
     return <StrictMode>
         <ABranchContext.Provider value={branchContextValue}>
             <AckContext.Provider value={ack}>
-                <Menu key="menu" availability={availability} setSessionKey={setSessionKey}/>
+                {isRoot ? <Menu key="menu" availability={availability} setSessionKey={setSessionKey}/> : ""}
                 {failure ? <div>VIEW FAILED: {failure}</div> : ""}
                 {children}
             </AckContext.Provider>

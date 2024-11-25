@@ -10,9 +10,10 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{by, c4assemble}
 import ee.cone.c4di.{c4, c4multi}
 import ee.cone.c4gate.AuthProtocol.C_PasswordHashOfUser
-import ee.cone.c4gate.{AuthOperations, PublishFromStringsProvider, SessionListUtil, CurrentSessionKey}
+import ee.cone.c4gate.{AuthOperations, CurrentSessionKey, PublishFromStringsProvider, SessionListUtil}
 import ee.cone.c4ui.TestTodoProtocol.{B_TodoTask, B_TodoTaskComments, B_TodoTaskCommentsContains}
 import ee.cone.c4proto._
+import ee.cone.c4ui.TestCanvasProtocol.B_TestFigure
 import ee.cone.c4vdom.Types._
 import ee.cone.c4vdom._
 
@@ -158,16 +159,14 @@ trait TestSessionEl extends ToChildPair
 ////////////////////////////
 
 @protocol("TestTodoApp") object TestCanvasProtocol   {
-  @Id(0x0008) case class B_TestCanvasState(
-    @Id(0x0009) srcId: String,
-    @Id(0x000A) sizes: String
-  )
+  @Id(0x0008) case class B_TestCanvasState(@Id(0x0009) srcId: String, @Id(0x000A) sizes: String)
+  @Id(0x0009) case class B_TestFigure(@Id(0x0009) srcId: String, @Id(0x000B) isActive: Boolean)
 }
 import TestCanvasProtocol.B_TestCanvasState
 
 trait ExampleFigureEl extends ToChildPair
-@c4tags("TestTodoApp") trait ExampleCancasTags[C] {
-  @c4el("ExampleFigure") def figure(key: String, offset: Int, activate: Receiver[C]): ExampleFigureEl
+@c4tags("TestTodoApp") trait ExampleCanvasTags[C] {
+  @c4el("ExampleFigure") def figure(key: String, offset: Int, activate: Receiver[C], isActive: Boolean): ExampleFigureEl
   @c4el("ExampleCanvas") def canvas(
     key: String, sizesValue: String, sizesChange: Receiver[C], figures: ElList[ExampleFigureEl]
   ): ToChildPair
@@ -176,28 +175,31 @@ trait ExampleFigureEl extends ToChildPair
 @c4("TestTodoApp") final case class TestCanvasView(locationHash: String = "rectangle")(
   updatingReceiverFactory: UpdatingReceiverFactory,
   untilPolicy: UntilPolicy,
-  getTestCanvasState: GetByPK[B_TestCanvasState],
-  exampleCancasTagsProvider: ExampleCancasTagsProvider,
+  getTestCanvasState: GetByPK[B_TestCanvasState], getTestFigure: GetByPK[B_TestFigure],
+  exampleCanvasTagsProvider: ExampleCanvasTagsProvider,
 )(
-  exampleCancasTags: ExampleCancasTags[Context] =  exampleCancasTagsProvider.get[Context]
+  exampleCanvasTags: ExampleCanvasTags[Context] =  exampleCanvasTagsProvider.get[Context]
 ) extends ByLocationHashView with ViewUpdater {
   import TestCanvasView._
   val rc: ViewAction => Receiver[Context] = updatingReceiverFactory.create(this, _)
+  private def figure(local: Context, key: String, pos: Int) = {
+    val isActive = getTestFigure.ofA(local).get(key).exists(_.isActive)
+    exampleCanvasTags.figure(key, pos, rc(Activate(key, !isActive)), isActive)
+  }
   def view: Context => ViewRes = untilPolicy.wrap { local =>
     val sessionKey = CurrentSessionKey.of(local)
     val sizes = getTestCanvasState.ofA(local).get(sessionKey).fold("")(_.sizes)
-    val res = exampleCancasTags.canvas("testCanvas", sizes, rc(SizesChange(sessionKey)), List(
-      exampleCancasTags.figure("0",  0, rc(Activate("0"))),
-      exampleCancasTags.figure("1", 50, rc(Activate("1"))),
+    val res = exampleCanvasTags.canvas("testCanvas", sizes, rc(SizesChange(sessionKey)), List(
+      figure(local,"0",0), figure(local,"1",50)
     ))
     List(res.toChildPair)
   }
   def receive: Handler = value => _ => {
     case SizesChange(sessionKey) => update(B_TestCanvasState(sessionKey, value))
-    case Activate(id) => println(s"$id activated"); Nil
+    case Activate(id, value) => update(B_TestFigure(id, value))
   }
 }
 object TestCanvasView {
   private case class SizesChange(sessionKey: String) extends ViewAction
-  private case class Activate(id: String) extends ViewAction
+  private case class Activate(id: String, value: Boolean) extends ViewAction
 }

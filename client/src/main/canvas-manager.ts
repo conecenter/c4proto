@@ -1,7 +1,7 @@
 
-import {createElement,useEffect,useMemo,useState} from "./react"
+import {useEffect,useState} from "./react"
 import { mergeSimple, patchFromValue, useSender, useSync } from "./sync-hooks"
-import {weakCache,manageAnimationFrame,assertNever,Identity,Patch,ObjS} from "./util"
+import {weakCache,manageAnimationFrame,assertNever,Identity,ObjS} from "./util"
 
 const Buffer = <T>(): [()=>T[], (...items: T[])=>void] => {
     let finished = 0
@@ -21,7 +21,7 @@ type CanvasPart = {
     children: CanvasPart[]
 }
 type CanvasState = {
-    parentNode: Node, sizesSyncEnabled: boolean, canvas: C4Canvas, 
+    parentNode: HTMLElement|undefined, sizesSyncEnabled: boolean, canvas: C4Canvas, 
     parsed: CanvasProps & { commands: CanvasCommands }, 
     sendToServer: (target: {headers: ObjS<string>}, color: string) => void
 }
@@ -34,7 +34,7 @@ export type CanvasFactory = (opt: CanvasOptions)=>C4Canvas
 export type CanvasAppContext = { canvasFactory: CanvasFactory }
 
 type CanvasProps = CanvasPart & {
-    identity: Identity, appContext: CanvasAppContext, 
+    identity: Identity, appContext: CanvasAppContext, parentNode: HTMLElement|undefined,
     isGreedy: boolean, value: string, style: {[K:string]:string}, options: CanvasOptions
 }
 
@@ -78,10 +78,9 @@ const parseValue = (value: string) => {
     return {cmdUnitsPerEMZoom,aspectRatioX,aspectRatioY,pxMapH}
 }
 
-export const Canvas = (prop:CanvasProps) => {
-    const {identity, value: incomingValue, appContext, isGreedy, style: argStyle, options} = prop
+export const useCanvas = (prop:CanvasProps) => {
+    const {identity, value: incomingValue, appContext, isGreedy, style: argStyle, options, parentNode} = prop
     const {canvasFactory} = appContext
-    const [parentNode, ref] = useState()
     const {enqueue,isRoot} = useSender()
     const [sizePatches, enqueueSizePatch] = useSync(identity)
     const value = mergeSimple(incomingValue, sizePatches)
@@ -106,5 +105,5 @@ export const Canvas = (prop:CanvasProps) => {
         return manageAnimationFrame(parentNode, ()=>canvas.checkActivate(state))
     })
     const style = isGreedy || !value ? argStyle : {...argStyle, height: parseValue(value).pxMapH+"px"}
-    return createElement("div",{ style, ref },[])
+    return style
 }
