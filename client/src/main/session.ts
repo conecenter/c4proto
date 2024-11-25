@@ -27,13 +27,13 @@ const useSessionRestoreOnRefresh = (
 
 const SessionBranchManager = (win: Window, setState: SetState<SessionState>) => {
     const setSessionKey: SetState<string|undefined> = f => setState(was => {
-        const sessionKey = f(was.sessionKey)
+        const sessionKey = f(was.sessionKey) ?? assertNever("no sessionKey")
         return was.sessionKey === sessionKey ? was : {sessionKey}
     })
     const reloadBranchKeyInner = (sessionKey?: string) =>{
         const fin = (resp: {branchKey?:string, error?:string}) => setState(was => (
             resp?.branchKey && !was.branchKey && was.sessionKey === sessionKey ? 
-                {...was,branchKey:resp?.branchKey} : resp?.error || !was.branchKey ? {sessionKey:undefined} : was
+                {...was,branchKey:resp?.branchKey} : resp?.error || !was.branchKey ? {sessionKey:""} : was
         ))
         sessionKey && win.fetch("/auth/branch",{method: "POST", headers: {"x-r-session":sessionKey}}).then(r => r.json())
             .then(rj => fin(asObject(rj)), error => fin({}))
@@ -41,10 +41,13 @@ const SessionBranchManager = (win: Window, setState: SetState<SessionState>) => 
     const reloadBranchKey = () => setState(was => ({...was, reloadBranchCounter: (was.reloadBranchCounter??0)+1}))
     return {setSessionKey,reloadBranchKey,reloadBranchKeyInner}
 }
-type SessionState = { sessionKey: string|undefined, branchKey?: string, reloadBranchCounter?: number }
+type SessionState = { 
+    sessionKey?: string, // undefined is after refresh, and "" means "need to login"
+    branchKey?: string, reloadBranchCounter?: number 
+}
 
 export const useSession = (win: Window) => {
-    const [{sessionKey,branchKey,reloadBranchCounter}, setState] = useState<SessionState>({sessionKey:undefined})
+    const [{sessionKey,branchKey,reloadBranchCounter}, setState] = useState<SessionState>({})
     const {setSessionKey,reloadBranchKey,reloadBranchKeyInner} = useMemo(()=>SessionBranchManager(win, setState), [win, setState])
     useEffect(() => reloadBranchKeyInner(sessionKey), [reloadBranchKeyInner,sessionKey,reloadBranchCounter])
     useSessionRestoreOnRefresh({win, sessionKey, setSessionKey})
