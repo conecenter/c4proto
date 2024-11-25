@@ -2,7 +2,7 @@
 import React from "react"
 import {StrictMode} from "react"
 import {useState,useCallback,useMemo,useEffect,isValidElement,createElement} from "../main/react"
-import {assertNever, CreateNode, Identity, identityAt, ObjS} from "../main/util"
+import {assertNever, CreateNode, Identity, identityAt, ObjS, SetState} from "../main/util"
 import {useSession,login} from "../main/session"
 import {doCreateRoot,useIsolatedFrame} from "../main/frames"
 import {initSyncRootState, SyncRootState} from "../main/sync-root"
@@ -134,22 +134,21 @@ function ExampleInput({value: incomingValue, identity}:{value: string, identity:
 
 const noReloadBranchKey = ()=>{}
 function ExampleFrame({appContext,branchKey,style}:{appContext:AppContext,branchKey:string,style:{[K:string]:string}}){
-    const {sessionKey} = useSender()
+    const {sessionKey,setSessionKey} = useSender()
     const {ref,...props} = useIsolatedFrame(body => {
         const win = body.ownerDocument.defaultView ?? assertNever("no window")
-        return <SyncRoot {...{appContext,sessionKey,branchKey,reloadBranchKey:noReloadBranchKey,isRoot:false,win}}/>
+        return <SyncRoot {...{appContext,sessionKey,setSessionKey,branchKey,reloadBranchKey:noReloadBranchKey,isRoot:false,win}}/>
     })
     return <iframe {...props} {...{style}} ref={ref} />
 }
 
-function Login({win,setSessionKey} : {win: Window, setSessionKey: (sessionKey?: string)=>void}){
+function Login({win,setSessionKey} : {win: Window, setSessionKey: SetState<string|undefined>}){
     const [user, setUser] = useState("")
     const [pass, setPass] = useState("")
     const [error, setError] = useState(false)
     const onClick = useCallback(() => {
-        setSessionKey(undefined)
         setError(false)
-        login(win, user, pass).then(setSessionKey, err=>setError(true))
+        login(win, user, pass).then(sessionKey => setSessionKey(was=>sessionKey), err=>setError(true))
     }, [win,login,user,pass])
     return <div>
         Username <input type="text" value={user} onChange={ev=>setUser(ev.target.value)}/>,
@@ -159,21 +158,24 @@ function Login({win,setSessionKey} : {win: Window, setSessionKey: (sessionKey?: 
     </div>
 }
 
-function Menu({availability}: {availability: boolean}){
-    return <div>
+function Menu({availability,setSessionKey}: {availability: boolean, setSessionKey: SetState<string|undefined>}){
+    return <div style={{padding:"2pt"}}>
         availability {availability?"yes":"no"} | 
         <a href="#todo">todo-list</a> | 
         <a href="#leader">coworking</a> | 
         <a href="#rectangle">canvas</a> | 
+        <input type="button" value="logout" onClick={ev=>setSessionKey(was=>"")}/>
     </div>
 }
 
 type PreLoginBranchContext = { appContext: AppContext, win: Window }
-type PreSyncBranchContext = 
-     PreLoginBranchContext & { sessionKey: string, isRoot: boolean, branchKey: string, reloadBranchKey: ()=>void }
+type PreSyncBranchContext = PreLoginBranchContext & { 
+    sessionKey: string, setSessionKey: SetState<string|undefined>, 
+    isRoot: boolean, branchKey: string, reloadBranchKey: ()=>void 
+}
 
 function SyncRoot(prop: PreSyncBranchContext){
-    const { appContext, isRoot, sessionKey, branchKey, win, reloadBranchKey } = prop
+    const { appContext, isRoot, sessionKey, setSessionKey, branchKey, win, reloadBranchKey } = prop
     const {createNode} = appContext
     const [{manager, children, availability, ack, failure}, setState] = useState<SyncRootState>(initSyncRootState)
     const {start, enqueue, stop} = manager
@@ -182,16 +184,17 @@ function SyncRoot(prop: PreSyncBranchContext){
         return () => stop()
     }, [start, createNode, setState, isRoot, sessionKey, branchKey, win, reloadBranchKey, stop])
     const branchContextValue = useMemo(()=>({
-        branchKey, sessionKey, enqueue, isRoot, win
+        branchKey, sessionKey, setSessionKey, enqueue, isRoot, win
     }),[
-        branchKey, sessionKey, enqueue, isRoot, win
+        branchKey, sessionKey, setSessionKey, enqueue, isRoot, win
     ])
+    //console.log("ve",isValidElement(children),children)
     return <StrictMode>
         <ABranchContext.Provider value={branchContextValue}>
             <AckContext.Provider value={ack}>
-                <Menu key="menu" availability={availability}/>, 
+                <Menu key="menu" availability={availability} setSessionKey={setSessionKey}/>
                 {failure ? <div>VIEW FAILED: {failure}</div> : ""}
-                {isValidElement(children) ? children : []}
+                {children}
             </AckContext.Provider>
         </ABranchContext.Provider>
     </StrictMode>
@@ -201,9 +204,9 @@ function App({appContext,win}:PreLoginBranchContext){
     const {sessionKey, setSessionKey, branchKey, reloadBranchKey} = useSession(win)
     return [
         sessionKey && branchKey ? <SyncRoot {...{
-            appContext, sessionKey, branchKey, reloadBranchKey, isRoot: true, win
+            appContext, sessionKey, setSessionKey, branchKey, reloadBranchKey, isRoot: true, win
         }} key={branchKey}/> : 
-        !sessionKey ? <Login {...{win,setSessionKey}} key="login"/> : ""
+        sessionKey === "" ? <Login {...{win,setSessionKey}} key="login"/> : ""
     ]
 }
 
@@ -215,9 +218,13 @@ export const main = ({win, canvasFactory}: {win: Window, canvasFactory: CanvasFa
         span: "span", LocationElement, 
         ExampleTodoTaskList, TestSessionList, ExampleCanvas
     }
-    const createNode: CreateNode = ({tp,...at}, childAt) => {
-        return typeTransforms[tp] ? 
-            createElement(typeTransforms[tp], {appContext, ...at, ...childAt}) : {tp, ...at, ...childAt}
+    const createNode: CreateNode = at => {
+        //console.log("tp",at.tp)
+        const constr = typeTransforms[at.tp]
+        if(!constr) return at
+        if(typeof constr !== "string") return createElement(constr, {appContext,...at})
+        const {tp,...leftAt} = at
+        return createElement(constr, leftAt)
     }
     const appContext = {createNode, canvasFactory}
     doCreateRoot(win.document.body, <App appContext={appContext} win={win}/>)

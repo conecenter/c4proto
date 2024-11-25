@@ -39,6 +39,7 @@ export const mergeSimple = (value: string, patches: LocalPatch[]): string => {
 export const patchFromValue = (value: string): UnsubmittedLocalPatch => ({ value, skipByPath: true })
 const changeIdOf = identityAt('change')
 export const LocationElement = ({value: incomingValue, identity}:{value: string, identity: Identity }) => {
+    //console.log("loc",incomingValue)
     const [patches, enqueuePatch] = useSync(changeIdOf(identity))
     const value = mergeSimple(incomingValue, patches)
     const {isRoot,win} = useSender()

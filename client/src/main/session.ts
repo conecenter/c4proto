@@ -1,22 +1,22 @@
 
 import {useState,useMemo,useEffect} from "./react"
-import {manageEventListener,SetState,getKey,asObject,asString} from "./util"
+import {manageEventListener,SetState,getKey,asObject,asString, assertNever} from "./util"
 
 export const login = (win: Window, user: string, pass: string): Promise<string> => (
     win.fetch("/auth/check",{ method: "POST", body: `${user}\n${pass}` })
-    .then(r => r.json()).then(rj => asString(getKey(asObject(rj), "sessionKey")))
+    .then(r => r.json()).then(rj => asString(getKey(asObject(rj), "sessionKey")) || assertNever("no sessionKey"))
 )
 
 const stateKey = "c4sessionKey"
 const useSessionRestoreOnRefresh = (
     {win, sessionKey, setSessionKey}:
-    {win: Window, sessionKey: string|undefined, setSessionKey: (key: string) => void}
+    {win: Window, sessionKey: string|undefined, setSessionKey: SetState<string|undefined>}
 ) => {
     useEffect(()=>{
         if(!win) return undefined
         const sessionKey = win.sessionStorage.getItem(stateKey)
         win.sessionStorage.removeItem(stateKey)
-        sessionKey && setSessionKey(sessionKey)
+        setSessionKey(was => was ?? (sessionKey||""))
     }, [win, setSessionKey])
     useEffect(()=>{
         return manageEventListener(win, "beforeunload", ()=>{
@@ -26,7 +26,10 @@ const useSessionRestoreOnRefresh = (
 }
 
 const SessionBranchManager = (win: Window, setState: SetState<SessionState>) => {
-    const setSessionKey = (sessionKey?: string) => setState(was => was.sessionKey === sessionKey ? was : {sessionKey})
+    const setSessionKey: SetState<string|undefined> = f => setState(was => {
+        const sessionKey = f(was.sessionKey)
+        return was.sessionKey === sessionKey ? was : {sessionKey}
+    })
     const reloadBranchKeyInner = (sessionKey?: string) =>{
         const fin = (resp: {branchKey?:string, error?:string}) => setState(was => (
             resp?.branchKey && !was.branchKey && was.sessionKey === sessionKey ? 

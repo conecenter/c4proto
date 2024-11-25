@@ -45,8 +45,11 @@ export type Identity = string // identity is string, it should not change on pat
 export type UnsubmittedPatch = { identity: Identity, skipByPath: boolean, value: string, headers?: ObjS<string> }
 export type Patch = UnsubmittedPatch & { index: number }
 export type EnqueuePatch = (patch: UnsubmittedPatch) => number
-export type CreateNode = (at: ObjS<unknown> & {tp:string}, childAt: ObjS<unknown[]>)=>object
-export type BranchContext = { branchKey: string, sessionKey: string, enqueue: EnqueuePatch, isRoot: boolean, win:Window }
+export type CreateNode = (at: ObjS<unknown> & {tp:string})=>object
+export type BranchContext = {
+    sessionKey: string, setSessionKey: SetState<string|undefined>,
+    branchKey: string, enqueue: EnqueuePatch, isRoot: boolean, win:Window 
+}
 
 export const resolve = (identity: Identity, key: string) => identity+'/'+key
 export const identityAt = (key: string): (identity: Identity)=>Identity => identity => resolve(identity, key)

@@ -1,6 +1,6 @@
 
 
-import {createElement,useState,useCallback,useEffect,useContext,createContext,useMemo} from "react"
+import {createElement,useState,useCallback,useEffect,useContext,createContext,useMemo,isValidElement} from "react"
 import {createRoot} from "react-dom/client"
 
 const useStateWrap = <S>(initialState: S | (() => S)) => {
@@ -12,4 +12,4 @@ const useStateWrap = <S>(initialState: S | (() => S)) => {
     return [state, setStateWrapper]
 }
 
-export {createRoot,createElement,useState,useCallback,useEffect,useContext,createContext,useMemo}
+export {createRoot,createElement,useState,useCallback,useEffect,useContext,createContext,useMemo,isValidElement}
