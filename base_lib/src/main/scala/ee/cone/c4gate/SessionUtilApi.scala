@@ -9,8 +9,10 @@ trait SessionUtil {
   def purge(local: Context, sessionKey: String): LEvents
   def location(local: Context, sessionKey: String): String
   def setLocation(local: Context, sessionKey: String, value: String): LEvents
+  def setLocationHash(local: Context, sessionKey: String, value: String): LEvents
   def trySetStatus(world: AssembledContext, sessionKey: String, expirationSecond: Long, isOnline: Boolean): LEvents
   def expired(local: AssembledContext, sessionKey: String): Boolean
+  def logOut(local: AssembledContext, sessionKey: String): LEvents
 }
 
 case class BranchWish(branchKey: String, sessionKey: String, index: Long, value: String)

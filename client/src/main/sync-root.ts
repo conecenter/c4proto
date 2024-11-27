@@ -6,50 +6,45 @@ const asBoolean = (u: unknown) => typeof u === "boolean" ? u : assertNever("bad 
 
 ////
 
-type ConnectionParams = {win: Window, url: string, onData: (value: string)=>void, stateToSend: ()=>string}
-const ReConnection = (args: ConnectionParams & { onIdle: ()=>void }) => {
-    const {win, onIdle} = args
-    let connection = Connection(args)
-    const hShort = win.setInterval(() => {
-        connection.ping()
-        if(connection.expired()){
-            connection.close()
-            onIdle()
-            connection = Connection(args)
-        }
-    }, 1000)
-    const hLong = win.setInterval(()=>connection.doSend(), 30000)
-    const close = () => {
-        win.clearInterval(hShort)
-        win.clearInterval(hLong)
-        connection.close()
-    }
-    const doSend = ()=>connection.doSend()
-    return {close, doSend}
+type OnClose = ()=>void 
+type ConnectionParams = {
+    win: Window, url: string, onData: (value: string)=>void, stateToSend: ()=>string, onClose: OnClose
 }
-const Connection = ({win,url,onData,stateToSend}:ConnectionParams) => {
-    let ready = false
-    let wasAt = Date.now()
-    const ping = () => ready && ws.send("")
-    const doSend = () => ready && ws.send(stateToSend())
-    const expired = () => Date.now() - wasAt > 5000
-    const onMessage = (ev: MessageEvent) => {
-        if(ev.data && onData) onData(ev.data)
+const ReConnection = ({win,url,onData,stateToSend,onClose}:ConnectionParams) => {
+    let wasAt = 0
+    let wasFullAt = 0
+    let ws: WebSocket|undefined
+    const innerSend = (v: string) => ws && ws.readyState === ws.OPEN && ws.send(v)
+    const innerClose = () => {
+        try { ws && ws.readyState <= ws.OPEN && ws.close() } catch(e){ console.trace(e) }
+    }
+    const doSend = () => {
+        innerSend(stateToSend())
+        wasFullAt = Date.now()
+    }
+    const onMessage = (wsL: WebSocket, data: string) => {
+        if(wsL !== ws) return
+        data && onData(data)
         wasAt = Date.now()
     }
-    const onOpen = () => {
-        ready = true
-        doSend()
+    const open = () => {
+        const wsL = new win.WebSocket(url)
+        wsL.addEventListener("open", ()=>doSend())
+        wsL.addEventListener("message", ev=>onMessage(wsL,ev.data))
+        wsL.addEventListener("close", ()=>onClose())
+        ws = wsL
+        wasAt = Date.now()
     }
-    const ws = new win.WebSocket(url)
-    ws.addEventListener("open", onOpen)
-    ws.addEventListener("message", onMessage)
+    const periodic = win.setInterval(() => {
+        Date.now() - wasFullAt > 30000 ? doSend() : innerSend("")
+        Date.now() - wasAt > 5000 ? innerClose() : ws && ws.readyState > ws.OPEN && open()
+    }, 1000)
     const close = () => {
-        ws.removeEventListener("message", onMessage)
-        ws.removeEventListener("open", onOpen)
-        try { ws.close() } catch(e){ console.trace(e) }
+        win.clearInterval(periodic)
+        innerClose()
     }
-    return {close, doSend, ping, expired}
+    open()
+    return {close, doSend}
 }
 
 ////
@@ -162,7 +157,7 @@ const StartedSyncManager: (args: SyncManagerStartArgs)=>StartedSyncManager = ({
     const {enqueue, doAck, getPatches} = PatchManager()
     const {receive} = Receiver(setState, doAck, createNode)
     const stateToSend = () => serializeState({isRoot, sessionKey, branchKey, patches: getPatches()})
-    const {close, doSend} = ReConnection({win, url: "/eventlog", onData: receive, stateToSend, onIdle: reloadBranchKey})
+    const {close, doSend} = ReConnection({win, url: "/eventlog", onData: receive, stateToSend, onClose: reloadBranchKey})
     const send = (patch: UnsubmittedPatch) => {
         const index = enqueue(patch)
         doSend()

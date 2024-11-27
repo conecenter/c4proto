@@ -52,16 +52,14 @@ import scala.Function.chain
   }
 }
 
+
 @c4multi("AlienExchangeCompApp") final case class FromAlienTaskImpl(
   branchKey: SrcId, fromAlienState: U_FromAlienState, locationQuery: String, locationHash: String
 )(txAdd: LTxAdd, sessionUtil: SessionUtil) extends FromAlienTask with BranchTask {
   def branchTask: BranchTask = this
   def product: Product = fromAlienState
   def relocate(to: String): Context => Context = local => {
-    val sessionKey = fromAlienState.sessionKey
-    val locationWithoutHash = sessionUtil.location(local, sessionKey).split("#")
-    match { case Array(l) => l case Array(l,_) => l }
-    val lEvents = sessionUtil.setLocation(local, sessionKey, s"$locationWithoutHash#$to")
+    val lEvents = sessionUtil.setLocationHash(local, fromAlienState.sessionKey, to)
     txAdd.add(lEvents)(local)
   }
 }

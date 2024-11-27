@@ -1,6 +1,6 @@
 
-import {useState,useMemo,useEffect} from "./react"
-import {manageEventListener,SetState,getKey,asObject,asString, assertNever} from "./util"
+import {useState,useEffect} from "./react"
+import {manageEventListener,SetState,getKey,asObject,asString, assertNever, weakCache} from "./util"
 
 export const login = (win: Window, user: string, pass: string): Promise<string> => (
     win.fetch("/auth/check",{ method: "POST", body: `${user}\n${pass}` })
@@ -25,12 +25,12 @@ const useSessionRestoreOnRefresh = (
     }, [win, sessionKey])
 }
 
-const SessionBranchManager = (win: Window, setState: SetState<SessionState>) => {
+const sessionBranchManagers = weakCache((setState: SetState<SessionState>) => {
     const setSessionKey: SetState<string|undefined> = f => setState(was => {
         const sessionKey = f(was.sessionKey) ?? assertNever("no sessionKey")
         return was.sessionKey === sessionKey ? was : {sessionKey}
     })
-    const reloadBranchKeyInner = (sessionKey?: string) =>{
+    const reloadBranchKeyInner = (sessionKey: string|undefined, win: Window) =>{
         const fin = (resp: {branchKey?:string, error?:string}) => setState(was => (
             resp?.branchKey && !was.branchKey && was.sessionKey === sessionKey ? 
                 {...was,branchKey:resp?.branchKey} : resp?.error || !was.branchKey ? {sessionKey:""} : was
@@ -40,7 +40,7 @@ const SessionBranchManager = (win: Window, setState: SetState<SessionState>) => 
     }
     const reloadBranchKey = () => setState(was => ({...was, reloadBranchCounter: (was.reloadBranchCounter??0)+1}))
     return {setSessionKey,reloadBranchKey,reloadBranchKeyInner}
-}
+})
 type SessionState = { 
     sessionKey?: string, // undefined is after refresh, and "" means "need to login"
     branchKey?: string, reloadBranchCounter?: number 
@@ -48,8 +48,8 @@ type SessionState = {
 
 export const useSession = (win: Window) => {
     const [{sessionKey,branchKey,reloadBranchCounter}, setState] = useState<SessionState>({})
-    const {setSessionKey,reloadBranchKey,reloadBranchKeyInner} = useMemo(()=>SessionBranchManager(win, setState), [win, setState])
-    useEffect(() => reloadBranchKeyInner(sessionKey), [reloadBranchKeyInner,sessionKey,reloadBranchCounter])
+    const {setSessionKey,reloadBranchKey,reloadBranchKeyInner} = sessionBranchManagers(setState)
+    useEffect(() => reloadBranchKeyInner(sessionKey,win), [reloadBranchKeyInner,sessionKey,win,reloadBranchCounter])
     useSessionRestoreOnRefresh({win, sessionKey, setSessionKey})
     return {sessionKey, setSessionKey, branchKey, reloadBranchKey}
 }

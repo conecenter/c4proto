@@ -36,14 +36,19 @@ import java.time.Instant
   def location(local: Context, sessionKey: String): String = getFromAlienState.ofA(local)(sessionKey).location
   def setLocation(local: Context, sessionKey: String, value: String): LEvents =
     LEvent.update(getFromAlienState.ofA(local)(sessionKey).copy(location = value))
+  def setLocationHash(local: Context, sessionKey: String, value: String): LEvents = {
+    val locationWithoutHash = location(local, sessionKey).split("#") match { case Array(l) => l case Array(l, _) => l }
+    setLocation(local, sessionKey, s"$locationWithoutHash#$value")
+  }
   def trySetStatus(world: AssembledContext, sessionKey: String, expirationSecond: Long, isOnline: Boolean): LEvents = {
     val wasOpt = getFromAlienStatus.ofA(world).get(sessionKey)
     val willOpt = wasOpt.map(_.copy(expirationSecond = expirationSecond, isOnline = isOnline))
     if(wasOpt == willOpt) Nil else LEvent.update(willOpt.toSeq)
   }
-
   def expired(local: AssembledContext, sessionKey: String): Boolean =
     getFromAlienStatus.ofA(local).get(sessionKey).forall(_.expirationSecond < Instant.now.getEpochSecond)
+  def logOut(local: AssembledContext, sessionKey: String): LEvents =
+    LEvent.delete(getFromAlienStatus.ofA(local).get(sessionKey).toSeq)
 }
 
 @c4("SessionUtilApp") final class FromAlienWishUtilImpl(

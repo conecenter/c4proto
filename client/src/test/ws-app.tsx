@@ -1,7 +1,7 @@
 
 import React from "react"
 import {StrictMode} from "react"
-import {useState,useCallback,useMemo,useEffect,isValidElement,createElement} from "../main/react"
+import {useState,useCallback,useMemo,useEffect,createElement} from "../main/react"
 import {assertNever, CreateNode, Identity, identityAt, ObjS, SetState} from "../main/util"
 import {useSession,login} from "../main/session"
 import {doCreateRoot,useIsolatedFrame} from "../main/frames"
@@ -12,6 +12,7 @@ import { AckContext, ABranchContext, LocationElement, useSync, patchFromValue, u
 const activateIdOf = identityAt("activate")
 const sizesChangeIdOf = identityAt('sizesChange')
 type ExampleFigure = {offset: number, identity: Identity, isActive: boolean}
+const exampleCanvasOptions = {noOverlay:false}
 function ExampleCanvas({appContext,sizesValue,identity,figures}:{appContext: AppContext,sizesValue: string, identity: Identity, figures: ExampleFigure[]}){ 
     const cmd = (...args: unknown[]) => [args.slice(0,-1),args.at(-1)]
     const rect = (x: number, y: number, w: number, h: number) => [
@@ -34,11 +35,11 @@ function ExampleCanvas({appContext,sizesValue,identity,figures}:{appContext: App
         commandsFinally: [...cmd("setMainContext"), ...cmd("restore")],
     })
     const [parentNode, ref] = useState<HTMLElement|undefined>()
-    const options = useMemo(()=>({noOverlay:false}),[])
     const cProps = {
         appContext, parentNode,
         value: sizesValue, identity: sizesChangeIdOf(identity), style: {height:"100vh"},
-        width: 100, height: 100, options, zoomSteps: 4096, minCmdUnitsPerEMZoom: 0, initialFit: "xy", isGreedy: true,
+        width: 100, height: 100, options: exampleCanvasOptions, 
+        zoomSteps: 4096, minCmdUnitsPerEMZoom: 0, initialFit: "xy", isGreedy: true,
         commands: [], children: figures.map(figure), commandsFinally: [],
     }
     const style = useCanvas(cProps)
@@ -46,8 +47,8 @@ function ExampleCanvas({appContext,sizesValue,identity,figures}:{appContext: App
 }
 
 
-function TestSessionList({appContext,sessions}:{appContext:AppContext,sessions:{key:string,branchKey:string,userName:string,isOnline:boolean}[]}){
-    return <div>{sessions.map(({key,branchKey,userName,isOnline})=>(
+function TestSessionList({appContext,sessions}:{appContext:AppContext,sessions?:{key:string,branchKey:string,userName:string,isOnline:boolean}[]}){
+    return <div>{(sessions||[]).map(({key,branchKey,userName,isOnline})=>(
         <div key={key}>
             User: {userName} {isOnline ? "online" : "offline"}<br/>
             <ExampleFrame key="frame" {...{appContext,branchKey,style:{width:"30%",height:"400px"}}} />
@@ -100,10 +101,14 @@ function ExampleInput({value: incomingValue, identity}:{value: string, identity:
 const noReloadBranchKey = ()=>{}
 function ExampleFrame({appContext,branchKey,style}:{appContext:AppContext,branchKey:string,style:{[K:string]:string}}){
     const {sessionKey,setSessionKey} = useSender()
-    const {ref,...props} = useIsolatedFrame(body => {
+    const makeChildren = useCallback((body:HTMLElement) => {
         const win = body.ownerDocument.defaultView ?? assertNever("no window")
-        return <SyncRoot {...{appContext,sessionKey,setSessionKey,branchKey,reloadBranchKey:noReloadBranchKey,isRoot:false,win}}/>
-    })
+        return <SyncRoot {...{
+            reloadBranchKey:noReloadBranchKey,isRoot:false,win,
+            appContext,sessionKey,setSessionKey,branchKey,
+        }}/>        
+    }, [appContext,sessionKey,setSessionKey,branchKey])
+    const {ref,...props} = useIsolatedFrame(makeChildren)
     return <iframe {...props} {...{style}} ref={ref} />
 }
 
@@ -123,13 +128,23 @@ function Login({win,setSessionKey} : {win: Window, setSessionKey: SetState<strin
     </div>
 }
 
-function Menu({availability,setSessionKey}: {availability: boolean, setSessionKey: SetState<string|undefined>}){
+function ExampleMenu(
+    { items, children }:
+    { items?: { key: string, caption: string, identity: Identity }[], children?: React.ReactElement[] }
+){
+    return <div>
+        <div style={{padding:"2pt"}} key="menu">
+        {(items||[]).flatMap(({key,caption,identity},i)=>[
+            i>0?"|":"", <ExampleButton {...{caption,identity:activateIdOf(identity)}} key={key}/>
+        ])}
+        </div>
+        {children}
+    </div>
+}
+
+function Availability({availability}: {availability: boolean}){
     return <div style={{padding:"2pt"}}>
-        availability {availability?"yes":"no"} | 
-        <a href="#todo">todo-list</a> | 
-        <a href="#leader">coworking</a> | 
-        <a href="#rectangle">canvas</a> | 
-        <input type="button" value="logout" onClick={ev=>setSessionKey(was=>"")}/>
+        availability {availability?"yes":"no"}
     </div>
 }
 
@@ -157,7 +172,7 @@ function SyncRoot(prop: PreSyncBranchContext){
     return <StrictMode>
         <ABranchContext.Provider value={branchContextValue}>
             <AckContext.Provider value={ack}>
-                {isRoot ? <Menu key="menu" availability={availability} setSessionKey={setSessionKey}/> : ""}
+                {isRoot ? <Availability key="availability" availability={availability}/> : ""}
                 {failure ? <div>VIEW FAILED: {failure}</div> : ""}
                 {children}
             </AckContext.Provider>
@@ -181,7 +196,7 @@ type AppContext = CanvasAppContext & SyncAppContext
 export const main = ({win, canvasFactory}: {win: Window, canvasFactory: CanvasFactory }) => {
     const typeTransforms: ObjS<React.FC<any>|string> = {
         span: "span", LocationElement, 
-        ExampleTodoTaskList, TestSessionList, ExampleCanvas
+        ExampleMenu, ExampleTodoTaskList, TestSessionList, ExampleCanvas
     }
     const createNode: CreateNode = at => {
         //console.log("tp",at.tp)
@@ -192,5 +207,6 @@ export const main = ({win, canvasFactory}: {win: Window, canvasFactory: CanvasFa
         return createElement(constr, leftAt)
     }
     const appContext = {createNode, canvasFactory}
-    doCreateRoot(win.document.body, <App appContext={appContext} win={win}/>)
+    const [root, unmount] = doCreateRoot(win.document.body)
+    root.render(<App appContext={appContext} win={win}/>)
 }

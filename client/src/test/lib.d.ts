@@ -142,6 +142,7 @@ interface EventMap {
     "error": Event
     "message": MessageEvent
     "open": Event
+    "close": Event
     "hashchange": HashChangeEvent
     "beforeunload": Event
 }
@@ -156,6 +157,11 @@ interface EventTarget {
 interface WebSocket extends EventTarget {
     send(data: string): void
     close(): void
+    readonly readyState: number
+    readonly CONNECTING: 0
+    readonly OPEN: 1
+    readonly CLOSING: 2
+    readonly CLOSED: 3
 }
 
 interface Storage {

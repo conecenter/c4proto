@@ -10,7 +10,7 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{by, c4assemble}
 import ee.cone.c4di.{c4, c4multi}
 import ee.cone.c4gate.AuthProtocol.C_PasswordHashOfUser
-import ee.cone.c4gate.{AuthOperations, CurrentSessionKey, PublishFromStringsProvider, SessionListUtil}
+import ee.cone.c4gate._
 import ee.cone.c4ui.TestTodoProtocol.{B_TodoTask, B_TodoTaskComments, B_TodoTaskCommentsContains}
 import ee.cone.c4proto._
 import ee.cone.c4ui.TestCanvasProtocol.B_TestFigure
@@ -27,6 +27,44 @@ import ee.cone.c4vdom._
       ),
     )
   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+trait ExampleMenuItemEl extends ToChildPair
+@c4tags("TestTodoApp") trait ExampleMenuTags[C] {
+  @c4el("ExampleMenu") def menu(key: String, items: ElList[ExampleMenuItemEl], children: ViewRes): ToChildPair
+  @c4el("ExampleMenuItem") def menuItem(key: String, caption: String, activate: Receiver[C]): ExampleMenuItemEl
+}
+
+@c4("ReactHtmlApp") final case class WrapView()(
+  untilPolicy: UntilPolicy,
+  sessionUtil: SessionUtil, getFromAlienTask: GetByPK[FromAlienTask],
+  updatingReceiverFactory: UpdatingReceiverFactory,
+  exampleMenuTagsProvider: ExampleMenuTagsProvider,
+)(
+  exampleMenuTags: ExampleMenuTags[Context] = exampleMenuTagsProvider.get[Context]
+) extends ViewUpdater {
+  val rc: ViewAction => Receiver[Context] = updatingReceiverFactory.create(this, _)
+  import WrapView._
+  def wrap(view: Context=>ViewRes): Context=>ViewRes = untilPolicy.wrap{ local =>
+    val sessionKey = CurrentSessionKey.of(local)
+    val res = exampleMenuTags.menu("menu", List(
+      exampleMenuTags.menuItem("todo", "todo-list", rc(GoTo(sessionKey,"todo"))),
+      exampleMenuTags.menuItem("leader", "coworking", rc(GoTo(sessionKey,"leader"))),
+      exampleMenuTags.menuItem("rectangle", "canvas", rc(GoTo(sessionKey,"rectangle"))),
+      exampleMenuTags.menuItem("logout", "logout", rc(LogOut(sessionKey))),
+    ), view(local))
+    List(res.toChildPair)
+  }
+  def receive: Handler = value => local => {
+    case GoTo(sessionKey, to) => sessionUtil.setLocationHash(local, sessionKey, to)
+    case LogOut(sessionKey) => sessionUtil.logOut(local, sessionKey)
+  }
+}
+object WrapView {
+  private case class GoTo(sessionKey: String, hash: String) extends ViewAction
+  private case class LogOut(sessionKey: String) extends ViewAction
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,7 +129,7 @@ trait TodoTaskEl extends ToChildPair
 
 @c4("TestTodoApp") final case class TestTodoRootView(locationHash: String = "todo")(
   updatingReceiverFactory: UpdatingReceiverFactory,
-  untilPolicy: UntilPolicy,
+  wrapView: WrapView,
   getTodoTasks: GetByPK[TodoTasks], getTodoTaskCommentsContains: GetByPK[B_TodoTaskCommentsContains],
   exampleTagsProvider: ExampleTagsProvider,
 )(
@@ -100,7 +138,7 @@ trait TodoTaskEl extends ToChildPair
   import TestTodoRootView._
   import TodoTasks.listKey
   val rc: ViewAction => Receiver[Context] = updatingReceiverFactory.create(this, _)
-  def view: Context => ViewRes = untilPolicy.wrap{ local =>
+  def view: Context => ViewRes = wrapView.wrap{ local =>
     val tasksOpt = getTodoTasks.ofA(local).get(listKey)
     val branchKey = CurrentBranchKey.of(local)
     val commentsContainsValue = getTodoTaskCommentsContains.ofA(local).get(branchKey).fold("")(_.value)
@@ -142,12 +180,12 @@ trait TestSessionEl extends ToChildPair
 }
 
 @c4("TestTodoApp") final case class TestCoLeaderView(locationHash: String = "leader")(
-  untilPolicy: UntilPolicy, sessionListUtil: SessionListUtil,
+  wrapView: WrapView, sessionListUtil: SessionListUtil,
   testSessionListTagsProvider: TestSessionListTagsProvider,
 )(
   tags: TestSessionListTags[Context] = testSessionListTagsProvider.get[Context]
 ) extends ByLocationHashView with LazyLogging {
-  def view: Context => ViewRes = untilPolicy.wrap{ local =>
+  def view: Context => ViewRes = wrapView.wrap{ local =>
     val sessionItems = for {
       s <- sessionListUtil.list(local) if !s.location.endsWith(s"#${locationHash}")
     } yield tags.session(s.branchKey, s.branchKey, s.userName, s.isOnline)
@@ -174,7 +212,7 @@ trait ExampleFigureEl extends ToChildPair
 
 @c4("TestTodoApp") final case class TestCanvasView(locationHash: String = "rectangle")(
   updatingReceiverFactory: UpdatingReceiverFactory,
-  untilPolicy: UntilPolicy,
+  wrapView: WrapView,
   getTestCanvasState: GetByPK[B_TestCanvasState], getTestFigure: GetByPK[B_TestFigure],
   exampleCanvasTagsProvider: ExampleCanvasTagsProvider,
 )(
@@ -186,7 +224,7 @@ trait ExampleFigureEl extends ToChildPair
     val isActive = getTestFigure.ofA(local).get(key).exists(_.isActive)
     exampleCanvasTags.figure(key, pos, rc(Activate(key, !isActive)), isActive)
   }
-  def view: Context => ViewRes = untilPolicy.wrap { local =>
+  def view: Context => ViewRes = wrapView.wrap { local =>
     val sessionKey = CurrentSessionKey.of(local)
     val sizes = getTestCanvasState.ofA(local).get(sessionKey).fold("")(_.sizes)
     val res = exampleCanvasTags.canvas("testCanvas", sizes, rc(SizesChange(sessionKey)), List(
