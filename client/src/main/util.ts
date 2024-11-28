@@ -50,7 +50,16 @@ export type BranchContext = {
     sessionKey: string, setSessionKey: SetState<string|undefined>,
     branchKey: string, enqueue: EnqueuePatch, isRoot: boolean, win:Window 
 }
+export type UseSync = (identity: Identity) => [LocalPatch[], (patch: UnsubmittedLocalPatch) => void]
+export type SyncAppContext = { useSender: ()=>BranchContext, useSync: UseSync }
+export type UnsubmittedLocalPatch = { skipByPath: boolean, value: string, headers?: ObjS<string>, onAck?: ()=>void }
+export type LocalPatch = UnsubmittedLocalPatch & { sentIndex: number }
 
 export const resolve = (identity: Identity, key: string) => identity+'/'+key
 export const identityAt = (key: string): (identity: Identity)=>Identity => identity => resolve(identity, key)
 export const ctxToPath = (ctx: Identity): string => ctx
+export const mergeSimple = (value: string, patches: LocalPatch[]): string => {
+    const patch = patches.slice(-1)[0]
+    return patch ? patch.value : value
+}
+export const patchFromValue = (value: string): UnsubmittedLocalPatch => ({ value, skipByPath: true })

@@ -2,12 +2,49 @@
 import React from "react"
 import {StrictMode} from "react"
 import {useState,useCallback,useMemo,useEffect,createElement} from "../main/react"
-import {assertNever, CreateNode, Identity, identityAt, ObjS, SetState} from "../main/util"
+import {assertNever, CreateNode, Identity, identityAt, ObjS, SetState, patchFromValue, mergeSimple} from "../main/util"
 import {useSession,login} from "../main/session"
 import {doCreateRoot,useIsolatedFrame} from "../main/frames"
 import {initSyncRootState, SyncRootState} from "../main/sync-root"
-import {CanvasAppContext, CanvasFactory, useCanvas} from "../main/canvas-manager"
-import { AckContext, ABranchContext, LocationElement, useSync, patchFromValue, useSender, mergeSimple } from "../main/sync-hooks"
+import {CanvasAppContext, CanvasFactory, useCanvas} from "../extra/canvas-manager"
+import {AckContext, ABranchContext, useSync, useSender} from "../main/sync-hooks"
+import {LocationElement} from "../main/location"
+
+const completeIdOf = identityAt("complete")
+const forceRemoveIdOf = identityAt("forceRemove")
+function ExampleReplicaList({replicas}:{replicas?:{
+    key: string, identity: Identity, 
+    role: string, startedAt: string, hostname: string, version: string, completion: string,
+}[]}){
+    return <table style={{border: "1px solid silver"}}><tbody>
+        <tr>
+            {[
+                ["role","Role",7],["startedAt","Started At",15],["hostname","Hostname",15],
+                ["version","Version",15],["completion","Completion",15],
+                ["remove","",7]
+            ].map(([key,caption,width]) => <th style={{width: `${width}%`}} key={key}>{caption}</th>)}
+        </tr>
+        {(replicas??[]).map(({key,identity,role,startedAt,hostname,version,completion})=>(
+        <tr key={key}>
+            <td key="role">{role}</td><td key="startedAt">{startedAt}</td><td key="hostname">{hostname}</td>
+            <td key="version">{version}</td><td key="completion">{completion}</td>
+            <td key="remove">
+                <ExampleButton key="complete" caption="x..." identity={completeIdOf(identity)}/>
+                <ExampleButton key="force-remove" caption="x(" identity={forceRemoveIdOf(identity)}/>
+            </td>
+        </tr>
+        ))}
+    </tbody></table>
+}
+
+const makeSavepointIdOf = identityAt("makeSavepoint")
+const revertToSavepointIdOf = identityAt("revertToSavepoint")
+function ExampleReverting({offset,identity}:{offset: string, identity: Identity}){
+    return <div>
+        <ExampleButton caption="make savepoint" identity={makeSavepointIdOf(identity)}/>
+        {offset && <ExampleButton caption={`revert to ${offset}`} identity={revertToSavepointIdOf(identity)}/>}
+    </div>
+}
 
 const activateIdOf = identityAt("activate")
 const sizesChangeIdOf = identityAt('sizesChange')
@@ -193,20 +230,21 @@ function App({appContext,win}:PreLoginBranchContext){
 type SyncAppContext = { createNode: CreateNode }
 type AppContext = CanvasAppContext & SyncAppContext
 
+const deleted = <T,>(h: ObjS<T>, k: string) => { const {[k]:d,...res} = h; return res }
+
 export const main = ({win, canvasFactory}: {win: Window, canvasFactory: CanvasFactory }) => {
     const typeTransforms: ObjS<React.FC<any>|string> = {
         span: "span", LocationElement, 
-        ExampleMenu, ExampleTodoTaskList, TestSessionList, ExampleCanvas
+        ExampleMenu, ExampleTodoTaskList, TestSessionList, ExampleCanvas, ExampleReverting, ExampleReplicaList
     }
     const createNode: CreateNode = at => {
         //console.log("tp",at.tp)
         const constr = typeTransforms[at.tp]
         if(!constr) return at
-        if(typeof constr !== "string") return createElement(constr, {appContext,...at})
-        const {tp,...leftAt} = at
-        return createElement(constr, leftAt)
+        if(typeof constr === "string") return createElement(constr, deleted(at, "tp"))
+        return createElement(constr, {appContext,...at})
     }
-    const appContext = {createNode, canvasFactory}
+    const appContext = {createNode, canvasFactory, useSync, useSender}
     const [root, unmount] = doCreateRoot(win.document.body)
     root.render(<App appContext={appContext} win={win}/>)
 }

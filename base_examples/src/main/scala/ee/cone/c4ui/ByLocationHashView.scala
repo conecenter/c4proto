@@ -5,8 +5,8 @@ import ee.cone.c4actor.Types.{LEvents, SrcId}
 import ee.cone.c4actor.{Context, LTxAdd, WithPK}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{by, c4assemble}
-import ee.cone.c4di.c4multi
-import ee.cone.c4gate.CurrentSessionKey
+import ee.cone.c4di._
+import ee.cone.c4gate._
 import ee.cone.c4vdom.Receiver
 import ee.cone.c4vdom.Types.ViewRes
 import okio.ByteString
@@ -57,3 +57,16 @@ trait ViewAction extends Product
   }
 }
 
+////
+
+@c4("TestTodoApp") final class ReactHtmlProvider extends PublishFromStringsProvider {
+  def get: List[(String, String)] = {
+    val now = System.currentTimeMillis
+    List(
+      "/ws-app.html" -> (
+        """<!DOCTYPE html><meta charset="UTF-8">""" +
+          s"""<body><script  type="module" src="/ws-app.js?$now"></script></body>"""
+        ),
+    )
+  }
+}

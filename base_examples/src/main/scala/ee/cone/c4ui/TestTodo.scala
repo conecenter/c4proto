@@ -1,6 +1,7 @@
 package ee.cone.c4ui
 
 import java.util.UUID
+import java.time.Instant
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LEvent.{delete, update}
 import ee.cone.c4actor.QProtocol.S_Firstborn
@@ -17,19 +18,7 @@ import ee.cone.c4ui.TestCanvasProtocol.B_TestFigure
 import ee.cone.c4vdom.Types._
 import ee.cone.c4vdom._
 
-@c4("ReactHtmlApp") final class ReactHtmlProvider extends PublishFromStringsProvider {
-  def get: List[(String, String)] = {
-    val now = System.currentTimeMillis
-    List(
-      "/ws-app.html" -> (
-        """<!DOCTYPE html><meta charset="UTF-8">""" +
-        s"""<body><script  type="module" src="/ws-app.js?$now"></script></body>"""
-      ),
-    )
-  }
-}
-
-////////////////////////////////////////////////////////////////////////////////
+////
 
 trait ExampleMenuItemEl extends ToChildPair
 @c4tags("TestTodoApp") trait ExampleMenuTags[C] {
@@ -37,7 +26,7 @@ trait ExampleMenuItemEl extends ToChildPair
   @c4el("ExampleMenuItem") def menuItem(key: String, caption: String, activate: Receiver[C]): ExampleMenuItemEl
 }
 
-@c4("ReactHtmlApp") final case class WrapView()(
+@c4("TestTodoApp") final case class WrapView()(
   untilPolicy: UntilPolicy,
   sessionUtil: SessionUtil, getFromAlienTask: GetByPK[FromAlienTask],
   updatingReceiverFactory: UpdatingReceiverFactory,
@@ -49,12 +38,15 @@ trait ExampleMenuItemEl extends ToChildPair
   import WrapView._
   def wrap(view: Context=>ViewRes): Context=>ViewRes = untilPolicy.wrap{ local =>
     val sessionKey = CurrentSessionKey.of(local)
-    val res = exampleMenuTags.menu("menu", List(
-      exampleMenuTags.menuItem("todo", "todo-list", rc(GoTo(sessionKey,"todo"))),
-      exampleMenuTags.menuItem("leader", "coworking", rc(GoTo(sessionKey,"leader"))),
-      exampleMenuTags.menuItem("rectangle", "canvas", rc(GoTo(sessionKey,"rectangle"))),
-      exampleMenuTags.menuItem("logout", "logout", rc(LogOut(sessionKey))),
-    ), view(local))
+    val res = exampleMenuTags.menu(
+      "menu",
+      (for((key,caption) <- List(
+        ("todo", "todo-list"), ("leader", "coworking"), ("rectangle", "canvas"), ("revert", "reverting"),
+        ("replicas", "replicas"),
+      )) yield exampleMenuTags.menuItem(s"menu-item-${key}", caption, rc(GoTo(sessionKey,key)))) ++
+      List(exampleMenuTags.menuItem("logout", "logout", rc(LogOut(sessionKey)))),
+      view(local)
+    )
     List(res.toChildPair)
   }
   def receive: Handler = value => local => {
@@ -240,4 +232,87 @@ trait ExampleFigureEl extends ToChildPair
 object TestCanvasView {
   private case class SizesChange(sessionKey: String) extends ViewAction
   private case class Activate(id: String, value: Boolean) extends ViewAction
+}
+
+////////////////////////////
+
+@c4tags("TestTodoApp") trait RevertRootViewTags[C] {
+  @c4el("ExampleReverting") def reverting(
+    key: String, makeSavepoint: Receiver[C], revertToSavepoint: Receiver[C], offset: String,
+  ): ToChildPair
+}
+
+@c4("TestTodoApp") final case class RevertRootView(locationHash: String = "revert")(
+  revert: Reverting, wrapView: WrapView, revertRootViewTagsProvider: RevertRootViewTagsProvider,
+  updatingReceiverFactory: UpdatingReceiverFactory, revertToSavepoint: RevertToSavepoint,
+)(
+  tags: RevertRootViewTags[Context] = revertRootViewTagsProvider.get[Context],
+) extends ByLocationHashView with ViewUpdater {
+  import RevertRootView._
+  val rc: ViewAction => Receiver[Context] = updatingReceiverFactory.create(this, _)
+  def view: Context => ViewRes = wrapView.wrap { local =>
+    val res = tags.reverting(
+      key = "reverting", makeSavepoint = rc(MakeSavepoint()), revertToSavepoint = revertToSavepoint,
+      offset = revert.getSavepoint(local).toList.mkString
+    )
+    List(res.toChildPair)
+  }
+  def receive: Handler = value => local => {
+    case MakeSavepoint() => revert.makeSavepoint
+  }
+}
+object RevertRootView {
+  private case class MakeSavepoint() extends ViewAction
+}
+@c4("TestTodoApp") final case class RevertToSavepoint()(revert: Reverting) extends Receiver[Context] {
+  def receive: Handler = _ => revert.revertToSavepoint
+}
+
+////////////////////////////
+
+trait ReplicaEl extends ToChildPair
+@c4tags("TestTodoApp") trait ExampleReplicaTags[C] {
+  @c4el("ExampleReplica") def replica(
+    key: String,
+    role: String, startedAt: String, hostname: String, version: String, completion: String,
+    complete: Receiver[C], forceRemove: Receiver[C]
+  ): ReplicaEl
+  @c4el("ExampleReplicaList") def replicas(key: String, replicas: ElList[ReplicaEl]): ToChildPair
+}
+
+@c4("TestTodoApp") final case class ReplicaListRootView(locationHash: String = "replicas")(
+  wrapView: WrapView,
+  exampleTagsProvider: ExampleReplicaTagsProvider,
+  getReadyProcesses: GetByPK[ReadyProcesses],
+  actorName: ActorName,
+  updatingReceiverFactory: UpdatingReceiverFactory,
+)(
+  tags: ExampleReplicaTags[Context] = exampleTagsProvider.get[Context],
+) extends ByLocationHashView with ViewUpdater {
+  import ReplicaListRootView._
+  val rc: ViewAction => Receiver[Context] = updatingReceiverFactory.create(this, _)
+  def view: Context => ViewRes = wrapView.wrap { local =>
+    val processes = getReadyProcesses.ofA(local).get(actorName.value).fold(List.empty[ReadyProcess])(_.all)
+    val res = tags.replicas("replicas", for(p <- processes) yield tags.replica(
+      key = p.id, role = p.role, startedAt = Instant.ofEpochMilli(p.startedAt).toString, hostname = p.hostname,
+      version = p.refDescr, completion = p.completionReqAt.fold("")(_.toString), complete = rc(Complete(p)),
+      forceRemove = rc(ForceRemove(p)),
+    ))
+    List(res.toChildPair)
+  }
+  def receive: Handler = _ => _ => {
+    case Complete(p) => p.complete(Instant.now.plusSeconds(5))
+    case ForceRemove(p) => p.halt
+  }
+}
+object ReplicaListRootView {
+  private case class Complete(process: ReadyProcess) extends ViewAction
+  private case class ForceRemove(process: ReadyProcess) extends ViewAction
+}
+
+@c4("TestTodoApp") final case class ReplicaBadShutdown(execution: Execution) extends Executable with LazyLogging {
+  def run(): Unit = {
+    logger.info("installing bad hook for master")
+    val ignoreRemove = execution.onShutdown("Bad",() => Thread.sleep(10000))
+  }
 }

@@ -1,5 +1,5 @@
 
-import * as Canvas from "../main/canvas"
+import * as Canvas from "./canvas"
 
 
 export function CanvasBaseMix(log,util){

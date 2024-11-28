@@ -1,6 +1,6 @@
 
-import {CanvasUtil,ExchangeCanvasSetup,CanvasFactory} from "../main/canvas"
-import {CanvasBaseMix,CanvasSimpleMix} from "../main/canvas-mix"
+import {CanvasUtil,ExchangeCanvasSetup,CanvasFactory} from "../extra/canvas"
+import {CanvasBaseMix,CanvasSimpleMix} from "../extra/canvas-mix"
 import {main} from "./ws-app.tsx"
 
 const log = v => console.log(v)

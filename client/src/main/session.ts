@@ -1,6 +1,6 @@
 
 import {useState,useEffect} from "./react"
-import {manageEventListener,SetState,getKey,asObject,asString, assertNever, weakCache} from "./util"
+import {manageEventListener, SetState, getKey, asObject, asString, assertNever, weakCache} from "./util"
 
 export const login = (win: Window, user: string, pass: string): Promise<string> => (
     win.fetch("/auth/check",{ method: "POST", body: `${user}\n${pass}` })

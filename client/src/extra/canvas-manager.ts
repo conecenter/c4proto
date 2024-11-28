@@ -1,7 +1,6 @@
 
-import {useEffect,useState} from "./react"
-import { mergeSimple, patchFromValue, useSender, useSync } from "./sync-hooks"
-import {weakCache,manageAnimationFrame,assertNever,Identity,ObjS} from "./util"
+import {useEffect,useState} from "../main/react"
+import {weakCache,manageAnimationFrame,assertNever,Identity,ObjS,mergeSimple,patchFromValue,SyncAppContext} from "../main/util"
 
 const Buffer = <T>(): [()=>T[], (...items: T[])=>void] => {
     let finished = 0
@@ -31,7 +30,7 @@ type C4Canvas = {
 }
 type CanvasOptions = {[K:string]:unknown}
 export type CanvasFactory = (opt: CanvasOptions)=>C4Canvas
-export type CanvasAppContext = { canvasFactory: CanvasFactory }
+export type CanvasAppContext = { canvasFactory: CanvasFactory } & SyncAppContext
 
 type CanvasProps = CanvasPart & {
     identity: Identity, appContext: CanvasAppContext, parentNode: HTMLElement|undefined,
@@ -80,7 +79,7 @@ const parseValue = (value: string) => {
 
 export const useCanvas = (prop:CanvasProps) => {
     const {identity, value: incomingValue, appContext, isGreedy, style: argStyle, options, parentNode} = prop
-    const {canvasFactory} = appContext
+    const {canvasFactory,useSender,useSync} = appContext
     const {enqueue,isRoot} = useSender()
     const [sizePatches, enqueueSizePatch] = useSync(identity)
     const value = mergeSimple(incomingValue, sizePatches)
