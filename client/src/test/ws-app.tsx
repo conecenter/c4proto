@@ -3,7 +3,7 @@ import React from "react"
 import {StrictMode} from "react"
 import {useState,useCallback,useMemo,useEffect,createElement} from "../main/react"
 import {assertNever, CreateNode, Identity, identityAt, ObjS, SetState, patchFromValue, mergeSimple} from "../main/util"
-import {useSession,login} from "../main/session"
+import {useSession,login, Login} from "../main/session"
 import {doCreateRoot,useIsolatedFrame} from "../main/frames"
 import {initSyncRootState, SyncRootState} from "../main/sync-root"
 import {CanvasAppContext, CanvasFactory, useCanvas} from "../extra/canvas-manager"
@@ -187,8 +187,7 @@ function Availability({availability}: {availability: boolean}){
 
 type PreLoginBranchContext = { appContext: AppContext, win: Window }
 type PreSyncBranchContext = PreLoginBranchContext & { 
-    sessionKey: string, setSessionKey: SetState<string|undefined>, 
-    isRoot: boolean, branchKey: string, reloadBranchKey: ()=>void 
+    sessionKey: string, branchKey: string, login: Login, reloadBranchKey: ()=>void, isRoot: boolean, 
 }
 
 function SyncRoot(prop: PreSyncBranchContext){
@@ -218,12 +217,11 @@ function SyncRoot(prop: PreSyncBranchContext){
 }
 
 function App({appContext,win}:PreLoginBranchContext){
-    const {sessionKey, setSessionKey, branchKey, reloadBranchKey} = useSession(win)
+    const {session, failure, reloadBranchKey, login} = useSession(win)
     return [
-        sessionKey && branchKey ? <SyncRoot {...{
-            appContext, sessionKey, setSessionKey, branchKey, reloadBranchKey, isRoot: true, win
-        }} key={branchKey}/> : 
-        sessionKey === "" ? <Login {...{win,setSessionKey}} key="login"/> : ""
+        session ? <SyncRoot {...{
+            appContext, ...session, reloadBranchKey, login, isRoot: true, win
+        }} key={session.branchKey}/> : failure || ""
     ]
 }
 

@@ -8,6 +8,7 @@ interface Number {}
 interface Object {}
 
 interface String {
+    indexOf(searchString: string): number
     replaceAll(searchValue: string | RegExp, replaceValue: string): string;
     startsWith(searchString: string, position?: number): boolean
     substring(start: number, end?: number): string

@@ -1,55 +1,58 @@
 
 import {useState,useEffect} from "./react"
-import {manageEventListener, SetState, getKey, asObject, asString, assertNever, weakCache} from "./util"
+import {manageEventListener, getKey, asObject, asString, assertNever, weakCache, SetState} from "./util"
 
-export const login = (win: Window, user: string, pass: string): Promise<string> => (
-    win.fetch("/auth/check",{ method: "POST", body: `${user}\n${pass}` })
-    .then(r => r.json()).then(rj => asString(getKey(asObject(rj), "sessionKey")) || assertNever("no sessionKey"))
-)
+type SessionState = { sessionKey: string, branchKey: string, login: Login }
+export type Login = (user: string, pass: string) => Promise<void>
 
-const stateKey = "c4sessionKey"
-const useSessionRestoreOnRefresh = (
-    {win, sessionKey, setSessionKey}:
-    {win: Window, sessionKey: string|undefined, setSessionKey: SetState<string|undefined>}
-) => {
-    useEffect(()=>{
-        if(!win) return undefined
-        const sessionKey = win.sessionStorage.getItem(stateKey)
-        win.sessionStorage.removeItem(stateKey)
-        setSessionKey(was => was ?? (sessionKey||""))
-    }, [win, setSessionKey])
-    useEffect(()=>{
-        return manageEventListener(win, "beforeunload", ()=>{
-            sessionKey && win.sessionStorage.setItem(stateKey, sessionKey)
-        })
-    }, [win, sessionKey])
+const getBranch = async (win: Window, sessionKey: string): Promise<{branchKey?:string,error?:string}> => {
+    const rj = await (await win.fetch("/auth/branch",{method: "POST", headers: {"x-r-session":sessionKey}})).json()
+    return asObject(rj)
 }
-
-const sessionBranchManagers = weakCache((setState: SetState<SessionState>) => {
-    const setSessionKey: SetState<string|undefined> = f => setState(was => {
-        const sessionKey = f(was.sessionKey) ?? assertNever("no sessionKey")
-        return was.sessionKey === sessionKey ? was : {sessionKey}
-    })
-    const reloadBranchKeyInner = (sessionKey: string|undefined, win: Window) =>{
-        const fin = (resp: {branchKey?:string, error?:string}) => setState(was => (
-            resp?.branchKey && !was.branchKey && was.sessionKey === sessionKey ? 
-                {...was,branchKey:resp?.branchKey} : resp?.error || !was.branchKey ? {sessionKey:""} : was
-        ))
-        sessionKey && win.fetch("/auth/branch",{method: "POST", headers: {"x-r-session":sessionKey}}).then(r => r.json())
-            .then(rj => fin(asObject(rj)), error => fin({}))
-    }
-    const reloadBranchKey = () => setState(was => ({...was, reloadBranchCounter: (was.reloadBranchCounter??0)+1}))
-    return {setSessionKey,reloadBranchKey,reloadBranchKeyInner}
+const loginInner = async (win: Window, body: string): Promise<SessionState> => {
+    const rj = await (await win.fetch("/auth/check",{ method: "POST", body })).json()
+    const sessionKey = asString(getKey(asObject(rj), "sessionKey")) || assertNever("no sessionKey")
+    const branchKey = (await getBranch(win, sessionKey)).branchKey || assertNever("no branchKey")
+    return createSession({sessionKey,branchKey})
+}
+const stateKey = "c4sessionState"
+const manageUnload = (win: Window, {sessionKey,branchKey}: SessionState) => manageEventListener(win, "beforeunload", ()=>{
+    sessionKey && branchKey && win.sessionStorage.setItem(stateKey, `${sessionKey}\n${branchKey}`)
 })
-type SessionState = { 
-    sessionKey?: string, // undefined is after refresh, and "" means "need to login"
-    branchKey?: string, reloadBranchCounter?: number 
+const load = async (win: Window): Promise<SessionState> => {
+    const state = win.sessionStorage.getItem(stateKey)
+    if(state){
+        win.sessionStorage.removeItem(stateKey)
+        const [sessionKey,branchKey] = state.split("\n")
+
+        return sessionKey && branchKey ? createSession({sessionKey,branchKey}) : assertNever("")
+    } else {
+        return await loginInner(win, "")
+    }
 }
+
+const createSetSession = ({win,setSession,sessionKey,branchKey}) => {
+    const check = async (): Promise<SessionState|undefined> => {
+        return (await getBranch(win, sessionKey)).error ? await loginInner(win, "") : undefined
+    }
+    setSession(was => ({sessionKey,branchKey,login,check}))
+}
+
+
+
+const checks = weakCache((win: Window) => weakCache((session: SessionState) => weakCache((setSession: SetState<SessionState|undefined>) => 
+    () => { check(win, session).then(s => s && setSession(was=>s)) }
+)))
+const logins = weakCache((win: Window) => weakCache((setSession: SetState<SessionState|undefined>) => 
+    (user: string, pass: string) => loginInner(win, `${user}\n${pass}`).then(s=>setSession(was=>s))
+))
 
 export const useSession = (win: Window) => {
-    const [{sessionKey,branchKey,reloadBranchCounter}, setState] = useState<SessionState>({})
-    const {setSessionKey,reloadBranchKey,reloadBranchKeyInner} = sessionBranchManagers(setState)
-    useEffect(() => reloadBranchKeyInner(sessionKey,win), [reloadBranchKeyInner,sessionKey,win,reloadBranchCounter])
-    useSessionRestoreOnRefresh({win, sessionKey, setSessionKey})
-    return {sessionKey, setSessionKey, branchKey, reloadBranchKey}
+    const [session, setSession] = useState<SessionState|undefined>()
+    const [failure, setFailure] = useState<unknown>()
+    useEffect(() => { win && load(win).then(setSession, setFailure) }, [win, setSession, setFailure])
+    useEffect(() => win && session && manageUnload(win, session), [win, session])
+    const reloadBranchKey: (()=>void)|undefined = session && checks(win)(session)(setSession)
+    const login: Login = logins(win)(setSession)
+    return {session, failure, reloadBranchKey, login}
 }
