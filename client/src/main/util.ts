@@ -46,9 +46,9 @@ export type UnsubmittedPatch = { identity: Identity, skipByPath: boolean, value:
 export type Patch = UnsubmittedPatch & { index: number }
 export type EnqueuePatch = (patch: UnsubmittedPatch) => number
 export type CreateNode = (at: ObjS<unknown> & {tp:string})=>object
+export type Login = (user: string, pass: string) => Promise<void>
 export type BranchContext = {
-    sessionKey: string, setSessionKey: SetState<string|undefined>,
-    branchKey: string, enqueue: EnqueuePatch, isRoot: boolean, win:Window 
+    sessionKey: string, branchKey: string, enqueue: EnqueuePatch, isRoot: boolean, win: Window, login: Login 
 }
 export type UseSync = (identity: Identity) => [LocalPatch[], (patch: UnsubmittedLocalPatch) => void]
 export type SyncAppContext = { useSender: ()=>BranchContext, useSync: UseSync }

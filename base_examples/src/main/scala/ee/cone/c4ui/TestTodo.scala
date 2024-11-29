@@ -10,7 +10,7 @@ import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{by, c4assemble}
 import ee.cone.c4di.{c4, c4multi}
-import ee.cone.c4gate.AuthProtocol.C_PasswordHashOfUser
+import ee.cone.c4gate.AuthProtocol.{C_PasswordHashOfUser, U_AuthenticatedSession}
 import ee.cone.c4gate._
 import ee.cone.c4ui.TestTodoProtocol.{B_TodoTask, B_TodoTaskComments, B_TodoTaskCommentsContains}
 import ee.cone.c4proto._
@@ -22,13 +22,14 @@ import ee.cone.c4vdom._
 
 trait ExampleMenuItemEl extends ToChildPair
 @c4tags("TestTodoApp") trait ExampleMenuTags[C] {
+  @c4el("ExampleLogin") def login(key: String): ToChildPair
   @c4el("ExampleMenu") def menu(key: String, items: ElList[ExampleMenuItemEl], children: ViewRes): ToChildPair
   @c4el("ExampleMenuItem") def menuItem(key: String, caption: String, activate: Receiver[C]): ExampleMenuItemEl
 }
 
 @c4("TestTodoApp") final case class WrapView()(
   untilPolicy: UntilPolicy,
-  sessionUtil: SessionUtil, getFromAlienTask: GetByPK[FromAlienTask],
+  sessionUtil: SessionUtil, getSession: GetByPK[U_AuthenticatedSession],
   updatingReceiverFactory: UpdatingReceiverFactory,
   exampleMenuTagsProvider: ExampleMenuTagsProvider,
 )(
@@ -38,7 +39,8 @@ trait ExampleMenuItemEl extends ToChildPair
   import WrapView._
   def wrap(view: Context=>ViewRes): Context=>ViewRes = untilPolicy.wrap{ local =>
     val sessionKey = CurrentSessionKey.of(local)
-    val res = exampleMenuTags.menu(
+    val hasLogin = getSession.ofA(local).get(sessionKey).exists(_.userName.nonEmpty)
+    val res = if(hasLogin) exampleMenuTags.menu(
       "menu",
       (for((key,caption) <- List(
         ("todo", "todo-list"), ("leader", "coworking"), ("rectangle", "canvas"), ("revert", "reverting"),
@@ -46,7 +48,7 @@ trait ExampleMenuItemEl extends ToChildPair
       )) yield exampleMenuTags.menuItem(s"menu-item-${key}", caption, rc(GoTo(sessionKey,key)))) ++
       List(exampleMenuTags.menuItem("logout", "logout", rc(LogOut(sessionKey)))),
       view(local)
-    )
+    ) else exampleMenuTags.login("login")
     List(res.toChildPair)
   }
   def receive: Handler = value => local => {

@@ -2,8 +2,8 @@
 import React from "react"
 import {StrictMode} from "react"
 import {useState,useCallback,useMemo,useEffect,createElement} from "../main/react"
-import {assertNever, CreateNode, Identity, identityAt, ObjS, SetState, patchFromValue, mergeSimple} from "../main/util"
-import {useSession,login, Login} from "../main/session"
+import {assertNever, CreateNode, Identity, identityAt, ObjS, SetState, patchFromValue, mergeSimple, Login} from "../main/util"
+import {SessionManager, Session} from "../main/session"
 import {doCreateRoot,useIsolatedFrame} from "../main/frames"
 import {initSyncRootState, SyncRootState} from "../main/sync-root"
 import {CanvasAppContext, CanvasFactory, useCanvas} from "../extra/canvas-manager"
@@ -136,27 +136,28 @@ function ExampleInput({value: incomingValue, identity}:{value: string, identity:
 }
 
 const noReloadBranchKey = ()=>{}
+const noLogin: Login = (u,p) => assertNever("no login in non-root")
 function ExampleFrame({appContext,branchKey,style}:{appContext:AppContext,branchKey:string,style:{[K:string]:string}}){
-    const {sessionKey,setSessionKey} = useSender()
+    const {sessionKey} = useSender()
     const makeChildren = useCallback((body:HTMLElement) => {
         const win = body.ownerDocument.defaultView ?? assertNever("no window")
-        return <SyncRoot {...{
-            reloadBranchKey:noReloadBranchKey,isRoot:false,win,
-            appContext,sessionKey,setSessionKey,branchKey,
-        }}/>        
-    }, [appContext,sessionKey,setSessionKey,branchKey])
+        const syncProps: PreSyncBranchContext = {
+            appContext, login: noLogin, reloadBranchKey: noReloadBranchKey, isRoot: false, win, sessionKey, branchKey
+        }
+        return <SyncRoot {...syncProps}/>        
+    }, [appContext,sessionKey,branchKey])
     const {ref,...props} = useIsolatedFrame(makeChildren)
     return <iframe {...props} {...{style}} ref={ref} />
 }
 
-function Login({win,setSessionKey} : {win: Window, setSessionKey: SetState<string|undefined>}){
+function ExampleLogin(){
+    const {login} = useSender()
     const [user, setUser] = useState("")
     const [pass, setPass] = useState("")
     const [error, setError] = useState(false)
     const onClick = useCallback(() => {
-        setError(false)
-        login(win, user, pass).then(sessionKey => setSessionKey(was=>sessionKey), err=>setError(true))
-    }, [win,login,user,pass])
+        login(user, pass).then(()=>{}, err=>setError(true))
+    }, [login,user,pass])
     return <div>
         Username <input type="text" value={user} onChange={ev=>setUser(ev.target.value)}/>,
         password <input type="password" value={pass} onChange={ev=>setPass(ev.target.value)}/>&nbsp;
@@ -191,7 +192,7 @@ type PreSyncBranchContext = PreLoginBranchContext & {
 }
 
 function SyncRoot(prop: PreSyncBranchContext){
-    const { appContext, isRoot, sessionKey, setSessionKey, branchKey, win, reloadBranchKey } = prop
+    const { appContext, isRoot, sessionKey, branchKey, win, reloadBranchKey, login } = prop
     const {createNode} = appContext
     const [{manager, children, availability, ack, failure}, setState] = useState<SyncRootState>(initSyncRootState)
     const {start, enqueue, stop} = manager
@@ -200,9 +201,9 @@ function SyncRoot(prop: PreSyncBranchContext){
         return () => stop()
     }, [start, createNode, setState, isRoot, sessionKey, branchKey, win, reloadBranchKey, stop])
     const branchContextValue = useMemo(()=>({
-        branchKey, sessionKey, setSessionKey, enqueue, isRoot, win
+        branchKey, sessionKey, enqueue, isRoot, win, login
     }),[
-        branchKey, sessionKey, setSessionKey, enqueue, isRoot, win
+        branchKey, sessionKey, enqueue, isRoot, win, login
     ])
     //console.log("ve",isValidElement(children),children)
     return <StrictMode>
@@ -217,12 +218,14 @@ function SyncRoot(prop: PreSyncBranchContext){
 }
 
 function App({appContext,win}:PreLoginBranchContext){
-    const {session, failure, reloadBranchKey, login} = useSession(win)
-    return [
-        session ? <SyncRoot {...{
-            appContext, ...session, reloadBranchKey, login, isRoot: true, win
-        }} key={session.branchKey}/> : failure || ""
-    ]
+    const [session, setSession] = useState<Session|undefined>()
+    const [failure, setFailure] = useState<unknown>()
+    useEffect(() => { SessionManager(win, setSession).load().then(()=>{},setFailure) }, [win, setSession, setFailure])
+    useEffect(() => session?.manageUnload(), [session])
+    if(!session) return `${failure}`
+    const {sessionKey, branchKey, login, check} = session
+    const syncProps = {appContext, sessionKey, branchKey, login, reloadBranchKey: check, isRoot: true, win}
+    return <SyncRoot {...syncProps} key={branchKey}/>
 }
 
 type SyncAppContext = { createNode: CreateNode }
@@ -233,7 +236,7 @@ const deleted = <T,>(h: ObjS<T>, k: string) => { const {[k]:d,...res} = h; retur
 export const main = ({win, canvasFactory}: {win: Window, canvasFactory: CanvasFactory }) => {
     const typeTransforms: ObjS<React.FC<any>|string> = {
         span: "span", LocationElement, 
-        ExampleMenu, ExampleTodoTaskList, TestSessionList, ExampleCanvas, ExampleReverting, ExampleReplicaList
+        ExampleLogin, ExampleMenu, ExampleTodoTaskList, TestSessionList, ExampleCanvas, ExampleReverting, ExampleReplicaList
     }
     const createNode: CreateNode = at => {
         //console.log("tp",at.tp)
