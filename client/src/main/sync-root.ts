@@ -1,5 +1,5 @@
 
-import {weakCache,SetState,assertNever,getKey,asObject,asString,ObjS,EnqueuePatch,Patch,UnsubmittedPatch,resolve,ctxToPath,CreateNode} from "./util"
+import {weakCache,assertNever,getKey,asObject,asString,ObjS,EnqueuePatch,Patch,UnsubmittedPatch,resolve,ctxToPath,CreateNode} from "./util"
 
 const asArray = (u: unknown): unknown[] => Array.isArray(u) ? u : assertNever("bad array")
 const asBoolean = (u: unknown) => typeof u === "boolean" ? u : assertNever("bad boolean")
@@ -74,6 +74,7 @@ const update = (inc: Incoming, spec: ObjS<unknown>, pKey: string, pIdentity: str
 
 const getKeyOpt = (o: { [K: string]: unknown }, k: string): unknown => o[k]
 
+type SetState<S> = (f: (was: S) => S) => void
 type AckPatches = (index: number) => void
 const Receiver = (setState: SetState<SyncRootState>, doAck: AckPatches, createNode: CreateNode) => {
     let incoming = {at:{tp:"RootElement"}}

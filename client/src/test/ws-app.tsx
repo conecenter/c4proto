@@ -2,7 +2,7 @@
 import React from "react"
 import {StrictMode} from "react"
 import {useState,useCallback,useMemo,useEffect,createElement} from "../main/react"
-import {assertNever, CreateNode, Identity, identityAt, ObjS, SetState, patchFromValue, mergeSimple, Login} from "../main/util"
+import {assertNever, CreateNode, Identity, identityAt, ObjS, patchFromValue, mergeSimple, Login} from "../main/util"
 import {SessionManager, Session} from "../main/session"
 import {doCreateRoot,useIsolatedFrame} from "../main/frames"
 import {initSyncRootState, SyncRootState} from "../main/sync-root"
@@ -222,7 +222,7 @@ function App({appContext,win}:PreLoginBranchContext){
     const [failure, setFailure] = useState<unknown>()
     useEffect(() => { SessionManager(win, setSession).load().then(()=>{},setFailure) }, [win, setSession, setFailure])
     useEffect(() => session?.manageUnload(), [session])
-    if(!session) return `${failure}`
+    if(!session) return `SESSION INIT FAILED: ${failure}`
     const {sessionKey, branchKey, login, check} = session
     const syncProps = {appContext, sessionKey, branchKey, login, reloadBranchKey: check, isRoot: true, win}
     return <SyncRoot {...syncProps} key={branchKey}/>
