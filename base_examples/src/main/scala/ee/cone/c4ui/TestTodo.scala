@@ -28,14 +28,12 @@ trait ExampleMenuItemEl extends ToChildPair
 }
 
 @c4("TestTodoApp") final case class WrapView()(
-  untilPolicy: UntilPolicy,
-  sessionUtil: SessionUtil, getSession: GetByPK[U_AuthenticatedSession],
-  updatingReceiverFactory: UpdatingReceiverFactory,
+  untilPolicy: UntilPolicy, sessionUtil: SessionUtil, getSession: GetByPK[U_AuthenticatedSession],
+  val rc: UpdatingReceiverFactory, toAlienMessageUtil: ToAlienMessageUtil,
   exampleMenuTagsProvider: ExampleMenuTagsProvider,
 )(
   exampleMenuTags: ExampleMenuTags[Context] = exampleMenuTagsProvider.get[Context]
-) extends ViewUpdater {
-  val rc: ViewAction => Receiver[Context] = updatingReceiverFactory.create(this, _)
+) extends Updater {
   import WrapView._
   def wrap(view: Context=>ViewRes): Context=>ViewRes = untilPolicy.wrap{ local =>
     val sessionKey = CurrentSessionKey.of(local)
@@ -45,20 +43,24 @@ trait ExampleMenuItemEl extends ToChildPair
       (for((key,caption) <- List(
         ("todo", "todo-list"), ("leader", "coworking"), ("rectangle", "canvas"), ("revert", "reverting"),
         ("replicas", "replicas"),
-      )) yield exampleMenuTags.menuItem(s"menu-item-${key}", caption, rc(GoTo(sessionKey,key)))) ++
-      List(exampleMenuTags.menuItem("logout", "logout", rc(LogOut(sessionKey)))),
+      )) yield exampleMenuTags.menuItem(s"menu-item-${key}", caption, rc(GoTo(sessionKey,key)))) ++ List(
+        exampleMenuTags.menuItem("sendTestMessage", "test message", rc(SendTestMessage(sessionKey))),
+        exampleMenuTags.menuItem("logout", "logout", rc(LogOut(sessionKey))),
+      ),
       view(local)
     ) else exampleMenuTags.login("login")
     List(res.toChildPair)
   }
-  def receive: Handler = value => local => {
+  def receive: Handler = _ => local => {
     case GoTo(sessionKey, to) => sessionUtil.setLocationHash(local, sessionKey, to)
+    case SendTestMessage(sessionKey) => toAlienMessageUtil.create(sessionKey, UUID.randomUUID().toString)
     case LogOut(sessionKey) => sessionUtil.logOut(local, sessionKey)
   }
 }
 object WrapView {
-  private case class GoTo(sessionKey: String, hash: String) extends ViewAction
-  private case class LogOut(sessionKey: String) extends ViewAction
+  private case class GoTo(sessionKey: String, hash: String) extends Action
+  private case class SendTestMessage(sessionKey: String) extends Action
+  private case class LogOut(sessionKey: String) extends Action
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -122,16 +124,15 @@ trait TodoTaskEl extends ToChildPair
 }
 
 @c4("TestTodoApp") final case class TestTodoRootView(locationHash: String = "todo")(
-  updatingReceiverFactory: UpdatingReceiverFactory,
+  val rc: UpdatingReceiverFactory,
   wrapView: WrapView,
   getTodoTasks: GetByPK[TodoTasks], getTodoTaskCommentsContains: GetByPK[B_TodoTaskCommentsContains],
   exampleTagsProvider: ExampleTagsProvider,
 )(
   exampleTags: ExampleTags[Context] = exampleTagsProvider.get[Context]
-) extends ByLocationHashView with ViewUpdater with LazyLogging {
+) extends ByLocationHashView with Updater with LazyLogging {
   import TestTodoRootView._
   import TodoTasks.listKey
-  val rc: ViewAction => Receiver[Context] = updatingReceiverFactory.create(this, _)
   def view: Context => ViewRes = wrapView.wrap{ local =>
     val tasksOpt = getTodoTasks.ofA(local).get(listKey)
     val branchKey = CurrentBranchKey.of(local)
@@ -159,10 +160,10 @@ trait TodoTaskEl extends ToChildPair
   }
 }
 object TestTodoRootView {
-  private case class CommentsContainsChange(srcId: String) extends ViewAction
-  private case class Add() extends ViewAction
-  private case class CommentsChange(srcId: String) extends ViewAction
-  private case class Remove(task: B_TodoTask) extends ViewAction
+  private case class CommentsContainsChange(srcId: String) extends Action
+  private case class Add() extends Action
+  private case class CommentsChange(srcId: String) extends Action
+  private case class Remove(task: B_TodoTask) extends Action
 }
 
 ////////////////////////////
@@ -205,15 +206,13 @@ trait ExampleFigureEl extends ToChildPair
 }
 
 @c4("TestTodoApp") final case class TestCanvasView(locationHash: String = "rectangle")(
-  updatingReceiverFactory: UpdatingReceiverFactory,
-  wrapView: WrapView,
+  val rc: UpdatingReceiverFactory, wrapView: WrapView,
   getTestCanvasState: GetByPK[B_TestCanvasState], getTestFigure: GetByPK[B_TestFigure],
   exampleCanvasTagsProvider: ExampleCanvasTagsProvider,
 )(
   exampleCanvasTags: ExampleCanvasTags[Context] =  exampleCanvasTagsProvider.get[Context]
-) extends ByLocationHashView with ViewUpdater {
+) extends ByLocationHashView with Updater {
   import TestCanvasView._
-  val rc: ViewAction => Receiver[Context] = updatingReceiverFactory.create(this, _)
   private def figure(local: Context, key: String, pos: Int) = {
     val isActive = getTestFigure.ofA(local).get(key).exists(_.isActive)
     exampleCanvasTags.figure(key, pos, rc(Activate(key, !isActive)), isActive)
@@ -232,8 +231,8 @@ trait ExampleFigureEl extends ToChildPair
   }
 }
 object TestCanvasView {
-  private case class SizesChange(sessionKey: String) extends ViewAction
-  private case class Activate(id: String, value: Boolean) extends ViewAction
+  private case class SizesChange(sessionKey: String) extends Action
+  private case class Activate(id: String, value: Boolean) extends Action
 }
 
 ////////////////////////////
@@ -246,12 +245,11 @@ object TestCanvasView {
 
 @c4("TestTodoApp") final case class RevertRootView(locationHash: String = "revert")(
   revert: Reverting, wrapView: WrapView, revertRootViewTagsProvider: RevertRootViewTagsProvider,
-  updatingReceiverFactory: UpdatingReceiverFactory, revertToSavepoint: RevertToSavepoint,
+  val rc: UpdatingReceiverFactory, revertToSavepoint: RevertToSavepoint,
 )(
   tags: RevertRootViewTags[Context] = revertRootViewTagsProvider.get[Context],
-) extends ByLocationHashView with ViewUpdater {
+) extends ByLocationHashView with Updater {
   import RevertRootView._
-  val rc: ViewAction => Receiver[Context] = updatingReceiverFactory.create(this, _)
   def view: Context => ViewRes = wrapView.wrap { local =>
     val res = tags.reverting(
       key = "reverting", makeSavepoint = rc(MakeSavepoint()), revertToSavepoint = revertToSavepoint,
@@ -264,7 +262,7 @@ object TestCanvasView {
   }
 }
 object RevertRootView {
-  private case class MakeSavepoint() extends ViewAction
+  private case class MakeSavepoint() extends Action
 }
 @c4("TestTodoApp") final case class RevertToSavepoint()(revert: Reverting) extends Receiver[Context] {
   def receive: Handler = _ => revert.revertToSavepoint
@@ -287,12 +285,11 @@ trait ReplicaEl extends ToChildPair
   exampleTagsProvider: ExampleReplicaTagsProvider,
   getReadyProcesses: GetByPK[ReadyProcesses],
   actorName: ActorName,
-  updatingReceiverFactory: UpdatingReceiverFactory,
+  val rc: UpdatingReceiverFactory,
 )(
   tags: ExampleReplicaTags[Context] = exampleTagsProvider.get[Context],
-) extends ByLocationHashView with ViewUpdater {
+) extends ByLocationHashView with Updater {
   import ReplicaListRootView._
-  val rc: ViewAction => Receiver[Context] = updatingReceiverFactory.create(this, _)
   def view: Context => ViewRes = wrapView.wrap { local =>
     val processes = getReadyProcesses.ofA(local).get(actorName.value).fold(List.empty[ReadyProcess])(_.all)
     val res = tags.replicas("replicas", for(p <- processes) yield tags.replica(
@@ -308,8 +305,8 @@ trait ReplicaEl extends ToChildPair
   }
 }
 object ReplicaListRootView {
-  private case class Complete(process: ReadyProcess) extends ViewAction
-  private case class ForceRemove(process: ReadyProcess) extends ViewAction
+  private case class Complete(process: ReadyProcess) extends Action
+  private case class ForceRemove(process: ReadyProcess) extends Action
 }
 
 @c4("TestTodoApp") final case class ReplicaBadShutdown(execution: Execution) extends Executable with LazyLogging {

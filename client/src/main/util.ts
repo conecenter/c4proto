@@ -40,7 +40,6 @@ export const asObject = (u: unknown): {} => typeof u === "object" && u !== null 
 export const asString = (u: unknown) => typeof u === "string" ? u : assertNever("bad string")
 
 export type ObjS<T> = { [x: string]: T }
-export type SetState<S> = (f: (was: S) => S) => void
 export type Identity = string // identity is string, it should not change on patch, it's in many hook deps
 export type UnsubmittedPatch = { identity: Identity, skipByPath: boolean, value: string, headers?: ObjS<string> }
 export type Patch = UnsubmittedPatch & { index: number }

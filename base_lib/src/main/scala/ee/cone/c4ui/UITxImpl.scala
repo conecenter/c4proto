@@ -11,7 +11,7 @@ import ee.cone.c4assemble.{by, c4assemble}
 import ee.cone.c4di.{c4, c4multi}
 import ee.cone.c4gate.AlienProtocol.U_FromAlienState
 import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
-import ee.cone.c4gate.{BranchWish, EventLogUtil, FromAlienWishUtil, SessionUtil}
+import ee.cone.c4gate.{BranchWish, EventLogUtil, FromAlienWishUtil, SessionUtil, ToAlienMessageUtil}
 import ee.cone.c4vdom.Types.{ElList, ViewRes}
 import ee.cone.c4vdom._
 import ee.cone.c4vdom_impl.VPair
@@ -44,10 +44,10 @@ import scala.Function.chain
 }
 
 @c4multi("UICompApp") final case class UIAlienPurgerTx(srcId: SrcId = "UIAlienPurgerTx")(
-  fromAlienWishUtil: FromAlienWishUtil, txAdd: LTxAdd
+  fromAlienWishUtil: FromAlienWishUtil, toAlienMessageUtil: ToAlienMessageUtil, txAdd: LTxAdd,
 ) extends TxTransform {
   def transform(local: Context): Context = {
-    val lEvents = fromAlienWishUtil.purgeAllExpired(local)
+    val lEvents = fromAlienWishUtil.purgeAllExpired(local) ++ toAlienMessageUtil.purgeAllExpired(local)
     txAdd.add(lEvents).andThen(SleepUntilKey.set(Instant.now.plusSeconds(300)))(local)
   }
 }
@@ -120,23 +120,25 @@ case class VDomMessageImpl(wish: BranchWish, headerMap: Map[String, String]) ext
   catchNonFatal: CatchNonFatal,
   sessionUtil: SessionUtil, eventLogUtil: EventLogUtil, fromAlienWishUtil: FromAlienWishUtil,
   branchOperations: BranchOperations, getView: GetByPK[View], vDomHandler: VDomHandler, vDomUntil: VDomUntil,
-  rootTagsProvider: RootTagsProvider, setLocationReceiverFactory: SetLocationReceiverFactory,
-){
+  rootTagsProvider: RootTagsProvider, toAlienMessageUtil: ToAlienMessageUtil, val rc: UpdatingReceiverFactory,
+) extends Updater {
   private val rootTags: RootTags[Context] = rootTagsProvider.get[Context]
   private def eventLogChanges(local: Context, res: PostViewResult): LEvents =
     if(res.diff.isEmpty && res.snapshot.isEmpty) Nil
     else eventLogUtil.write(local, branchKey, res.diff, Option(res.snapshot).filter(_.nonEmpty))
   private def handleReView(local: Context, preViewRes: PreViewResult): (Context, LEvents) = {
     val location = sessionUtil.location(local, sessionKey)
-    val locationChange = setLocationReceiverFactory.create(sessionKey)
     val viewOpt = getView.ofA(local).get(branchKey)
     val (children, failure) = catchNonFatal{ (viewOpt.fold(Nil:ViewRes)(_.view(local)), "") }("view failed"){ err =>
       (Nil, err match { case b: BranchError => b.message(local) case _ => "Internal Error" })
     }
     val ackEls = fromAlienWishUtil.ackList(local, branchKey).map{ case (k,v) => rootTags.ackElement(k,k,v.toString) }
-    val locationEl = rootTags.location("location", location, locationChange).toChildPair
+    val locationEl = rootTags.location("location", location, rc(SetLocation(sessionKey))).toChildPair
+    val messagesEl = rootTags.toAlienMessages("messages", toAlienMessageUtil.list(local, sessionKey).map{ case (k,v) =>
+      rootTags.toAlienMessage(k,v,rc(DeleteToAlienMessage(k)))
+    }).toChildPair
     val nextDom = rootTags.rootElement(
-      key = "root", failure = failure, ackList = ackEls, children = locationEl :: children,
+      key = "root", failure = failure, ackList = ackEls, children = messagesEl :: locationEl :: children,
     ).toChildPair.asInstanceOf[VPair].value
     val res = vDomHandler.postView(preViewRes, nextDom)
     val seeds = res.seeds.collect{ case r: N_BranchResult => r }
@@ -151,7 +153,13 @@ case class VDomMessageImpl(wish: BranchWish, headerMap: Map[String, String]) ext
         CurrentBranchKey.set(branchKey),
       ))(local), preViewRes)
     }
+  def receive: Handler = value => local => {
+    case SetLocation(sessionKey) => sessionUtil.setLocation(local, sessionKey, value)
+    case DeleteToAlienMessage(messageKey) => toAlienMessageUtil.delete(local, messageKey)
+  }
 }
+case class SetLocation(sessionKey: String) extends Action
+case class DeleteToAlienMessage(messageKey: String) extends Action
 
 @c4multi("UICompApp") final case class UITx(branchKey: String, sessionKey: String)(
   txAdd: LTxAdd, sessionUtil: SessionUtil, branchOperations: BranchOperations,
@@ -174,21 +182,29 @@ case class VDomMessageImpl(wish: BranchWish, headerMap: Map[String, String]) ext
   }
 }
 
-@c4multi("UICompApp") final case class SetLocationReceiver(sessionKey: String)(
-  sessionUtil: SessionUtil, txAdd: LTxAdd,
-) extends Receiver[Context] {
-  def receive: Handler = message => local => {
-    val value = message.body match { case b: ByteString => b.utf8() }
-    val lEvents = sessionUtil.setLocation(local, sessionKey, value)
-    txAdd.add(lEvents)(local)
-  }
-}
-
 trait AckEl extends ToChildPair
+trait ToAlienMessagesEl extends ToChildPair
 @c4tags("UICompApp") trait RootTags[C] {
-  @c4el("RootElement") def rootElement(
-    key: String, failure: String, ackList: ElList[AckEl], children: ViewRes
-  ): ToChildPair
+  @c4el("RootElement")
+  def rootElement(key: String, failure: String, ackList: ElList[AckEl], children: ViewRes): ToChildPair
   @c4el("AckElement") def ackElement(key: String, observerKey: String, indexStr: String): AckEl
   @c4el("LocationElement") def location(key: String, value: String, change: Receiver[C]): ToChildPair
+  // diff is not good at delete, extra level makes it more optimal:
+  @c4el("ToAlienMessagesElement") def toAlienMessages(key: String, messages: ElList[ToAlienMessagesEl]): ToChildPair
+  @c4el("ToAlienMessageElement") def toAlienMessage(key: String, value: String, delete: Receiver[C]): ToAlienMessagesEl
+}
+
+@c4("UICompApp") final class UpdatingReceiverFactoryImpl(
+  inner: UpdatingReceiverImplFactory
+) extends UpdatingReceiverFactory {
+  def create(updater: Updater, action: Action): Receiver[Context] = inner.create(updater, action)
+}
+
+@c4multi("UICompApp") final case class UpdatingReceiverImpl(updater: Updater, action: Action)(
+  txAdd: LTxAdd
+) extends Receiver[Context] {
+  def receive: Handler = m => local => {
+    val value = m.body match { case b: ByteString => b.utf8() }
+    txAdd.add(updater.receive(value)(local)(action))(local)
+  }
 }

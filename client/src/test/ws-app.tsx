@@ -9,6 +9,7 @@ import {initSyncRootState, SyncRootState} from "../main/sync-root"
 import {CanvasAppContext, CanvasFactory, useCanvas} from "../extra/canvas-manager"
 import {AckContext, ABranchContext, useSync, useSender} from "../main/sync-hooks"
 import {LocationElement} from "../main/location"
+import { ReceiverAppContext, ToAlienMessageElement, ToAlienMessagesElement } from "../main/receiver"
 
 const completeIdOf = identityAt("complete")
 const forceRemoveIdOf = identityAt("forceRemove")
@@ -229,13 +230,21 @@ function App({appContext,win}:PreLoginBranchContext){
 }
 
 type SyncAppContext = { createNode: CreateNode }
-type AppContext = CanvasAppContext & SyncAppContext
+type AppContext = CanvasAppContext & ReceiverAppContext & SyncAppContext
 
 const deleted = <T,>(h: ObjS<T>, k: string) => { const {[k]:d,...res} = h; return res }
 
+const messageReceiver = (value: string) => console.trace(value)
+
+/*
+const splitFirst = (value: string): [string,string] = {}
+// todo provide receivers
+const [k,v] = splitFirst(value)
+            (receivers[k]||[]).forEach(r => r(v)) // local send at-most-once
+*/
 export const main = ({win, canvasFactory}: {win: Window, canvasFactory: CanvasFactory }) => {
     const typeTransforms: ObjS<React.FC<any>|string> = {
-        span: "span", LocationElement, 
+        span: "span", LocationElement, ToAlienMessagesElement, ToAlienMessageElement,
         ExampleLogin, ExampleMenu, ExampleTodoTaskList, TestSessionList, ExampleCanvas, ExampleReverting, ExampleReplicaList
     }
     const createNode: CreateNode = at => {
@@ -245,7 +254,7 @@ export const main = ({win, canvasFactory}: {win: Window, canvasFactory: CanvasFa
         if(typeof constr === "string") return createElement(constr, deleted(at, "tp"))
         return createElement(constr, {appContext,...at})
     }
-    const appContext = {createNode, canvasFactory, useSync, useSender}
+    const appContext = {createNode, canvasFactory, useSync, useSender, messageReceiver}
     const [root, unmount] = doCreateRoot(win.document.body)
     root.render(<App appContext={appContext} win={win}/>)
 }

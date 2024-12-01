@@ -32,3 +32,10 @@ case class SessionListItem(branchKey: String, userName: String, location: String
 trait SessionListUtil {
   def list(world: AssembledContext): Seq[SessionListItem]
 }
+
+trait ToAlienMessageUtil {
+  def create(sessionKey: String, value: String): LEvents
+  def delete(world: AssembledContext, messageKey: String): LEvents
+  def list(world: AssembledContext, sessionKey: String): List[(String,String)]
+  def purgeAllExpired(world: AssembledContext): LEvents
+}

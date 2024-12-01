@@ -92,6 +92,12 @@ import ee.cone.c4proto._
     @Id(0x0032) sessionKey: String,
     @Id(0x0031) values: List[N_FromAlienWish],
   )
+
+  @Id(0x0033) case class U_ToAlienMessage(
+    @Id(0x002A) srcId: String,
+    @Id(0x0032) sessionKey: String,
+    @Id(0x0025) value: String
+  )
 }
 
 @protocol("AuthProtocolApp") object AuthProtocol   {

@@ -42,23 +42,6 @@ case class AssignedPublicView(branchKey: SrcId, task: FromAlienTask, currentView
 
 ////
 
-trait ViewUpdater extends Product {
-  type Handler = String => Context => ViewAction => LEvents
-  def receive: Handler
-}
-trait ViewAction extends Product
-
-@c4multi("TestTodoApp") final case class UpdatingReceiver(updater: ViewUpdater, action: ViewAction)(
-  txAdd: LTxAdd
-) extends Receiver[Context] {
-  def receive: Handler = m => local => {
-    val value = m.body match { case b: ByteString => b.utf8() }
-    txAdd.add(updater.receive(value)(local)(action))(local)
-  }
-}
-
-////
-
 @c4("TestTodoApp") final class ReactHtmlProvider extends PublishFromStringsProvider {
   def get: List[(String, String)] = {
     val now = System.currentTimeMillis

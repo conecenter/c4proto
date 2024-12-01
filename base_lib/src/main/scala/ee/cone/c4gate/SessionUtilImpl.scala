@@ -2,10 +2,10 @@ package ee.cone.c4gate
 
 import ee.cone.c4actor.{AssembledContext, Context, GetByPK, IdGenUtil, LEvent, ListConfig, WithPK}
 import ee.cone.c4actor.Types.{LEvents, SrcId}
-import ee.cone.c4assemble.Types.{Each, Outs, Values}
-import ee.cone.c4assemble.{OutFactory, Single, by, c4assemble}
+import ee.cone.c4assemble.Types.{Each, Values}
+import ee.cone.c4assemble.{by, c4assemble}
 import ee.cone.c4di.c4
-import ee.cone.c4gate.AlienProtocol.{N_FromAlienWish, U_FromAlienState, U_FromAlienStatus, U_FromAlienWishes, U_ToAlienAck}
+import ee.cone.c4gate.AlienProtocol.{N_FromAlienWish, U_FromAlienState, U_FromAlienStatus, U_FromAlienWishes, U_ToAlienAck, U_ToAlienMessage}
 import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
 import ee.cone.c4gate.FromAlienWishUtilImpl._
 import ee.cone.c4gate.HttpProtocol.N_Header
@@ -121,4 +121,27 @@ object FromAlienWishUtilImpl{
       SessionListItem(branchKey = session.logKey, userName = session.userName, location = location, isOnline = isOnline)
     }
   }
+}
+
+@c4("SessionUtilApp") final class ToAlienMessageUtilImpl(
+  idGenUtil: IdGenUtil, sessionUtil: SessionUtil,
+  getToAlienMessage: GetByPK[U_ToAlienMessage], getToAlienMessageList: GetByPK[ToAlienMessageList],
+) extends ToAlienMessageUtil {
+  import sessionUtil.expired
+  def create(sessionKey: String, value: String): LEvents =
+    LEvent.update(U_ToAlienMessage(idGenUtil.srcIdRandom(), sessionKey, value))
+  def delete(world: AssembledContext, messageKey: String): LEvents =
+    LEvent.delete(getToAlienMessage.ofA(world).get(messageKey).toSeq)
+  def list(world: AssembledContext, sessionKey: String): List[(String,String)] =
+    getToAlienMessageList.ofA(world).get(sessionKey).toList.flatMap(_.messages).map(m=>(m.srcId,m.value))
+  def purgeAllExpired(world: AssembledContext): LEvents =
+    LEvent.delete(getToAlienMessage.ofA(world).values.filter(m => expired(world, m.sessionKey)).toSeq.sortBy(_.srcId))
+}
+case class ToAlienMessageList(sessionKey: String, messages: List[U_ToAlienMessage])
+@c4assemble("SessionUtilApp") class ToAlienMessageAssembleBase {
+  type BySession = SrcId
+  def map(key: SrcId, message: Each[U_ToAlienMessage]): Values[(BySession,U_ToAlienMessage)] =
+    Seq(message.sessionKey -> message)
+  def join(key: SrcId, @by[BySession] messages: Values[U_ToAlienMessage]): Values[(SrcId,ToAlienMessageList)] =
+    Seq(WithPK(ToAlienMessageList(key, messages.toList)))
 }
