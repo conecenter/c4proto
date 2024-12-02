@@ -1,6 +1,6 @@
 
 import {useEffect,useState} from "../main/react"
-import {weakCache,manageAnimationFrame,assertNever,Identity,ObjS,mergeSimple,patchFromValue,SyncAppContext} from "../main/util"
+import {weakCache,manageAnimationFrame,assertNever,Identity,ObjS,mergeSimple,patchFromValue,SyncAppContext,BranchContext} from "../main/util"
 
 const Buffer = <T>(): [()=>T[], (...items: T[])=>void] => {
     let finished = 0
@@ -33,7 +33,7 @@ export type CanvasFactory = (opt: CanvasOptions)=>C4Canvas
 export type CanvasAppContext = { canvasFactory: CanvasFactory } & SyncAppContext
 
 type CanvasProps = CanvasPart & {
-    identity: Identity, appContext: CanvasAppContext, parentNode: HTMLElement|undefined,
+    identity: Identity, branchContext: CanvasAppContext & BranchContext, parentNode: HTMLElement|undefined,
     isGreedy: boolean, value: string, style: {[K:string]:string}, options: CanvasOptions
 }
 
@@ -78,9 +78,8 @@ const parseValue = (value: string) => {
 }
 
 export const useCanvas = (prop:CanvasProps) => {
-    const {identity, value: incomingValue, appContext, isGreedy, style: argStyle, options, parentNode} = prop
-    const {canvasFactory,useSender,useSync} = appContext
-    const {enqueue,isRoot} = useSender()
+    const {identity, value: incomingValue, branchContext, isGreedy, style: argStyle, options, parentNode} = prop
+    const {canvasFactory,enqueue,isRoot,useSync} = branchContext
     const [sizePatches, enqueueSizePatch] = useSync(identity)
     const value = mergeSimple(incomingValue, sizePatches)
     const [canvas, setCanvas] = useState<C4Canvas|undefined>()

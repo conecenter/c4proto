@@ -1,16 +1,15 @@
 
 import {useEffect} from "./react"
-import {Identity, manageEventListener, identityAt, mergeSimple, patchFromValue, SyncAppContext} from "./util"
+import {Identity, manageEventListener, identityAt, mergeSimple, patchFromValue, SyncAppContext, BranchContext} from "./util"
 
 const changeIdOf = identityAt('change')
 export const LocationElement = (
-    {appContext: {useSync,useSender}, value: incomingValue, identity}: 
-    {appContext: SyncAppContext, value: string, identity: Identity }
+    {branchContext: {useSync,isRoot,win}, value: incomingValue, identity}: 
+    {branchContext: SyncAppContext & BranchContext, value: string, identity: Identity }
 ) => {
     //console.log("loc",incomingValue)
     const [patches, enqueuePatch] = useSync(changeIdOf(identity))
     const value = mergeSimple(incomingValue, patches)
-    const {isRoot,win} = useSender()
     const rootWin = isRoot ? win : undefined
     const location = rootWin?.location
     useEffect(()=>{

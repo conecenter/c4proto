@@ -1,11 +1,11 @@
 
 import {useEffect,useContext,createContext,useState,useCallback} from "./react"
-import {assertNever,LocalPatch,UnsubmittedLocalPatch,BranchContext,UseSync} from "./util"
+import {assertNever,LocalPatch,UnsubmittedLocalPatch,UseSync,EnqueuePatch} from "./util"
 
 const NoContext = createContext(0)
 export const AckContext = createContext(0)
 AckContext.displayName = "AckContext"
-export const ABranchContext = createContext<BranchContext|undefined>(undefined)
+export const ABranchContext = createContext<{enqueue:EnqueuePatch}|undefined>(undefined)
 ABranchContext.displayName = "ABranchContext"
 
 const nonMerged = (ack: number) => (aPatch: LocalPatch) => !(aPatch && aPatch.sentIndex <= ack)

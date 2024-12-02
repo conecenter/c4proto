@@ -44,13 +44,14 @@ export type Identity = string // identity is string, it should not change on pat
 export type UnsubmittedPatch = { identity: Identity, skipByPath: boolean, value: string, headers?: ObjS<string> }
 export type Patch = UnsubmittedPatch & { index: number }
 export type EnqueuePatch = (patch: UnsubmittedPatch) => number
-export type CreateNode = (at: ObjS<unknown> & {tp:string})=>object
+type NodeContext = { branchContext: ObjS<unknown>, key: string, identity: Identity }
+export type CreateNode = (ctx: NodeContext, at: ObjS<unknown>) => (at: ObjS<unknown[]>) => object
 export type Login = (user: string, pass: string) => Promise<void>
 export type BranchContext = {
     sessionKey: string, branchKey: string, enqueue: EnqueuePatch, isRoot: boolean, win: Window, login: Login 
 }
 export type UseSync = (identity: Identity) => [LocalPatch[], (patch: UnsubmittedLocalPatch) => void]
-export type SyncAppContext = { useSender: ()=>BranchContext, useSync: UseSync }
+export type SyncAppContext = { useSync: UseSync }
 export type UnsubmittedLocalPatch = { skipByPath: boolean, value: string, headers?: ObjS<string>, onAck?: ()=>void }
 export type LocalPatch = UnsubmittedLocalPatch & { sentIndex: number }
 

@@ -1,14 +1,13 @@
 import { useEffect } from "./react";
-import { Identity, identityAt, SyncAppContext } from "./util";
+import { BranchContext, Identity, identityAt, SyncAppContext } from "./util";
 
-type ReceiverAppContext = { messageReceiver: (value: string) => void }
+export type ReceiverAppContext = { messageReceiver: (value: string) => void }
 const deleteIdOf = identityAt("delete")
 export const ToAlienMessagesElement = ({messages}:{messages?:React.ReactElement[]}) => messages??[]
 export const ToAlienMessageElement = (
-    {appContext:{useSender,messageReceiver},identity,value}:
-    {appContext: SyncAppContext & ReceiverAppContext, messageKey: string, identity: Identity, value: string}
+    {branchContext:{enqueue,isRoot,messageReceiver},identity,value}:
+    {branchContext: SyncAppContext & ReceiverAppContext & BranchContext, messageKey: string, identity: Identity, value: string}
 ) => {
-    const {enqueue,isRoot} = useSender()
     useEffect(()=>{
         if(!isRoot) return undefined 
         enqueue({identity: deleteIdOf(identity), skipByPath: true, value: ""})
