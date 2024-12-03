@@ -1,5 +1,5 @@
 import { useEffect } from "./react";
-import { BranchContext, Identity, identityAt, SyncAppContext } from "./util";
+import { BranchContext, Identity, identityAt, patchFromValue, SyncAppContext } from "./util";
 
 export type ReceiverAppContext = { messageReceiver: (value: string) => void }
 const deleteIdOf = identityAt("delete")
@@ -10,7 +10,7 @@ export const ToAlienMessageElement = (
 ) => {
     useEffect(()=>{
         if(!isRoot) return undefined 
-        enqueue({identity: deleteIdOf(identity), skipByPath: true, value: ""})
+        enqueue(deleteIdOf(identity), patchFromValue(""))
         return () => messageReceiver(value) // local send at-most-once
     }, [enqueue,isRoot,identity,value])
     return []

@@ -97,7 +97,7 @@ export const useCanvas = (prop:CanvasProps) => {
         const parsed = {...prop,commands,value,onChange}
         const sendToServer = (patch: {headers: ObjS<string>}, color: string) => {
             if(!colorToContext[color]) return
-            enqueue({value: "", skipByPath: false, ...patch, identity: colorToContext[color]}) //?move closure
+            enqueue(colorToContext[color], {value: "", skipByPath: false, ...patch}) //?move closure
         }
         const state = {parentNode,sizesSyncEnabled:isRoot,canvas,parsed,sendToServer}
         return manageAnimationFrame(parentNode, ()=>canvas.checkActivate(state))

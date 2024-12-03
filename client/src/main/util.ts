@@ -41,25 +41,23 @@ export const asString = (u: unknown) => typeof u === "string" ? u : assertNever(
 
 export type ObjS<T> = { [x: string]: T }
 export type Identity = string // identity is string, it should not change on patch, it's in many hook deps
-export type UnsubmittedPatch = { identity: Identity, skipByPath: boolean, value: string, headers?: ObjS<string> }
-export type Patch = UnsubmittedPatch & { index: number }
-export type EnqueuePatch = (patch: UnsubmittedPatch) => number
+export type UnsubmittedPatch = { skipByPath: boolean, value: string, headers?: ObjS<string>, onAck?: ()=>void }
+export type Patch = UnsubmittedPatch & { identity: Identity, index: number }
+export type EnqueuePatch = (identity: Identity, patch: UnsubmittedPatch) => number
 type NodeContext = { branchContext: ObjS<unknown>, key: string, identity: Identity }
 export type CreateNode = (ctx: NodeContext, at: ObjS<unknown>) => (at: ObjS<unknown[]>) => object
 export type Login = (user: string, pass: string) => Promise<void>
 export type BranchContext = {
     sessionKey: string, branchKey: string, enqueue: EnqueuePatch, isRoot: boolean, win: Window, login: Login 
 }
-export type UseSync = (identity: Identity) => [LocalPatch[], (patch: UnsubmittedLocalPatch) => void]
+export type UseSync = (identity: Identity) => [Patch[], (patch: UnsubmittedPatch) => void]
 export type SyncAppContext = { useSync: UseSync }
-export type UnsubmittedLocalPatch = { skipByPath: boolean, value: string, headers?: ObjS<string>, onAck?: ()=>void }
-export type LocalPatch = UnsubmittedLocalPatch & { sentIndex: number }
 
 export const resolve = (identity: Identity, key: string) => identity+'/'+key
 export const identityAt = (key: string): (identity: Identity)=>Identity => identity => resolve(identity, key)
 export const ctxToPath = (ctx: Identity): string => ctx
-export const mergeSimple = (value: string, patches: LocalPatch[]): string => {
+export const mergeSimple = (value: string, patches: Patch[]): string => {
     const patch = patches.slice(-1)[0]
     return patch ? patch.value : value
 }
-export const patchFromValue = (value: string): UnsubmittedLocalPatch => ({ value, skipByPath: true })
+export const patchFromValue = (value: string): UnsubmittedPatch => ({ value, skipByPath: true })

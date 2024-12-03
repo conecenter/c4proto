@@ -1,5 +1,5 @@
 
-import {weakCache,assertNever,getKey,asObject,asString,ObjS,EnqueuePatch,Patch,UnsubmittedPatch,resolve,ctxToPath,CreateNode,Login} from "./util"
+import {weakCache,assertNever,getKey,asObject,asString,ObjS,EnqueuePatch,Patch,UnsubmittedPatch,resolve,ctxToPath,CreateNode,Login,Identity} from "./util"
 
 const asArray = (u: unknown): unknown[] => Array.isArray(u) ? u : assertNever("bad array")
 const asBoolean = (u: unknown) => typeof u === "boolean" ? u : assertNever("bad boolean")
@@ -144,10 +144,10 @@ const serializeState = (
 const PatchManager = () => {
     let nextPatchIndex = Date.now()
     let patches: Patch[] = []
-    const enqueue: EnqueuePatch = patch => {
+    const enqueue: EnqueuePatch = (identity, patch) => {
         const index = nextPatchIndex++
-        const skip = (p: Patch) => p.skipByPath && p.identity === patch.identity
-        patches = [...patches.filter(p=>!skip(p)), {...patch, index}]
+        const skip = (p: Patch) => p.skipByPath && p.identity === identity
+        patches = [...patches.filter(p=>!skip(p)), {...patch, index, identity}]
         return index
     }
     const doAck: AckPatches = (index: number) => {
@@ -161,8 +161,8 @@ const StartedSyncManager: (args: SyncManagerStartArgs)=>StartedSyncManager = ({
     setState, reloadBranchKey, branchContext
 }) => {
     const {isRoot, sessionKey, branchKey, win} = branchContext
-    const send = (patch: UnsubmittedPatch) => {
-        const index = enqueue(patch)
+    const send = (identity: Identity, patch: UnsubmittedPatch) => {
+        const index = enqueue(identity, patch)
         doSend()
         return index
     }
@@ -179,7 +179,7 @@ const SyncManager = (): SyncManager => {
         inner = StartedSyncManager(args)
     }
     const getInner = () => inner ?? assertNever("not started")
-    const enqueue: EnqueuePatch = patch => getInner().enqueue(patch)
+    const enqueue: EnqueuePatch = (identity, patch) => getInner().enqueue(identity, patch)
     const stop: ()=>void = () => getInner().stop()
     return {start, enqueue, stop}
 }

@@ -1,6 +1,6 @@
 
 import {useEffect,useContext,createContext,useState,useCallback} from "./react"
-import {assertNever,LocalPatch,UnsubmittedLocalPatch,UseSync,EnqueuePatch} from "./util"
+import {assertNever,Patch,UnsubmittedPatch,UseSync,EnqueuePatch} from "./util"
 
 const NoContext = createContext(0)
 export const AckContext = createContext(0)
@@ -8,15 +8,15 @@ AckContext.displayName = "AckContext"
 export const ABranchContext = createContext<{enqueue:EnqueuePatch}|undefined>(undefined)
 ABranchContext.displayName = "ABranchContext"
 
-const nonMerged = (ack: number) => (aPatch: LocalPatch) => !(aPatch && aPatch.sentIndex <= ack)
+const nonMerged = (ack: number) => (aPatch: Patch) => !(aPatch && aPatch.index <= ack)
 export const useSender = () => useContext(ABranchContext) ?? assertNever("no BranchContext")
 
 export const useSync: UseSync = identity => {
-    const [patches,setPatches] = useState<LocalPatch[]>([])
+    const [patches,setPatches] = useState<Patch[]>([])
     const {enqueue} = useSender()
-    const enqueuePatch = useCallback((aPatch: UnsubmittedLocalPatch) => {
-        const sentIndex = enqueue({...aPatch, identity})
-        setPatches(aPatches=>[...aPatches,{...aPatch, identity, sentIndex}])
+    const enqueuePatch = useCallback((aPatch: UnsubmittedPatch) => {
+        const index = enqueue(identity, aPatch)
+        setPatches(aPatches=>[...aPatches,{...aPatch, identity, index}])
     },[enqueue,identity])
     const ack = useContext(patches.length>0 ? AckContext : NoContext)
     useEffect(()=>{
