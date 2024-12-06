@@ -1,5 +1,6 @@
 
-import {weakCache,assertNever,getKey,asObject,asString,ObjS,EnqueuePatch,Patch,UnsubmittedPatch,resolve,ctxToPath,CreateNode,Login,Identity} from "./util"
+import { useEffect, useState } from "./react"
+import {weakCache,assertNever,getKey,asObject,asString,ObjS,EnqueuePatch,Patch,UnsubmittedPatch,resolve,ctxToPath,CreateNode,Identity} from "./util"
 
 const asArray = (u: unknown): unknown[] => Array.isArray(u) ? u : assertNever("bad array")
 const asBoolean = (u: unknown) => typeof u === "boolean" ? u : assertNever("bad boolean")
@@ -49,9 +50,9 @@ const ReConnection = ({win,url,onData,stateToSend,onClose}:ConnectionParams) => 
 
 ////
 
-type IncomingAt = (at: ObjS<unknown[]>) => object
+type IncomingAt = ObjS<unknown>
 type Incoming = { at: IncomingAt, [x: `@${string}`]: unknown[], [x: `:${string}`]: Incoming }
-const emptyIncoming: Incoming = {at: ()=>assertNever("can not create empty")}
+const emptyIncoming: Incoming = {at: {}}
 const isIncomingKey = (key: string): key is `:${string}` => key.startsWith(":")
 const isChildOrderKey = (key: string): key is `@${string}` => key.startsWith("@")
 
@@ -61,13 +62,9 @@ const getKeyOpt = (o: { [K: string]: unknown }, k: string): unknown => o[k]
 
 type SetState<S> = (f: (was: S) => S) => void
 type AckPatches = (index: number) => void
-type ReceiverArgs = { 
-    setState: SetState<SyncRootState>, doAck: AckPatches, 
-    branchContext: {createNode: CreateNode, enqueue: EnqueuePatch}, 
-}
-const Receiver = ({setState,doAck,branchContext}:ReceiverArgs) => {
-    const {createNode} = branchContext
-    let incoming = {at:createNode({branchContext,identity:"",key:"root"}, {tp:"RootElement"})}
+type ReceiverArgs = { setState: SetState<SyncRootState>, doAck: AckPatches, createNode: CreateNode }
+const Receiver = ({setState,doAck,createNode}:ReceiverArgs) => {
+    let incoming: Incoming = {at:{identity:"",key:"root",tp:"RootElement"}}
     const update = (inc: Incoming, spec: ObjS<unknown>, pKey: string, pIdentity: string): Incoming => {
         const res = {...inc}
         Object.keys(spec).forEach(key=>{
@@ -78,14 +75,13 @@ const Receiver = ({setState,doAck,branchContext}:ReceiverArgs) => {
             if(isIncomingKey(key)) 
                 res[key] = update((sValue !== value || !inc ? undefined : inc[key]) ?? emptyIncoming, asObject(value), key, cIdentity)
             else if(isChildOrderKey(key)) res[key] = asArray(value)
-            else if(key === "at") res[key] = 
-                createNode({branchContext, key: pKey, identity: cIdentity}, asObject(value))
+            else if(key === "at") res[key] = {...asObject(value), key: pKey, identity: cIdentity}
             else assertNever(`bad key in diff (${key})`)
         })
         return res
     }
     const elementWeakCache : (props:Incoming) => object = weakCache((cProps:Incoming)=>{
-        const res: ObjS<unknown[]> = {}
+        const res: ObjS<unknown> = {...cProps.at}
         Object.keys(cProps).forEach(key => {
             if(!isChildOrderKey(key)) return
             res[key.substring(1)] = (cProps[key] ?? assertNever("never")).map(kU => {
@@ -93,7 +89,7 @@ const Receiver = ({setState,doAck,branchContext}:ReceiverArgs) => {
                 return elementWeakCache(isIncomingKey(k) && cProps[k] || assertNever("bad diff"))
             })
         })
-        return cProps.at(res)
+        return createNode(res)
     })
     const receive = (data: string) => {
         const message = asObject(JSON.parse(data))
@@ -103,7 +99,7 @@ const Receiver = ({setState,doAck,branchContext}:ReceiverArgs) => {
         log.forEach(d => {
             //console.log("I", res, d)
             incoming = update(
-                {...emptyIncoming, ":root":incoming}, {":root": asObject(d)}, "root", "root"
+                {...emptyIncoming, ":root": incoming}, {":root": asObject(d)}, "root", "root"
             )[":root"] ?? assertNever("no incoming")
         })
         const rootElement = asObject(elementWeakCache(incoming))
@@ -158,16 +154,15 @@ const PatchManager = () => {
 }
 
 const StartedSyncManager: (args: SyncManagerStartArgs)=>StartedSyncManager = ({
-    setState, reloadBranchKey, branchContext
+    setState, reloadBranchKey, createNode, isRoot, sessionKey, branchKey, win
 }) => {
-    const {isRoot, sessionKey, branchKey, win} = branchContext
     const send = (identity: Identity, patch: UnsubmittedPatch) => {
         const index = enqueue(identity, patch)
         doSend()
         return index
     }
     const {enqueue, doAck, getPatches} = PatchManager()
-    const {receive} = Receiver({setState, doAck, branchContext: {...branchContext, enqueue: send}})
+    const {receive} = Receiver({setState, doAck, createNode})
     const stateToSend = () => serializeState({isRoot, sessionKey, branchKey, patches: getPatches()})
     const {close, doSend} = ReConnection({win, url: "/eventlog", onData: receive, stateToSend, onClose: reloadBranchKey})
     return {enqueue: send, stop: close}
@@ -186,16 +181,28 @@ const SyncManager = (): SyncManager => {
 
 type SyncManagerStartArgs = {
     setState: SetState<SyncRootState>, reloadBranchKey: ()=>void,
-    branchContext: {
-        createNode: CreateNode, sessionKey: string, branchKey: string, isRoot: boolean, win: Window, login: Login 
-    }, 
+    createNode: CreateNode, sessionKey: string, branchKey: string, isRoot: boolean, win: Window
 }
 type StartedSyncManager = { enqueue: EnqueuePatch, stop: ()=>void }
 type SyncManager = { start(args: SyncManagerStartArgs): void } & StartedSyncManager
-export type SyncRootState = { 
+type SyncRootState = { 
     manager: SyncManager, availability: boolean, children: unknown[], ack: number, failure: string 
 }
-export const initSyncRootState = (): SyncRootState => ({ 
+
+/* react specific part */
+
+const initSyncRootState = (): SyncRootState => ({ 
     manager: SyncManager(), availability: false, children: [], ack: 0, failure: "" 
 })
-export type SyncRootAppContext = { createNode: CreateNode }
+export type UseSyncRootArgs = {
+    createNode: CreateNode, win: Window, sessionKey: string, branchKey: string, reloadBranchKey: ()=>void, isRoot: boolean
+}
+export const useSyncRoot = ({ createNode, isRoot, sessionKey, branchKey, win, reloadBranchKey }: UseSyncRootArgs) => {
+    const [{manager, children, availability, ack, failure}, setState] = useState<SyncRootState>(initSyncRootState)
+    const {start, enqueue, stop} = manager
+    useEffect(()=>{
+        start({setState, reloadBranchKey, createNode, sessionKey, branchKey, isRoot, win})
+        return () => stop()
+    }, [start, setState, reloadBranchKey, createNode, sessionKey, branchKey, isRoot, win, stop])
+    return {enqueue, children, availability, ack, failure}
+}

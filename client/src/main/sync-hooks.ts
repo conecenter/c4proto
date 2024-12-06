@@ -1,17 +1,15 @@
 
 import {useEffect,useContext,createContext,useState,useCallback} from "./react"
-import {assertNever,Patch,UnsubmittedPatch,UseSync,EnqueuePatch} from "./util"
+import {EnqueuePatch,Patch,UnsubmittedPatch,UseSync} from "./util"
 
 const NoContext = createContext(0)
 export const AckContext = createContext(0)
 AckContext.displayName = "AckContext"
-export const ABranchContext = createContext<{enqueue:EnqueuePatch}|undefined>(undefined)
-ABranchContext.displayName = "ABranchContext"
 
 const nonMerged = (ack: number) => (aPatch: Patch) => !(aPatch && aPatch.index <= ack)
-export const useSender = () => useContext(ABranchContext) ?? assertNever("no BranchContext")
 
-export const useSync: UseSync = identity => {
+type SyncBranchContext = { enqueue: EnqueuePatch }
+export const UseSyncMod: (useSender: ()=>SyncBranchContext) => UseSync = useSender => identity => {
     const [patches,setPatches] = useState<Patch[]>([])
     const {enqueue} = useSender()
     const enqueuePatch = useCallback((aPatch: UnsubmittedPatch) => {

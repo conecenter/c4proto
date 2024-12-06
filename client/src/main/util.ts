@@ -44,13 +44,8 @@ export type Identity = string // identity is string, it should not change on pat
 export type UnsubmittedPatch = { skipByPath: boolean, value: string, headers?: ObjS<string>, onAck?: ()=>void }
 export type Patch = UnsubmittedPatch & { identity: Identity, index: number }
 export type EnqueuePatch = (identity: Identity, patch: UnsubmittedPatch) => number
-export type NodeContext = { branchContext: ObjS<unknown> & {enqueue: EnqueuePatch}, key: string, identity: Identity }
-export type CreateNode = (ctx: NodeContext, at: ObjS<unknown>) => (at: ObjS<unknown[]>) => object
+export type CreateNode = (at: ObjS<unknown>) => object
 export type Login = (user: string, pass: string) => Promise<void>
-export type BranchContext = {
-    createNode: CreateNode, sessionKey: string, 
-    branchKey: string, enqueue: EnqueuePatch, isRoot: boolean, win: Window, login: Login 
-}
 export type UseSync = (identity: Identity) => [Patch[], (patch: UnsubmittedPatch) => void]
 
 export const resolve = (identity: Identity, key: string) => identity+'/'+key

@@ -1,6 +1,6 @@
 
 import {useEffect,useState} from "../main/react"
-import {weakCache,manageAnimationFrame,assertNever,Identity,ObjS,mergeSimple,patchFromValue,SyncAppContext,BranchContext, UseSync} from "../main/util"
+import {weakCache,manageAnimationFrame,assertNever,Identity,ObjS,mergeSimple,patchFromValue,UseSync, EnqueuePatch} from "../main/util"
 
 const Buffer = <T>(): [()=>T[], (...items: T[])=>void] => {
     let finished = 0
@@ -32,7 +32,7 @@ type CanvasOptions = {[K:string]:unknown}
 export type CanvasFactory = (opt: CanvasOptions)=>C4Canvas
 
 type CanvasProps = CanvasPart & {
-    identity: Identity, branchContext: BranchContext, parentNode: HTMLElement|undefined,
+    identity: Identity, parentNode: HTMLElement|undefined,
     isGreedy: boolean, value: string, style: {[K:string]:string}, options: CanvasOptions
 }
 
@@ -75,11 +75,12 @@ const parseValue = (value: string) => {
     const [cmdUnitsPerEMZoom,aspectRatioX,aspectRatioY,pxMapH] = value.split(",") // eslint-disable-line no-unused-vars
     return {cmdUnitsPerEMZoom,aspectRatioX,aspectRatioY,pxMapH}
 }
-type CanvasModArgs = { canvasFactory: CanvasFactory, useSync: UseSync }
+type CanvasBranchContext = { enqueue: EnqueuePatch, isRoot: boolean }
+type CanvasModArgs = { canvasFactory: CanvasFactory, useSync: UseSync, useSender: ()=>CanvasBranchContext }
 export type UseCanvas = (props: CanvasProps) => ObjS<string>
-export const UseCanvas = ({canvasFactory,useSync}:CanvasModArgs) => (prop:CanvasProps) => {
-    const {identity, value: incomingValue, branchContext, isGreedy, style: argStyle, options, parentNode} = prop
-    const {enqueue,isRoot} = branchContext
+export const UseCanvas = ({canvasFactory,useSync,useSender}:CanvasModArgs) => (prop:CanvasProps) => {
+    const {identity, value: incomingValue, isGreedy, style: argStyle, options, parentNode} = prop
+    const {enqueue,isRoot} = useSender()
     const [sizePatches, enqueueSizePatch] = useSync(identity)
     const value = mergeSimple(incomingValue, sizePatches)
     const [canvas, setCanvas] = useState<C4Canvas|undefined>()

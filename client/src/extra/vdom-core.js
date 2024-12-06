@@ -1,4 +1,5 @@
 
+import { createElement } from "react"
 import {patchFromValue,ctxToPath}    from "../main/util.js"
 
 /********* sync input *********************************************************/
@@ -38,46 +39,46 @@ function useSyncInput(patches,enqueuePatch,incomingValue,deferSend){
     const changing = patch ? "1" : undefined // patch || lastPatch
     return ({value,changing,onChange,onBlur})
 }
-const SyncInput = memo(function SyncInput({value,onChange,...props}){
-    const [patches,enqueuePatch] = useSync(identity)
-    const {identity,deferSend} = onChange
-    const patch = useSyncInput(patches,enqueuePatch,value,deferSend)
-    return props.children({...props, ...patch})
-})
+
 
 /********* traverse ***********************************************************/
 
-export const CreateNode = by => (ctx, {tp,...at}) => {
-    const constr = by.tp[at.tp]
-    if(at.identity) return childAt => constr ? createElement(constr,{...at,...ctx,...childAt}) : {...at,...ctx,...childAt}
-    //legacy:
-    const changes = Object.fromEntries(Object.keys(at).map(key=>{
-        const value = at[key]
-        const trans = by[key]
-        const handler = trans && value && trans[value]
-        return handler && [key, handler(ctx)]
-    }).filter(i=>i))
-    const {key} = ctx
-    return childAt => {
-        const children = childAt.children ?? at.content
-        return changes.onChange ?
-            createElement(changes.onChange.tp, {...at,at,...changes,key}, uProp=>createElement(constr||tp, uProp, children)) :
-            createElement(constr||tp, {...at,at,children,...changes,key})
+export const CreateNode = ({transforms,useSender,useSync}) => {
+    const SyncInput = ({identity,constr,value,onChange,...props}) => {
+        const {deferSend} = onChange
+        const [patches,enqueuePatch] = useSync(identity)
+        const patch = useSyncInput(patches,enqueuePatch,value,deferSend)
+        return createElement(constr, {...props, ...patch})
+    }
+    const SyncElement = ({identity,transPairs,constr,at}) => {
+        const branchContext = useSender()
+        const ctx = {identity,branchContext}
+        const changes = Object.fromEntries(transPairs.map(([k,t])=>[k,t(ctx)]))
+        if(changes.onChange) return createElement(SyncInput, {identity,constr,...at,...changes})
+        return createElement(constr, {...at,...changes})
+    }
+    return ({tp,...at}) => {
+        const constr = transforms.tp[at.tp]
+        if("identity" in at) return constr ? createElement(constr,at) : at
+        //legacy:
+        const transPairs = Object.keys(at).map(key=>{
+            const value = at[key]
+            const trans = transforms[key]
+            const handler = trans && value && trans[value]
+            return handler && [key, handler]
+        }).filter(i=>i)
+        const nAt = {at, children: at.content, ...at}
+        if(transPairs.length > 0) return createElement(SyncElement, {...nAt,transPairs,constr:constr||tp})
+        return createElement(constr||tp, nAt)
     }
 }
 
 /******************************************************************************/
 
-export function VDomAttributes(){
-    const onClick = ({
-        "sendThen": ctx => event => { ctx.branchContext.enqueue(ctx.identity,patchFromValue("")) }
-    }) //react gives some warning on stopPropagation
-    const onChange = {
-        "local": ctx => ({identity:ctx.identity,deferSend:changing=>true,tp:SyncInput}),
-        "send": ctx => ({identity:ctx.identity,deferSend:changing=>false,tp:SyncInput}),
-        "send_first": ctx => ({identity:ctx.identity,deferSend:changing=>changing,tp:SyncInput}),
-    }
-    const ctx = { ctx: ctx => ctx }
+export function VDomAttributes(sender){
+    const onClick = ({"sendThen": ctx => event => { sender.send(ctx,patchFromValue("")) }}) //react gives some warning on stopPropagation
+    const onChange = { "local": ctx => ch => true, "send": ctx => ch => false, "send_first": ctx => ch => changing }
+    const ctx = { "ctx": ctx => ctx }
     const path = { "I": ctxToPath(ctx.identity) }
     const transforms = {onClick,onChange,ref,ctx,tp,path,identity}
     return ({transforms})
