@@ -1,0 +1,8 @@
+
+/*to fix:
+busyFor in context sender
+original VDomSender returns obj
+
+
+return createSyncProviders({ ack, isRoot, branchKey, sender: inpSender, children: elementWeakCache(incoming) })
+*/
