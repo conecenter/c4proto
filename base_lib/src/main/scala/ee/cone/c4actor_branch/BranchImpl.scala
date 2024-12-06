@@ -4,7 +4,7 @@ package ee.cone.c4actor_branch
 import ee.cone.c4actor.Types.{LEvents, SrcId}
 import ee.cone.c4actor._
 import ee.cone.c4actor_branch.BranchProtocol._
-import ee.cone.c4actor_branch.BranchTypes.BranchKey
+import ee.cone.c4actor_branch.BranchTypes.{BranchKey, BranchResult}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4di.c4
@@ -13,17 +13,17 @@ import ee.cone.c4proto.ToByteString
 @c4("BranchApp") final class BranchOperationsImpl(
   registry: QAdapterRegistry, idGenUtil: IdGenUtil, getS_BranchResults: GetByPK[S_BranchResults]
 ) extends BranchOperations {
-  def toSeed(value: Product): N_BranchResult = {
+  def toSeed(value: Product): BranchResult = {
     val valueAdapter = registry.byName(value.getClass.getName)
     val bytes = ToByteString(valueAdapter.encode(value))
     val id = idGenUtil.srcIdFromSerialized(valueAdapter.id, bytes)
     N_BranchResult(id, valueAdapter.id, bytes)
   }
-  def collect[T<:Product](seeds: Seq[N_BranchResult], cl: Class[T]): Seq[T] = {
+  def collect[T<:Product](seeds: Seq[BranchResult], cl: Class[T]): Seq[T] = {
     val adapter = registry.byName(cl.getName)
     seeds.collect{ case u if u.valueTypeId == adapter.id => adapter.decode(u.value).asInstanceOf[T] }
   }
-  def saveChanges(local: Context, branchKey: String, seeds: List[N_BranchResult]): LEvents = {
+  def saveChanges(local: Context, branchKey: String, seeds: List[BranchResult]): LEvents = {
     val res = S_BranchResults(branchKey,seeds)
     if(getS_BranchResults.ofA(local).get(branchKey).contains(res)) Nil else LEvent.update(res)
   }

@@ -6,6 +6,7 @@ import ee.cone.c4actor.Types.{LEvents, SrcId}
 import ee.cone.c4actor._
 import ee.cone.c4actor_branch._
 import ee.cone.c4actor_branch.BranchProtocol.{N_BranchResult, N_RestPeriod}
+import ee.cone.c4actor_branch.BranchTypes.BranchResult
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{by, c4assemble}
 import ee.cone.c4di.{c4, c4multi}
@@ -158,8 +159,8 @@ case class VDomMessageImpl(wish: BranchWish, headerMap: Map[String, String]) ext
     case DeleteToAlienMessage(messageKey) => toAlienMessageUtil.delete(local, messageKey)
   }
 }
-case class SetLocation(sessionKey: String) extends Action
-case class DeleteToAlienMessage(messageKey: String) extends Action
+case class SetLocation(sessionKey: String) extends VAction
+case class DeleteToAlienMessage(messageKey: String) extends VAction
 
 @c4multi("UICompApp") final case class UITx(branchKey: String, sessionKey: String)(
   txAdd: LTxAdd, sessionUtil: SessionUtil, branchOperations: BranchOperations,
@@ -177,7 +178,7 @@ case class DeleteToAlienMessage(messageKey: String) extends Action
 }
 
 @c4("UICompApp") final class VDomUntilImpl(branchOperations: BranchOperations) extends VDomUntil {
-  def get(seeds: Seq[N_BranchResult]): Long = branchOperations.collect(seeds, classOf[N_RestPeriod]) match {
+  def get(seeds: Seq[BranchResult]): Long = branchOperations.collect(seeds, classOf[N_RestPeriod]) match {
     case l if l.isEmpty => 0L case l => l.map(_.value).min
   }
 }
@@ -197,10 +198,10 @@ trait ToAlienMessagesEl extends ToChildPair
 @c4("UICompApp") final class UpdatingReceiverFactoryImpl(
   inner: UpdatingReceiverImplFactory
 ) extends UpdatingReceiverFactory {
-  def create(updater: Updater, action: Action): Receiver[Context] = inner.create(updater, action)
+  def create(updater: Updater, action: VAction): Receiver[Context] = inner.create(updater, action)
 }
 
-@c4multi("UICompApp") final case class UpdatingReceiverImpl(updater: Updater, action: Action)(
+@c4multi("UICompApp") final case class UpdatingReceiverImpl(updater: Updater, action: VAction)(
   txAdd: LTxAdd
 ) extends Receiver[Context] {
   def receive: Handler = m => local => {

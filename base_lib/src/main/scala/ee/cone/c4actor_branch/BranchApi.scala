@@ -2,13 +2,13 @@
 package ee.cone.c4actor_branch
 
 import ee.cone.c4actor._
-import ee.cone.c4actor_branch.BranchProtocol.N_BranchResult
 import ee.cone.c4actor.Types.{LEvents, SrcId}
-import ee.cone.c4actor_branch.BranchTypes.BranchKey
+import ee.cone.c4actor_branch.BranchTypes.{BranchKey, BranchResult}
 import ee.cone.c4proto._
 
 object BranchTypes {
   type BranchKey = SrcId
+  type BranchResult = BranchProtocol.N_BranchResult
 }
 
 trait BranchErrorSaver {
@@ -22,9 +22,9 @@ trait BranchTask extends Product {
 }
 
 trait BranchOperations {
-  def toSeed(value: Product): N_BranchResult
-  def collect[T<:Product](seeds: Seq[N_BranchResult], cl: Class[T]): Seq[T]
-  def saveChanges(local: Context, branchKey: String, seeds: List[N_BranchResult]): LEvents
+  def toSeed(value: Product): BranchResult
+  def collect[T<:Product](seeds: Seq[BranchResult], cl: Class[T]): Seq[T]
+  def saveChanges(local: Context, branchKey: String, seeds: List[BranchResult]): LEvents
   def purge(local: Context, branchKey: String): LEvents
 }
 

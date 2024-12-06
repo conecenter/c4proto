@@ -5,11 +5,11 @@ import {useState,useCallback,useMemo,useEffect,createElement} from "../main/reac
 import {assertNever, CreateNode, Identity, identityAt, ObjS, patchFromValue, mergeSimple, Login, BranchContext, asString} from "../main/util"
 import {SessionManager, Session} from "../main/session"
 import {doCreateRoot,useIsolatedFrame} from "../main/frames"
-import {initSyncRootState, SyncRootAppContext, SyncRootState} from "../main/sync-root"
-import {CanvasAppContext, CanvasFactory, useCanvas} from "../extra/canvas-manager"
+import {initSyncRootState, SyncRootState} from "../main/sync-root"
+import { UseCanvas, CanvasFactory } from "../extra/canvas-manager"
 import {AckContext, ABranchContext, useSync, useSender} from "../main/sync-hooks"
-import {LocationElement} from "../main/location"
-import { ReceiverAppContext, ToAlienMessageElement, ToAlienMessagesElement } from "../main/receiver"
+import {LocationComponents} from "../main/location"
+import {ToAlienMessageComponents} from "../main/receiver"
 
 const completeIdOf = identityAt("complete")
 const forceRemoveIdOf = identityAt("forceRemove")
@@ -52,9 +52,9 @@ const sizesChangeIdOf = identityAt('sizesChange')
 type ExampleFigure = {offset: number, identity: Identity, isActive: boolean}
 const exampleCanvasOptions = {noOverlay:false}
 type ExampleCanvasProps = {
-    branchContext: AppContext & BranchContext, sizesValue: string, identity: Identity, figures: ExampleFigure[]
+    branchContext: BranchContext, sizesValue: string, identity: Identity, figures: ExampleFigure[]
 }
-function ExampleCanvas({branchContext,sizesValue,identity,figures}:ExampleCanvasProps){ 
+const ExampleCanvasMod = (useCanvas: UseCanvas) => ({branchContext,sizesValue,identity,figures}:ExampleCanvasProps) => { 
     const cmd = (...args: unknown[]) => [args.slice(0,-1),args.at(-1)]
     const rect = (x: number, y: number, w: number, h: number) => [
         ...cmd(x,y,"moveTo"), ...cmd(x+w,y,"lineTo"), ...cmd(x+w,y+h,"lineTo"), ...cmd(x,y+h,"lineTo"), ...cmd(x,y,"lineTo"),
@@ -88,7 +88,7 @@ function ExampleCanvas({branchContext,sizesValue,identity,figures}:ExampleCanvas
 }
 
 type TestSessionListProps = {
-    branchContext: AppContext & BranchContext & {appContext:AppContext},
+    branchContext: BranchContext,
     sessions?: {key:string,branchKey:string,userName:string,isOnline:boolean}[]
 }
 function TestSessionList({branchContext,sessions}:TestSessionListProps){
@@ -145,14 +145,14 @@ function ExampleInput({value: incomingValue, identity}:{value: string, identity:
 const noReloadBranchKey = ()=>{}
 const noLogin: Login = (u,p) => assertNever("no login in non-root")
 type ExampleFrameProps = {
-    branchContext: AppContext & {appContext:AppContext} & BranchContext, branchKey: string, style: ObjS<string>,
+    branchContext: BranchContext, branchKey: string, style: ObjS<string>,
 }
 function ExampleFrame({branchContext,branchKey,style}:ExampleFrameProps){
     const makeChildren = useCallback((body:HTMLElement) => {
-        const {appContext,sessionKey} = branchContext
+        const {createNode,sessionKey} = branchContext
         const win = body.ownerDocument.defaultView ?? assertNever("no window")
         const syncProps: PreSyncBranchContext = {
-            appContext, login: noLogin, reloadBranchKey: noReloadBranchKey, isRoot: false, win, sessionKey, branchKey
+            createNode, login: noLogin, reloadBranchKey: noReloadBranchKey, isRoot: false, win, sessionKey, branchKey
         }
         return <SyncRoot {...syncProps}/>        
     }, [branchContext,branchKey])
@@ -195,20 +195,20 @@ function Availability({availability}: {availability: boolean}){
     </div>
 }
 
-type PreLoginBranchContext = { appContext: AppContext, win: Window }
+type PreLoginBranchContext = { createNode: CreateNode, win: Window }
 type PreSyncBranchContext = PreLoginBranchContext & { 
     sessionKey: string, branchKey: string, login: Login, reloadBranchKey: ()=>void, isRoot: boolean, 
 }
 
 function SyncRoot(prop: PreSyncBranchContext){
-    const { appContext, isRoot, sessionKey, branchKey, win, reloadBranchKey, login } = prop
+    const { createNode, isRoot, sessionKey, branchKey, win, reloadBranchKey, login } = prop
     const [{manager, children, availability, ack, failure}, setState] = useState<SyncRootState>(initSyncRootState)
     const {start, enqueue, stop} = manager
     useEffect(()=>{
-        const branchContext = {...appContext, appContext, isRoot, sessionKey, branchKey, win, login}
+        const branchContext = {createNode, isRoot, sessionKey, branchKey, win, login}
         start({setState, branchContext, reloadBranchKey})
         return () => stop()
-    }, [start, appContext, setState, isRoot, sessionKey, branchKey, win, reloadBranchKey, stop])
+    }, [start, createNode, setState, isRoot, sessionKey, branchKey, win, reloadBranchKey, stop])
     const branchContextValue = useMemo(()=>({enqueue}),[enqueue])
     //console.log("ve",isValidElement(children),children)
     return <StrictMode>
@@ -222,22 +222,18 @@ function SyncRoot(prop: PreSyncBranchContext){
     </StrictMode>
 }
 
-function App({appContext,win}:PreLoginBranchContext){
+function App({createNode,win}:PreLoginBranchContext){
     const [session, setSession] = useState<Session|undefined>()
     const [failure, setFailure] = useState<unknown>()
     useEffect(() => { SessionManager(win, setSession).load().then(()=>{},setFailure) }, [win, setSession, setFailure])
     useEffect(() => session?.manageUnload(), [session])
     if(!session) return `SESSION INIT FAILED: ${failure}`
     const {sessionKey, branchKey, login, check} = session
-    const syncProps = {appContext, sessionKey, branchKey, login, reloadBranchKey: check, isRoot: true, win}
+    const syncProps = {createNode, sessionKey, branchKey, login, reloadBranchKey: check, isRoot: true, win}
     return <SyncRoot {...syncProps} key={branchKey}/>
 }
 
-type AppContext = CanvasAppContext & ReceiverAppContext & SyncRootAppContext
-
 const deleted = <T,>(h: ObjS<T>, k: string) => { const {[k]:d,...res} = h; return res }
-
-const messageReceiver = (value: string) => console.trace(value)
 
 /*
 const splitFirst = (value: string): [string,string] = {}
@@ -249,8 +245,12 @@ const [k,v] = splitFirst(value)
 type NativeElementProps = ObjS<unknown> & {tp:string}
 const NativeElement = ({tp,identity,branchContext,...at}:NativeElementProps) => createElement(tp, at)
 export const main = ({win, canvasFactory}: {win: Window, canvasFactory: CanvasFactory }) => {
+    const useCanvas: UseCanvas = UseCanvas({canvasFactory,useSync})
+    const ExampleCanvas = ExampleCanvasMod(useCanvas)
+    const toAlienMessageComponents = ToAlienMessageComponents((value: string) => console.trace(value))
+    const locationComponents = LocationComponents(useSync)
     const typeTransforms: ObjS<React.FC<any>|string> = {
-        span: NativeElement, LocationElement, ToAlienMessagesElement, ToAlienMessageElement,
+        span: NativeElement, ...locationComponents, ...toAlienMessageComponents,
         ExampleLogin, ExampleMenu, ExampleTodoTaskList, TestSessionList, ExampleCanvas, ExampleReverting, ExampleReplicaList
     }
     const createNode: CreateNode = (ctx, at) => {
@@ -259,7 +259,6 @@ export const main = ({win, canvasFactory}: {win: Window, canvasFactory: CanvasFa
         return constr ? 
             (childAt => createElement(constr, {...at,...ctx,...childAt})) : (childAt => ({...at,...ctx,...childAt}))
     }
-    const appContext = {createNode, canvasFactory, useSync, messageReceiver}
     const [root, unmount] = doCreateRoot(win.document.body)
-    root.render(<App appContext={appContext} win={win}/>)
+    root.render(<App createNode={createNode} win={win}/>)
 }

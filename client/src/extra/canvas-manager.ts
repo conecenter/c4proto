@@ -1,6 +1,6 @@
 
 import {useEffect,useState} from "../main/react"
-import {weakCache,manageAnimationFrame,assertNever,Identity,ObjS,mergeSimple,patchFromValue,SyncAppContext,BranchContext} from "../main/util"
+import {weakCache,manageAnimationFrame,assertNever,Identity,ObjS,mergeSimple,patchFromValue,SyncAppContext,BranchContext, UseSync} from "../main/util"
 
 const Buffer = <T>(): [()=>T[], (...items: T[])=>void] => {
     let finished = 0
@@ -30,10 +30,9 @@ type C4Canvas = {
 }
 type CanvasOptions = {[K:string]:unknown}
 export type CanvasFactory = (opt: CanvasOptions)=>C4Canvas
-export type CanvasAppContext = { canvasFactory: CanvasFactory } & SyncAppContext
 
 type CanvasProps = CanvasPart & {
-    identity: Identity, branchContext: CanvasAppContext & BranchContext, parentNode: HTMLElement|undefined,
+    identity: Identity, branchContext: BranchContext, parentNode: HTMLElement|undefined,
     isGreedy: boolean, value: string, style: {[K:string]:string}, options: CanvasOptions
 }
 
@@ -76,10 +75,11 @@ const parseValue = (value: string) => {
     const [cmdUnitsPerEMZoom,aspectRatioX,aspectRatioY,pxMapH] = value.split(",") // eslint-disable-line no-unused-vars
     return {cmdUnitsPerEMZoom,aspectRatioX,aspectRatioY,pxMapH}
 }
-
-export const useCanvas = (prop:CanvasProps) => {
+type CanvasModArgs = { canvasFactory: CanvasFactory, useSync: UseSync }
+export type UseCanvas = (props: CanvasProps) => ObjS<string>
+export const UseCanvas = ({canvasFactory,useSync}:CanvasModArgs) => (prop:CanvasProps) => {
     const {identity, value: incomingValue, branchContext, isGreedy, style: argStyle, options, parentNode} = prop
-    const {canvasFactory,enqueue,isRoot,useSync} = branchContext
+    const {enqueue,isRoot} = branchContext
     const [sizePatches, enqueueSizePatch] = useSync(identity)
     const value = mergeSimple(incomingValue, sizePatches)
     const [canvas, setCanvas] = useState<C4Canvas|undefined>()

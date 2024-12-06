@@ -1,9 +1,10 @@
 package ee.cone.c4ui
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor_branch.BranchProtocol.{N_BranchResult, N_RestPeriod}
+import ee.cone.c4actor_branch.BranchProtocol.N_RestPeriod
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
+import ee.cone.c4actor_branch.BranchTypes.BranchResult
 import ee.cone.c4actor_branch.{BranchOperations, BranchTask}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{by, c4assemble}
@@ -31,7 +32,7 @@ import ee.cone.c4vdom_impl.SeedVDomValue
     childFactory[OfDiv](key: VDomKey, SimpleSeedElement(branchOperations.toSeed(value)), Nil) :: Nil
 }
 
-case class SimpleSeedElement(seed: N_BranchResult) extends SeedVDomValue {
+case class SimpleSeedElement(seed: BranchResult) extends SeedVDomValue {
   def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
     builder.append("tp").append("span")

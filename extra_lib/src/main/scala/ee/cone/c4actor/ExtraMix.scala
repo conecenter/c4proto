@@ -211,3 +211,5 @@ object Merge {
       TxAddKey.of(context).add(out)(context)
 }
 @deprecated case object WriteModelAddKey extends SharedComponentKey[Seq[N_Update]=>Context=>Context]
+////
+@deprecated case object SendToAlienKey extends SharedComponentKey[(Seq[String],String,String)=>Context=>Context]

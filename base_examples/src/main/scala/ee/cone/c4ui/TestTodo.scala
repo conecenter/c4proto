@@ -58,9 +58,9 @@ trait ExampleMenuItemEl extends ToChildPair
   }
 }
 object WrapView {
-  private case class GoTo(sessionKey: String, hash: String) extends Action
-  private case class SendTestMessage(sessionKey: String) extends Action
-  private case class LogOut(sessionKey: String) extends Action
+  private case class GoTo(sessionKey: String, hash: String) extends VAction
+  private case class SendTestMessage(sessionKey: String) extends VAction
+  private case class LogOut(sessionKey: String) extends VAction
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -160,10 +160,10 @@ trait TodoTaskEl extends ToChildPair
   }
 }
 object TestTodoRootView {
-  private case class CommentsContainsChange(srcId: String) extends Action
-  private case class Add() extends Action
-  private case class CommentsChange(srcId: String) extends Action
-  private case class Remove(task: B_TodoTask) extends Action
+  private case class CommentsContainsChange(srcId: String) extends VAction
+  private case class Add() extends VAction
+  private case class CommentsChange(srcId: String) extends VAction
+  private case class Remove(task: B_TodoTask) extends VAction
 }
 
 ////////////////////////////
@@ -231,8 +231,8 @@ trait ExampleFigureEl extends ToChildPair
   }
 }
 object TestCanvasView {
-  private case class SizesChange(sessionKey: String) extends Action
-  private case class Activate(id: String, value: Boolean) extends Action
+  private case class SizesChange(sessionKey: String) extends VAction
+  private case class Activate(id: String, value: Boolean) extends VAction
 }
 
 ////////////////////////////
@@ -262,7 +262,7 @@ object TestCanvasView {
   }
 }
 object RevertRootView {
-  private case class MakeSavepoint() extends Action
+  private case class MakeSavepoint() extends VAction
 }
 @c4("TestTodoApp") final case class RevertToSavepoint()(revert: Reverting) extends Receiver[Context] {
   def receive: Handler = _ => revert.revertToSavepoint
@@ -305,8 +305,8 @@ trait ReplicaEl extends ToChildPair
   }
 }
 object ReplicaListRootView {
-  private case class Complete(process: ReadyProcess) extends Action
-  private case class ForceRemove(process: ReadyProcess) extends Action
+  private case class Complete(process: ReadyProcess) extends VAction
+  private case class ForceRemove(process: ReadyProcess) extends VAction
 }
 
 @c4("TestTodoApp") final case class ReplicaBadShutdown(execution: Execution) extends Executable with LazyLogging {
