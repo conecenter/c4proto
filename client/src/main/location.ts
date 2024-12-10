@@ -4,9 +4,9 @@ import {Identity, manageEventListener, identityAt, mergeSimple, patchFromValue, 
 
 const changeIdOf = identityAt('change')
 type LocationBranchContext = { isRoot: boolean, win: Window }
-export const LocationComponents = ({useSender,useSync}: {useSender: ()=>LocationBranchContext, useSync: UseSync}) => {
+export const LocationComponents = ({useBranch,useSync}: {useBranch: ()=>LocationBranchContext, useSync: UseSync}) => {
     const LocationElement = ({value: incomingValue, identity}: {value: string, identity: Identity}) => {
-        const {isRoot,win} = useSender()
+        const {isRoot,win} = useBranch()
         //console.log("loc",incomingValue)
         const [patches, enqueuePatch] = useSync(changeIdOf(identity))
         const value = mergeSimple(incomingValue, patches)

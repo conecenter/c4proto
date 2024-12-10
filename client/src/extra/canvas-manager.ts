@@ -76,11 +76,11 @@ const parseValue = (value: string) => {
     return {cmdUnitsPerEMZoom,aspectRatioX,aspectRatioY,pxMapH}
 }
 type CanvasBranchContext = { enqueue: EnqueuePatch, isRoot: boolean }
-type CanvasModArgs = { canvasFactory: CanvasFactory, useSync: UseSync, useSender: ()=>CanvasBranchContext }
+type CanvasModArgs = { canvasFactory: CanvasFactory, useSync: UseSync, useBranch: ()=>CanvasBranchContext }
 export type UseCanvas = (props: CanvasProps) => ObjS<string>
-export const UseCanvas = ({canvasFactory,useSync,useSender}:CanvasModArgs) => (prop:CanvasProps) => {
+export const UseCanvas = ({canvasFactory,useSync,useBranch}:CanvasModArgs) => (prop:CanvasProps) => {
     const {identity, value: incomingValue, isGreedy, style: argStyle, options, parentNode} = prop
-    const {enqueue,isRoot} = useSender()
+    const {enqueue,isRoot} = useBranch()
     const [sizePatches, enqueueSizePatch] = useSync(identity)
     const value = mergeSimple(incomingValue, sizePatches)
     const [canvas, setCanvas] = useState<C4Canvas|undefined>()

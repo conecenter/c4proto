@@ -4,11 +4,11 @@ import { EnqueuePatch, Identity, identityAt, patchFromValue } from "./util"
 const deleteIdOf = identityAt("delete")
 type MessageReceiver = (value: string) => void
 type ReceiverBranchContext = { enqueue: EnqueuePatch, isRoot: boolean }
-type ToAlienMessageComponentsArgs = { messageReceiver: MessageReceiver, useSender: ()=>ReceiverBranchContext }
-export const ToAlienMessageComponents = ({messageReceiver,useSender}:ToAlienMessageComponentsArgs) => {
+type ToAlienMessageComponentsArgs = { messageReceiver: MessageReceiver, useBranch: ()=>ReceiverBranchContext }
+export const ToAlienMessageComponents = ({messageReceiver,useBranch}:ToAlienMessageComponentsArgs) => {
     const ToAlienMessagesElement = ({messages}:{messages?:React.ReactElement[]}) => messages??[]
     const ToAlienMessageElement = ({ identity, value } : { identity: Identity, value: string }) => {
-        const {enqueue,isRoot} = useSender()
+        const {enqueue,isRoot} = useBranch()
         useEffect(()=>{
             if(!isRoot) return undefined 
             enqueue(deleteIdOf(identity), patchFromValue(""))

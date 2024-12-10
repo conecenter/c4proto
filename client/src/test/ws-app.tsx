@@ -141,7 +141,7 @@ const noReloadBranchKey = ()=>{}
 const noLogin: Login = (u,p) => assertNever("no login in non-root")
 type ExampleFrameProps = { branchKey: string, style: ObjS<string> }
 function ExampleFrame({branchKey,style}:ExampleFrameProps){
-    const {createNode,sessionKey} = useSender()
+    const {createNode,sessionKey} = useBranch()
     const makeChildren = useCallback((body:HTMLElement) => {
         const win = body.ownerDocument.defaultView ?? assertNever("no window")
         const syncProps: SyncRootArgs = {
@@ -154,7 +154,7 @@ function ExampleFrame({branchKey,style}:ExampleFrameProps){
 }
 
 function ExampleLogin(){
-    const {login} = useSender()
+    const {login} = useBranch()
     const [user, setUser] = useState("")
     const [pass, setPass] = useState("")
     const [error, setError] = useState(false)
@@ -228,17 +228,17 @@ type BranchContext = {
 }
 const BranchContext = createContext<BranchContext|undefined>(undefined)
 BranchContext.displayName = "BranchContext"
-const useSender = () => useContext(BranchContext) ?? assertNever("no BranchContext")
+const useBranch = () => useContext(BranchContext) ?? assertNever("no BranchContext")
 
-const useSync = UseSyncMod(useSender)
+const useSync = UseSyncMod(useBranch)
 const messageReceiver = (value: string) => console.trace(value)
-const toAlienMessageComponents = ToAlienMessageComponents({messageReceiver,useSender})
-const locationComponents = LocationComponents({useSender,useSync})
+const toAlienMessageComponents = ToAlienMessageComponents({messageReceiver,useBranch})
+const locationComponents = LocationComponents({useBranch,useSync})
 
 type NativeElementProps = ObjS<unknown> & {tp:string}
 const NativeElement = ({tp,identity,branchContext,...at}:NativeElementProps) => createElement(tp, at)
 export const main = ({win, canvasFactory}: {win: Window, canvasFactory: CanvasFactory }) => {
-    const useCanvas: UseCanvas = UseCanvas({canvasFactory,useSender,useSync})
+    const useCanvas: UseCanvas = UseCanvas({canvasFactory,useBranch,useSync})
     const ExampleCanvas = ExampleCanvasMod(useCanvas)
     const typeTransforms: ObjS<React.FC<any>|string> = {
         span: NativeElement, ...locationComponents, ...toAlienMessageComponents,

@@ -9,9 +9,9 @@ AckContext.displayName = "AckContext"
 const nonMerged = (ack: number) => (aPatch: Patch) => !(aPatch && aPatch.index <= ack)
 
 type SyncBranchContext = { enqueue: EnqueuePatch }
-export const UseSyncMod: (useSender: ()=>SyncBranchContext) => UseSync = useSender => identity => {
+export const UseSyncMod: (useBranch: ()=>SyncBranchContext) => UseSync = useBranch => identity => {
     const [patches,setPatches] = useState<Patch[]>([])
-    const {enqueue} = useSender()
+    const {enqueue} = useBranch()
     const enqueuePatch = useCallback((aPatch: UnsubmittedPatch) => {
         const index = enqueue(identity, aPatch)
         setPatches(aPatches=>[...aPatches,{...aPatch, identity, index}])
