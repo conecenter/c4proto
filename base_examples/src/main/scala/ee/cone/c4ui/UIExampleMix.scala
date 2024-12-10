@@ -7,6 +7,8 @@ import ee.cone.c4actor_repl_impl.SSHDebugApp
 import ee.cone.c4di.c4app
 import ee.cone.c4gate._
 
+trait PublicViewAssembleAppBase
+
 // TestTxLogApp MergingSnapshotApp SSHDebugApp
 @c4app class TestTodoAppBase extends ServerCompApp
   with EnvConfigCompApp with VMExecutionApp
@@ -25,8 +27,6 @@ import ee.cone.c4gate._
   with PublisherApp
   with SkipWorldPartsApp
   with LZ4RawCompressorApp
-  with SessionUtilApp
-  with EventLogApp
   with AuthProtocolApp
   with AuthOperationsApp
   //with AlienProtocolApp

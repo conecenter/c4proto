@@ -1,6 +1,17 @@
-// @ts-check
-import { createElement, useCallback, useState, } from "react"
-import {patchFromValue,ctxToPath, assertNever}    from "../main/util.js"
+// #@ts-check
+import { createElement, useCallback, useState, useEffect, useMemo } from "react"
+import { patchFromValue, ctxToPath, assertNever, manageAnimationFrame } from "../main/util.ts"
+import { doCreateRoot, useIsolatedFrame } from "../main/frames.ts"
+import { useSessionManager } from "../main/session.ts"
+import { createContext } from "react"
+import { useContext } from "react"
+import { useSyncRoot } from "../main/sync-root.ts"
+import { LocationComponents } from "../main/location.ts"
+import { ToAlienMessageComponents } from "../main/receiver.ts"
+import { UseSyncMod } from "../main/sync-hooks.ts"
+import { UseCanvas } from "./canvas-manager.ts"
+
+export const rootCtx = ctx => ctx.branchContext
 
 /********* sync input *********************************************************/
 
@@ -43,7 +54,7 @@ function useSyncInput(patches,enqueuePatch,incomingValue,deferSend){
 
 /********* traverse ***********************************************************/
 
-export const CreateNode = ({transforms,useBranch,useSync}) => {
+const CreateNode = ({transforms}) => {
     const SyncInput = ({identity,constr,value,onChange,...props}) => {
         const {deferSend} = onChange
         const [patches,enqueuePatch] = useSync(identity)
@@ -57,7 +68,7 @@ export const CreateNode = ({transforms,useBranch,useSync}) => {
         if(changes.onChange) return createElement(SyncInput, {identity,constr,...at,...changes})
         return createElement(constr, {...at,...changes})
     }
-    return ({tp,...at}) => {
+    const createNode = ({tp,...at}) => {
         const constr = transforms.tp[at.tp]
         if("identity" in at) return constr ? createElement(constr,at) : at
         //legacy:
@@ -71,16 +82,17 @@ export const CreateNode = ({transforms,useBranch,useSync}) => {
         if(transPairs.length > 0) return createElement(SyncElement, {...nAt,transPairs,constr:constr||tp})
         return createElement(constr||tp, nAt)
     }
+    return createNode
 }
 
 /******************************************************************************/
 
-export function VDomAttributes(sender){
+export const VDomAttributes = (sender) => {
     const onClick = ({"sendThen": ctx => event => { sender.send(ctx,patchFromValue("")) }}) //react gives some warning on stopPropagation
-    const onChange = { "local": ctx => ch => true, "send": ctx => ch => false, "send_first": ctx => ch => changing }
+    const onChange = { "local": ctx => ch => true, "send": ctx => ch => false, "send_first": ctx => ch => ch }
     const ctx = { "ctx": ctx => ctx }
     const path = { "I": ctxToPath(ctx.identity) }
-    const transforms = {onClick,onChange,ref,ctx,tp,path,identity}
+    const transforms = {onClick,onChange,ctx,path}
     return ({transforms})
 }
 
@@ -92,7 +104,8 @@ export const Feedback = () => ({
     send: ({url,options}) => fetch(url,options)
 })
 
-export const CanvasManager = (useCanvas) => {
+export const CanvasManager = (canvasFactory) => {
+    const useCanvas = UseCanvas({useBranch,useSync,canvasFactory})
     const Canvas = props => {
         const [parentNode, ref] = useState()
         const style = useCanvas({...props, parentNode})
@@ -105,7 +118,7 @@ const splitFirst = (by,data) => {
     const i = data.indexOf(by)
     return [data.substring(0,i), data.substring(i+1)]
 }
-export const MessageReceiver = receivers => value => {
+const MessageReceiver = receivers => value => {
     const [k,v] = splitFirst("\n", value)
     receivers[k] && receivers[k](v)
 }
@@ -116,14 +129,62 @@ export const mergeAll = l => {
 }
 
 
+const BranchContext = createContext(undefined)
+BranchContext.displayName = "BranchContext"
+export const useBranch = () => useContext(BranchContext) ?? assertNever("no BranchContext")
+const createBranchProvider = ({
+        createNode, sessionKey, branchKey, isRoot, win, login, enqueue, children,
+}) => {
+    const value = useMemo(()=>({
+        createNode, sessionKey, branchKey, isRoot, win, login, enqueue
+    }),[createNode, sessionKey, branchKey, isRoot, win, login, enqueue])
+    return createElement(BranchContext.Provider, {value, children})
+}
+const useSync = UseSyncMod(useBranch)
 
 
-export const activate = ({transforms, checkActivate, useBranch, useSync}) => {
-    
-    
-    
-    
 
 
-    const createNode = CreateNode({transforms, useBranch, useSync})
+export const RootComponents = ({createSyncProviders,checkActivate,receivers}) => {
+    const locationComponents = LocationComponents({useBranch,useSync})
+    const messageReceiver = MessageReceiver(receivers)
+    const toAlienMessageComponents = ToAlienMessageComponents({messageReceiver,useBranch})
+    const noReloadBranchKey = ()=>{}
+    const noLogin = (u,p) => assertNever("no login in non-root")
+    const Frame = ({branchKey,style}) => {
+        const {createNode,sessionKey} = useBranch()
+        const makeChildren = useCallback((body) => {
+            const win = body.ownerDocument.defaultView ?? assertNever("no window")
+            const syncProps = {
+                createNode, login: noLogin, reloadBranchKey: noReloadBranchKey, isRoot: false, win, sessionKey, branchKey
+            }
+            return createElement(SyncRoot, syncProps)
+        }, [createNode,sessionKey,branchKey])
+        const {ref,...props} = useIsolatedFrame(makeChildren)
+        return createElement("iframe", {...props, style, ref})
+    }
+    const busyFor = () => assertNever("not implemented") // use availability?
+    const SyncRoot = (prop) => {
+        const { enqueue, children, availability, ack, failure } = useSyncRoot(prop)
+        const { createNode, sessionKey, branchKey, isRoot, win, login } = prop
+        const sender = useMemo(()=>({ enqueue, ctxToPath, busyFor }), [enqueue, ctxToPath, busyFor])
+        return createSyncProviders({sender,ack,isRoot,branchKey,children:[
+            createBranchProvider({createNode, sessionKey, branchKey, isRoot, win, login, enqueue, children: [
+                failure ? `VIEW FAILED: ${failure}` : "", ...children
+            ]})
+        ]})
+    }
+    const App = ({win,createNode}) => {
+        useEffect(()=>manageAnimationFrame(win, checkActivate),[win, checkActivate])
+        const {result,failure} = useSessionManager(win)
+        return result ? createElement(SyncRoot, {createNode,...result}) : 
+            failure ? `SESSION INIT FAILED: ${failure}` : ""
+    }
+    return ({...locationComponents,...toAlienMessageComponents,App,Frame})
+}
+
+export const activate = ({transforms, win, App}) => {
+    const createNode = CreateNode({transforms})
+    const [root, unmount] = doCreateRoot(win.document.body)
+    root.render(createElement(App,{createNode,win}))
 }

@@ -6,7 +6,7 @@ export const useIsolatedFrame = (makeChildren: (body: HTMLElement)=>React.ReactN
     const [frameElement,ref] = useState<HTMLIFrameElement|null>(null)
     const [theBody,setBody] = useState<HTMLElement|null>(null)
     const [root,setRoot] = useState<Root|null>(null)
-    useEffect(() => frameElement && !theBody ? manageAnimationFrame(frameElement, ()=>{
+    useEffect(() => frameElement && !theBody ? manageAnimationFrame(frameElement.ownerDocument.defaultView, ()=>{
         const body = frameElement?.contentWindow?.document.body
         if(body?.id) setBody(body)
     }) : undefined, [theBody, setBody, frameElement])

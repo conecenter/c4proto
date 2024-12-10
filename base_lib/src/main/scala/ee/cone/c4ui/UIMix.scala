@@ -1,16 +1,15 @@
 package ee.cone.c4ui
 
 import ee.cone.c4actor_branch.BranchApp
-import ee.cone.c4gate.{AlienProtocolApp, HttpProtocolApp}
+import ee.cone.c4gate._
 import ee.cone.c4di.{c4, provide}
 import ee.cone.c4vdom._
 import ee.cone.c4vdom_impl._
 
-trait AccessViewAppBase
 
-trait PublicViewAssembleAppBase
 
-trait UICompAppBase extends AlienExchangeCompApp with BranchApp
+
+trait UICompAppBase extends AlienExchangeCompApp with BranchApp with SessionUtilApp with EventLogApp
 
 trait AlienExchangeCompAppBase extends AlienProtocolApp with HttpProtocolApp
 

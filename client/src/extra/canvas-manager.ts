@@ -75,12 +75,12 @@ const parseValue = (value: string) => {
     const [cmdUnitsPerEMZoom,aspectRatioX,aspectRatioY,pxMapH] = value.split(",") // eslint-disable-line no-unused-vars
     return {cmdUnitsPerEMZoom,aspectRatioX,aspectRatioY,pxMapH}
 }
-type CanvasBranchContext = { enqueue: EnqueuePatch, isRoot: boolean }
+type CanvasBranchContext = { enqueue: EnqueuePatch, isRoot: boolean, win: Window }
 type CanvasModArgs = { canvasFactory: CanvasFactory, useSync: UseSync, useBranch: ()=>CanvasBranchContext }
 export type UseCanvas = (props: CanvasProps) => ObjS<string>
 export const UseCanvas = ({canvasFactory,useSync,useBranch}:CanvasModArgs) => (prop:CanvasProps) => {
     const {identity, value: incomingValue, isGreedy, style: argStyle, options, parentNode} = prop
-    const {enqueue,isRoot} = useBranch()
+    const {enqueue,isRoot,win} = useBranch()
     const [sizePatches, enqueueSizePatch] = useSync(identity)
     const value = mergeSimple(incomingValue, sizePatches)
     const [canvas, setCanvas] = useState<C4Canvas|undefined>()
@@ -101,7 +101,7 @@ export const UseCanvas = ({canvasFactory,useSync,useBranch}:CanvasModArgs) => (p
             enqueue(colorToContext[color], {value: "", skipByPath: false, ...patch}) //?move closure
         }
         const state = {parentNode,sizesSyncEnabled:isRoot,canvas,parsed,sendToServer}
-        return manageAnimationFrame(parentNode, ()=>canvas.checkActivate(state))
+        return manageAnimationFrame(win, ()=>canvas.checkActivate(state))
     })
     const style = isGreedy || !value ? argStyle : {...argStyle, height: parseValue(value).pxMapH+"px"}
     return style

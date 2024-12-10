@@ -56,7 +56,7 @@ const emptyIncoming: Incoming = {at: {}}
 const isIncomingKey = (key: string): key is `:${string}` => key.startsWith(":")
 const isChildOrderKey = (key: string): key is `@${string}` => key.startsWith("@")
 
-const asObjectOrArray = (u: unknown): {}|unknown[] => typeof u === "object" && u ? u : assertNever("bad object")
+const asObjectOrArray = (u: unknown): object => typeof u === "object" && u ? u : assertNever("bad object")
 
 const getKeyOpt = (o: { [K: string]: unknown }, k: string): unknown => o[k]
 
@@ -69,8 +69,8 @@ const Receiver = ({setState,doAck,createNode}:ReceiverArgs) => {
         const res = {...inc}
         Object.keys(spec).forEach(key=>{
             //console.log("U",key,spec[key])
-            const sValue: ObjS<unknown>|unknown[] = asObjectOrArray(spec[key])
-            const value = Array.isArray(sValue) ? sValue : sValue["$set"] ?? sValue
+            const sValue: object = asObjectOrArray(spec[key])
+            const value = Array.isArray(sValue) ? sValue : "$set" in sValue ? sValue["$set"] : sValue
             const cIdentity = pIdentity === "root" ? "" : resolve(pIdentity, key)
             if(isIncomingKey(key)) 
                 res[key] = update((sValue !== value || !inc ? undefined : inc[key]) ?? emptyIncoming, asObject(value), key, cIdentity)
