@@ -29,7 +29,7 @@ trait ExampleMenuItemEl extends ToChildPair
 
 @c4("TestTodoApp") final case class WrapView()(
   untilPolicy: UntilPolicy, sessionUtil: SessionUtil, getSession: GetByPK[U_AuthenticatedSession],
-  val rc: UpdatingReceiverFactory, toAlienMessageUtil: ToAlienMessageUtil,
+  val rc: UpdatingReceiverFactory, toAlienMessageUtil: ToAlienMessageUtil, locationUtil: LocationUtil,
   exampleMenuTagsProvider: ExampleMenuTagsProvider,
 )(
   exampleMenuTags: ExampleMenuTags[Context] = exampleMenuTagsProvider.get[Context]
@@ -52,7 +52,7 @@ trait ExampleMenuItemEl extends ToChildPair
     List(res.toChildPair)
   }
   def receive: Handler = _ => local => {
-    case GoTo(sessionKey, to) => sessionUtil.setLocationHash(local, sessionKey, to)
+    case GoTo(sessionKey, to) => locationUtil.setLocationHash(local, sessionKey, to)
     case SendTestMessage(sessionKey) => toAlienMessageUtil.create(sessionKey, UUID.randomUUID().toString)
     case LogOut(sessionKey) => sessionUtil.logOut(local, sessionKey)
   }

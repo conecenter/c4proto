@@ -1,15 +1,20 @@
 
-import {useState,useEffect,createRoot,Root} from "./react"
-import {manageAnimationFrame} from "./util"
+import {createRoot,Root} from "react-dom/client"
+import {useState,useEffect} from "./react"
+import {assertNever, manageAnimationFrame} from "./util"
 
 export const useIsolatedFrame = (makeChildren: (body: HTMLElement)=>React.ReactNode) => {
     const [frameElement,ref] = useState<HTMLIFrameElement|null>(null)
     const [theBody,setBody] = useState<HTMLElement|null>(null)
     const [root,setRoot] = useState<Root|null>(null)
-    useEffect(() => frameElement && !theBody ? manageAnimationFrame(frameElement.ownerDocument.defaultView, ()=>{
-        const body = frameElement?.contentWindow?.document.body
-        if(body?.id) setBody(body)
-    }) : undefined, [theBody, setBody, frameElement])
+    useEffect(() => {
+        if(!frameElement || theBody) return 
+        const win = frameElement.ownerDocument.defaultView ?? assertNever("no win")
+        return manageAnimationFrame(win, ()=>{
+            const body = frameElement.contentWindow?.document.body
+            if(body?.id) setBody(body)
+        })
+    }, [theBody, setBody, frameElement])
     useEffect(() => {
         if(!theBody) return 
         const [root, unmount] = doCreateRoot(theBody)

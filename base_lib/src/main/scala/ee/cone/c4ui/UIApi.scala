@@ -42,6 +42,7 @@ trait VDomUntil {
 trait FromAlienTask extends Product {
   def branchKey: SrcId
   def branchTask: BranchTask
+  def userName: String
   def fromAlienState: U_FromAlienState
   def locationQuery: String
   def locationHash: String

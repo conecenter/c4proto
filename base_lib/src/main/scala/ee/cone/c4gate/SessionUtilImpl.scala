@@ -15,7 +15,6 @@ import java.time.Instant
 @c4("SessionUtilApp") final class SessionUtilImpl(
   idGenUtil: IdGenUtil, eventLogUtil: EventLogUtil,
   getAuthenticatedSession: GetByPK[U_AuthenticatedSession],
-  getFromAlienState: GetByPK[U_FromAlienState],
   getFromAlienStatus: GetByPK[U_FromAlienStatus],
 ) extends SessionUtil {
   def create(userName: String, headers: List[N_Header]): (String, LEvents) = {
@@ -23,22 +22,14 @@ import java.time.Instant
     val sessionKey = idGenUtil.srcIdRandom()
     val until = Instant.now.plusSeconds(20).getEpochSecond
     val session = U_AuthenticatedSession(sessionKey, userName, until, headers, logKey)
-    val state = U_FromAlienState(sessionKey, "", Option(userName).filter(_.nonEmpty))
     val status = U_FromAlienStatus(sessionKey, until, isOnline = true)
-    (sessionKey, LEvent.update(Seq(session, state, status)) ++ logEvents)
+    (sessionKey, LEvent.update(Seq(session, status)) ++ logEvents)
   }
   def purge(local: Context, sessionKey: String): LEvents = {
     def rm[T<:Product](get: GetByPK[T]): LEvents = get.ofA(local).get(sessionKey).toSeq.flatMap(LEvent.delete)
     val sessionOpt = getAuthenticatedSession.ofA(local).get(sessionKey)
     val logEvents = sessionOpt.toSeq.flatMap(s=>eventLogUtil.purgeAll(local,s.logKey))
-    logEvents ++ rm(getAuthenticatedSession) ++ rm(getFromAlienState) ++ rm(getFromAlienStatus)
-  }
-  def location(local: Context, sessionKey: String): String = getFromAlienState.ofA(local)(sessionKey).location
-  def setLocation(local: Context, sessionKey: String, value: String): LEvents =
-    LEvent.update(getFromAlienState.ofA(local)(sessionKey).copy(location = value))
-  def setLocationHash(local: Context, sessionKey: String, value: String): LEvents = {
-    val locationWithoutHash = location(local, sessionKey).split("#") match { case Array(l) => l case Array(l, _) => l }
-    setLocation(local, sessionKey, s"$locationWithoutHash#$value")
+    logEvents ++ rm(getAuthenticatedSession) ++ rm(getFromAlienStatus)
   }
   def trySetStatus(world: AssembledContext, sessionKey: String, expirationSecond: Long, isOnline: Boolean): LEvents = {
     val wasOpt = getFromAlienStatus.ofA(world).get(sessionKey)
@@ -49,6 +40,24 @@ import java.time.Instant
     getFromAlienStatus.ofA(local).get(sessionKey).forall(_.expirationSecond < Instant.now.getEpochSecond)
   def logOut(local: AssembledContext, sessionKey: String): LEvents =
     LEvent.delete(getFromAlienStatus.ofA(local).get(sessionKey).toSeq)
+}
+
+@c4("SessionUtilApp") final class LocationUtilImpl(
+  getFromAlienState: GetByPK[U_FromAlienState], sessionUtil: SessionUtil,
+) extends LocationUtil {
+  import sessionUtil.expired
+  def location(local: AssembledContext, sessionKey: String): String =
+    getFromAlienState.ofA(local).get(sessionKey).fold("")(_.location)
+  def setLocation(sessionKey: String, value: String): LEvents =
+    LEvent.update(U_FromAlienState(sessionKey, value))
+  def setLocationHash(local: AssembledContext, sessionKey: String, value: String): LEvents = {
+    val locationWithoutHash = location(local, sessionKey).split("#") match { case Array(l) => l case Array(l, _) => l }
+    setLocation(sessionKey, s"$locationWithoutHash#$value")
+  }
+  def purge(local: AssembledContext, sessionKey: String): LEvents =
+    getFromAlienState.ofA(local).get(sessionKey).toSeq.flatMap(LEvent.delete)
+  def purgeAllExpired(world: AssembledContext): LEvents =
+    LEvent.delete(getFromAlienState.ofA(world).values.filter(m => expired(world, m.sessionKey)).toSeq.sortBy(_.sessionKey))
 }
 
 @c4("SessionUtilApp") final class FromAlienWishUtilImpl(

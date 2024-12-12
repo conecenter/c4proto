@@ -1,3 +1,19 @@
+interface EventMap {
+    "error": Event
+    "message": MessageEvent
+    "open": Event
+    "close": Event
+    "hashchange": HashChangeEvent
+    "beforeunload": Event
+}
+interface EventTarget {
+    addEventListener<K extends keyof EventMap>(
+        type: K, listener: (ev: EventMap[K]) => void, options?: boolean
+    ): void
+    removeEventListener<K extends keyof EventMap>(
+        type: K, listener: (ev: EventMap[K]) => void
+    ): void
+}
 
 export const manageEventListener = <K extends keyof EventMap>(
     el: EventTarget, evName: K, callback: (ev: EventMap[K]) => void

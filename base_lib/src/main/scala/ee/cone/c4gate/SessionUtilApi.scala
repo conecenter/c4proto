@@ -7,12 +7,17 @@ import ee.cone.c4gate.HttpProtocol.N_Header
 trait SessionUtil {
   def create(userName: String, headers: List[N_Header]): (String, LEvents)
   def purge(local: Context, sessionKey: String): LEvents
-  def location(local: Context, sessionKey: String): String
-  def setLocation(local: Context, sessionKey: String, value: String): LEvents
-  def setLocationHash(local: Context, sessionKey: String, value: String): LEvents
   def trySetStatus(world: AssembledContext, sessionKey: String, expirationSecond: Long, isOnline: Boolean): LEvents
   def expired(local: AssembledContext, sessionKey: String): Boolean
   def logOut(local: AssembledContext, sessionKey: String): LEvents
+}
+
+trait LocationUtil {
+  def location(local: AssembledContext, sessionKey: String): String
+  def setLocation(sessionKey: String, value: String): LEvents
+  def setLocationHash(local: AssembledContext, sessionKey: String, value: String): LEvents
+  def purge(local: AssembledContext, sessionKey: String): LEvents
+  def purgeAllExpired(world: AssembledContext): LEvents
 }
 
 case class BranchWish(branchKey: String, sessionKey: String, index: Long, value: String)

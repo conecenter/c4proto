@@ -2,6 +2,8 @@
 import { useEffect, useState } from "./react"
 import {weakCache,assertNever,getKey,asObject,asString,ObjS,EnqueuePatch,Patch,UnsubmittedPatch,resolve,ctxToPath,CreateNode,Identity} from "./util"
 
+
+
 const asArray = (u: unknown): unknown[] => Array.isArray(u) ? u : assertNever("bad array")
 const asBoolean = (u: unknown) => typeof u === "boolean" ? u : assertNever("bad boolean")
 
@@ -29,7 +31,8 @@ const ReConnection = ({win,url,onData,stateToSend,onClose}:ConnectionParams) => 
         wasAt = Date.now()
     }
     const open = () => {
-        const wsL = new win.WebSocket(url)
+        const Constr = (win as unknown as { WebSocket: { new(url: string): WebSocket } }).WebSocket
+        const wsL = new Constr(url)
         wsL.addEventListener("open", ()=>doSend())
         wsL.addEventListener("message", ev=>onMessage(wsL,ev.data))
         wsL.addEventListener("close", ()=>onClose())

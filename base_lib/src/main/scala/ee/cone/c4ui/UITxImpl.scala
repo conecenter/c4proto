@@ -12,7 +12,7 @@ import ee.cone.c4assemble.{by, c4assemble}
 import ee.cone.c4di.{c4, c4multi}
 import ee.cone.c4gate.AlienProtocol.U_FromAlienState
 import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
-import ee.cone.c4gate.{BranchWish, EventLogUtil, FromAlienWishUtil, SessionUtil, ToAlienMessageUtil}
+import ee.cone.c4gate.{BranchWish, EventLogUtil, FromAlienWishUtil, LocationUtil, SessionUtil, ToAlienMessageUtil}
 import ee.cone.c4vdom.Types.{ElList, ViewRes}
 import ee.cone.c4vdom._
 import ee.cone.c4vdom_impl.VPair
@@ -30,7 +30,7 @@ import scala.Function.chain
   ): Values[(SrcId, FromAlienTask)] = if(fromAlien.location.isEmpty) Nil else {
     val url = new URL(fromAlien.location)
     List(WithPK(taskFactory.create(
-      session.logKey, fromAlien, Option(url.getQuery).getOrElse(""), Option(url.getRef).getOrElse("")
+      session.logKey, session.userName, fromAlien, Option(url.getQuery).getOrElse(""), Option(url.getRef).getOrElse("")
     )))
   }
   //
@@ -45,22 +45,23 @@ import scala.Function.chain
 }
 
 @c4multi("UICompApp") final case class UIAlienPurgerTx(srcId: SrcId = "UIAlienPurgerTx")(
-  fromAlienWishUtil: FromAlienWishUtil, toAlienMessageUtil: ToAlienMessageUtil, txAdd: LTxAdd,
+  fromAlienWishUtil: FromAlienWishUtil, toAlienMessageUtil: ToAlienMessageUtil, locationUtil: LocationUtil,
+  txAdd: LTxAdd,
 ) extends TxTransform {
   def transform(local: Context): Context = {
-    val lEvents = fromAlienWishUtil.purgeAllExpired(local) ++ toAlienMessageUtil.purgeAllExpired(local)
+    val lEvents = fromAlienWishUtil.purgeAllExpired(local) ++ toAlienMessageUtil.purgeAllExpired(local) ++ locationUtil.purgeAllExpired(local)
     txAdd.add(lEvents).andThen(SleepUntilKey.set(Instant.now.plusSeconds(300)))(local)
   }
 }
 
 
 @c4multi("AlienExchangeCompApp") final case class FromAlienTaskImpl(
-  branchKey: SrcId, fromAlienState: U_FromAlienState, locationQuery: String, locationHash: String
-)(txAdd: LTxAdd, sessionUtil: SessionUtil) extends FromAlienTask with BranchTask {
+  branchKey: SrcId, userName: String, fromAlienState: U_FromAlienState, locationQuery: String, locationHash: String
+)(txAdd: LTxAdd, locationUtil: LocationUtil) extends FromAlienTask with BranchTask {
   def branchTask: BranchTask = this
   def product: Product = fromAlienState
   def relocate(to: String): Context => Context = local => {
-    val lEvents = sessionUtil.setLocationHash(local, fromAlienState.sessionKey, to)
+    val lEvents = locationUtil.setLocationHash(local, fromAlienState.sessionKey, to)
     txAdd.add(lEvents)(local)
   }
 }
@@ -119,7 +120,7 @@ case class VDomMessageImpl(wish: BranchWish, headerMap: Map[String, String]) ext
 
 @c4multi("UICompApp") final case class UIViewer(branchKey: String, sessionKey: String)(
   catchNonFatal: CatchNonFatal,
-  sessionUtil: SessionUtil, eventLogUtil: EventLogUtil, fromAlienWishUtil: FromAlienWishUtil,
+  locationUtil: LocationUtil, eventLogUtil: EventLogUtil, fromAlienWishUtil: FromAlienWishUtil,
   branchOperations: BranchOperations, getView: GetByPK[View], vDomHandler: VDomHandler, vDomUntil: VDomUntil,
   rootTagsProvider: RootTagsProvider, toAlienMessageUtil: ToAlienMessageUtil, val rc: UpdatingReceiverFactory,
 ) extends Updater {
@@ -128,7 +129,7 @@ case class VDomMessageImpl(wish: BranchWish, headerMap: Map[String, String]) ext
     if(res.diff.isEmpty && res.snapshot.isEmpty) Nil
     else eventLogUtil.write(local, branchKey, res.diff, Option(res.snapshot).filter(_.nonEmpty))
   private def handleReView(local: Context, preViewRes: PreViewResult): (Context, LEvents) = {
-    val location = sessionUtil.location(local, sessionKey)
+    val location = locationUtil.location(local, sessionKey)
     val viewOpt = getView.ofA(local).get(branchKey)
     val (children, failure) = catchNonFatal{ (viewOpt.fold(Nil:ViewRes)(_.view(local)), "") }("view failed"){ err =>
       (Nil, err match { case b: BranchError => b.message(local) case _ => "Internal Error" })
@@ -155,7 +156,7 @@ case class VDomMessageImpl(wish: BranchWish, headerMap: Map[String, String]) ext
       ))(local), preViewRes)
     }
   def receive: Handler = value => local => {
-    case SetLocation(sessionKey) => sessionUtil.setLocation(local, sessionKey, value)
+    case SetLocation(sessionKey) => locationUtil.setLocation(sessionKey, value)
     case DeleteToAlienMessage(messageKey) => toAlienMessageUtil.delete(local, messageKey)
   }
 }
@@ -163,11 +164,15 @@ case class SetLocation(sessionKey: String) extends VAction
 case class DeleteToAlienMessage(messageKey: String) extends VAction
 
 @c4multi("UICompApp") final case class UITx(branchKey: String, sessionKey: String)(
-  txAdd: LTxAdd, sessionUtil: SessionUtil, branchOperations: BranchOperations,
+  txAdd: LTxAdd, sessionUtil: SessionUtil, branchOperations: BranchOperations, locationUtil: LocationUtil,
   uiViewerFactory: UIViewerFactory, uiPostHandler: UIPostHandler, fromAlienWishUtil: FromAlienWishUtil,
 ) extends TxTransform with LazyLogging {
-  private def purge(local: Context) =
-    (local, sessionUtil.purge(local, sessionKey) ++ branchOperations.purge(local, branchKey))
+  private def purge(local: Context) = (
+    local,
+    sessionUtil.purge(local, sessionKey) ++
+      branchOperations.purge(local, branchKey) ++
+      locationUtil.purge(local, sessionKey)
+  )
   def transform(local: Context): Context = {
     val (nLocal, lEvents): (Context, LEvents) =
       if(sessionUtil.expired(local, sessionKey)) purge(local)
