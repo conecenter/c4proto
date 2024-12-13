@@ -244,11 +244,7 @@ export const main = ({win, canvasFactory}: {win: Window, canvasFactory: CanvasFa
         span: NativeElement, ...locationComponents, ...toAlienMessageComponents,
         ExampleLogin, ExampleMenu, ExampleTodoTaskList, TestSessionList, ExampleCanvas, ExampleReverting, ExampleReplicaList
     }
-    const createNode: CreateNode = at => {
-        //console.log("tp",at.tp)
-        const constr = typeTransforms[asString(at["tp"])]
-        return constr ? createElement(constr, at) : at
-    }
+    const createNode: CreateNode = at => "tp" in at ? createElement(typeTransforms[asString(at["tp"])], at) : at
     const [root, unmount] = doCreateRoot(win.document.body)
     root.render(<App createNode={createNode} win={win}/>)
 }
