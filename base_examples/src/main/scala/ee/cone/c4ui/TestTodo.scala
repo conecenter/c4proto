@@ -24,7 +24,7 @@ trait ExampleMenuItemEl extends ToChildPair
 @c4tags("TestTodoApp") trait ExampleMenuTags[C] {
   @c4el("ExampleLogin") def login(key: String): ToChildPair
   @c4el("ExampleMenu") def menu(key: String, items: ElList[ExampleMenuItemEl], children: ViewRes): ToChildPair
-  @c4el("ExampleMenuItem") def menuItem(key: String, caption: String, activate: Receiver[C]): ExampleMenuItemEl
+  @c4el def menuItem(key: String, caption: String, activate: Receiver[C]): ExampleMenuItemEl
 }
 
 @c4("TestTodoApp") final case class WrapView()(
@@ -114,9 +114,7 @@ case class TodoTasks(srcId: SrcId, tasks: List[TodoTask])
 
 trait TodoTaskEl extends ToChildPair
 @c4tags("TestTodoApp") trait ExampleTags[C] {
-  @c4el("ExampleTodoTask") def todoTask(
-    key: String, commentsValue: String, commentsChange: Receiver[C], remove: Receiver[C]
-  ): TodoTaskEl
+  @c4el def todoTask(key: String, commentsValue: String, commentsChange: Receiver[C], remove: Receiver[C]): TodoTaskEl
   @c4el("ExampleTodoTaskList") def todoTaskList(
     key: String, commentsFilterValue: String, commentsFilterChange: Receiver[C], add: Receiver[C],
     tasks: ElList[TodoTaskEl]
@@ -170,7 +168,7 @@ object TestTodoRootView {
 
 trait TestSessionEl extends ToChildPair
 @c4tags("TestTodoApp") trait TestSessionListTags[C] {
-  @c4el("TestSession") def session(key: String, branchKey: String, userName: String, isOnline: Boolean): TestSessionEl
+  @c4el def session(key: String, branchKey: String, userName: String, isOnline: Boolean): TestSessionEl
   @c4el("TestSessionList") def sessionList(key: String, sessions: ElList[TestSessionEl]): ToChildPair
 }
 
@@ -199,7 +197,7 @@ import TestCanvasProtocol.B_TestCanvasState
 
 trait ExampleFigureEl extends ToChildPair
 @c4tags("TestTodoApp") trait ExampleCanvasTags[C] {
-  @c4el("ExampleFigure") def figure(key: String, offset: Int, activate: Receiver[C], isActive: Boolean): ExampleFigureEl
+  @c4el def figure(key: String, offset: Int, activate: Receiver[C], isActive: Boolean): ExampleFigureEl
   @c4el("ExampleCanvas") def canvas(
     key: String, sizesValue: String, sizesChange: Receiver[C], figures: ElList[ExampleFigureEl]
   ): ToChildPair
@@ -272,7 +270,7 @@ object RevertRootView {
 
 trait ReplicaEl extends ToChildPair
 @c4tags("TestTodoApp") trait ExampleReplicaTags[C] {
-  @c4el("ExampleReplica") def replica(
+  @c4el def replica(
     key: String,
     role: String, startedAt: String, hostname: String, version: String, completion: String,
     complete: Receiver[C], forceRemove: Receiver[C]

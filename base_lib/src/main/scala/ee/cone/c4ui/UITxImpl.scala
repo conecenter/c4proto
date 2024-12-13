@@ -191,9 +191,8 @@ case class DeleteToAlienMessage(messageKey: String) extends VAction
 trait AckEl extends ToChildPair
 trait ToAlienMessagesEl extends ToChildPair
 @c4tags("UICompApp") trait RootTags[C] {
-  @c4el("RootElement")
-  def rootElement(key: String, failure: String, ackList: ElList[AckEl], children: ViewRes): ToChildPair
-  @c4el("AckElement") def ackElement(key: String, observerKey: String, indexStr: String): AckEl
+  @c4el def rootElement(key: String, failure: String, ackList: ElList[AckEl], children: ViewRes): ToChildPair
+  @c4el def ackElement(key: String, observerKey: String, indexStr: String): AckEl
   @c4el("LocationElement") def location(key: String, value: String, change: Receiver[C]): ToChildPair
   // diff is not good at delete, extra level makes it more optimal:
   @c4el("ToAlienMessagesElement") def toAlienMessages(key: String, messages: ElList[ToAlienMessagesEl]): ToChildPair

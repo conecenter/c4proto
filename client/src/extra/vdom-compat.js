@@ -69,7 +69,7 @@ const CreateNode = ({transforms}) => {
         return createElement(constr, {...at,...changes})
     }
     const createNode = ({tp,...at}) => {
-        const constr = transforms.tp[at.tp]
+        const constr = transforms.tp[tp]
         if("identity" in at) return constr ? createElement(constr,at) : at
         //legacy:
         const transPairs = Object.keys(at).map(key=>{

@@ -51,6 +51,7 @@ object TagGenerator extends Generator {
           val (clientType, outIsChild, needsPath) = mods match {
             case Seq(mod"@c4val") => (None, false, false)
             case Seq(mod"@c4val(${Lit(t: String)})") => (Option(t), false, false)
+            case Seq(mod"@c4el") => (None, true, false)
             case Seq(mod"@c4el(${Lit(t: String)})") => (Option(t), true, false)
             case Seq(mod"@c4elPath(${Lit(t: String)})") => (Option(t), true, true)
           }
