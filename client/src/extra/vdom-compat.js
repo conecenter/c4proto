@@ -56,9 +56,8 @@ function useSyncInput(patches,enqueuePatch,incomingValue,deferSend){
 
 const CreateNode = ({transforms}) => {
     const SyncInput = ({identity,constr,value,onChange,...props}) => {
-        const {deferSend} = onChange
         const [patches,enqueuePatch] = useSync(identity)
-        const patch = useSyncInput(patches,enqueuePatch,value,deferSend)
+        const patch = useSyncInput(patches,enqueuePatch,value,onChange)
         return createElement(constr, {...props, ...patch})
     }
     const SyncElement = ({identity,transPairs,constr,at}) => {
@@ -69,8 +68,8 @@ const CreateNode = ({transforms}) => {
         return createElement(constr, {...at,...changes})
     }
     const createNode = ({tp,...at}) => {
-        const constr = transforms.tp[tp]
-        if("identity" in at) return constr ? createElement(constr,at) : at
+        if(!tp) return at
+        const constr = transforms.tp[tp] || tp
         //legacy:
         const transPairs = Object.keys(at).map(key=>{
             const value = at[key]
@@ -78,9 +77,10 @@ const CreateNode = ({transforms}) => {
             const handler = trans && value && trans[value]
             return handler && [key, handler]
         }).filter(i=>i)
-        const nAt = {at, children: at.content, ...at}
-        if(transPairs.length > 0) return createElement(SyncElement, {...nAt,transPairs,constr:constr||tp})
-        return createElement(constr||tp, nAt)
+        const nAt = "content" in at ? {at, children: at.content, ...at} : {at, ...at}
+        if(transPairs.length > 0) return createElement(SyncElement, {...nAt,transPairs,constr})
+        //
+        return createElement(constr, nAt)
     }
     return createNode
 }
@@ -163,7 +163,10 @@ export const RootComponents = ({createSyncProviders,checkActivate,receivers}) =>
         const {ref,...props} = useIsolatedFrame(makeChildren)
         return createElement("iframe", {...props, style, ref})
     }
-    const busyFor = () => assertNever("not implemented") // use availability?
+    const busyFor = () => {
+        console.log("busyFor not implemented") // use availability?
+        return 0
+    }
     const SyncRoot = (prop) => {
         const { enqueue, children, availability, ack, failure } = useSyncRoot(prop)
         const { createNode, sessionKey, branchKey, isRoot, win, login } = prop
