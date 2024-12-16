@@ -252,7 +252,6 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     })
 }
 
-trait OuterUpdateProcessor extends UpdateProcessor
 @c4("RichDataCompApp") final class OuterUpdateProcessorImpl(
   updateProcessor: Option[UpdateProcessor],
   processors: List[UpdatesPreprocessor],

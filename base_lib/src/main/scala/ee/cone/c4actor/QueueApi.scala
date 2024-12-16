@@ -342,6 +342,7 @@ trait KeyFactory {
 class OrigKeyFactoryProposition(val value: KeyFactory)
 class OrigKeyFactoryFinalHolder(val value: KeyFactory)
 
+trait OuterUpdateProcessor extends UpdateProcessor
 trait UpdateProcessor {
   def process(updates: Seq[N_Update], prevQueueSize: Int): Seq[N_Update]
 }
