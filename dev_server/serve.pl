@@ -116,7 +116,7 @@ my $get_compilable_services = sub{
     my $tag_path = "$repo_dir/target/c4/tag";
     my $main = (-e $tag_path) ? syf("cat $tag_path") : $ENV{C4DEV_SERVER_MAIN} || die "no C4DEV_SERVER_MAIN";
     [
-        { name=>"gate", dir=>&$get_proto_dir(), main => "def", replicas => [0,1] },
+        #{ name=>"gate", dir=>&$get_proto_dir(), main => "def", replicas => [0,1] },
         { name=>"main", dir=>$repo_dir, main => $main, replicas => [0,1] },
     ]
 };
@@ -182,14 +182,14 @@ my $exec_server = sub{
     &$exec_at($dir,$env,"java","ee.cone.c4actor.ServerMain");
 };
 
-my $serve_gate = sub{
-    my($replica)=@_;
-    &$exec_server({&$get_gate_env($replica)}, "gate", $replica);
-};
+#my $serve_gate = sub{
+#    my($replica)=@_;
+#    &$exec_server({&$get_gate_env($replica)}, "gate", $replica);
+#};
 
 my $serve_main = sub{
     my($replica)=@_;
-    &$exec_server({}, "main", $replica);
+    &$exec_server({&$get_gate_env($replica)}, "main", $replica);
 };
 
 my $serve_build = sub{
@@ -244,15 +244,13 @@ my $serve_demo_jasper = sub{
 };
 
 my $serve_demo_main = sub{
-    my $env = { C4JR => "http://127.0.0.1:1080/" };
-    &$exec_demo_server($env, main => "/tools/c4main");
-};
-my $serve_demo_gate = sub{
     sleep 1 while so("sh $s3conf_dir/setup");
     my $dir = "local/$inbox_topic_prefix.snapshots/";
     my $snapshot_path = $ENV{C4DS_SNAPSHOT_PATH};
     $snapshot_path and !so("mcl mb $dir") and sy("mcl cp $snapshot_path $dir");
-    &$exec_demo_server({ &$get_gate_env(0) }, gate => "/tools/c4gate")
+    #
+    my $env = { C4JR => "http://127.0.0.1:1080/", &$get_gate_env(0) };
+    &$exec_demo_server($env, main => "/tools/c4main");
 };
 
 my $common_service_map = {
@@ -266,12 +264,12 @@ my $dev_service_map = {
     #b loop => $serve_b loop,
     proxy => $serve_proxy,
     node  => $serve_node,
-    &$replicas(gate => $serve_gate, 2),
+    #&$replicas(gate => $serve_gate, 2),
     &$replicas(main => $serve_main, 2),
     mcl => $serve_mcl,
 };
 my $demo_service_map = {
-    demo_gate => $serve_demo_gate,
+    #demo_gate => $serve_demo_gate,
     demo_main => $serve_demo_main,
     demo_jasper => $serve_demo_jasper,
 };

@@ -15,7 +15,7 @@ trait NoProxySSEConfigAppBase
 trait SafeToRunAppBase
 trait WorldProviderAppBase
 
-abstract class AbstractHttpGatewayAppBase extends ServerCompApp
+trait AbstractHttpGatewayAppBase extends ServerCompApp
   with EnvConfigCompApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp with KafkaPurgerApp
   with ParallelObserversApp

@@ -11,4 +11,5 @@ trait AkkaServerAppBase
 trait AkkaStatefulReceiverFactoryAppBase
 trait AkkaGatewayAppBase extends AbstractHttpGatewayApp with AkkaStatefulReceiverFactoryApp with AkkaMatApp with RoomsConfProtocolApp
 
-@c4app class SimpleAkkaGatewayAppBase extends AkkaGatewayApp with SSHDebugApp
+//@c4app class
+trait SimpleAkkaGatewayAppBase extends AkkaGatewayApp with SSHDebugApp

@@ -35,7 +35,7 @@ import scala.annotation.tailrec
   override def byLocationHashViews: List[ByLocationHashView] =
     testTxLogView :: super.byLocationHashViews
 }*/
-
+/*
 @c4("TestTxLogApp") final class TestTxLogMortalAssembleBase(mortal: MortalFactory) {
   @provide def subAssembles: Seq[Assemble] =
     mortal(classOf[N_TxRef]) :: mortal(classOf[D_TxAddMeta]) :: Nil
@@ -167,3 +167,4 @@ case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount
   } yield WithPK(item.ref)
 
 }
+*/
