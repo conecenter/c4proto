@@ -212,7 +212,9 @@ function SyncRoot(prop: SyncRootArgs){
 
 function App({createNode,win}:{ createNode: CreateNode, win: Window }){
     const {result,failure} = useSessionManager(win)
-    return result ? <SyncRoot {...{createNode,...result}}/> : failure ? `SESSION INIT FAILED: ${failure}` : ""
+    return result
+        ? <SyncRoot {...{createNode,...result}}/>
+        : <span>{failure ? `SESSION INIT FAILED: ${failure}` : ""}</span>
 }
 
 

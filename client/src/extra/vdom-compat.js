@@ -91,7 +91,7 @@ export const VDomAttributes = (sender) => {
     const onClick = ({"sendThen": ctx => event => { sender.send(ctx,patchFromValue("")) }}) //react gives some warning on stopPropagation
     const onChange = { "local": ctx => ch => true, "send": ctx => ch => false, "send_first": ctx => ch => ch }
     const ctx = { "ctx": ctx => ctx }
-    const path = { "I": ctxToPath(ctx.identity) }
+    const path = { "I": ctx => ctxToPath(ctx.identity) }
     const transforms = {onClick,onChange,ctx,path}
     return ({transforms})
 }
@@ -171,11 +171,11 @@ export const RootComponents = ({createSyncProviders,checkActivate,receivers}) =>
         const { enqueue, children, availability, ack, failure } = useSyncRoot(prop)
         const { createNode, sessionKey, branchKey, isRoot, win, login } = prop
         const sender = useMemo(()=>({ enqueue, ctxToPath, busyFor }), [enqueue, ctxToPath, busyFor])
-        return createSyncProviders({sender,ack,isRoot,branchKey,children:[
+        return createSyncProviders({sender,ack,isRoot,branchKey,children:
             createBranchProvider({createNode, sessionKey, branchKey, isRoot, win, login, enqueue, children: [
                 failure ? `VIEW FAILED: ${failure}` : "", ...children
             ]})
-        ]})
+        })
     }
     const App = ({win,createNode}) => {
         useEffect(()=>manageAnimationFrame(win, checkActivate),[win, checkActivate])
