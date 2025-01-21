@@ -19,7 +19,11 @@ def s3get(cmd, size, try_count):
 
 
 def get_hostname(kc, app):
-    return max(r["host"] for r in json.loads(run_text_out((*kc, "get", "ingress", "-o", "json", app)))["spec"]["rules"])
+    return max(
+        r["host"]
+        for ingress in json.loads(run_text_out((*kc, "get", "ingress", "-o", "json", "-l", f"c4env={app}")))["items"]
+        for r in ingress["spec"]["rules"]
+    )
 
 
 def md5s(data):
@@ -48,13 +52,13 @@ def find_kube_context(kube_contexts, app):
         'sys.exit(0 if sp.run(sys.argv[1:],check=True,text=True,capture_output=True,timeout=8).stdout.strip() else 1)',
     ))
     processes = [
-        (kube_ctx, Popen(("python3", "-c", stm, *kc, "get", "pods", "-o", "NAME", "-l", f"app={app}")))
+        (kube_ctx, Popen(("python3", "-c", stm, *kc, "get", "pods", "-o", "NAME", "-l", f"c4env={app}")))
         for kube_ctx in kube_contexts for kc in [get_kubectl(kube_ctx)]
     ]
     return one(*[kube_ctx for kube_ctx, proc in processes if proc.wait() == 0])
 
 
-def get_app_pods(kc, app): return get_pods_json(kc, ("-l", f"app={app}"))
+def get_app_pods(kc, app): return get_pods_json(kc, ("-l", f"c4env={app}"))
 
 
 def get_app_kc_pods(kube_contexts, app):
