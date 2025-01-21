@@ -8,6 +8,7 @@ my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
 my @tasks;
 
 my $serve = sub{
+    sy("perl","ceph.pl");
     $ENV{JAVA_TOOL_OPTIONS} = join " ", $ENV{JAVA_TOOL_OPTIONS},
         "-XX:+UnlockDiagnosticVMOptions", "-XX:GCLockerRetryAllocationCount=32",
         "-XX:+UseG1GC","-XX:MaxGCPauseMillis=200","-XX:+ExitOnOutOfMemoryError",
