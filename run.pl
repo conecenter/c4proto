@@ -4,6 +4,7 @@
 use strict;
 
 my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
+sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 
 my @tasks;
 
