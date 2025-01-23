@@ -128,7 +128,7 @@ const serializeVals = (vs: Array<string|number>) => vs.map(v=>{
     return `-${v}`.replaceAll("\n","\n ")
 }).join("\n")
 const serializePatch = (patch: Patch) => {
-    const h: ObjS<string> = {...patch.headers, ...patch.value && {value: patch.value}, "x-r-vdom-path": ctxToPath(patch.identity)}
+    const h: ObjS<string> = {...patch.headers, value: patch.value, "x-r-vdom-path": ctxToPath(patch.identity)}
     return serializeVals(Object.keys(h).toSorted().flatMap(k => [k, h[k] ?? assertNever("never")]))
 }
 const serializePatches = (patches: Patch[]) => serializeVals(
