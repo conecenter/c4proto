@@ -8,7 +8,7 @@ import { useContext } from "react"
 import { useSyncRoot } from "../main/sync-root.ts"
 import { LocationComponents } from "../main/location.ts"
 import { ToAlienMessageComponents } from "../main/receiver.ts"
-import { UseSyncMod } from "../main/sync-hooks.ts"
+import { AckContext, UseSyncMod } from "../main/sync-hooks.ts"
 import { UseCanvas } from "./canvas-manager.ts"
 
 export const rootCtx = ctx => ctx.branchContext
@@ -173,7 +173,8 @@ export const RootComponents = ({createSyncProviders,checkActivate,receivers}) =>
         const sender = useMemo(()=>({ enqueue, ctxToPath, busyFor }), [enqueue, ctxToPath, busyFor])
         return createSyncProviders({sender,ack,isRoot,branchKey,children:
             createBranchProvider({createNode, sessionKey, branchKey, isRoot, win, login, enqueue, children: [
-                failure ? `VIEW FAILED: ${failure}` : "", ...children
+                failure && createElement('div', {key: 'failure'}, `VIEW FAILED: ${failure}`),
+                createElement(AckContext.Provider, { key: 'ack-ctx', value: ack }, ...children)
             ]})
         })
     }
