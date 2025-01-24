@@ -7,6 +7,7 @@ import ee.cone.c4actor_logback_impl.BasicLoggingApp
 import ee.cone.c4actor_repl_impl.SSHDebugApp
 import ee.cone.c4di.c4app
 import ee.cone.c4gate.{AuthProtocolApp, AvailabilityApp, ManagementApp, MergingSnapshotApp, PublisherApp, PublishingCompApp, RemoteRawSnapshotApp, SessionAttrCompApp}
+import ee.cone.c4gate_akka.SimpleAkkaGatewayApp
 
 trait CanvasAppBase
 
@@ -25,7 +26,7 @@ trait TestTagsAppBase
 
 trait ReactHtmlAppBase
 
-trait TestTxLogAppBase
+//trait TestTxLogAppBase
 
 @c4app class TestCanvasAppBase extends ServerCompApp
   with EnvConfigCompApp with VMExecutionApp
@@ -58,10 +59,11 @@ trait TestTxLogAppBase
   with SessionAttrCompApp
   with MortalFactoryCompApp
   with MergingSnapshotApp
-  with TestTxLogApp
+  //with TestTxLogApp
   with SSHDebugApp
   with BasicLoggingApp
   with ReactHtmlApp
+  with SkipWorldPartsApp
 
 @c4app class TestPasswordAppBase extends ServerCompApp
   with EnvConfigCompApp with VMExecutionApp
@@ -97,3 +99,4 @@ trait TestTxLogAppBase
   with SkipWorldPartsApp
   with FrontApp
   with LZ4RawCompressorApp
+  with SimpleAkkaGatewayApp

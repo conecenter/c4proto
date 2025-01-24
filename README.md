@@ -10,11 +10,6 @@ Protocol buffers are used to serialize messages (`c4proto-*`):
 - uses small wire-runtime
 - uses scalameta to generate protocol buffer adapters
 
-Includes gate-microservice (`c4gate-*`) that:
-- serves all external requests, so other microservices can be freely moved
-- forward POST-s to Kafka topic
-- serves GET requests and raw TCP connections by content published to Kafka topic
-
 Application state changes are consumed to in-memory immutable object graph (read model) (`c4actor-*`).
 - Changes are propagated through the graph according to dependency rules.
 - Propagation forms data structures optimized for different "requests".

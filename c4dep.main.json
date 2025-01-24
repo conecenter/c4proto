@@ -3,8 +3,8 @@
   ["C4INC", "#", "c4dep.all.json" ],
   ["C4INC", "#", "c4dep.gate.json" ],
 
-  ["C4TAG", "def", "base_server.ee.cone.c4gate_akka.SimpleAkkaGatewayApp" ],
-  ["C4TAG", "s3def", "base_server.ee.cone.c4gate_akka_s3.AkkaMinioGatewayApp" ],
+  ["#C4TAG", "def", "base_server.ee.cone.c4gate_akka.SimpleAkkaGatewayApp" ],
+  ["#C4TAG", "s3def", "base_server.ee.cone.c4gate_akka_s3.AkkaMinioGatewayApp" ],
   ["C4TAG", "all", "extra_examples.aggregate.XXX" ],
   ["C4TAG", "noop", "base_server.ee.cone.c4gate_server.NoOpApp" ],
   ["C4TAG", "test-consumer", "base_examples.ee.cone.c4gate.TestConsumerApp" ],
@@ -48,13 +48,13 @@
   ["C4DEP", "base_examples.ee.cone.c4ui", "base_lib.ee.cone.c4actor_repl_impl" ],
   ["C4DEP", "base_examples.ee.cone.c4ui", "base_examples.ee.cone.c4vdom" ],
   ["C4DEP", "base_examples.ee.cone.c4ui", "front.ee.cone.c4ui"],
+  ["C4DEP", "base_examples.ee.cone.c4ui", "base_server.ee.cone.c4gate_akka"],
 
   ["C4DEP", "extra_examples.ee.cone.c4actor", "extra_lib.ee.cone.c4actor" ],
   ["C4DEP", "extra_examples.ee.cone.c4actor", "base_lib.ee.cone.c4actor_kafka_impl" ],
   ["C4DEP", "extra_examples.ee.cone.c4actor", "base_lib.ee.cone.c4actor_logback_impl" ],
   ["C4DEP", "extra_examples.ee.cone.c4gate", "extra_lib.ee.cone.c4gate" ],
 
-  ["C4DEP", "extra_examples.aggregate", "base_server.ee.cone.c4gate_akka" ],
   ["C4DEP", "extra_examples.aggregate", "base_examples.ee.cone.c4actor" ],
   ["C4DEP", "extra_examples.aggregate", "base_examples.ee.cone.c4gate" ],
   ["C4DEP", "extra_examples.aggregate", "base_examples.ee.cone.c4ui" ],

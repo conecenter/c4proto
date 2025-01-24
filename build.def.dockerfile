@@ -7,7 +7,6 @@ RUN /install.pl apt \
     zip rsync '#build final-copy' \
     fontconfig locales '#?some for runtime' \
     lsof mc netcat-openbsd '#debug base' \
-    haproxy '#sandbox' \
     uuid-runtime '#sandbox->ci' \
     rsync openssh-client '#sandbox remote' \
     git '#sandbox injections' \
@@ -31,4 +30,5 @@ ENV PATH=${PATH}:/usr/local/bin:/tools/jdk/bin:/tools:/tools/node/bin:/tools/sbt
 ENV JAVA_HOME=/tools/jdk
 # setup build steps:
 RUN echo 'exec "bash", @ARGV; die' > /c4/c4serve.pl
+WORKDIR /c4
 ENTRYPOINT ["perl","/c4/c4serve.pl"]
