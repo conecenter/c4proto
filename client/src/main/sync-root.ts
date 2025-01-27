@@ -161,7 +161,7 @@ const StartedSyncManager: (args: SyncManagerStartArgs)=>StartedSyncManager = ({
 }) => {
     const send = (identity: Identity, patch: UnsubmittedPatch) => {
         const index = enqueue(identity, patch)
-        doSend()
+        if (!patch.defer) doSend()
         return index
     }
     const {enqueue, doAck, getPatches} = PatchManager()
