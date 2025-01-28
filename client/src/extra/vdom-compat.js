@@ -163,14 +163,10 @@ export const RootComponents = ({createSyncProviders,checkActivate,receivers}) =>
         const {ref,...props} = useIsolatedFrame(makeChildren)
         return createElement("iframe", {...props, style, ref})
     }
-    const busyFor = () => {
-        console.log("busyFor not implemented") // use availability?
-        return 0
-    }
     const SyncRoot = (prop) => {
-        const { enqueue, children, availability, ack, failure } = useSyncRoot(prop)
+        const { enqueue, children, availability, ack, isBusy, failure } = useSyncRoot(prop)
         const { createNode, sessionKey, branchKey, isRoot, win, login } = prop
-        const sender = useMemo(()=>({ enqueue, ctxToPath, busyFor }), [enqueue, ctxToPath, busyFor])
+        const sender = useMemo(()=>({ enqueue, ctxToPath, isBusy }), [enqueue, ctxToPath, isBusy])
         return createSyncProviders({sender,ack,isRoot,branchKey,children:
             createBranchProvider({createNode, sessionKey, branchKey, isRoot, win, login, enqueue, children: [
                 failure && createElement('div', {key: 'failure'}, `VIEW FAILED: ${failure}`),
