@@ -184,7 +184,7 @@ const SyncManager = (): SyncManager => {
     const getInner = () => inner ?? assertNever("not started")
     const enqueue: EnqueuePatch = (identity, patch) => getInner().enqueue(identity, patch)
     const stop: ()=>void = () => getInner().stop()
-    const isBusy = (ack) => !!inner?.isBusy(ack)
+    const isBusy = (ack: number) => !!inner?.isBusy(ack)
     return {start, enqueue, stop, isBusy}
 }
 
