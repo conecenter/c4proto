@@ -155,7 +155,6 @@ my $get_gate_env = sub{
     my($replica)=@_;
     (
         C4STATE_REFRESH_SECONDS=>100,
-        C4ROOMS_CONF=>"/tmp/rooms.conf",
         C4HTTP_PORT => &$http_port($replica),
         C4SSE_PORT => &$sse_port($replica),
         C4POD_IP => "127.0.0.1",

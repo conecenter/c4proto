@@ -60,15 +60,13 @@ import scala.util.control.NonFatal
 @c4("AkkaGatewayApp") final class DefaultAkkaRequestHandler(
   handler: FHttpHandler,
   akkaMat: AkkaMat, akkaHttp: AkkaHttp,
-  requestPreHandler: AkkaRequestPreHandler
 ) extends AkkaRequestHandler with LazyLogging {
   def pathPrefix = ""
   def handleAsync(req: HttpRequest)(implicit ec: ExecutionContext): Future[HttpResponse] =
     for {
       mat <- akkaMat.get
       http <- akkaHttp.get
-      request <- requestPreHandler.handleAsync(req)
-      entity <- request.entity.toStrict(Duration(5, MINUTES))(mat)
+      entity <- req.entity.toStrict(Duration(5, MINUTES))(mat)
       rReq = {
         val body = ToByteString(entity.getData.toArray)
         val method = req.method.value
@@ -139,12 +137,6 @@ import scala.util.control.NonFatal
       )(mat)
     } yield binding
   }
-}
-
-
-@c4("SimpleAkkaGatewayApp") final class AkkaDefaultRequestPreHandler extends AkkaRequestPreHandler with LazyLogging {
-  def handleAsync(income: HttpRequest)(implicit ec: ExecutionContext): Future[HttpRequest] =
-    Future.successful(income)
 }
 
 class AkkaStatefulReceiver[Message](ref: ActorRef) extends StatefulReceiver[Message] {
