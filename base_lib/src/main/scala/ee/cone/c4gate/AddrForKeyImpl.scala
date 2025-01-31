@@ -1,6 +1,7 @@
 
 package ee.cone.c4gate
 
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4proto.{Id, protocol}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.{Context, LEvent, LTxAdd, TxTransform}
@@ -18,6 +19,7 @@ import ee.cone.c4proto.{Id, ToByteString, protocol}
 
 @c4assemble("RoomsConfProtocolApp") class AddrForKeyAssembleBase(theAddrForKeyTxFactory: AddrForKeyTxFactory){
   type ByPublisher = SrcId
+  def optionalFeature(key: SrcId, firstborn: Each[S_Firstborn]): Values[(SrcId, AddrForKey)] = Nil
   def map(key: SrcId, rc: Each[AddrForKey]): Values[(ByPublisher,AddrForKey)] = Seq("AddrForKey"->rc)
   def join(
     key: SrcId, @by[ByPublisher] targets: Values[AddrForKey],  codes: Values[S_AddrForKeyCode],
