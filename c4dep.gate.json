@@ -9,8 +9,8 @@
   ["C4DEP", "base_server.ee.cone.c4gate_server", "base_lib.ee.cone.c4actor_kafka_impl" ],
   ["C4DEP", "base_server.ee.cone.c4gate_server", "base_lib.ee.cone.c4actor_logback_impl" ],
   ["C4DEP", "base_server.ee.cone.c4gate_akka", "base_server.ee.cone.c4gate_server" ],
-  ["C4DEP", "base_server.ee.cone.c4gate_akka", "base_lib.ee.cone.c4actor_repl_impl" ],
-  ["C4DEP", "base_server.ee.cone.c4gate_akka_s3", "base_server.ee.cone.c4gate_akka" ],
-  ["C4DEP", "base_server.ee.cone.c4gate_akka_s3", "base_server.ee.cone.c4gate_server" ],
-  ["C4DEP", "base_server.ee.cone.c4gate_akka_s3", "base_lib.ee.cone.c4actor_s3_minio" ]
+  ["#C4DEP", "base_server.ee.cone.c4gate_akka", "base_lib.ee.cone.c4actor_repl_impl" ],
+  ["#C4DEP", "base_server.ee.cone.c4gate_akka_s3", "base_server.ee.cone.c4gate_akka" ],
+  ["#C4DEP", "base_server.ee.cone.c4gate_akka_s3", "base_server.ee.cone.c4gate_server" ],
+  ["#C4DEP", "base_server.ee.cone.c4gate_akka_s3", "base_lib.ee.cone.c4actor_s3_minio" ]
 ]

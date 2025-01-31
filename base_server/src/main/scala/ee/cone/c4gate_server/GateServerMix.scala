@@ -15,14 +15,14 @@ trait NoProxySSEConfigAppBase
 trait SafeToRunAppBase
 trait WorldProviderAppBase
 
-abstract class AbstractHttpGatewayAppBase extends ServerCompApp
+trait AbstractHttpGatewayAppBase extends ServerCompApp
   with EnvConfigCompApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp with KafkaPurgerApp
   with ParallelObserversApp
   with PublisherApp with AuthProtocolApp
   with SSEServerApp
-  with NoAssembleProfilerCompApp
-  with MortalFactoryCompApp
+  // with NoAssembleProfilerCompApp #customize later
+  // with MortalFactoryCompApp #customize later
   with ManagementApp
   with SnapshotMakingApp
   with LZ4RawCompressorApp
@@ -30,7 +30,7 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
   with NoProxySSEConfigApp
   with SafeToRunApp
   with WorldProviderApp
-  with SkipWorldPartsApp
+  //with SkipWorldPartsApp #activate this check later
 
 @c4("AbstractHttpGatewayApp") final class DefFHttpHandlerProvider(
   fHttpHandlerFactory: FHttpHandlerImplFactory,

@@ -60,13 +60,13 @@ object ReqRetry {
       apply(f)
   }
 }
-
+/*
 @c4("RemoteRawSnapshotApp") final class EnvRemoteRawSnapshotProvider(
   makerFactory: RemoteSnapshotMakerFactory, config: Config
 ) {
   @provide def makers: Seq[SnapshotMaker] = Seq(makerFactory.create(config.get("C4HTTP_SERVER")))
 }
-
+*/
 @c4multi("RemoteRawSnapshotApp") final class RemoteSnapshotMaker(baseURL: String)(
   util: RemoteSnapshotUtil, signer: SnapshotTaskSigner
 ) extends SnapshotMaker {

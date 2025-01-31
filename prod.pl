@@ -169,15 +169,6 @@ push @tasks, ["","",sub{
         (map{!$$_[1] ? () : "  prod $$_[0] $$_[1]"} @tasks);
 }];
 
-my $get_hostname = sub{
-    my($comp)=@_;
-    my $conf = &$get_compose($comp);
-    $$conf{le_hostname} || $$conf{type} eq "gate" && do{
-        my ($domain_zone) = &$get_deployer_conf($comp,0,qw[domain_zone]);
-        $domain_zone && "$comp.$domain_zone";
-    };
-};
-
 my $get_kubectl = sub{
     my($comp)=@_;
     my ($context) = &$get_deployer_conf($comp,1,qw[context]);
@@ -231,71 +222,6 @@ push @tasks, ["pods_del","$composes_txt",sub{
 #### composer
 
 my $md5_hex = sub{ md5_hex(@_) };
-
-my $spaced_list = sub{ map{ ref($_) ? @$_ : /(\S+)/g } @_ };
-
-###
-
-my @req_big = (req_mem=>"10Gi",req_cpu=>"1000m");
-
-my $inner_http_port = 8067;
-my $inner_sse_port = 8068;
-
-
-my $get_consumer_options = sub{
-    my($comp)=@_;
-    my $conf = &$get_compose($comp);
-    my $prefix = $$conf{C4INBOX_TOPIC_PREFIX};
-    my ($elector,$elector_port) = &$get_deployer_conf($comp,1,qw[elector elector_port]);
-    (
-        tty                  => "true",
-        JAVA_TOOL_OPTIONS    => "-XX:-UseContainerSupport ", # -XX:ActiveProcessorCount=36
-        C4AUTH_KEY_FILE      => "/c4conf-simple-seed/value",
-        C4INBOX_TOPIC_PREFIX => ($prefix || die "no C4INBOX_TOPIC_PREFIX"),
-        C4S3_CONF_DIR        => "/c4conf-ceph-client",
-        C4HTTP_SERVER        => "http://$comp:$inner_http_port",
-        C4ELECTOR_SERVERS    => join(",", map {"http://$elector-$_.$elector:$elector_port"} 0, 1, 2),
-        C4READINESS_PATH     => "/c4/c4is-ready",
-        image_type           => "rt",
-    )
-};
-
-my $up_consumer = sub{
-    my($run_comp)=@_;
-    my $conf = &$get_compose($run_comp);
-    my $gate_comp = $$conf{ca} || die "no ca";
-    my %consumer_options = &$get_consumer_options($gate_comp);
-    my %fix_ceph = $$conf{C4CEPH_AUTH} eq "/c4conf/ceph.auth" ? (C4CEPH_AUTH=>"/tmp/ceph.auth") : ();
-    +{ %consumer_options, @req_big, %$conf, %fix_ceph };
-};
-my $up_gate = sub{
-    my($run_comp)=@_;
-    my %consumer_options = &$get_consumer_options($run_comp);
-    my $hostname = &$get_hostname($run_comp) || die "no le_hostname";
-    my ($ingress_secret_name,$ingress_api_version) =
-        &$get_deployer_conf($run_comp,0,qw[ingress_secret_name ingress_api_version]);
-    my $conf = &$get_compose($run_comp);
-    +{
-        %consumer_options,
-        C4STATE_TOPIC_PREFIX => "gate",
-        C4STATE_REFRESH_SECONDS => 1000,
-        req_mem => "4Gi", req_cpu => "1000m",
-        "port:$inner_http_port:$inner_http_port"=>"",
-        "ingress:$hostname/"=>$inner_http_port,
-        ingress_secret_name => $$conf{ingress_secret_name} || $ingress_secret_name,
-        $ingress_api_version ? (ingress_api_version => $ingress_api_version) : (),
-        C4HTTP_PORT => $inner_http_port,
-        C4SSE_PORT => $inner_sse_port,
-        need_pod_ip => 1,
-        %$conf,
-    };
-};
-
-my $conf_handler = { "consumer"=>$up_consumer, "gate"=>$up_gate };
-
-###
-
-# /^(\w{16})(-\w{8}-\w{4}-\w{4}-\w{4}-\w{12}[-\w]*)$/
 
 my $ci_run = sub{ &$py_run("ci_serve.py",&$encode([@_])) };
 push @tasks, ["snapshot_get", "$composes_txt [|snapshot|last]", sub{
@@ -356,14 +282,18 @@ push @tasks, ["ci_deploy_info", "", sub{
     my(%opt)=@_;
     &$put_text(&$mandatory_of("--out",\%opt), &$fix_bools(&$encode([map{
         my $comp = $_;
-        my ($context, $image_pull_secrets) = &$get_deployer_conf($comp,1,qw[context image_pull_secrets]);
-        my ($allow_src, $to_repo_prop) = &$get_deployer_conf($comp,0,qw[allow_source_repo sys_image_repo]);
-        my $to_repo = $allow_src ? "" : $to_repo_prop;
         my $conf = &$get_compose($comp);
-        my $tp = $$conf{type};
-        my $options = $tp ? &{$$conf_handler{$tp} || die "no handler"}($comp) : $conf;
-        +{ context=>$context, to_repo=>$to_repo, image_pull_secrets=>$image_pull_secrets, %$options, name=>$comp }
-    } map{ &$spaced_list(&$get_compose($_)->{parts}||[$_]) } &$mandatory_of("--env-state",\%opt)])));
+        my $d = &$get_compose(&$get_deployer($comp));
+        my ($elector, $elector_port) = map{&$mandatory_of($_=>$d)} qw[elector elector_port];
+        +{
+            (map{ ($_ => &$mandatory_of($_=>$d)) } qw[context image_pull_secrets]),
+            (map{ $$d{$_} ? ($_ => $$d{$_}) : () } qw[ingress_secret_name ingress_api_version]), #gate
+            C4ELECTOR_SERVERS => join(",", map{"http://$elector-$_.$elector:$elector_port"} 0, 1, 2), #consumer
+            to_repo => $$d{allow_source_repo} ? "" : $$d{sys_image_repo},
+            %$conf, &$map($conf, sub{ my($k,$v)=@_; $k=~/^v2:(.*)$/ ? ($1,$v) : () }),
+            name => $comp,
+        }
+    } &$mandatory_of("--env-state",\%opt)])));
 }];
 
 my $get_tag_info = sub{
@@ -576,10 +506,8 @@ push @tasks, ["secret_add_arg","$composes_txt <secret-content>",sub{
     print qq[ADD TO CONFIG: "/c4conf-$secret_name/$fn"\n];
 }];
 
-my $restart = sub{
-    my $local_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
-    &$put_text(&$need_path("$local_dir/target/gen-ver"),time);
-};
+my $supervisor = sub{ sy("supervisorctl","-c","/c4/supervisord.conf",@_) };
+my $restart = sub{ &$supervisor("restart","build") };
 
 push @tasks, ["debug","<on|off> [components]",sub{
     my($arg,$obj)=@_;
@@ -600,14 +528,7 @@ push @tasks, ["tag","[tag]",sub{
 }];
 
 push @tasks, ["restart"," ",sub{&$restart()}];
-push @tasks, ["stop"," ",sub{
-    while(1){
-        my @pid = sort map{/^(\d+).*ServerMain/?"$1":()}`jcmd`;
-        @pid or last;
-        sy("kill",$pid[-1]);
-        sleep 1;
-    }
-}];
+push @tasks, ["stop"," ",sub{ &$supervisor("stop","app") }];
 push @tasks, ["build"," ",sub{ &$py_run("build.py",&$mandatory_of(C4CI_BUILD_DIR => \%ENV)) }];
 
 push @tasks, ["kafka","( topics | offsets <hours> | nodes | sizes <node> | topics_rm )",sub{
