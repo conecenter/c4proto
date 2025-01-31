@@ -345,6 +345,20 @@ def build_type_s3client(context, out):
     ])
 
 
+def build_type_ws4cam(context, out):
+    build_micro(context, out, ["ws4cam.py"], [
+        "FROM ubuntu:24.04",
+        "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
+        "RUN perl install.pl useradd 1979",
+        "RUN perl install.pl apt curl ca-certificates python3-venv lsof",
+        "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini && chmod +x /tools/tini",
+        "USER c4",
+        "RUN python3 -m venv /c4/venv",
+        "RUN /c4/venv/bin/pip install av pillow websockets",
+        'ENTRYPOINT ["/tools/tini","--","/c4/venv/bin/python","-u","/ws4cam.py"]',
+    ])
+
+
 def build_micro(context, out, scripts, lines):
     get_plain_option = get_main_conf(context)
     proto_postfix, proto_dir = get_proto(context, get_plain_option)
@@ -461,6 +475,7 @@ def main():
         "build_type-resource_tracker": lambda proj_tag: build_type_resource_tracker,
         "build_type-ci_operator": lambda proj_tag: build_type_ci_operator,
         "build_type-s3client": lambda proj_tag: build_type_s3client,
+        "build_type-ws4cam": lambda proj_tag: build_type_ws4cam,
     }
     opt = setup_parser((
         (
