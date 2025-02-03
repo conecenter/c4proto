@@ -37,11 +37,11 @@ import okio.ByteString
 @c4("S3RawSnapshotLoaderApp") final class EnvRemoteRawSnapshotProvider(
   disable: Option[DisableDefaultS3RawSnapshot], loaderFactory: S3RawSnapshotLoaderImplFactory,
 )(
-  loaders: Seq[S3RawSnapshotLoaderImpl] = if(disable.nonEmpty) Nil else Seq(loaderFactory.create())
+  loaders: Seq[S3RawSnapshotLoaderImpl] = Seq(loaderFactory.create())
 ){
-  @provide def getLoader: Seq[RawSnapshotLoader] = loaders
+  @provide def getLoader: Seq[RawSnapshotLoader] = if(disable.nonEmpty) Nil else loaders
   @provide def getLister: Seq[SnapshotLister] = loaders
-  @provide def getLast: Seq[SnapshotLast] = loaders.map(new SnapshotLastImpl(_))
+  @provide def getLast: Seq[SnapshotLast] = if(disable.nonEmpty) Nil else loaders.map(new SnapshotLastImpl(_))
 }
 
 @c4("DisableDefaultS3RawSnapshotApp") final class DisableDefaultS3RawSnapshot

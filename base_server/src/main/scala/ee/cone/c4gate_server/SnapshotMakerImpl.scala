@@ -108,6 +108,7 @@ case class RequestedSnapshotMakingTx(
 class SnapshotSavers(val full: SnapshotSaver, val tx: SnapshotSaver)
 
 //todo new
+
 @c4("SnapshotMakingApp") final class SnapshotMakerImpl(
   snapshotConfig: SnapshotConfig,
   snapshotLister: SnapshotLister,
@@ -216,8 +217,12 @@ trait SnapshotMakerMaxTime {
   def maxTime: Long
 }
 
-@c4("SafeToRunApp") final class SafeToRun(snapshotMaker: SnapshotMakerMaxTime) extends Executable with Early {
-  def run(): Unit = concurrent.blocking{
+@c4("DisableDefaultSafeToRunApp") final class DisableDefaultSafeToRun
+
+@c4("SafeToRunApp") final class SafeToRun(
+  snapshotMaker: SnapshotMakerMaxTime, disable: Option[DisableDefaultSafeToRun],
+) extends Executable with Early {
+  def run(): Unit = if(disable.isEmpty){
     Thread.sleep(10*minute)
     iter()
   }
