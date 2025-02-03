@@ -47,6 +47,7 @@ my $serve_app = sub{
     #-XX:NativeMemoryTracking=summary
     ### if need heap >32G keeping 32bit pointers, insert: -XX:ObjectAlignmentInBytes=16 -Xmx45g
     my $env = {
+        KUBECONFIG => &$mandatory_of(C4KUBECONFIG => \%ENV),
         %$paths,
         (-e "/c4/debug-components") ? (C4DEBUG_COMPONENTS => "1") : (),
         JAVA_TOOL_OPTIONS => $tool_opt,
@@ -74,7 +75,7 @@ my $serve_build = sub{
 my $serve_prebuild = sub{
     my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR => \%ENV);
     my $build_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
-    sy("python3", "$proto_dir/build.py", $build_dir);
+    sy("python3", "-u", "$proto_dir/build.py", $build_dir);
     &$supervisor("restart","build");
 };
 
