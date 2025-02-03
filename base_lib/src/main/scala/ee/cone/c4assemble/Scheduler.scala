@@ -77,7 +77,11 @@ final class SchedulerConf(
         BuildTaskConf(crossOutputDeps(wPos), planNotifyInputPos, wPos, outputs.map(_.inputPos))
       }
     }
-    val tasks = ArraySeq.from(buildTasks ++ calcTasks)
+    val tasks = ArraySeq.from(buildTasks ++ calcTasks);
+    {
+      val maxTaskCount = ImmArr.outerSize * ImmArr.innerSize
+      assert(tasks.size <= maxTaskCount, s"task count ${tasks.size} is over $maxTaskCount")
+    }
     val subscribedInputPos = new ConfIIMap[InputPos,TaskPos](chk(inputs.size, tasks.zipWithIndex.collect{
       case (t: CalcTaskConf, taskPos) => t.inputs.map(_.inputPos->taskPos.asInstanceOf[TaskPos])
     }.flatten.sorted).toArray)
@@ -482,7 +486,7 @@ class ReadModelMap(model: ReadModelImpl) extends Map[AssembledKey,Index] {
 object ImmArr{
   val innerPower: Int = 9
   val outerSize: Int = 64
-  private val innerSize: Int = 1 << innerPower
+  val innerSize: Int = 1 << innerPower
   val innerMask: Int = innerSize - 1
 
   def empty[K <: Int, V <: Object](value: V, createInnerArray: Int => Array[V], createOuterArray: Int => Array[Array[V]]): ImmArr[K, V] = {
