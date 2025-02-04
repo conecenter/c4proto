@@ -221,3 +221,5 @@ trait StartUpSpaceProfiler {
 trait NonSingleLogger {
   def warn(a: String, b: String): Unit
 }
+
+case class MaxEvCount(value: Long)

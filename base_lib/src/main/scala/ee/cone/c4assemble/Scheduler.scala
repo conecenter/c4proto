@@ -163,9 +163,10 @@ trait ParallelExecution {
   val active: Seq[WorldPartRule], conf: SchedulerConf, joins: Seq[Join]
 )(
   indexUtil: IndexUtil, rIndexUtil: RIndexUtil, plannerFactory: PlannerFactory, parallelExecution: ParallelExecution,
-  profiling: RAssProfiling,
+  profiling: RAssProfiling, maxEvCountOpt: Option[MaxEvCount]
 )(
-  emptyCalculated: Array[Array[RIndexPair]] = Array.empty
+  emptyCalculated: Array[Array[RIndexPair]] = Array.empty,
+  maxEvCount: Long = maxEvCountOpt.fold(Long.MaxValue)(_.value)
 )(
   emptyCalculatedByBuildTask: ImmArr[WorldPos, Array[Array[RIndexPair]]] =
     ImmArr.empty(emptyCalculated, new Array(_), new Array(_))
@@ -408,6 +409,7 @@ trait ParallelExecution {
   private def loop(context: MutableSchedulingContext, ec: ExecutionContext): Unit = {
     val queue = new LinkedBlockingQueue[Try[OuterEv]]
     val planner = context.planner
+    var evCount = 0L
     @tailrec def take(): OuterEv = Option(queue.poll(1L,TimeUnit.SECONDS)) match {
       case Some(ev) => ev.get
       case None =>
@@ -432,6 +434,8 @@ trait ParallelExecution {
         case ev: CalculatedEv => finishCalc(context, ev)
         case ev: BuiltEv => finishBuild(context, ev)
       }
+      evCount += 1L
+      if(evCount > maxEvCount) throw new Exception("too much events in tx, may be bad @was")
       planner.setStarted(outerEv.exprPos, value = false)
       addProfilingCounts(context, outerEv.exprPos, outerEv.event.profilingCounts)
     }
@@ -480,7 +484,7 @@ class ReadModelMap(model: ReadModelImpl) extends Map[AssembledKey,Index] {
 // emptyIndex
 
 object ImmArr{
-  val innerPower: Int = 9
+  val innerPower: Int = 10
   val outerSize: Int = 64
   private val innerSize: Int = 1 << innerPower
   val innerMask: Int = innerSize - 1
