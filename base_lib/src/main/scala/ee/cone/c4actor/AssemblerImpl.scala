@@ -419,3 +419,8 @@ class NeedWorldPartRule(
   def warn(a: String, b: String): Unit =
     if(!was(Math.floorMod(a.hashCode, was.length)).getAndSet(true)) logger.warn(s"$a$b")
 }
+
+@c4("RichDataCompApp") final class MaxEvCountProvider(config: ListConfig) {
+  @provide def get: Seq[MaxEvCount] =
+    Seq(MaxEvCount(Single.option(config.get("C4ASSEMBLE_MAX_EVENT_COUNT")).fold(1L<<15)(_.toLong)))
+}
