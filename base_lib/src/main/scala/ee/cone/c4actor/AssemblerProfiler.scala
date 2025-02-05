@@ -57,7 +57,7 @@ case object NoJoiningProfiling extends JoiningProfiling
     val finishedAt = System.nanoTime
     val size = updates.map(_.value.size).sum
     val types = updates.map(_.valueTypeId).distinct.toList
-    val id = idGenUtil.srcIdFromStrings(UUID.randomUUID.toString)
+    val id = idGenUtil.srcIdRandom()
     val log = List.empty[D_LogEntry] // transition.log.collect{ case l: D_LogEntry => l }
     val meta = List(
         N_TxRef(id,""),

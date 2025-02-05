@@ -20,7 +20,6 @@ trait SessionDataProtocolAppBase
 trait AlienProtocolAppBase
 trait AuthProtocolAppBase
 trait HttpProtocolAppBase
-trait TcpProtocolAppBase
 trait RoomsConfProtocolAppBase
 
 // def availabilityDefaultUpdatePeriod: Long = 3000
@@ -58,6 +57,12 @@ trait SignedReqUtilImplAppBase
 * */
 
 trait DevConfigAppBase
+
+trait EventLogAppBase
+
+trait SessionUtilAppBase
+
+trait AuthOperationsAppBase
 
 trait DisableDefaultSafeToRunAppBase
 @c4("DisableDefaultSafeToRunApp") final class DisableDefaultSafeToRun

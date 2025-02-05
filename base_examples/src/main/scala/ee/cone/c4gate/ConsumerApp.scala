@@ -47,12 +47,6 @@ curl 127.0.0.1:8067/connection -v -H x-r-action:pong -H x-r-connection:...
     //println(posts)
     Nil
   }
-
-/*
-  def joinAllTcpConnections(key: SrcId, items: Values[S_TcpConnection]): Values[(Unit, S_TcpConnection)] =
-    items.map(()->_)
-  def joinGateTester(key: Unit, connections: Values[S_TcpConnection]): Values[(SrcId, TxTransform)] =
-    List("GateTester"->GateTester(connections))*/
 }
 
 @c4multi("TestConsumerApp") final case class TestHttpHandler(srcId: SrcId, req: S_HttpRequest)(
@@ -76,28 +70,6 @@ curl 127.0.0.1:8067/connection -v -H x-r-action:pong -H x-r-connection:...
     txAdd.add(delete(req))(local)
   }
 }
-
-/*
-case object TestTimerKey extends WorldKey[java.lang.Long](0L)
-
-case class GateTester(connections: Values[S_TcpConnection]) extends TxTransform {
-  def transform(local: World): World = {
-    val seconds = System.currentTimeMillis / 1000
-    if(TestTimerKey.of(local) == seconds) return local
-    val size = s"${connections.size}\n"
-    val sizeBody = okio.ByteString.encodeUtf8(size)
-    println(size)
-    val broadEvents = connections.flatMap { connection =>
-      val key = UUID.randomUUID.toString
-      update(S_TcpWrite(key, connection.connectionKey, sizeBody, seconds))
-    }
-    add(broadEvents).andThen(TestTimerKey.set(seconds))(local)
-  }
-}
-*/
-
-
-
 
 
 /*

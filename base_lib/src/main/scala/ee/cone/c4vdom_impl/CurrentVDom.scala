@@ -1,25 +1,7 @@
 package ee.cone.c4vdom_impl
 
-import ee.cone.c4vdom.{VDomValue, _}
-
-import Function.chain
+import ee.cone.c4vdom._
 import scala.annotation.tailrec
-
-class VDomHandlerFactoryImpl(
-  diff: Diff,
-  fixDuplicateKeys: FixDuplicateKeys,
-  jsonToString: JsonToString,
-  wasNoValue: WasNoVDomValue,
-  child: ChildPairFactory
-) extends VDomHandlerFactory {
-  def create[State](
-    sender: VDomSender[State],
-    view: VDomView[State],
-    vDomUntil: VDomUntil,
-    vDomStateKey: VDomLens[State,Option[VDomState]]
-  ): Receiver[State] =
-    VDomHandlerImpl(sender,view)(diff,fixDuplicateKeys,jsonToString,wasNoValue,child,vDomUntil,vDomStateKey)
-}
 
 object VDomResolverImpl extends VDomResolver {
   def resolve(pathStr: String): Option[Resolvable] => Option[Resolvable] = from => {
@@ -36,101 +18,43 @@ object VDomResolverImpl extends VDomResolver {
   }
 }
 
-case class VDomHandlerImpl[State](
-  sender: VDomSender[State],
-  view: VDomView[State]
-)(
+case class CalcDiffRes(value: VDomValue, needSnapshot: Long, failed: Boolean, diff: String, snapshot: String)
+class VDomHandlerImpl(
   diff: Diff,
   fixDuplicateKeys: FixDuplicateKeys,
   jsonToString: JsonToString,
   wasNoValue: WasNoVDomValue,
-  child: ChildPairFactory,
-  vDomUntil: VDomUntil,
-
-  vDomStateKey: VDomLens[State,Option[VDomState]]
-  //relocateKey: VDomLens[State,String]
-) extends Receiver[State] {
-
-  private def reset(state: State): State = vDomStateKey.modify(_.map(
-    st=>st.copy(value = wasNoValue, seeds = Nil, until = 0)
-  ))(state)
-  private def init(state: State): State = vDomStateKey.modify(_.orElse(
-    Option(VDomState(wasNoValue,Nil,0,System.currentTimeMillis(),MakingViewStats(0,Nil,0),failed=false))
-  ))(state)
-
-  private def pathHeader: VDomMessage => String = _.header("x-r-vdom-path")
-  //dispatches incoming message // can close / set refresh time
-  private def dispatch(exchange: VDomMessage, state: State): State = {
-    val path = pathHeader(exchange)
-    if(path.isEmpty) state else (VDomResolverImpl.resolve(path)(vDomStateKey.of(state).map(_.value)) match {
-      case Some(v: Receiver[_]) => v.receive(exchange)
-      case v =>
-        println(s"$path ($v) can not receive")
-        identity[State] _
-    }).asInstanceOf[State=>State](state)
+) extends VDomHandler {
+  def preView: Option[VDomState]=>Option[PreViewResult] = {
+    case None => Option(PreViewResult(VDomState(wasNoValue,0,System.currentTimeMillis(),MakingViewStats(0,Nil,0),failed=false,0L), wasNoValue, System.currentTimeMillis))
+    case Some(st) if st.value != wasNoValue && st.until > System.currentTimeMillis => None
+    case Some(st) => Option(PreViewResult(st.copy(value = wasNoValue, until = 0), st.value, System.currentTimeMillis))
+    // need to remove prev DomState before review to avoid leak: local-vdom-el-action-local
   }
 
-  //todo invalidate until by default
-
-  def receive: Handler = m=>state=>doReceive(m,state)
-  private def doReceive(m: VDomMessage, state: State): State = {
-    chain(List(init(_),dispatch(m,_),toAlien(m,_)))(state)
+  def postView(preViewRes: PreViewResult, nextDom: VDomValue): PostViewResult = {
+    val st = preViewRes.clean
+    val res = calcDiff(preViewRes.prev, nextDom, st.needSnapshot, st.failed)
+    val seeds = gatherSeedsFinal(Nil, gatherSeedsPair("",res.value,Nil), Nil).map(_._2)
+    val wasMakingViewMillis = addMakingViewStat(st.wasMakingViewMillis,preViewRes.startedAt,System.currentTimeMillis)
+    val nSt = VDomState(res.value, 0L, st.startedAtMillis, wasMakingViewMillis, res.failed, res.needSnapshot)
+    PostViewResult(nSt, seeds, res.diff, res.snapshot)
   }
 
-  private def diffSend(prev: VDomValue, send: sender.Send, state: State, left: Int = 50): State =
-    if(send.isEmpty) state else try {
-      val next = vDomStateKey.of(state).get.value
-      val diffTree = diff.diff(prev, next)
-      if(diffTree.isEmpty) state else {
-        val diffStr = jsonToString(diffTree.get)
-        send.get("showDiff",s"${sender.branchKey} $diffStr")(state)
-      }
-    } catch {
-      case error: DuplicateKeysException if left > 0 =>
-        vDomStateKey.of(state).filterNot(_.failed).foreach(_=>println(error.getMessage))
-        chain[State](Seq(
-          vDomStateKey.modify(_.map{ v => v.copy(value = fixDuplicateKeys.fix(error, v.value), failed=true) }),
-          diffSend(prev, send, _, left = left - 1)
-        ))(state)
-    }
-
-  private def toAlien(exchange: VDomMessage, state: State): State = {
-    val vState = vDomStateKey.of(state).get
-    val (keepTo,freshTo) = sender.sending(state)
-    if(keepTo.isEmpty && freshTo.isEmpty){
-      reset(state) //orElse in init bug
-    }
-    else if(
-      vState.value != wasNoValue &&
-      vState.until > System.currentTimeMillis &&
-      (exchange.header("x-r-redraw") match {
-        case "1" => false
-        case "" => pathHeader(exchange).isEmpty
-      }) &&
-      freshTo.isEmpty
-    ) state
-    else chain[State](Seq(
-      reset(_), // need to remove prev DomState before review to avoid leak: local-vdom-el-action-local
-      reView(_),
-      diffSend(vState.value, keepTo, _),
-      diffSend(wasNoValue, freshTo, _)
-    ))(state)
+  private def calcDiff(
+    prev: VDomValue, next: VDomValue, needSnapshot: Long, failed: Boolean, left: Int = 50
+  ): CalcDiffRes = try {
+    val diffStr = diff.diff(prev, next).fold("")(jsonToString(_))
+    val snapshotStr = if(needSnapshot < 0) "" else jsonToString(diff.diff(wasNoValue, next).get)
+    val willNeedSnapshot = if(snapshotStr.nonEmpty) - snapshotStr.length else needSnapshot + diffStr.length
+    new CalcDiffRes(next, willNeedSnapshot, failed, diffStr, snapshotStr)
+  } catch {
+    case error: DuplicateKeysException if left > 0 =>
+      if(!failed) println(error.getMessage)
+      calcDiff(prev, fixDuplicateKeys.fix(error, next), needSnapshot, failed = true, left = left - 1)
   }
 
-  private def reView(state: State): State = {
-    val startedAt = System.currentTimeMillis
-    val vPair = child("root", RootElement(sender.branchKey), view.view(state)).asInstanceOf[VPair]
-    val now = System.currentTimeMillis
-    val nextDom = vPair.value
-    val seeds = gatherSeedsFinal(Nil, gatherSeedsPair("",nextDom,Nil), Nil)
-    val until = now + vDomUntil.get(seeds.map(_._2))
-    vDomStateKey.modify(_.map{ st =>
-      val wasMakingViewMillis = addMakingViewStat(st.wasMakingViewMillis,startedAt,now)
-      st.copy(value=nextDom, seeds=seeds, until=until, wasMakingViewMillis=wasMakingViewMillis)
-    })(state)
-  }
-
-  def addMakingViewStat(was: MakingViewStats, startedAt: Long, now: Long): MakingViewStats = {
+  private def addMakingViewStat(was: MakingViewStats, startedAt: Long, now: Long): MakingViewStats = {
     val measured = now - startedAt
     val sum = was.sum + measured
     val (moreRecent,lessRecent) = was.recent.splitAt(2)
@@ -141,7 +65,7 @@ case class VDomHandlerImpl[State](
     MakingViewStats(sum,recent,stable)
   }
 
-  type Seeds = List[(String,Product)]
+  private type Seeds = List[(String,Product)]
   @tailrec private def gatherSeedsPairs(from: List[VPair], res: Seeds): Seeds =
     if(from.isEmpty) res else gatherSeedsPairs(from.tail, gatherSeedsPair(from.head.jsonKey,from.head.value,res))
   private def gatherSeedsPair(key: String, value: VDomValue, res: Seeds ): Seeds = value match {
@@ -160,38 +84,6 @@ case class VDomHandlerImpl[State](
         case seed => (subPath.reverse.mkString("/"),seed) :: res
       })
     }
-
-
-  //val relocateCommands = if(vState.hashFromAlien==vState.hashTarget) Nil
-  //else List("relocateHash"->vState.hashTarget)
-
-  /*
-  private lazy val PathSplit = """(.*)(/[^/]*)""".r
-  private def view(pathPrefix: String, pathPostfix: String): List[ChildPair[_]] =
-    Single.option(handlerLists.list(ViewPath(pathPrefix))).map(_(pathPostfix))
-      .getOrElse(pathPrefix match {
-        case PathSplit(nextPrefix,nextPostfix) =>
-          view(nextPrefix,s"$nextPostfix$pathPostfix")
-      })
-  */
 }
-
-
 
 case class GatheredSeeds(pairs: List[(String,Product)])
-
-
-case class RootElement(branchKey: String) extends VDomValue {
-  def appendJson(builder: MutableJsonBuilder): Unit = {
-    builder.startObject()
-    builder.append("tp").append("span")
-    /*
-    builder.append("ref");{
-      builder.startArray()
-      builder.append("root")
-      builder.append(branchKey)
-      builder.end()
-    }*/
-    builder.end()
-  }
-}

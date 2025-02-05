@@ -35,7 +35,7 @@ my $make_kc_yml = sub{
     my $name = &$mandatory_of(name=>$opt);
     my @unknown = &$map($opt,sub{ my($k)=@_;
         $k=~/^([A-Z]|host:|port:|ingress:|path:|label:)/ ||
-        $k=~/^(tty|image|noderole|image_pull_secrets|ingress_secret_name|need_pod_ip|replicas|req_cpu|req_mem|ca)$/ ? () : $k
+        $k=~/^(tty|image|noderole|image_pull_secrets|ingress_secret_name|replicas|req_cpu|req_mem|ca)$/ ? () : $k
     });
     @unknown and warn "unknown conf keys: ".join(" ",@unknown);
     my $nm = "main";
@@ -109,11 +109,7 @@ my $make_kc_yml = sub{
 
     my $container = {
             name => $nm, args=>[$nm], image => &$mandatory_of(image=>$opt),
-            env=>[
-                $$opt{need_pod_ip} ? {name=>"C4POD_IP",valueFrom=>{fieldRef=>{fieldPath=>"status.podIP"}}} : (),
-                #{ name=>"C4IMAGE", value=>&$mandatory_of(image=>$opt) },
-                @env
-            ],
+            env=>[@env],
             volumeMounts=>[@secret_mounts,@host_mounts],
             $$opt{tty} ? (tty=>$$opt{tty}) : (),
             securityContext => { allowPrivilegeEscalation => "false" },
