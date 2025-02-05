@@ -1,5 +1,5 @@
 // #@ts-check
-import { createElement, useCallback, useState, useEffect, useMemo } from "react"
+import { createElement, useCallback, useState, useEffect, useMemo, useRef } from "react"
 import { patchFromValue, ctxToPath, assertNever, manageAnimationFrame } from "../main/util.ts"
 import { doCreateRoot, useIsolatedFrame } from "../main/frames.ts"
 import { useSessionManager } from "../main/session.ts"
@@ -8,7 +8,7 @@ import { useContext } from "react"
 import { useSyncRoot } from "../main/sync-root.ts"
 import { LocationComponents } from "../main/location.ts"
 import { ToAlienMessageComponents } from "../main/receiver.ts"
-import { UseSyncMod } from "../main/sync-hooks.ts"
+import { AckContext, UseSyncMod } from "../main/sync-hooks.ts"
 import { UseCanvas } from "./canvas-manager.ts"
 
 export const rootCtx = ctx => ctx.branchContext
@@ -17,39 +17,39 @@ export const rootCtx = ctx => ctx.branchContext
 
 const eventToPatch = (e) => ({headers: e.target.headers, value: e.target.value, skipByPath: true, retry: true})
 
-function useSyncInput(patches,enqueuePatch,incomingValue,deferSend){
-    const [lastPatch,setLastPatch] = useState()
-    const defer = deferSend(!!lastPatch)
+function useSyncInput(patches,enqueuePatch,incomingValue,deferSend) {
+    /** @type {React.MutableRefObject<import('../main/util.ts').UnsubmittedPatch | null>} */
+    const lastPatch = useRef(null);
+    const defer = deferSend(!!lastPatch.current)
     const onChange = useCallback(event => {
         const patch = eventToPatch(event)
-        enqueuePatch({ ...patch, headers: {...patch.headers,"x-r-changing":"1"}, defer})
-        setLastPatch(patch)
-    },[enqueuePatch,defer])
+        enqueuePatch({...patch, headers: {...patch.headers,"x-r-changing":"1"}, defer})
+        lastPatch.current = patch
+    }, [enqueuePatch, defer])
     const onBlur = useCallback(event => {
-        const replacingPatch = event && event.replaceLastPatch && eventToPatch(event)
-        setLastPatch(wasLastPatch=>{
-            if(wasLastPatch) enqueuePatch(replacingPatch || wasLastPatch)
-            return undefined
-        })
-    },[enqueuePatch])
-    // x-r-changing is not the same as props.changing
-    //   x-r-changing -- not blur (not final patch)
-    //   props.changing -- not sync-ed with server
-
-    // this effect is not ok: incomingValue can leave the same;
-    // ? see if wasLastPatch.value in patches
-    // or: send blur w/o value to sub-identity; changing = patch && "1" || props.changing
-    //    useEffect(()=>{
-    //        setLastPatch(wasLastPatch => wasLastPatch && wasLastPatch.value === incomingValue ? wasLastPatch : undefined)
-    //    },[incomingValue])
-    //
-    // replacingPatch - incomingValue can be different then in lastPatch && onBlur might still be needed to signal end of input
-
+        const replacingPatch = event?.replaceLastPatch && eventToPatch(event)
+        if (lastPatch.current) enqueuePatch(replacingPatch || lastPatch.current)
+        lastPatch.current = null
+    }, [enqueuePatch])
     const patch = patches.slice(-1).map(({value})=>({value}))[0]
     const value = patch ? patch.value : incomingValue
     const changing = patch ? "1" : undefined // patch || lastPatch
     return ({value,changing,onChange,onBlur})
 }
+/*
+// x-r-changing is not the same as props.changing
+//   x-r-changing -- not blur (not final patch)
+//   props.changing -- not sync-ed with server
+
+// this effect is not ok: incomingValue can leave the same;
+// ? see if wasLastPatch.value in patches
+// or: send blur w/o value to sub-identity; changing = patch && "1" || props.changing
+//    useEffect(()=>{
+//        setLastPatch(wasLastPatch => wasLastPatch && wasLastPatch.value === incomingValue ? wasLastPatch : undefined)
+//    },[incomingValue])
+//
+// replacingPatch - incomingValue can be different then in lastPatch && onBlur might still be needed to signal end of input
+*/
 
 
 /********* traverse ***********************************************************/
@@ -91,7 +91,7 @@ export const VDomAttributes = (sender) => {
     const onClick = ({"sendThen": ctx => event => { sender.send(ctx,patchFromValue("")) }}) //react gives some warning on stopPropagation
     const onChange = { "local": ctx => ch => true, "send": ctx => ch => false, "send_first": ctx => ch => ch }
     const ctx = { "ctx": ctx => ctx }
-    const path = { "I": ctxToPath(ctx.identity) }
+    const path = { "I": ctx => ctxToPath(ctx.identity) }
     const transforms = {onClick,onChange,ctx,path}
     return ({transforms})
 }
@@ -163,19 +163,16 @@ export const RootComponents = ({createSyncProviders,checkActivate,receivers}) =>
         const {ref,...props} = useIsolatedFrame(makeChildren)
         return createElement("iframe", {...props, style, ref})
     }
-    const busyFor = () => {
-        console.log("busyFor not implemented") // use availability?
-        return 0
-    }
     const SyncRoot = (prop) => {
-        const { enqueue, children, availability, ack, failure } = useSyncRoot(prop)
+        const { enqueue, children, availability, ack, isBusy, failure } = useSyncRoot(prop)
         const { createNode, sessionKey, branchKey, isRoot, win, login } = prop
-        const sender = useMemo(()=>({ enqueue, ctxToPath, busyFor }), [enqueue, ctxToPath, busyFor])
-        return createSyncProviders({sender,ack,isRoot,branchKey,children:[
+        const sender = useMemo(()=>({ enqueue, ctxToPath, isBusy }), [enqueue, ctxToPath, isBusy])
+        return createSyncProviders({sender,ack,isRoot,branchKey,children:
             createBranchProvider({createNode, sessionKey, branchKey, isRoot, win, login, enqueue, children: [
-                failure ? `VIEW FAILED: ${failure}` : "", ...children
+                failure && createElement('div', {key: 'failure'}, `VIEW FAILED: ${failure}`),
+                createElement(AckContext.Provider, { key: 'ack-ctx', value: ack }, ...children)
             ]})
-        ]})
+        })
     }
     const App = ({win,createNode}) => {
         useEffect(()=>manageAnimationFrame(win, checkActivate),[win, checkActivate])
