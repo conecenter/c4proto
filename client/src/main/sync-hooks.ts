@@ -4,7 +4,7 @@ import {EnqueuePatch,Patch,UnsubmittedPatch,UseSync} from "./util"
 
 const NoContext = createContext(0)
 export const AckContext = createContext(0)
-AckContext.displayName = "AckContext"
+AckContext.displayName = "AckContextProto"
 
 const nonMerged = (ack: number) => (aPatch: Patch) => !(aPatch && aPatch.index <= ack)
 

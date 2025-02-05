@@ -1,6 +1,6 @@
 
 import {useEffect,useState} from "../main/react"
-import {weakCache,manageAnimationFrame,assertNever,Identity,ObjS,mergeSimple,patchFromValue,UseSync, EnqueuePatch} from "../main/util"
+import {weakCache,manageAnimationFrame,assertNever,Identity,ObjS,UseSync, EnqueuePatch} from "../main/util"
 
 const Buffer = <T>(): [()=>T[], (...items: T[])=>void] => {
     let finished = 0
@@ -32,7 +32,7 @@ type CanvasOptions = {[K:string]:unknown}
 export type CanvasFactory = (opt: CanvasOptions)=>C4Canvas
 
 type CanvasProps = CanvasPart & {
-    identity: Identity, parentNode: HTMLElement|undefined,
+    onChange: (e: {target:{value:string}})=>void, parentNode: HTMLElement|undefined,
     isGreedy: boolean, value: string, style: {[K:string]:string}, options: CanvasOptions
 }
 
@@ -79,10 +79,8 @@ type CanvasBranchContext = { enqueue: EnqueuePatch, isRoot: boolean, win: Window
 type CanvasModArgs = { canvasFactory: CanvasFactory, useSync: UseSync, useBranch: ()=>CanvasBranchContext }
 export type UseCanvas = (props: CanvasProps) => ObjS<string>
 export const UseCanvas = ({canvasFactory,useSync,useBranch}:CanvasModArgs) => (prop:CanvasProps) => {
-    const {identity, value: incomingValue, isGreedy, style: argStyle, options, parentNode} = prop
+    const {onChange, value, isGreedy, style: argStyle, options, parentNode} = prop
     const {enqueue,isRoot,win} = useBranch()
-    const [sizePatches, enqueueSizePatch] = useSync(identity)
-    const value = mergeSimple(incomingValue, sizePatches)
     const [canvas, setCanvas] = useState<C4Canvas|undefined>()
     useEffect(()=>{
         const canvas = canvasFactory(options||{})
@@ -92,9 +90,6 @@ export const UseCanvas = ({canvasFactory,useSync,useBranch}:CanvasModArgs) => (p
     useEffect(()=>{
         if(!parentNode || !canvas) return
         const [commands,colorToContext] = gatherDataFromPathTree(prop)
-        const onChange = ({target:{value}}:{target:{value:string}}) => {
-            enqueueSizePatch(patchFromValue(value))
-        }
         const parsed = {...prop,commands,value,onChange}
         const sendToServer = (patch: {headers: ObjS<string>}, color: string) => {
             if(!colorToContext[color]) return

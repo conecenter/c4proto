@@ -159,16 +159,21 @@ const PatchManager = () => {
 const StartedSyncManager: (args: SyncManagerStartArgs)=>StartedSyncManager = ({
     setState, reloadBranchKey, createNode, isRoot, sessionKey, branchKey, win
 }) => {
+    let lastPatchInd = 0;
     const send = (identity: Identity, patch: UnsubmittedPatch) => {
         const index = enqueue(identity, patch)
-        doSend()
+        if (!patch.defer) {
+            lastPatchInd = index
+            doSend()
+        }
         return index
     }
     const {enqueue, doAck, getPatches} = PatchManager()
     const {receive} = Receiver({setState, doAck, createNode})
     const stateToSend = () => serializeState({isRoot, sessionKey, branchKey, patches: getPatches()})
     const {close, doSend} = ReConnection({win, url: "/eventlog", onData: receive, stateToSend, onClose: reloadBranchKey})
-    return {enqueue: send, stop: close}
+    const isBusy = (ack: number) => lastPatchInd > ack
+    return {enqueue: send, stop: close, isBusy}
 }
 const SyncManager = (): SyncManager => {
     let inner: StartedSyncManager | undefined
@@ -179,14 +184,15 @@ const SyncManager = (): SyncManager => {
     const getInner = () => inner ?? assertNever("not started")
     const enqueue: EnqueuePatch = (identity, patch) => getInner().enqueue(identity, patch)
     const stop: ()=>void = () => getInner().stop()
-    return {start, enqueue, stop}
+    const isBusy = (ack: number) => !!inner?.isBusy(ack)
+    return {start, enqueue, stop, isBusy}
 }
 
 type SyncManagerStartArgs = {
     setState: SetState<SyncRootState>, reloadBranchKey: ()=>void,
     createNode: CreateNode, sessionKey: string, branchKey: string, isRoot: boolean, win: Window
 }
-type StartedSyncManager = { enqueue: EnqueuePatch, stop: ()=>void }
+type StartedSyncManager = { enqueue: EnqueuePatch, stop: ()=>void, isBusy: (ack:number)=>boolean }
 type SyncManager = { start(args: SyncManagerStartArgs): void } & StartedSyncManager
 type SyncRootState = { 
     manager: SyncManager, availability: boolean, children: unknown[], ack: number, failure: string 
@@ -202,10 +208,10 @@ export type UseSyncRootArgs = {
 }
 export const useSyncRoot = ({ createNode, isRoot, sessionKey, branchKey, win, reloadBranchKey }: UseSyncRootArgs) => {
     const [{manager, children, availability, ack, failure}, setState] = useState<SyncRootState>(initSyncRootState)
-    const {start, enqueue, stop} = manager
+    const {start, enqueue, stop, isBusy} = manager
     useEffect(()=>{
         start({setState, reloadBranchKey, createNode, sessionKey, branchKey, isRoot, win})
         return () => stop()
     }, [start, setState, reloadBranchKey, createNode, sessionKey, branchKey, isRoot, win, stop])
-    return {enqueue, children, availability, ack, failure}
+    return {enqueue, children, availability, ack, isBusy, failure}
 }
