@@ -27,13 +27,11 @@ trait TestServerApp extends EnvConfigCompApp with VMExecutionApp with NoAssemble
 @c4app class TestConsumerAppBase extends TestServerApp
   with ManagementApp
   with AlienProtocolApp
-  with TcpProtocolApp
   with ParallelObserversApp
 
 @c4app class HiRateTxAppBase extends TestServerApp with ParallelObserversApp
 
 trait TestTxTransformAppBase extends TestServerApp
-@c4app class TestSerialApp extends TestTxTransformApp with SerialObserversApp
 @c4app class TestParallelApp extends TestTxTransformApp with ParallelObserversApp
 
 @c4app class SimplePusherAppBase extends BaseApp with ExecutableApp with EnvConfigCompApp

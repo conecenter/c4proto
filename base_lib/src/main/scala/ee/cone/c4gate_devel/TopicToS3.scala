@@ -34,11 +34,12 @@ object TxGroup {
 }
 
 @c4("TopicToS3App") final class TopicToS3(
-  execution: Execution, snapshotUtil: SnapshotUtil,
+  execution: Execution, snapshotUtil: SnapshotUtil, config: Config,
   s3: S3Manager, s3L: S3Lister, currentTxLogName: CurrentTxLogName, consuming: Consuming,
   adapter: ProtoAdapter[N_TxGroup],
   // consumerBeginningOffset: ConsumerBeginningOffset -- does not work, LOBroker fails later
 ) extends LazyLogging {
+  private val keepPeriod = 1000 * 3600 * config.get("C4REPLAY_KEEP_HOURS").toInt //72
   import TxGroup._
   private def getSaved: List[(String,String)] =
     execution.aWait(s3L.list(currentTxLogName, bucketPostfix)(_)).toList.flatten
@@ -67,7 +68,6 @@ object TxGroup {
     }
   }
   @tailrec private def purgeIteration(): Unit = {
-    val keepPeriod = 1000 * 3600 * 24 * 7
     val items = getSaved.map{ case (nm,tmStr) => (nm, s3L.parseTime(tmStr)) }
     val maxTm = items.map{ case (_,tm) => tm }.maxOption
     val toDel = items.collect{ case (nm,tm) if maxTm.get-tm > keepPeriod => s"$bucketPostfix/$nm" }

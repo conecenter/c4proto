@@ -242,7 +242,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   indexUtil: IndexUtil,
   updateMapUtil: UpdateMapUtil,
 ) extends UpdateFromUtil {
-  def get(local: Context, updates: Seq[N_Update]): Seq[N_UpdateFrom] =
+  def get(local: AssembledContext, updates: Seq[N_Update]): Seq[N_UpdateFrom] =
     updateMapUtil.toUpdatesFrom(updates.toList, u => {
       val valueAdapter = qAdapterRegistry.byId(u.valueTypeId)
       val wKey = origKeyFactory.value.rawKey(valueAdapter.className)
@@ -252,12 +252,21 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     })
 }
 
+@c4("RichDataCompApp") final class OuterUpdateProcessorImpl(
+  updateProcessor: Option[UpdateProcessor],
+  processors: List[UpdatesPreprocessor],
+) extends OuterUpdateProcessor {
+  def process(updates: Seq[N_Update], prevQueueSize: Int): Seq[N_Update] = {
+    val processedOut: List[N_Update] = processors.flatMap(_.process(updates)) ++ updates
+    updateProcessor.fold(processedOut)(_.process(processedOut, prevQueueSize).toList)
+  }
+}
+
 @c4("RichDataCompApp") final class RawTxAddImpl(
   utilOpt: DeferredSeq[AssemblerUtil],
   updateFromUtil: UpdateFromUtil,
   assembleProfiler: AssembleProfiler,
-  updateProcessor: Option[UpdateProcessor],
-  processors: List[UpdatesPreprocessor],
+  outerUpdateProcessor: OuterUpdateProcessor
 ) extends RawTxAdd with Executable with Early with LazyLogging {
   def run(): Unit = {
     logger.info("assemble-preload start")
@@ -270,8 +279,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     if (out.isEmpty) identity[Context]
     else doAdd(out,_)
   private def doAdd(out: Seq[N_Update], local: Context): Context = {
-    val processedOut: List[N_Update] = processors.flatMap(_.process(out)) ++ out
-    val externalOut = updateProcessor.fold(processedOut)(_.process(processedOut, WriteModelKey.of(local).size).toList)
+    val externalOut = outerUpdateProcessor.process(out, WriteModelKey.of(local).size)
     val profiling = assembleProfiler.createJoiningProfiling(Option(local))
     val util = Single(utilOpt.value)
     val profilingContext = RAssProfilingContext(1, Nil, TxAddAssembleDebugKey.of(local))

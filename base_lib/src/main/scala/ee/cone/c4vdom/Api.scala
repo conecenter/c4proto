@@ -91,12 +91,6 @@ trait VDomView[State] extends Product {
   def view: State => ViewRes
 }
 
-trait VDomSender[State] {
-  def branchKey: String
-  type Send = Option[(String,String) => State => State]
-  def sending: State => (Send,Send)
-}
-
 trait VDomMessage {
   def header: String=>String
   def body: Object
@@ -115,26 +109,20 @@ trait VDomResolver {
   def resolve(pathStr: String): Option[Resolvable] => Option[Resolvable]
 }
 
-trait VDomHandlerFactory {
-  def create[State](
-    sender: VDomSender[State],
-    view: VDomView[State],
-    vDomUntil: VDomUntil,
-    vDomStateKey: VDomLens[State,Option[VDomState]]
-  ): Receiver[State]
-}
-
 case class MakingViewStat(at: Long, value: Long)
 case class MakingViewStats(sum: Long, recent: List[MakingViewStat], stable: Long)
 
 case class VDomState(
-  value: VDomValue, seeds: List[(String,Product)], until: Long,
+  value: VDomValue, until: Long,
   startedAtMillis: Long, wasMakingViewMillis: MakingViewStats,
-  failed: Boolean,
+  failed: Boolean, needSnapshot: Long
 )
 
-trait VDomUntil {
-  def get(seeds: Seq[Product]): Long
+case class PreViewResult(clean: VDomState, prev: VDomValue, startedAt: Long)
+case class PostViewResult(cache: VDomState, seeds: List[Product], diff: String, snapshot: String)
+trait VDomHandler {
+  def preView: Option[VDomState]=>Option[PreViewResult]
+  def postView(preViewRes: PreViewResult, nextDom: VDomValue): PostViewResult
 }
 
 ////

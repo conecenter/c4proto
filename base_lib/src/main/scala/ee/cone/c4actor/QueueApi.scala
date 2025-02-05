@@ -11,6 +11,7 @@ import ee.cone.c4proto._
 import okio.ByteString
 
 import java.net.http.HttpClient
+import java.util.concurrent.BlockingQueue
 import scala.collection.immutable.{Map, Queue, Seq}
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -113,6 +114,7 @@ trait QMessages {
   // worldProvider can be not in App, but passed to richServer.init(worldProvider),
   // where richServers wrapped with txTr with AtomicRef;
   // HOWEVER READ-AFTER-WRITE problem here is harder
+  def doSend(updates: List[N_UpdateFrom]): NextOffset
 }
 
 class LongTxWarnPeriod(val value: Long)
@@ -156,6 +158,7 @@ object Types {
   type TypeKey = ee.cone.c4di.TypeKey
   type UpdateKey = (Long,SrcId)
   type UpdateMap = Map[UpdateKey,N_UpdateFrom]
+  type LEvents = Seq[LEvent[Product]]
 }
 
 
@@ -254,7 +257,10 @@ trait Observer[Message] {
   def activate(world: Message): Observer[Message]
 }
 
-class TxObserver(val value: Observer[RichContext])
+trait WorldSource {
+  def doWith[M,R](queue: BlockingQueue[Either[RichContext,M]], f: ()=>R): R
+}
+
 final class DisableDefObserver
 final class DisableDefConsuming
 final class DisableDefProducer
@@ -336,6 +342,7 @@ trait KeyFactory {
 class OrigKeyFactoryProposition(val value: KeyFactory)
 class OrigKeyFactoryFinalHolder(val value: KeyFactory)
 
+trait OuterUpdateProcessor extends UpdateProcessor
 trait UpdateProcessor {
   def process(updates: Seq[N_Update], prevQueueSize: Int): Seq[N_Update]
 }
@@ -374,7 +381,7 @@ trait LOBroker {
 trait Reverting {
   def getSavepoint: Context=>Option[NextOffset]
   def revertToSavepoint: Context=>Context
-  def makeSavepoint: Context=>Context
+  def makeSavepoint: LEvents
 }
 
 trait UpdateMapping {
@@ -397,7 +404,7 @@ trait SnapshotPatchIgnoreRegistry {
 }
 
 trait UpdateFromUtil {
-  def get(local: Context, updates: Seq[N_Update]): Seq[N_UpdateFrom]
+  def get(local: AssembledContext, updates: Seq[N_Update]): Seq[N_UpdateFrom]
 }
 
 trait AssembleStatsAccumulator {

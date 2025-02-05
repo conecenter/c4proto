@@ -7,4 +7,5 @@ trait IdGenUtil extends Product {
   def srcIdFromSrcIds(srcIdList: SrcId*): SrcId
   def srcIdFromStrings(stringList: String*): SrcId
   def srcIdFromSerialized(adapterId: Long, bytes: ByteString): SrcId
+  def srcIdRandom(): SrcId
 }

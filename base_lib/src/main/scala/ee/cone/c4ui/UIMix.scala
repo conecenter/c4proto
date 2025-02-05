@@ -1,16 +1,15 @@
 package ee.cone.c4ui
 
 import ee.cone.c4actor_branch.BranchApp
-import ee.cone.c4gate.{AlienProtocolApp, HttpProtocolApp}
+import ee.cone.c4gate._
 import ee.cone.c4di.{c4, provide}
-import ee.cone.c4vdom.{ChildPairFactory, TagJsonUtils, VDomFactory, VDomHandlerFactory, VDomResolver}
+import ee.cone.c4vdom._
 import ee.cone.c4vdom_impl._
 
-trait AccessViewAppBase
 
-trait PublicViewAssembleAppBase
 
-trait UICompAppBase extends AlienExchangeCompApp with BranchApp
+
+trait UICompAppBase extends AlienExchangeCompApp with BranchApp with SessionUtilApp with EventLogApp
 
 trait AlienExchangeCompAppBase extends AlienProtocolApp with HttpProtocolApp
 
@@ -21,7 +20,7 @@ trait AlienExchangeCompAppBase extends AlienProtocolApp with HttpProtocolApp
   @provide def vDomFactoryPr: Seq[VDomFactory] = List(vDomFactory)
   @provide def childPairFactoryPr: Seq[ChildPairFactory] = List(childPairFactory)
   @provide def tagJsonUtilsPr: Seq[TagJsonUtils] = List(TagJsonUtilsImpl)
-  @provide def vDomHandlerFactoryPr: Seq[VDomHandlerFactory] =
-    List(new VDomHandlerFactoryImpl(diff,FixDuplicateKeysImpl,JsonToStringImpl,WasNoValueImpl,childPairFactory))
+  @provide def vDomHandlerFactoryPr: Seq[VDomHandler] =
+    List(new VDomHandlerImpl(diff,FixDuplicateKeysImpl,JsonToStringImpl,WasNoValueImpl))
   @provide def vDomResolverPr: Seq[VDomResolver] = List(VDomResolverImpl)
 }

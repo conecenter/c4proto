@@ -11,7 +11,6 @@ import ee.cone.c4gate._
 
 trait SnapshotListRequestHandlerAppBase
 trait S3RawSnapshotSaverAppBase
-trait NoProxySSEConfigAppBase
 trait SafeToRunAppBase
 trait WorldProviderAppBase
 
@@ -20,26 +19,24 @@ trait AbstractHttpGatewayAppBase extends ServerCompApp
   with KafkaProducerApp with KafkaConsumerApp with KafkaPurgerApp
   with ParallelObserversApp
   with PublisherApp with AuthProtocolApp
-  with SSEServerApp
   // with NoAssembleProfilerCompApp #customize later
   // with MortalFactoryCompApp #customize later
   with ManagementApp
   with SnapshotMakingApp
   with LZ4RawCompressorApp
   with BasicLoggingApp
-  with NoProxySSEConfigApp
   with SafeToRunApp
   with WorldProviderApp
   //with SkipWorldPartsApp #activate this check later
+  with EventLogApp
+  with SessionUtilApp
+  with AlienProtocolApp
+  with AuthOperationsApp
 
 @c4("AbstractHttpGatewayApp") final class DefFHttpHandlerProvider(
   fHttpHandlerFactory: FHttpHandlerImplFactory,
   httpGetSnapshotHandler: HttpGetSnapshotHandler,
   getPublicationHttpHandler: GetPublicationHttpHandler,
-  pongProxyHandler: PongProxyHandler,
-  pongHandler: PongHandler,
-  notFoundProtectionHttpHandler: NotFoundProtectionHttpHandler,
-  selfDosProtectionHttpHandler: SelfDosProtectionHttpHandler,
   authHttpHandler: AuthHttpHandler,
   defSyncHttpHandler: DefSyncHttpHandler
 ){
@@ -47,15 +44,9 @@ trait AbstractHttpGatewayAppBase extends ServerCompApp
     fHttpHandlerFactory.create(
       httpGetSnapshotHandler.wire(
         getPublicationHttpHandler.wire(
-          pongProxyHandler.wire(pongHandler.wire(
-            notFoundProtectionHttpHandler.wire(
-              selfDosProtectionHttpHandler.wire(
-                authHttpHandler.wire(
-                  defSyncHttpHandler.wire
-                )
-              )
-            )
-          ))
+          authHttpHandler.wire(
+            defSyncHttpHandler.wire
+          )
         )
       )
     )
@@ -70,22 +61,6 @@ trait SnapshotMakingAppBase extends TaskSignerApp with LOBrokerApp
   with S3ManagerApp with SignedReqUtilImplApp
   with ConfigSimpleSignerApp with SnapshotUtilImplApp with SnapshotSaverApp
   with SnapshotListProtocolApp
-
-trait SSEServerAppBase extends AlienProtocolApp
-
-
-
-@c4("SSEServerApp") final class SSEServer(
-  config: Config,
-  sseConfig: SSEConfig
-)(
-  ssePort: Int = config.get("C4SSE_PORT").toInt
-)(
-  inner: TcpServerImpl = new TcpServerImpl(ssePort, new SSEHandler(sseConfig), 10, new GzipStreamCompressorFactory)
-) {
-  @provide def getTcpServer: Seq[TcpServer] = Seq(inner)
-  @provide def getExecutable: Seq[Executable] = Seq(inner)
-}
 
 // I>P -- to agent, cmd>evl
 // >P -- post, sse status

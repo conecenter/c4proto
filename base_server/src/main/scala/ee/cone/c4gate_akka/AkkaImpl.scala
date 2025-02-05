@@ -77,7 +77,7 @@ import scala.util.control.NonFatal
         logger.trace(s"req headers: $rHeaders")
         FHttpRequest(method, path, req.uri.rawQueryString, rHeaders, body)
       }
-      rResp <- handler.handle(rReq)
+      rResp <- Future(handler.handle(rReq))
       response <- {
         val status = Math.toIntExact(rResp.status)
         val(ctHeaders,rHeaders) = rResp.headers.partition(_.key=="content-type")
@@ -138,23 +138,6 @@ import scala.util.control.NonFatal
     } yield binding
   }
 }
-
-class AkkaStatefulReceiver[Message](ref: ActorRef) extends StatefulReceiver[Message] {
-  def send(message: Message): Unit = ref ! message
-}
-@c4("AkkaStatefulReceiverFactoryApp") final class AkkaStatefulReceiverFactory(execution: Execution, akkaMat: AkkaMat) extends StatefulReceiverFactory {
-  def create[Message](inner: List[Observer[Message]])(implicit executionContext: ExecutionContext): Future[StatefulReceiver[Message]] =
-    for {
-      mat <- akkaMat.get
-      source = Source.actorRef[Message](100, OverflowStrategy.fail)
-      sink = Sink.fold(inner)((st, msg: Message) => st.map(_.activate(msg)))
-      (actorRef,resF) = source.toMat(sink)(Keep.both).run()(mat)
-    } yield {
-      execution.fatal(_ => resF)
-      new AkkaStatefulReceiver[Message](actorRef)
-    }
-}
-
 
 //execution: Execution,
 //implicit val ec: ExecutionContextExecutor = system.dispatcher

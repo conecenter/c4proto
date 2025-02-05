@@ -36,8 +36,8 @@ class RevertPatch(val values: UpdateMap, val offset: NextOffset)
   def getSavepoint: Context=>Option[NextOffset] =
     local => getN_TxRef.ofA(local).get(id).map(_.txId).filter(_.nonEmpty)
   def revertToSavepoint: Context=>Context =
-    local => revert(getSavepoint(local).get).andThen(makeSavepoint)(local)
-  def makeSavepoint: Context=>Context = txAdd.add(LEvent.update(N_TxRef(id,"")))
+    local => revert(getSavepoint(local).get).andThen(txAdd.add(makeSavepoint))(local)
+  def makeSavepoint: LEvents = LEvent.update(N_TxRef(id,""))
 }
 
 @c4("ServerCompApp") final class SnapshotPatchIgnoreRegistryImpl(

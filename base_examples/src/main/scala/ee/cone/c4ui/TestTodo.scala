@@ -1,333 +1,315 @@
 package ee.cone.c4ui
 
 import java.util.UUID
-
+import java.time.Instant
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LEvent.{delete, update}
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble._
-import ee.cone.c4di.{c4, c4multi, provide}
-import ee.cone.c4gate.PublishFromStringsProvider
-import ee.cone.c4ui.TestTodoProtocol.{B_TodoTask, B_TodoTaskComments, B_TodoTaskCommentsContains, B_TodoTaskOrder}
+import ee.cone.c4assemble.Types.{Each, Values}
+import ee.cone.c4assemble.{by, c4assemble}
+import ee.cone.c4di.{c4, c4multi}
+import ee.cone.c4gate.AuthProtocol.{C_PasswordHashOfUser, U_AuthenticatedSession}
+import ee.cone.c4gate._
+import ee.cone.c4ui.TestTodoProtocol.{B_TodoTask, B_TodoTaskComments, B_TodoTaskCommentsContains}
 import ee.cone.c4proto._
+import ee.cone.c4ui.TestCanvasProtocol.B_TestFigure
 import ee.cone.c4vdom.Types._
-import ee.cone.c4vdom.{Tags => _, _}
-import okio.ByteString
-import os.remove
-import com.typesafe.scalalogging.LazyLogging
+import ee.cone.c4vdom._
 
+////
 
-// @c4mod class FooCargoType extends CargoType
+trait ExampleMenuItemEl extends ToChildPair
+@c4tags("TestTodoApp") trait ExampleMenuTags[C] {
+  @c4el("ExampleLogin") def login(key: String): ToChildPair
+  @c4el("ExampleMenu") def menu(key: String, items: ElList[ExampleMenuItemEl], children: ViewRes): ToChildPair
+  @c4el def menuItem(key: String, caption: String, activate: Receiver[C]): ExampleMenuItemEl
+}
 
-// @c4mod class CargoTypeRegistry(items: List[CargoType]) extends Registry
-// @c4mod class CargoTypeToPartViewProvider(reg: CargoTypeRegistry) {
-//   def providePartViews(): Seq[PartView] =
-
-// ! multi layer module tree
-// ! reg at Impl; c4mod traits by all extends
-// @c4mod class PartViewRegistry(views: List[PartView]) extends Registry
-// @c4mod class BarPartView() extends PartView
-
-
-// ee.cone.aaa.bbb.
-// ConeAaaBbbApp
-// @assembleModApp
-
-//
-
-
-//trait TestTodoAppBase extends ServerCompApp
-//@protocol("TestTodoApp")
-
-// @assemble("ReactHtmlApp")
-// @assembleAtReactHtmlApp
-// @c4("TestTodoApp")
-// @mixAtTestTodoAutoApp
-// @mixMod == @mixAtCargoStuff
-// @partOf*
-
-// @c4("BazApp") class FooHolderImpl(bar: Bar) extends FooHolder(new FooImpl)
-// vs
-// @c4("BazApp") class Baz(...) {
-//   def mixFoo(bar: Bar): Foo = new Foo
-//   def mixHoo(bar: Goo): Hoo = new Hoo
-
-abstract class SetField[T](val make: (SrcId,String)=>T) extends Product
-@c4multi("TestTodoApp") final case class OnChangeReceiver[T<:Product](
-  srcId: SrcId, make: SetField[T]
+@c4("TestTodoApp") final case class WrapView()(
+  untilPolicy: UntilPolicy, sessionUtil: SessionUtil, getSession: GetByPK[U_AuthenticatedSession],
+  val rc: UpdatingReceiverFactory, toAlienMessageUtil: ToAlienMessageUtil, locationUtil: LocationUtil,
+  exampleMenuTagsProvider: ExampleMenuTagsProvider,
 )(
-  txAdd: LTxAdd
-) extends Receiver[Context] {
-  def receive: Handler = message => local => {
-    val value = message.body match { case b: ByteString => b.utf8() }  //.header("x-r-value")
-    val events = update(make.make(srcId,value))
-    // println(s"$value // $events")
-    txAdd.add(events)(local)
+  exampleMenuTags: ExampleMenuTags[Context] = exampleMenuTagsProvider.get[Context]
+) extends Updater {
+  import WrapView._
+  def wrap(view: Context=>ViewRes): Context=>ViewRes = untilPolicy.wrap{ local =>
+    val sessionKey = CurrentSessionKey.of(local)
+    val hasLogin = getSession.ofA(local).get(sessionKey).exists(_.userName.nonEmpty)
+    val res = if(hasLogin) exampleMenuTags.menu(
+      "menu",
+      (for((key,caption) <- List(
+        ("todo", "todo-list"), ("leader", "coworking"), ("rectangle", "canvas"), ("revert", "reverting"),
+        ("replicas", "replicas"),
+      )) yield exampleMenuTags.menuItem(s"menu-item-${key}", caption, rc(GoTo(sessionKey,key)))) ++ List(
+        exampleMenuTags.menuItem("sendTestMessage", "test message", rc(SendTestMessage(sessionKey))),
+        exampleMenuTags.menuItem("logout", "logout", rc(LogOut(sessionKey))),
+      ),
+      view(local)
+    ) else exampleMenuTags.login("login")
+    List(res.toChildPair)
+  }
+  def receive: Handler = _ => local => {
+    case GoTo(sessionKey, to) => locationUtil.setLocationHash(local, sessionKey, to)
+    case SendTestMessage(sessionKey) => toAlienMessageUtil.create(sessionKey, UUID.randomUUID().toString)
+    case LogOut(sessionKey) => sessionUtil.logOut(local, sessionKey)
   }
 }
-@c4multi("TestTodoApp") final case class SimpleReceiver(events: Seq[LEvent[Product]])(
-  txAdd: LTxAdd
-) extends Receiver[Context] {
-  def receive: Handler = message => local => txAdd.add(events)(local)
+object WrapView {
+  private case class GoTo(sessionKey: String, hash: String) extends VAction
+  private case class SendTestMessage(sessionKey: String) extends VAction
+  private case class LogOut(sessionKey: String) extends VAction
 }
 
-@c4tags("TestTodoApp") trait ExampleTags[C] {
-  @c4el("ExampleText") def text(key: String, value: String): ToChildPair
-  @c4el("ExampleInput") def input(key: String, value: String, change: Receiver[C]): ToChildPair
-  @c4el("ExampleButton") def button(key: String, activate: Receiver[C], caption: String = ""): ToChildPair
+////////////////////////////////////////////////////////////////////////////////
+
+object TestUser {
+  val name = "test0"
 }
 
-@c4("ReactHtmlApp") final class ReactHtmlFromAlienTaskAssembleBase {
-  @provide def subAssembles: Seq[Assemble] =
-    new FromAlienTaskAssemble("/react-app.html") :: Nil
+@c4assemble("TestTodoApp") class TestUserAssembleBase(factory: TestUserCreateTxFactory){
+  type ByUserName = String
+  def map(key: SrcId, firstborn: Each[S_Firstborn]): Values[(ByUserName, S_Firstborn)] = List(TestUser.name->firstborn)
+  def join(
+    key: SrcId, @by[ByUserName] firstborn: Each[S_Firstborn], hashes: Values[C_PasswordHashOfUser]
+  ): Values[(SrcId, TxTransform)] = if(hashes.nonEmpty) Nil else List(WithPK(factory.create()))
 }
 
-@c4("ReactHtmlApp") final class ReactHtmlProvider extends PublishFromStringsProvider {
-  def get: List[(String, String)] = {
-    val now = System.currentTimeMillis
-    List(
-      "/react-app.html" ->
-        s"""<!DOCTYPE html><meta charset="UTF-8"><body>
-            <script type="text/javascript" src="vendor.js?$now"></script>
-            <script type="text/javascript" src="react-app.js?$now"></script>
-        </body>""",
-      "/todo-app.html" ->
-        s"""<!DOCTYPE html><meta charset="UTF-8">
-         <style> @import '/src/c4p/test/todo-app.css'; </style>
-         <body>
-            <script  type="module" src="/src/c4p/test/todo-app.js"></script>
-         </body>""",
-    )
+@c4multi("TestTodoApp") final case class TestUserCreateTx(srcId: SrcId = "TestUserCreateTx")(
+  txAdd: LTxAdd, authOperations: AuthOperations
+) extends TxTransform with LazyLogging {
+  def transform(local: Context): Context = {
+    val pass = TestUser.name
+    logger.info(s"creating ${TestUser.name}")
+    val lEvents = update(C_PasswordHashOfUser(TestUser.name, Option(authOperations.createHash(pass, None))))
+    txAdd.add(lEvents)(local)
   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-@c4("TestTodoApp") final class TestTodoUrlProvider {
-  @provide def assembles: Seq[Assemble] =
-    new FromAlienTaskAssemble("/todo-app.html") :: Nil
-}
-
 @protocol("TestTodoApp") object TestTodoProtocol {
   @Id(0x0001) case class B_TodoTask(@Id(0x0002) srcId: String, @Id(0x0003) createdAt: Long)
   @Id(0x0003) case class B_TodoTaskComments(@Id(0x0002) srcId: String, @Id(0x0003) value: String)
-  @Id(0x0002) case class B_TodoTaskOrder(@Id(0x0002) srcId: SrcId, @Id(0x0005) order: List[SrcId])
+  //@Id(0x0002) case class B_TodoTaskOrder(@Id(0x0002) srcId: SrcId, @Id(0x0005) order: List[SrcId])
   @Id(0x0004) case class B_TodoTaskCommentsContains(@Id(0x0002) srcId: SrcId, @Id(0x0003) value: String)
 }
 
-case object TodoTaskComments extends SetField(B_TodoTaskComments)
-case object TodoTaskCommentsContains extends SetField(B_TodoTaskCommentsContains)
+object TodoTasks {
+  def listKey = "taskList"
+}
+case class TodoTask(orig: B_TodoTask, comments: String)
+case class TodoTasks(srcId: SrcId, tasks: List[TodoTask])
+@c4assemble("TestTodoApp") class TodoTaskAssembleBase{
+  def joinTask(key: SrcId, task: Each[B_TodoTask], comments: Values[B_TodoTaskComments]): Values[(SrcId, TodoTask)] =
+    List(WithPK(TodoTask(task, comments.map(_.value).mkString)))
 
-case object DragHandleCellCSSClassName extends CSSClassName{ def name = "dragHandleCell" }
+  type ToList = SrcId
+  def mapTask(key: SrcId, task: Each[TodoTask]): Values[(ToList, TodoTask)] = List(TodoTasks.listKey->task)
+  def joinList(key: SrcId, @by[ToList] tasks: Values[TodoTask]): Values[(SrcId, TodoTasks)] =
+    List(WithPK(TodoTasks(key, tasks.sortBy(-_.orig.createdAt).toList)))
+}
 
-case object HeaderCSSClassName extends CSSClassName{ def name = "tableHeadContainer headerColor" }
+trait TodoTaskEl extends ToChildPair
+@c4tags("TestTodoApp") trait ExampleTags[C] {
+  @c4el def todoTask(key: String, commentsValue: String, commentsChange: Receiver[C], remove: Receiver[C]): TodoTaskEl
+  @c4el("ExampleTodoTaskList") def todoTaskList(
+    key: String, commentsFilterValue: String, commentsFilterChange: Receiver[C], add: Receiver[C],
+    tasks: ElList[TodoTaskEl]
+  ): ToChildPair
+}
 
 @c4("TestTodoApp") final case class TestTodoRootView(locationHash: String = "todo")(
+  val rc: UpdatingReceiverFactory,
+  wrapView: WrapView,
+  getTodoTasks: GetByPK[TodoTasks], getTodoTaskCommentsContains: GetByPK[B_TodoTaskCommentsContains],
   exampleTagsProvider: ExampleTagsProvider,
-  listTagsProvider: ListTagsProvider,
-  onChangeReceiverFactory: OnChangeReceiverFactory,
-  simpleReceiverFactory: SimpleReceiverFactory,
-  taskListAddReceiver: TaskListAddReceiver,
-  sortReceiverFactory: SortReceiverFactory,
-  untilPolicy: UntilPolicy,
-  getB_TodoTask: GetByPK[B_TodoTask],
-  getB_TodoTaskComments: GetByPK[B_TodoTaskComments],
-  getB_TodoTaskCommentsContains: GetByPK[B_TodoTaskCommentsContains],
-  todoSortOrderFactory: TodoSortOrderFactory,
-  todoSortHandlerFactory: TodoSortHandlerFactory,
 )(
-  val listTags: ListTags[Context] = listTagsProvider.get[Context],
   exampleTags: ExampleTags[Context] = exampleTagsProvider.get[Context]
+) extends ByLocationHashView with Updater with LazyLogging {
+  import TestTodoRootView._
+  import TodoTasks.listKey
+  def view: Context => ViewRes = wrapView.wrap{ local =>
+    val tasksOpt = getTodoTasks.ofA(local).get(listKey)
+    val branchKey = CurrentBranchKey.of(local)
+    val commentsContainsValue = getTodoTaskCommentsContains.ofA(local).get(branchKey).fold("")(_.value)
+    val res = exampleTags.todoTaskList(
+      key = listKey,
+      commentsContainsValue, commentsFilterChange = rc(CommentsContainsChange(branchKey)),
+      add = rc(Add()),
+      tasks = tasksOpt.fold(List.empty[TodoTask])(_.tasks)
+        .filter(_.comments.contains(commentsContainsValue))
+        .map{ task => exampleTags.todoTask(
+          key = task.orig.srcId, commentsValue = task.comments, commentsChange = rc(CommentsChange(task.orig.srcId)),
+          remove = rc(Remove(task.orig)),
+        )}
+    )
+    List(res.toChildPair)
+  }
+  def receive: Handler = value => _ => {
+    case CommentsContainsChange(id) => update(B_TodoTaskCommentsContains(id, value))
+    case Add() => update(B_TodoTask(UUID.randomUUID.toString,System.currentTimeMillis))
+    case CommentsChange(id) =>
+      //Thread.sleep(500)
+      update(B_TodoTaskComments(id, value))
+    case Remove(task) => delete(task)
+  }
+}
+object TestTodoRootView {
+  private case class CommentsContainsChange(srcId: String) extends VAction
+  private case class Add() extends VAction
+  private case class CommentsChange(srcId: String) extends VAction
+  private case class Remove(task: B_TodoTask) extends VAction
+}
+
+////////////////////////////
+
+trait TestSessionEl extends ToChildPair
+@c4tags("TestTodoApp") trait TestSessionListTags[C] {
+  @c4el def session(key: String, branchKey: String, userName: String, isOnline: Boolean): TestSessionEl
+  @c4el("TestSessionList") def sessionList(key: String, sessions: ElList[TestSessionEl]): ToChildPair
+}
+
+@c4("TestTodoApp") final case class TestCoLeaderView(locationHash: String = "leader")(
+  wrapView: WrapView, sessionListUtil: SessionListUtil,
+  testSessionListTagsProvider: TestSessionListTagsProvider,
+)(
+  tags: TestSessionListTags[Context] = testSessionListTagsProvider.get[Context]
 ) extends ByLocationHashView with LazyLogging {
-  import listTags._
-  def view: Context => ViewRes = untilPolicy.wrap{ local =>
-    val listKey = "taskList"
-    val commentsContainsValue = getB_TodoTaskCommentsContains.ofA(local).get(listKey).fold("")(_.value)
-    val comments = getB_TodoTaskComments.ofA(local)
-    val todoSortOrder = todoSortOrderFactory.create(listKey)
-    val allTodoTasks = todoSortOrder.getKeys(local).map(getB_TodoTask.ofA(local))
-    val todoTasks = if(commentsContainsValue.isEmpty) allTodoTasks
-      else allTodoTasks.filter(
-        prod => comments.get(prod.srcId).exists(_.value.contains(commentsContainsValue))
-      )
-    val expander = filterButtonExpander("expander",
-      area = rightFilterButtonArea,
-      children = List(
-        exampleTags.text(
-          "button",
-          value = "="
-        ).toChildPair[OfDiv]
-      ),
-      optButtons = (1 to 2).map { i =>
-        filterButtonPlace(s"bt$i",
-          area = rightFilterButtonArea,
-          children = List(
-            exampleTags.button(
-              "button",
-              activate = taskListAddReceiver,
-              caption = "+++",
-            ).toChildPair[OfDiv]
-          )
-        )
-      }.toList
+  def view: Context => ViewRes = wrapView.wrap{ local =>
+    val sessionItems = for {
+      s <- sessionListUtil.list(local) if !s.location.endsWith(s"#${locationHash}")
+    } yield tags.session(s.branchKey, s.branchKey, s.userName, s.isOnline)
+    val res = tags.sessionList("sessionList", sessionItems.toList)
+    List(res.toChildPair)
+  }
+}
+
+////////////////////////////
+
+@protocol("TestTodoApp") object TestCanvasProtocol   {
+  @Id(0x0008) case class B_TestCanvasState(@Id(0x0009) srcId: String, @Id(0x000A) sizes: String)
+  @Id(0x0009) case class B_TestFigure(@Id(0x0009) srcId: String, @Id(0x000B) isActive: Boolean)
+}
+import TestCanvasProtocol.B_TestCanvasState
+
+trait ExampleFigureEl extends ToChildPair
+@c4tags("TestTodoApp") trait ExampleCanvasTags[C] {
+  @c4el def figure(key: String, offset: Int, activate: Receiver[C], isActive: Boolean): ExampleFigureEl
+  @c4el("ExampleCanvas") def canvas(
+    key: String, sizesValue: String, sizesChange: Receiver[C], figures: ElList[ExampleFigureEl]
+  ): ToChildPair
+}
+
+@c4("TestTodoApp") final case class TestCanvasView(locationHash: String = "rectangle")(
+  val rc: UpdatingReceiverFactory, wrapView: WrapView,
+  getTestCanvasState: GetByPK[B_TestCanvasState], getTestFigure: GetByPK[B_TestFigure],
+  exampleCanvasTagsProvider: ExampleCanvasTagsProvider,
+)(
+  exampleCanvasTags: ExampleCanvasTags[Context] =  exampleCanvasTagsProvider.get[Context]
+) extends ByLocationHashView with Updater {
+  import TestCanvasView._
+  private def figure(local: Context, key: String, pos: Int) = {
+    val isActive = getTestFigure.ofA(local).get(key).exists(_.isActive)
+    exampleCanvasTags.figure(key, pos, rc(Activate(key, !isActive)), isActive)
+  }
+  def view: Context => ViewRes = wrapView.wrap { local =>
+    val sessionKey = CurrentSessionKey.of(local)
+    val sizes = getTestCanvasState.ofA(local).get(sessionKey).fold("")(_.sizes)
+    val res = exampleCanvasTags.canvas("testCanvas", sizes, rc(SizesChange(sessionKey)), List(
+      figure(local,"0",0), figure(local,"1",50)
+    ))
+    List(res.toChildPair)
+  }
+  def receive: Handler = value => _ => {
+    case SizesChange(sessionKey) => update(B_TestCanvasState(sessionKey, value))
+    case Activate(id, value) => update(B_TestFigure(id, value))
+  }
+}
+object TestCanvasView {
+  private case class SizesChange(sessionKey: String) extends VAction
+  private case class Activate(id: String, value: Boolean) extends VAction
+}
+
+////////////////////////////
+
+@c4tags("TestTodoApp") trait RevertRootViewTags[C] {
+  @c4el("ExampleReverting") def reverting(
+    key: String, makeSavepoint: Receiver[C], revertToSavepoint: Receiver[C], offset: String,
+  ): ToChildPair
+}
+
+@c4("TestTodoApp") final case class RevertRootView(locationHash: String = "revert")(
+  revert: Reverting, wrapView: WrapView, revertRootViewTagsProvider: RevertRootViewTagsProvider,
+  val rc: UpdatingReceiverFactory, revertToSavepoint: RevertToSavepoint,
+)(
+  tags: RevertRootViewTags[Context] = revertRootViewTagsProvider.get[Context],
+) extends ByLocationHashView with Updater {
+  import RevertRootView._
+  def view: Context => ViewRes = wrapView.wrap { local =>
+    val res = tags.reverting(
+      key = "reverting", makeSavepoint = rc(MakeSavepoint()), revertToSavepoint = revertToSavepoint,
+      offset = revert.getSavepoint(local).toList.mkString
     )
-
-    val list = List(
-      filterArea("todoListFilter",
-        filters = List(
-          filterItem("comments",
-            minWidth = 11, maxWidth = 20,
-            canHide = false,
-            children = List(
-              exampleTags.text("label","Comments contains").toChildPair[OfDiv],
-              exampleTags.input("value",
-                value = commentsContainsValue,
-                change = onChangeReceiverFactory.create(listKey, TodoTaskCommentsContains),
-              ).toChildPair[OfDiv]
-            )
-          )
-        ),
-        buttons = List(
-          filterButtonPlace("add",
-            area = leftFilterButtonArea,
-            children = List(
-              exampleTags.button("button",
-                activate = taskListAddReceiver,
-                caption = "+",
-              ).toChildPair[OfDiv]
-            )
-          ),
-          filterButtonPlace("of",
-            area = rightFilterButtonArea,
-            children = List(
-              exampleTags.text("of","of").toChildPair[OfDiv],
-            )
-          ),
-          expander
-        ),
-      ).toChildPair[OfDiv],
-      gridRoot("todoList",
-        dragCol = TaskNoReceiver,
-        dragRow = sortReceiverFactory.create(todoSortHandlerFactory.create(todoSortOrder)),
-        rows = todoTasks.map(_.srcId).map(gridRow(_)),
-        cols = List(
-          gridCol(
-            colKey = "drag", width = boundGridColWidth(1,1),
-            hideWill = 0,
-          ),
-          gridCol(
-            colKey = "comments", width = boundGridColWidth(10,20),
-            hideWill = 0,
-          ),
-          gridCol(
-            colKey = "remove", width = boundGridColWidth(1,1),
-            hideWill = 0,
-          ),
-        ),
-        children = List(
-          gridCell(
-            colKey = "comments",
-            rowKey = "head",
-            classNames = HeaderCSSClassName :: Nil,
-            children = List(
-              exampleTags.text("text","Comments").toChildPair[OfDiv]
-            )
-          )
-        ) ::: todoTasks.flatMap(task=>List(
-          gridCell(
-            colKey = "drag",
-            rowKey = task.srcId,
-            dragHandle = rowDragHandle,
-            children = List(exampleTags.text("text","o").toChildPair[OfDiv]),
-            classNames = DragHandleCellCSSClassName :: Nil
-          ),
-          gridCell(
-            colKey = "comments",
-            rowKey = task.srcId,
-            children = List(
-              exampleTags.input("field",
-                comments.get(task.srcId).fold("")(_.value),
-                onChangeReceiverFactory.create(task.srcId, TodoTaskComments),
-              ).toChildPair[OfDiv]
-            )
-          ),
-          gridCell(
-            colKey = "remove",
-            rowKey = task.srcId,
-            children = List(exampleTags.button("text",
-              caption = "x",
-              activate = simpleReceiverFactory.create(delete(task))
-            ).toChildPair[OfDiv])
-          ),
-        ))
-      ).toChildPair[OfDiv]
-    )
-    logger.info("view")
-    List(popupManager("pm",
-      highlighter("col-highlighter",rowHighlightByAttr).toChildPair[OfDiv] ::
-      highlighter("row-highlighter",colHighlightByAttr).toChildPair[OfDiv] ::
-      list
-    ).toChildPair[OfDiv])
+    List(res.toChildPair)
+  }
+  def receive: Handler = value => local => {
+    case MakeSavepoint() => revert.makeSavepoint
   }
 }
-
-case object TaskNoReceiver extends Receiver[Context] {
-  def receive: Handler = _ => throw new Exception
+object RevertRootView {
+  private case class MakeSavepoint() extends VAction
+}
+@c4("TestTodoApp") final case class RevertToSavepoint()(revert: Reverting) extends Receiver[Context] {
+  def receive: Handler = _ => revert.revertToSavepoint
 }
 
-@c4("TestTodoApp") final case class TaskListAddReceiver(
-  txAdd: LTxAdd,
-) extends Receiver[Context] {
-  def receive: Handler = message => local => {
-    val events = update(B_TodoTask(UUID.randomUUID.toString,System.currentTimeMillis))
-    txAdd.add(events)(local)
+////////////////////////////
+
+trait ReplicaEl extends ToChildPair
+@c4tags("TestTodoApp") trait ExampleReplicaTags[C] {
+  @c4el def replica(
+    key: String,
+    role: String, startedAt: String, hostname: String, version: String, completion: String,
+    complete: Receiver[C], forceRemove: Receiver[C]
+  ): ReplicaEl
+  @c4el("ExampleReplicaList") def replicas(key: String, replicas: ElList[ReplicaEl]): ToChildPair
+}
+
+@c4("TestTodoApp") final case class ReplicaListRootView(locationHash: String = "replicas")(
+  wrapView: WrapView,
+  exampleTagsProvider: ExampleReplicaTagsProvider,
+  getReadyProcesses: GetByPK[ReadyProcesses],
+  actorName: ActorName,
+  val rc: UpdatingReceiverFactory,
+)(
+  tags: ExampleReplicaTags[Context] = exampleTagsProvider.get[Context],
+) extends ByLocationHashView with Updater {
+  import ReplicaListRootView._
+  def view: Context => ViewRes = wrapView.wrap { local =>
+    val processes = getReadyProcesses.ofA(local).get(actorName.value).fold(List.empty[ReadyProcess])(_.all)
+    val res = tags.replicas("replicas", for(p <- processes) yield tags.replica(
+      key = p.id, role = p.role, startedAt = Instant.ofEpochMilli(p.startedAt).toString, hostname = p.hostname,
+      version = p.refDescr, completion = p.completionReqAt.fold("")(_.toString), complete = rc(Complete(p)),
+      forceRemove = rc(ForceRemove(p)),
+    ))
+    List(res.toChildPair)
+  }
+  def receive: Handler = _ => _ => {
+    case Complete(p) => p.complete(Instant.now.plusSeconds(5))
+    case ForceRemove(p) => p.halt
   }
 }
-
-@c4multi("TestTodoApp") final case class TodoSortOrder(orderSrcId: SrcId)(
-  getB_TodoTask: GetByPK[B_TodoTask],
-  getB_TodoTaskOrder: GetByPK[B_TodoTaskOrder],
-) {
-  def getKeys: Context => List[SrcId] = local => {
-    val wasOrder = getB_TodoTaskOrder.ofA(local).get(orderSrcId).fold(List.empty[SrcId])(_.order)
-    val todoTaskMap = getB_TodoTask.ofA(local)
-    todoTaskMap.keys.filterNot(wasOrder.toSet).map(todoTaskMap).toList.sortBy(-_.createdAt).map(_.srcId) ::: wasOrder.filter(todoTaskMap.contains)
-  }
-  def events(keys: List[SrcId]): Seq[LEvent[Product]] =
-    LEvent.update(B_TodoTaskOrder(orderSrcId,keys))
+object ReplicaListRootView {
+  private case class Complete(process: ReadyProcess) extends VAction
+  private case class ForceRemove(process: ReadyProcess) extends VAction
 }
 
-@c4multi("TestTodoApp") final case class TodoSortHandler(todoSortOrder: TodoSortOrder)(
-  txAdd: LTxAdd
-) extends SortHandler {
-  def handle(
-    objKey: VDomKey,
-    orderKeys: (VDomKey,VDomKey)
-  ): Context => Context = local => {
-    val (orderKey0,orderKey1) = orderKeys
-    val order = todoSortOrder.getKeys(local).flatMap{
-      case k if k == objKey => Nil
-      case k if k == orderKey0 || k == orderKey1 => List(orderKey0,orderKey1)
-      case k => List(k)
-    }
-    txAdd.add(todoSortOrder.events(order))(local)
+@c4("TestTodoApp") final case class ReplicaBadShutdown(execution: Execution) extends Executable with LazyLogging {
+  def run(): Unit = {
+    logger.info("installing bad hook for master")
+    val ignoreRemove = execution.onShutdown("Bad",() => Thread.sleep(10000))
   }
 }
-
-/*
-branches:
-    S_BranchResult --> BranchRel-s
-    S_BranchResult [prev] + BranchRel-s --> BranchTask [decode]
-    ...
-    BranchHandler + BranchRel-s + MessageFromAlien-s -> TxTransform
-ui:
-    FromAlienState --> BranchRel [encode]
-    BranchTask --> FromAlienTask [match host etc]
-    BranchTask + View --> BranchHandler
-    BranchTask + CanvasHandler --> BranchHandler
-custom:
-    FromAlienTask --> View [match hash]
-    BranchTask --> CanvasHandler
-
-S_BranchResult --> BranchRel-s --> BranchTask --> [custom] --> BranchHandler --> TxTransform
-*/

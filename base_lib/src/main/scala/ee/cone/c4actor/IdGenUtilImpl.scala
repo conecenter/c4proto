@@ -3,7 +3,7 @@ package ee.cone.c4actor
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
 import java.security.MessageDigest
-import java.util.Base64
+import java.util.{Base64, UUID}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Interner
 import ee.cone.c4di.c4
@@ -34,4 +34,5 @@ import scala.collection.immutable.TreeMap
   def srcIdFromStrings(stringList: String*): SrcId = md5(stringList.map(toBytes):_*)
   def srcIdFromSerialized(adapterId: Long, bytes: ByteString): SrcId =
     md5(toBytes(adapterId),bytes.toByteArray)
+  def srcIdRandom(): SrcId = srcIdFromStrings(UUID.randomUUID.toString)
 }

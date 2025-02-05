@@ -1,8 +1,12 @@
 package ee.cone.c4ui
 
+import ee.cone.c4actor.Types.{LEvents, SrcId}
 import ee.cone.c4actor.{Context, TransientLens}
+import ee.cone.c4actor_branch.BranchTask
+import ee.cone.c4actor_branch.BranchTypes.BranchResult
+import ee.cone.c4gate.AlienProtocol.U_FromAlienState
 import ee.cone.c4vdom.Types.ViewRes
-import ee.cone.c4vdom.{VDomLens, VDomState, VDomView}
+import ee.cone.c4vdom.{Receiver, VDomLens, VDomState, VDomView}
 
 trait View extends VDomView[Context] with Product
 
@@ -30,3 +34,29 @@ case object ViewRestPeriodKey extends TransientLens[Option[ViewRestPeriod]](None
 trait ViewFailed {
   def of(local: Context): Boolean
 }
+
+trait VDomUntil {
+  def get(seeds: Seq[BranchResult]): Long
+}
+
+trait FromAlienTask extends Product {
+  def branchKey: SrcId
+  def branchTask: BranchTask
+  def userName: String
+  def fromAlienState: U_FromAlienState
+  def locationQuery: String
+  def locationHash: String
+}
+
+case object CurrentBranchKey extends TransientLens[SrcId]("")
+
+trait UpdatingReceiverFactory {
+  def create(updater: Updater, action: VAction): Receiver[Context]
+}
+trait Updater extends Product {
+  type Handler = String => Context => VAction => LEvents
+  def receive: Handler
+  def rc: UpdatingReceiverFactory
+  def rc(action: VAction): Receiver[Context] = rc.create(this, action)
+}
+trait VAction extends Product

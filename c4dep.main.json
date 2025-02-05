@@ -15,7 +15,7 @@
   ["C4GENERATOR_MAIN", "ee.cone.c4generator.Main", "generator.ee.cone.c4generator" ],
 
   ["C4CLIENT", "c4p", "client" ],
-  ["C4CLIENT", "c4f", "c4front" ],
+  ["C4CLIENT_APP", "ws-app", "c4p/test/ws-app.js"],
 
   ["C4SRC", "generator", "generator/src/main/scala" ],
   ["C4SRC", "base_lib", "base_lib/src/main/scala" ],
@@ -26,14 +26,10 @@
   ["C4SRC", "extra_lib", "extra_lib/src/main/java" ],
   ["C4SRC", "extra_examples", "extra_examples/src/main/scala" ],
 
-  ["C4SRC", "front", "c4front/src/sapi"],
-
   ["C4EXT", "extra_examples.ee.cone.c4actor", "org.scalameta:scalameta_2.13:4.2.3" ],
   ["#C4EXT", "extra_examples.ee.cone.c4actor", "org.scalameta:scalameta_2.13:4.3.0" ],
 
   "# com.lihaoyi % ammonite-sshd % 1.6.9 cross CrossVersion.full",
-
-  ["C4DEP", "front.ee.cone.c4ui", "base_lib.ee.cone.c4ui"],
 
   ["C4DEP", "base_examples.ee.cone.c4actor", "base_lib.ee.cone.c4actor_logback_impl" ],
   ["C4DEP", "base_examples.ee.cone.c4gate", "base_lib.ee.cone.c4gate" ],
@@ -47,7 +43,6 @@
   ["C4DEP", "base_examples.ee.cone.c4ui", "base_lib.ee.cone.c4actor_logback_impl" ],
   ["C4DEP", "base_examples.ee.cone.c4ui", "base_lib.ee.cone.c4actor_repl_impl" ],
   ["C4DEP", "base_examples.ee.cone.c4ui", "base_examples.ee.cone.c4vdom" ],
-  ["C4DEP", "base_examples.ee.cone.c4ui", "front.ee.cone.c4ui"],
   ["C4DEP", "base_examples.ee.cone.c4ui", "base_server.ee.cone.c4gate_akka"],
 
   ["C4DEP", "extra_examples.ee.cone.c4actor", "extra_lib.ee.cone.c4actor" ],

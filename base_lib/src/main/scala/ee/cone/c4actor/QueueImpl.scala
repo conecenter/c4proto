@@ -44,12 +44,7 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
   def send[M<:Product](local: Context): Context = {
     val updates: List[N_UpdateFrom] = WriteModelKey.of(local).toList
     if(updates.isEmpty) local else {
-      logger.debug(s"sending: ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
-      val (bytes, headers) = toUpdate.toBytes(updates)
-      val rec = new QRecordImpl(currentTxLogName, bytes, headers)
-      val offset = Single(getRawQSender.value).send(rec)
-      logger.debug(s"${updates.size} updates was sent -- $offset")
-      (new AssemblerProfiling).debugOffsets("sent", Seq(offset))
+      val offset = doSend(updates)
       Function.chain(
         Seq(
           WriteModelKey.set(Queue.empty),
@@ -57,6 +52,15 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
         )
       )(local)
     }
+  }
+  def doSend(updates: List[N_UpdateFrom]): NextOffset = {
+    logger.debug(s"sending: ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
+    val (bytes, headers) = toUpdate.toBytes(updates)
+    val rec = new QRecordImpl(currentTxLogName, bytes, headers)
+    val offset = Single(getRawQSender.value).send(rec)
+    logger.debug(s"${updates.size} updates was sent -- $offset")
+    (new AssemblerProfiling).debugOffsets("sent", Seq(offset))
+    offset
   }
 }
 
