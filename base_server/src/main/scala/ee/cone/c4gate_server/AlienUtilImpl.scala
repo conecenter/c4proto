@@ -43,8 +43,9 @@ case class AlienExchangeStateImpl(
     } else _=>Nil
   }
   def send(value: String): AlienExchangeState = {
-    val Seq("bs1", modeStr, branchKey, sessionKey, patches) = fromAlienWishUtil.parseSeq(value)
+    val Seq("bs1", modeStr, branchKey, sessionFullKey, patches) = fromAlienWishUtil.parseSeq(value)
     val isMain = modeStr match { case "m" => true case "s" => false }
+    val sessionKey = sessionUtil.check(sessionFullKey)
     val willState = AlienExchangeStateImpl(isMain, branchKey, sessionKey, 0L)
     val setStatus = prepStatus(willState, isOnline = true)
     runUpdCheck(world => setStatus(world) ++ fromAlienWishUtil.trySetWishes(world, branchKey, sessionKey, patches))
