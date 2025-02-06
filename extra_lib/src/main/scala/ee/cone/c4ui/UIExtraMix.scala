@@ -4,7 +4,7 @@ import ee.cone.c4actor._
 import ee.cone.c4actor_branch.{BranchOperations, ToAlienSender}
 import ee.cone.c4di.c4
 import ee.cone.c4gate.ToAlienMessageUtil
-import ee.cone.c4gate_akka.SimpleAkkaGatewayApp
+import ee.cone.c4gate_akka.AkkaGatewayApp
 import ee.cone.c4vdom.{ChildPairFactory, TagJsonUtils, VDomResolver}
 
 import scala.collection.immutable.Seq
@@ -15,7 +15,7 @@ trait VDomApp extends ComponentProviderApp {
   lazy val vDomResolver: VDomResolver = resolveSingle(classOf[VDomResolver])
 }
 
-trait ExtraUIApp extends UICompApp with VDomApp with AlienExchangeApp with SimpleAkkaGatewayApp {
+trait ExtraUIApp extends UICompApp with VDomApp with AlienExchangeApp with AkkaGatewayApp {
   lazy val branchOperations: BranchOperations = resolveSingle(classOf[BranchOperations])
   lazy val untilPolicy: UntilPolicy = resolveSingle(classOf[UntilPolicy])
 }

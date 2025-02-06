@@ -29,4 +29,5 @@ trait PublicViewAssembleAppBase
   with LZ4RawCompressorApp
   with AuthProtocolApp
   with AuthOperationsApp
+  with AkkaGatewayApp
   //with AlienProtocolApp

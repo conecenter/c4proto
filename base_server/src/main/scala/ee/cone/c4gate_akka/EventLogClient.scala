@@ -1,10 +1,8 @@
 package ee.cone.c4gate_akka
 
-import akka.NotUsed
 import akka.http.scaladsl.model.ws.{Message, TextMessage, UpgradeToWebSocket}
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
-import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
-import akka.util.ByteString
+import akka.stream.scaladsl.{Flow, Sink, Source}
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Execution
 import ee.cone.c4di.c4

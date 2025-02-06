@@ -21,16 +21,19 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.control.NonFatal
 
-@c4("AkkaMatApp") final class AkkaMatImpl(configs: List[AkkaConf], execution: Execution, matPromise: Promise[ActorMaterializer] = Promise()) extends AkkaMat with Executable with Early {
+trait AkkaHttp {
+  def get: Future[HttpExt]
+}
+
+@c4("AkkaGatewayApp") final class AkkaMatImpl(
+  execution: Execution, matPromise: Promise[ActorMaterializer] = Promise()
+) extends AkkaMat with Executable with Early {
   def get: Future[ActorMaterializer] = matPromise.future
   def run(): Unit = {
-    val config = ConfigFactory.parseString(configs.map(_.content).sorted.mkString("\n"))
+    val config = ConfigFactory.parseString(content)
     val system = ActorSystem.create("default",config)
     execution.success(matPromise, ActorMaterializer.create(system))
   }
-}
-
-@c4("AkkaGatewayApp") final class AkkaHttpServerConf extends AkkaConf {
   def content: String = List(
     //"akka.log-config-on-start = on",
     "akka.http.server.idle-timeout = 300 s",
@@ -108,7 +111,7 @@ import scala.util.control.NonFatal
     } yield response
 }
 
-@c4("SimpleAkkaGatewayApp") final class AkkaHttpServer(
+@c4("AkkaGatewayApp") final class AkkaHttpServer(
   config: Config, execution: Execution, akkaMat: AkkaMat, akkaHttp: AkkaHttp,
   handlersUnsorted: List[AkkaRequestHandler]
 )(
