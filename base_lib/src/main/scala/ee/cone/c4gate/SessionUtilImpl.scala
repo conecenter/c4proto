@@ -19,11 +19,15 @@ import java.time.Instant
 ) extends SessionUtil {
   def create(userName: String, headers: List[N_Header]): (String, LEvents) = {
     val (logKey, logEvents) = eventLogUtil.create()
-    val sessionKey = idGenUtil.srcIdRandom()
+    val sessionRandomKey = idGenUtil.srcIdRandom()
+    val sessionKey = idGenUtil.srcIdFromStrings(sessionRandomKey)
     val until = Instant.now.plusSeconds(20).getEpochSecond
     val session = U_AuthenticatedSession(sessionKey, userName, until, headers, logKey)
     val status = U_FromAlienStatus(sessionKey, until, isOnline = true)
-    (sessionKey, LEvent.update(Seq(session, status)) ++ logEvents)
+    (s"$sessionKey:$sessionRandomKey", LEvent.update(Seq(session, status)) ++ logEvents)
+  }
+  def check(sessionFullKey: String): String = sessionFullKey.split(":") match {
+    case Array(sessionKey, sessionRandomKey) if sessionKey == idGenUtil.srcIdFromStrings(sessionRandomKey) => sessionKey
   }
   def purge(local: Context, sessionKey: String): LEvents = {
     def rm[T<:Product](get: GetByPK[T]): LEvents = get.ofA(local).get(sessionKey).toSeq.flatMap(LEvent.delete)

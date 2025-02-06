@@ -6,6 +6,7 @@ import ee.cone.c4gate.HttpProtocol.N_Header
 
 trait SessionUtil {
   def create(userName: String, headers: List[N_Header]): (String, LEvents)
+  def check(sessionFullKey: String): String
   def purge(local: Context, sessionKey: String): LEvents
   def trySetStatus(world: AssembledContext, sessionKey: String, expirationSecond: Long, isOnline: Boolean): LEvents
   def expired(local: AssembledContext, sessionKey: String): Boolean

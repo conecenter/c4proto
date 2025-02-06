@@ -69,8 +69,8 @@ import scala.concurrent.duration.Duration
     case _ => next(request, local)
   } else next(request, local)
   private def makeSession(request: S_HttpRequest, userName: String) = {
-    val (sessionKey, events) = sessionUtil.create(userName, request.headers)
-    deferredResponse(request, _.copy(body=rawJson("sessionKey", sessionKey)), events.toList)
+    val (sessionFullKey, events) = sessionUtil.create(userName, request.headers)
+    deferredResponse(request, _.copy(body=rawJson("sessionKey", sessionFullKey)), events.toList)
   }
   // limit == 2; when limit is not provided or limit is 0 it discards trailing empty strings
   private def bodySplitUserPass(body: String, local: Context): (SrcId, SrcId, Option[N_SecureHash]) = {
@@ -80,9 +80,10 @@ import scala.concurrent.duration.Duration
   private def rawJson(k: String, v: String): ByteString = ByteString.encodeUtf8(s"""{"$k":"$v"}""")
   private def withSession(
     request: S_HttpRequest, local: Context, f: U_AuthenticatedSession=>RHttpResponse
-  ): RHttpResponse = (for(
-    sessionKey <- header(request, "x-r-session"); session <- getU_AuthenticatedSession.ofA(local).get(sessionKey)
-  ) yield session).fold(directResponse(request, _.copy(status = 400, body=rawJson("error","missing"))))(f)
+  ): RHttpResponse = (for {
+    sessionFullKey <- header(request, "x-r-session")
+    session <- getU_AuthenticatedSession.ofA(local).get(sessionUtil.check(sessionFullKey))
+  } yield session).fold(directResponse(request, _.copy(status = 400, body=rawJson("error","missing"))))(f)
   def header(request: S_HttpRequest, key: String): Option[String] =
     request.headers.find(_.key == key).map(_.value)
 }
