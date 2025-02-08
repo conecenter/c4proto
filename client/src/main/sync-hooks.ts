@@ -14,7 +14,7 @@ export const UseSyncMod: (useBranch: ()=>SyncBranchContext) => UseSync = useBran
     const {enqueue} = useBranch()
     const enqueuePatch = useCallback((aPatch: UnsubmittedPatch) => {
         const index = enqueue(identity, aPatch)
-        setPatches(aPatches=>[...aPatches,{...aPatch, identity, index}])
+        setPatches(aPatches=>[...aPatches,{...aPatch, identity, index, at: Date.now()}])
     },[enqueue,identity])
     const ack = useContext(patches.length>0 ? AckContext : NoContext)
     useEffect(()=>{

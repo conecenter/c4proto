@@ -19,13 +19,16 @@ const eventToPatch = (e) => ({headers: e.target.headers, value: e.target.value, 
 
 function useSyncInput(patches,enqueuePatch,incomingValue,deferSend) {
     /** @type {React.MutableRefObject<import('../main/util.ts').UnsubmittedPatch | null>} */
-    const lastPatch = useRef(null);
-    const defer = deferSend(!!lastPatch.current)
+    const lastPatch = useRef(null)
     const onChange = useCallback(event => {
         const patch = eventToPatch(event)
+        const defer = deferSend(!!lastPatch.current)
+        // we try to ignore `defer` later for now; 
+        // it can not be used to reliably prevent sending, because random non-defer-ed event will flush queue anyway;
+        // it seems to be either: responsibility of server to defer handling, or component not to enqueue before blur;
         enqueuePatch({...patch, headers: {...patch.headers,"x-r-changing":"1"}, defer})
         lastPatch.current = patch
-    }, [enqueuePatch, defer])
+    }, [enqueuePatch])
     const onBlur = useCallback(event => {
         const replacingPatch = event?.replaceLastPatch && eventToPatch(event)
         if (lastPatch.current) enqueuePatch(replacingPatch || lastPatch.current)
@@ -164,9 +167,9 @@ export const RootComponents = ({createSyncProviders,checkActivate,receivers}) =>
         return createElement("iframe", {...props, style, ref})
     }
     const SyncRoot = (prop) => {
-        const { enqueue, children, availability, ack, isBusy, failure } = useSyncRoot(prop)
+        const { enqueue, children, ack, busyFor, failure } = useSyncRoot(prop)
         const { createNode, sessionKey, branchKey, isRoot, win, login } = prop
-        const sender = useMemo(()=>({ enqueue, ctxToPath, isBusy }), [enqueue, ctxToPath, isBusy])
+        const sender = useMemo(()=>({ enqueue, ctxToPath, busyFor }), [enqueue, ctxToPath, busyFor])
         return createSyncProviders({sender,ack,isRoot,branchKey,children:
             createBranchProvider({createNode, sessionKey, branchKey, isRoot, win, login, enqueue, children: [
                 failure && createElement('div', {key: 'failure'}, `VIEW FAILED: ${failure}`),

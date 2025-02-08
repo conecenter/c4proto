@@ -5,7 +5,6 @@ import {weakCache,assertNever,getKey,asObject,asString,ObjS,EnqueuePatch,Patch,U
 
 
 const asArray = (u: unknown): unknown[] => Array.isArray(u) ? u : assertNever("bad array")
-const asBoolean = (u: unknown) => typeof u === "boolean" ? u : assertNever("bad boolean")
 
 ////
 
@@ -73,6 +72,7 @@ const Receiver = ({setState,doAck,createNode}:ReceiverArgs) => {
         Object.keys(spec).forEach(key=>{
             //console.log("U",key,spec[key])
             const sValue: object = asObjectOrArray(spec[key])
+            // @ts-expect-error
             const value = Array.isArray(sValue) ? sValue : "$set" in sValue ? sValue["$set"] : sValue
             const cIdentity = pIdentity === "root" ? "" : resolve(pIdentity, key)
             if(isIncomingKey(key)) 
@@ -97,7 +97,6 @@ const Receiver = ({setState,doAck,createNode}:ReceiverArgs) => {
     const receive = (data: string) => {
         const message = asObject(JSON.parse(data))
         const log = asArray(getKey(message,"log"))
-        const availability = asBoolean(getKey(message,"availability"))
         const observerKey = asString(getKey(message,"observerKey"))
         log.forEach(d => {
             //console.log("I", res, d)
@@ -116,8 +115,8 @@ const Receiver = ({setState,doAck,createNode}:ReceiverArgs) => {
         const failure = failureU ? asString(failureU) : ""
         const children = asArray(getKeyOpt(rootElement,"children") ?? [])
         setState(was => (
-            log.length === 0 && was.availability === availability && was.ack === ack && was.failure === failure ? 
-            was : ({ ...was, availability, children, ack, failure }) 
+            log.length === 0 && was.ack === ack && was.failure === failure ?
+            was : ({ ...was, children, ack, failure })
         ))
     }
     return {receive}
@@ -146,7 +145,7 @@ const PatchManager = () => {
     const enqueue: EnqueuePatch = (identity, patch) => {
         const index = nextPatchIndex++
         const skip = (p: Patch) => p.skipByPath && p.identity === identity
-        patches = [...patches.filter(p=>!skip(p)), {...patch, index, identity}]
+        patches = [...patches.filter(p=>!skip(p)), {...patch, index, identity, at: Date.now()}]
         return index
     }
     const doAck: AckPatches = (index: number) => {
@@ -159,21 +158,20 @@ const PatchManager = () => {
 const StartedSyncManager: (args: SyncManagerStartArgs)=>StartedSyncManager = ({
     setState, reloadBranchKey, createNode, isRoot, sessionKey, branchKey, win
 }) => {
-    let lastPatchInd = 0;
     const send = (identity: Identity, patch: UnsubmittedPatch) => {
         const index = enqueue(identity, patch)
-        if (!patch.defer) {
-            lastPatchInd = index
-            doSend()
-        }
+        doSend()
         return index
     }
     const {enqueue, doAck, getPatches} = PatchManager()
     const {receive} = Receiver({setState, doAck, createNode})
     const stateToSend = () => serializeState({isRoot, sessionKey, branchKey, patches: getPatches()})
     const {close, doSend} = ReConnection({win, url: "/eventlog", onData: receive, stateToSend, onClose: reloadBranchKey})
-    const isBusy = (ack: number) => lastPatchInd > ack
-    return {enqueue: send, stop: close, isBusy}
+    const busyFor = () => {
+        const patch = getPatches()[0]
+        return patch ? patch.at - Date.now() : 0
+    }
+    return {enqueue: send, stop: close, busyFor}
 }
 const SyncManager = (): SyncManager => {
     let inner: StartedSyncManager | undefined
@@ -184,34 +182,30 @@ const SyncManager = (): SyncManager => {
     const getInner = () => inner ?? assertNever("not started")
     const enqueue: EnqueuePatch = (identity, patch) => getInner().enqueue(identity, patch)
     const stop: ()=>void = () => getInner().stop()
-    const isBusy = (ack: number) => !!inner?.isBusy(ack)
-    return {start, enqueue, stop, isBusy}
+    const busyFor = () => inner?.busyFor() ?? 0
+    return {start, enqueue, stop, busyFor}
 }
 
 type SyncManagerStartArgs = {
     setState: SetState<SyncRootState>, reloadBranchKey: ()=>void,
     createNode: CreateNode, sessionKey: string, branchKey: string, isRoot: boolean, win: Window
 }
-type StartedSyncManager = { enqueue: EnqueuePatch, stop: ()=>void, isBusy: (ack:number)=>boolean }
+type StartedSyncManager = { enqueue: EnqueuePatch, stop: ()=>void, busyFor: ()=>number }
 type SyncManager = { start(args: SyncManagerStartArgs): void } & StartedSyncManager
-type SyncRootState = { 
-    manager: SyncManager, availability: boolean, children: unknown[], ack: number, failure: string 
-}
+type SyncRootState = { manager: SyncManager, children: unknown[], ack: number, failure: string }
 
 /* react specific part */
 
-const initSyncRootState = (): SyncRootState => ({ 
-    manager: SyncManager(), availability: false, children: [], ack: 0, failure: "" 
-})
+const initSyncRootState = (): SyncRootState => ({ manager: SyncManager(), children: [], ack: 0, failure: "" })
 export type UseSyncRootArgs = {
     createNode: CreateNode, win: Window, sessionKey: string, branchKey: string, reloadBranchKey: ()=>void, isRoot: boolean
 }
 export const useSyncRoot = ({ createNode, isRoot, sessionKey, branchKey, win, reloadBranchKey }: UseSyncRootArgs) => {
-    const [{manager, children, availability, ack, failure}, setState] = useState<SyncRootState>(initSyncRootState)
-    const {start, enqueue, stop, isBusy} = manager
+    const [{manager, children, ack, failure}, setState] = useState<SyncRootState>(initSyncRootState)
+    const {start, enqueue, stop, busyFor} = manager
     useEffect(()=>{
         start({setState, reloadBranchKey, createNode, sessionKey, branchKey, isRoot, win})
         return () => stop()
     }, [start, setState, reloadBranchKey, createNode, sessionKey, branchKey, isRoot, win, stop])
-    return {enqueue, children, availability, ack, isBusy, failure}
+    return {enqueue, children, ack, busyFor, failure}
 }

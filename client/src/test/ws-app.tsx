@@ -74,9 +74,15 @@ const ExampleCanvasMod = (useCanvas: UseCanvas) => ({sizesValue,identity,figures
         commandsFinally: [...cmd("setMainContext"), ...cmd("restore")],
     })
     const [parentNode, ref] = useState<HTMLElement|undefined>()
+
+    const [sizePatches, enqueueSizePatch] = useSync(sizesChangeIdOf(identity))
+    const mergedSizesValue = mergeSimple(sizesValue, sizePatches)
+    const onChange = ({target:{value}}:{target:{value:string}}) => {
+        enqueueSizePatch(patchFromValue(value))
+    }
     const cProps = {
         parentNode,
-        value: sizesValue, identity: sizesChangeIdOf(identity), style: {height:"100vh"},
+        value: mergedSizesValue, onChange, style: {height:"100vh"},
         width: 100, height: 100, options: exampleCanvasOptions, 
         zoomSteps: 4096, minCmdUnitsPerEMZoom: 0, initialFit: "xy", isGreedy: true,
         commands: [], children: figures.map(figure), commandsFinally: [],
@@ -183,15 +189,9 @@ function ExampleMenu(
     </div>
 }
 
-function Availability({availability}: {availability: boolean}){
-    return <div style={{padding:"2pt"}}>
-        availability {availability?"yes":"no"}
-    </div>
-}
-
 type SyncRootArgs = UseSyncRootArgs & {login: Login}
 function SyncRoot(prop: SyncRootArgs){
-    const { enqueue, children, availability, ack, failure } = useSyncRoot(prop)
+    const { enqueue, children, ack, failure } = useSyncRoot(prop)
     const { 
         createNode, sessionKey, branchKey, isRoot, win, login 
     } = prop
@@ -202,7 +202,6 @@ function SyncRoot(prop: SyncRootArgs){
     return <StrictMode>
         <BranchContext.Provider value={branchContextValue}>
             <AckContext.Provider value={ack}>
-                {isRoot ? <Availability key="availability" availability={availability}/> : ""}
                 {failure ? <div>VIEW FAILED: {failure}</div> : ""}
                 {children}
             </AckContext.Provider>
@@ -212,18 +211,10 @@ function SyncRoot(prop: SyncRootArgs){
 
 function App({createNode,win}:{ createNode: CreateNode, win: Window }){
     const {result,failure} = useSessionManager(win)
-    return result
-        ? <SyncRoot {...{createNode,...result}}/>
-        : <span>{failure ? `SESSION INIT FAILED: ${failure}` : ""}</span>
+    return result ? <SyncRoot {...{createNode,...result}}/> : 
+        <span>{failure ? `SESSION INIT FAILED: ${failure}` : ""}</span>
 }
 
-
-/*
-const splitFirst = (value: string): [string,string] = {}
-// todo provide receivers
-const [k,v] = splitFirst(value)
-            (receivers[k]||[]).forEach(r => r(v)) 
-*/
 type BranchContext = {
     createNode: CreateNode, sessionKey: string, 
     branchKey: string, enqueue: EnqueuePatch, isRoot: boolean, win: Window, login: Login 
@@ -246,7 +237,11 @@ export const main = ({win, canvasFactory}: {win: Window, canvasFactory: CanvasFa
         span: NativeElement, ...locationComponents, ...toAlienMessageComponents,
         ExampleLogin, ExampleMenu, ExampleTodoTaskList, TestSessionList, ExampleCanvas, ExampleReverting, ExampleReplicaList
     }
-    const createNode: CreateNode = at => "tp" in at ? createElement(typeTransforms[asString(at["tp"])], at) : at
+    //const createNode: CreateNode = at => "tp" in at ? createElement(typeTransforms[asString(at["tp"])], at) : at
+    const createNode: CreateNode = at => {
+        const constr = typeTransforms[asString(at["tp"])]
+        return constr ? createElement(constr, at) : at
+    }
     const [root, unmount] = doCreateRoot(win.document.body)
     root.render(<App createNode={createNode} win={win}/>)
 }
