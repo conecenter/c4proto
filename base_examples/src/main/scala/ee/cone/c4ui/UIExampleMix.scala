@@ -6,6 +6,7 @@ import ee.cone.c4actor_logback_impl.BasicLoggingApp
 import ee.cone.c4actor_repl_impl.SSHDebugApp
 import ee.cone.c4di.c4app
 import ee.cone.c4gate._
+import ee.cone.c4gate_akka.AkkaGatewayApp
 
 trait PublicViewAssembleAppBase
 

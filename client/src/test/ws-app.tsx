@@ -239,7 +239,8 @@ export const main = ({win, canvasFactory}: {win: Window, canvasFactory: CanvasFa
     }
     //const createNode: CreateNode = at => "tp" in at ? createElement(typeTransforms[asString(at["tp"])], at) : at
     const createNode: CreateNode = at => {
-        const constr = typeTransforms[asString(at["tp"])]
+        const tp = at["tp"]
+        const constr = tp ? typeTransforms[asString(tp)] : undefined
         return constr ? createElement(constr, at) : at
     }
     const [root, unmount] = doCreateRoot(win.document.body)

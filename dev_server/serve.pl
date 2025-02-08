@@ -90,7 +90,7 @@ my $serve_node = sub{
     my $conf = JSON::XS->new->decode(syf("cat $repo_dir/c4dep.main.json"));
     my %will = map{ ref && $$_[0] eq "C4CLIENT" ? ("$vite_run_dir/src/$$_[1]","$repo_dir/$$_[2]/src"):() } @$conf;
     sy("mkdir", "-p", "$vite_run_dir/src");
-    symlink $will{$_}, $_ for sort keys %will; #todo recreate
+    readlink($_) or symlink($will{$_}, $_) or die $_ for sort keys %will; #todo recreate
     &$put_text("$vite_run_dir/package.json", JSON::XS->new->encode({
         "devDependencies" => {"esbuild" => "^0.21.5"},
         "dependencies" => { "react" => "^18.3.1", "react-dom" => "^18.3.1" },
