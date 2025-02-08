@@ -16,7 +16,7 @@ type CanvasCommands = unknown[]
 type CanvasPart = {
     commands: CanvasCommands
     commandsFinally: CanvasCommands
-    identity: Identity
+    identity?: Identity
     children: CanvasPart[]
 }
 type CanvasState = {
@@ -32,7 +32,7 @@ type CanvasOptions = {[K:string]:unknown}
 export type CanvasFactory = (opt: CanvasOptions)=>C4Canvas
 
 type CanvasProps = CanvasPart & {
-    onChange: (e: {target:{value:string}})=>void, parentNode: HTMLElement|undefined,
+    onChange: (ev: {target:{value:string}})=>void, parentNode: HTMLElement|undefined,
     isGreedy: boolean, value: string, style: {[K:string]:string}, options: CanvasOptions
 }
 
@@ -52,7 +52,7 @@ const colorKeyGen = (fromN: number) => `rgb(${color(fromN,2)},${color(fromN,1)},
 const colorKeyMarker = "[colorPH]"
 const makeColor = (index: number) => ({index,value:colorKeyGen(index)})
 const gatherDataFromPathTree = weakCache((prop: CanvasPart): [CanvasCommands,{[K:string]:string}] => {
-    const [takeColors, addColors] = Buffer<[string,Identity]>()
+    const [takeColors, addColors] = Buffer<[string,Identity|undefined]>()
     const [takeCommands, addCommands] = Buffer<unknown>()
     let color = makeColor(0)
     const traverse = (node: CanvasPart) => {
@@ -78,7 +78,7 @@ const parseValue = (value: string) => {
 type CanvasBranchContext = { enqueue: EnqueuePatch, isRoot: boolean, win: Window }
 type CanvasModArgs = { canvasFactory: CanvasFactory, useSync: UseSync, useBranch: ()=>CanvasBranchContext }
 export type UseCanvas = (props: CanvasProps) => ObjS<string>
-export const UseCanvas = ({canvasFactory,useSync,useBranch}:CanvasModArgs) => (prop:CanvasProps) => {
+export const UseCanvas = ({canvasFactory,useBranch}:CanvasModArgs) => (prop:CanvasProps) => {
     const {onChange, value, isGreedy, style: argStyle, options, parentNode} = prop
     const {enqueue,isRoot,win} = useBranch()
     const [canvas, setCanvas] = useState<C4Canvas|undefined>()

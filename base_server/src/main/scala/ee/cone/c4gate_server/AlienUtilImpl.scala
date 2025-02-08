@@ -2,10 +2,10 @@ package ee.cone.c4gate_server
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.LEvents
-import ee.cone.c4actor.{AssembledContext, GetByPK, ListConfig}
+import ee.cone.c4actor.{AssembledContext, ListConfig}
 import ee.cone.c4assemble.Single
 import ee.cone.c4di.c4
-import ee.cone.c4gate.{ByPathHttpPublicationUntil, EventLogUtil, FromAlienWishUtil, SessionUtil}
+import ee.cone.c4gate.{EventLogUtil, FromAlienWishUtil, SessionUtil}
 
 import java.time.Instant
 
@@ -14,7 +14,7 @@ case class AlienExchangeStateImpl(
 ) extends AlienExchangeState
 
 @c4("AbstractHttpGatewayApp") final class AlienUtilImpl(
-  worldProvider: WorldProvider, getPublication: GetByPK[ByPathHttpPublicationUntil],
+  worldProvider: WorldProvider,
   eventLogUtil: EventLogUtil, fromAlienWishUtil: FromAlienWishUtil, sessionUtil: SessionUtil, listConfig: ListConfig,
 ) extends AlienUtil with LazyLogging {
   import WorldProvider._
@@ -27,10 +27,9 @@ case class AlienExchangeStateImpl(
       val readRes = eventLogUtil.read(world, st.branchKey, st.pos)
       val now = Instant.now
       if (readRes.events.nonEmpty || now.isAfter(until)) {
-        val availability = getPublication.ofA(world).get("/availability").exists(_.until > now.toEpochMilli)
         val log = readRes.events.filter(_.nonEmpty).mkString("[",",","]")
         val observerKey = fromAlienWishUtil.observerKey(st.branchKey, st.sessionKey)
-        val message = s"""{"availability":$availability,"observerKey":"$observerKey","log":$log}"""
+        val message = s"""{"observerKey":"$observerKey","log":$log}"""
         Stop((st.copy(pos=readRes.next), message))
       } else Redo()
     }):Steps[(AlienExchangeState, String)])

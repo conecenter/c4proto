@@ -59,8 +59,8 @@ export const asObject = (u: unknown) => isObjS(u) ? u : assertNever("bad object"
 export const asString = (u: unknown) => typeof u === "string" ? u : assertNever("bad string")
 
 export type Identity = string // identity is string, it should not change on patch, it's in many hook deps
-export type UnsubmittedPatch = { skipByPath: boolean, defer?: boolean, value: string, headers?: ObjS<string>, onAck?: ()=>void }
-export type Patch = UnsubmittedPatch & { identity: Identity, index: number }
+export type UnsubmittedPatch = { skipByPath: boolean, value: string, headers?: ObjS<string>, onAck?: ()=>void }
+export type Patch = UnsubmittedPatch & { identity: Identity, index: number, at: number }
 export type EnqueuePatch = (identity: Identity, patch: UnsubmittedPatch) => number
 export type CreateNode = (at: ObjS<unknown>) => object
 export type Login = (user: string, pass: string) => Promise<void>
