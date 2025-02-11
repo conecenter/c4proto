@@ -125,15 +125,15 @@ object FromAlienWishUtilImpl{
   getFromAlienState: GetByPK[U_FromAlienState],
   getFromAlienStatus: GetByPK[U_FromAlienStatus],
 ) extends SessionListUtil {
-  def list(world: AssembledContext): Seq[SessionListItem] = {
-    val statuses = getFromAlienStatus.ofA(world)
-    val states = getFromAlienState.ofA(world)
-    getAuthenticatedSession.ofA(world).values.toSeq.sortBy(_.logKey).map{ session =>
-      val isOnline = statuses.get(session.sessionKey).exists(_.isOnline)
-      val location = states.get(session.sessionKey).fold("")(_.location)
-      SessionListItem(branchKey = session.logKey, userName = session.userName, location = location, isOnline = isOnline)
+  def list(world: AssembledContext): Seq[SessionInfo] =
+    getAuthenticatedSession.ofA(world).values.toSeq.sortBy(_.logKey)
+      .flatMap{ session => getBySessionKey(world,session.sessionKey) }
+  def getBySessionKey(world: AssembledContext, sessionKey: SrcId): Option[SessionInfo] =
+    getAuthenticatedSession.ofA(world).get(sessionKey).map{ session =>
+      val isOnline = getFromAlienStatus.ofA(world).get(session.sessionKey).exists(_.isOnline)
+      val location = getFromAlienState.ofA(world).get(session.sessionKey).fold("")(_.location)
+      SessionInfo(branchKey = session.logKey, userName = session.userName, location = location, isOnline = isOnline)
     }
-  }
 }
 
 @c4("SessionUtilApp") final class ToAlienMessageUtilImpl(

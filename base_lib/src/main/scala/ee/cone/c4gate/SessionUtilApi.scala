@@ -34,9 +34,10 @@ trait FromAlienWishUtil {
   def purgeAllExpired(world: AssembledContext): LEvents
 }
 
-case class SessionListItem(branchKey: String, userName: String, location: String, isOnline: Boolean)
+case class SessionInfo(branchKey: String, userName: String, location: String, isOnline: Boolean)
 trait SessionListUtil {
-  def list(world: AssembledContext): Seq[SessionListItem]
+  def list(world: AssembledContext): Seq[SessionInfo]
+  def getBySessionKey(world: AssembledContext, sessionKey: String): Option[SessionInfo]
 }
 
 trait ToAlienMessageUtil {
