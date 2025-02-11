@@ -51,7 +51,7 @@ const color = (fromN: number, pos: number) => {
 const colorKeyGen = (fromN: number) => `rgb(${color(fromN,2)},${color(fromN,1)},${color(fromN,0)})`
 const colorKeyMarker = "[colorPH]"
 const makeColor = (index: number) => ({index,value:colorKeyGen(index)})
-const gatherDataFromPathTree = weakCache((prop: CanvasPart): [CanvasCommands,{[K:string]:string}] => {
+const gatherDataFromPathTree = weakCache((prop: CanvasPart): [CanvasCommands,{[K:string]:string|undefined}] => {
     const [takeColors, addColors] = Buffer<[string,Identity|undefined]>()
     const [takeCommands, addCommands] = Buffer<unknown>()
     let color = makeColor(0)
