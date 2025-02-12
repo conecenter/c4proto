@@ -40,7 +40,7 @@ const ReConnection = ({win,url,onData,stateToSend,onClose}:ConnectionParams) => 
     }
     const periodic = win.setInterval(() => {
         Date.now() - wasFullAt > 30000 ? doSend() : innerSend("")
-        Date.now() - wasAt > 5000 ? innerClose() : ws && ws.readyState > ws.OPEN && open()
+        ws && ws.readyState > ws.OPEN ? open() : Date.now() - wasAt > 5000 ? innerClose() : null
     }, 1000)
     const close = () => {
         win.clearInterval(periodic)
@@ -169,7 +169,7 @@ const StartedSyncManager: (args: SyncManagerStartArgs)=>StartedSyncManager = ({
     const {close, doSend} = ReConnection({win, url: "/eventlog", onData: receive, stateToSend, onClose: reloadBranchKey})
     const busyFor = () => {
         const patch = getPatches()[0]
-        return patch ? patch.at - Date.now() : 0
+        return patch ? Date.now() - patch.at : 0
     }
     return {enqueue: send, stop: close, busyFor}
 }
