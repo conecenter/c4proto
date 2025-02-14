@@ -40,5 +40,4 @@ class SnapshotParserApp
   }
 
   override def toStart: List[Executable] = new SnapshotParser(execution, toUpdate, new SnapshotLoaderImpl(loader), qAdapterRegistry) :: super.toStart
-  def assembleProfiler: AssembleProfiler = NoAssembleProfiler
 }

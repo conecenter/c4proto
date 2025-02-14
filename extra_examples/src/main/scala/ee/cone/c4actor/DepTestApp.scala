@@ -123,7 +123,7 @@ case class TestTransform(srcId: SrcId, access: Any) extends TxTransform {
 @c4app trait DepTestAppBase extends TestVMRichDataApp
   with ExecutableApp
   with VMExecutionApp
-  with SimpleAssembleProfilerApp
+  with SimpleAssembleProfilerCompApp
   with ModelAccessFactoryCompApp
   with DepTestAssemble
   with CommonRequestUtilityMix

@@ -75,6 +75,4 @@ case class ConflictRich(conflict: D_ConflictOrig)
   with ProtoConflictApp
 {
   override def assembles: List[Assemble] = new AssembleConflict(D_ConflictOrig("main", 0)) :: super.assembles
-
-  lazy val assembleProfiler = ConsoleAssembleProfiler //ValueAssembleProfiler
 }

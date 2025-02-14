@@ -178,8 +178,6 @@ case class ResultNodeFromList(srcId: SrcId, modelsSize: Int, result: String)
 {
 
   override def assembles: List[Assemble] = new LUL(classOf[D_PerformanceNode], classOf[D_NodeInstruction], classOf[Int]) :: new LUL(classOf[String], classOf[D_NodeInstruction], classOf[Int]) :: new ChangingIndexAssemble(D_NodeInstruction("test", 0, 25000)) :: super.assembles
-
-  lazy val assembleProfiler = ConsoleAssembleProfiler //ValueAssembleProfiler
 }
 /*
 object ValueAssembleProfiler extends AssembleProfiler {

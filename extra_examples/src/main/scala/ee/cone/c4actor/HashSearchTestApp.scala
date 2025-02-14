@@ -301,8 +301,6 @@ trait TestCondition extends SerializationUtilsApp {
       super.assembles
   }
 
-  lazy val assembleProfiler = NoAssembleProfiler //ConsoleAssembleProfiler //ValueAssembleProfiler2
-
   def dynamicIndexRefreshRateSeconds: Long = 1L
 
   //override def dynamicIndexNodeDefaultSetting: S_IndexNodeSettings = S_IndexNodeSettings("", false, Some(100L))

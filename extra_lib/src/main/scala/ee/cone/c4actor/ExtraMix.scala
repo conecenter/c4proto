@@ -50,30 +50,14 @@ trait ToInjectApp extends ComponentsApp {
 
 @deprecated trait PreHashingApp
 
-trait ServerApp extends ServerCompApp with RichDataApp with DeadlockDetectApp { //e-only
-  lazy val snapshotLoader: SnapshotLoader = resolveSingle(classOf[SnapshotLoader])
-  lazy val qMessages: QMessages = resolveSingle(classOf[QMessages])
-  lazy val consuming: Consuming = resolveSingle(classOf[Consuming])
-  lazy val rawQSender: RawQSender = resolveSingle(classOf[RawQSender])
-  //
-  lazy val remoteSnapshotUtil: RemoteSnapshotUtil = resolveSingle(classOf[RemoteSnapshotUtil])
-  lazy val snapshotMaker: SnapshotMaker = resolveSingle(classOf[SnapshotMaker])
-  lazy val rawSnapshotLoader: RawSnapshotLoader = resolveSingle(classOf[RawSnapshotLoader])
-}
+trait ServerApp extends ServerCompApp with RichDataApp with DeadlockDetectApp //e-only
 
 trait TestVMRichDataApp extends TestVMRichDataCompApp
   with RichDataApp
   with ToStartApp
-{// extra-only
-  lazy val contextFactory: ContextFactory = resolveSingle(classOf[ContextFactory])
-  lazy val actorName: String = getClass.getName
-}
+// extra-only
+  //actorName: String = getClass.getName
 
-trait MortalFactoryApp extends MortalFactoryCompApp with ComponentProviderApp {
-  def mortal: MortalFactory = resolveSingle(classOf[MortalFactory])
-}
-
-@deprecated trait SimpleIndexValueMergerFactoryApp
 @deprecated trait TreeIndexValueMergerFactoryApp
 
 trait RichDataAppBase extends RichDataCompApp
@@ -86,7 +70,6 @@ trait RichDataAppBase extends RichDataCompApp
 {
   lazy val qAdapterRegistry: QAdapterRegistry = resolveSingle(classOf[QAdapterRegistry])
   lazy val toUpdate: ToUpdate = resolveSingle(classOf[ToUpdate])
-  lazy val richRawWorldReducer: RichRawWorldReducer = resolveSingle(classOf[RichRawWorldReducer])
   lazy val idGenUtil: IdGenUtil = resolveSingle(classOf[IdGenUtil])
   lazy val modelFactory: ModelFactory = resolveSingle(classOf[ModelFactory])
   lazy val modelConditionFactory: ModelConditionFactory[Unit] = resolveSingle(classOf[ModelConditionFactoryHolder]).value
@@ -102,13 +85,6 @@ class CompatHolder[T](val value: T) extends GeneralCompatHolder
 
 @c4("RichDataApp") final class ModelConditionFactoryHolder(value: ModelConditionFactory[Unit])
   extends CompatHolder[ModelConditionFactory[Unit]](value)
-/*
-trait AssembleProfilerApp extends ComponentsApp {
-  def assembleProfiler: AssembleProfiler
-  private lazy val assembleProfilerComponent =
-    provide(classOf[AssembleProfiler],()=>List(assembleProfiler))
-  override def components: List[Component] = assembleProfilerComponent :: super.components
-}*/
 
 trait DefaultKeyFactoryApp extends ComponentsApp {
   def origKeyFactoryOpt: Option[KeyFactory] = None
@@ -141,19 +117,12 @@ trait UMLClientsApp {
   lazy val umlExpressionsDumper: ExpressionsDumper[String] = UMLExpressionsDumper
 }
 
-trait EnvConfigApp extends EnvConfigCompApp with ComponentProviderApp {
-  lazy val config: Config = resolveSingle(classOf[Config])
-  lazy val actorName: String = resolveSingle(classOf[ActorName]).value
-}
+trait EnvConfigApp extends EnvConfigCompApp
 
 trait UpdatesProcessorsApp extends ComponentsApp {
   private lazy val processorsComponent = provide(classOf[UpdatesPreprocessor], ()=>processors)
   override def components: List[Component] = processorsComponent :: super.components
   def processors: List[UpdatesPreprocessor] = Nil
-}
-
-trait SimpleAssembleProfilerApp extends SimpleAssembleProfilerCompApp with ComponentProviderApp {
-  def assembleProfiler: AssembleProfiler = resolveSingle(classOf[AssembleProfiler])
 }
 
 //// injectable api
