@@ -163,8 +163,8 @@ export const RootComponents = ({createSyncProviders,checkActivate,receivers}) =>
             }
             return createElement(SyncRoot, syncProps)
         }, [createNode,sessionKey,branchKey])
-        const {ref,...props} = useIsolatedFrame(makeChildren)
-        return createElement("iframe", {...props, style, ref})
+        const props = useIsolatedFrame(makeChildren)
+        return createElement("iframe", {...props, style})
     }
     const SyncRoot = (prop) => {
         const { enqueue, children, ack, busyFor, failure } = useSyncRoot(prop)

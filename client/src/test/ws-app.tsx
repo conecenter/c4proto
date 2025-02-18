@@ -143,6 +143,7 @@ function ExampleInput({value: incomingValue, identity}:{value: string, identity:
     return <input type="text" value={value} onChange={onChange} style={{backgroundColor}} />
 }
 
+const SRC_DOC = '<!DOCTYPE html><meta charset="UTF-8"><body id="blank"></body>'
 const noReloadBranchKey = ()=>{}
 const noLogin: Login = (u,p) => assertNever("no login in non-root")
 type ExampleFrameProps = { branchKey: string, style: ObjS<string> }
@@ -155,8 +156,8 @@ function ExampleFrame({branchKey,style}:ExampleFrameProps){
         }
         return <SyncRoot {...syncProps}/>        
     }, [createNode,sessionKey,branchKey])
-    const {ref,...props} = useIsolatedFrame(makeChildren)
-    return <iframe {...props} {...{style}} ref={ref} />
+    const {src,...props} = useIsolatedFrame(makeChildren)
+    return <iframe srcDoc={SRC_DOC} {...props} {...{style}} />
 }
 
 function ExampleLogin(){
