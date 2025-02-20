@@ -99,5 +99,3 @@ trait SSEServerAppBase extends AlienProtocolApp
   with SnapshotMakingApp with NoAssembleProfilerCompApp with KafkaConsumerApp with SnapshotLoaderImplApp
   with LZ4RawCompressorApp with KafkaPurgerApp with DevConfigApp
   with PublisherApp with BasicLoggingApp
-
-trait DisableDefaultSafeToRunAppBase

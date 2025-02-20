@@ -217,8 +217,6 @@ trait SnapshotMakerMaxTime {
   def maxTime: Long
 }
 
-@c4("DisableDefaultSafeToRunApp") final class DisableDefaultSafeToRun
-
 @c4("SafeToRunApp") final class SafeToRun(
   snapshotMaker: SnapshotMakerMaxTime, disable: Option[DisableDefaultSafeToRun],
 ) extends Executable with Early {
