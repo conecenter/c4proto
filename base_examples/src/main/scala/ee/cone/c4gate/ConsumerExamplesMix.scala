@@ -6,14 +6,6 @@ import ee.cone.c4actor_logback_impl.BasicLoggingApp
 import ee.cone.c4di.c4app
 import ee.cone.c4actor_xml.S3ListerApp
 
-@c4app class DumperAppBase extends EnvConfigCompApp with VMExecutionApp with NoAssembleProfilerCompApp
-  with ExecutableApp with RichDataCompApp
-  with RemoteRawSnapshotApp
-  with AlienProtocolApp
-  with HttpProtocolApp
-  with SnapshotLoaderImplApp
-  with LZ4DeCompressorApp
-
 @c4app class KafkaLatTestAppBase extends EnvConfigCompApp with VMExecutionApp with NoAssembleProfilerCompApp
   with ExecutableApp with RichDataCompApp
   with KafkaProducerApp with KafkaConsumerApp

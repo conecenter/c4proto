@@ -36,7 +36,7 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
 
 @c4("ServerCompApp") final class QMessagesImpl(
   toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender],
-  flagsCheck: UpdateFlagsCheck, currentTxLogName: CurrentTxLogName,
+  flagsCheck: UpdateFlagsCheck, currentTxLogName: CurrentTxLogName, commits: Commits,
 ) extends QMessages with LazyLogging {
   assert(flagsCheck.flagsOk, s"Some of the flags are incorrect: ${flagsCheck.updateFlags}")
   //import qAdapterRegistry._
@@ -54,11 +54,12 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
     }
   }
   def doSend(updates: List[N_UpdateFrom]): NextOffset = {
-    logger.debug(s"sending: ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
-    val (bytes, headers) = toUpdate.toBytes(updates)
+    val nUpdates = commits.addCommitReq(updates)
+    logger.debug(s"sending: ${nUpdates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
+    val (bytes, headers) = toUpdate.toBytes(nUpdates)
     val rec = new QRecordImpl(currentTxLogName, bytes, headers)
     val offset = Single(getRawQSender.value).send(rec)
-    logger.debug(s"${updates.size} updates was sent -- $offset")
+    logger.debug(s"${nUpdates.size} updates was sent -- $offset")
     (new AssemblerProfiling).debugOffsets("sent", Seq(offset))
     offset
   }

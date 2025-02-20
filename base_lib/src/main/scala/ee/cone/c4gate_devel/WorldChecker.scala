@@ -10,29 +10,18 @@ import okio.ByteString
 import java.util
 import scala.concurrent.Future
 
-trait WorldCheckHandler {
-  def handle(context: RichContext): Unit
-}
-
-@c4("WorldCheckerApp") final class WorldCheckerReadModelAdd(
-  inner: RichRawWorldReducer,
+@c4("WorldCheckerApp") final class WorldCheckHandlerImpl(
+  getOffset: GetOffset,
   readModelUtil: ReadModelUtil,
   indexUtil: IndexUtil,
   config: ListConfig,
-  handlers: List[WorldCheckHandler],
   execution: Execution,
-) extends RichRawWorldReducer with LazyLogging {
+) extends WorldCheckHandler with LazyLogging {
   val postfix: String = Single.option(config.get("C4WORLD_CHECK_ORDER")).fold("")(order => "f" * order.toInt)
-  def reduce(context: Option[SharedContext with AssembledContext], events: List[RawEvent]): RichContext = {
-    val txId = Single(events).srcId // from FileConsumer events go 1 by 1
-    val willContext = inner.reduce(context, events)
-    logger.info(s"reduced tx $txId")
-    if(txId.endsWith(postfix)) report(willContext.assembled, txId)
-    handlers.foreach(_.handle(willContext))
-    //DebugCounter   .report()  .reset()
-    willContext
+  def handle(context: RichContext): Unit = getOffset.of(context) match {
+    case txId if txId.endsWith(postfix) => report(context.assembled, txId)
   }
-  def report(assembled: ReadModel, txId: String): Unit = {
+  private def report(assembled: ReadModel, txId: String): Unit = {
     for(r <- config.get("C4WORLD_CHECK_SELECT")) reportSelect(assembled, r, txId)
     for(r <- config.get("C4WORLD_CHECK_HASHES")) reportHashes(assembled, r)
     for(_ <- config.get("C4WORLD_CHECK_PRODUCTS"))  reportBadProducts(assembled)

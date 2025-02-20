@@ -24,7 +24,7 @@ class RevertPatch(val values: UpdateMap, val offset: NextOffset)
       @tailrec def iteration(was: UpdateMapping): UpdateMapping = {
         val events = consumer.poll()
         val updates = toUpdate.toUpdates(events,"revert")
-        val will = was.add(updates)
+        val will = was.add(updates, ???)
         if(events.exists(_.srcId>=endOffset)) will else iteration(will)
       }
       iteration(updateMapUtil.startRevert(ignoreRegistry.ignore))

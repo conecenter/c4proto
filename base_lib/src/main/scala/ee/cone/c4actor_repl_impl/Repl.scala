@@ -29,7 +29,7 @@ import org.apache.sshd.server.auth.pubkey.AcceptAllPublickeyAuthenticator
     def ctx(): RichContext = ref.get.get
     def tx(f: Context=>Object): List[_] = {
       val context = ref.get.get
-      f(new Context(context.injected,context.assembled,context.executionContext,Map.empty)) match {
+      f(new Context(context.assembled,context.executionContext,Map.empty)) match {
         case local: Context =>
           val nLocal = qMessages.send(local)
           Nil

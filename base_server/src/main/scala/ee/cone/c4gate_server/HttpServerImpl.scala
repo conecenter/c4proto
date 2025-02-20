@@ -121,14 +121,13 @@ object ReqGroup {
   worldProvider: WorldProvider, requestByPK: GetByPK[S_HttpRequest], responseByPK: GetByPK[S_HttpResponse],
 ) extends FHttpHandler with LazyLogging {
   import WorldProvider._
-  private val dummyInj = new Injected{}
   def handle(request: FHttpRequest): S_HttpResponse = {
     val now = System.currentTimeMillis
     val headers = normalize(request.headers)
     val id = UUID.randomUUID.toString
     val requestEv = S_HttpRequest(id, request.method, request.path, request.rawQueryString, headers, request.body, now)
     val resp: S_HttpResponse = worldProvider.run(List(
-      world => handler(requestEv, new Context(dummyInj, world.assembled, world.executionContext, Map.empty)) match {
+      world => handler(requestEv, new Context(world.assembled, world.executionContext, Map.empty)) match {
         case result if result.events.isEmpty => Stop(result.response)
         case result => Next(LEvent.update(result.response) ++ result.events)
       },

@@ -1,7 +1,6 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.S_FailedUpdates
 import ee.cone.c4assemble.StartUpSpaceProfiler
 import ee.cone.c4di.c4
 import java.lang.management.ManagementFactory
@@ -13,7 +12,6 @@ import scala.annotation.tailrec
   loader: SnapshotLoader,
   progressObserverFactory: ProgressObserverFactory,
   consuming: Consuming,
-  getS_FailedUpdates: GetByPK[S_FailedUpdates],
   startUpSpaceProfiler: StartUpSpaceProfiler,
 ) extends Executable with Early with LazyLogging {
   def run(): Unit = concurrent.blocking { //ck mg
@@ -24,8 +22,7 @@ import scala.annotation.tailrec
     val events = snapshot.map(loader.load(_).get)
     val rt = ManagementFactory.getRuntimeMXBean
     logger.info(s"Reducing $snapshot -- uptime ${rt.getUptime}ms")
-    val world = reducer.reduce(None, events.toList)
-    if(getS_FailedUpdates.ofA(world).nonEmpty) throw new Exception(s"Snapshot reduce failed $snapshot")
+    val world = reducer.createContext(events)
     logger.info(s"Snapshot reduced without failures $snapshot -- uptime ${rt.getUptime}ms")
     GCLog("after loadRecent")
     startUpSpaceProfiler.out(world.assembled)
@@ -41,7 +38,7 @@ import scala.annotation.tailrec
   ): Unit = {
     val events = consumer.poll()
     val end = NanoTimer()
-    val newWorld = reducer.reduce(Option(world),events)
+    val newWorld = reducer.reduce(events)(world)
     val period = end.ms
     if(events.nonEmpty)
       logger.debug(s"reduced ${events.size} tx-s in $period ms")

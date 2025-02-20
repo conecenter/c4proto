@@ -28,8 +28,7 @@ class MemRawSnapshotLoader(relativePath: String, bytes: ByteString) extends RawS
     val rawSnapshotLoader = new MemRawSnapshotLoader(relativePath,data)
     val snapshotLoader = snapshotLoaderFactory.create(rawSnapshotLoader)
     val Some(targetFullSnapshot) = snapshotLoader.load(RawSnapshot(relativePath))
-    val currentSnapshot = snapshotDiffer.needCurrentSnapshot(local)
-    val diffUpdates = snapshotDiffer.diff(currentSnapshot, targetFullSnapshot, addIgnore)
+    val diffUpdates = snapshotDiffer.diff(local, targetFullSnapshot, addIgnore)
     logger.info(s"put-snapshot activated, ${diffUpdates.size} updates")
     WriteModelKey.modify(_.enqueueAll(diffUpdates))(local)
   }

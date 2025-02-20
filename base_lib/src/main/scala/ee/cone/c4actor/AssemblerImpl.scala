@@ -50,8 +50,6 @@ import scala.concurrent.duration.Duration
   def addPeriod(accId: Int, value: Long): Unit = assembleStatsAccumulator.add(accId, value)
 }
 
-@c4("RichDataCompApp") final class DefAssembleOptions extends AssembleOptions("AssembleOptions",false,0L)
-
 @c4("RichDataCompApp") final class OrigPartitionerRegistry(
   origPartitionerList: List[GeneralOrigPartitioner],
 )(
@@ -145,24 +143,6 @@ class AssemblerProfiling extends LazyLogging {
     )*/
 class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
 
-
-
-@c4("RichDataCompApp") final class GetAssembleOptionsImpl(
-  composes: IndexUtil,
-  origKeyFactory: OrigKeyFactoryFinalHolder,
-  defaultAssembleOptions: AssembleOptions,
-)(
-  assembleOptionsOuterKey: AssembledKey = origKeyFactory.value.rawKey(classOf[AssembleOptions].getName),
-  assembleOptionsInnerKey: String = ToPrimaryKey(defaultAssembleOptions)
-) extends GetAssembleOptions {
-  def get(assembled: ReadModel): AssembleOptions = {
-    val index = assembleOptionsOuterKey.of(assembled)
-    composes.getValues(index,assembleOptionsInnerKey,"").collectFirst{
-      case o: AssembleOptions => o
-    }.getOrElse(defaultAssembleOptions)
-  }
-}
-
 @c4("RichDataCompApp") final class AssembleStatsAccumulatorImpl extends AssembleStatsAccumulator {
   private val sumRefs = Seq(new AtomicLong(0L), new AtomicLong(0L))
   private val maxRefs = Seq[AtomicReference[List[(Long,Long)]]](new AtomicReference(Nil), new AtomicReference(Nil))
@@ -201,38 +181,15 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
 }
 
 @c4("RichDataCompApp") final class ReadModelAddImpl(
-  utilOpt: DeferredSeq[AssemblerUtil],
-  toUpdate: ToUpdate,
-  actorName: ActorName,
-  catchNonFatal: CatchNonFatal,
-  config: ListConfig,
+  utilOpt: DeferredSeq[AssemblerUtil], config: ListConfig,
 )(
   debugTxs: Option[String] = Single.option(config.get("C4ASSEMBLE_DEBUG_TXS"))
 ) extends ReadModelAdd with LazyLogging {
-  // read model part:
-  private def util = Single(utilOpt.value)
-  private def offset(events: Seq[RawEvent]): List[N_Update] = for{
-    ev <- events.lastOption.toList
-    lEvent <- LEvent.update(S_Offset(actorName.value,ev.srcId))
-  } yield toUpdate.toUpdate(lEvent)
-  def add(executionContext: OuterExecutionContext, events: Seq[RawEvent]): ReadModel=>ReadModel = assembled => catchNonFatal {
-    logger.debug("starting toUpdate")
-    val updates: List[N_Update] = offset(events) ::: toUpdate.toUpdates(events.toList,"rma").map(toUpdate.toUpdateLost)
-    logger.debug("done toUpdate")
-    val eventIds = events.map(_.srcId)
-    (new AssemblerProfiling).debugOffsets("starts-reducing", eventIds)
+  def add(
+    executionContext: OuterExecutionContext, eventIds: Seq[SrcId], updates: Seq[N_Update]
+  ): ReadModel=>ReadModel = assembled => {
     val debug = debugTxs.exists(cfTxs=>eventIds.exists(id=>id.contains(cfTxs)||cfTxs.contains(id)))
-    util.toTreeReplace(assembled, updates, executionContext, RAssProfilingContext(0, eventIds, debug))
-  }("reduce"){ e => // ??? exception to record
-    if(events.size == 1){
-      val updates = offset(events) ++
-        events.map(ev=>S_FailedUpdates(ev.srcId, e.getMessage))
-          .flatMap(LEvent.update).map(toUpdate.toUpdate)
-      util.toTreeReplace(assembled, updates, executionContext, RAssProfilingContext(0, Nil, needDetailed = false))
-    } else {
-      val(a,b) = events.splitAt(events.size / 2)
-      Function.chain(Seq(add(executionContext,a), add(executionContext,b)))(assembled)
-    }
+    Single(utilOpt.value).toTreeReplace(assembled, updates, executionContext, RAssProfilingContext(0, eventIds, debug))
   }
 }
 
@@ -285,7 +242,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     val profilingContext = RAssProfilingContext(1, Nil, TxAddAssembleDebugKey.of(local))
     val result = util.toTreeReplace(local.assembled, externalOut, local.executionContext, profilingContext)
     val updates = Await.result(assembleProfiler.addMeta(new WorldTransition(profiling, Future.successful(Nil)), externalOut), Duration.Inf)
-    val nLocal = new Context(local.injected, result, local.executionContext, local.transient)
+    val nLocal = new Context(result, local.executionContext, local.transient)
     WriteModelKey.modify(_.enqueueAll(updateFromUtil.get(local,updates)))(nLocal)
     //call add here for new mortal?
   }

@@ -61,22 +61,11 @@ trait TestVMRichDataApp extends TestVMRichDataCompApp
 @deprecated trait TreeIndexValueMergerFactoryApp
 
 trait RichDataAppBase extends RichDataCompApp
-  // with AssembleProfilerApp
   with DefaultKeyFactoryApp
   with DefaultUpdateProcessorApp
   with ExpressionsDumpersApp
   with ComponentProviderApp
   with AssemblesApp
-{
-  lazy val qAdapterRegistry: QAdapterRegistry = resolveSingle(classOf[QAdapterRegistry])
-  lazy val toUpdate: ToUpdate = resolveSingle(classOf[ToUpdate])
-  lazy val idGenUtil: IdGenUtil = resolveSingle(classOf[IdGenUtil])
-  lazy val modelFactory: ModelFactory = resolveSingle(classOf[ModelFactory])
-  lazy val modelConditionFactory: ModelConditionFactory[Unit] = resolveSingle(classOf[ModelConditionFactoryHolder]).value
-
-  @deprecated def parallelAssembleOn: Boolean = false
-  // @deprecated def assembleSeqOptimizer: AssembleSeqOptimizer = new NoAssembleSeqOptimizer
-}
 
 abstract class GeneralCompatHolder {
   def value: Any
@@ -133,8 +122,8 @@ class Injectable(val pair: (SharedComponentKey[_],Object))
 trait InjectableGetter[C,I] extends Getter[C,I] {
   def set: I => List[Injectable]
 }
-@deprecated abstract class SharedComponentKey[D_Item<:Object] extends InjectableGetter[SharedContext,D_Item] with LazyLogging {
-  def of: SharedContext => D_Item = context => context.injected match {
+@deprecated abstract class SharedComponentKey[D_Item<:Object] extends InjectableGetter[Context,D_Item] with LazyLogging {
+  def of: Context => D_Item = context => Single(SharedContextKey.of(context)) match {
     case r: ToInjectRegistry =>
       r.values.getOrElse(this, throw new Exception(s"$this was not injected")).asInstanceOf[D_Item]
   }

@@ -36,7 +36,6 @@ import ee.cone.c4di.c4
     signed => inner.retrieve(check)(signed) match {
       case Some(Seq(`url`,"next")) => Option(NextSnapshotTask(None))
       case Some(Seq(`url`,"next", offset)) => Option(NextSnapshotTask(Option(offset)))
-      case Some(Seq(`url`,"debug", offset)) => Option(DebugSnapshotTask(offset))
       case _ => None
     }
 }

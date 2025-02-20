@@ -85,6 +85,7 @@ trait UpdateFlag {
     @Id(0x001E) values: List[ByteString]
   )
 
+  @Id(0x001C) case class S_TxCommitReq(@Id(0x0011) srcId: SrcId, @Id(0x001A) txId: String, @Id(0x002D) time: Long)
 }
 
 //case class Task(srcId: SrcId, value: Product, offset: Long)
@@ -101,6 +102,8 @@ trait QRecord {
 }
 
 trait RawQSender {
+  // to implement it for log storage, like kafka
+  // to call from system code only
   def send(rec: QRecord): NextOffset
 }
 trait RawQSenderExecutable extends Executable
@@ -161,30 +164,21 @@ object Types {
   type LEvents = Seq[LEvent[Product]]
 }
 
-
 trait Injected
-
-trait SharedContext {
-  def injected: Injected
-}
+case object SharedContextKey extends TransientLens[Seq[Injected]](Nil)
 
 trait AssembledContext {
   def assembled: ReadModel
   def executionContext: OuterExecutionContext
 }
 
-trait OffsetContext {
+trait RichContext extends AssembledContext {
   def offset: NextOffset
 }
 
-trait RichContext extends OffsetContext with SharedContext with AssembledContext
-
 class Context(
-  val injected: Injected,
-  val assembled: ReadModel,
-  val executionContext: OuterExecutionContext,
-  val transient: TransientMap
-) extends SharedContext with AssembledContext
+  val assembled: ReadModel, val executionContext: OuterExecutionContext, val transient: TransientMap
+) extends AssembledContext
 
 trait GetByPK[V<:Product] extends Product {
   def ofA(context: AssembledContext): Map[SrcId,V]
@@ -209,10 +203,7 @@ trait AbstractLens[C,I] extends Lens[C,I] {
 abstract class TransientLens[Item](val default: Item) extends AbstractLens[Context,Item] with Product {
   def of: Context => Item = context => context.transient.getOrElse(this, default).asInstanceOf[Item]
   def set: Item => Context => Context = value => context => new Context(
-    context.injected,
-    context.assembled,
-    context.executionContext,
-    context.transient + (this -> value.asInstanceOf[Object])
+    context.assembled, context.executionContext, context.transient + (this -> value.asInstanceOf[Object])
   )
 }
 
@@ -247,10 +238,7 @@ trait RawTxAdd {
   def add(out: Seq[N_Update]): Context=>Context
 }
 trait ReadModelAdd {
-  def add(executionContext: OuterExecutionContext, events: Seq[RawEvent]): ReadModel=>ReadModel
-}
-trait GetAssembleOptions {
-  def get(assembled: ReadModel): AssembleOptions
+  def add(executionContext: OuterExecutionContext, eventIds: Seq[SrcId], updates: Seq[N_Update]): ReadModel=>ReadModel
 }
 
 trait Observer[Message] {
@@ -285,10 +273,13 @@ trait RawEvent extends Product {
 }
 case class SimpleRawEvent(srcId: SrcId, data: ByteString, headers: List[RawHeader]) extends RawEvent
 
-trait GetOffset extends Getter[SharedContext with AssembledContext,NextOffset]
+trait GetOffset extends Getter[AssembledContext,NextOffset]
 
 trait RichRawWorldReducer {
-  def reduce(context: Option[SharedContext with AssembledContext], events: List[RawEvent]): RichContext
+  def createContext(events: Option[RawEvent]): RichContext
+  def reduce(events: Seq[RawEvent]): RichContext=>RichContext
+  def toLocal(context: RichContext, transient: TransientMap): Context
+  def toUpdates(context: Context): List[N_UpdateFrom]
 }
 
 trait ProgressObserverFactory {
@@ -323,8 +314,6 @@ trait AssembleProfiler {
   def createJoiningProfiling(localOpt: Option[Context]): JoiningProfiling
   def addMeta(transition: WorldTransition, updates: Seq[N_Update]): Future[Seq[N_Update]]
 }
-
-case object DebugStateKey extends TransientLens[Option[(RichContext,RawEvent)]](None)
 
 trait UpdatesPreprocessor {
   /**
@@ -385,7 +374,7 @@ trait Reverting {
 }
 
 trait UpdateMapping {
-  def add(updates: List[N_UpdateFrom]): UpdateMapping
+  def add(updates: List[N_UpdateFrom], onError: N_UpdateFrom=>Unit): UpdateMapping
   def result: List[N_UpdateFrom]
 }
 
@@ -416,3 +405,16 @@ trait AbstractIndentedParser {
 }
 
 case object TxAddAssembleDebugKey extends TransientLens[Boolean](false)
+
+trait Commits {
+  def addCommitReq(updates: List[N_UpdateFrom]): List[N_UpdateFrom]
+  def check(up: N_UpdateFrom): Unit
+}
+
+trait SnapshotConfig {
+  def ignore: Set[Long]
+}
+
+trait WorldCheckHandler {
+  def handle(context: RichContext): Unit
+}

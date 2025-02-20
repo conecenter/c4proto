@@ -1,6 +1,6 @@
 package ee.cone.c4actor.sandbox
 
-import ee.cone.c4actor.{AssemblesApp, IdGenUtil, IdGenUtilApp, WithPK}
+import ee.cone.c4actor.{AssemblesApp, IdGenUtil, WithPK}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.sandbox.OtherProtocol.D_Other
 import ee.cone.c4actor.sandbox.SandboxProtocol.D_Sandbox

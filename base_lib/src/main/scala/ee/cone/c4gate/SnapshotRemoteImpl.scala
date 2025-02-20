@@ -4,7 +4,7 @@ import java.io.FileNotFoundException
 import java.util.UUID
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.{Config, NanoTimer, RawSnapshot, RawSnapshotLoader, RawSnapshotLoaderFactory, RemoteSnapshotUtil, SnapshotMaker, SnapshotTask, SnapshotTaskSigner}
+import ee.cone.c4actor.{Config, NanoTimer, RawSnapshot, RawSnapshotLoader, RawSnapshotLoaderFactory, RemoteSnapshotUtil, SnapshotTask, SnapshotTaskSigner}
 import ee.cone.c4di.{c4, c4multi, provide}
 import okio.ByteString
 
@@ -59,17 +59,4 @@ object ReqRetry {
       Thread.sleep(1000)
       apply(f)
   }
-}
-/*
-@c4("RemoteRawSnapshotApp") final class EnvRemoteRawSnapshotProvider(
-  makerFactory: RemoteSnapshotMakerFactory, config: Config
-) {
-  @provide def makers: Seq[SnapshotMaker] = Seq(makerFactory.create(config.get("C4HTTP_SERVER")))
-}
-*/
-@c4multi("RemoteRawSnapshotApp") final class RemoteSnapshotMaker(baseURL: String)(
-  util: RemoteSnapshotUtil, signer: SnapshotTaskSigner
-) extends SnapshotMaker {
-  def make(task: SnapshotTask): List[RawSnapshot] =
-    util.request(baseURL, signer.sign(task, System.currentTimeMillis() + 3600*1000))()
 }
