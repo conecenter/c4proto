@@ -58,3 +58,6 @@ trait SignedReqUtilImplAppBase
 * */
 
 trait DevConfigAppBase
+
+trait DisableDefaultSafeToRunAppBase
+@c4("DisableDefaultSafeToRunApp") final class DisableDefaultSafeToRun

@@ -6,7 +6,7 @@ import ee.cone.c4actor_logback_impl.BasicLoggingApp
 import ee.cone.c4actor_xml.S3ListerApp
 import ee.cone.c4di.c4app
 import ee.cone.c4gate.DevConfigApp
-import ee.cone.c4gate_server.DisableDefaultSafeToRunApp
+import ee.cone.c4gate.DisableDefaultSafeToRunApp
 
 @c4app class TopicToDirAppBase extends VMExecutionApp with ExecutableApp with BaseApp with ProtoApp
   with KafkaConsumerApp with SnapshotUtilImplApp with EnvConfigCompApp
