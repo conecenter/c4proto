@@ -13,8 +13,7 @@ import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 
 @c4("LOBrokerApp") final class LOBrokerImpl(
-  s3: S3Manager,
-  execution: Execution,
+  s3: S3Manager, execution: Execution, currentTxLogName: CurrentTxLogName,
 )(
   header: RawHeader = RawHeader("c","s3"),
   backoffFull: List[Long] = List(0L,50L,200L,1000L,4000L),
@@ -25,8 +24,8 @@ import scala.concurrent.{Await, ExecutionContext, Future, Promise}
     val path = s"$bucketPostfix/${UUID.randomUUID()}"
     val data =
       (path :: rec.headers.toList.flatMap(h=>List(h.key,h.value))).mkString(":")
-    s3.put(rec.topic,path,rec.value)
-    new RefQRecord(rec.topic, data.getBytes(UTF_8), List(header))
+    s3.put(currentTxLogName,path,rec.value)
+    new QRecord(data.getBytes(UTF_8), List(header))
   }
 
   def isLocal(ev: RawEvent): Boolean = !ev.headers.contains(header)
@@ -56,7 +55,3 @@ import scala.concurrent.{Await, ExecutionContext, Future, Promise}
       })},backoffLeft.tail)
     }
 }
-
-class RefQRecord(
-  val topic: TxLogName, val value: Array[Byte], val headers: Seq[RawHeader]
-) extends QRecord

@@ -85,7 +85,7 @@ trait UpdateFlag {
     @Id(0x001E) values: List[ByteString]
   )
 
-  @Id(0x001C) case class S_TxCommitReq(@Id(0x0011) srcId: SrcId, @Id(0x001A) txId: String, @Id(0x002D) time: Long)
+  @Id(0x001C) case class S_TxCommitReq(@Id(0x0011) srcId: SrcId, @Id(0x001A) txId: String)
 }
 
 //case class Task(srcId: SrcId, value: Product, offset: Long)
@@ -95,11 +95,7 @@ trait TxLogName extends Product {
 }
 trait CurrentTxLogName extends TxLogName
 
-trait QRecord {
-  def topic: TxLogName
-  def value: Array[Byte]
-  def headers: Seq[RawHeader]
-}
+class QRecord(val value: Array[Byte], val headers: Seq[RawHeader])
 
 trait RawQSender {
   // to implement it for log storage, like kafka
@@ -409,6 +405,14 @@ case object TxAddAssembleDebugKey extends TransientLens[Boolean](false)
 trait Commits {
   def addCommitReq(updates: List[N_UpdateFrom]): List[N_UpdateFrom]
   def check(up: N_UpdateFrom): Unit
+  def check(before: AssembledContext, after: AssembledContext): Unit
+  def toIgnorableEvents(events: Seq[RawEvent]): Seq[IgnorableEv]
+  def partition(events: Seq[IgnorableEv]): (Seq[IgnorableEv], Seq[IgnorableEv])
+}
+
+trait IgnorableEv {
+  def srcId: SrcId
+  def updates: Seq[N_UpdateFrom]
 }
 
 trait SnapshotConfig {
