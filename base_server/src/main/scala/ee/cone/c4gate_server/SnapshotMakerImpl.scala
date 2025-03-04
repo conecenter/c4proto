@@ -23,7 +23,7 @@ import scala.annotation.tailrec
     } else next(request,local)
 }
 
-@c4assemble("SnapshotMakingApp") class SnapshotMakingAssembleBase(actorName: ActorName, snapshotMaking: SnapshotMaker, maxTime: SnapshotMakerMaxTime, signatureChecker: SnapshotTaskSigner, signedReqUtil: SignedReqUtil)   {
+@c4assemble("SnapshotMakingApp") class SnapshotMakingAssembleBase(actorName: ActorName, snapshotMaking: SnapshotMakerImpl, signatureChecker: SnapshotTaskSigner, signedReqUtil: SignedReqUtil)   {
   type NeedSnapshot = SrcId
 
   def needConsumer(
@@ -44,7 +44,7 @@ import scala.annotation.tailrec
     @by[NeedSnapshot] posts: Values[S_HttpRequest]
   ): Values[(SrcId,TxTransform)] = {
     val srcId = "snapshotMaker"
-    if(posts.isEmpty) List(WithPK(PeriodicSnapshotMakingTx(srcId)(snapshotMaking,maxTime)))
+    if(posts.isEmpty) List(WithPK(PeriodicSnapshotMakingTx(srcId)(snapshotMaking)))
     else {
       def task(post: S_HttpRequest) =
         signatureChecker.retrieve(check=false)(signedReqUtil.signed(post.headers))

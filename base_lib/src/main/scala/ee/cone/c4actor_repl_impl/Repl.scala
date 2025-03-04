@@ -1,11 +1,10 @@
 package ee.cone.c4actor_repl_impl
 
 import java.util.concurrent.atomic.AtomicReference
-
 import ee.cone.c4actor._
 import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.{Assemble, assemble, c4assemble}
+import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ammonite.sshd._
 import ammonite.util.Bind
@@ -21,15 +20,13 @@ import org.apache.sshd.server.auth.pubkey.AcceptAllPublickeyAuthenticator
 }
 
 @c4multi("SSHDebugApp") final case class SSHDebugTx(srcId: SrcId="SSHDebug")(
-  reducer: RichRawWorldReducer,
-  qMessages: QMessages
+  qMessages: QMessages, replace: Replace,
 ) extends TxTransform {
-  def init(): RichContext=>Unit = {
-    val ref = new AtomicReference[Option[RichContext]](None)
-    def ctx(): RichContext = ref.get.get
+  def init(ec: OuterExecutionContext): ReadModel=>Unit = {
+    val ref = new AtomicReference[ReadModel](replace.emptyReadModel)
     def tx(f: Context=>Object): List[_] = {
-      val context = ref.get.get
-      f(new Context(context.assembled,context.executionContext,Map.empty)) match {
+      val assembled = ref.get
+      f(new Context(assembled, ec, Map.empty)) match {
         case local: Context =>
           val nLocal = qMessages.send(local)
           Nil
@@ -45,12 +42,12 @@ import org.apache.sshd.server.auth.pubkey.AcceptAllPublickeyAuthenticator
       replArgs = List(Bind[(Context=>Object)=>Object]("tx",tx))
     )
     server.start()
-    v=>ref.set(Option(v))
+    v => ref.set(v)
   }
   def transform(local: Context): Context = {
     val nLocal = if(SSHDebugKey.of(local).nonEmpty) local
-      else SSHDebugKey.set(Option(init()))(local)
-    SSHDebugKey.of(nLocal).get(reducer.reduce(Option(nLocal),Nil))
+      else SSHDebugKey.set(Option(init(local.executionContext)))(local)
+    SSHDebugKey.of(nLocal).get(nLocal.assembled)
     nLocal
   }
 }
@@ -69,4 +66,4 @@ tx(ByPK(classOf[AlienProtocol.U_FromAlienState]).of(_).values.toList.sortBy(_.se
 tx(txAdd.add(LEvent.delete(AlienProtocol.U_FromAlienState("61297c47-c5de-4fd9-add9-1967615a44a8", "https://skh.dev.cone.ee/react-app.html", "61297c47-c5de-4fd9-add9-1967615a44a8", None))))
  */
 
-case object SSHDebugKey extends TransientLens[Option[RichContext=>Unit]](None)
+case object SSHDebugKey extends TransientLens[Option[ReadModel=>Unit]](None)
