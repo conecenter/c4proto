@@ -19,6 +19,7 @@ class PublishFullCompressor(val value: RawCompressor)
 
 case class ByPathHttpPublication(path: String, headers: List[N_Header], body: ByteString)
 case class ByPathHttpPublicationUntil(path: String, until: Long)
+case class PurgePublication(srcId: SrcId)
 
 trait Publisher {
   def publish(publication: ByPathHttpPublication, until: Long=>Long): Seq[LEvent[Product]]

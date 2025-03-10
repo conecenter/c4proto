@@ -65,12 +65,7 @@ import ee.cone.c4proto._
     // @deprecated @Id(0x003A) userName: Option[String]
   )
 
-  @Id(0x003B) case class E_HttpConsumer(
-    @Id(0x003C) srcId: String,
-    @Id(0x003D) consumer: String,
-    @Id(0x003E) condition: String,
-    //isSynchronous: Boolean
-  )
+  //@Id(0x003B) case class E_HttpConsumer
 
   @Id(0x003F) case class U_FromAlienStatus(//use it?
     @Id(0x0032) sessionKey: String,

@@ -1,6 +1,6 @@
 package ee.cone.c4ui
 /*
-import ee.cone.c4actor.LifeTypes.Alive
+import ee.cone.c4actor.L ifeTypes.A live
 import ee.cone.c4actor.QProtocol.N_TxRef
 import ee.cone.c4actor._
 import ee.cone.c4actor.SimpleAssembleProfilerProtocol.D_TxAddMeta
@@ -45,7 +45,7 @@ trait TestTxLogApp extends TestTxLogAutoApp {
   )
 }
 
-@c4("TestTxLogApp") final class TestTxLogMortalAssembleBase(mortal: MortalFactory) {
+@c4("TestTxLogApp") final class TestTxLogMortalAssembleBase(mortal: M ortalFactory) {
   @provide def subAssembles: Seq[Assemble] =
     mortal(classOf[N_TxRef]) :: mortal(classOf[D_TxAddMeta]) :: Nil
 }
@@ -163,14 +163,14 @@ case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount
   def keepAdds(
     key: SrcId,
     updatesListSummary: Each[UpdatesListSummary]
-  ): Values[(Alive,D_TxAddMeta)] = for {
+  ): Values[(A live,D_TxAddMeta)] = for {
     item <- updatesListSummary.items
   } yield WithPK(item.add)
 
   def keepRefs(
     key: SrcId,
     updatesListSummary: Each[UpdatesListSummary]
-  ): Values[(Alive,N_TxRef)] = for {
+  ): Values[(A live,N_TxRef)] = for {
     item <- updatesListSummary.items
   } yield WithPK(item.ref)
 

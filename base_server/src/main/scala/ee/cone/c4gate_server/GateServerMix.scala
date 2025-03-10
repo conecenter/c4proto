@@ -20,7 +20,6 @@ trait AbstractHttpGatewayAppBase extends ServerCompApp
   with ParallelObserversApp
   with PublisherApp with AuthProtocolApp
   // with NoAssembleProfilerCompApp #customize later
-  // with MortalFactoryCompApp #customize later
   with ManagementApp
   with SnapshotMakingApp
   with LZ4RawCompressorApp

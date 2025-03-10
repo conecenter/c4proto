@@ -5,7 +5,7 @@ import ee.cone.c4actor_xml.S3ListerApp
 import ee.cone.c4di.c4
 
 trait ActorAccessAppBase
-trait ManagementAppBase extends ActorAccessApp /*with PrometheusApp*/ with SyncTxFactoryImplApp
+trait ManagementAppBase extends ActorAccessApp
 // trait PrometheusAppBase extends DefPublishFullCompressorApp
 
 trait AvailabilityAppBase

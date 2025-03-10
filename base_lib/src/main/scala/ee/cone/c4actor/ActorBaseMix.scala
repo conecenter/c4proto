@@ -10,9 +10,7 @@ trait ConfigSimpleSignerAppBase
 trait EnvConfigCompAppBase
 trait GzipRawCompressorAppBase
 trait ModelAccessFactoryCompAppBase
-trait MortalFactoryCompAppBase
 trait NoAssembleProfilerCompAppBase
-trait NoObserversAppBase
 trait ParallelObserversAppBase
 trait ProtoAppBase
 trait RichDataCompAppBase extends BaseApp with ProtoApp with AssembleApp with CatchNonFatalApp // with ProductCheckerApp
@@ -23,7 +21,6 @@ trait SnapshotLoaderFactoryImplAppBase
 trait SnapshotLoaderImplAppBase
 trait SnapshotUtilImplAppBase
 trait SnapshotSaverAppBase
-trait SyncTxFactoryImplAppBase
 trait TaskSignerAppBase
 trait TestVMRichDataCompAppBase extends RichDataCompApp with VMExecutionApp with EnvConfigCompApp
 trait CatchNonFatalAppBase
