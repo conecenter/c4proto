@@ -39,11 +39,11 @@ final class RawObjectListProtoAdapter extends ProtoAdapter[List[(Int,Any)]](
   //private val strict = strictList.map(s => qAdapterRegistry.byName(s.cl.getName).id).toSet
 
   private class UpdateMappingImpl(
-    doAdd: (N_UpdateFrom=>Unit)=>(UpdateMap,N_UpdateFrom)=>UpdateMap,
+    doAdd: (N_UpdateFrom=>Boolean)=>(UpdateMap,N_UpdateFrom)=>UpdateMap,
     state: UpdateMap,
     finish: List[N_UpdateFrom]=>List[N_UpdateFrom]
   ) extends UpdateMapping {
-    def add(updates: List[N_UpdateFrom], onError: N_UpdateFrom=>Unit): UpdateMapping =
+    def add(updates: List[N_UpdateFrom], onError: N_UpdateFrom=>Boolean): UpdateMapping =
       new UpdateMappingImpl(doAdd, updates.foldLeft(state)(doAdd(onError)), finish)
     def result: List[N_UpdateFrom] = finish(toUpdates(state))
   }
@@ -73,14 +73,12 @@ final class RawObjectListProtoAdapter extends ProtoAdapter[List[(Int,Any)]](
     }
 
   private def addLast(
-    wasFromValue: ByteString, wasValue: ByteString, up: N_UpdateFrom, onError: N_UpdateFrom=>Unit
+    wasFromValue: ByteString, wasValue: ByteString, up: N_UpdateFrom, onError: N_UpdateFrom=>Boolean
   ): N_UpdateFrom = {
     if(up.flags != 0)
       logger.warn(s"flagged update "+toSzStr(up))
-    if(!eqEncoded(wasValue,up.fromValue)) {
+    if(!eqEncoded(wasValue,up.fromValue) && onError(up))
       logger.warn(s"inconsistent update from ${wasValue.size} to "+toSzStr(up))
-      onError(up)
-    }
     if(wasFromValue != up.fromValue) up.copy(fromValue = wasFromValue) else up
   }
   private def start(ignore: Set[Long], fromEmpty: Boolean, finish: List[N_UpdateFrom]=>List[N_UpdateFrom]): UpdateMapping =
@@ -104,7 +102,7 @@ final class RawObjectListProtoAdapter extends ProtoAdapter[List[(Int,Any)]](
   private def invert(up: N_UpdateFrom) =
     up.copy(fromValue = up.value, value=up.fromValue)
 
-  private def diffError(up: N_UpdateFrom): Unit = throw new Exception("diff error")
+  private def diffError(up: N_UpdateFrom): Boolean = throw new Exception("diff error")
   def diff(currentUpdates: List[N_UpdateFrom], targetUpdates: List[N_UpdateFrom], ignore: Set[Long]): List[N_UpdateFrom] =
     start(ignore,fromEmpty=false,u=>u)
       .add(currentUpdates.map(invert), diffError).add(targetUpdates, diffError).result

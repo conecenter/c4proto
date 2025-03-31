@@ -1,7 +1,7 @@
 
 package ee.cone.c4actor
 
-import ee.cone.c4actor.QProtocol.{N_CompressedUpdates, N_TxRef, N_Update, N_UpdateFrom, S_Offset, S_Updates}
+import ee.cone.c4actor.QProtocol.{N_CompressedUpdates, N_TxRef, N_Update, N_UpdateFrom, S_Updates}
 import ee.cone.c4proto._
 
 import scala.collection.immutable.{Queue, Seq}
@@ -33,8 +33,7 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 )
 
 @c4("ServerCompApp") final class QMessagesImpl(
-  toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender],
-  flagsCheck: UpdateFlagsCheck, commits: Commits,
+  toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender], flagsCheck: UpdateFlagsCheck,
 ) extends QMessages with LazyLogging {
   assert(flagsCheck.flagsOk, s"Some of the flags are incorrect: ${flagsCheck.updateFlags}")
   //import qAdapterRegistry._
@@ -52,12 +51,11 @@ import scala.concurrent.{Await, ExecutionContext, Future}
     }
   }
   def doSend(updates: List[N_UpdateFrom]): NextOffset = {
-    val nUpdates = commits.addCommitReq(updates)
-    logger.debug(s"sending: ${nUpdates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
-    val (bytes, headers) = toUpdate.toBytes(nUpdates)
+    logger.debug(s"sending: ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
+    val (bytes, headers) = toUpdate.toBytes(updates)
     val rec = new QRecord(bytes, headers)
     val offset = Single(getRawQSender.value).send(rec)
-    logger.debug(s"${nUpdates.size} updates was sent -- $offset")
+    logger.debug(s"${updates.size} updates was sent -- $offset")
     (new AssemblerProfiling).debugOffsets("sent", Seq(offset))
     offset
   }
@@ -89,9 +87,6 @@ import scala.concurrent.{Await, ExecutionContext, Future}
   refAdapter: ProtoAdapter[N_TxRef] with HasId =
   qAdapterRegistry.byName(classOf[N_TxRef].getName)
     .asInstanceOf[ProtoAdapter[N_TxRef] with HasId],
-  offsetAdapter: ProtoAdapter[S_Offset] with HasId =
-  qAdapterRegistry.byName(classOf[QProtocol.S_Offset].getName)
-    .asInstanceOf[ProtoAdapter[S_Offset] with HasId],
   fillTxIdFlag: Long = fillTxIdUpdateFlag.flagValue,
   txIdPropId: Long = 0x001A,
   archiveFlag: Long = archiveUpdateFlag.flagValue
@@ -135,11 +130,10 @@ import scala.concurrent.{Await, ExecutionContext, Future}
     res
   }
   def toBytes(updates: List[N_UpdateFrom]): (Array[Byte], List[RawHeader]) = {
-    val filteredUpdates = updates.filterNot(_.valueTypeId==offsetAdapter.id)
-    if(nextPartSize(filteredUpdates,0,0).isEmpty) (encode(filteredUpdates), List.empty[RawHeader]) else {
+    if(nextPartSize(updates,0,0).isEmpty) (encode(updates), List.empty[RawHeader]) else {
       logger.debug(s"Compressing/encoding parts...")
       val res = execution.aWait{ implicit ec =>
-        Future.sequence(split(filteredUpdates, Nil).map(u=>Future(new ByteString(rawCompressor.compress(encode(u))))))
+        Future.sequence(split(updates, Nil).map(u=>Future(new ByteString(rawCompressor.compress(encode(u))))))
           .map(values=>compressedUpdatesAdapter.encode(N_CompressedUpdates(rawCompressor.name, values)))
       }
       logger.debug(s"Compressed")
@@ -163,12 +157,6 @@ import scala.concurrent.{Await, ExecutionContext, Future}
     logger.debug("Decompressing finished...")
     res
   }
-
-  def toUpdates(events: List[RawEvent], hint: String): List[N_UpdateFrom] =
-    for {
-      event <- events
-      up <- toUpdates(event, hint)
-    } yield up
 
   def msNow(): Long = System.nanoTime / 1000000
   def toUpdates(event: RawEvent, hint: String): List[N_UpdateFrom] = {

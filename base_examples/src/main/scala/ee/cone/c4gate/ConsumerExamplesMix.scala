@@ -26,11 +26,6 @@ trait TestServerApp extends EnvConfigCompApp with VMExecutionApp with NoAssemble
 trait TestTxTransformAppBase extends TestServerApp
 @c4app class TestParallelApp extends TestTxTransformApp with ParallelObserversApp
 
-@c4app class SimplePusherAppBase extends BaseApp with ExecutableApp with EnvConfigCompApp
-  with VMExecutionApp with NoAssembleProfilerCompApp with KafkaProducerApp
-  with SnapshotLoaderImplApp with S3RawSnapshotLoaderApp with S3ManagerApp with S3ListerApp
-  with SnapshotUtilImplApp with SnapshotListProtocolApp
-
 trait LongHungryAppBase
 
 @c4app class TestParallelExAppBase extends TestServerApp with ParallelObserversApp

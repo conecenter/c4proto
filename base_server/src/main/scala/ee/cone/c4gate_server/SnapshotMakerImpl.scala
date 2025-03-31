@@ -23,66 +23,44 @@ import scala.annotation.tailrec
     } else next(request,local)
 }
 
-@c4assemble("SnapshotMakingApp") class SnapshotMakingAssembleBase(actorName: ActorName, snapshotMaking: SnapshotMakerImpl, signatureChecker: SnapshotTaskSigner, signedReqUtil: SignedReqUtil)   {
-  type NeedSnapshot = SrcId
-
-  def needConsumer(
-    key: SrcId,
-    first: Each[S_Firstborn]
-  ): Values[(SrcId,LocalHttpConsumer)] =
+@c4assemble("SnapshotMakingApp") class SnapshotMakingAssembleBase {
+  def needConsumer(key: SrcId, first: Each[S_Firstborn]): Values[(SrcId,LocalHttpConsumer)] =
     List(WithPK(LocalHttpConsumer(SnapshotMakingUtil.url)))
-
-  def mapAll(
-    key: SrcId,
-    post: Each[S_HttpRequest]
-  ): Values[(NeedSnapshot,S_HttpRequest)] =
-    if(post.path == SnapshotMakingUtil.url) List(actorName.value->post) else Nil
-
-  def mapFirstborn(
-    key: SrcId,
-    firstborn: Each[S_Firstborn],
-    @by[NeedSnapshot] posts: Values[S_HttpRequest]
-  ): Values[(SrcId,TxTransform)] = {
-    val srcId = "snapshotMaker"
-    if(posts.isEmpty) List(WithPK(PeriodicSnapshotMakingTx(srcId)(snapshotMaking)))
-    else {
-      def task(post: S_HttpRequest) =
-        signatureChecker.retrieve(check=false)(signedReqUtil.signed(post.headers))
-        // check=false <== no system time in joiners
-      val taskOpt = task(posts.minBy(_.srcId))
-      val similarPosts = posts.toList.filter(post => task(post)==taskOpt).sortBy(_.srcId)
-      List(WithPK(RequestedSnapshotMakingTx(srcId, taskOpt, similarPosts)(snapshotMaking, signatureChecker, signedReqUtil)))
-    }
-  }
+  def mapAll(key: SrcId, post: Each[S_HttpRequest]): Values[(SrcId, NeedSnapshot)] =
+    if(post.path == SnapshotMakingUtil.url) Seq(WithPK(NeedSnapshot(post))) else Nil
 }
+case class NeedSnapshot(value: S_HttpRequest)
 
 object SnapshotMakingUtil {
   val url = "/need-snapshot"
 }
 
 case object DeferPeriodicSnapshotUntilKey extends TransientLens[Long](0L)
-
-case class PeriodicSnapshotMakingTx(srcId: SrcId)(
-  snapshotMaking: SnapshotMakerImpl
-) extends TxTransform with LazyLogging {
-  def transform(local: Context): Context = if(DeferPeriodicSnapshotUntilKey.of(local) < now){
+@c4("SnapshotMakingApp") final case class SnapshotMakingTx(srcId: SrcId = "snapshotMaker")(
+  snapshotMaking: SnapshotMakerImpl, getNeedSnapshot: GetByPK[NeedSnapshot], signatureChecker: SnapshotTaskSigner,
+  signedReqUtil: SignedReqUtil, reducer: RichRawWorldReducer,
+) extends SingleTxTr with LazyLogging {
+  def transform(local: Context): Context = {
+    val needSnapshots = getNeedSnapshot.ofA(local)
+    if(needSnapshots.nonEmpty){
+      val posts = needSnapshots.values.toSeq.map(_.value).sortBy(_.srcId)
+      def task(post: S_HttpRequest) =
+        signatureChecker.retrieve(check=false)(signedReqUtil.signed(post.headers))
+      // check=false <== no system time in joiners
+      val taskOpt = task(posts.minBy(_.srcId))
+      val similarPosts = posts.toList.filter(post => task(post)==taskOpt).sortBy(_.srcId)
+      requested(local, taskOpt, similarPosts)
+    } else if(!reducer.appCanRevert) periodic(local) else local
+  }
+  private def periodic(local: Context): Context = if(DeferPeriodicSnapshotUntilKey.of(local) < now){
     if(snapshotMaking.maxTime + 20*minute < now){
       val rawSnapshot = snapshotMaking.make(local)
       logger.debug(s"periodic snapshot created: ${rawSnapshot.relativePath}")
     }
     DeferPeriodicSnapshotUntilKey.set(now+minute)(local)
   } else local
-}
-
-case class RequestedSnapshotMakingTx(
-  srcId: SrcId, taskOpt: Option[SnapshotTask], requests: List[S_HttpRequest]
-)(
-  snapshotMaking: SnapshotMaker,
-  signatureChecker: SnapshotTaskSigner,
-  signedReqUtil: SignedReqUtil
-) extends TxTransform {
   import signedReqUtil._
-  def transform(local: Context): Context = catchNonFatal {
+  private def requested(local: Context, taskOpt: Option[SnapshotTask], requests: List[S_HttpRequest]): Context = catchNonFatal {
     val task = taskOpt.get
     val (authorized, nonAuthorized) = requests.partition(post =>
       signatureChecker.retrieve(check=true)(signed(post.headers)).nonEmpty
@@ -121,7 +99,7 @@ case class RequestedSnapshotMakingTx(
     if(updates.nonEmpty) makeStats(makeStatLine(updates.head.valueTypeId,0,0,updates))
   private def save(local: Context): RawSnapshot = {
     logger.debug("Saving...")
-    val updates = reducer.toUpdates(local)
+    val updates = reducer.toHistoryUpdates(local) ::: reducer.toSnapshotUpdates(local)
     makeStats(updates)
     val (bytes, headers) = toUpdate.toBytes(updates)
     val res = snapshotSaverFactory.create("snapshots").save(getOffset.of(local), bytes, headers)
@@ -145,9 +123,9 @@ trait SnapshotMakerMaxTime {
 @c4("DisableDefaultSafeToRunApp") final class DisableDefaultSafeToRun
 
 @c4("SafeToRunApp") final class SafeToRun(
-  snapshotMaker: SnapshotMakerMaxTime, disable: Option[DisableDefaultSafeToRun],
+  snapshotMaker: SnapshotMakerMaxTime, disable: Option[DisableDefaultSafeToRun], reducer: RichRawWorldReducer,
 ) extends Executable with Early {
-  def run(): Unit = if(disable.isEmpty){
+  def run(): Unit = if(disable.isEmpty && !reducer.appCanRevert){
     Thread.sleep(10*minute)
     iter()
   }

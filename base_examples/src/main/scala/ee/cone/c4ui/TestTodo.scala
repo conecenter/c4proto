@@ -236,34 +236,22 @@ object TestCanvasView {
 ////////////////////////////
 
 @c4tags("TestTodoApp") trait RevertRootViewTags[C] {
-  @c4el("ExampleReverting") def reverting(
-    key: String, makeSavepoint: Receiver[C], revertToSavepoint: Receiver[C], offset: String,
-  ): ToChildPair
+  @c4el("ExampleReverting") def reverting(key: String, revertToSavepoint: Receiver[C]): ToChildPair
 }
 
 @c4("TestTodoApp") final case class RevertRootView(locationHash: String = "revert")(
-  revert: Reverting, wrapView: WrapView, revertRootViewTagsProvider: RevertRootViewTagsProvider,
-  val rc: UpdatingReceiverFactory, revertToSavepoint: RevertToSavepoint,
+  wrapView: WrapView, revertRootViewTagsProvider: RevertRootViewTagsProvider, revertToSavepoint: RevertToSavepoint,
 )(
   tags: RevertRootViewTags[Context] = revertRootViewTagsProvider.get[Context],
-) extends ByLocationHashView with Updater {
+) extends ByLocationHashView {
   import RevertRootView._
   def view: Context => ViewRes = wrapView.wrap { local =>
-    val res = tags.reverting(
-      key = "reverting", makeSavepoint = rc(MakeSavepoint()), revertToSavepoint = revertToSavepoint,
-      offset = revert.getSavepoint(local).toList.mkString
-    )
+    val res = tags.reverting(key = "reverting", revertToSavepoint = revertToSavepoint)
     List(res.toChildPair)
   }
-  def receive: Handler = value => local => {
-    case MakeSavepoint() => revert.makeSavepoint
-  }
 }
-object RevertRootView {
-  private case class MakeSavepoint() extends VAction
-}
-@c4("TestTodoApp") final case class RevertToSavepoint()(revert: Reverting) extends Receiver[Context] {
-  def receive: Handler = _ => revert.revertToSavepoint
+@c4("TestTodoApp") final case class RevertToSavepoint()(reducer: RichRawWorldReducer) extends Receiver[Context] {
+  def receive: Handler = _ => l => WriteModelKey.modify(_.enqueueAll(reducer.toRevertUpdates(l)))(l)
 }
 
 ////////////////////////////

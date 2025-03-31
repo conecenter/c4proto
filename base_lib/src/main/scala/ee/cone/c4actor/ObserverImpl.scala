@@ -18,6 +18,7 @@ trait TxTransforms {
 @c4("ServerCompApp") final class TxTransformsImpl(
   qMessages: QMessages, warnPeriod: LongTxWarnPeriod, catchNonFatal: CatchNonFatal,
   getTxTransform: GetByPK[EnabledTxTr], injected: List[Injected], reducer: RichRawWorldReducer,
+  prevTxFailedUtil: PrevTxFailedUtil,
 ) extends TxTransforms with LazyLogging {
   def get(global: RichContext): Map[SrcId,TransientMap=>TransientMap] =
     getTxTransform.ofA(global).keys.map(k=>k->handle(global,k)).toMap
@@ -46,10 +47,13 @@ trait TxTransforms {
           case Some(trE) =>
             val tr = trE.value
             val workTimer = NanoTimer()
-            val name = s"${tr.getClass.getName}-$key"
+            val clName = tr.getClass.getName
+            val name = s"$clName-$key"
             setName(s"tx-from-${System.currentTimeMillis}-$name")
             val prepLocal = reducer.toLocal(global, prev + (SharedContextKey->injected))
-            val transformedLocal = TxTransformOrigMeta(tr.getClass.getName).andThen(tr.transform)(prepLocal)
+            val transformedLocal = Function.chain(Seq(
+              TxTransformOrigMeta(clName), prevTxFailedUtil.prepare, tr.transform, prevTxFailedUtil.handle
+            ))(prepLocal)
             val transformPeriod = workTimer.ms
             val nextLocal = qMessages.send(transformedLocal)
             val period = workTimer.ms

@@ -94,19 +94,14 @@ class ProgressObserverImpl(
 @c4("ServerCompApp") final class ServerExecutionFilter(inner: ExecutionFilter)
   extends ExecutionFilter(e=>inner.check(e) && e.isInstanceOf[Early])
 
-@c4assemble("ServerCompApp") class LateInitAssembleBase(
-  factory: LateInitTxFactory
-){
-  def lateInit(
-    key: SrcId,
-    firstborn: Each[S_Firstborn],
-  ): Values[(SrcId,TxTransform)] = List(WithPK(factory.create("LateInitTx")))
+@c4assemble("ServerCompApp") class SingleTxTrAssembleBase(txTrs: List[SingleTxTr]){
+  def map(key: SrcId, firstborn: Each[S_Firstborn]): Values[(SrcId,TxTransform)] = txTrs.map(WithPK(_))
 }
 
-@c4multi("ServerCompApp") final case class LateInitTx(srcId: SrcId)(
+@c4("ServerCompApp") final case class LateInitTx(srcId: SrcId = "LateInitTx")(
   getToStart: DeferredSeq[Executable],
   execution: Execution,
-) extends TxTransform with LazyLogging {
+) extends SingleTxTr with LazyLogging {
   def transform(local: Context): Context = {
     val toStart = getToStart.value.filterNot(_.isInstanceOf[Early])
     logger.info(s"tracking ${toStart.size} late services")

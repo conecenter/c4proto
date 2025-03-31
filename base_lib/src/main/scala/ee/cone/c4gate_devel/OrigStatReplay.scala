@@ -20,7 +20,7 @@ import scala.annotation.tailrec
       val endOffset = consumer.endOffset
       @tailrec def iteration(): Unit = {
         val Seq(ev) = consumer.poll()
-        val updates: List[N_UpdateFrom] = toUpdate.toUpdates(List(ev),"stat")
+        val updates: List[N_UpdateFrom] = toUpdate.toUpdates(ev,"stat")
         updates.foldLeft(Map.empty[Long,(Long,Long)].withDefault(_=>(0L,0L))){ (r,el) =>
           val k = el.valueTypeId
           val (wasCount, wasSize) =  r(k)

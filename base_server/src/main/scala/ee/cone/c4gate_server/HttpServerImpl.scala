@@ -95,7 +95,7 @@ object ReqGroup {
     val id = UUID.randomUUID.toString
     val requestEv = S_HttpRequest(id, request.method, request.path, request.rawQueryString, headers, request.body, now)
     val resp: S_HttpResponse = worldProvider.run(List(
-      world => handler(requestEv, new Context(world.assembled, world.executionContext, Map.empty)) match {
+      world => handler(requestEv, new Context(world.assembled, Map.empty)) match {
         case result if result.events.isEmpty => Stop(result.response)
         case result => Next(LEvent.update(result.response) ++ result.events)
       },

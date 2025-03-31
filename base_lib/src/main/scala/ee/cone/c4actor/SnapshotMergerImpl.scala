@@ -8,7 +8,7 @@ import ee.cone.c4actor.QProtocol._
   snapshotPatchIgnoreRegistry: SnapshotPatchIgnoreRegistry,
 ) extends SnapshotDiffer {
   def diff(local: Context, targetFullSnapshot: RawEvent, addIgnore: Set[Long]): List[N_UpdateFrom] =
-    diff(local, toUpdate.toUpdates(List(targetFullSnapshot),"diff-to"), addIgnore)
+    diff(local, toUpdate.toUpdates(targetFullSnapshot,"diff-to"), addIgnore)
   def diff(local: Context, target: List[N_UpdateFrom], addIgnore: Set[Long]): List[N_UpdateFrom] =
-    updateMapUtil.diff(reducer.toUpdates(local), target, snapshotPatchIgnoreRegistry.ignore ++ addIgnore)
+    updateMapUtil.diff(reducer.toSnapshotUpdates(local), target, snapshotPatchIgnoreRegistry.ignore ++ addIgnore)
 }

@@ -82,19 +82,6 @@ case class PrometheusTx(path: String)(compressor: Compressor, metricsFactories: 
   }
 }
 
-@c4assemble("AvailabilityApp") class AvailabilityAssembleBase(updateDef: Long = 3000, timeoutDef: Long = 3000)(
-  monitoring: Monitoring
-) {
-  def join(
-    key: SrcId,
-    first: Each[S_Firstborn],
-    settings: Values[C_AvailabilitySetting]
-  ): Values[(SrcId, TxTransform)] = {
-    val (updatePeriod, timeout) = Single.option(settings.map(s => s.updatePeriod -> s.timeout)).getOrElse((updateDef, timeoutDef))
-    List(WithPK(AvailabilityTx(s"AvailabilityTx-${first.srcId}", updatePeriod, timeout)(monitoring)))
-  }
-}
-
 @protocol("AvailabilityApp") object AvailabilitySettingProtocol {
 
   @Id(0x00f0) case class C_AvailabilitySetting(
@@ -107,14 +94,17 @@ case class PrometheusTx(path: String)(compressor: Compressor, metricsFactories: 
 
 @c4("AvailabilityApp") final class EnableAvailabilityScaling extends EnableSimpleScaling(classOf[AvailabilityTx])
 
-case class AvailabilityTx(srcId: SrcId, updatePeriod: Long, timeout: Long)(
-  monitoring: Monitoring
-) extends TxTransform {
-  def transform(local: Context): Context =
+@c4("AvailabilityApp") final case class AvailabilityTx(srcId: SrcId = "AvailabilityTx")(
+  monitoring: Monitoring, getSettings: GetByPK[C_AvailabilitySetting], actorName: ActorName,
+) extends SingleTxTr {
+  def transform(local: Context): Context = {
+    val (updatePeriod, timeout) =
+      getSettings.ofA(local).get(actorName.value).fold((3000L, 3000L))(s => s.updatePeriod -> s.timeout)
     monitoring.publish(
       System.currentTimeMillis, updatePeriod, timeout,
       "/availability", Nil, ByteString.EMPTY
     )(local)
+  }
 }
 
 /*

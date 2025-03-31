@@ -2,31 +2,21 @@ package ee.cone.c4actor_repl_impl
 
 import java.util.concurrent.atomic.AtomicReference
 import ee.cone.c4actor._
-import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble._
-import ee.cone.c4assemble.Types.{Each, Values}
 import ammonite.sshd._
 import ammonite.util.Bind
-import ee.cone.c4di.c4multi
+import ee.cone.c4di.c4
 import org.apache.sshd.server.auth.pubkey.AcceptAllPublickeyAuthenticator
 
-@c4assemble("SSHDebugApp") class SSHDebugAssembleBase(factory: SSHDebugTxFactory)   {
-  def join(
-    key: SrcId,
-    firstborn: Each[S_Firstborn]
-  ): Values[(SrcId,TxTransform)] =
-    List(WithPK(factory.create()))
-}
-
-@c4multi("SSHDebugApp") final case class SSHDebugTx(srcId: SrcId="SSHDebug")(
+@c4("SSHDebugApp") final case class SSHDebugTx(srcId: SrcId="SSHDebug")(
   qMessages: QMessages, replace: Replace,
-) extends TxTransform {
-  def init(ec: OuterExecutionContext): ReadModel=>Unit = {
+) extends SingleTxTr {
+  def init(): ReadModel=>Unit = {
     val ref = new AtomicReference[ReadModel](replace.emptyReadModel)
     def tx(f: Context=>Object): List[_] = {
       val assembled = ref.get
-      f(new Context(assembled, ec, Map.empty)) match {
+      f(new Context(assembled, Map.empty)) match {
         case local: Context =>
           val nLocal = qMessages.send(local)
           Nil
@@ -46,7 +36,7 @@ import org.apache.sshd.server.auth.pubkey.AcceptAllPublickeyAuthenticator
   }
   def transform(local: Context): Context = {
     val nLocal = if(SSHDebugKey.of(local).nonEmpty) local
-      else SSHDebugKey.set(Option(init(local.executionContext)))(local)
+      else SSHDebugKey.set(Option(init()))(local)
     SSHDebugKey.of(nLocal).get(nLocal.assembled)
     nLocal
   }

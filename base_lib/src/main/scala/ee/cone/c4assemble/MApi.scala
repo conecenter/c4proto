@@ -58,10 +58,6 @@ trait OutFactory[K,V<:Product] {
   def result(pair: (K,V)): DOut
 }
 
-trait OuterExecutionContext {
-  def value: ExecutionContext
-}
-
 trait AggrDOut
 
 object Types {

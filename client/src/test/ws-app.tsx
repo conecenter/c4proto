@@ -38,13 +38,9 @@ function ExampleReplicaList({replicas}:{replicas?:{
     </tbody></table>
 }
 
-const makeSavepointIdOf = identityAt("makeSavepoint")
 const revertToSavepointIdOf = identityAt("revertToSavepoint")
-function ExampleReverting({offset,identity}:{offset: string, identity: Identity}){
-    return <div>
-        <ExampleButton caption="make savepoint" identity={makeSavepointIdOf(identity)}/>
-        {offset && <ExampleButton caption={`revert to ${offset}`} identity={revertToSavepointIdOf(identity)}/>}
-    </div>
+function ExampleReverting({identity}:{identity: Identity}){
+    return <div><ExampleButton caption="revert" identity={revertToSavepointIdOf(identity)}/></div>
 }
 
 const activateIdOf = identityAt("activate")

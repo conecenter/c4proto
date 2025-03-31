@@ -13,7 +13,7 @@ import ee.cone.c4actor.QProtocol._
     val (bytes, headers) = toUpdate.toBytes(updates.map(updateMapUtil.insert))
     val firstUpdate = SimpleRawEvent("0" * OffsetHexSize(), ToByteString(bytes), headers)
     val world = reducer.createContext(Option(firstUpdate))
-    new Context(world.assembled, world.executionContext, Map.empty)
+    new Context(world.assembled, Map.empty)
   }
 }
 

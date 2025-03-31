@@ -4,12 +4,9 @@ import java.nio.file._
 import java.time.Instant
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble._
-import ee.cone.c4gate.HttpProtocol.{N_Header, S_Manifest}
+import ee.cone.c4gate.HttpProtocol.N_Header
 import ee.cone.c4di.c4
 import ee.cone.c4proto.ToByteString
 import okio.ByteString
@@ -22,21 +19,10 @@ import scala.jdk.CollectionConverters.IteratorHasAsScala
 import scala.jdk.CollectionConverters.IterableHasAsScala
 import java.nio.charset.StandardCharsets.UTF_8
 
-@c4assemble("PublishingCompApp") class PublishingAssembleBase(publishing: Publishing){
-  def join(
-    srcId: SrcId,
-    firstborn: Each[S_Firstborn]
-  ): Values[(SrcId,TxTransform)] =
-    List(
-      WithPK(PublishingFromFilesTx()(publishing)),
-      WithPK(PublishingFromStringsTx()(publishing)),
-    )
-}
-
-case class PublishingFromFilesTx(srcId: SrcId="PublishingFromFilesTx")(publishing: Publishing) extends TxTransform {
+@c4("PublishingCompApp") final case class PublishingFromFilesTx(srcId: SrcId="PublishingFromFilesTx")(publishing: Publishing) extends SingleTxTr {
   def transform(local: Context): Context = publishing.checkPublishFromFiles(local)
 }
-case class PublishingFromStringsTx(srcId: SrcId="PublishingFromStringsTx")(publishing: Publishing) extends TxTransform {
+@c4("PublishingCompApp") final case class PublishingFromStringsTx(srcId: SrcId="PublishingFromStringsTx")(publishing: Publishing) extends SingleTxTr {
   def transform(local: Context): Context = publishing.checkPublishFromStrings(local)
 }
 

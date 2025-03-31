@@ -1,7 +1,7 @@
 package ee.cone.c4gate
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.{S_FailedUpdates, S_Firstborn}
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
@@ -44,12 +44,9 @@ class MemRawSnapshotLoader(relativePath: String, bytes: ByteString) extends RawS
 
 @c4multi("SnapshotPutApp") final case class SnapshotPutTx(srcId: SrcId, requests: List[S_HttpRequest])(
   putter: SnapshotPutter, signatureChecker: SimpleSigner, signedPostUtil: SignedReqUtil, txAdd: LTxAdd,
-  getS_FailedUpdates: GetByPK[S_FailedUpdates], getS_SnapshotPutDone: GetByPK[S_SnapshotPutDone],
+  getS_SnapshotPutDone: GetByPK[S_SnapshotPutDone],
 ) extends TxTransform with LazyLogging {
   import signedPostUtil._
-
-  private def prevTxFailed(local: Context): Boolean =
-    getS_FailedUpdates.ofA(local).contains(ReadAfterWriteOffsetKey.of(local))
 
   def transform(local: Context): Context = {
     val reqSuccesses =
@@ -58,7 +55,7 @@ class MemRawSnapshotLoader(relativePath: String, bytes: ByteString) extends RawS
       respond(reqSuccesses.map{ case (req, _) => req -> Nil }, Nil),
       txAdd.add(reqSuccesses.flatMap{ case (_, done) => LEvent.delete(done) })
     ))(local) else catchNonFatal {
-      assert(!prevTxFailed(local))
+      assert(PrevTxFailedKey.of(local) == 0)
       val request = requests.head
       assert(request.method == "POST")
       val (relativePath, addIgnore) = signatureChecker.retrieve(check=true)(signed(request.headers)) match {
@@ -73,7 +70,7 @@ class MemRawSnapshotLoader(relativePath: String, bytes: ByteString) extends RawS
         txAdd.add(LEvent.update(S_SnapshotPutDone(request.srcId)))
       ))(local)
     }("put-snapshot"){ e =>
-      respond(Nil,List(requests.head -> e.getMessage))(local)
+      respond(Nil,List(requests.head -> e.getMessage)).andThen(PrevTxFailedKey.set(0L))(local)
     } // failure can happen out of there: >1G request may result in >2G tx, that will be possible to txAdd, but impossible to commit later
   }
 }
