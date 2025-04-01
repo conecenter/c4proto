@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.Types.{SrcId, TxEvents}
 import ee.cone.c4di.{c4, provide}
 
 @c4("ScalingTestApp") final class FailOverTestEnable
@@ -12,9 +12,9 @@ import ee.cone.c4di.{c4, provide}
 }
 
 case class FailOverTestTx(srcId: SrcId) extends SingleTxTr with LazyLogging {
-  def transform(local: Context): Context = {
+  def transform(local: Context): TxEvents = {
     logger.info(s"Tx up $srcId")
-    local
+    Nil
   }
 }
 

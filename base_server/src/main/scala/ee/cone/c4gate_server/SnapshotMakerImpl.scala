@@ -36,11 +36,12 @@ object SnapshotMakingUtil {
 }
 
 case object DeferPeriodicSnapshotUntilKey extends TransientLens[Long](0L)
+case class DeferPeriodicSnapshotUntilEvent(value: Long) extends TransientEvent(DeferPeriodicSnapshotUntilKey, value)
 @c4("SnapshotMakingApp") final case class SnapshotMakingTx(srcId: SrcId = "snapshotMaker")(
   snapshotMaking: SnapshotMakerImpl, getNeedSnapshot: GetByPK[NeedSnapshot], signatureChecker: SnapshotTaskSigner,
   signedReqUtil: SignedReqUtil, reducer: RichRawWorldReducer,
 ) extends SingleTxTr with LazyLogging {
-  def transform(local: Context): Context = {
+  def transform(local: Context): TxEvents = {
     val needSnapshots = getNeedSnapshot.ofA(local)
     if(needSnapshots.nonEmpty){
       val posts = needSnapshots.values.toSeq.map(_.value).sortBy(_.srcId)
@@ -50,17 +51,17 @@ case object DeferPeriodicSnapshotUntilKey extends TransientLens[Long](0L)
       val taskOpt = task(posts.minBy(_.srcId))
       val similarPosts = posts.toList.filter(post => task(post)==taskOpt).sortBy(_.srcId)
       requested(local, taskOpt, similarPosts)
-    } else if(!reducer.appCanRevert) periodic(local) else local
+    } else if(!reducer.appCanRevert) periodic(local) else Nil
   }
-  private def periodic(local: Context): Context = if(DeferPeriodicSnapshotUntilKey.of(local) < now){
+  private def periodic(local: Context): TxEvents = if(DeferPeriodicSnapshotUntilKey.of(local) < now){
     if(snapshotMaking.maxTime + 20*minute < now){
       val rawSnapshot = snapshotMaking.make(local)
       logger.debug(s"periodic snapshot created: ${rawSnapshot.relativePath}")
     }
-    DeferPeriodicSnapshotUntilKey.set(now+minute)(local)
-  } else local
+    Seq(DeferPeriodicSnapshotUntilEvent(now+minute))
+  } else Nil
   import signedReqUtil._
-  private def requested(local: Context, taskOpt: Option[SnapshotTask], requests: List[S_HttpRequest]): Context = catchNonFatal {
+  private def requested(local: Context, taskOpt: Option[SnapshotTask], requests: List[S_HttpRequest]): LEvents = catchNonFatal {
     val task = taskOpt.get
     val (authorized, nonAuthorized) = requests.partition(post =>
       signatureChecker.retrieve(check=true)(signed(post.headers)).nonEmpty
@@ -69,11 +70,11 @@ case object DeferPeriodicSnapshotUntilKey extends TransientLens[Long](0L)
     val goodResp = List(N_Header("x-r-snapshot-keys", res.map(_.relativePath).mkString(",")))
     val authorizedResponses = authorized.map(au => au -> goodResp)
     val nonAuthorizedResponses = nonAuthorized.map(nau => nau -> "Non authorized request")
-    respond(authorizedResponses, nonAuthorizedResponses)(local)
+    respond(authorizedResponses, nonAuthorizedResponses)
   }("make-snapshot"){ e =>
     val message = e.getMessage
     e.printStackTrace()
-    respond(Nil,requests.map(_ -> message))(local)
+    respond(Nil,requests.map(_ -> message))
   }
 }
 

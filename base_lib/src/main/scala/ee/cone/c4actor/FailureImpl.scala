@@ -4,9 +4,9 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{N_UpdateFrom, S_Firstborn, S_TxReport}
 import ee.cone.c4actor.TxHistoryProtocol._
 import ee.cone.c4actor.TxHistoryUtilImpl._
-import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.Types.{LEvents, SrcId, TxEvents}
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{ToPrimaryKey, c4assemble}
+import ee.cone.c4assemble.{Single, ToPrimaryKey, c4assemble}
 import ee.cone.c4di.{c4, c4multi}
 import ee.cone.c4proto.{HasId, Id, ProtoAdapter, protocol}
 
@@ -40,8 +40,8 @@ object TxHistoryUtilImpl {
 }
 
 @c4multi("ServerCompApp") final case class TxHistoryEveryTx(srcId: SrcId = "TxHistoryEveryTx")(
-  reducer: RichRawWorldReducer, idGenUtil: IdGenUtil, getReports: GetByPK[S_TxReport], currentProcess: CurrentProcess,
-  getOffset: GetOffset, txAdd: LTxAdd, hReducer: TxHistoryReducerImpl,
+  reducer: RichRawWorldReducer, getReports: GetByPK[S_TxReport], currentProcess: CurrentProcess, getOffset: GetOffset,
+  hReducer: TxHistoryReducerImpl, txAdd: LTxAdd,
 ) extends TxTransform {
   def transform(local: Context): Context = {
     val history = reducer.history(local)
@@ -65,30 +65,28 @@ object TxHistoryUtilImpl {
 case object TxHistoryPrevMaxTxIdKey extends TransientLens[Option[String]](None)
 case class TxHistoryPrevMaxTxIdEvent(value: Option[String]) extends TransientEvent(TxHistoryPrevMaxTxIdKey, value)
 @c4("ServerCompApp") final case class TxReportPurgeTx(srcId: SrcId = "TxReportPurgeTx")(
-  getReports: GetByPK[S_TxReport], txAdd: LTxAdd,
+  getReports: GetByPK[S_TxReport],
 ) extends SingleTxTr {
   private val period = 60 //s
-  def transform(local: Context): Context = {
+  def transform(local: Context): TxEvents = {
     val reports = sortPK(getReports.ofA(local).values)
-    val events = LEvent.delete(TxHistoryPrevMaxTxIdKey.of(local).toSeq.flatMap(m => reports.filter(_.txId < m))) ++
+    LEvent.delete(TxHistoryPrevMaxTxIdKey.of(local).toSeq.flatMap(m => reports.filter(_.txId < m))) ++
       Seq(TxHistoryPrevMaxTxIdEvent(getMaxTxId(reports)), SleepUntilEvent(Instant.now.plusSeconds(period)))
-    txAdd.add(events)(local)
   }
 }
 
 @c4("ServerCompApp") final case class TxHistoryPurgeTx(srcId: SrcId = "TxHistoryPurgeTx")(
-  txAdd: LTxAdd, snapshotLister: SnapshotLister, getPurge: GetByPK[S_TxHistoryPurge],
+  snapshotLister: SnapshotLister, getPurge: GetByPK[S_TxHistoryPurge],
 ) extends SingleTxTr {
   private val checkPeriod = 60*5 //s
   private val keepPeriod = 60*60*24*30 //s
-  def transform(local: Context): Context = {
+  def transform(local: Context): TxEvents = {
     val snapshots = snapshotLister.listWithMTime
     val msUntil = snapshots.map(_.mTime).maxOption.fold(0L)(_-keepPeriod*1000)
     val was = getPurge.ofA(local).values.toSet
     val will = snapshots.filter(_.mTime < msUntil).map(_.snapshot.offset).maxOption.map(S_TxHistoryPurge).toSet
-    val events = LEvent.delete(sortPK(was--will)) ++ LEvent.update(sortPK(will--was)) ++
+    LEvent.delete(sortPK(was--will)) ++ LEvent.update(sortPK(will--was)) ++
       Seq(SleepUntilEvent(Instant.now.plusSeconds(checkPeriod)))
-    txAdd.add(events)(local)
   }
 }
 
@@ -172,48 +170,42 @@ case class TxHistoryPrevMaxTxIdEvent(value: Option[String]) extends TransientEve
 
 trait ReadyProcessesUtil {
   def get(local: AssembledContext): ReadyProcesses
+  def getCurrent(local: AssembledContext): ReadyProcess
 }
 
 class ReadyProcessesUtilImpl(
-  getReadyProcesses: GetByPK[ReadyProcesses], actorName: ActorName,
+  getReadyProcesses: GetByPK[ReadyProcesses], actorName: ActorName, currentProcess: CurrentProcess,
 ) extends ReadyProcessesUtil {
   def get(local: AssembledContext): ReadyProcesses = getReadyProcesses.ofA(local)(actorName.value)
+  def getCurrent(local: AssembledContext): ReadyProcess = Single(get(local).all.filter(_.id == currentProcess.id))
 }
 
 @c4("ServerCompApp") final case class TxHistorySplitTx(srcId: SrcId = "TxHistorySplitTx")(
-  getReports: GetByPK[S_TxReport], txAdd: LTxAdd, readyProcessesUtil: ReadyProcessesUtil,
-  getTxHistorySplit: GetByPK[S_TxHistorySplit],
-) extends SingleTxTr {
-  def transform(local: Context): Context = {
-    val detected = { // only when single replica is active, there will be not detected, so we prevent restarting all but one;
-      val pids = readyProcessesUtil.get(local).enabledForCurrentRole.toSet
-      getReports.ofA(local).values.filter(r=>pids(r.electorClientId)).groupBy(_.txId).collect{
-        case (txId,reports) if reports.map(_.sum).toSet.size > 1 => txId -> reports.toSeq.sortBy(_.srcId)
-      }
-    }
-    val events = if(detected.isEmpty) Seq(SleepUntilEvent(Instant.now.plusSeconds(1))) else {
-      val now = System.currentTimeMillis()
-      val lastDetectionOpt = getTxHistorySplit.ofA(local).values.maxByOption(_.txId)
-
-
-      _.until > now
-
-    }
-
-
-
-
-
+  getReports: GetByPK[S_TxReport], readyProcessesUtil: ReadyProcessesUtil, getTxHistorySplit: GetByPK[S_TxHistorySplit],
+) extends SingleTxTr with LazyLogging {
+  private val preventRestartPeriod = 60 * 60 * 2 //s
+  private def detected(local: Context) = { // only when single replica is active, there will be not detected, so we prevent restarting all but one;
+    val pids = readyProcessesUtil.get(local).enabledForCurrentRole.toSet
+    val reports = getReports.ofA(local).values
+    val res = reports.filter(r=>pids(r.electorClientId)).groupBy(_.txId).values.exists(r => r.map(_.sum).toSet.size > 1)
+    if(res) logger.error(s"detected tx history split: ${reports.toSeq.sortBy(_.srcId)}")
+    res
+  }
+  private def restartedRecently(local: Context, proc: ReadyProcess, now: Long) = {
+    val res = getTxHistorySplit.ofA(local).exists{ case (_,s) => s.txId < proc.txId && now < s.until }
+    if(res) logger.error(s"restarted recently")
+    res
+  }
+  private def createHistorySplit(now: Long): LEvents =
+    LEvent.update(S_TxHistorySplit("TxHistorySplit", "", now + preventRestartPeriod * 1000))
+  def transform(local: Context): TxEvents = {
+    val now = System.currentTimeMillis()
+    val proc = readyProcessesUtil.getCurrent(local)
+    if(!detected(local) || proc.completionReqAt.nonEmpty || restartedRecently(local, proc, now))
+      Seq(SleepUntilEvent(Instant.now.plusSeconds(1))) else createHistorySplit(now) ++ proc.complete(Instant.now)
   }
 }
 
-/*
-detected: same tx, different sum, alive replicas (count)
-active-split: now < max-split-until
-detected and no active-split => create split ?current-offset to now+2h
-detected and active-split and master was born before => restart
-
- */
 
 
 

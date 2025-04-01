@@ -2,9 +2,8 @@ package ee.cone.c4gate
 
 import java.nio.file._
 import java.time.Instant
-
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.Types.{SrcId, TxEvents}
 import ee.cone.c4actor._
 import ee.cone.c4gate.HttpProtocol.N_Header
 import ee.cone.c4di.c4
@@ -20,10 +19,10 @@ import scala.jdk.CollectionConverters.IterableHasAsScala
 import java.nio.charset.StandardCharsets.UTF_8
 
 @c4("PublishingCompApp") final case class PublishingFromFilesTx(srcId: SrcId="PublishingFromFilesTx")(publishing: Publishing) extends SingleTxTr {
-  def transform(local: Context): Context = publishing.checkPublishFromFiles(local)
+  def transform(local: Context): TxEvents = publishing.checkPublishFromFiles(local)
 }
 @c4("PublishingCompApp") final case class PublishingFromStringsTx(srcId: SrcId="PublishingFromStringsTx")(publishing: Publishing) extends SingleTxTr {
-  def transform(local: Context): Context = publishing.checkPublishFromStrings(local)
+  def transform(local: Context): TxEvents = publishing.checkPublishFromStrings(local)
 }
 
 trait PublicDirProvider {
@@ -56,7 +55,10 @@ trait PublicDirProvider {
 
 // we need it, because there's no good place to found there's new *.svg in src/
 case object InitialPublishDone extends TransientLens[Boolean](false)
+case object InitialPublishDoneEvent extends TransientEvent(InitialPublishDone, true)
 case object PublishFromStringsCache extends TransientLens[Option[List[ByPathHttpPublication]]](None)
+case class PublishFromStringsCacheEvent(value: List[ByPathHttpPublication])
+  extends TransientEvent(PublishFromStringsCache, Option(value))
 
 @c4("PublishingCompApp") final class Publishing(
   idGenUtil: IdGenUtil,
@@ -65,14 +67,13 @@ case object PublishFromStringsCache extends TransientLens[Option[List[ByPathHttp
   publicDirProviders: List[PublicDirProvider],
   publishFullCompressor: PublishFullCompressor,
   publisher: Publisher,
-  txAdd: LTxAdd,
   publicPaths: PublicPaths,
 )(
   mimeTypes: String=>Option[String] = mimeTypesProviders.flatMap(_.get).toMap.get,
   compressor: RawCompressor = publishFullCompressor.value
 ) extends LazyLogging {
-  private def sleepABit: Context=>Context = SleepUntilKey.set(Instant.ofEpochMilli(System.currentTimeMillis+1000))
-  def checkPublishFromStrings(local: Context): Context = {
+  private def sleepABit: TxEvents = Seq(SleepUntilEvent(Instant.ofEpochMilli(System.currentTimeMillis+1000)))
+  def checkPublishFromStrings(local: Context): TxEvents = {
     val timer = NanoTimer()
     val prepared = PublishFromStringsCache.of(local).getOrElse(for {
       publishFromStringsProvider <- publishFromStringsProviders
@@ -81,20 +82,18 @@ case object PublishFromStringsCache extends TransientLens[Option[List[ByPathHttp
     val strEvents = publisher.publish("FromStrings", prepared)(local)
     val end = timer.ms
     logger.debug(s"checkPublishFromStrings: ${prepared.size} prepared, ${strEvents.size} events, $end ms")
-    Function.chain(Seq(txAdd.add(strEvents), PublishFromStringsCache.set(Option(prepared)), sleepABit))(local) // we can not sleep forever due to snapshot put
+    strEvents ++ Seq(PublishFromStringsCacheEvent(prepared)) ++ sleepABit // we can not sleep forever due to snapshot put
   }
-  def checkPublishFromFiles(local: Context): Context = {
+  def checkPublishFromFiles(local: Context): TxEvents = {
     val timeToPublish =
       publicPaths.value.map(_.resolve("publish_time")).filter(Files.exists(_))
         .flatMap(path=>publisher.publish("FromFilesTime",List(prepare("/publish_time",Files.readAllBytes(path))))(local))
-    if(timeToPublish.isEmpty && InitialPublishDone.of(local))
-      sleepABit(local)
-    else {
+    if(timeToPublish.isEmpty && InitialPublishDone.of(local)) sleepABit else {
       val filesToPublish = publisher.publish("FromFiles", for {
         publicDirProvider <- publicDirProviders
         (url, file) <- publicDirProvider.get if url != "/publish_time"
       } yield prepare(url, Files.readAllBytes(file)))(local)
-      txAdd.add(filesToPublish ++ timeToPublish).andThen(InitialPublishDone.set(true))(local)
+      filesToPublish ++ timeToPublish ++ Seq(InitialPublishDoneEvent)
     }
   }
   def prepare(path: String, body: Array[Byte]): ByPathHttpPublication = {

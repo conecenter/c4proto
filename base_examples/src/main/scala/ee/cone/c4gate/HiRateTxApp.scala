@@ -11,13 +11,12 @@ import ee.cone.c4proto.ToByteString
 
 @c4("HiRateTxApp") final case class HiRateTx(srcId: SrcId = "HiRateTx")(
   publisher: Publisher,
-  txAdd: LTxAdd,
 ) extends SingleTxTr with LazyLogging {
-  def transform(local: Context): Context = {
+  def transform(local: Context): TxEvents = {
     val timeStr = System.currentTimeMillis.toString
     logger.info(s"start handling $timeStr")
     val bytes = ToByteString(timeStr)
-    txAdd.add(publisher.publish(ByPathHttpPublication("/time",Nil,bytes),_+1000*60))(local)
+    publisher.publish(ByPathHttpPublication("/time",Nil,bytes),_+1000*60)
   }
 }
 

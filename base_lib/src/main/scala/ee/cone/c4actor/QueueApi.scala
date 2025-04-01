@@ -152,6 +152,7 @@ object Types {
   type UpdateKey = (Long,SrcId)
   type UpdateMap = Map[UpdateKey,N_UpdateFrom]
   type LEvents = Seq[LEvent[Product]]
+  type TxEvents = Seq[TxEvent]
 }
 
 trait Injected
@@ -414,7 +415,9 @@ trait PrevTxFailedUtil {
   def handle(local: Context): Context
 }
 
-trait SingleTxTr extends TxTransform
+trait SingleTxTr extends Product {
+  def transform(local: Context): TxEvents
+}
 
 abstract class TransientEvent[V](val key: TransientLens[V], val innerValue: V) extends TxEvent
 

@@ -51,10 +51,11 @@ class MemRawSnapshotLoader(relativePath: String, bytes: ByteString) extends RawS
   def transform(local: Context): Context = {
     val reqSuccesses =
       for{ req <- requests; done <- getS_SnapshotPutDone.ofA(local).get(req.srcId).toList } yield (req, done)
-    if(reqSuccesses.nonEmpty) Function.chain(Seq(
-      respond(reqSuccesses.map{ case (req, _) => req -> Nil }, Nil),
-      txAdd.add(reqSuccesses.flatMap{ case (_, done) => LEvent.delete(done) })
-    ))(local) else catchNonFatal {
+    if(reqSuccesses.nonEmpty) {
+      val events = respond(reqSuccesses.map{ case (req, _) => req -> Nil }, Nil) ++
+        reqSuccesses.flatMap{ case (_, done) => LEvent.delete(done) }
+      txAdd.add(events)(local)
+    } else catchNonFatal {
       assert(PrevTxFailedKey.of(local) == 0)
       val request = requests.head
       assert(request.method == "POST")
@@ -70,7 +71,7 @@ class MemRawSnapshotLoader(relativePath: String, bytes: ByteString) extends RawS
         txAdd.add(LEvent.update(S_SnapshotPutDone(request.srcId)))
       ))(local)
     }("put-snapshot"){ e =>
-      respond(Nil,List(requests.head -> e.getMessage)).andThen(PrevTxFailedKey.set(0L))(local)
+      txAdd.add(respond(Nil,List(requests.head -> e.getMessage))).andThen(PrevTxFailedKey.set(0L))(local)
     } // failure can happen out of there: >1G request may result in >2G tx, that will be possible to txAdd, but impossible to commit later
   }
 }

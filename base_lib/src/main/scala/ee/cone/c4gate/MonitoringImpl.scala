@@ -2,9 +2,8 @@ package ee.cone.c4gate
 
 import java.time.Instant
 import java.util.UUID
-
 import ee.cone.c4actor.QProtocol.S_Firstborn
-import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.Types.{SrcId, TxEvents}
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
@@ -68,18 +67,13 @@ case class PrometheusTx(path: String)(compressor: Compressor, metricsFactories: 
   }
 }*/
 
-@c4("AvailabilityApp") final class Monitoring(
-  publisher: Publisher,
-  txAdd: LTxAdd,
-) {
+@c4("AvailabilityApp") final class Monitoring(publisher: Publisher){
   def publish(
     time: Long, updatePeriod: Long, timeout: Long,
     path: String, headers: List[N_Header], body: okio.ByteString
-  ): Context => Context = {
-    val nextTime = time + updatePeriod
-    val pubEvents = publisher.publish(ByPathHttpPublication(path, headers, body), _+updatePeriod+timeout)
-    txAdd.add(pubEvents).andThen(SleepUntilKey.set(Instant.ofEpochMilli(nextTime)))
-  }
+  ): TxEvents =
+    publisher.publish(ByPathHttpPublication(path, headers, body), _+updatePeriod+timeout) ++
+      Seq(SleepUntilEvent(Instant.ofEpochMilli(time + updatePeriod)))
 }
 
 @protocol("AvailabilityApp") object AvailabilitySettingProtocol {
@@ -97,13 +91,13 @@ case class PrometheusTx(path: String)(compressor: Compressor, metricsFactories: 
 @c4("AvailabilityApp") final case class AvailabilityTx(srcId: SrcId = "AvailabilityTx")(
   monitoring: Monitoring, getSettings: GetByPK[C_AvailabilitySetting], actorName: ActorName,
 ) extends SingleTxTr {
-  def transform(local: Context): Context = {
+  def transform(local: Context): TxEvents = {
     val (updatePeriod, timeout) =
       getSettings.ofA(local).get(actorName.value).fold((3000L, 3000L))(s => s.updatePeriod -> s.timeout)
     monitoring.publish(
       System.currentTimeMillis, updatePeriod, timeout,
       "/availability", Nil, ByteString.EMPTY
-    )(local)
+    )
   }
 }
 

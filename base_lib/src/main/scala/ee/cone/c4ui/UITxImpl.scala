@@ -2,7 +2,7 @@ package ee.cone.c4ui
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.S_Firstborn
-import ee.cone.c4actor.Types.{LEvents, SrcId}
+import ee.cone.c4actor.Types.{LEvents, SrcId, TxEvents}
 import ee.cone.c4actor._
 import ee.cone.c4actor_branch._
 import ee.cone.c4actor_branch.BranchProtocol.{N_BranchResult, N_RestPeriod}
@@ -43,12 +43,10 @@ import scala.Function.chain
 
 @c4("UICompApp") final case class UIAlienPurgerTx(srcId: SrcId = "UIAlienPurgerTx")(
   fromAlienWishUtil: FromAlienWishUtil, toAlienMessageUtil: ToAlienMessageUtil, locationUtil: LocationUtil,
-  txAdd: LTxAdd,
 ) extends SingleTxTr {
-  def transform(local: Context): Context = {
-    val lEvents = fromAlienWishUtil.purgeAllExpired(local) ++ toAlienMessageUtil.purgeAllExpired(local) ++ locationUtil.purgeAllExpired(local)
-    txAdd.add(lEvents).andThen(SleepUntilKey.set(Instant.now.plusSeconds(300)))(local)
-  }
+  def transform(local: Context): TxEvents =
+    fromAlienWishUtil.purgeAllExpired(local) ++ toAlienMessageUtil.purgeAllExpired(local) ++
+      locationUtil.purgeAllExpired(local) ++ Seq(SleepUntilEvent(Instant.now.plusSeconds(300)))
 }
 
 

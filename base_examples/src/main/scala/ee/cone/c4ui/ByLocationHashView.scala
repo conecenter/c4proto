@@ -2,7 +2,7 @@ package ee.cone.c4ui
 
 import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.{LEvents, SrcId}
-import ee.cone.c4actor.{Context, LTxAdd, WithPK}
+import ee.cone.c4actor.{Context, WithPK}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{by, c4assemble}
 import ee.cone.c4di._

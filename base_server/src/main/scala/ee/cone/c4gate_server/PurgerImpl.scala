@@ -3,7 +3,7 @@ package ee.cone.c4gate_server
 import java.time.Instant
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor._
-import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.Types.{SrcId, TxEvents}
 import ee.cone.c4di.c4
 
 object PurgerDefaultPolicy {
@@ -55,8 +55,8 @@ trait Purger {
     res
   }
 ) extends SingleTxTr {
-  def transform(local: Context): Context = {
+  def transform(local: Context): TxEvents = {
     purger.process(policy)
-    SleepUntilKey.set(Instant.now.plusSeconds(60L))(local)
+    Seq(SleepUntilEvent(Instant.now.plusSeconds(60L)))
   }
 }
