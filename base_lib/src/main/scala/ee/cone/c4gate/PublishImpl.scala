@@ -68,11 +68,11 @@ case class PublishFromStringsCacheEvent(value: List[ByPathHttpPublication])
   publishFullCompressor: PublishFullCompressor,
   publisher: Publisher,
   publicPaths: PublicPaths,
+  sleep: Sleep,
 )(
   mimeTypes: String=>Option[String] = mimeTypesProviders.flatMap(_.get).toMap.get,
   compressor: RawCompressor = publishFullCompressor.value
 ) extends LazyLogging {
-  private def sleepABit: TxEvents = Seq(SleepUntilEvent(Instant.ofEpochMilli(System.currentTimeMillis+1000)))
   def checkPublishFromStrings(local: Context): TxEvents = {
     val timer = NanoTimer()
     val prepared = PublishFromStringsCache.of(local).getOrElse(for {
@@ -82,13 +82,13 @@ case class PublishFromStringsCacheEvent(value: List[ByPathHttpPublication])
     val strEvents = publisher.publish("FromStrings", prepared)(local)
     val end = timer.ms
     logger.debug(s"checkPublishFromStrings: ${prepared.size} prepared, ${strEvents.size} events, $end ms")
-    strEvents ++ Seq(PublishFromStringsCacheEvent(prepared)) ++ sleepABit // we can not sleep forever due to snapshot put
+    strEvents ++ Seq(PublishFromStringsCacheEvent(prepared)) ++ sleep.forSeconds(1) // we can not sleep forever due to snapshot put
   }
   def checkPublishFromFiles(local: Context): TxEvents = {
     val timeToPublish =
       publicPaths.value.map(_.resolve("publish_time")).filter(Files.exists(_))
         .flatMap(path=>publisher.publish("FromFilesTime",List(prepare("/publish_time",Files.readAllBytes(path))))(local))
-    if(timeToPublish.isEmpty && InitialPublishDone.of(local)) sleepABit else {
+    if(timeToPublish.isEmpty && InitialPublishDone.of(local)) sleep.forSeconds(1) else {
       val filesToPublish = publisher.publish("FromFiles", for {
         publicDirProvider <- publicDirProviders
         (url, file) <- publicDirProvider.get if url != "/publish_time"

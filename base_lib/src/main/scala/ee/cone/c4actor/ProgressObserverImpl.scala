@@ -110,6 +110,12 @@ case class SingleWrapTx(inner: SingleTxTr)(txAdd: LTxAdd) extends TxTransform {
     val toStart = getToStart.value.filterNot(_.isInstanceOf[Early])
     logger.info(s"tracking ${toStart.size} late services")
     toStart.foreach(f => execution.unboundedFatal(Future(f.run())(_)))
-    Seq(SleepUntilEvent(Instant.MAX))
+    Seq(SleepUntilEventImpl(Instant.MAX))
   }
+}
+
+case class SleepUntilEventImpl(value: Instant) extends TransientEvent(SleepUntilKey, value)
+@c4("ServerCompApp") final class SleepImpl extends Sleep {
+  def forSeconds(value: Long): TxEvents = Seq(SleepUntilEventImpl(Instant.now.plusSeconds(value)))
+  def untilMillis(value: Long): TxEvents = Seq(SleepUntilEventImpl(Instant.ofEpochMilli(value)))
 }

@@ -3,10 +3,9 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{N_UpdateFrom, S_Firstborn, S_TxReport}
 import ee.cone.c4actor.TxHistoryProtocol._
-import ee.cone.c4actor.TxHistoryUtilImpl._
 import ee.cone.c4actor.Types.{LEvents, SrcId, TxEvents}
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Single, ToPrimaryKey, c4assemble}
+import ee.cone.c4assemble.{ToPrimaryKey, by, c4assemble}
 import ee.cone.c4di.{c4, c4multi}
 import ee.cone.c4proto.{HasId, Id, ProtoAdapter, protocol}
 
@@ -29,65 +28,8 @@ case class TxHistoryImpl(sums: TreeMap[String,String], reports: Map[String,S_TxR
   case class S_TxHistorySplit(@Id(0x0011) srcId: SrcId, @Id(0x001A) txId: String, @Id(0x002E) until: Long)
 }
 
-object TxHistoryUtilImpl {
-  def getMaxTxId(reports: Iterable[S_TxReport]): Option[SrcId] = reports.map(_.txId).maxOption
-  def sortPK[T<:Product](l: Iterable[T]): Seq[T] = l.toSeq.sortBy(ToPrimaryKey(_))
-}
-
-@c4assemble("ServerCompApp") class TxHistoryAssembleBase(txHistoryEveryTxFactory: TxHistoryEveryTxFactory) {
-  def every(key: SrcId, firstborn: Each[S_Firstborn]): Values[(SrcId, EnabledTxTr)] =
-    Seq(WithPK(EnabledTxTr(txHistoryEveryTxFactory.create())))
-}
-
-@c4multi("ServerCompApp") final case class TxHistoryEveryTx(srcId: SrcId = "TxHistoryEveryTx")(
-  reducer: RichRawWorldReducer, getReports: GetByPK[S_TxReport], currentProcess: CurrentProcess, getOffset: GetOffset,
-  hReducer: TxHistoryReducerImpl, txAdd: LTxAdd,
-) extends TxTransform {
-  def transform(local: Context): Context = {
-    val history = reducer.history(local)
-    val failureReports = hReducer.getReports(history)
-    val events = if(failureReports.nonEmpty) LEvent.update(failureReports) else {
-      val reports = getReports.ofA(local).values
-      val pid = currentProcess.id
-      val okReports = getMaxTxId(reports).filter(txId =>
-        txId > getMaxTxId(reports.filter(_.electorClientId == pid)).getOrElse("") && txId <= getOffset.of(local)
-      ).flatMap { txId =>
-        hReducer.isFailed(history, txId).map{ isFailed =>
-          hReducer.report(txId = txId, sum = hReducer.getSum(history, txId).get, reason = if(isFailed) "?" else "")
-        }
-      }.toSeq
-      LEvent.update(okReports) ++ Seq(SleepUntilEvent(Instant.now.plusSeconds(1)))
-    }
-    txAdd.add(events)(local)
-  }
-}
-
-case object TxHistoryPrevMaxTxIdKey extends TransientLens[Option[String]](None)
-case class TxHistoryPrevMaxTxIdEvent(value: Option[String]) extends TransientEvent(TxHistoryPrevMaxTxIdKey, value)
-@c4("ServerCompApp") final case class TxReportPurgeTx(srcId: SrcId = "TxReportPurgeTx")(
-  getReports: GetByPK[S_TxReport],
-) extends SingleTxTr {
-  private val period = 60 //s
-  def transform(local: Context): TxEvents = {
-    val reports = sortPK(getReports.ofA(local).values)
-    LEvent.delete(TxHistoryPrevMaxTxIdKey.of(local).toSeq.flatMap(m => reports.filter(_.txId < m))) ++
-      Seq(TxHistoryPrevMaxTxIdEvent(getMaxTxId(reports)), SleepUntilEvent(Instant.now.plusSeconds(period)))
-  }
-}
-
-@c4("ServerCompApp") final case class TxHistoryPurgeTx(srcId: SrcId = "TxHistoryPurgeTx")(
-  snapshotLister: SnapshotLister, getPurge: GetByPK[S_TxHistoryPurge],
-) extends SingleTxTr {
-  private val checkPeriod = 60*5 //s
-  private val keepPeriod = 60*60*24*30 //s
-  def transform(local: Context): TxEvents = {
-    val snapshots = snapshotLister.listWithMTime
-    val msUntil = snapshots.map(_.mTime).maxOption.fold(0L)(_-keepPeriod*1000)
-    val was = getPurge.ofA(local).values.toSet
-    val will = snapshots.filter(_.mTime < msUntil).map(_.snapshot.offset).maxOption.map(S_TxHistoryPurge).toSet
-    LEvent.delete(sortPK(was--will)) ++ LEvent.update(sortPK(will--was)) ++
-      Seq(SleepUntilEvent(Instant.now.plusSeconds(checkPeriod)))
-  }
+object SortByPK {
+  def apply[T<:Product](l: Iterable[T]): Seq[T] = l.toSeq.sortBy(ToPrimaryKey(_))
 }
 
 @c4("RichDataCompApp") final class TxHistoryReducerImpl(
@@ -106,7 +48,7 @@ case class TxHistoryPrevMaxTxIdEvent(value: Option[String]) extends TransientEve
     val sums = impl(history).sums
     if(txId <= sums.firstKey) None else Option(sums.contains(txId))
   }
-  def getReports(history: TxHistory): Seq[S_TxReport] = sortPK(impl(history).reports.values)
+  def getUnsentReports(history: TxHistory): Seq[S_TxReport] = SortByPK(impl(history).reports.values)
   def report(txId: String, sum: String, reason: String): S_TxReport = S_TxReport(
     srcId = idGenUtil.srcIdRandom(), electorClientId = currentProcess.id, txId = txId, sum = sum, reason = reason
   )
@@ -166,26 +108,90 @@ case class TxHistoryPrevMaxTxIdEvent(value: Option[String]) extends TransientEve
   }
 }
 
-///
+/// every tx-s:
 
-trait ReadyProcessesUtil {
-  def get(local: AssembledContext): ReadyProcesses
-  def getCurrent(local: AssembledContext): ReadyProcess
+@c4assemble("ServerCompApp") class TxHistoryAssembleBase(
+  txHistoryEveryTxFactory: TxHistoryEveryTxFactory, actorName: ActorName,
+) {
+  def every(key: SrcId, firstborn: Each[S_Firstborn]): Values[(SrcId, EnabledTxTr)] =
+    Seq(WithPK(EnabledTxTr(txHistoryEveryTxFactory.create())))
+  //
+  type ByAllRep = SrcId
+  def map(key: SrcId, report: Each[S_TxReport]): Values[(ByAllRep,S_TxReport)] = Seq(actorName.value->report)
+  def join(
+    key: SrcId, @by[ByAllRep] reports: Values[S_TxReport], processes: Each[ReadyProcesses]
+  ): Values[(SrcId,TxReportingStatus)] = for {
+    maxTxId <- reports.map(_.txId).maxOption.toSeq
+    reportedClients = reports.collect{ case r if maxTxId == r.txId => r.electorClientId }.toSet
+    p <- processes.all
+  } yield WithPK(TxReportingStatus(p.id, maxTxId, reportedClients(p.id)))
 }
 
-class ReadyProcessesUtilImpl(
-  getReadyProcesses: GetByPK[ReadyProcesses], actorName: ActorName, currentProcess: CurrentProcess,
-) extends ReadyProcessesUtil {
-  def get(local: AssembledContext): ReadyProcesses = getReadyProcesses.ofA(local)(actorName.value)
-  def getCurrent(local: AssembledContext): ReadyProcess = Single(get(local).all.filter(_.id == currentProcess.id))
+case class TxReportingStatus(electorClientId: SrcId, maxTxId: String, maxTxReported: Boolean)
+@c4("ServerCompApp") final case class GetTxReportingStatus(
+  getTxReportingStatus: GetByPK[TxReportingStatus], currentProcess: CurrentProcess,
+) {
+  private val pid = currentProcess.id
+  def of(local: AssembledContext): Option[TxReportingStatus] = getTxReportingStatus.ofA(local).get(pid)
+}
+
+@c4multi("ServerCompApp") final case class TxHistoryEveryTx(srcId: SrcId = "TxHistoryEveryTx")(
+  reducer: RichRawWorldReducer, hReducer: TxHistoryReducerImpl, txAdd: LTxAdd,
+  getTxReportingStatus: GetTxReportingStatus, sleep: Sleep,
+) extends TxTransform {
+  private def okReport(local: Context, history: TxHistory) = for {
+    st <- getTxReportingStatus.of(local) if !st.maxTxReported
+    txId = st.maxTxId
+    isFailed <- hReducer.isFailed(history, txId)
+  } yield hReducer.report(txId = txId, sum = hReducer.getSum(history, txId).get, reason = if(isFailed) "?" else "")
+  def transform(local: Context): Context = {
+    val history = reducer.history(local)
+    val failureReports = hReducer.getUnsentReports(history)
+    val events = if(failureReports.nonEmpty) LEvent.update(failureReports)
+      else LEvent.update(okReport(local, history).toSeq) ++ Sleep.forSeconds(1)))
+    txAdd.add(events)(local)
+  }
+}
+
+/// main tx-s:
+
+case object TxHistoryPrevMaxTxIdKey extends TransientLens[Option[String]](None)
+case class TxHistoryPrevMaxTxIdEvent(value: Option[String]) extends TransientEvent(TxHistoryPrevMaxTxIdKey, value)
+@c4("ServerCompApp") final case class TxReportPurgeTx(srcId: SrcId = "TxReportPurgeTx")(
+  getReports: GetByPK[S_TxReport], getTxReportingStatus: GetTxReportingStatus, sleep: Sleep,
+) extends SingleTxTr {
+  private val period = 60 //s
+  def transform(local: Context): TxEvents = {
+    val deletes = LEvent.delete(for {
+      prevMaxTxId <- TxHistoryPrevMaxTxIdKey.of(local).toSeq
+      report <- SortByPK(getReports.ofA(local).values.filter(_.txId < prevMaxTxId))
+    } yield report)
+    val maxTxIdOpt = getTxReportingStatus.of(local).map(_.maxTxId)
+    deletes ++ Seq(TxHistoryPrevMaxTxIdEvent(maxTxIdOpt)) ++ sleep.forSeconds(period)
+  }
+}
+
+@c4("ServerCompApp") final case class TxHistoryPurgeTx(srcId: SrcId = "TxHistoryPurgeTx")(
+  snapshotLister: SnapshotLister, getPurge: GetByPK[S_TxHistoryPurge], sleep: Sleep,
+) extends SingleTxTr {
+  private val checkPeriod = 60*5 //s
+  private val keepPeriod = 60*60*24*30 //s
+  def transform(local: Context): TxEvents = {
+    val snapshots = snapshotLister.listWithMTime
+    val msUntil = snapshots.map(_.mTime).maxOption.fold(0L)(_-keepPeriod*1000)
+    val was = getPurge.ofA(local).values.toSet
+    val will = snapshots.filter(_.mTime < msUntil).map(_.snapshot.offset).maxOption.map(S_TxHistoryPurge).toSet
+    LEvent.delete(SortByPK(was--will)) ++ LEvent.update(SortByPK(will--was)) ++ sleep.forSeconds(checkPeriod)
+  }
 }
 
 @c4("ServerCompApp") final case class TxHistorySplitTx(srcId: SrcId = "TxHistorySplitTx")(
-  getReports: GetByPK[S_TxReport], readyProcessesUtil: ReadyProcessesUtil, getTxHistorySplit: GetByPK[S_TxHistorySplit],
+  getReports: GetByPK[S_TxReport], readyProcessUtil: ReadyProcessUtil, getTxHistorySplit: GetByPK[S_TxHistorySplit],
+  sleep: Sleep,
 ) extends SingleTxTr with LazyLogging {
   private val preventRestartPeriod = 60 * 60 * 2 //s
   private def detected(local: Context) = { // only when single replica is active, there will be not detected, so we prevent restarting all but one;
-    val pids = readyProcessesUtil.get(local).enabledForCurrentRole.toSet
+    val pids = readyProcessUtil.getAll(local).enabledForCurrentRole.toSet
     val reports = getReports.ofA(local).values
     val res = reports.filter(r=>pids(r.electorClientId)).groupBy(_.txId).values.exists(r => r.map(_.sum).toSet.size > 1)
     if(res) logger.error(s"detected tx history split: ${reports.toSeq.sortBy(_.srcId)}")
@@ -200,112 +206,8 @@ class ReadyProcessesUtilImpl(
     LEvent.update(S_TxHistorySplit("TxHistorySplit", "", now + preventRestartPeriod * 1000))
   def transform(local: Context): TxEvents = {
     val now = System.currentTimeMillis()
-    val proc = readyProcessesUtil.getCurrent(local)
-    if(!detected(local) || proc.completionReqAt.nonEmpty || restartedRecently(local, proc, now))
-      Seq(SleepUntilEvent(Instant.now.plusSeconds(1))) else createHistorySplit(now) ++ proc.complete(Instant.now)
+    val proc = readyProcessUtil.getCurrent(local)
+    if(!detected(local) || proc.completionReqAt.nonEmpty || restartedRecently(local, proc, now)) sleep.forSeconds(1)
+    else createHistorySplit(now) ++ proc.complete(Instant.now)
   }
 }
-
-
-
-
-
-
-
-// structures: history in memory, history in snapshot, report, purge, split stage
-
-
-// queue for S_TxReport-s with reason; from reducer to every-replica-TxTr
-// every-replica-TxTr sends them to inbox
-// every-replica-TxTr sends non-failed report if it sees offset passed, and it has no corresponding failure
-
-// list snapshots and select last that is older than ~month
-// can purge ignored before its offset
-// can list and purge right in consumer loop, limited by `purgedAt`
-
-// extract reasons
-
-
-
-// todo: detect split; upd S_TxHistorySplit
-
-
-
-
-/*
-case class FailedTx(txId: SrcId, updates: List[S_FailedUpdates])
-case class UnclassifiedFailedTx(tx: FailedTx)
-
-@c4("RichDataCompApp") final class FailureUtilImpl(
-  toUpdate: ToUpdate, qAdapterRegistry: QAdapterRegistry, idGenUtil: IdGenUtil,
-  currentProcess: CurrentProcess, getFailedTx: GetByPK[FailedTx],
-) extends FailureUtil {
-  private def isUpdateOf(id: Long): N_UpdateFrom=>Boolean = up => up.valueTypeId == id && up.value.size > 0
-  private val isFailedUpdates = isUpdateOf(qAdapterRegistry.byName(classOf[S_FailedUpdates].getName).id)
-  def check(up: N_UpdateFrom): Boolean = !isFailedUpdates(up)
-  //
-  def toFailedUpdates(ev: RawEvent, reason: String): List[N_Update] = {
-    val item = S_FailedUpdates(
-      srcId = idGenUtil.srcIdRandom(), txId = ev.srcId, reason = reason, at = System.currentTimeMillis(),
-      electorClientId = currentProcess.id, materialized = false,
-    )
-    LEvent.update(item).map(toUpdate.toUpdate).toList
-  }
-  //
-  def preparePrevTxFailed(local: Context): Context =
-    if(getFailedTx.ofA(local).contains(ReadAfterWriteOffsetKey.of(local))) PrevTxFailedKey.modify(_+1L)(local)
-    else local
-  private def max(a: Instant, b: Instant): Instant = if(a.isAfter(b)) a else b
-  def handlePrevTxFailed(local: Context): Context = PrevTxFailedKey.of(local) match {
-    case 0L => local case n => SleepUntilKey.modify(max(_, Instant.now.plusSeconds(n)))(local)
-  }
-}
-
-@c4assemble("ServerCompApp") class FailureAssembleBase(
-  materializeFailuresTxFactory: MaterializeFailuresTxFactory, classifyFailuresTxFactory: ClassifyFailuresTxFactory
-){
-  type ByTxId = SrcId
-  def mapByTxId(key: SrcId, up: Each[S_FailedUpdates]): Values[(ByTxId, S_FailedUpdates)] = Seq(up.txId -> up)
-  def joinByTxId(key: SrcId, @by[ByTxId] updates: Values[S_FailedUpdates]): Values[(SrcId,FailedTx)] =
-    Seq(WithPK(FailedTx(key, updates.sortBy(_.srcId).toList)))
-  //
-  type ByMaterialize = SrcId
-  def mapByMaterialize(key: SrcId, up: Each[S_FailedUpdates]): Values[(ByMaterialize, S_FailedUpdates)] =
-    if(up.materialized) Nil else Seq("MaterializeFailedUpdates" -> up)
-  def joinByMaterialize(key: SrcId, @by[ByMaterialize] updates: Values[S_FailedUpdates]): Values[(SrcId,EnabledTxTr)] =
-    EnabledTxTr(materializeFailuresTxFactory.create(key, updates.sortBy(_.srcId).toList))
-  //
-  def mapUnclassified(
-    key: SrcId, tx: Each[FailedTx],
-    consistent: Values[S_ConsistentlyFailedTx], inconsistent: Values[S_InconsistentlyFailedTx],
-  ): Values[(SrcId, UnclassifiedFailedTx)] =
-    if(consistent.nonEmpty || inconsistent.nonEmpty) Nil else Seq(WithPK(UnclassifiedFailedTx(tx)))
-  def classify(key: SrcId, firstborn: Each[S_Firstborn]): Values[(SrcId, TxTransform)] =
-    Seq(WithPK(classifyFailuresTxFactory.create()))
-}
-
-@c4multi("ServerCompApp") final case class MaterializeFailuresTx(srcId: SrcId, updates: List[S_FailedUpdates])(
-  txAdd: LTxAdd,
-) extends TxTransform {
-  def transform(local: Context): Context = {
-    val lEvents = updates.map(_.copy(materialized = true)).flatMap(LEvent.update)
-    txAdd.add(lEvents)(local)
-  }
-}
-
-@c4multi("ServerCompApp") final case class ClassifyFailuresTx(srcId: SrcId = "ClassifyFailedUpdates")(
-  txAdd: LTxAdd, getReadyProcesses: GetByPK[ReadyProcesses], actorName: ActorName,
-  getUnclassifiedFailedTx: GetByPK[UnclassifiedFailedTx],
-) extends TxTransform {
-  def transform(local: Context): Context = {
-    val until = System.currentTimeMillis() - 30 * 1000
-    val lEvents = getUnclassifiedFailedTx.ofA(local).values.toList.map(_.tx).sortBy(_.txId).flatMap{ tx =>
-      val processes = getReadyProcesses.ofA(local).get(actorName.value).fold(List.empty[ReadyProcess])(_.all).map(_.id)
-      if(processes.forall(tx.updates.map(_.electorClientId).toSet)) LEvent.update(S_ConsistentlyFailedTx(tx.txId))
-      else if(tx.updates.forall(_.at < until)) LEvent.update(S_InconsistentlyFailedTx(tx.txId)) else Nil
-    }
-    txAdd.add(lEvents).andThen(SleepUntilKey.set(Instant.now.plusSeconds(5)))(local)
-  }
-}
-*/
-

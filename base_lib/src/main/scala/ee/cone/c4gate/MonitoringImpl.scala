@@ -67,13 +67,13 @@ case class PrometheusTx(path: String)(compressor: Compressor, metricsFactories: 
   }
 }*/
 
-@c4("AvailabilityApp") final class Monitoring(publisher: Publisher){
+@c4("AvailabilityApp") final class Monitoring(publisher: Publisher, sleep: Sleep){
   def publish(
     time: Long, updatePeriod: Long, timeout: Long,
     path: String, headers: List[N_Header], body: okio.ByteString
   ): TxEvents =
     publisher.publish(ByPathHttpPublication(path, headers, body), _+updatePeriod+timeout) ++
-      Seq(SleepUntilEvent(Instant.ofEpochMilli(time + updatePeriod)))
+      sleep.untilMillis(time + updatePeriod)
 }
 
 @protocol("AvailabilityApp") object AvailabilitySettingProtocol {

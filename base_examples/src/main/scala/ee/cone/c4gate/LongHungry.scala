@@ -31,12 +31,11 @@ import java.time.Instant
   }
 }
 
-@c4("LongHungryApp") final case class LongHungryHungryTx(srcId: SrcId = "LongHungryHungryTx")
-  extends SingleTxTr with LazyLogging
-{
+@c4("LongHungryApp") final case class LongHungryHungryTx(srcId: SrcId = "LongHungryHungryTx")(
+  sleep: Sleep,
+) extends SingleTxTr with LazyLogging {
   def transform(local: Context): TxEvents = {
     logger.info("more hungry")
-    LEvent.update(D_Blob("LongHungry", ToByteString(Instant.now.toString * 1000000))) ++
-      Seq(SleepUntilEvent(Instant.now.plusSeconds(1)))
+    LEvent.update(D_Blob("LongHungry", ToByteString(Instant.now.toString * 1000000))) ++ sleep.forSeconds(1)
   }
 }

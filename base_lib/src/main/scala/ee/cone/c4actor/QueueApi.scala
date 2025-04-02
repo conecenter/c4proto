@@ -421,4 +421,7 @@ trait SingleTxTr extends Product {
 
 abstract class TransientEvent[V](val key: TransientLens[V], val innerValue: V) extends TxEvent
 
-case class SleepUntilEvent(value: Instant) extends TransientEvent(SleepUntilKey, value)
+trait Sleep {
+  def forSeconds(value: Long): TxEvents
+  def untilMillis(value: Long): TxEvents
+}

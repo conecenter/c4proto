@@ -60,6 +60,13 @@ case class ReadyProcessImpl(orig: S_ReadyProcess, completionRequests: List[S_Com
   def halt: Seq[LEvent[Product]] = LEvent.delete(orig)
 }
 
+@c4("ChildElectorClientApp") final class ReadyProcessesUtilImpl(
+  getReadyProcesses: GetByPK[ReadyProcesses], actorName: ActorName, currentProcess: CurrentProcess,
+) extends ReadyProcessUtil {
+  def getAll(local: AssembledContext): ReadyProcesses = getReadyProcesses.ofA(local)(actorName.value)
+  def getCurrent(local: AssembledContext): ReadyProcess = Single(getAll(local).all.filter(_.id == currentProcess.id))
+}
+
 @c4("ChildElectorClientApp") final class CurrentProcessImpl(config: Config)(
   val idSeq: List[SrcId] = List(config.get("C4ELECTOR_CLIENT_ID")).filter(_.nonEmpty),
 ) extends CurrentProcess {

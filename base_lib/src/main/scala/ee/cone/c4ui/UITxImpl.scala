@@ -42,11 +42,11 @@ import scala.Function.chain
 }
 
 @c4("UICompApp") final case class UIAlienPurgerTx(srcId: SrcId = "UIAlienPurgerTx")(
-  fromAlienWishUtil: FromAlienWishUtil, toAlienMessageUtil: ToAlienMessageUtil, locationUtil: LocationUtil,
+  fromAlienWishUtil: FromAlienWishUtil, toAlienMessageUtil: ToAlienMessageUtil, locationUtil: LocationUtil, sleep: Sleep,
 ) extends SingleTxTr {
   def transform(local: Context): TxEvents =
     fromAlienWishUtil.purgeAllExpired(local) ++ toAlienMessageUtil.purgeAllExpired(local) ++
-      locationUtil.purgeAllExpired(local) ++ Seq(SleepUntilEvent(Instant.now.plusSeconds(300)))
+      locationUtil.purgeAllExpired(local) ++ sleep.forSeconds(300)
 }
 
 

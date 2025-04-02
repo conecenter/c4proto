@@ -43,7 +43,9 @@ trait Purger {
   }
 }
 
-@c4("SnapshotMakingApp") final case class PurgerTx(srcId: SrcId = "purger")(purger: Purger, config: Config)(
+@c4("SnapshotMakingApp") final case class PurgerTx(srcId: SrcId = "purger")(
+  purger: Purger, config: Config, sleep: Sleep,
+)(
   policy: List[KeepPolicy] = {
     val value = config.get("C4KEEP_SNAPSHOTS")
     val res = if(value == "default") PurgerDefaultPolicy()
@@ -57,6 +59,6 @@ trait Purger {
 ) extends SingleTxTr {
   def transform(local: Context): TxEvents = {
     purger.process(policy)
-    Seq(SleepUntilEvent(Instant.now.plusSeconds(60L)))
+    sleep.forSeconds(60L)
   }
 }
