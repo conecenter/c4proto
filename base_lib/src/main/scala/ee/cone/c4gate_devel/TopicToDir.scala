@@ -8,11 +8,11 @@ import ee.cone.c4di._
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file._
 import scala.annotation.tailrec
-
+/*
 @c4("TopicToDirApp") final class TopicToDir(
   consuming: Consuming, snapshotSaverFactory: SnapshotSaverFactory
 )(
-  txSaver: SnapshotSaver = snapshotSaverFactory.create("snapshot_txs")
+  txSaver: SnapshotSaver = snapshotSaverFactory.cre ate("snapshot_txs")
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     logger.info("begin")
@@ -52,3 +52,4 @@ import scala.annotation.tailrec
     Files.write(path, data)
   }
 }
+*/

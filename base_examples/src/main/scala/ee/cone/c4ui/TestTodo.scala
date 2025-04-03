@@ -269,16 +269,14 @@ trait ReplicaEl extends ToChildPair
 @c4("TestTodoApp") final case class ReplicaListRootView(locationHash: String = "replicas")(
   wrapView: WrapView,
   exampleTagsProvider: ExampleReplicaTagsProvider,
-  getReadyProcesses: GetByPK[ReadyProcesses],
-  actorName: ActorName,
+  readyProcessUtil: ReadyProcessUtil,
   val rc: UpdatingReceiverFactory,
 )(
   tags: ExampleReplicaTags[Context] = exampleTagsProvider.get[Context],
 ) extends ByLocationHashView with Updater {
   import ReplicaListRootView._
   def view: Context => ViewRes = wrapView.wrap { local =>
-    val processes = getReadyProcesses.ofA(local).get(actorName.value).fold(List.empty[ReadyProcess])(_.all)
-    val res = tags.replicas("replicas", for(p <- processes) yield tags.replica(
+    val res = tags.replicas("replicas", for(p <- readyProcessUtil.getAll(local).all) yield tags.replica(
       key = p.id, role = p.role, startedAt = Instant.ofEpochMilli(p.startedAt).toString, hostname = p.hostname,
       version = p.refDescr, completion = p.completionReqAt.fold("")(_.toString), complete = rc(Complete(p)),
       forceRemove = rc(ForceRemove(p)),

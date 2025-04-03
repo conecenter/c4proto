@@ -76,3 +76,20 @@ class RichRawWorldImpl(
   val assembled: ReadModel, val snapshot: UpdateMapping, val reverting: UpdateMapping,
   val offset: NextOffset, val history: TxHistory,
 ) extends RichContext
+
+@c4("RichDataCompApp") final class SnapshotPatchIgnoreRegistry(
+  items: List[GeneralSnapshotPatchIgnore], qAdapterRegistry: QAdapterRegistry,
+) {
+  val ignore: Set[Long] =
+    items.map { case item: SnapshotPatchIgnore[_] => qAdapterRegistry.byName(item.cl.getName).id }.toSet
+}
+
+@c4("ServerCompApp") final class SnapshotDifferImpl(
+  toUpdate: ToUpdate, reducer: RichRawWorldReducer, updateMapUtil: UpdateMapUtil,
+  snapshotPatchIgnoreRegistry: SnapshotPatchIgnoreRegistry,
+) extends SnapshotDiffer {
+  def diff(local: Context, targetFullSnapshot: RawEvent, addIgnore: Set[Long]): List[N_UpdateFrom] =
+    diff(local, toUpdate.toUpdates(targetFullSnapshot,"diff-to"), addIgnore)
+  def diff(local: Context, target: List[N_UpdateFrom], addIgnore: Set[Long]): List[N_UpdateFrom] =
+    updateMapUtil.diff(reducer.toSnapshotUpdates(local), target, snapshotPatchIgnoreRegistry.ignore ++ addIgnore)
+}

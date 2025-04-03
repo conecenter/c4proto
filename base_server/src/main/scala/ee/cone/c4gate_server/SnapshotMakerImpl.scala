@@ -84,7 +84,7 @@ case class DeferPeriodicSnapshotUntilEvent(value: Long) extends TransientEvent(D
 
 @c4("SnapshotMakingApp") final class SnapshotMakerImpl(
   snapshotLister: SnapshotLister,
-  snapshotSaverFactory: SnapshotSaverFactory, toUpdate: ToUpdate, reducer: RichRawWorldReducer, getOffset: GetOffset,
+  snapshotSaver: SnapshotSaver, toUpdate: ToUpdate, reducer: RichRawWorldReducer, getOffset: GetOffset,
 ) extends SnapshotMaker with SnapshotMakerMaxTime with LazyLogging {
   @tailrec private def makeStatLine(
     currType: Long, currCount: Long, currSize: Long, updates: List[N_UpdateFrom]
@@ -103,7 +103,7 @@ case class DeferPeriodicSnapshotUntilEvent(value: Long) extends TransientEvent(D
     val updates = reducer.toHistoryUpdates(local) ::: reducer.toSnapshotUpdates(local)
     makeStats(updates)
     val (bytes, headers) = toUpdate.toBytes(updates)
-    val res = snapshotSaverFactory.create("snapshots").save(getOffset.of(local), bytes, headers)
+    val res = snapshotSaver.save(getOffset.of(local), bytes, headers)
     logger.debug("Saved")
     res
   }

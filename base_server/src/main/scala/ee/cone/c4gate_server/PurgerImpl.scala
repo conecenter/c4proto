@@ -49,10 +49,10 @@ trait Purger {
   policy: List[KeepPolicy] = {
     val value = config.get("C4KEEP_SNAPSHOTS")
     val res = if(value == "default") PurgerDefaultPolicy()
-    else (for(pair <- value.split(",").toList) yield {
-      val Array(periodStr,countStr) = pair.split("x")
-      KeepPolicy(periodStr.toLong,countStr.toInt)
-    })
+      else (for(pair <- value.split(",").toList) yield {
+        val Array(periodStr,countStr) = pair.split("x")
+        KeepPolicy(periodStr.toLong,countStr.toInt)
+      })
     assert(res.nonEmpty)
     res
   }

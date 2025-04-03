@@ -376,9 +376,6 @@ trait UpdateMapUtil {
 
 trait GeneralSnapshotPatchIgnore
 class SnapshotPatchIgnore[T<:Product](val cl: Class[T]) extends GeneralSnapshotPatchIgnore
-trait SnapshotPatchIgnoreRegistry {
-  def ignore: Set[Long]
-}
 
 trait UpdateFromUtil {
   def get(local: AssembledContext, updates: Seq[N_Update]): Seq[N_UpdateFrom]
