@@ -56,36 +56,43 @@ import scala.jdk.FutureConverters._
     }
   }
 
-  def send(txLogName: TxLogName, resource: String, method: String, contentType: String, builder: HttpRequest.Builder)(implicit ec: ExecutionContext): Future[Option[Array[Byte]]] = {
-    val resourceWithPrefix = s"/${txLogName.value}.$resource"
+  def send(resourceWithPrefix: String, method: String, contentType: String, builder: HttpRequest.Builder)(implicit ec: ExecutionContext): Future[Option[Array[Byte]]] = {
     val date = getDateStr
     val resourceWOSearch = resourceWithPrefix.takeWhile(_!='?')
     sendInner(resourceWithPrefix, date, sign(s"$method\n\n$contentType\n$date\n$resourceWOSearch"), builder)
   }
 
-  def putInner(txLogName: TxLogName, resource: String, body: Array[Byte]): Boolean = {
+  def putInner(resourceWithPrefix: String, body: Array[Byte]): Boolean = {
     val contentType = "application/octet-stream"
     val builder = HttpRequest.newBuilder()
       .header("Content-Type",contentType)
       .PUT(HttpRequest.BodyPublishers.ofByteArray(body))
     execution.aWait{ implicit ec =>
-      send(txLogName, resource, "PUT", contentType, builder).map(_.nonEmpty)
+      send(resourceWithPrefix, "PUT", contentType, builder).map(_.nonEmpty)
     }
   }
-  def put(txLogName: TxLogName, resource: String, body: Array[Byte]): Unit =
-    if(!putInner(txLogName, resource, body)){
-      val Array(bucket,_) = resource.split('/')
-      if(!putInner(txLogName, bucket, Array.empty))
-        throw new Exception(s"put ($resource)")
+  def put(resourceWithPrefix: String, body: Array[Byte]): Unit =
+    if(!putInner(resourceWithPrefix, body)){
+      val Array("",bucket,_) = resourceWithPrefix.split('/')
+      if(!putInner(bucket, Array.empty))
+        throw new Exception(s"put ($resourceWithPrefix)")
       Thread.sleep(3000)
-      if(!putInner(txLogName, resource, body))
-        throw new Exception(s"put ($resource)")
+      if(!putInner(resourceWithPrefix, body))
+        throw new Exception(s"put ($resourceWithPrefix)")
     }
 
-  def delete(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Boolean] =
-    send(txLogName, resource, "DELETE", "", HttpRequest.newBuilder().DELETE())
+  def delete(resourceWithPrefix: String)(implicit ec: ExecutionContext): Future[Boolean] =
+    send(resourceWithPrefix, "DELETE", "", HttpRequest.newBuilder().DELETE())
       .map(_.nonEmpty)
 
+  def get(resourceWithPrefix: String)(implicit ec: ExecutionContext): Future[Option[Array[Byte]]] =
+    send(resourceWithPrefix, "GET", "", HttpRequest.newBuilder().GET())
+
+  private def join(txLogName: TxLogName, resource: String) = s"/${txLogName.value}.$resource"
+  def put(txLogName: TxLogName, resource: String, body: Array[Byte]): Unit =
+    put(join(txLogName, resource), body)
+  def delete(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Boolean] =
+    delete(join(txLogName, resource))(ec)
   def get(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Option[Array[Byte]]] =
-    send(txLogName, resource, "GET", "", HttpRequest.newBuilder().GET())
+    get(join(txLogName, resource))(ec)
 }
