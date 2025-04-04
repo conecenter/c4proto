@@ -226,8 +226,9 @@ trait LTxAdd extends Product {
 trait RawTxAdd {
   def add(out: Seq[N_Update]): Context=>Context
 }
-trait ReadModelAdd {
-  def add(eventIds: Seq[SrcId], updates: Seq[N_Update]): ReadModel=>ReadModel
+
+trait AssemblerUtil {
+  def toTreeReplace(assembled: ReadModel, updates: Seq[N_Update], profilingContext: RAssProfilingContext): ReadModel
 }
 
 trait Observer[Message] {
@@ -266,7 +267,7 @@ trait GetOffset extends Getter[AssembledContext,NextOffset]
 
 trait RichRawWorldReducer {
   def createContext(events: Option[RawEvent]): RichContext
-  def reduce(events: Seq[RawEvent]): RichContext=>RichContext
+  def reduce(context: RichContext, events: Seq[RawEvent]): RichContext
   def toLocal(context: RichContext, transient: TransientMap): Context
   def toHistoryUpdates(local: Context): List[N_UpdateFrom]
   def toSnapshotUpdates(context: Context): List[N_UpdateFrom]
@@ -345,10 +346,7 @@ trait HttpClientProvider {
 }
 
 trait S3Manager {
-  def get(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Option[Array[Byte]]]
-  def put(txLogName: TxLogName, resource: String, body: Array[Byte]): Unit
-  def delete(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Boolean]
-  //
+  def join(txLogName: TxLogName, resource: String): String
   def get(resource: String)(implicit ec: ExecutionContext): Future[Option[Array[Byte]]]
   def put(resource: String, body: Array[Byte]): Unit
   def delete(resource: String)(implicit ec: ExecutionContext): Future[Boolean]

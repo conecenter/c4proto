@@ -88,11 +88,5 @@ import scala.jdk.FutureConverters._
   def get(resourceWithPrefix: String)(implicit ec: ExecutionContext): Future[Option[Array[Byte]]] =
     send(resourceWithPrefix, "GET", "", HttpRequest.newBuilder().GET())
 
-  private def join(txLogName: TxLogName, resource: String) = s"/${txLogName.value}.$resource"
-  def put(txLogName: TxLogName, resource: String, body: Array[Byte]): Unit =
-    put(join(txLogName, resource), body)
-  def delete(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Boolean] =
-    delete(join(txLogName, resource))(ec)
-  def get(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Option[Array[Byte]]] =
-    get(join(txLogName, resource))(ec)
+  def join(txLogName: TxLogName, resource: String): String = s"/${txLogName.value}.$resource"
 }

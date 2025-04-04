@@ -24,7 +24,7 @@ import scala.concurrent.{Await, ExecutionContext, Future, Promise}
     val path = s"$bucketPostfix/${UUID.randomUUID()}"
     val data =
       (path :: rec.headers.toList.flatMap(h=>List(h.key,h.value))).mkString(":")
-    s3.put(currentTxLogName,path,rec.value)
+    s3.put(s3.join(currentTxLogName,path),rec.value)
     new QRecord(data.getBytes(UTF_8), List(header))
   }
 
@@ -50,7 +50,7 @@ import scala.concurrent.{Await, ExecutionContext, Future, Promise}
             case k :: v :: Nil => RawHeader(k,v)
             case e => throw new Exception(e.toString)
           }.toList
-          for(dataOpt <- s3.get(ev.txLogName,path))
+          for(dataOpt <- s3.get(s3.join(ev.txLogName,path)))
             yield dataOpt.fold(ev)(data=>ev.copy(headers=headers,data=ToByteString(data)))
       })},backoffLeft.tail)
     }

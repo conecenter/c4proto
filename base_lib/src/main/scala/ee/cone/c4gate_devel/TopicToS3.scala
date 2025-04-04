@@ -52,7 +52,7 @@ object TxGroup {
     if(taken.isEmpty) iteration(consumer, taken, size, System.nanoTime)
     else if(size > targetGroupVolume || System.nanoTime - time > 1_000_000_000L * 60L){
       val rangeName = s"$bucketPostfix/${taken.head.srcId}$splitter${taken.last.srcId}"
-      s3.put(currentTxLogName, rangeName, adapter.encode(N_TxGroup("", taken.toList.map(ev =>
+      s3.put(s3.join(currentTxLogName, rangeName), adapter.encode(N_TxGroup("", taken.toList.map(ev =>
         N_Tx(snapshotUtil.getName("snapshot_txs", ev.srcId, ev.data.toByteArray, ev.headers), ev.data)
       ))))
       logger.info(s"saved $rangeName")
@@ -72,7 +72,7 @@ object TxGroup {
     val maxTm = items.map{ case (_,tm) => tm }.maxOption
     val toDel = items.collect{ case (nm,tm) if maxTm.get-tm > keepPeriod => s"$bucketPostfix/$nm" }
     logger.info(s"purger: items ${items.size}, maxTm $maxTm, toDel ${toDel.size}")
-    execution.fatal(implicit ec => Future.sequence(toDel.map(s3.delete(currentTxLogName, _))))
+    execution.fatal(implicit ec => Future.sequence(toDel.map(d=>s3.delete(s3.join(currentTxLogName, d)))))
     Thread.sleep(1000 * 60)
     purgeIteration()
   }

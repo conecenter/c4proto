@@ -71,7 +71,7 @@ object SpreadUpdates extends SpreadHandler[N_Update] {
   def createRoot(sz: Int): Array[Array[N_Update]] = new Array(sz)
 }
 
-@c4("RichDataCompApp") final class AssemblerUtil(
+@c4("RichDataCompApp") final class AssemblerUtilImpl(
   qAdapterRegistry: QAdapterRegistry,
   composes: IndexUtil,
   origKeyFactory: OrigKeyFactoryFinalHolder,
@@ -80,20 +80,18 @@ object SpreadUpdates extends SpreadHandler[N_Update] {
   activeOrigKeyRegistry: ActiveOrigKeyRegistry,
   origPartitionerRegistry: OrigPartitionerRegistry,
   execution: Execution,
-) extends LazyLogging {
+) extends AssemblerUtil with LazyLogging {
   private val executionContext = {
     val fixedThreadCount = Runtime.getRuntime.availableProcessors
     val pool = execution.newExecutorService("ass-",Option(fixedThreadCount))
     logger.info(s"ForkJoinPool create $fixedThreadCount")
-    val context = ExecutionContext.fromExecutor(pool)
-    new OuterExecutionContextImpl(context)
+    ExecutionContext.fromExecutor(pool)
   }
   def seq[T](s: Seq[Future[T]])(implicit ec: ExecutionContext): Future[Seq[T]] = Future.sequence(s)
   def toTreeReplace(assembled: ReadModel, updates: Seq[N_Update], profilingContext: RAssProfilingContext): ReadModel = {
     //val end = NanoTimer()
     val isActiveOrig: Set[AssembledKey] = activeOrigKeyRegistry.values
     val outFactory = composes.createOutFactory(0, +1)
-    val ec: ExecutionContext = executionContext.value
     logger.debug("toTreeReplace indexGroups before")
     def handle(updatesPart: Array[N_Update]): Seq[(AssembledKey, Array[Array[DOut]])] = for {
       tpPair <- updatesPart.groupBy(_.valueTypeId).toSeq
@@ -119,7 +117,7 @@ object SpreadUpdates extends SpreadHandler[N_Update] {
     val updatesArr = updates.toArray
     val tasks = arrayUtil.spread(updatesArr, updatesArr.length, SpreadUpdates.partCount, SpreadUpdates)
       .filter(_.length>0).sortBy(-_.length)
-    val taskResultsF = seq(tasks.map{ part => Future{ handle(part) }(ec) })(parasitic)
+    val taskResultsF = seq(tasks.map{ part => Future{ handle(part) }(executionContext) })(parasitic)
     val taskResults = Await.result(taskResultsF, Duration.Inf)
     val diff = taskResults.flatten.groupMap(_._1)(_._2).transform((_,v)=>v.toArray.flatten).toSeq
     //assert(diff.map(_._1).distinct.size == diff.size)
@@ -183,17 +181,6 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
       iter()
     }
     if(config.get("C4ASSEMBLE_DEBUG_TXS").nonEmpty) iter()
-  }
-}
-
-@c4("RichDataCompApp") final class ReadModelAddImpl(
-  utilOpt: DeferredSeq[AssemblerUtil], config: ListConfig,
-)(
-  debugTxs: Option[String] = Single.option(config.get("C4ASSEMBLE_DEBUG_TXS"))
-) extends ReadModelAdd with LazyLogging {
-  def add(eventIds: Seq[SrcId], updates: Seq[N_Update]): ReadModel=>ReadModel = assembled => {
-    val debug = debugTxs.exists(cfTxs=>eventIds.exists(id=>id.contains(cfTxs)||cfTxs.contains(id)))
-    Single(utilOpt.value).toTreeReplace(assembled, updates, RAssProfilingContext(0, eventIds, debug))
   }
 }
 

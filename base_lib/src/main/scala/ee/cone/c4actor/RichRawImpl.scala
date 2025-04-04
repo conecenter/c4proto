@@ -16,10 +16,11 @@ import ee.cone.c4di.c4
 
 @c4("RichDataCompApp") final class RichRawWorldReducerImpl(
   toUpdate: ToUpdate, actorName: ActorName, getOffset: GetOffsetImpl,
-  readModelAdd: ReadModelAdd, updateMapUtil: UpdateMapUtil, replaces: DeferredSeq[Replace], catchNonFatal: CatchNonFatal,
+  updateMapUtil: UpdateMapUtil, replaces: DeferredSeq[Replace], catchNonFatal: CatchNonFatal,
   snapshotConfig: SnapshotConfig, handlers: List[WorldCheckHandler], txHistoryUtil: TxHistoryReducer,
-  ignoreRegistry: SnapshotPatchIgnoreRegistry, config: ListConfig,
+  ignoreRegistry: SnapshotPatchIgnoreRegistry, config: ListConfig, utilOpt: DeferredSeq[AssemblerUtil]
 ) extends RichRawWorldReducer with LazyLogging {
+  private val debugTxs: Option[String] = Single.option(config.get("C4ASSEMBLE_DEBUG_TXS"))
   val appCanRevert: Boolean = config.get("C4CAN_REVERT").exists(_.nonEmpty)
   private def toUp(item: Product) = LEvent.update(item).map(toUpdate.toUpdate).toList
   private def impl(context: RichContext) = context match { case c: RichRawWorldImpl => c }
@@ -31,13 +32,13 @@ import ee.cone.c4di.c4
     val firstborn = toUp(S_Firstborn(actorName.value, events.fold(getOffset.empty)(_.srcId)))
     add(context, firstborn, events.toList, None, canRevert = false)
   }
-  def reduce(events: Seq[RawEvent]): RichContext=>RichContext =
-    context => if(events.isEmpty) context else catchNonFatal[RichContext] {
+  def reduce(context: RichContext, events: Seq[RawEvent]): RichContext =
+    if(events.isEmpty) context else catchNonFatal[RichContext] {
       add(impl(context), Nil, events.toList, None, canRevert = appCanRevert)
     }("reduce"){ e => // ??? exception to record
       if(events.size == 1) add(impl(context), Nil, events.toList, Option(e), canRevert = appCanRevert) else {
         val(a,b) = events.splitAt(events.size / 2)
-        Function.chain(Seq(reduce(a), reduce(b)))(context)
+        Function.chain(Seq(reduce(_,a), reduce(_,b)))(context)
       }
     }
   def add(
@@ -53,7 +54,9 @@ import ee.cone.c4di.c4
     val reverting = if(canRevert) context.reverting.add(snUpdates, _=>true) else context.reverting
     val nOffset = eventIds.maxOption.getOrElse(context.offset)
     val updatesL = firstborn ::: snUpdates.map(toUpdate.toUpdateLost)
-    val nAssembled = readModelAdd.add(eventIds, updatesL)(context.assembled)
+    val debug = debugTxs.exists(cfTxs=>eventIds.exists(id=>id.contains(cfTxs)||cfTxs.contains(id)))
+    val util = Single(utilOpt.value)
+    val nAssembled = util.toTreeReplace(context.assembled, updatesL, RAssProfilingContext(0, eventIds, debug))
     val willContext = new RichRawWorldImpl(nAssembled, snapshot, reverting, nOffset, history)
     if(handlers.nonEmpty){
       logger.info(s"reduced tx $eventIds")

@@ -147,14 +147,13 @@ trait SnapshotMakerMaxTime {
 ) extends SnapshotConfig
 
 @c4("S3RawSnapshotSaverApp") final class S3RawSnapshotSaver(
-  s3: S3Manager, util: SnapshotUtil, execution: Execution,
-  currentTxLogName: CurrentTxLogName,
+  s3: S3Manager, execution: Execution, currentTxLogName: CurrentTxLogName,
 ) extends RawSnapshotSaver with SnapshotRemover with LazyLogging {
   def save(snapshot: RawSnapshot, data: Array[Byte]): Unit =
-    s3.put(currentTxLogName, snapshot.relativePath, data)
+    s3.put(s3.join(currentTxLogName, snapshot.relativePath), data)
   def deleteIfExists(snapshot: SnapshotInfo): Boolean =
     execution.aWait{ implicit ec =>
-      s3.delete(currentTxLogName, snapshot.raw.relativePath)
+      s3.delete(s3.join(currentTxLogName, snapshot.raw.relativePath))
     }
 }
 

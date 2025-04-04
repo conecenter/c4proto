@@ -11,7 +11,7 @@ import okio.ByteString
 ) extends RawSnapshotLoader with SnapshotLister with LazyLogging {
   def getSync(resource: String): Option[Array[Byte]] =
     execution.aWait{ implicit ec =>
-      s3.get(currentTxLogName, resource)
+      s3.get(s3.join(currentTxLogName, resource))
     }
   def load(snapshot: RawSnapshot): ByteString = getSync(snapshot.relativePath).fold{
     Thread.sleep(1000)
