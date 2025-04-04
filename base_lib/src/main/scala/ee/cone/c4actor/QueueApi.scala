@@ -354,6 +354,10 @@ trait S3Manager {
   def get(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Option[Array[Byte]]]
   def put(txLogName: TxLogName, resource: String, body: Array[Byte]): Unit
   def delete(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Boolean]
+  //
+  def get(resource: String)(implicit ec: ExecutionContext): Future[Option[Array[Byte]]]
+  def put(resource: String, body: Array[Byte]): Unit
+  def delete(resource: String)(implicit ec: ExecutionContext): Future[Boolean]
 }
 
 trait S3Lister {
