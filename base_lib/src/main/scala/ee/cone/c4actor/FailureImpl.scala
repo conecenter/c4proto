@@ -16,16 +16,13 @@ import scala.collection.immutable.TreeMap
 case class TxHistoryImpl(sums: TreeMap[String,String], reports: Map[String,S_TxReport]) extends TxHistory
 
 @protocol("ProtoApp") object TxHistoryProtocol {
-  case class N_TxSum(
-    txId: String,
-    sum: String
-  )
+  case class N_TxSum(@Id(0x001A) txId: String, @Id(0x0010) sum: String)
   @Id(0x001C) case class S_TxHistory(
     @Id(0x0011) srcId: SrcId, // snapshot tx id
-    sums: List[N_TxSum], // 1st txId is unknown, rest are failed
+    @Id(0x001F) sums: List[N_TxSum], // 1st txId is unknown, rest are failed
   )
   @Id(0x001D) case class S_TxHistoryPurge(@Id(0x0011) srcId: SrcId)
-  case class S_TxHistorySplit(@Id(0x0011) srcId: SrcId, @Id(0x001A) txId: String, @Id(0x002E) until: Long)
+  @Id(0x001E) case class S_TxHistorySplit(@Id(0x0011) srcId: SrcId, @Id(0x001A) txId: String, @Id(0x002E) until: Long)
 }
 
 object SortByPK {
@@ -148,7 +145,7 @@ case class TxReportingStatus(electorClientId: SrcId, maxTxId: String, maxTxRepor
     val history = reducer.history(local)
     val failureReports = hReducer.getUnsentReports(history)
     val events = if(failureReports.nonEmpty) LEvent.update(failureReports)
-      else LEvent.update(okReport(local, history).toSeq) ++ Sleep.forSeconds(1)))
+      else LEvent.update(okReport(local, history).toSeq) ++ sleep.forSeconds(1)
     txAdd.add(events)(local)
   }
 }

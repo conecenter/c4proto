@@ -99,7 +99,7 @@ class ProgressObserverImpl(
   def map(key: SrcId, firstborn: Each[S_Firstborn]): Values[(SrcId,TxTransform)] =
     txTrs.map(t=>WithPK(factory.create(t)))
 }
-case class SingleWrapTx(inner: SingleTxTr)(txAdd: LTxAdd) extends TxTransform {
+@c4multi("ServerCompApp") final case class SingleWrapTx(inner: SingleTxTr)(txAdd: LTxAdd) extends TxTransform {
   def transform(local: Context): Context = txAdd.add(inner.transform(local))(local)
 }
 

@@ -52,7 +52,7 @@ trait TxTransforms {
             setName(s"tx-from-${System.currentTimeMillis}-$name")
             val prepLocal = reducer.toLocal(global, prev + (SharedContextKey->injected))
             val transformedLocal = Function.chain(Seq(
-              TxTransformOrigMeta(clName), prevTxFailedUtil.prepare, tr.transform, prevTxFailedUtil.handle
+              TxTransformOrigMeta(clName), prevTxFailedUtil.prepare(_), tr.transform(_), prevTxFailedUtil.handle(_)
             ))(prepLocal)
             val transformPeriod = workTimer.ms
             val nextLocal = qMessages.send(transformedLocal)

@@ -38,7 +38,7 @@ import scala.annotation.tailrec
   ): Unit = {
     val events = consumer.poll()
     val end = NanoTimer()
-    val newWorld = reducer.reduce(events)(world)
+    val newWorld = reducer.reduce(world, events)
     val period = end.ms
     if(events.nonEmpty)
       logger.debug(s"reduced ${events.size} tx-s in $period ms")
