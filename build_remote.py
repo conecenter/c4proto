@@ -322,7 +322,6 @@ def build_type_ci_operator(context, out):
         " && chmod +x /tools/kubectl",
         "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
         " && chmod +x /tools/tini",
-        "RUN perl install.pl curl https://get.helm.sh/helm-v3.12.1-linux-amd64.tar.gz",  # ci_up
         "RUN perl install.pl curl https://download.bell-sw.com/java/21.0.4+9/bellsoft-jdk21.0.4+9-linux-amd64.tar.gz", # tests
         "RUN curl -L -o /t.tgz" +
         " https://github.com/google/go-containerregistry/releases/download/v0.12.1/go-containerregistry_Linux_x86_64.tar.gz" +
@@ -331,7 +330,7 @@ def build_type_ci_operator(context, out):
         "RUN perl install.pl curl https://github.com/sbt/sbt/releases/download/v1.9.3/sbt-1.9.3.tgz",
         "RUN perl install.pl curl https://github.com/coursier/launchers/raw/master/coursier && chmod +x /tools/coursier",
         "USER c4",
-        'ENV PATH=${PATH}:/tools:/tools/linux:/tools/jdk/bin:/tools/apache/bin:/tools/sbt/bin',  # /tools/linux for ci_up/helm, /tools/apache/bin for maven
+        'ENV PATH=${PATH}:/tools:/tools/jdk/bin:/tools/apache/bin:/tools/sbt/bin',  # /tools/apache/bin for maven
         "RUN coursier fetch --classpath org.apache.kafka:kafka-clients:3.7.1 > /c4/kafka-clients-classpath",
         f"ENV C4DEPLOY_CONTEXT={deploy_context}",
         'ENTRYPOINT ["/tools/tini","--","python3","-u","/main.py"]',

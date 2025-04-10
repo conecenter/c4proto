@@ -40,7 +40,6 @@ def gen_conf(context,path,comment,line_wrap,uid,home,setup,arch_name,repo_name,n
         "RUN perl install.pl apt curl ca-certificates libjson-xs-perl openssh-client rsync lsof python3 openjdk-17-jre-headless git micro",
         "RUN perl install.pl curl https://github.com/sbt/sbt/releases/download/v1.9.3/sbt-1.9.3.tgz",
         f"RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/{arch_name}/kubectl && chmod +x /tools/kubectl",
-        "RUN perl install.pl curl https://get.helm.sh/helm-v3.12.1-linux-amd64.tar.gz",
         "RUN curl -L -o /t.tgz https://github.com/google/go-containerregistry/releases/download/v0.12.1/go-containerregistry_Linux_x86_64.tar.gz"+
         " && tar -C /tools -xzf /t.tgz crane && rm /t.tgz",
         "USER c4",
