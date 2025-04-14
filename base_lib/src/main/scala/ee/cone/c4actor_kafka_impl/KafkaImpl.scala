@@ -39,7 +39,7 @@ import scala.jdk.CollectionConverters.{IterableHasAsScala,MapHasAsJava,MapHasAsS
   minLOSize: Long =
     Single.option(listConfig.get("C4BROKER_MIN_LO_SIZE")).fold(1000000L)(_.toLong) // default max.request.size is 1048576
 ) extends RawQSender with RawQSenderExecutable with LazyLogging {
-  def run(): Unit = concurrent.blocking {
+  def run(): Unit = if(!producer.isDone) concurrent.blocking {
     val props = conf.ssl ++ Map[String, Object](
       "acks" -> "all",
       "retries" -> "0",

@@ -15,9 +15,11 @@ import scala.annotation.tailrec
   consuming: Consuming,
   getS_FailedUpdates: GetByPK[S_FailedUpdates],
   startUpSpaceProfiler: StartUpSpaceProfiler,
+  snapshotCheckReset: SnapshotCheckReset,
 ) extends Executable with Early with LazyLogging {
   def run(): Unit = concurrent.blocking { //ck mg
     logger.info(s"Starting RootConsumer...")
+    snapshotCheckReset.run()
     GCLog("before loadRecent")
     val snapshot = snapshotLast.get
     logger.debug(s"Loading $snapshot")
