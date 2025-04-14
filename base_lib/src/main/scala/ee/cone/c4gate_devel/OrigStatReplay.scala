@@ -11,11 +11,11 @@ import ee.cone.c4proto.{Id, ProtoAdapter, protocol}
 import scala.annotation.tailrec
 
 @c4("OrigStatReplayApp") final class OrigStatReplay(
-  toUpdate: ToUpdate, consuming: Consuming, snapshotMaker: SnapshotMaker, snapshotUtil: SnapshotUtil,
+  toUpdate: ToUpdate, consuming: Consuming, snapshotLast: SnapshotLast, snapshotUtil: SnapshotUtil,
   origStatReplayStats: OrigStatReplayStats,
 ) extends Executable with LazyLogging {
   def run(): Unit = {
-    val Seq(snapshotInfo) = snapshotMaker.make(NextSnapshotTask(None)).flatMap(snapshotUtil.hashFromName)
+    val Some(snapshotInfo) = snapshotLast.get.flatMap(snapshotUtil.hashFromName)
     consuming.process(snapshotInfo.offset, consumer => { // excluding C4REPLAY_SNAPSHOT and C4REPLAY_UNTIL
       val endOffset = consumer.endOffset
       @tailrec def iteration(): Unit = {

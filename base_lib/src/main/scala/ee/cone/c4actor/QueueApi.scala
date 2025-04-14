@@ -104,6 +104,8 @@ trait RawQSender {
 }
 trait RawQSenderExecutable extends Executable
 
+trait SnapshotCheckReset extends Executable
+
 object OffsetHexSize{ def apply() = 16 }
 case object ReadAfterWriteOffsetKey extends TransientLens[NextOffset]("0" * OffsetHexSize())
 
