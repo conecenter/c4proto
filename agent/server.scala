@@ -106,23 +106,23 @@ trait SunServerApp {
 }
 
 object Main extends SunServerApp with TokenVerifyApp with WebApp with BackgroundApp {
-  def protoDir = os.Path(Option(System.getenv("C4CI_PROTO_DIR")).get)
+  def agentDir = os.Path(Option(System.getenv("C4AGENT_DIR")).get)
   def serveIP: String = Option(System.getenv("C4AGENT_IP")).get
 
   def main(args: Array[String]): Unit = {
     startServer()
-    new RThread(PodLister).start()
+    //new RThread(PodLister).start()
     keepRunning(initialPeriodicSeq)
   }
 }
 
 trait WebApp {
-  def protoDir: os.Path
+  def agentDir: os.Path
   def verifyToken(contexts: Seq[ContextConf], idToken: String): (ContextConf,String)
 
   def handleForm(form: Map[String, String]): Unit = form("op") match {
     case "set_token" => setToken(form("id_token"))
-    case "forward_to_pod" => ForwardToPod.set(form("pod"))
+    // case "forward_to_pod" => ForwardToPod.set(form("pod"))
   }
 
   def kubeConfDir: os.Path = os.home / ".kube"
@@ -151,15 +151,15 @@ trait WebApp {
 
   def handleGetState(): String = {
     val auth = PublicState.load().map(_.toJsonString).mkString("[",",","]")
-    val pods = PodLister.loadString()
-    val forwardToPods = PodLister.podListToJson(Load(os.Path("/tmp/c4pod")).toSeq)
+    val pods = "[]" //PodLister.loadString()
+    val forwardToPods = "[]" //PodLister.podListToJson(Load(os.Path("/tmp/c4pod")).toSeq)
     s"""{ "auth": $auth, "pods": $pods, "forwardToPods": $forwardToPods }"""
   }
 
   def handleIndexHTML(): String = {
     val script = Seq(
       s"""const contexts = ${os.read(ContextConf.path)}""",
-      os.read(protoDir / "agent" / "client.js"),
+      os.read(agentDir / "client.js"),
     ).mkString("\n")
     s"""<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>c4agent</title></head><body><script type="module">$script</script></body></html>"""
   }
@@ -167,22 +167,22 @@ trait WebApp {
 
 object ForwardToPod {
   def path = os.Path("/tmp/c4pod")
-
+/*
   def set(pod: String): Unit = {
     val pods = PodLister.load()
     if (!pods.contains(pod)) throw new Exception("bad pod name")
     os.write.over(path, pod)
   }
-
+*/
   def get(): Option[String] = Load(path)
 }
 
 trait BackgroundApp {
-  def protoDir: os.Path
+  def agentDir: os.Path
   def serveIP: String
 
   private def checkVer() = {
-    val path = protoDir / "agent" / "server.scala"
+    val path = agentDir / "server.scala"
     val was = os.read(path)
     new Periodic(()=>{
       if (was != os.read(path)) System.exit(1)
@@ -191,8 +191,7 @@ trait BackgroundApp {
   }
 
   private def forward = new NonRunningProcess(()=>
-    for(st <- PublicState.load(); pod <- ForwardToPod.get())
-      yield Cmd(s"${st.authTime}", Seq("kcd","port-forward","--address",serveIP,pod,"4005"))
+    for(st <- PublicState.load(); pod <- ForwardToPod.get()) yield Cmd(s"${st.authTime}", Seq("c4forward",serveIP,pod))
   )
 
   def initialPeriodicSeq: Seq[Periodic] = Seq(checkVer(), /*setup,*/ forward)
@@ -228,6 +227,7 @@ class NonRunningProcess(val getCommand: ()=>Option[Cmd]) extends Periodic(()=>
   }
 )
 
+/*
 object PodLister extends Runnable {
   import java.io.DataInput
   import scala.annotation.tailrec
@@ -291,3 +291,4 @@ class RThread(runnable: Runnable) {
     thread.start()
   }
 }
+*/

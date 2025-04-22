@@ -385,7 +385,11 @@ def build_type_de(proj_tag, context, out):
         f"ENV C4CI_BUILD_DIR={build_dir}",
         f"ENV C4CI_PROTO_DIR={build_dir}/{proto_postfix}",
     )))
-    run(("perl", f"{proto_dir}/sync_setup.pl", need_dir(f"{out}/tools")))
+    #
+    kc = need_dir(f"{out}/tools")+"/kc"
+    changing_text(kc, perl_exec('exec "kubectl","--context",@ARGV;'))
+    run(("chmod", "+x", kc))
+    #
     run(("rsync", "-a", "--exclude", ".git", f"{context}/", need_dir(f"{out}{build_dir}")))
     # shutil.copytree seems to be slower
     need_dir(f"{out}/c4")
