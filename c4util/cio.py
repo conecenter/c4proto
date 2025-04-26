@@ -33,8 +33,7 @@ def app_prep(env, app, app_dir, up_path):
 
 def app_up(it):
     prune_list = [f"--prune-whitelist={v}" for v in (
-        "/v1/Service", "apps/v1/Deployment", "apps/v1/StatefulSet",
-        "networking.k8s.io/v1/Ingress", "extensions/v1beta1/Ingress"
+        "/v1/Service", "apps/v1/Deployment", "apps/v1/StatefulSet", "networking.k8s.io/v1/Ingress"
     )]
     cmd = (*cl.get_kubectl(it["kube-context"]), "apply", "--prune", *prune_list, "-l", f'c4env={it["c4env"]}', "-f-")
     run(cmd, text=True, input="\n".join(dumps(v) for v in it["manifests"]))
