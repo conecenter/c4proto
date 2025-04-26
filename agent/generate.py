@@ -62,6 +62,7 @@ def main(to):
     write_text(f"{bin}/c4ci_prep", read_text(f"{proto_dir}/ci_prep.py"))
     write_text(f"{bin}/c4ci_up", read_text(f"{proto_dir}/ci_up.py"))
     write_text(f"{bin}/c4sw", read_text(f"{agent_dir}/sw.py"))
+    write_text(f"{bin}/cio_call", read_text(f"{agent_dir}/cio.py"))
     write_text(f"{host_bin}/a4", perl_exec('exec "docker", "exec", "-i", "c4agent_kc", @ARGV;'))
     write_text(f"{host_bin}/a4t", perl_exec('exec "docker", "exec", "-it", "c4agent_kc", @ARGV;'))
     run(("sh","-c",f"chmod +x {to}/up* {bin}/* {host_bin}/*"))
