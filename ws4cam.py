@@ -10,12 +10,19 @@ from pathlib import Path
 from itertools import count
 from sys import stderr
 from urllib.request import urlopen
-from re import fullmatch
+from re import fullmatch, search
 
 def log(text): print(text, file=stderr)
 
 def get_cred(cam_id):
     return cred_map.get(cam_id, cred_map.get("default", ""))
+
+def extract_ip(s):
+    pattern = r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b'
+    match = search(pattern, s)
+    if match:
+        return match.group()
+    return None
 
 def handler(ws):
     req_id = next(counter)
@@ -27,7 +34,8 @@ def handler(ws):
     cam_addr = resp.read().decode("utf-8")
     log(f"{req_id} resolved {cam_addr}")
     connected_at, last_received_at = (monotonic(), monotonic())
-    cred = get_cred(cam_id)
+    cam_ip = extract_ip(cam_addr)
+    cred = get_cred(cam_ip)
     try:
         with av.open(f"rtsp://{cred}@{cam_addr}",options={"rtsp_transport": "tcp"}) as container:
             log(f"{req_id} ready")
