@@ -36,7 +36,9 @@ def app_up(it):
         "/v1/Service", "apps/v1/Deployment", "apps/v1/StatefulSet", "networking.k8s.io/v1/Ingress"
     )]
     cmd = (*cl.get_kubectl(it["kube-context"]), "apply", "--prune", *prune_list, "-l", f'c4env={it["c4env"]}', "-f-")
-    run(cmd, text=True, input="\n".join(dumps(v) for v in it["manifests"]))
+    man_str = "\n".join(dumps(v) for v in it["manifests"])
+    print(man_str)
+    run(cmd, text=True, input=man_str)
 
 
 def lock_path(path): return f"{path}.proc"
