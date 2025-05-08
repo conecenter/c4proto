@@ -190,26 +190,36 @@ my $make_kc_yml = sub{
             hosts => \@hosts,
             secretName => $ingress_secret_name || "$name-tls",
         }]);
+        my $api_ver = $$opt{ingress_api_version} || "networking.k8s.io/v1";
         my @rules = &$map($by_host,sub{ my($host,$v)=@_; +{
             host => $host,
             http => {
                 paths => [map{+{
                     backend => {
-                        serviceName => $name,
-                        servicePort => $$_{port},
+                        $api_ver eq "extensions/v1beta1" ? (
+                            serviceName => $name,
+                            servicePort => $$_{port},
+                        ) :
+                        $api_ver eq "networking.k8s.io/v1" ? (
+                            service => {
+                                name => $name,
+                                port => { number => $$_{port} },
+                            }
+                        ) :
+                        die
                     },
-                    $$_{path} ? (path=>$$_{path}) : (),
+                    $$_{path} ? (path=>$$_{path}, pathType=>"Prefix") : (),
                 }}@$v],
             },
         }});
         @rules ? {
-            apiVersion => "extensions/v1beta1",
+            apiVersion => ($api_ver||die),
             kind => "Ingress",
             metadata => {
                 annotations=>{
                     "kubernetes.io/ingress.class" => "nginx",
-                    "nginx.ingress.kubernetes.io/proxy-read-timeout" => "150",
-                    "nginx.ingress.kubernetes.io/proxy-send-timeout" => "150",
+                    "nginx.ingress.kubernetes.io/proxy-read-timeout" => "300",
+                    "nginx.ingress.kubernetes.io/proxy-send-timeout" => "300",
                     @tls_annotations,
                 },
             },
