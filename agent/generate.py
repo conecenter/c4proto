@@ -30,22 +30,21 @@ def main(to):
         "ARG C4UID",
         "ARG C4CPU_ARCH",
         "RUN perl install.pl useradd $C4UID",
-        "RUN perl install.pl apt curl ca-certificates libjson-xs-perl openssh-client rsync lsof python3 openjdk-17-jre-headless git micro",
-        "RUN perl install.pl curl https://github.com/sbt/sbt/releases/download/v1.9.3/sbt-1.9.3.tgz",
+        "RUN perl install.pl apt curl ca-certificates libjson-xs-perl openssh-client rsync lsof python3 python3-pip git micro",
         "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/$C4CPU_ARCH/kubectl && chmod +x /tools/kubectl",
         "RUN curl -L -o /t.tgz https://github.com/google/go-containerregistry/releases/download/v0.12.1/go-containerregistry_Linux_x86_64.tar.gz" +
         " && tar -C /tools -xzf /t.tgz crane && rm /t.tgz",
         "USER c4",
         "ENV PATH=${PATH}:/c4/bin:/tools:/tools/sbt/bin:/tools/linux",
-        "ENV KUBECONFIG=/c4/.kube/config",
-        "ENV KUBE_EDITOR=micro",
+        "ENV KUBECONFIG=/c4repo/dev-docker/kube/config",
+        "ENV KUBE_EDITOR=micro"
     )))
     #
     ports = "-p 127.0.0.1:1979:1979 -p 127.0.0.1:4005:4005 -e C4AGENT_IP=0.0.0.0"
-    setup = ["mkdir -p $HOME/c4repo $HOME/bin", "cp host/bin/* $HOME/bin"]
+    setup = ["mkdir -p $HOME/c4repo/dev-docker/kube $HOME/bin", "cp host/bin/* $HOME/bin", 'cp -r ./c4/.kube/certs "$HOME/c4repo/dev-docker/kube/certs"']
     gen_conf(f"{to}/up"    ,"### ","\\","$(id -u)","$HOME/c4repo",setup,"amd64","--network host -e C4AGENT_IP=127.0.0.1")
     gen_conf(f"{to}/up-mac","### ","\\","$(id -u)","$HOME/c4repo",setup,"arm64",ports)
-    gen_conf(f"{to}/up.bat","REM ","^","1000","%c4repo-path%",["set c4repo-path=c:/c4repo","REM change c4repo-path to your own"],"amd64",ports)
+    gen_conf(f"{to}/up.bat","REM ","^","1000","%c4repo-path%",["set c4repo-path=c:/c4repo","REM change c4repo-path to your own",'if not exist "%c4repo-path%\dev-docker\kube" (mkdir "%c4repo-path%\dev-docker\kube")', 'xcopy /E /I /Y ".\c4\.kube\certs" "%c4repo-path%\dev-docker\kube\certs"'],"amd64",ports)
     #
     bin = f"{to}/c4/bin"
     host_bin = f"{to}/host/bin"

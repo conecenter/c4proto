@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>C4 Agent</title>
+    <!-- Bootstrap CSS with dark theme -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #212529;
+            color: #f8f9fa;
+            padding: 20px;
+        }
+        .container {
+            margin-top: 50px;
+        }
+        .btn-login {
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        .context-dropdown {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Context Dropdown -->
+        <div class="card bg-dark text-white mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">{{ user }}: Login Into</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap">
+                    {% for context in contexts %}
+                    <a href="{{ url_for('login', context=context.name) }}" class="btn-login">
+                        <button class="btn {% if context.authenticated %}btn-primary{% else %}btn-secondary{% endif %}">{{ context.cluster_name }}</button>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="card bg-dark text-white mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Switch Context</h5>
+            </div>
+            <div class="card-body">
+                <div class="dropdown context-dropdown">
+                    <button class="btn btn-secondary dropdown-toggle" type="button" id="contextDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        Select Context
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="contextDropdown">
+                        {% for context in contexts %}
+                        <li><a class="dropdown-item" href="#" data-context="{{ context.name }}">{{ context.cluster_name }}</a></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                <!-- Pods List -->
+                <div class="mt-4">
+                    <h6>Available Pods:</h6>
+                    <div class="table-responsive">
+                        <table class="table table-dark table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Pod Name</th>
+                                    <th>Status</th>
+                                    <th>Age (hours)</th>
+                                    <th>Restart Count</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pods-list">
+                                <!-- Pods will be populated here via JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Custom JavaScript for context switching and pod polling -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get all dropdown items and login buttons
+            const dropdownItems = document.querySelectorAll('.dropdown-item');
+            const contextDropdownButton = document.getElementById('contextDropdown');
+            const loginButtons = document.querySelectorAll('.btn-login');
+            const podsList = document.getElementById('pods-list');
+
+            // Function to update UI based on selected context
+            function updateContextUI(selectedContext) {
+                // Update the current context display
+                contextDropdownButton.textContent = selectedContext;
+
+                // Highlight the button for the selected context and dim others
+                loginButtons.forEach(button => {
+                    const buttonContext = button.querySelector('.btn').textContent;
+                    const isAuthenticated = button.querySelector('.btn').classList.contains('btn-primary') || 
+                                           button.querySelector('.btn').classList.contains('btn-success');
+
+                    if (buttonContext === selectedContext) {
+                        button.querySelector('.btn').classList.add('btn-success');
+                        button.querySelector('.btn').classList.remove('btn-primary');
+                        button.querySelector('.btn').classList.remove('btn-secondary');
+                    } else {
+                        if (isAuthenticated) {
+                            button.querySelector('.btn').classList.add('btn-primary');
+                        } else {
+                            button.querySelector('.btn').classList.add('btn-secondary');
+                        }
+                        button.querySelector('.btn').classList.remove('btn-success');
+                    }
+                });
+            }
+
+            // Function to set context on the server
+            function setContextOnServer(selectedContext) {
+                fetch('/set_context', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ context: selectedContext }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        updateContextUI(data.current_context);
+                        // Fetch pods after context change
+                        fetchPods();
+                    } else {
+                        console.error('Error setting context:', data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error setting context:', error);
+                });
+            }
+
+            // Function to fetch pods from the server
+            function fetchPods() {
+                fetch('/get_pods')
+                .then(response => response.json())
+                .then(data => {
+                    updatePodsUI(data.pods, data.active_pod);
+                })
+                .catch(error => {
+                    console.error('Error fetching pods:', error);
+                });
+            }
+
+            // Function to update the pods list in the UI
+            function updatePodsUI(pods, activePod) {
+                // Clear the current list
+                podsList.innerHTML = '';
+
+                if (pods.length === 0) {
+                    const emptyRow = document.createElement('tr');
+                    const emptyCell = document.createElement('td');
+                    emptyCell.colSpan = 5;
+                    emptyCell.textContent = 'No pods available';
+                    emptyCell.className = 'text-center';
+                    emptyRow.appendChild(emptyCell);
+                    podsList.appendChild(emptyRow);
+                } else {
+                    // Add each pod to the table
+                    pods.forEach(pod => {
+                        const row = document.createElement('tr');
+
+                        // Pod name cell (clickable)
+                        const nameCell = document.createElement('td');
+                        const nameLink = document.createElement('a');
+                        nameLink.href = '#';
+                        nameLink.textContent = pod.name;
+
+                        // Highlight active pod name with green color
+                        nameLink.className = pod.name === activePod ? 'text-success' : 'text-white';
+                        nameLink.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            switchPod(pod.name);
+                        });
+                        nameCell.appendChild(nameLink);
+                        row.appendChild(nameCell);
+
+                        // Status cell
+                        const statusCell = document.createElement('td');
+                        statusCell.textContent = pod.status;
+                        row.appendChild(statusCell);
+
+                        // Age cell
+                        const ageCell = document.createElement('td');
+                        ageCell.textContent = pod.age;
+                        row.appendChild(ageCell);
+
+                        // Restart count cell
+                        const restartCell = document.createElement('td');
+                        restartCell.textContent = pod.restart;
+                        row.appendChild(restartCell);
+
+                        // Actions cell
+                        const actionsCell = document.createElement('td');
+                        const restartButton = document.createElement('button');
+                        restartButton.className = 'btn btn-sm btn-warning';
+                        restartButton.textContent = 'Restart';
+                        restartButton.addEventListener('click', function() {
+                            restartPod(pod.name);
+                        });
+                        actionsCell.appendChild(restartButton);
+                        row.appendChild(actionsCell);
+
+                        podsList.appendChild(row);
+                    });
+                }
+            }
+
+            // Function to switch to a pod
+            function switchPod(podName) {
+                fetch(`/pod/switch/${podName}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log(`Switched to pod: ${podName}`);
+                        fetchPods(); // Refresh the pods list
+                    } else {
+                        console.error('Error switching pod:', data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error switching pod:', error);
+                });
+            }
+
+            // Function to restart a pod
+            function restartPod(podName) {
+                fetch(`/pod/restart/${podName}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log(`Restart requested for pod: ${podName}`);
+                        // Immediately refresh the pods list
+                        fetchPods();
+                        // Refresh the page
+                        location.reload();
+                    } else {
+                        console.error('Error restarting pod:', data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error restarting pod:', error);
+                });
+            }
+
+            // Initialize UI with the current context from the server
+            const currentContext = '{{ current_context }}';
+            if (currentContext && currentContext !== 'None') {
+                updateContextUI(currentContext);
+            }
+
+            // Add click event listener to each dropdown item
+            dropdownItems.forEach(item => {
+                item.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const selectedContext = this.getAttribute('data-context');
+                    setContextOnServer(selectedContext);
+                });
+            });
+
+            // Initial fetch of pods
+            fetchPods();
+
+            // Set up polling for pod updates every 10 seconds
+            setInterval(fetchPods, 10000);
+        });
+    </script>
+</body>
+</html>
