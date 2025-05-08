@@ -307,11 +307,14 @@ def index():
 def check_auth_status():
     for context in app.contexts.values():
         try:
-            kubernetes.config.load_config(context=context.name)
-            client = kubernetes.client.ApiClient()
+            kubernetes.config.load_kube_config(config_file=CONFIG_LOCATION, context=context)
+            client = kubernetes.config.new_client_from_config(context=context)
             api_version = kubernetes.client.VersionApi(client).get_code()
+            print(api_version)
             context.authenticated = True
+            print(f"context {context.name} authenticated")
         except Exception as e:
+            print(f"context {context.name} authentication failed")
             pass
 
 
@@ -402,7 +405,7 @@ def check_pods():
     refresh_count = 0
     user = f"de-{app.user}"
     while app.check_pods_running:
-        if refresh_count % 10 == 0:
+        if refresh_count % 10 == 0 and app.current_context.authenticated:
             print("Refreshing pods")
             # Clear the pods list before refreshing
             app.pods = []

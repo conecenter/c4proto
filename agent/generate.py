@@ -41,6 +41,7 @@ def main(to):
         "RUN git config --global --add safe.directory /c4repo/c4enterprise/c4front",
         "RUN git config --global --add safe.directory /c4repo/c4enterprise/c4proto",
         "RUN git config --global --add safe.directory /c4repo/c4enterprise",
+        "CMD python3 -u /c4repo/c4dconf/agent/run.py"
     )))
     #
     ports = "-p 127.0.0.1:1979:1979 -p 127.0.0.1:4005:4005 -e C4AGENT_IP=0.0.0.0"
