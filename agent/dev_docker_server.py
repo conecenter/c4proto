@@ -307,10 +307,11 @@ def index():
 def check_auth_status():
     for context in app.contexts.values():
         try:
-            kubernetes.config.load_kube_config(config_file=CONFIG_LOCATION, context=context)
-            client = kubernetes.config.new_client_from_config(context=context)
-            api_version = kubernetes.client.VersionApi(client).get_code()
-            print(api_version)
+            kubernetes.config.load_kube_config(config_file=CONFIG_LOCATION, context=context.name)
+            client = kubernetes.client.CoreV1Api(
+                api_client=kubernetes.config.new_client_from_config(context=context.name)
+            )
+            items = client.list_namespaced_pod(namespace=context.namespace, watch=False).items
             context.authenticated = True
             print(f"context {context.name} authenticated")
         except Exception as e:
