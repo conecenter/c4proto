@@ -272,14 +272,42 @@ def restart_pod(pod_name):
     restart_check_pods()
     return jsonify({"success": True, "message": f"Pod {pod_name} restart requested"})
 
+app.forward_process = None
 
 def forward_pod(pod_name):
+    if app.forward_process is not None:
+        proc = app.forward_process
+        if proc.poll() is None:  # Still running
+            proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        print(f"Port-forward (PID {proc.pid}) stopped.")
+    else:
+        print("Process already exited.")
     if pod_name is not None:
+        cmd = [
+            "kubectl",
+            "--context", app.current_context.name,
+            "port-forward",
+            "--address", SERVE_ON,
+            pod_name,
+            "4005"
+        ]
+        proc = subprocess.Popen(cmd, stderr=subprocess.PIPE)
+        time.sleep(1)  # Give it a moment to start
+        if proc.poll() is not None:
+            stderr = proc.stderr.read().decode()
+            raise RuntimeError(f"kubectl failed to start:\n{stderr}")
+
+        print(f"Port-forward started (PID {proc.pid})")
         pod_full_name = f"{app.current_context.name}~{pod_name}"
-        call_result = subprocess.call(f"c4forward ${SERVE_ON} ${pod_full_name}", shell=True)
         with open("/tmp/c4pod", "w") as f:
             f.write(pod_full_name)
-        print(f"c4forward call result: {call_result}")
+        app.forward_process = proc
+    else:
+        app.forward_process = None
 
 
 @app.route("/pod/switch/<pod_name>")
