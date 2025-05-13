@@ -58,10 +58,12 @@ def load_contexts():
     merge_contexts(CONFIG_LOCATION, contexts_path)
     return { c.name: c for context in loads(read_text(contexts_path)) for c in [KubernetesContext.from_dict(context)] }
 
-def guess_user(kubeconfig_path):
-    with open(kubeconfig_path, 'r') as f:
-        config = yaml.safe_load(f)
+def load_yaml(path):
+    with open(path, 'r') as f: return yaml.safe_load(f)
 
+
+def guess_user(kubeconfig_path):
+    config = load_yaml(kubeconfig_path)
     user_entries = [u for u in config['users']]
     for user in user_entries:
         try:
@@ -170,8 +172,7 @@ def set_oidc_credentials(
     id_token
 ):
     user = app.contexts[context_name].user
-    with open(kubeconfig_path, 'r') as f:
-        config = yaml.safe_load(f)
+    config = load_yaml(kubeconfig_path)
 
     users_entry = config.get('users', None)
     user_entry = next((u for u in users_entry if u['name'] == user), None) if users_entry else None
@@ -193,9 +194,7 @@ def set_oidc_credentials(
             }
         }
     }
-
-    with open(kubeconfig_path, 'w') as f:
-        yaml.safe_dump(config, f)
+    write_text(kubeconfig_path, dumps(config, sort_keys=True, indent=4))
 
 
 @app.route("/auth")
@@ -287,9 +286,7 @@ def forward_pod(pod_name):
             raise RuntimeError(f"kubectl failed to start:\n{stderr}")
 
         print(f"Port-forward started (PID {proc.pid})")
-        pod_full_name = f"{app.current_context.name}~{pod_name}"
-        with open("/tmp/c4pod", "w") as f:
-            f.write(pod_full_name)
+        write_text("/tmp/c4pod", f"{app.current_context.name}~{pod_name}")
         app.forward_process = proc
     else:
         app.forward_process = None
@@ -347,8 +344,7 @@ def monitor_c4pod():
     # Try to read the initial content
     try:
         if os.path.exists("/tmp/c4pod"):
-            with open("/tmp/c4pod", "r") as f:
-                last_content = f.read().strip()
+            last_content = read_text("/tmp/c4pod").strip()
     except Exception as e:
         print(f"Error reading /tmp/c4pod: {e}")
 
@@ -357,8 +353,7 @@ def monitor_c4pod():
             # Check if the file exists
             if os.path.exists("/tmp/c4pod"):
                 # Read the current content
-                with open("/tmp/c4pod", "r") as f:
-                    current_content = f.read().strip()
+                current_content = read_text("/tmp/c4pod").strip()
 
                 # If the content has changed and it's not empty
                 if current_content and current_content != last_content:
