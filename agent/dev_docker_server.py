@@ -5,6 +5,11 @@ import subprocess
 import threading
 import time
 from dataclasses import dataclass
+from os import environ
+from argparse import ArgumentParser
+from json import loads, dumps
+from pathlib import Path
+from sys import argv
 
 import jwt
 import kubernetes
@@ -15,10 +20,20 @@ from flask import Flask, url_for, redirect, render_template, session, request, j
 
 from merge_contexts import merge_contexts
 
+def run(args, **o): return subprocess.run(args, check=True, **o)
+
 app = Flask(__name__)
-app.secret_key = os.getenv('CLIENT_SECRET', 'very-secret-key')
-SERVE_ON = os.getenv('C4AGENT_IP', '0.0.0.0')
-CONFIG_LOCATION = os.getenv('KUBECONFIG', '/c4repo/kube/config')
+app.secret_key = "very-secret-key" # CLIENT_SECRET as is
+SERVE_ON = environ["C4AGENT_IP"]
+CONFIG_LOCATION = environ["KUBECONFIG"]
+
+script, opt_str = argv
+opt = loads(opt_str)
+
+kube_config_dir = Path(environ["KUBECONFIG"]).parent
+kube_config_dir.mkdir(parents=True, exist_ok=True)
+run(("rsync","-av",opt["cert_dir"],str(kube_config_dir)))
+
 
 @dataclass_json
 @dataclass
@@ -35,19 +50,13 @@ class KubernetesContext(DataClassJsonMixin):
     def user(self):
         return self.cluster_name
 
+def write_text(path, text): Path(path).write_text(text, encoding="utf-8", errors="strict")
+def read_text(path): return Path(path).read_text(encoding='utf-8', errors='strict')
 
 def load_contexts():
-    contexts = []
-    for contexts_path in ["/c4repo/dev-docker/c4contexts.json", "./c4contexts.json"]:
-        if os.path.exists(contexts_path):
-            merge_contexts(CONFIG_LOCATION, contexts_path)
-            with open(contexts_path, "r") as f:
-                context_list = json.load(f)
-                contexts.extend([KubernetesContext.from_dict(context) for context in context_list])
-        else:
-            print(f"File {contexts_path} not found")
-    return {context.name: context for context in contexts}
-
+    contexts_path = f'{opt["conf_dir"]}/c4contexts.json'
+    merge_contexts(CONFIG_LOCATION, contexts_path)
+    return { c.name: c for context in loads(read_text(contexts_path)) for c in [KubernetesContext.from_dict(context)] }
 
 def guess_user(kubeconfig_path):
     with open(kubeconfig_path, 'r') as f:
@@ -82,42 +91,18 @@ def init_oauth(app):
     return oauth
 
 
-def ensure_state_dir():
-    """Ensure the state directory exists."""
-    state_dir = "/c4repo/dev-docker"
-    if not os.path.exists(state_dir):
-        os.makedirs(state_dir, exist_ok=True)
-    return state_dir
+def get_state_path(): return f'{opt["state_dir"]}/state.json'
 
 
 def get_state():
     """Get the current state from the JSON file."""
-    state_dir = ensure_state_dir()
-    state_file = os.path.join(state_dir, "state.json")
     default_state = {"last_context": None, "last_pod": None, "user": None}
-
-    if os.path.exists(state_file):
-        try:
-            with open(state_file, "r") as f:
-                state = json.load(f)
-                # Ensure all expected keys exist in the loaded state
-                for key in default_state:
-                    if key not in state:
-                        state[key] = default_state[key]
-                return state
-        except json.JSONDecodeError:
-            # Return default state if file is corrupted
-            return default_state
-    else:
-        return default_state
+    try: return { **default_state, **loads(read_text(get_state_path())) }
+    except json.JSONDecodeError: return default_state
+    except FileNotFoundError: return default_state
 
 
-def save_state(state):
-    """Save the state to the JSON file."""
-    state_dir = ensure_state_dir()
-    state_file = os.path.join(state_dir, "state.json")
-    with open(state_file, "w") as f:
-        json.dump(state, f)
+def save_state(state): write_text(get_state_path(), dumps(state))
 
 
 def last_context():
@@ -494,4 +479,4 @@ if __name__ == '__main__':
     app.check_pods_thread.start()
     app.monitor_c4pod_thread.start()
     forward_pod(app.active_pod)
-    app.run(debug=False, host=SERVE_ON, port=int(os.getenv('PORT', 1979)))
+    app.run(debug=False, host=SERVE_ON, port=1979)

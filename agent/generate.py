@@ -2,6 +2,7 @@
 import subprocess
 from pathlib import Path
 from sys import argv
+from json import loads, dumps
 
 def run(args, **opt): return subprocess.run(args, check=True, **opt)
 def write_text(path, text):
@@ -17,36 +18,49 @@ def gen_conf(path,comment,line_wrap,uid,home,setup,arch_name,network):
         *setup,
         f" {line_wrap}\n && ".join([
             f"docker build -t c4agent_kc --build-arg C4UID={uid} --build-arg C4CPU_ARCH={arch_name} .",
-            f"docker run -d -t --restart unless-stopped --init {network} -v {home}:/c4repo --name c4agent_kc c4agent_kc",
+            f"docker run -d -t --restart unless-stopped {network} -v {home}:/c4repo --name c4agent_kc c4agent_kc",
         ])
     )))
 
 def perl_exec(line): return "\n".join(('#!/usr/bin/perl', 'use strict;', line, 'die'))
 
-def main(to):
+def main(opt_str):
+    opt = loads(opt_str)
+    to = opt["to"]
     write_text(f"{to}/Dockerfile", "\n".join((
         "FROM ubuntu:22.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /replink.pl /",
         "ARG C4UID",
         "ARG C4CPU_ARCH",
         "RUN perl install.pl useradd $C4UID",
-        "RUN perl install.pl apt curl ca-certificates libjson-xs-perl openssh-client rsync lsof python3 python3-pip git micro",
+        "RUN perl install.pl apt curl ca-certificates libjson-xs-perl openssh-client rsync lsof python3 python3-pip python3-venv git micro",
         "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/$C4CPU_ARCH/kubectl && chmod +x /tools/kubectl",
         "RUN curl -L -o /t.tgz https://github.com/google/go-containerregistry/releases/download/v0.12.1/go-containerregistry_Linux_x86_64.tar.gz" +
         " && tar -C /tools -xzf /t.tgz crane && rm /t.tgz",
+        "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini && chmod +x /tools/tini",
         "USER c4",
-        "ENV PATH=${PATH}:/c4/bin:/tools:/tools/sbt/bin:/tools/linux",
-        "ENV KUBECONFIG=/c4repo/dev-docker/kube/config",
-        "ENV KUBE_EDITOR=micro"
+        "COPY requirements.txt server.py /",
+        "ENV PATH=${PATH}:/c4/bin:/tools:"+opt["generated_dir"]+"/bin",
+        "ENV KUBE_EDITOR=micro",
+        f'ENV KUBECONFIG={opt["kube_config"]}',
+        "RUN " + " && ".join(f"git config --global --add safe.directory {d}" for d in opt["safe_dir_list"]),
+        "RUN python3 -m venv /c4/venv && /c4/venv/bin/pip install --no-cache-dir -r requirements.txt",
+        'ENTRYPOINT ["tini","--","python3","-u","/server.py"]',
+    )))
+    write_text(f"{to}/server.py", "\n".join((
+        'import subprocess', 'def run(args, **o): return subprocess.run(args, check=True, **o)', 'from json import dumps',
+        f'opt = {dumps({k: opt[k] for k in ["replink_env","proto_dir","dev_docker_server"]}, sort_keys=True)}',
+        f'run(("/replink.pl",), env=opt["replink_env"])',
+        f'run(("/c4/venv/bin/python","-u",opt["proto_dir"]+"/agent/dev_docker_server.py",dumps(opt["dev_docker_server"])))',
     )))
     #
     ports = "-p 127.0.0.1:1979:1979 -p 127.0.0.1:4005:4005 -e C4AGENT_IP=0.0.0.0"
-    setup = ["mkdir -p $HOME/c4repo/dev-docker/kube $HOME/bin", "cp host/bin/* $HOME/bin", 'cp -r ./c4/.kube/certs "$HOME/c4repo/dev-docker/kube/certs"']
+    setup = ["cp host/bin/* $HOME/bin"]
     gen_conf(f"{to}/up"    ,"### ","\\","$(id -u)","$HOME/c4repo",setup,"amd64","--network host -e C4AGENT_IP=127.0.0.1")
     gen_conf(f"{to}/up-mac","### ","\\","$(id -u)","$HOME/c4repo",setup,"arm64",ports)
-    gen_conf(f"{to}/up.bat","REM ","^","1000","%c4repo-path%",["set c4repo-path=c:/c4repo","REM change c4repo-path to your own",'if not exist "%c4repo-path%\dev-docker\kube" (mkdir "%c4repo-path%\dev-docker\kube")', 'xcopy /E /I /Y ".\c4\.kube\certs" "%c4repo-path%\dev-docker\kube\certs"'],"amd64",ports)
+    gen_conf(f"{to}/up.bat","REM ","^","1000","%c4repo-path%",["set c4repo-path=c:/c4repo","REM change c4repo-path to your own",],"amd64",ports)
     #
-    bin = f"{to}/c4/bin"
+    bin = f"{to}/bin"
     host_bin = f"{to}/host/bin"
     parse_exec = f'my($ctx,$pod)=$c4pod=~/(.+)~(.+)/?($1,$2):die; exec "kubectl", "--context", $ctx,'
     parse_exec2 = f'{parse_exec} "exec", "-i", $pod,'
@@ -58,12 +72,16 @@ def main(to):
     write_text(f"{bin}/c4forward", perl_exec(f'my($ip,$c4pod)=@ARGV; {parse_exec} "port-forward", "--address", $ip, $pod, "4005";')) # code
     agent_dir = str(Path(__file__).parent)
     proto_dir = str(Path(__file__).parent.parent)
+    write_text(f"{to}/requirements.txt", read_text(f"{agent_dir}/requirements.txt"))
     write_text(f"{bin}/c4ci_prep", read_text(f"{proto_dir}/ci_prep.py"))
     write_text(f"{bin}/c4ci_up", read_text(f"{proto_dir}/ci_up.py"))
     write_text(f"{bin}/c4sw", read_text(f"{agent_dir}/sw.py"))
     write_text(f"{bin}/cio_call", read_text(f"{agent_dir}/cio.py"))
     write_text(f"{host_bin}/a4", perl_exec('exec "docker", "exec", "-i", "c4agent_kc", @ARGV;'))
     write_text(f"{host_bin}/a4t", perl_exec('exec "docker", "exec", "-it", "c4agent_kc", @ARGV;'))
+    for k, v in opt["bin"].items(): write_text(f"{to}/bin/{k}", v)
     run(("sh","-c",f"chmod +x {to}/up* {bin}/* {host_bin}/*"))
+    #
+    run(("rsync","-av",opt["certs_dir"],to))
 
 main(*argv[1:])
