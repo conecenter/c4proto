@@ -70,7 +70,7 @@ def guess_user(kubeconfig_path):
             id_token = user.get("user", {}).get("auth-provider", {}).get("config", {}).get("id-token", "")
             claims = jwt.decode(id_token, options={"verify_signature": False})
             username = claims.get("email", "").split("@")[0]
-            return username
+            return username.replace(".", "")
         except Exception as e:
             print(e)
             pass
@@ -206,7 +206,7 @@ def auth():
     user_info = token.get("userinfo")
     idp_issuer = user_info["iss"]
     client_id = user_info["aud"]
-    app.user = user_info["email"].split("@")[0]
+    app.user = user_info["email"].split("@")[0].replace(".", "")
     set_last_user(app.user)
     client_secret = app.secret_key
     refresh_token = token.get("refresh_token")
