@@ -337,6 +337,22 @@ def build_type_ci_operator(context, out):
     ])
 
 
+def build_type_ci_ui(context, out):
+    changing_text(f"{out}/main.py", "\n".join((
+        'from os import environ as e', 'from time import sleep', 'from subprocess import run',
+        'run(("git","clone","-b",e["C4CI_PROTO_BRANCH"],"--depth","1","--",e["C4CI_PROTO_REPO"],e["C4CI_PROTO_DIR"]))',
+        'while True: sleep(10)', #todo
+    )))
+    build_micro(context, out, [], [
+        "FROM ubuntu:24.04",
+        "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
+        "RUN perl install.pl useradd 1979",
+        "RUN perl install.pl apt curl ca-certificates git python3 python3-pip python3-venv lsof mc",
+        "USER c4",
+        'ENTRYPOINT ["python3","-u","/main.py"]',
+    ])
+
+
 def build_type_s3client(context, out):
     build_micro(context, out, [], [
         "FROM ubuntu:22.04",
@@ -484,6 +500,7 @@ def main():
         "build_type-ci_operator": lambda proj_tag: build_type_ci_operator,
         "build_type-s3client": lambda proj_tag: build_type_s3client,
         "build_type-ws4cam": lambda proj_tag: build_type_ws4cam,
+        "build_type-ci_ui": lambda proj_tag: build_type_ci_ui,
     }
     opt = setup_parser((
         (
