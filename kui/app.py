@@ -44,7 +44,7 @@ def http_serve(addr, handlers):
 def build_client(pub_dir):
     client_proj = "/c4/c4client"
     write_text(f"{client_proj}/app.jsx", read_text(Path(__file__).parent/"app.jsx"))
-    run((f"{client_proj}/node_modules/.bin/esbuild","app.jsx","--bundle","--outfile=out.js"))
+    run(("env","-C",client_proj,"node_modules/.bin/esbuild","app.jsx","--bundle","--outfile=out.js"))
     js_content = read_text(f"{client_proj}/out.js")
     html_content = (
         '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>c4</title></head><body><script type="module">' +
