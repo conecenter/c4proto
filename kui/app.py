@@ -56,7 +56,8 @@ def build_client(pub_dir):
 def run_proxy(pub_dir, api_port):
     conf_path = "/c4/oauth2-proxy.conf"
     proxy_conf = {
-        "cookie_secret": read_text(environ["C4KUI_COOKIE_SECRET_FILE"]), "provider": "oidc",
+        "cookie_secret": read_text(environ["C4KUI_COOKIE_SECRET_FILE"]),
+        "client_secret": read_text(environ["C4KUI_CLIENT_SECRET_FILE"]), "provider": "oidc",
         "email_domains": ["*"], "insecure_oidc_allow_unverified_email": True, "oidc_groups_claim": "cognito:groups",
         "upstreams": [f"file://{pub_dir}/#/", f"http://127.0.0.1:{api_port}/kop"],
     }
