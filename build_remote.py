@@ -338,18 +338,20 @@ def build_type_ci_operator(context, out):
 
 
 def build_type_ci_ui(context, out):
-    changing_text(f"{out}/main.py", "\n".join((
-        'from os import environ as e', 'from time import sleep', 'from subprocess import run',
-        'run(("git","clone","-b",e["C4CI_PROTO_BRANCH"],"--depth","1","--",e["C4CI_PROTO_REPO"],e["C4CI_PROTO_DIR"]))',
-        'while True: sleep(10)', #todo
-    )))
-    build_micro(context, out, [], [
+    build_micro(context, out, ["kui/app.py","kui/app.jsx"], [
         "FROM ubuntu:24.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
         "RUN perl install.pl useradd 1979",
         "RUN perl install.pl apt curl ca-certificates git python3 python3-pip python3-venv lsof mc",
+        "RUN perl install.pl curl https://github.com/oauth2-proxy/oauth2-proxy/releases/download/v7.9.0/oauth2-proxy-v7.9.0.linux-amd64.tar.gz",
+        "RUN perl install.pl curl https://nodejs.org/dist/v20.5.0/node-v20.5.0-linux-x64.tar.xz",
+        "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
+        " && chmod +x /tools/tini",
         "USER c4",
-        'ENTRYPOINT ["python3","-u","/main.py"]',
+        'ENV PATH=${PATH}:/tools:/tools/oauth2-proxy-v7.9.0.linux-amd64:/tools/node/bin',
+        "RUN mkdir /c4/c4client && cd /c4/c4client && npm install esbuild@^0.25.4 react@^19.1.0 react-dom@^19.1.0",
+        "RUN python3 -m venv /c4/venv && /c4/venv/bin/pip install --no-cache-dir kubernetes==32.0.1",
+        'ENTRYPOINT ["tini","/c4/venv/bin/python","-u","/kui/app.py"]',
     ])
 
 
