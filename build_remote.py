@@ -351,7 +351,7 @@ def build_type_ci_ui(context, out):
         'ENV PATH=${PATH}:/tools:/tools/oauth2-proxy-v7.9.0.linux-amd64:/tools/node/bin',
         "RUN mkdir /c4/c4client && cd /c4/c4client && npm install esbuild@^0.25.4 react@^19.1.0 react-dom@^19.1.0",
         "RUN python3 -m venv /c4/venv && /c4/venv/bin/pip install --no-cache-dir kubernetes==32.0.1",
-        'ENTRYPOINT ["tini","/c4/venv/bin/python","-u","/kui/app.py"]',
+        'ENTRYPOINT ["tini","--","/c4/venv/bin/python","-u","/kui/app.py"]',
     ])
 
 
