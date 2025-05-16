@@ -50,6 +50,7 @@ def build_client(pub_dir):
         '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>c4</title></head><body><script type="module">' +
         js_content + '</script></body></html>'
     )
+    Path(pub_dir).mkdir(parents=True, exist_ok=True)
     write_text(f'{pub_dir}/index.html', html_content)
 
 def run_proxy(pub_dir, api_port):
