@@ -6,8 +6,10 @@ const exchHello = ev => fetch("/kop",{method:"POST",body:{op:"get_state"}}).then
 
 const App = () => <h1 onclick={exchHello}>Hello, world!</h1>
 
-(() => {
+const main= () => {
     const rootNativeElement = document.createElement("span")
     document.body.appendChild(rootNativeElement)
     createRoot(rootNativeElement).render(<App/>)
-})()
+}
+
+main()
