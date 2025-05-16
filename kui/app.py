@@ -61,6 +61,7 @@ def run_proxy(pub_dir, api_port):
         "upstreams": [f"file://{pub_dir}/#/", f"http://127.0.0.1:{api_port}/kop"],
     }
     write_text(conf_path, "\n".join(f'{k} = {dumps(v)}' for k, v in proxy_conf.items()))
+    run(("oauth2-proxy","--config",conf_path))
 
 ###
 
