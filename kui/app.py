@@ -79,9 +79,3 @@ def main():
     build_client(pub_dir)
     daemon(run_proxy, pub_dir, api_port)
     http_serve(("127.0.0.1",api_port), get_handlers())
-
-if __name__ == "__main__": main()
-
-
-
-
