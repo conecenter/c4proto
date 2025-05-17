@@ -9,8 +9,11 @@ import uuid
 import tempfile
 import re
 import hashlib
+from pathlib import Path
+
+from c4proto.c4util import never_if
 from c4util import path_exists, read_text, changing_text, read_json, changing_text_observe, one, never, \
-    run, run_text_out, Popen, wait_processes, need_dir, run_no_die
+    run, run_text_out, Popen, wait_processes, need_dir, run_no_die, list_dir
 from c4util.build import run_pipe_no_die, kcd_args, kcd_run, need_pod, get_main_conf, \
     get_temp_dev_pod, build_cached_by_content, setup_parser, secret_part_to_text, crane_image_exists, get_proto, \
     get_image_conf, crane_login
@@ -337,22 +340,17 @@ def build_type_ci_operator(context, out):
     ])
 
 
-def build_type_ci_ui(context, out):
-    build_micro(context, out, ["kui/app.py","kui/app.jsx"], [
-        "FROM ubuntu:24.04",
-        "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
-        "RUN perl install.pl useradd 1979",
-        "RUN perl install.pl apt curl ca-certificates xz-utils git python3 python3-pip python3-venv lsof mc",
-        "RUN perl install.pl curl https://github.com/oauth2-proxy/oauth2-proxy/releases/download/v7.9.0/oauth2-proxy-v7.9.0.linux-amd64.tar.gz",
-        "RUN perl install.pl curl https://nodejs.org/dist/v20.5.0/node-v20.5.0-linux-x64.tar.xz",
-        "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
-        " && chmod +x /tools/tini",
-        "USER c4",
-        'ENV PATH=${PATH}:/tools:/tools/oauth:/tools/node/bin',
-        "RUN mkdir /c4/c4client && cd /c4/c4client && npm install esbuild@^0.25.4 react@^19.1.0 react-dom@^19.1.0",
-        "RUN python3 -m venv /c4/venv && /c4/venv/bin/pip install --no-cache-dir kubernetes==32.0.1",
-        'ENTRYPOINT ["tini","--","/c4/venv/bin/python","-u","-c","from app import main;main()"]',
-    ])
+def find_parent_path(path, cond):
+    return path if cond(path) else never("not found") if path == "/" else find_parent_path(str(Path(path).parent), cond)
+
+
+def build_type_micro(proj_tag, context, out):
+    micro_subdir = f"/micro/{proj_tag}"
+    for path in list_dir(find_parent_path(__file__, lambda p: path_exists(f"{p}{micro_subdir}"))+micro_subdir):
+        fn = Path(path).name
+        subdir = "" if fn == "/Dockerfile" else "/app"
+        need_dir(f"{out}{subdir}")
+        changing_text(f"{out}{subdir}/{fn}", read_text(path))
 
 
 def build_type_s3client(context, out):
@@ -502,7 +500,7 @@ def main():
         "build_type-ci_operator": lambda proj_tag: build_type_ci_operator,
         "build_type-s3client": lambda proj_tag: build_type_s3client,
         "build_type-ws4cam": lambda proj_tag: build_type_ws4cam,
-        "build_type-ci_ui": lambda proj_tag: build_type_ci_ui,
+        "build_type-micro": lambda proj_tag: (lambda *args: build_type_micro(proj_tag, *args)),
     }
     opt = setup_parser((
         (
