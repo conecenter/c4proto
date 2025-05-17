@@ -347,7 +347,7 @@ def build_type_micro(proj_tag, context, out):
     micro_subdir = f"/micro/{proj_tag}"
     for path in list_dir(find_parent_path(__file__, lambda p: path_exists(f"{p}{micro_subdir}"))+micro_subdir):
         fn = Path(path).name
-        subdir = "" if fn == "/Dockerfile" else "/app"
+        subdir = "" if fn == "Dockerfile" else "/app"
         need_dir(f"{out}{subdir}")
         to = f"{out}{subdir}/{fn}"
         log(f"{path} ==> {to}")
