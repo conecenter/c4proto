@@ -11,7 +11,6 @@ import re
 import hashlib
 from pathlib import Path
 
-from c4proto.c4util import never_if
 from c4util import path_exists, read_text, changing_text, read_json, changing_text_observe, one, never, \
     run, run_text_out, Popen, wait_processes, need_dir, run_no_die, list_dir
 from c4util.build import run_pipe_no_die, kcd_args, kcd_run, need_pod, get_main_conf, \
