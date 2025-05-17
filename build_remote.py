@@ -12,7 +12,7 @@ import hashlib
 from pathlib import Path
 
 from c4util import path_exists, read_text, changing_text, read_json, changing_text_observe, one, never, \
-    run, run_text_out, Popen, wait_processes, need_dir, run_no_die, list_dir
+    run, run_text_out, Popen, wait_processes, need_dir, run_no_die, list_dir, log
 from c4util.build import run_pipe_no_die, kcd_args, kcd_run, need_pod, get_main_conf, \
     get_temp_dev_pod, build_cached_by_content, setup_parser, secret_part_to_text, crane_image_exists, get_proto, \
     get_image_conf, crane_login
@@ -349,7 +349,9 @@ def build_type_micro(proj_tag, context, out):
         fn = Path(path).name
         subdir = "" if fn == "/Dockerfile" else "/app"
         need_dir(f"{out}{subdir}")
-        changing_text(f"{out}{subdir}/{fn}", read_text(path))
+        to = f"{out}{subdir}/{fn}"
+        log(f"{path} ==> {to}")
+        changing_text(to, read_text(path))
 
 
 def build_type_s3client(context, out):
