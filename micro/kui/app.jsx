@@ -1,5 +1,6 @@
 
 import React from "react"
+import {useState,useEffect} from "react"
 import {createRoot} from "react-dom/client"
 
 export const PodDashboard = ({ loading, mail, pods, selectPod, restartPod }) => {

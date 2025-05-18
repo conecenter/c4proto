@@ -29,25 +29,24 @@ def daemon(*args): Thread(target=fatal, args=args, daemon=True).start()
 
 ###
 
-def outer_handle_json_post(h, handlers):
-    #todo check group
-    log(h.headers)
-    len_str = h.headers.get('Content-Length')
-    in_msg = loads(decode(h.rfile.read(int(len_str))))
-    out_msg = handlers[in_msg["op"]](in_msg)
-    if out_msg:
-        out_data = encode(dumps(out_msg, sort_keys=True))
-        h.send_response(200)
-        h.send_header("Content-Type", "application/json")
-        h.end_headers()
-        h.wfile.write(out_data)
-    else:
-        h.send_response(200)
-        h.end_headers()
+def respond(h, status, headers, data):
+    h.send_response(status)
+    for header in headers: h.send_header(*header)
+    h.end_headers()
+    if data is not None: h.wfile.write(data)
 
-def http_serve(addr, handlers):
+def outer_handle_json_post(h, handlers, allow_groups):
+    if {*h.headers["X-Forwarded-Groups"].split(",")} & allow_groups:
+        len_str = h.headers.get('Content-Length')
+        in_msg = { **loads(decode(h.rfile.read(int(len_str)))), "mail": h.headers["X-Forwarded-Email"] }
+        out_msg = handlers[in_msg["op"]](in_msg)
+        if not out_msg: respond(h, 200, (), None)
+        else: respond(h,200,[("Content-Type","application/json")], encode(dumps(out_msg, sort_keys=True)))
+    else: respond(h,403,(),None)
+
+def http_serve(addr, handlers, allow_groups):
     class CallHandler(BaseHTTPRequestHandler):
-        def do_POST(self): outer_handle_json_post(self, handlers)
+        def do_POST(self): outer_handle_json_post(self, handlers, allow_groups)
     #noinspection PyTypeChecker
     HTTPServer(addr, CallHandler).serve_forever()
 
@@ -59,7 +58,7 @@ def build_client(pub_dir):
     run(("env","-C",client_proj,"npx","tailwindcss","-i","input.css","-o","out.css"))
     html_content = (
         '<!DOCTYPE html><html lang="en">' +
-        f'<head><meta charset="UTF-8"><title>c4</title><styles>{read_text(f"{client_proj}/out.css")}</styles></head>' +
+        f'<head><meta charset="UTF-8"><title>c4</title><style>{read_text(f"{client_proj}/out.css")}</style></head>' +
         f'<body><script type="module">{read_text(f"{client_proj}/out.js")}</script></body>' +
         '</html>'
     )
@@ -79,7 +78,7 @@ def run_proxy(pub_dir, api_port):
 
 ###
 
-def get_kc(kube_context): return "kubectl","--context",kube_context
+def get_kc(kube_context): return "kubectl","--kubeconfig",environ["C4KUBECONFIG"],"--context",kube_context
 
 def get_name(obj): return obj["metadata"]["name"]
 
@@ -144,6 +143,7 @@ def get_handlers(state): return {
 
 def main():
     kube_contexts = environ["C4KUBE_CONTEXTS"].split(",")
+    allow_groups = {*environ["C4KUI_ALLOW_GROUPS"].split(",")}
     #
     pub_dir = "/c4/c4pub"
     api_port = 1180
@@ -156,4 +156,4 @@ def main():
         for kind in ["pods","services"]:
             state[kube_context][kind] = {}
             daemon(kube_watcher, state[kube_context][kind], kube_context, kind)
-    http_serve(("127.0.0.1",api_port), get_handlers(state))
+    http_serve(("127.0.0.1",api_port,allow_groups), get_handlers(state))
