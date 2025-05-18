@@ -54,13 +54,13 @@ export const PodDashboard = ({ loading, mail, pods, selectPod, restartPod }) => 
 
 const post = async (msg, setState) => {
     try {
-        setState(was => ({...was, loading: was.loading + 1})
+        setState(was => ({...was, loading: was.loading + 1}))
         const headers = { 'Content-Type': 'application/json' }
         const response = await fetch('/kop', { method: 'POST', headers, body: JSON.stringify(msg) })
         if(!response.ok) throw new Error(`${response.url} | ${response.status}`)
         return await response.json()
     } finally {
-        setState(was => ({...was, loading: was.loading - 1})
+        setState(was => ({...was, loading: was.loading - 1}))
     }
 }
 
@@ -91,10 +91,10 @@ const managePeriodicDataFetch = setState => {
 
 const initState = () => ({loading: 0, userName: "", pods: []})
 const App = () => {
-    const [state, setState] = useState(initState);
+    const [state, setState] = useState(initState)
     const handlers = { // cat become memo/cache later
-        selectPod: pod => () => postAndRefresh({ op: 'select_pod', kube_context: pod.kube_context, name: pod.name }, setState)
-        restartPod: pod => () => postAndRefresh({ op: 'restart_pod', kube_context: pod.kube_context, name: pod.name }, setState)
+        selectPod: pod => () => postAndRefresh({ op: 'select_pod', kube_context: pod.kube_context, name: pod.name }, setState),
+        restartPod: pod => () => postAndRefresh({ op: 'restart_pod', kube_context: pod.kube_context, name: pod.name }, setState),
     }
     useEffect(() => managePeriodicDataFetch(setState), [setState])
     return <PodDashboard {...state} {...handlers}/>

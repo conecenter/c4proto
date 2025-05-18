@@ -4,28 +4,34 @@ from subprocess import Popen, PIPE
 from json import loads, dumps
 from os import environ, kill, getpid
 from threading import Thread
-from signal import SIGINT
+from signal import SIGINT, SIGTERM
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from re import sub
 import re
+from time import sleep
+from sys import stderr, exc_info
+from traceback import print_exc
 
 def decode(bs): return bs.decode('utf-8')
 def encode(v): return v.encode("utf-8")
 def write_text(path, text): Path(path).write_text(text, encoding="utf-8", errors="strict")
 def read_text(path): return Path(path).read_text(encoding='utf-8', errors='strict')
 def run(args, **opt): return subprocess.run(args, check=True, **opt)
+def log(t): print(t, file=stderr)
 def fatal(f, *args):
-    res = []
-    try: res.append(f(*args))
-    finally: len(res) > 0 or kill(getpid(), SIGINT)
+    try: f(*args)
+    except:
+        print_exc()
+        kill(getpid(), SIGTERM)
+        raise
 def daemon(*args): Thread(target=fatal, args=args, daemon=True).start()
 
 ###
 
 def outer_handle_json_post(h, handlers):
     #todo check group
-    print(h.headers)
+    log(h.headers)
     len_str = h.headers.get('Content-Length')
     in_msg = loads(decode(h.rfile.read(int(len_str))))
     out_msg = handlers[in_msg["op"]](in_msg)
@@ -50,7 +56,7 @@ def build_client(pub_dir):
     write_text(f"{client_proj}/app.jsx", read_text(Path(__file__).parent/"app.jsx"))
     run(("env","-C",client_proj,"node_modules/.bin/esbuild","app.jsx","--bundle","--outfile=out.js"))
     write_text(f"{client_proj}/input.css", '@import "tailwindcss" source(none);\n@source "app.jsx";')
-    run(("npx","tailwindcss","-i","input.css","-o","out.css"))
+    run(("env","-C",client_proj,"npx","tailwindcss","-i","input.css","-o","out.css"))
     html_content = (
         '<!DOCTYPE html><html lang="en">' +
         f'<head><meta charset="UTF-8"><title>c4</title><styles>{read_text(f"{client_proj}/out.css")}</styles></head>' +
@@ -88,6 +94,7 @@ def kube_watcher(state, kube_context, kind):
                 match ev["type"]:
                     case "ADDED" | "MODIFIED": state[name] = ev["object"] #,"kube_context":kube_context,"key":f'{kube_context}~{name}'}
                     case "DELETED": del state[name]
+        sleep(2)
 
 def find_pod(state, msg): return state[msg["kube_context"]]["pods"][msg["name"]]
 
@@ -136,7 +143,7 @@ def get_handlers(state): return {
 }
 
 def main():
-    kube_contexts = ["dev","dev2"]
+    kube_contexts = environ["C4KUBE_CONTEXTS"].split(",")
     #
     pub_dir = "/c4/c4pub"
     api_port = 1180
