@@ -8,9 +8,9 @@ export const PodDashboard = ({ loading, mail, pods, selectPod, restartPod }) => 
     <div className="min-h-screen bg-gray-900 text-white p-4 font-sans flex flex-col items-center">
       <div className="w-full max-w-5xl">
 
-        <div className="flex justify-end items-center space-x-4">
+        <div className="flex justify-end items-center space-x-4 my-4">
           <h1 className="text-xl font-semibold">{mail}</h1>
-          <button className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-white">Logout</button>
+          <a className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-white" href="/oauth2/sign_out">Logout</a>
           <div className={`${loading ? "animate-spin" : ""} rounded-full h-6 w-6 border-t-2 border-b-2 border-white`}></div>
         </div>
 
@@ -29,6 +29,7 @@ export const PodDashboard = ({ loading, mail, pods, selectPod, restartPod }) => 
                 </tr>
               </thead>
               <tbody>
+                {pods.length > 0 ? null : <td colspan="7" className="py-2 px-4">No pods found</td>}
                 {pods.map((pod, index) => (
                   <tr key={pod.key} className={`border-b border-gray-700 hover:bg-gray-700 cursor-pointer ${index % 2 !== 0 ? 'bg-gray-800' : 'bg-gray-900'}`}>
                     <td className="py-2 px-4">{pod.kube_context}</td>

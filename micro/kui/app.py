@@ -44,7 +44,8 @@ def outer_handle_json_post(h, handlers, allow_groups):
         else: respond(h,200,[("Content-Type","application/json")], encode(dumps(out_msg, sort_keys=True)))
     else: respond(h,403,(),None)
 
-def http_serve(addr, handlers, allow_groups):
+def http_serve(addr, handlers):
+    allow_groups = {*environ["C4KUI_ALLOW_GROUPS"].split(",")}
     class CallHandler(BaseHTTPRequestHandler):
         def do_POST(self): outer_handle_json_post(self, handlers, allow_groups)
     #noinspection PyTypeChecker
@@ -103,7 +104,7 @@ def sel(v, *path): return v if not path or v is None else sel(v.get(path[0]), *p
 
 def handle_get_state(state, msg):
     user_abbr = get_user_abbr(msg["mail"])
-    pod_re = re.compile(r'(de|sp)-(u|)([^a-z]+)\d*-.+-main')
+    #pod_re = re.compile(r'(de|sp)-(u|)([^a-z]+)\d*-.+-main-.+')
     fu_name = get_forward_service_name(msg)
     pods = sorted((
         {
@@ -114,8 +115,8 @@ def handle_get_state(state, msg):
         }
         for kube_context, context_st in state.items()
         for selected_app_name in [sel(context_st,"services",fu_name,"spec","selector","app")]
-        for pod_name, pod in context_st["pods"].items()
-        for m in [pod_re.fullmatch(pod_name)] if m and m.group(3) == user_abbr
+        for pod_name, pod in context_st["pods"].items() if user_abbr in pod_name
+        #for m in [pod_re.fullmatch(pod_name)] if m and m.group(3) == user_abbr
     ), key=lambda p:p["key"])
     return { "mail": msg["mail"], "pods": pods }
 
@@ -129,11 +130,11 @@ def handle_select_pod(state, msg):
         "kind": "Service", "apiVersion": "v1", "metadata": { "name": get_forward_service_name(msg) },
         "spec": { "ports": [{"port": debug_port}], "selector": {"app": app_nm} }
     }
-    run((*get_kc(pod["kube_context"]),"apply","-f-"), text=True, input=dumps(manifest, sort_keys=True))
+    run((*get_kc(msg["kube_context"]),"apply","-f-"), text=True, input=dumps(manifest, sort_keys=True))
 
 def handle_restart_pod(state, msg):
     pod = find_pod(state, msg)
-    run((*get_kc(pod["kube_context"]),"delete","pod",get_name(pod)))
+    run((*get_kc(msg["kube_context"]),"delete","pod",get_name(pod)))
 
 def get_handlers(state): return {
     "get_state": lambda m: handle_get_state(state, m),
@@ -143,7 +144,6 @@ def get_handlers(state): return {
 
 def main():
     kube_contexts = environ["C4KUBE_CONTEXTS"].split(",")
-    allow_groups = {*environ["C4KUI_ALLOW_GROUPS"].split(",")}
     #
     pub_dir = "/c4/c4pub"
     api_port = 1180
@@ -156,4 +156,4 @@ def main():
         for kind in ["pods","services"]:
             state[kube_context][kind] = {}
             daemon(kube_watcher, state[kube_context][kind], kube_context, kind)
-    http_serve(("127.0.0.1",api_port,allow_groups), get_handlers(state))
+    http_serve(("127.0.0.1",api_port), get_handlers(state))
