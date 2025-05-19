@@ -408,15 +408,15 @@ def monitor_c4pod():
 def check_pods():
     kubernetes.config.load_kube_config(config_file=CONFIG_LOCATION, context=app.current_context.name)
     print(f"Starting pod check thread with {app.current_context.name}")
-    client = kubernetes.client.CoreV1Api(
-        api_client=kubernetes.config.new_client_from_config(context=app.current_context.name)
-    )
     refresh_count = 0
     user = f"de-{app.user}"
     while app.check_pods_running:
-        if refresh_count % 10 == 0 and app.current_context.authenticated:
+        if refresh_count % 15 == 0 and app.current_context.authenticated:
             print("Refreshing pods")
             # Clear the pods list before refreshing
+            client = kubernetes.client.CoreV1Api(
+                api_client=kubernetes.config.new_client_from_config(context=app.current_context.name)
+            )
             app.pods = []
             for pod in client.list_namespaced_pod(namespace=app.current_context.namespace, watch=False).items:
                 if user in pod.metadata.name:
@@ -446,7 +446,8 @@ def check_pods():
                     app.pods.append(pod_info)
             print(app.pods)
         refresh_count += 1
-        time.sleep(2)
+        refresh_count %= 60
+        time.sleep(3)
     print("Pod check thread stopped")
 
 
