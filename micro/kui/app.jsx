@@ -3,7 +3,7 @@ import React from "react"
 import {useState,useEffect} from "react"
 import {createRoot} from "react-dom/client"
 
-export const PodDashboard = ({ loading, mail, pods, selectPod, restartPod }) => {
+export const PodDashboard = ({ loading, mail, pods, clusters, selectPod, restartPod }) => {
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 font-sans flex flex-col items-center">
       <div className="w-full max-w-5xl">
@@ -14,7 +14,14 @@ export const PodDashboard = ({ loading, mail, pods, selectPod, restartPod }) => 
           <div className={`${loading ? "animate-spin" : ""} rounded-full h-6 w-6 border-t-2 border-b-2 border-white`}></div>
         </div>
 
-        <title>Pods</title>
+        <div className="flex justify-end items-center space-x-4 my-4">
+            <div>Local auth to clusters:</div>
+            {clusters.map(c => (
+                <a key={c} className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-white" href={`/ind-login?cluster=${c}`}>{c}</a>
+            ))}
+        </div>
+
+        <div className="my-4">Pods:</div>
           <div className="overflow-x-auto rounded-t-md bg-gray-800">
             <table className="min-w-full text-white rounded-b-md">
               <thead>
@@ -54,25 +61,24 @@ export const PodDashboard = ({ loading, mail, pods, selectPod, restartPod }) => 
   );
 };
 
-const post = async (msg, setState) => {
+const post = async (op, args, setState) => {
     try {
         setState(was => ({...was, loading: was.loading + 1}))
-        const headers = { 'Content-Type': 'application/json' }
-        const response = await fetch('/kop', { method: 'POST', headers, body: JSON.stringify(msg) })
-        if(!response.ok) throw new Error(`${response.url} | ${response.status}`)
-        return await response.json()
+        const response = await fetch(`/${op}?${new URLSearchParams(args).toString()}`, { method: 'POST' })
     } finally {
         setState(was => ({...was, loading: was.loading - 1}))
     }
 }
 
-const postAndRefresh = async (msg, setState) => {
-    await post(msg, setState)
+const postAndRefresh = async (op, args, setState) => {
+    await post(op, args, setState)
     await fetchIfVisible(setState)
 }
 const fetchIfVisible = async (setState) => {
     if(document.visibilityState === 'visible'){
-        const data = await post({ op: 'get_state' }, setState)
+        const response = await fetch(`/kop-state?time=${Date.now()}`)
+        if(!response.ok) throw new Error(response.status)
+        const data = await response.json()
         setState(was => ({...was, ...data}))
     }
 }
@@ -91,15 +97,15 @@ const managePeriodicDataFetch = setState => {
     }
 }
 
-const initState = () => ({loading: 0, userName: "", pods: []})
+const initState = () => ({loading: 0})
 const App = () => {
     const [state, setState] = useState(initState)
     const handlers = { // cat become memo/cache later
-        selectPod: pod => () => postAndRefresh({ op: 'select_pod', kube_context: pod.kube_context, name: pod.name }, setState),
-        restartPod: pod => () => postAndRefresh({ op: 'restart_pod', kube_context: pod.kube_context, name: pod.name }, setState),
+        selectPod: pod => () => postAndRefresh('kop-select-pod', { op:  kube_context: pod.kube_context, name: pod.name }, setState),
+        restartPod: pod => () => postAndRefresh('kop-restart-pod', { op:  kube_context: pod.kube_context, name: pod.name }, setState),
     }
     useEffect(() => managePeriodicDataFetch(setState), [setState])
-    return <PodDashboard {...state} {...handlers}/>
+    return state.mail && <PodDashboard {...state} {...handlers}/>
 }
 
 const main= () => {
