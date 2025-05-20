@@ -17,7 +17,7 @@ export const PodDashboard = ({ loading, mail, pods, clusters, selectPod, restart
         <div className="flex justify-end items-center space-x-4 my-4">
             <div>Local auth to clusters:</div>
             {clusters.map(c => (
-                <a key={c} className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-white" href={`/ind-login?cluster=${c}`}>{c}</a>
+                <a key={c} className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-white" href={`/ind-login?name=${c}`}>{c}</a>
             ))}
         </div>
 
@@ -101,8 +101,8 @@ const initState = () => ({loading: 0})
 const App = () => {
     const [state, setState] = useState(initState)
     const handlers = { // cat become memo/cache later
-        selectPod: pod => () => postAndRefresh('kop-select-pod', { op:  kube_context: pod.kube_context, name: pod.name }, setState),
-        restartPod: pod => () => postAndRefresh('kop-restart-pod', { op:  kube_context: pod.kube_context, name: pod.name }, setState),
+        selectPod: pod => () => postAndRefresh('kop-select-pod', { kube_context: pod.kube_context, name: pod.name }, setState),
+        restartPod: pod => () => postAndRefresh('kop-restart-pod', { kube_context: pod.kube_context, name: pod.name }, setState),
     }
     useEffect(() => managePeriodicDataFetch(setState), [setState])
     return state.mail && <PodDashboard {...state} {...handlers}/>

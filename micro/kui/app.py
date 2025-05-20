@@ -9,16 +9,16 @@ from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from re import sub
 import re
-from time import sleep
+from time import sleep, monotonic
 from sys import stderr, exc_info
 from traceback import print_exc
 from urllib.parse import urlencode, urlparse, parse_qs
 from urllib.request import urlopen
 from secrets import token_urlsafe
+from hashlib import md5
 
+def one(it): return it
 def never(m): raise Exception(m)
-def decode(bs): return bs.decode('utf-8')
-def encode(v): return v.encode("utf-8")
 def write_text(path, text): Path(path).write_text(text, encoding="utf-8", errors="strict")
 def read_text(path): return Path(path).read_text(encoding='utf-8', errors='strict')
 def run(args, **opt): return subprocess.run(args, check=True, **opt)
@@ -33,23 +33,30 @@ def daemon(*args): Thread(target=fatal, args=args, daemon=True).start()
 
 ###
 
-def respond(h, status=200, headers=(), data=None):
-    h.send_response(status)
-    for header in headers: h.send_header(*header)
-    h.end_headers()
-    if data is not None: h.wfile.write(data)
-
 def http_serve(addr, handlers):
+    handler_dict = {(auth, method, op): (args, f) for auth, method, op, args, f in handlers}
     def handle(h: BaseHTTPRequestHandler):
-        if {*h.headers["X-Forwarded-Groups"].split(",")} & {*environ["C4KUI_ALLOW_GROUPS"].split(",")}:
-            handlers[(h.command, urlparse(h.path).path.split("/")[1])](h)
-        else: respond(h,403,(),None)
+        allowed = {*h.headers["X-Forwarded-Groups"].split(",")} & {*environ["C4KUI_ALLOW_GROUPS"].split(",")}
+        arg_names, handler = handler_dict[(allowed, h.command, urlparse(h.path).path.split("/")[1])]
+        q = parse_qs(urlparse(h.path).query)
+        res = handler({k: (h.headers["X-Forwarded-Email"] if k == "mail" else one(*q[k])) for k in arg_names})
+        status, headers, data = (
+            #res if isinstance(res, tuple) else
+            (200, (), None) if res is None else
+            (int(res), (), None) if res.isdigit() else
+            (302, [("Location",res)], None) if res.startswith("http") else
+            (200, [("Content-Type","text/html")], res.encode()) if res.startswith("<!DOCTYPE html>") else
+            (200, [("Content-Type","application/json")], res.encode()) if res.startswith("{") else
+            never("bad result")
+        )
+        h.send_response(status)
+        for header in headers: h.send_header(*header)
+        h.end_headers()
+        if data is not None: h.wfile.write(data)
     class CallHandler(BaseHTTPRequestHandler):
         def do_POST(self): handle(self)
         def do_GET(self): handle(self)
     HTTPServer(addr, CallHandler).serve_forever()
-
-def get_mail(h): return h.headers["X-Forwarded-Email"]
 
 def build_client(pub_dir):
     client_proj = "/c4/c4client"
@@ -80,61 +87,90 @@ def run_proxy(api_port):
 
 ###
 
-def handle_ind_login(conf,state,h):
-    query = parse_qs(urlparse(h.path).query)
-    name = query["cluster"]
-    cluster = next(c for c in loads(environ["C4KUI_CLUSTERS"]) if c["name"] == name)
+def set_one_time(mut_one_time, key, value): mut_one_time[key] = (monotonic(), value)
+def pop_one_time(mut_one_time, key):
+    tm, value = mut_one_time.pop(key)
+    return value if monotonic() - tm < 30 else never("expired")
+
+def handle_ind_login(mut_one_time,name):
+    cluster = one(*(c for c in loads(environ["C4KUI_CLUSTERS"]) if c["name"] == name))
     state_key = token_urlsafe(16)
     query_params = {
         "response_type": "code", "client_id": name, "redirect_uri": f'https://{environ["C4KUI_HOST"]}/ind-auth/{name}',
         "scope": "openid profile email offline_access groups", "state": state_key
     }
-    state["one_time"][state_key] = (cluster, query_params)
-    respond(h, 302, [("Location",f'{cluster["issuer"]}/auth?{urlencode(query_params)}')], None)
+    set_one_time(mut_one_time, state_key, (cluster, query_params))
+    return f'https://{cluster["issuer"]}/auth?{urlencode(query_params)}'
 
-def handle_ind_auth(state,h):
-    query = parse_qs(urlparse(h.path).query)
-    cluster, was_params = state["one_time"].pop(query["state"])
+def handle_ind_auth(mut_one_time,mail,state,code):
+    a_code = token_urlsafe(16)
+    set_one_time(mut_one_time, a_code, (state, code, get_forward_service_name(mail)))
+    return f'http://localhost:1979/agent-auth?{urlencode({"code":a_code})}'
+
+def handle_agent_auth(mut_one_time,code):
+    orig_state, orig_code, svc = pop_one_time(mut_one_time,code)
+    cluster, was_params = pop_one_time(mut_one_time,orig_state)
+    name = cluster["name"]
+    client_secret = loads(read_text(environ["C4KUI_CLIENT_SECRETS"]))[name]
     params = {
-        "grant_type": "authorization_code", "code": query["code"], "redirect_uri": was_params["redirect_uri"],
-        "client_id": cluster["name"], "client_secret": read_text(environ[cluster["secret"]])
+        "grant_type": "authorization_code", "code": orig_code, "redirect_uri": was_params["redirect_uri"],
+        "client_id": name, "client_secret": client_secret
     }
-    with urlopen(f'{cluster["issuer"]}/token',encode(urlencode(params))) as f:
+    with urlopen(f'https://{cluster["issuer"]}/token',urlencode(params).encode()) as f:
         f.status == 200 or never(f"bad status: {f.status}")
-        msg = loads(decode(f.read()))
-    print(msg)
-
-
+        msg = loads(f.read().decode())
+    log(msg)
+    contexts = [c for c in loads(environ["C4KUI_CONTEXTS"]) if c["cluster"] == name]
+    cert_data = Path(environ["C4KUI_CERTS"].replace("{name}", name)).read_bytes()
+    out_msg = {
+        "certs": [cert_data.decode()],
+        "config_commands": [
+            [
+                "set-cluster", name,
+                "--certificate-authority", f'hc.{md5(cert_data).hexdigest()}.crt',
+                "--server", f'https://{environ["C4KUI_API_SERVER"].replace("{name}", name)}:{cluster.get("port","443")}',
+            ],
+            [
+                "set-credentials", name,
+                "--auth-provider", "oidc",
+                "--auth-provider-arg", f'idp-issuer-url=https://{cluster["issuer"]}',
+                "--auth-provider-arg", f'client-id={name}',
+                "--auth-provider-arg", f'client-secret={client_secret}',
+                "--auth-provider-arg", f'refresh-token={msg["refresh_token"]}',
+                "--auth-provider-arg", f'id-token={msg["id_token"]}',
+            ],
+            *(["set-context",c["name"],"--cluster",name,"--user",name,"--namespace",c["ns"]] for c in contexts)
+        ],
+        "pod_selectors": [f'{c["name"]}~svc/{svc}' for c in contexts if c["ns"] == environ["C4KUI_NS"]]
+    }
+    log(out_msg)
+    return dumps(out_msg, sort_keys=True)
 
 def get_kc(kube_context): return "kubectl","--kubeconfig",environ["C4KUBECONFIG"],"--context",kube_context
 
 def get_name(obj): return obj["metadata"]["name"]
 
-def kube_watcher(state, kube_context, kind):
+def kube_watcher(mut_state, kube_context, kind):
     while True:
         cmd = (*get_kc(kube_context),"get","--raw",f"/api/v1/namespaces/c4test/{kind}?watch")
         with Popen(cmd, text=True, stdout=PIPE) as proc:
-            state.clear()
+            mut_state.clear()
             for line in proc.stdout:
                 ev = loads(line)
                 name = get_name(ev["object"])
                 match ev["type"]:
-                    case "ADDED" | "MODIFIED": state[name] = ev["object"] #,"kube_context":kube_context,"key":f'{kube_context}~{name}'}
-                    case "DELETED": del state[name]
+                    case "ADDED" | "MODIFIED": mut_state[name] = ev["object"] #,"kube_context":kube_context,"key":f'{kube_context}~{name}'}
+                    case "DELETED": del mut_state[name]
         sleep(2)
-
-def find_pod(state, h):
-    msg = parse_qs(urlparse(h.path).query)
-    return msg["kube_context"], state["pods"][msg["kube_context"]][msg["name"]]
 
 def get_user_abbr(mail): return sub(r"[^A-Za-z]+","",mail.split("@")[0])
 
 def sel(v, *path): return v if not path or v is None else sel(v.get(path[0]), *path[1:])
 
-def handle_get_state(state, h):
-    user_abbr = get_user_abbr(get_mail(h))
+def handle_get_state(mut_pods, mut_services, cluster_names, mail):
+    user_abbr = get_user_abbr(mail)
     #pod_re = re.compile(r'(de|sp)-(u|)([^a-z]+)\d*-.+-main-.+')
-    fu_name = get_forward_service_name(h)
+    fu_name = get_forward_service_name(mail)
     pods = sorted((
         {
             "key": f'{kube_context}~{pod_name}', "kube_context": kube_context, "name": pod_name,
@@ -142,54 +178,52 @@ def handle_get_state(state, h):
             "restarts": next((cs["restartCount"] for cs in (sel(pod,"status", "containerStatuses") or [])), 0),
             "selected": selected_app_name and sel(pod,"metadata", "labels", "app") == selected_app_name
         }
-        for kube_context, pods in state["pods"].items()
-        for selected_app_name in [sel(state["services"][kube_context], fu_name,"spec","selector","app")]
+        for kube_context, pods in mut_pods.items()
+        for selected_app_name in [sel(mut_services[kube_context], fu_name,"spec","selector","app")]
         for pod_name, pod in pods.items() if user_abbr in pod_name
         #for m in [pod_re.fullmatch(pod_name)] if m and m.group(3) == user_abbr
     ), key=lambda p:p["key"])
-    out_msg = { "mail": get_mail(h), "pods": pods, "clusters": [c["name"] for c in loads(environ["C4KUI_CLUSTERS"])] }
-    respond(h,200,[("Content-Type","application/json")], encode(dumps(out_msg, sort_keys=True)))
+    out_msg = { "mail": mail, "pods": pods, "clusters": cluster_names }
+    return dumps(out_msg, sort_keys=True)
 
-def get_forward_service_name(h): return f'fu-{get_user_abbr(get_mail(h))}'
+def get_forward_service_name(mail): return f'fu-{get_user_abbr(mail)}'
 
-def handle_select_pod(state, h):
+def handle_select_pod(mut_pods, mail, kube_context, name):
     debug_port = 4005
-    kube_context, pod = find_pod(state, h)
+    pod = mut_pods[kube_context][name]
     app_nm = pod["metadata"]["labels"]["app"]
     manifest = {
-        "kind": "Service", "apiVersion": "v1", "metadata": { "name": get_forward_service_name(h) },
+        "kind": "Service", "apiVersion": "v1", "metadata": { "name": get_forward_service_name(mail) },
         "spec": { "ports": [{"port": debug_port}], "selector": {"app": app_nm} }
     }
     run((*get_kc(kube_context),"apply","-f-"), text=True, input=dumps(manifest, sort_keys=True))
-    respond(h)
 
-def handle_restart_pod(state, h):
-    kube_context, pod = find_pod(state, h)
+def handle_restart_pod(mut_pods, kube_context, name):
+    pod = mut_pods[kube_context][name]
     run((*get_kc(kube_context),"delete","pod",get_name(pod)))
-    respond(h)
 
 def main():
-    kube_contexts = environ["C4KUBE_CONTEXTS"].split(",")
-    #
     pub_dir = "/c4/c4pub"
     api_port = 1180
     build_client(pub_dir)
-    index_data = Path(f'{pub_dir}/index.html').read_bytes()
     daemon(run_proxy, api_port)
     #
-    state = {"one_time":{}}
-    for kind in ["pods","services"]:
-        state[kind] = {}
-        for kube_context in kube_contexts:
-            state[kind][kube_context] = {}
-            daemon(kube_watcher, state[kind][kube_context], kube_context, kind)
-
-    handlers = {
-        ("GET",""): lambda h: respond(h, 200, [("Content-Type","text/html")], index_data),
-        ("GET","kop-state"): lambda h: handle_get_state(state,h),
-        ("GET","ind-login"): lambda h: handle_ind_login(state,h),
-        ("GET","ind-auth"): lambda h: handle_ind_auth(state,h),
-        ("POST","kop-select-pod"): lambda h: handle_select_pod(state,h),
-        ("POST","kop-restart-pod"): lambda h: handle_restart_pod(state,h),
-    }
+    cluster_names = [c["name"] for c in loads(environ["C4KUI_CLUSTERS"])]
+    mut_one_time ={}
+    mut_pods = {}
+    mut_services = {}
+    kube_contexts = [c["name"] for c in loads(environ["C4KUI_CONTEXTS"]) if c["ns"] == environ["C4KUI_NS"]]
+    log(f'browsable contexts: {kube_contexts}')
+    for kube_context in kube_contexts:
+        daemon(kube_watcher, mut_pods.setdefault(kube_context,{}), kube_context, "pods")
+        daemon(kube_watcher, mut_services.setdefault(kube_context,{}), kube_context, "services")
+    handlers = (
+        (True,"GET","",(),lambda a: Path(f'{pub_dir}/index.html').read_bytes().decode()),
+        (True,"GET","kop-state",("mail",),lambda a: handle_get_state(mut_pods,mut_services,cluster_names,**a)),
+        (True,"GET","ind-login",("name",),lambda a: handle_ind_login(mut_one_time,**a)),
+        (True,"GET","ind-auth",("mail","state","code"),lambda a: handle_ind_auth(mut_one_time,**a)),
+        (False,"GET","agent-auth",("code",),lambda a: handle_agent_auth(mut_one_time,**a)),
+        (True,"POST","kop-select-pod",("mail","kube_context","name"),lambda a: handle_select_pod(mut_pods,**a)),
+        (True,"POST","kop-restart-pod",("kube_context","name"),lambda a: handle_restart_pod(mut_pods,**a)),
+    )
     http_serve(("127.0.0.1",api_port), handlers)
