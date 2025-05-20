@@ -4,6 +4,7 @@ import {useState,useEffect} from "react"
 import {createRoot} from "react-dom/client"
 
 export const PodDashboard = ({ loading, mail, pods, clusters, selectPod, restartPod }) => {
+  const [showAllClusters,setShowAllClusters] = useState(false)
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 font-sans flex flex-col items-center">
       <div className="w-full max-w-5xl">
@@ -14,11 +15,16 @@ export const PodDashboard = ({ loading, mail, pods, clusters, selectPod, restart
           <div className={`${loading ? "animate-spin" : ""} rounded-full h-6 w-6 border-t-2 border-b-2 border-white`}></div>
         </div>
 
-        <div className="flex justify-end items-center space-x-4 my-4">
-            <div>Local auth to clusters:</div>
-            {clusters.map(c => (
-                <a key={c} className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-white" href={`/ind-login?name=${c}`}>{c}</a>
-            ))}
+        <div className="mb-4 flex flex-wrap gap-2 justify-start">
+          {clusters.map((c) => (
+            (showAllClusters || c.watch) &&
+            <a key={c.name} href={`/ind-login?name=${c.name}`} className="px-3 py-1 rounded-full text-sm border whitespace-nowrap bg-gray-700 border-gray-600">
+              {c.name}
+            </a>
+          ))}
+          <button onClick={() => setShowAllClusters(was=>!was)} className="text-sm text-blue-400 hover:underline">
+            {showAllClusters ? 'Show less clusters for auth' : '... Show all clusters for auth'}
+          </button>
         </div>
 
         <div className="my-4">Pods:</div>

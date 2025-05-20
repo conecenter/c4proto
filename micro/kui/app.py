@@ -15,7 +15,7 @@ from traceback import print_exc
 from urllib.parse import urlencode, urlparse, parse_qs
 from urllib.request import urlopen
 from secrets import token_urlsafe
-from hashlib import md5
+from base64 import b64encode
 
 def one(it): return it
 def never(m): raise Exception(m)
@@ -34,11 +34,14 @@ def daemon(*args): Thread(target=fatal, args=args, daemon=True).start()
 ###
 
 def http_serve(addr, handlers):
-    handler_dict = {(auth, method, op): (args, f) for auth, method, op, args, f in handlers}
+    handler_dict = {(method, op): (auth, args, f) for auth, method, op, args, f in handlers}
+    allow_groups = {*(environ["C4KUI_ALLOW_GROUPS"] or never("need groups")).split(",")}
     def handle(h: BaseHTTPRequestHandler):
-        allowed = {*h.headers["X-Forwarded-Groups"].split(",")} & {*environ["C4KUI_ALLOW_GROUPS"].split(",")}
-        arg_names, handler = handler_dict[(allowed, h.command, urlparse(h.path).path.split("/")[1])]
-        q = parse_qs(urlparse(h.path).query)
+        parsed_path = urlparse(h.path)
+        need_auth, arg_names, handler = handler_dict[(h.command, parsed_path.path.split("/")[1])]
+        if need_auth and not ({*(h.headers["X-Forwarded-Groups"] or never("need groups")).split(",")} & allow_groups):
+            never("need auth")
+        q = parse_qs(parsed_path.query)
         res = handler({k: (h.headers["X-Forwarded-Email"] if k == "mail" else one(*q[k])) for k in arg_names})
         status, headers, data = (
             #res if isinstance(res, tuple) else
@@ -73,14 +76,14 @@ def build_client(pub_dir):
     Path(pub_dir).mkdir(parents=True, exist_ok=True)
     write_text(f'{pub_dir}/index.html', html_content)
 
-def run_proxy(api_port):
+def run_proxy(api_port,handlers):
     conf_path = "/c4/oauth2-proxy.conf"
     proxy_conf = {
         "cookie_secret": read_text(environ["C4KUI_COOKIE_SECRET_FILE"]),
         "client_secret": read_text(environ["C4KUI_CLIENT_SECRET_FILE"]), "provider": "oidc",
         "email_domains": ["*"], "insecure_oidc_allow_unverified_email": True, "oidc_groups_claim": "cognito:groups",
-        "upstreams": [f"http://127.0.0.1:{api_port}/"],
-        #f"file://{pub_dir}/#/"
+        "upstreams": [f"http://127.0.0.1:{api_port}/"], #f"file://{pub_dir}/#/"
+        "skip_auth_routes": [f'{method}=^/{path_part}' for auth, method, path_part, *etc in handlers if not auth],
     }
     write_text(conf_path, "\n".join(f'{k} = {dumps(v)}' for k, v in proxy_conf.items()))
     run(("oauth2-proxy","--config",conf_path))
@@ -121,15 +124,12 @@ def handle_agent_auth(mut_one_time,code):
         msg = loads(f.read().decode())
     log(msg)
     contexts = [c for c in loads(environ["C4KUI_CONTEXTS"]) if c["cluster"] == name]
-    cert_data = Path(environ["C4KUI_CERTS"].replace("{name}", name)).read_bytes()
+    cert_content = b64encode(Path(environ["C4KUI_CERTS"].replace("{name}", name)).read_bytes()).decode()
+    server = f'https://{environ["C4KUI_API_SERVER"].replace("{name}", name)}:{cluster.get("port","443")}'
     out_msg = {
-        "certs": [cert_data.decode()],
         "config_commands": [
-            [
-                "set-cluster", name,
-                "--certificate-authority", f'hc.{md5(cert_data).hexdigest()}.crt',
-                "--server", f'https://{environ["C4KUI_API_SERVER"].replace("{name}", name)}:{cluster.get("port","443")}',
-            ],
+            ["set-cluster", name, "--server", server],
+            ["set", f'clusters.{name}.certificate-authority-data', cert_content],
             [
                 "set-credentials", name,
                 "--auth-provider", "oidc",
@@ -167,7 +167,7 @@ def get_user_abbr(mail): return sub(r"[^A-Za-z]+","",mail.split("@")[0])
 
 def sel(v, *path): return v if not path or v is None else sel(v.get(path[0]), *path[1:])
 
-def handle_get_state(mut_pods, mut_services, cluster_names, mail):
+def handle_get_state(mut_pods, mut_services, clusters, mail):
     user_abbr = get_user_abbr(mail)
     #pod_re = re.compile(r'(de|sp)-(u|)([^a-z]+)\d*-.+-main-.+')
     fu_name = get_forward_service_name(mail)
@@ -183,7 +183,7 @@ def handle_get_state(mut_pods, mut_services, cluster_names, mail):
         for pod_name, pod in pods.items() if user_abbr in pod_name
         #for m in [pod_re.fullmatch(pod_name)] if m and m.group(3) == user_abbr
     ), key=lambda p:p["key"])
-    out_msg = { "mail": mail, "pods": pods, "clusters": cluster_names }
+    out_msg = { "mail": mail, "pods": pods, "clusters": clusters }
     return dumps(out_msg, sort_keys=True)
 
 def get_forward_service_name(mail): return f'fu-{get_user_abbr(mail)}'
@@ -206,24 +206,25 @@ def main():
     pub_dir = "/c4/c4pub"
     api_port = 1180
     build_client(pub_dir)
-    daemon(run_proxy, api_port)
     #
+    active_contexts = [c for c in loads(environ["C4KUI_CONTEXTS"]) if c.get("watch")]
+    active_cluster_names = {c["cluster"] for c in active_contexts}
     cluster_names = [c["name"] for c in loads(environ["C4KUI_CLUSTERS"])]
+    clusters = [{ "name": cn, "watch": cn in active_cluster_names } for cn in cluster_names]
     mut_one_time ={}
     mut_pods = {}
     mut_services = {}
-    kube_contexts = [c["name"] for c in loads(environ["C4KUI_CONTEXTS"]) if c.get("watch")]
-    log(f'browsable contexts: {kube_contexts}')
-    for kube_context in kube_contexts:
+    for kube_context in [c["name"] for c in active_contexts]:
         daemon(kube_watcher, mut_pods.setdefault(kube_context,{}), kube_context, "pods")
         daemon(kube_watcher, mut_services.setdefault(kube_context,{}), kube_context, "services")
     handlers = (
         (True,"GET","",(),lambda a: Path(f'{pub_dir}/index.html').read_bytes().decode()),
-        (True,"GET","kop-state",("mail",),lambda a: handle_get_state(mut_pods,mut_services,cluster_names,**a)),
+        (True,"GET","kop-state",("mail",),lambda a: handle_get_state(mut_pods,mut_services,clusters,**a)),
         (True,"GET","ind-login",("name",),lambda a: handle_ind_login(mut_one_time,**a)),
         (True,"GET","ind-auth",("mail","state","code"),lambda a: handle_ind_auth(mut_one_time,**a)),
         (False,"GET","agent-auth",("code",),lambda a: handle_agent_auth(mut_one_time,**a)),
         (True,"POST","kop-select-pod",("mail","kube_context","name"),lambda a: handle_select_pod(mut_pods,**a)),
         (True,"POST","kop-restart-pod",("kube_context","name"),lambda a: handle_restart_pod(mut_pods,**a)),
     )
+    daemon(run_proxy, api_port, handlers)
     http_serve(("127.0.0.1",api_port), handlers)
