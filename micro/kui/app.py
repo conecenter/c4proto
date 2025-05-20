@@ -141,7 +141,7 @@ def handle_agent_auth(mut_one_time,code):
             ],
             *(["set-context",c["name"],"--cluster",name,"--user",name,"--namespace",c["ns"]] for c in contexts)
         ],
-        "pod_selectors": [f'{c["name"]}~svc/{svc}' for c in contexts if c["ns"] == environ["C4KUI_NS"]]
+        "pod_selectors": [f'{c["name"]}~svc/{svc}' for c in contexts if c.get("watch")]
     }
     log(out_msg)
     return dumps(out_msg, sort_keys=True)
@@ -212,7 +212,7 @@ def main():
     mut_one_time ={}
     mut_pods = {}
     mut_services = {}
-    kube_contexts = [c["name"] for c in loads(environ["C4KUI_CONTEXTS"]) if c["ns"] == environ["C4KUI_NS"]]
+    kube_contexts = [c["name"] for c in loads(environ["C4KUI_CONTEXTS"]) if c.get("watch")]
     log(f'browsable contexts: {kube_contexts}')
     for kube_context in kube_contexts:
         daemon(kube_watcher, mut_pods.setdefault(kube_context,{}), kube_context, "pods")
