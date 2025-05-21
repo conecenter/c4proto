@@ -6,7 +6,7 @@ from os import environ, kill, getpid
 from threading import Thread
 from signal import SIGINT, SIGTERM
 from pathlib import Path
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from re import sub
 import re
 from time import sleep, monotonic
@@ -59,7 +59,7 @@ def http_serve(addr, handlers):
     class CallHandler(BaseHTTPRequestHandler):
         def do_POST(self): handle(self)
         def do_GET(self): handle(self)
-    HTTPServer(addr, CallHandler).serve_forever()
+    ThreadingHTTPServer(addr, CallHandler).serve_forever()
 
 def build_client(pub_dir):
     client_proj = "/c4/c4client"

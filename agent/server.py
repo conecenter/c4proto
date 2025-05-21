@@ -1,16 +1,16 @@
 
 from os import environ
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from json import loads
 import subprocess
 from urllib.request import urlopen
 from pathlib import Path
-from hashlib import md5
 from sys import argv
 
 def never(msg): raise Exception(msg)
 
 def handle_get(kui_location, state_path, h: BaseHTTPRequestHandler):
+    #print(threading.get_native_id())
     h.path.startswith("/agent-auth?") or never(f"bad path: {h.path}")
     with urlopen(f'{kui_location}{h.path}') as f:
         f.status == 200 or never(f"bad status: {f.status}")
@@ -28,6 +28,6 @@ def main(kui_location):
         p.symlink_to(state_path)
     class CallHandler(BaseHTTPRequestHandler):
         def do_GET(self): handle_get(kui_location, state_path, self)
-    HTTPServer((environ["C4AGENT_IP"],1979), CallHandler).serve_forever()
+    ThreadingHTTPServer((environ["C4AGENT_IP"],1979), CallHandler).serve_forever() # no pool; makes thread every request(or connection?)
 
 main(*argv[1:])

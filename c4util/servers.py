@@ -1,6 +1,6 @@
 
 def http_serve(addr, routes: dict):
-    from http.server import HTTPServer, BaseHTTPRequestHandler
+    from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
     class CallHandler(BaseHTTPRequestHandler):
         def do_POST(self):
             len_str = self.headers.get('Content-Length')
@@ -8,7 +8,7 @@ def http_serve(addr, routes: dict):
             self.send_response(200)
             self.end_headers()
     #noinspection PyTypeChecker
-    HTTPServer(addr, CallHandler).serve_forever()
+    ThreadingHTTPServer(addr, CallHandler).serve_forever()
 
 # noinspection PyTypeChecker
 def tcp_serve(addr, on_line, on_fin):
