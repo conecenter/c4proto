@@ -95,34 +95,31 @@ def pop_one_time(mut_one_time, key):
     tm, value = mut_one_time.pop(key)
     return value if monotonic() - tm < 30 else never("expired")
 
+def get_redirect_uri(name): return f'https://{environ["C4KUI_HOST"]}/ind-auth/{name}'
+
 def handle_ind_login(mut_one_time,name):
     cluster = one(*(c for c in loads(environ["C4KUI_CLUSTERS"]) if c["name"] == name))
     state_key = token_urlsafe(16)
     query_params = {
-        "response_type": "code", "client_id": name, "redirect_uri": f'https://{environ["C4KUI_HOST"]}/ind-auth/{name}',
+        "response_type": "code", "client_id": name, "redirect_uri": get_redirect_uri(name),
         "scope": "openid profile email offline_access groups", "state": state_key
     }
-    set_one_time(mut_one_time, state_key, (cluster, query_params))
+    set_one_time(mut_one_time, state_key, cluster)
     return f'https://{cluster["issuer"]}/auth?{urlencode(query_params)}'
 
 def handle_ind_auth(mut_one_time,mail,state,code):
-    a_code = token_urlsafe(16)
-    set_one_time(mut_one_time, a_code, (state, code, get_forward_service_name(mail)))
-    return f'http://localhost:1979/agent-auth?{urlencode({"code":a_code})}'
-
-def handle_agent_auth(mut_one_time,code):
-    orig_state, orig_code, svc = pop_one_time(mut_one_time,code)
-    cluster, was_params = pop_one_time(mut_one_time,orig_state)
+    cluster = pop_one_time(mut_one_time,state)
     name = cluster["name"]
     client_secret = loads(read_text(environ["C4KUI_CLIENT_SECRETS"]))[name]
     params = {
-        "grant_type": "authorization_code", "code": orig_code, "redirect_uri": was_params["redirect_uri"],
+        "grant_type": "authorization_code", "code": code, "redirect_uri": get_redirect_uri(name),
         "client_id": name, "client_secret": client_secret
     }
+    log(f'fetching token for {mail} / {name}')
     with urlopen(f'https://{cluster["issuer"]}/token',urlencode(params).encode()) as f:
         f.status == 200 or never(f"bad status: {f.status}")
         msg = loads(f.read().decode())
-    log(msg)
+    log(f'fetched token for {mail} / {name}')
     contexts = [c for c in loads(environ["C4KUI_CONTEXTS"]) if c["cluster"] == name]
     cert_content = b64encode(Path(environ["C4KUI_CERTS"].replace("{name}", name)).read_bytes()).decode()
     server = f'https://{environ["C4KUI_API_SERVER"].replace("{name}", name)}:{cluster.get("port","443")}'
@@ -141,10 +138,14 @@ def handle_agent_auth(mut_one_time,code):
             ],
             *(["set-context",c["name"],"--cluster",name,"--user",name,"--namespace",c["ns"]] for c in contexts)
         ],
-        "pod_selectors": [f'{c["name"]}~svc/{svc}' for c in contexts if c.get("watch")]
+        "pod_selectors": [f'{c["name"]}~svc/{get_forward_service_name(mail)}' for c in contexts if c.get("watch")],
+        "redirect": f'https://{environ["C4KUI_HOST"]}/#last_cluster={name}',
     }
-    log(out_msg)
-    return dumps(out_msg, sort_keys=True)
+    a_code = token_urlsafe(16)
+    set_one_time(mut_one_time, a_code, out_msg)
+    return f'http://localhost:1979/agent-auth?{urlencode({"code":a_code})}'
+
+def handle_agent_auth(mut_one_time,code): return dumps(pop_one_time(mut_one_time,code), sort_keys=True)
 
 def get_kc(kube_context): return "kubectl","--kubeconfig",environ["C4KUBECONFIG"],"--context",kube_context
 

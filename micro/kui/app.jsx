@@ -5,6 +5,7 @@ import {createRoot} from "react-dom/client"
 
 export const PodDashboard = ({ loading, mail, pods, clusters, selectPod, restartPod }) => {
   const [showAllClusters,setShowAllClusters] = useState(false)
+  const hashParams = Object.fromEntries(new URLSearchParams(location.hash.substring(1)))
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 font-sans flex flex-col items-center">
       <div className="w-full max-w-5xl">
@@ -18,7 +19,11 @@ export const PodDashboard = ({ loading, mail, pods, clusters, selectPod, restart
         <div className="mb-4 flex flex-wrap gap-2 justify-start">
           {clusters.map((c) => (
             (showAllClusters || c.watch) &&
-            <a key={c.name} href={`/ind-login?name=${c.name}`} className="px-3 py-1 rounded-full text-sm border whitespace-nowrap bg-gray-700 border-gray-600">
+            <a key={c.name} href={`/ind-login?name=${c.name}`}
+              className={`px-3 py-1 rounded-full text-sm border whitespace-nowrap ${
+                  hashParams.last_cluster === c.name ? "bg-blue-600 border-blue-400":"bg-gray-700 border-gray-600"
+              }`}
+            >
               {c.name}
             </a>
           ))}

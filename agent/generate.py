@@ -68,7 +68,7 @@ def main(opt_str):
     write_text(f"{bin}/c4forward", read_text(f"{agent_dir}/forward.py"))
     write_text(f"{bin}/cio_call", read_text(f"{agent_dir}/cio.py"))
     write_text(f"{host_bin}/a4", perl_exec('exec "docker", "exec", "-i", "c4agent_kc", @ARGV;'))
-    write_text(f"{host_bin}/a4t", perl_exec('exec "docker", "exec", "-it", "c4agent_kc", @ARGV;'))
+    write_text(f"{host_bin}/a4t", perl_exec('exec "docker", "exec", "-it", "c4agent_kc", @ARGV ? @ARGV : "bash";'))
     for k, v in opt["bin"].items(): write_text(f"{to}/bin/{k}", v)
     run(("sh","-c",f"chmod +x {to}/up* {bin}/* {host_bin}/*"))
 

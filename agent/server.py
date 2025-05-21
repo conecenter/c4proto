@@ -18,7 +18,7 @@ def handle_get(kui_location, state_path, h: BaseHTTPRequestHandler):
     for arg in msg["config_commands"]: subprocess.run(("kubectl","config",*arg), check=True)
     for arg in msg["pod_selectors"]: state_path.write_bytes(arg.encode())
     h.send_response(302)
-    h.send_header('Location', kui_location)
+    h.send_header('Location', msg["redirect"])
     h.end_headers()
 
 def main(kui_location):
