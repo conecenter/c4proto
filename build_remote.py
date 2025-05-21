@@ -9,8 +9,10 @@ import uuid
 import tempfile
 import re
 import hashlib
+from pathlib import Path
+
 from c4util import path_exists, read_text, changing_text, read_json, changing_text_observe, one, never, \
-    run, run_text_out, Popen, wait_processes, need_dir, run_no_die
+    run, run_text_out, Popen, wait_processes, need_dir, run_no_die, list_dir, log
 from c4util.build import run_pipe_no_die, kcd_args, kcd_run, need_pod, get_main_conf, \
     get_temp_dev_pod, build_cached_by_content, setup_parser, secret_part_to_text, crane_image_exists, get_proto, \
     get_image_conf, crane_login
@@ -337,6 +339,21 @@ def build_type_ci_operator(context, out):
     ])
 
 
+def find_parent_path(path, cond):
+    return path if cond(path) else never("not found") if path == "/" else find_parent_path(str(Path(path).parent), cond)
+
+
+def build_type_micro(proj_tag, context, out):
+    micro_subdir = f"/micro/{proj_tag}"
+    for path in list_dir(find_parent_path(__file__, lambda p: path_exists(f"{p}{micro_subdir}"))+micro_subdir):
+        fn = Path(path).name
+        subdir = "" if fn == "Dockerfile" else "/app"
+        need_dir(f"{out}{subdir}")
+        to = f"{out}{subdir}/{fn}"
+        log(f"{path} ==> {to}")
+        changing_text(to, read_text(path))
+
+
 def build_type_s3client(context, out):
     build_micro(context, out, [], [
         "FROM ubuntu:22.04",
@@ -484,6 +501,7 @@ def main():
         "build_type-ci_operator": lambda proj_tag: build_type_ci_operator,
         "build_type-s3client": lambda proj_tag: build_type_s3client,
         "build_type-ws4cam": lambda proj_tag: build_type_ws4cam,
+        "build_type-micro": lambda proj_tag: (lambda *args: build_type_micro(proj_tag, *args)),
     }
     opt = setup_parser((
         (

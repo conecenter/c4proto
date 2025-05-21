@@ -33,25 +33,16 @@ def main(opt_str):
         "ARG C4UID",
         "ARG C4CPU_ARCH",
         "RUN perl install.pl useradd $C4UID",
-        "RUN perl install.pl apt curl ca-certificates libjson-xs-perl openssh-client rsync lsof python3 python3-pip python3-venv git micro",
+        "RUN perl install.pl apt curl ca-certificates tini libjson-xs-perl openssh-client rsync lsof python3 git micro",
         "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/$C4CPU_ARCH/kubectl && chmod +x /tools/kubectl",
         "RUN curl -L -o /t.tgz https://github.com/google/go-containerregistry/releases/download/v0.12.1/go-containerregistry_Linux_x86_64.tar.gz" +
         " && tar -C /tools -xzf /t.tgz crane && rm /t.tgz",
-        "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini && chmod +x /tools/tini",
         "USER c4",
-        "COPY requirements.txt server.py /",
         "ENV PATH=${PATH}:/c4/bin:/tools:"+opt["generated_dir"]+"/bin",
         "ENV KUBE_EDITOR=micro",
         f'ENV KUBECONFIG={opt["kube_config"]}',
         "RUN " + " && ".join(f"git config --global --add safe.directory {d}" for d in opt["safe_dir_list"]),
-        "RUN python3 -m venv /c4/venv && /c4/venv/bin/pip install --no-cache-dir -r requirements.txt",
-        'ENTRYPOINT ["tini","--","python3","-u","/server.py"]',
-    )))
-    write_text(f"{to}/server.py", "\n".join((
-        'import subprocess', 'def run(args, **o): return subprocess.run(args, check=True, **o)', 'from json import dumps',
-        f'opt = {dumps({k: opt[k] for k in ["replink_env","proto_dir","dev_docker_server"]}, sort_keys=True)}',
-        f'run(("/replink.pl",), env=opt["replink_env"])',
-        f'run(("/c4/venv/bin/python","-u",opt["proto_dir"]+"/agent/dev_docker_server.py",dumps(opt["dev_docker_server"])))',
+        f'ENTRYPOINT ["tini","--","python3","-u","{opt["generated_dir"]}/server.py","{opt["kui_location"]}"]',
     )))
     #
     ports = "-p 127.0.0.1:1979:1979 -p 127.0.0.1:4005:4005 -e C4AGENT_IP=0.0.0.0"
@@ -69,19 +60,16 @@ def main(opt_str):
     write_text(f"{bin}/c4rsh", perl_exec(f'my $c4pod = scalar(`cat /tmp/c4pod`)||die "no pod"; {parse_exec2} "-t", "--", "bash";')) # manual only
     write_text(f"{bin}/de", perl_exec(f'my $c4pod = scalar(`cat /tmp/c4pod`)||die "no pod"; {parse_exec2} "--", @ARGV;')) # manual only
     write_text(f"{bin}/kc", perl_exec(f'exec "kubectl", "--context", @ARGV;')) # manual only
-    write_text(f"{bin}/c4forward", perl_exec(f'my($ip,$c4pod)=@ARGV; {parse_exec} "port-forward", "--address", $ip, $pod, "4005";')) # code
     agent_dir = str(Path(__file__).parent)
     proto_dir = str(Path(__file__).parent.parent)
-    write_text(f"{to}/requirements.txt", read_text(f"{agent_dir}/requirements.txt"))
+    write_text(f"{to}/server.py", read_text(f"{agent_dir}/server.py"))
     write_text(f"{bin}/c4ci_prep", read_text(f"{proto_dir}/ci_prep.py"))
     write_text(f"{bin}/c4ci_up", read_text(f"{proto_dir}/ci_up.py"))
-    write_text(f"{bin}/c4sw", read_text(f"{agent_dir}/sw.py"))
+    write_text(f"{bin}/c4forward", read_text(f"{agent_dir}/forward.py"))
     write_text(f"{bin}/cio_call", read_text(f"{agent_dir}/cio.py"))
     write_text(f"{host_bin}/a4", perl_exec('exec "docker", "exec", "-i", "c4agent_kc", @ARGV;'))
-    write_text(f"{host_bin}/a4t", perl_exec('exec "docker", "exec", "-it", "c4agent_kc", @ARGV;'))
+    write_text(f"{host_bin}/a4t", perl_exec('exec "docker", "exec", "-it", "c4agent_kc", @ARGV ? @ARGV : "bash";'))
     for k, v in opt["bin"].items(): write_text(f"{to}/bin/{k}", v)
     run(("sh","-c",f"chmod +x {to}/up* {bin}/* {host_bin}/*"))
-    #
-    run(("rsync","-av",opt["certs_dir"],to))
 
 main(*argv[1:])
