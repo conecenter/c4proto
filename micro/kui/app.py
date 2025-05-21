@@ -42,8 +42,8 @@ def http_serve(addr, handlers):
         if need_auth and not ({*(h.headers["X-Forwarded-Groups"] or never("need groups")).split(",")} & allow_groups):
             log(f'groups: {h.headers["X-Forwarded-Groups"]}')
             never("need auth")
-        q = parse_qs(parsed_path.query)
-        res = handler({k: (h.headers["X-Forwarded-Email"] if k == "mail" else one(*q[k])) for k in arg_names})
+        q = parse_qs(parsed_path.query) # skips ""-s
+        res = handler({k: (h.headers["X-Forwarded-Email"] if k == "mail" else one(*q.get(k,['']))) for k in arg_names})
         status, headers, data = (
             #res if isinstance(res, tuple) else
             (200, (), None) if res is None else
@@ -168,24 +168,36 @@ def kube_watcher(mut_state, kube_context, kind):
 def get_user_abbr(mail): return sub(r"[^A-Za-z]+","",mail.split("@")[0])
 
 def sel(v, *path): return v if not path or v is None else sel(v.get(path[0]), *path[1:])
+def one_opt(l): return l[0] if l and len(l)==1 else None
 
-def handle_get_state(mut_pods, mut_services, clusters, mail):
+def handle_get_state(mut_pods, mut_services, clusters, q):
+    mail = q["mail"]
     user_abbr = get_user_abbr(mail)
+    pod_name_like = q["podNameLike"]
+    pod_name_cond = (
+        (lambda v: user_abbr in v) if pod_name_like == "" else
+        (lambda v: True) if pod_name_like == "all" else
+        (lambda v: 'sp-' in v and 'test' in v) if pod_name_like == 'test' else
+        (lambda v: False)
+    )
     #pod_re = re.compile(r'(de|sp)-(u|)([^a-z]+)\d*-.+-main-.+')
     fu_name = get_forward_service_name(mail)
     pods = sorted((
         {
             "key": f'{kube_context}~{pod_name}', "kube_context": kube_context, "name": pod_name,
-            "status": pod["status"]["phase"], "ctime": pod["metadata"]["creationTimestamp"], #todo may be age on client
-            "restarts": next((cs["restartCount"] for cs in (sel(pod,"status", "containerStatuses") or [])), 0),
+            "status": pod["status"]["phase"],
+            "creationTimestamp": pod["metadata"]["creationTimestamp"], #todo may be age on client
+            "startedAt": sel(container_status, "state", "running", "startedAt"),
+            "restarts": sel(container_status, "restartCount"),
             "selected": selected_app_name and sel(pod,"metadata", "labels", "app") == selected_app_name
         }
         for kube_context, pods in mut_pods.items()
         for selected_app_name in [sel(mut_services[kube_context], fu_name,"spec","selector","app")]
-        for pod_name, pod in pods.items() if user_abbr in pod_name
+        for pod_name, pod in pods.items() if pod_name_cond(pod_name)
+        for container_status in [one_opt(sel(pod,"status", "containerStatuses"))]
         #for m in [pod_re.fullmatch(pod_name)] if m and m.group(3) == user_abbr
     ), key=lambda p:p["key"])
-    out_msg = { "mail": mail, "pods": pods, "clusters": clusters }
+    out_msg = { "mail": mail, "userAbbr": user_abbr, "pods": pods, "clusters": clusters }
     return dumps(out_msg, sort_keys=True)
 
 def get_forward_service_name(mail): return f'fu-{get_user_abbr(mail)}'
@@ -200,7 +212,7 @@ def handle_select_pod(mut_pods, mail, kube_context, name):
     }
     run((*get_kc(kube_context),"apply","-f-"), text=True, input=dumps(manifest, sort_keys=True))
 
-def handle_restart_pod(mut_pods, kube_context, name):
+def handle_recreate_pod(mut_pods, kube_context, name):
     pod = mut_pods[kube_context][name]
     run((*get_kc(kube_context),"delete","pod",get_name(pod)))
 
@@ -221,12 +233,12 @@ def main():
         daemon(kube_watcher, mut_services.setdefault(kube_context,{}), kube_context, "services")
     handlers = (
         (True,"GET","",(),lambda a: Path(f'{pub_dir}/index.html').read_bytes().decode()),
-        (True,"GET","kop-state",("mail",),lambda a: handle_get_state(mut_pods,mut_services,clusters,**a)),
+        (True,"GET","kop-state",("mail","podNameLike"),lambda a: handle_get_state(mut_pods,mut_services,clusters,a)),
         (True,"GET","ind-login",("name",),lambda a: handle_ind_login(mut_one_time,**a)),
         (True,"GET","ind-auth",("mail","state","code"),lambda a: handle_ind_auth(mut_one_time,**a)),
         (False,"GET","agent-auth",("code",),lambda a: handle_agent_auth(mut_one_time,**a)),
         (True,"POST","kop-select-pod",("mail","kube_context","name"),lambda a: handle_select_pod(mut_pods,**a)),
-        (True,"POST","kop-restart-pod",("kube_context","name"),lambda a: handle_restart_pod(mut_pods,**a)),
+        (True,"POST","kop-recreate-pod",("kube_context","name"),lambda a: handle_recreate_pod(mut_pods, **a)),
     )
     daemon(run_proxy, api_port, handlers)
     http_serve(("127.0.0.1",api_port), handlers)

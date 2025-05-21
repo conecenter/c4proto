@@ -3,9 +3,8 @@ import React from "react"
 import {useState,useEffect} from "react"
 import {createRoot} from "react-dom/client"
 
-export const PodDashboard = ({ loading, mail, pods, clusters, selectPod, restartPod }) => {
+export const PodDashboard = ({ loading, mail, userAbbr, pods, clusters, selectPod, recreatePod, lastCluster, podNameLike, setPodNameLike }) => {
   const [showAllClusters,setShowAllClusters] = useState(false)
-  const hashParams = Object.fromEntries(new URLSearchParams(location.hash.substring(1)))
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 font-sans flex flex-col items-center">
       <div className="w-full max-w-5xl">
@@ -21,7 +20,7 @@ export const PodDashboard = ({ loading, mail, pods, clusters, selectPod, restart
             (showAllClusters || c.watch) &&
             <a key={c.name} href={`/ind-login?name=${c.name}`}
               className={`px-3 py-1 rounded-full text-sm border whitespace-nowrap ${
-                  hashParams.last_cluster === c.name ? "bg-blue-600 border-blue-400":"bg-gray-700 border-gray-600"
+                  lastCluster === c.name ? "bg-blue-600 border-blue-400":"bg-gray-700 border-gray-600"
               }`}
             >
               {c.name}
@@ -32,7 +31,21 @@ export const PodDashboard = ({ loading, mail, pods, clusters, selectPod, restart
           </button>
         </div>
 
-        <div className="my-4">Pods:</div>
+        <div className="mb-4 flex flex-wrap gap-2 justify-start">
+            {
+                [
+                    { key: "", hint: `%${userAbbr}% pods` },
+                    { key: "test", hint: "test pods" },
+                    { key: "all", hint: "all pods" },
+                ].map(({key,hint}) => (
+                <button key={`k-${key}`} onClick={setPodNameLike(key)}
+                  className={`px-3 py-1 rounded-full text-sm border whitespace-nowrap ${
+                      (podNameLike??'') == key ? "bg-blue-600 border-blue-400":"bg-gray-700 border-gray-600"
+                  }`}
+                >{hint}</button>
+            ))}
+        </div>
+
           <div className="overflow-x-auto rounded-t-md bg-gray-800">
             <table className="min-w-full text-white rounded-b-md">
               <thead>
@@ -41,8 +54,8 @@ export const PodDashboard = ({ loading, mail, pods, clusters, selectPod, restart
                   <th className="py-2 px-4 border-b border-gray-700 text-left">S</th>
                   <th className="py-2 px-4 border-b border-gray-700 text-left">Pod</th>
                   <th className="py-2 px-4 border-b border-gray-700 text-left">Status</th>
-                  <th className="py-2 px-4 border-b border-gray-700 text-left">Creation Time</th>
-                  <th className="py-2 px-4 border-b border-gray-700 text-left">Restart Count</th>
+                  <th className="py-2 px-4 border-b border-gray-700 text-left">Creation / Start Time</th>
+                  <th className="py-2 px-4 border-b border-gray-700 text-left">Restarts</th>
                   <th className="py-2 px-4 border-b border-gray-700 text-left">Actions</th>
                 </tr>
               </thead>
@@ -54,11 +67,11 @@ export const PodDashboard = ({ loading, mail, pods, clusters, selectPod, restart
                     <td className="py-2 px-4" onClick={selectPod(pod)}>{pod.selected ? '✔️' : ''}</td>
                     <td className="py-2 px-4" onClick={selectPod(pod)}>{pod.name}</td>
                     <td className="py-2 px-4">{pod.status}</td>
-                    <td className="py-2 px-4">{pod.ctime}</td>
+                    <td className="py-2 px-4">{pod.creationTimestamp} <br/> {pod.startedAt}</td>
                     <td className="py-2 px-4">{pod.restarts}</td>
                     <td className="py-2 px-4">
-                      <button className="bg-yellow-500 text-black px-2 py-1 rounded hover:bg-yellow-400" onClick={restartPod(pod)}>
-                        Restart
+                      <button className="bg-yellow-500 text-black px-2 py-1 rounded hover:bg-yellow-400" onClick={recreatePod(pod)}>
+                        Recreate
                       </button>
                     </td>
                   </tr>
@@ -87,7 +100,8 @@ const postAndRefresh = async (op, args, setState) => {
 }
 const fetchIfVisible = async (setState) => {
     if(document.visibilityState === 'visible'){
-        const response = await fetch(`/kop-state?time=${Date.now()}`)
+        const args = { ...getHashParams(), time: Date.now() }
+        const response = await fetch(`/kop-state?${new URLSearchParams(args).toString()}`)
         if(!response.ok) throw new Error(response.status)
         const data = await response.json()
         setState(was => ({...was, ...data}))
@@ -108,15 +122,23 @@ const managePeriodicDataFetch = setState => {
     }
 }
 
+const getHashParams = () => Object.fromEntries(new URLSearchParams(location.hash.substring(1)))
+const setHashParamAndRefresh = async (k,v) => {
+    location.hash = "#" + new URLSearchParams({...getHashParams(),[k]:v}).toString()
+    await fetchIfVisible(setState)
+}
+
 const initState = () => ({loading: 0})
 const App = () => {
     const [state, setState] = useState(initState)
     const handlers = { // cat become memo/cache later
         selectPod: pod => () => postAndRefresh('kop-select-pod', { kube_context: pod.kube_context, name: pod.name }, setState),
-        restartPod: pod => () => postAndRefresh('kop-restart-pod', { kube_context: pod.kube_context, name: pod.name }, setState),
+        recreatePod: pod => () => postAndRefresh('kop-recreate-pod', { kube_context: pod.kube_context, name: pod.name }, setState),
+        setPodNameLike: text => () => setHashParamAndRefresh("podNameLike", text)
     }
     useEffect(() => managePeriodicDataFetch(setState), [setState])
-    return state.mail && <PodDashboard {...state} {...handlers}/>
+    const hashParams = getHashParams()
+    return state.mail && <PodDashboard {...state} {...hashParams} {...handlers} lastCluster={hashParams.last_cluster}/>
 }
 
 const main= () => {
