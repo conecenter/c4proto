@@ -70,7 +70,7 @@ def guess_user(kubeconfig_path):
             id_token = user.get("user", {}).get("auth-provider", {}).get("config", {}).get("id-token", "")
             claims = jwt.decode(id_token, options={"verify_signature": False})
             username = claims.get("email", "").split("@")[0]
-            return username.replace(".", "")
+            return username
         except Exception as e:
             print(e)
             pass
@@ -206,7 +206,7 @@ def auth():
     user_info = token.get("userinfo")
     idp_issuer = user_info["iss"]
     client_id = user_info["aud"]
-    app.user = user_info["email"].split("@")[0].replace(".", "")
+    app.user = user_info["email"].split("@")[0]
     set_last_user(app.user)
     client_secret = app.secret_key
     refresh_token = token.get("refresh_token")
@@ -408,15 +408,15 @@ def monitor_c4pod():
 def check_pods():
     kubernetes.config.load_kube_config(config_file=CONFIG_LOCATION, context=app.current_context.name)
     print(f"Starting pod check thread with {app.current_context.name}")
+    client = kubernetes.client.CoreV1Api(
+        api_client=kubernetes.config.new_client_from_config(context=app.current_context.name)
+    )
     refresh_count = 0
     user = f"de-{app.user}"
     while app.check_pods_running:
-        if refresh_count % 15 == 0 and app.current_context.authenticated:
+        if refresh_count % 10 == 0 and app.current_context.authenticated:
             print("Refreshing pods")
             # Clear the pods list before refreshing
-            client = kubernetes.client.CoreV1Api(
-                api_client=kubernetes.config.new_client_from_config(context=app.current_context.name)
-            )
             app.pods = []
             for pod in client.list_namespaced_pod(namespace=app.current_context.namespace, watch=False).items:
                 if user in pod.metadata.name:
@@ -446,8 +446,7 @@ def check_pods():
                     app.pods.append(pod_info)
             print(app.pods)
         refresh_count += 1
-        refresh_count %= 60
-        time.sleep(3)
+        time.sleep(2)
     print("Pod check thread stopped")
 
 
