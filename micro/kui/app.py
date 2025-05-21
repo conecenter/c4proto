@@ -40,6 +40,7 @@ def http_serve(addr, handlers):
         parsed_path = urlparse(h.path)
         need_auth, arg_names, handler = handler_dict[(h.command, parsed_path.path.split("/")[1])]
         if need_auth and not ({*(h.headers["X-Forwarded-Groups"] or never("need groups")).split(",")} & allow_groups):
+            log(f'groups: {h.headers["X-Forwarded-Groups"]}')
             never("need auth")
         q = parse_qs(parsed_path.query)
         res = handler({k: (h.headers["X-Forwarded-Email"] if k == "mail" else one(*q[k])) for k in arg_names})
