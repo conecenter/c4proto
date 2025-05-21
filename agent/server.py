@@ -24,7 +24,7 @@ def handle_get(kui_location, state_path, h: BaseHTTPRequestHandler):
 def main(kui_location):
     state_path = Path(environ["KUBECONFIG"]).parent.parent / "c4pod"
     with Path("/tmp/c4pod") as p:
-        p.exists() and p.unlink()
+        p.unlink(missing_ok=True)
         p.symlink_to(state_path)
     class CallHandler(BaseHTTPRequestHandler):
         def do_GET(self): handle_get(kui_location, state_path, self)
