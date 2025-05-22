@@ -53,8 +53,8 @@ def main(opt_str):
     #
     bin = f"{to}/bin"
     host_bin = f"{to}/host/bin"
-    parse_exec = f'my($ctx,$pod)=$c4pod=~/(.+)~(.+)/?($1,$2):die; exec "kubectl", "--context", $ctx,'
-    parse_exec2 = f'{parse_exec} "exec", "-i", $pod,'
+    parse_exec = f'my($ctx,$kind,$pod_sel)=$c4pod=~/(.+)~(.+)~(.+)/?($1,$2,$3):die; exec "kubectl", "--context", $ctx,'
+    parse_exec2 = f'{parse_exec} "exec", "-i", "$kind/$pod_sel",'
     write_text(f"{bin}/c4rsh_raw", perl_exec(f'my($c4pod,@args)=@ARGV; {parse_exec2} "--", @args;')) # code
     write_text(f"{bin}/c4dsync", perl_exec('exec "rsync","--blocking-io","-e","c4rsh_raw",@ARGV;')) # code
     write_text(f"{bin}/c4rsh", perl_exec(f'my $c4pod = scalar(`cat /tmp/c4pod`)||die "no pod"; {parse_exec2} "-t", "--", "bash";')) # manual only

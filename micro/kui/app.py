@@ -139,7 +139,7 @@ def handle_ind_auth(mut_one_time,mail,state,code):
             ],
             *(["set-context",c["name"],"--cluster",name,"--user",name,"--namespace",c["ns"]] for c in contexts)
         ],
-        "pod_selectors": [f'{c["name"]}~svc/{get_forward_service_name(mail)}' for c in contexts if c.get("watch")],
+        "pod_selectors": [f'{c["name"]}~svc~{get_forward_service_name(mail)}' for c in contexts if c.get("watch")],
         "redirect": f'https://{environ["C4KUI_HOST"]}/#last_cluster={name}',
     }
     a_code = token_urlsafe(16)
