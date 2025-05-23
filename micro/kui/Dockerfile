@@ -1,7 +1,7 @@
 FROM ubuntu:24.04
 COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /
 RUN perl install.pl useradd 1979
-RUN perl install.pl apt curl ca-certificates xz-utils git python3 python3-pip python3-venv tini lsof mc
+RUN perl install.pl apt curl ca-certificates xz-utils git python3-venv tini lsof mc
 RUN perl install.pl curl https://github.com/oauth2-proxy/oauth2-proxy/releases/download/v7.9.0/oauth2-proxy-v7.9.0.linux-amd64.tar.gz
 RUN perl install.pl curl https://nodejs.org/dist/v22.15.1/node-v22.15.1-linux-x64.tar.xz
 RUN perl install.pl curl https://dl.k8s.io/release/v1.33.1/bin/linux/amd64/kubectl && chmod +x /tools/kubectl

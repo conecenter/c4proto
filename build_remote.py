@@ -280,12 +280,10 @@ def build_type_elector(context, out):
         "FROM ubuntu:22.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
         "RUN perl install.pl useradd 1979",
-        "RUN perl install.pl apt curl ca-certificates xz-utils",  # xz-utils for node
+        "RUN perl install.pl apt curl ca-certificates xz-utils tini",  # xz-utils for node
         "RUN perl install.pl curl https://nodejs.org/dist/v20.5.0/node-v20.5.0-linux-x64.tar.xz",
-        "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
-        " && chmod +x /tools/tini",
         "USER c4",
-        'ENTRYPOINT ["/tools/tini","--","/tools/node/bin/node","/elector.js"]',
+        'ENTRYPOINT ["tini","--","/tools/node/bin/node","/elector.js"]',
     ])
 
 
@@ -294,13 +292,11 @@ def build_type_resource_tracker(context, out):
         "FROM ubuntu:22.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
         "RUN perl install.pl useradd 1979",
-        "RUN perl install.pl apt curl ca-certificates python3",
+        "RUN perl install.pl apt curl ca-certificates python3 tini",
         "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl && chmod +x /tools/kubectl",
-        "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
-        " && chmod +x /tools/tini",
         "USER c4",
         'ENV PATH=${PATH}:/tools',
-        'ENTRYPOINT ["/tools/tini","--","python3","/resources.py","tracker"]',
+        'ENTRYPOINT ["tini","--","python3","/resources.py","tracker"]',
     ])
 
 
@@ -317,13 +313,11 @@ def build_type_ci_operator(context, out):
         "FROM ubuntu:22.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /replink.pl /",  # replink for ci_prep
         "RUN perl install.pl useradd 1979",
-        "RUN perl install.pl apt curl ca-certificates python3 git" +
+        "RUN perl install.pl apt curl ca-certificates python3 git tini" +
         " libjson-xs-perl" +  # for ci_prep/prod/deploy_info
         " rsync",  # for ci_prep and steps
         "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl" +
         " && chmod +x /tools/kubectl",
-        "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini" +
-        " && chmod +x /tools/tini",
         "RUN perl install.pl curl https://download.bell-sw.com/java/21.0.4+9/bellsoft-jdk21.0.4+9-linux-amd64.tar.gz", # tests
         "RUN curl -L -o /t.tgz" +
         " https://github.com/google/go-containerregistry/releases/download/v0.12.1/go-containerregistry_Linux_x86_64.tar.gz" +
@@ -335,7 +329,7 @@ def build_type_ci_operator(context, out):
         'ENV PATH=${PATH}:/tools:/tools/jdk/bin:/tools/apache/bin:/tools/sbt/bin',  # /tools/apache/bin for maven
         "RUN coursier fetch --classpath org.apache.kafka:kafka-clients:3.7.1 > /c4/kafka-clients-classpath",
         f"ENV C4DEPLOY_CONTEXT={deploy_context}",
-        'ENTRYPOINT ["/tools/tini","--","python3","-u","/main.py"]',
+        'ENTRYPOINT ["tini","--","python3","-u","/main.py"]',
     ])
 
 
@@ -352,32 +346,6 @@ def build_type_micro(proj_tag, context, out):
         to = f"{out}{subdir}/{fn}"
         log(f"{path} ==> {to}")
         changing_text(to, read_text(path))
-
-
-def build_type_s3client(context, out):
-    build_micro(context, out, [], [
-        "FROM ubuntu:22.04",
-        "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
-        "RUN perl install.pl useradd 1979",
-        "RUN perl install.pl apt curl ca-certificates",
-        "RUN /install.pl curl https://dl.min.io/client/mc/release/linux-amd64/mc && chmod +x /tools/mc",
-        'ENTRYPOINT /tools/mc alias set def' +
-        ' $(cat $C4S3_CONF_DIR/address) $(cat $C4S3_CONF_DIR/key) $(cat $C4S3_CONF_DIR/secret) && exec sleep infinity '
-    ])
-
-
-def build_type_ws4cam(context, out):
-    build_micro(context, out, ["ws4cam.py"], [
-        "FROM ubuntu:24.04",
-        "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /",
-        "RUN perl install.pl useradd 1979",
-        "RUN perl install.pl apt curl ca-certificates python3-venv lsof",
-        "RUN perl install.pl curl https://github.com/krallin/tini/releases/download/v0.19.0/tini && chmod +x /tools/tini",
-        "USER c4",
-        "RUN python3 -m venv /c4/venv",
-        "RUN /c4/venv/bin/pip install av pillow websockets",
-        'ENTRYPOINT ["/tools/tini","--","/c4/venv/bin/python","-u","/ws4cam.py"]',
-    ])
 
 
 def build_micro(context, out, scripts, lines):
@@ -499,8 +467,6 @@ def main():
         "build_type-elector": lambda proj_tag: build_type_elector,
         "build_type-resource_tracker": lambda proj_tag: build_type_resource_tracker,
         "build_type-ci_operator": lambda proj_tag: build_type_ci_operator,
-        "build_type-s3client": lambda proj_tag: build_type_s3client,
-        "build_type-ws4cam": lambda proj_tag: build_type_ws4cam,
         "build_type-micro": lambda proj_tag: (lambda *args: build_type_micro(proj_tag, *args)),
     }
     opt = setup_parser((
