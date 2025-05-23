@@ -96,13 +96,13 @@ def pop_one_time(mut_one_time, key):
     tm, value = mut_one_time.pop(key)
     return value if monotonic() - tm < 30 else never("expired")
 
-def get_redirect_uri(name): return f'https://{environ["C4KUI_HOST"]}/ind-auth/{name}'
+def get_redirect_uri(): return f'https://{environ["C4KUI_HOST"]}/ind-auth'
 
 def handle_ind_login(mut_one_time,name):
     cluster = one(*(c for c in loads(environ["C4KUI_CLUSTERS"]) if c["name"] == name))
     state_key = token_urlsafe(16)
     query_params = {
-        "response_type": "code", "client_id": name, "redirect_uri": get_redirect_uri(name),
+        "response_type": "code", "client_id": name, "redirect_uri": get_redirect_uri(),
         "scope": "openid profile email offline_access groups", "state": state_key
     }
     set_one_time(mut_one_time, state_key, cluster)
@@ -113,7 +113,7 @@ def handle_ind_auth(mut_one_time,mail,state,code):
     name = cluster["name"]
     client_secret = loads(read_text(environ["C4KUI_CLIENT_SECRETS"]))[name]
     params = {
-        "grant_type": "authorization_code", "code": code, "redirect_uri": get_redirect_uri(name),
+        "grant_type": "authorization_code", "code": code, "redirect_uri": get_redirect_uri(),
         "client_id": name, "client_secret": client_secret
     }
     log(f'fetching token for {mail} / {name}')
