@@ -33,17 +33,23 @@ def daemon(*args): Thread(target=fatal, args=args, daemon=True).start()
 
 ###
 
+def split_to_set(v): return {*findall(r'\S+', v or '')}
+
 def http_serve(addr, handlers):
     handler_dict = {(method, op): (auth, args, f) for auth, method, op, args, f in handlers}
-    allow_groups = {*(environ["C4KUI_ALLOW_GROUPS"] or never("need groups")).split(",")}
+    allow_groups = split_to_set(environ.get("C4KUI_ALLOW_GROUPS"))
+    allow_mails = split_to_set(environ.get("C4KUI_ALLOW_MAILS"))
     def handle(h: BaseHTTPRequestHandler):
         parsed_path = urlparse(h.path)
         need_auth, arg_names, handler = handler_dict[(h.command, parsed_path.path.split("/")[1])]
-        if need_auth and not ({*(h.headers["X-Forwarded-Groups"] or never("need groups")).split(",")} & allow_groups):
-            log(f'groups: {h.headers["X-Forwarded-Groups"]}')
-            never("need auth")
-        q = parse_qs(parsed_path.query) # skips ""-s
-        res = handler({k: (h.headers["X-Forwarded-Email"] if k == "mail" else one(*q.get(k,['']))) for k in arg_names})
+        groups = split_to_set(h.headers.get("X-Forwarded-Groups"))
+        mails = split_to_set(h.headers.get("X-Forwarded-Email"))
+        if (not need_auth) or (groups & allow_groups) or (mails & allow_mails):
+            q = parse_qs(parsed_path.query) # skips ""-s
+            res = handler({k: (one(*mails) if k == "mail" else one(*q.get(k,['']))) for k in arg_names})
+        else:
+            log(f'mails: {mails} ; groups: {groups}')
+            res = "403"
         status, headers, data = (
             #res if isinstance(res, tuple) else
             (200, (), None) if res is None else
@@ -81,8 +87,8 @@ def run_proxy(api_port,handlers):
     conf_path = "/c4/oauth2-proxy.conf"
     proxy_conf = {
         "cookie_secret": read_text(environ["C4KUI_COOKIE_SECRET_FILE"]),
-        "client_secret": read_text(environ["C4KUI_CLIENT_SECRET_FILE"]), "provider": "oidc",
-        "email_domains": ["*"], "insecure_oidc_allow_unverified_email": True, "oidc_groups_claim": "cognito:groups",
+        "client_secret": read_text(environ["C4KUI_CLIENT_SECRET_FILE"]),
+        "email_domains": ["*"],
         "upstreams": [f"http://127.0.0.1:{api_port}/"], #f"file://{pub_dir}/#/"
         "skip_auth_routes": [f'{method}=^/{path_part}' for auth, method, path_part, *etc in handlers if not auth],
     }
