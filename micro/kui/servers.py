@@ -26,7 +26,7 @@ def fatal(f, *args):
         raise
 def daemon(*args): Thread(target=fatal, args=args, daemon=True).start()
 
-def split_to_set(v): return {*findall(r'\S+', v or '')}
+def split_to_set(v): return {*findall(r'[^\s,]+', v or '')}
 def check_auth(headers):
     allow_groups = split_to_set(environ.get("C4KUI_ALLOW_GROUPS"))
     allow_mails = split_to_set(environ.get("C4KUI_ALLOW_MAILS"))
@@ -57,12 +57,12 @@ def run_proxy(api_port, handlers):
         "client_secret": read_text(environ["C4KUI_CLIENT_SECRET_FILE"]),
         "email_domains": ["*"],
         "upstreams": [f"http://127.0.0.1:{api_port}/"], #f"file://{pub_dir}/#/"
-        "skip_auth_routes": [f'GET=^/{k}' for k, v in handlers.items() if not v.need_auth],
+        "skip_auth_routes": [f'GET=^{k}' for k, v in handlers.items() if not v.need_auth],
     }
     write_text(conf_path, "\n".join(f'{k} = {dumps(v)}' for k, v in proxy_conf.items()))
     run(("oauth2-proxy","--config",conf_path))
 
-def parse_q(s): return { k: one(*v) for k, v in parse_qs(s, keep_blank_values=True)}
+def parse_q(s): return { k: one(*v) for k, v in parse_qs(s, keep_blank_values=True).items()}
 def to_resp(res):
     status, headers, data = (
         (int(res), (), b'') if res.isdigit() else
