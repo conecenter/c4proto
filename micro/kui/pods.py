@@ -6,32 +6,38 @@ from os import environ
 from time import sleep
 from traceback import print_exc
 
-from util import run, dumps
+from util import run, dumps, never
 
 def get_kc(kube_context): return "kubectl","--kubeconfig",environ["C4KUBECONFIG"],"--context",kube_context
 
 def get_name(obj): return obj["metadata"]["name"]
 
-def kube_watcher(mut_state, kube_context, kind):
-    while True:
-        try:
-            cmd = (*get_kc(kube_context),"get","--raw",f"/api/v1/namespaces/c4test/{kind}?watch")
-            with Popen(cmd, text=True, stdout=PIPE) as proc:
-                mut_state.clear()
-                for line in proc.stdout:
-                    ev = loads(line)
-                    name = get_name(ev["object"])
-                    match ev["type"]:
-                        case "ADDED" | "MODIFIED": mut_state[name] = ev["object"] #,"kube_context":kube_context,"key":f'{kube_context}~{name}'}
-                        case "DELETED": mut_state.pop(name, None)
-        except Exception:
-            print_exc()
-        sleep(2)
+def kube_watcher(mut_states, context, api, kind):
+    kube_context = context["name"]
+    mut_state = mut_states.setdefault(kube_context, {})
+    def run_loop():
+        while True:
+            try:
+                cmd = (*get_kc(kube_context),"get","--raw",f'/{api}/namespaces/{context["ns"]}/{kind}?watch')
+                with Popen(cmd, text=True, stdout=PIPE) as proc:
+                    mut_state.clear()
+                    for line in proc.stdout:
+                        ev = loads(line)
+                        name = get_name(ev["object"])
+                        match ev["type"]:
+                            case "ADDED" | "MODIFIED": mut_state[name] = ev["object"] #,"kube_context":kube_context,"key":f'{kube_context}~{name}'}
+                            case "DELETED": mut_state.pop(name, None)
+            except Exception:
+                print_exc()
+            sleep(2)
+    return run_loop
 
 def sel(v, *path): return v if not path or v is None else sel(v.get(path[0]), *path[1:])
 def one_opt(l): return l[0] if l and len(l)==1 else None
 
-def init_pods(mut_pods, mut_services, active_contexts, get_forward_service_name):
+def get_app_name(pod): return sel(pod,"metadata", "labels", "app")
+
+def init_pods(mut_pods, mut_services, mut_ingresses, active_contexts, get_forward_service_name):
     def get_pods(mail, pod_name_cond):
         return sorted((
             {
@@ -40,7 +46,8 @@ def init_pods(mut_pods, mut_services, active_contexts, get_forward_service_name)
                 "creationTimestamp": pod["metadata"]["creationTimestamp"], #todo may be age on client
                 "startedAt": sel(container_status, "state", "running", "startedAt"),
                 "restarts": sel(container_status, "restartCount"),
-                "selected": selected_app_name and sel(pod,"metadata", "labels", "app") == selected_app_name
+                "selected": selected_app_name and get_app_name(pod) == selected_app_name,
+                "host": sel(one_opt(sel(mut_ingresses[kube_context], get_app_name(pod), "spec", "rules")),"host")
             }
             for kube_context, pods in mut_pods.items()
             for selected_app_name in [sel(mut_services[kube_context], get_forward_service_name(mail),"spec","selector","app")]
@@ -51,7 +58,7 @@ def init_pods(mut_pods, mut_services, active_contexts, get_forward_service_name)
     def handle_select_pod(mail, kube_context, name, **_):
         debug_port = 4005
         pod = mut_pods[kube_context][name]
-        app_nm = pod["metadata"]["labels"]["app"]
+        app_nm = get_app_name(pod) or never("no app")
         manifest = {
             "kind": "Service", "apiVersion": "v1", "metadata": { "name": get_forward_service_name(mail) },
             "spec": { "ports": [{"port": debug_port}], "selector": {"app": app_nm} }
@@ -62,7 +69,8 @@ def init_pods(mut_pods, mut_services, active_contexts, get_forward_service_name)
         return lambda: run((*get_kc(kube_context),"delete","pod",get_name(pod)))
     def handle_scale_down(kube_context, pod_name, **_):
         pod = mut_pods[kube_context][pod_name]
-        return lambda: run((*get_kc(kube_context),"scale","--replicas","0","deploy",pod["metadata"]["labels"]["app"]))
+        app_nm = get_app_name(pod) or never("no app")
+        return lambda: run((*get_kc(kube_context),"scale","--replicas","0","deploy",app_nm))
     pod_actions = {
         "kop-select-pod": handle_select_pod,
         "kop-recreate-pod": handle_recreate_pod,
@@ -72,8 +80,9 @@ def init_pods(mut_pods, mut_services, active_contexts, get_forward_service_name)
         d
         for c in active_contexts
         for d in [
-            partial(kube_watcher, mut_pods.setdefault(c["name"],{}), c["name"], "pods"),
-            partial(kube_watcher, mut_services.setdefault(c["name"],{}), c["name"], "services"),
+            kube_watcher(mut_pods, c, "api/v1", "pods"),
+            kube_watcher(mut_services, c, "api/v1", "services"),
+            kube_watcher(mut_ingresses, c, "apis/networking.k8s.io/v1", "ingresses"),
         ]
     ]
     return watchers, get_pods, pod_actions

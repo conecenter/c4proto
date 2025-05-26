@@ -29,10 +29,13 @@ def main():
     mut_one_time = {}
     mut_pods = {}
     mut_services = {}
+    mut_ingresses = {}
     mut_tasks = {}
     get_index_content = build_client()
     get_clusters, agent_auth_handlers = init_agent_auth(mut_one_time, active_contexts, get_forward_service_name, Route)
-    pod_watchers, get_pods, pod_actions = init_pods(mut_pods, mut_services, active_contexts, get_forward_service_name)
+    pod_watchers, get_pods, pod_actions = init_pods(
+        mut_pods, mut_services, mut_ingresses, active_contexts, get_forward_service_name
+    )
     handlers = {
         **agent_auth_handlers,
         "/": Route.http_auth(lambda **_: get_index_content()),
