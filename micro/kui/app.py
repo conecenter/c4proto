@@ -1,4 +1,4 @@
-
+from functools import partial
 from json import loads
 from os import environ
 from re import sub
@@ -38,7 +38,7 @@ def main():
         "/": Route.http_auth(lambda **_: get_index_content()),
         "/kop": Route.ws_auth(mut_tasks, {
             **pod_actions,
-            "load": lambda **a: handle_get_state(get_clusters,get_pods,**a),
+            "load": partial(handle_get_state,get_clusters,get_pods),
         }),
         "_": Route.http_auth(lambda **_: "404"),
     }

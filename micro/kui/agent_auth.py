@@ -1,4 +1,4 @@
-
+from functools import partial
 from json import loads
 from os import environ
 from pathlib import Path
@@ -73,8 +73,8 @@ def init_agent_auth(mut_one_time, active_contexts, get_forward_service_name, rt)
     cluster_names = [c["name"] for c in loads(environ["C4KUI_CLUSTERS"])]
     clusters = [{ "name": cn, "watch": cn in active_cluster_names } for cn in cluster_names]
     handlers = {
-        "/ind-login": rt.http_auth(lambda **q: handle_ind_login(mut_one_time,**q)),
-        "/ind-auth": rt.http_auth(lambda **q: handle_ind_auth(mut_one_time, get_forward_service_name, **q)),
-        "/agent-auth": rt.http_no_auth(lambda **q: handle_agent_auth(mut_one_time,**q)),
+        "/ind-login": rt.http_auth(partial(handle_ind_login,mut_one_time)),
+        "/ind-auth": rt.http_auth(partial(handle_ind_auth, mut_one_time, get_forward_service_name)),
+        "/agent-auth": rt.http_no_auth(partial(handle_agent_auth, mut_one_time)),
     }
     return lambda: clusters, handlers
