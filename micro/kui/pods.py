@@ -59,9 +59,13 @@ def init_pods(mut_pods, mut_services, active_contexts, get_forward_service_name)
     def handle_recreate_pod(kube_context, name, **_):
         pod = mut_pods[kube_context][name]
         return lambda: run((*get_kc(kube_context),"delete","pod",get_name(pod)))
+    def handle_scale_down(kube_context, pod_name, **_):
+        pod = mut_pods[kube_context][pod_name]
+        return lambda: run((*get_kc(kube_context),"scale","--replicas","0","deploy",pod["labels"]["app"]))
     pod_actions = {
         "kop-select-pod": handle_select_pod,
         "kop-recreate-pod": handle_recreate_pod,
+        "kop-scale-down": handle_scale_down,
     }
     watchers = [
         d

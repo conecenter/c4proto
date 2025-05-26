@@ -17,7 +17,7 @@ def handle_get_state(get_clusters, get_pods, mail, processing=None, **q):
     pod_name_cond = (
         (lambda v: user_abbr in v) if pod_name_like == "" else
         (lambda v: True) if pod_name_like == "all" else
-        (lambda v: 'sp-' in v and 'test' in v) if pod_name_like == 'test' else
+        (lambda v: 'sp-' in v and ('test' in v or '-cio-' in v)) if pod_name_like == 'test' else
         (lambda v: False)
     )
     pods = get_pods(mail, pod_name_cond)

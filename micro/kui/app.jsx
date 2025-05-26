@@ -72,6 +72,9 @@ export const PodDashboard = ({ processing, mail, userAbbr, pods, clusters, lastC
                       <button className="bg-yellow-500 text-black px-2 py-1 rounded hover:bg-yellow-400"
                         onClick={willSend({ op: 'kop-recreate-pod', kube_context: pod.kube_context, name: pod.name })}
                       >Recreate</button>
+                      <button className="bg-yellow-500 text-black px-2 py-1 rounded hover:bg-yellow-400"
+                        onClick={willSend({ op: 'kop-scale-down', kube_context: pod.kube_context, pod_name: pod.name })}
+                      >Down</button>
                     </td>
                   </tr>
                 ))}
