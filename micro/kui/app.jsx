@@ -6,7 +6,7 @@ export const PodDashboard = ({ processing, mail, userAbbr, pods, clusters, lastC
   const willSelectPod = pod => willSend({ op: 'kop-select-pod', kube_context: pod.kube_context, name: pod.name })
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 font-sans flex flex-col items-center">
-      <div className="w-full max-w-5xl">
+      <div className="w-full max-w-7xl">
 
         <div className="flex justify-end items-center space-x-4 my-4">
           <h1 className="text-xl font-semibold">{mail}</h1>
@@ -46,7 +46,7 @@ export const PodDashboard = ({ processing, mail, userAbbr, pods, clusters, lastC
         </div>
 
           <div className="overflow-x-auto rounded-t-md bg-gray-800">
-            <table className="min-w-full text-white rounded-b-md">
+            <table className="w-full sm:min-w-full lg:min-w-[1100px] text-white rounded-b-md">
               <thead>
                 <tr>
                   <th className="py-2 px-4 border-b border-gray-700 text-left">Context</th>
@@ -68,7 +68,7 @@ export const PodDashboard = ({ processing, mail, userAbbr, pods, clusters, lastC
                     <td className="py-2 px-4">{pod.status}</td>
                     <td className="py-2 px-4">{pod.creationTimestamp} <br/> {pod.startedAt}</td>
                     <td className="py-2 px-4">{pod.restarts}</td>
-                    <td className="py-2 px-4">
+                    <td className="py-2 px-4 space-x-2 space-y-2">
                       <button className="bg-yellow-500 text-black px-2 py-1 rounded hover:bg-yellow-400"
                         onClick={willSend({ op: 'kop-recreate-pod', kube_context: pod.kube_context, name: pod.name })}
                       >Recreate</button>

@@ -1,4 +1,5 @@
 
+from functools import partial
 from subprocess import Popen, PIPE
 from json import loads
 from os import environ
@@ -61,7 +62,7 @@ def init_pods(mut_pods, mut_services, active_contexts, get_forward_service_name)
         return lambda: run((*get_kc(kube_context),"delete","pod",get_name(pod)))
     def handle_scale_down(kube_context, pod_name, **_):
         pod = mut_pods[kube_context][pod_name]
-        return lambda: run((*get_kc(kube_context),"scale","--replicas","0","deploy",pod["labels"]["app"]))
+        return lambda: run((*get_kc(kube_context),"scale","--replicas","0","deploy",pod["metadata"]["labels"]["app"]))
     pod_actions = {
         "kop-select-pod": handle_select_pod,
         "kop-recreate-pod": handle_recreate_pod,
@@ -71,8 +72,8 @@ def init_pods(mut_pods, mut_services, active_contexts, get_forward_service_name)
         d
         for c in active_contexts
         for d in [
-            lambda: kube_watcher(mut_pods.setdefault(c["name"],{}), c["name"], "pods"),
-            lambda: kube_watcher(mut_services.setdefault(c["name"],{}), c["name"], "services"),
+            partial(kube_watcher, mut_pods.setdefault(c["name"],{}), c["name"], "pods"),
+            partial(kube_watcher, mut_services.setdefault(c["name"],{}), c["name"], "services"),
         ]
     ]
     return watchers, get_pods, pod_actions
