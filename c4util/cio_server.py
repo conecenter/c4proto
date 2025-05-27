@@ -15,8 +15,11 @@ from .threads import TaskQ, daemon, TaskFin
 from .servers import http_serve, tcp_serve
 from .cluster import get_kubectl, get_secret_part
 from .cio_preproc import plan_steps, arg_substitute
-from .cio_client import log_addr, cmd_addr, task_hint
+from .cio_client import log_addr, cmd_addr, reporting_addr, task_hint
 from .cio import run_steps
+from .reporting import init_reporting
+
+class ReportReq(NamedTuple): pass
 
 class LogLine(NamedTuple):
     data: bytes
@@ -86,6 +89,8 @@ def main():
     daemon(tcp_serve, log_addr(), lambda b: msg_q.put(LogLine(b)), lambda: msg_q.put(LogFin()))
     daemon(http_serve, cmd_addr(), {"/c4q": lambda d: msg_q.put(PostReq(d))})
     daemon(repeat, lambda: (msg_q.put(CronCheck()), sleep(30)))
+    reporting_to_start, report_send = init_reporting(reporting_addr(), lambda: msg_q.put(ReportReq()))
+    for f in reporting_to_start: daemon(f)
     dir_life = TemporaryDirectory()
     def_repo_dir = f"{dir_life.name}/def_repo"
     repo = decode(get_secret_part(get_kubectl(env["C4DEPLOY_CONTEXT"]), env["C4CRON_REPO"]))
@@ -95,7 +100,7 @@ def main():
     while True:
         try: # here we try to change state atom-ly
             tasks, requested_steps, tm_abbr, reschedule = handle_any(
-                env, def_repo_dir, report, tasks, requested_steps, tm_abbr, task_q.get()
+                env, def_repo_dir, report, report_send, tasks, requested_steps, tm_abbr, task_q.get()
             )
             while reschedule:
                 task = next((t for t in tasks if not task_q.can_not_submit(t.key)), None)
@@ -105,7 +110,7 @@ def main():
         except Exception as e:
             exception(e)
 
-def handle_any(env, def_repo_dir, report, tasks, requested_steps, tm_abbr, msg):
+def handle_any(env, def_repo_dir, report, report_send, tasks, requested_steps, tm_abbr, msg):
     reschedule = False
     match msg:
         case LogLine(bs): stderr.write(decode(bs))
@@ -131,4 +136,5 @@ def handle_any(env, def_repo_dir, report, tasks, requested_steps, tm_abbr, msg):
                     if task is not None: tasks = tasks_push_skip(tasks, task)
                 requested_steps = ()
             reschedule = True
+        case ReportReq(): report_send(report())
     return tasks, requested_steps, tm_abbr, reschedule
