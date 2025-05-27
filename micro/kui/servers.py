@@ -9,6 +9,7 @@ from collections import namedtuple
 from signal import SIGTERM
 from traceback import print_exc
 from types import FunctionType
+from time import sleep
 
 from websockets import Headers
 from websockets.sync.server import serve
@@ -25,6 +26,12 @@ def fatal(f, *args):
         kill(getpid(), SIGTERM)
         raise
 def daemon(*args): Thread(target=fatal, args=args, daemon=True).start()
+
+def restarting(f,*args):
+    while True:
+        try: f(*args)
+        except Exception: print_exc()
+        sleep(2)
 
 def split_to_set(v): return {*findall(r'[^\s,]+', v or '')}
 def check_auth(headers):

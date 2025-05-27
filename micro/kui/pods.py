@@ -1,10 +1,7 @@
 
-from functools import partial
 from subprocess import Popen, PIPE
 from json import loads
 from os import environ
-from time import sleep
-from traceback import print_exc
 
 from util import run, dumps, never
 
@@ -16,20 +13,15 @@ def kube_watcher(mut_states, context, api, kind):
     kube_context = context["name"]
     mut_state = mut_states.setdefault(kube_context, {})
     def run_loop():
-        while True:
-            try:
-                cmd = (*get_kc(kube_context),"get","--raw",f'/{api}/namespaces/{context["ns"]}/{kind}?watch')
-                with Popen(cmd, text=True, stdout=PIPE) as proc:
-                    mut_state.clear()
-                    for line in proc.stdout:
-                        ev = loads(line)
-                        name = get_name(ev["object"])
-                        match ev["type"]:
-                            case "ADDED" | "MODIFIED": mut_state[name] = ev["object"] #,"kube_context":kube_context,"key":f'{kube_context}~{name}'}
-                            case "DELETED": mut_state.pop(name, None)
-            except Exception:
-                print_exc()
-            sleep(2)
+        cmd = (*get_kc(kube_context),"get","--raw",f'/{api}/namespaces/{context["ns"]}/{kind}?watch')
+        with Popen(cmd, text=True, stdout=PIPE) as proc:
+            mut_state.clear()
+            for line in proc.stdout:
+                ev = loads(line)
+                name = get_name(ev["object"])
+                match ev["type"]:
+                    case "ADDED" | "MODIFIED": mut_state[name] = ev["object"] #,"kube_context":kube_context,"key":f'{kube_context}~{name}'}
+                    case "DELETED": mut_state.pop(name, None)
     return run_loop
 
 def sel(v, *path): return v if not path or v is None else sel(v.get(path[0]), *path[1:])
@@ -46,8 +38,10 @@ def init_pods(mut_pods, mut_services, mut_ingresses, active_contexts, get_forwar
                 "creationTimestamp": pod["metadata"]["creationTimestamp"], #todo may be age on client
                 "startedAt": sel(container_status, "state", "running", "startedAt"),
                 "restarts": sel(container_status, "restartCount"),
+                "image": sel(container_status, "image"),
+                "ready": sel(container_status, "ready"),
                 "selected": selected_app_name and get_app_name(pod) == selected_app_name,
-                "host": sel(one_opt(sel(mut_ingresses[kube_context], get_app_name(pod), "spec", "rules")),"host")
+                "host": sel(one_opt(sel(mut_ingresses[kube_context], get_app_name(pod), "spec", "rules")),"host"),
             }
             for kube_context, pods in mut_pods.items()
             for selected_app_name in [sel(mut_services[kube_context], get_forward_service_name(mail),"spec","selector","app")]

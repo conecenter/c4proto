@@ -2,9 +2,14 @@
 import React from "react"
 import {start} from "./util.js"
 
-export const PodDashboard = ({ processing, mail, userAbbr, tab, pods, clusters, lastCluster, podNameLike, showAllClusters, willSend, willNavigate}) => {
-  const willSelectPod = pod => willSend({ op: 'kop-select-pod', kube_context: pod.kube_context, name: pod.name })
-  return (
+export const PodDashboard = ({
+    processing, mail, userAbbr,
+    clusters, lastCluster, showAllClusters,
+    tab,
+    pods, podNameLike,
+    cio_tasks,
+    willSend, willNavigate
+}) => (
     <div className="min-h-screen bg-gray-900 text-white p-4 font-sans flex flex-col items-center">
       <div className="w-full max-w-7xl">
 
@@ -34,7 +39,7 @@ export const PodDashboard = ({ processing, mail, userAbbr, tab, pods, clusters, 
 
         <div className="border-b border-gray-700 mb-4">
           <nav className="flex space-x-4 text-gray-300">
-            {[["","Pods"],["todo","Todo"]].map(([key,hint]) => (
+            {[["","Pods"],["cio","CIO"]].map(([key,hint]) => (
                 <button key={key}
                   onClick={willNavigate({tab: key})}
                   className={`px-3 py-2 rounded-t-md ${(tab??'') === key ? 'bg-gray-800 text-white' : 'hover:bg-gray-700'}`}
@@ -61,50 +66,68 @@ export const PodDashboard = ({ processing, mail, userAbbr, tab, pods, clusters, 
             }
           </div>
 
-          <div className="overflow-x-auto rounded-t-md bg-gray-800">
-            <table className="w-full sm:min-w-full lg:min-w-[1100px] text-white rounded-b-md">
-              <thead>
+          <Table>
+            <thead>
                 <tr>
-                  <th className="py-2 px-4 border-b border-gray-700 text-left">Context</th>
-                  <th className="py-2 px-4 border-b border-gray-700 text-left">S</th>
-                  <th className="py-2 px-4 border-b border-gray-700 text-left">Pod</th>
-                  <th className="py-2 px-4 border-b border-gray-700 text-left">Status</th>
-                  <th className="py-2 px-4 border-b border-gray-700 text-left">Creation / Start Time</th>
-                  <th className="py-2 px-4 border-b border-gray-700 text-left">Restarts</th>
-                  <th className="py-2 px-4 border-b border-gray-700 text-left">Actions</th>
+                  <Th>Context</Th><Th>S</Th><Th>Pod / Tag</Th>
+                  <Th>Status</Th><Th>Creation / Start Time</Th><Th>Restarts</Th><Th>Actions</Th>
                 </tr>
-              </thead>
-              <tbody>
-                {pods.length > 0 ? null : <tr><td colSpan="7" className="py-2 px-4">No pods found</td></tr>}
-                {pods.map((pod, index) => (
-                  <tr key={pod.key} className={`border-b border-gray-700 hover:bg-gray-700 ${index % 2 !== 0 ? 'bg-gray-800' : 'bg-gray-900'}`}>
-                    <td className="py-2 px-4">{pod.kube_context}</td>
-                    <td className="py-2 px-4">
-                        <input type="radio" checked={pod.selected /*'✔️'*/} onChange={willSelectPod(pod)}/>
-                    </td>
-                    <td className="py-2 px-4">{pod.host ? <a href={`https://${pod.host}`}>{pod.name}</a>: pod.name}</td>
-                    <td className="py-2 px-4">{pod.status}</td>
-                    <td className="py-2 px-4">{pod.creationTimestamp} <br/> {pod.startedAt}</td>
-                    <td className="py-2 px-4">{pod.restarts}</td>
-                    <td className="py-2 px-4 space-x-2 space-y-2">
+            </thead>
+            <tbody>
+                { pods.length===0 && <Tr><Td colSpan="7">Not found</Td></Tr> }
+                { pods.map((pod, index) => <Tr key={pod.key} index={index}>
+                    <Td>{pod.kube_context}</Td>
+                    <Td>
+                        <input type="radio" checked={pod.selected /*'✔️'*/}
+                            onChange={willSend({ op: 'kop-select-pod', kube_context: pod.kube_context, name: pod.name })}
+                        />
+                    </Td>
+                    <Td>{pod.host ? <a href={`https://${pod.host}`}>{pod.name}</a>: pod.name}<br/>{pod.image && pod.image.split(":").at(-1)}</Td>
+                    <Td>{pod.status}{pod.ready && <div>ready</div>}</Td>
+                    <Td>{pod.creationTimestamp} <br/> {pod.startedAt}</Td>
+                    <Td>{pod.restarts}</Td>
+                    <Td>
                       <button className="bg-yellow-500 text-black px-2 py-1 rounded hover:bg-yellow-400"
                         onClick={willSend({ op: 'kop-recreate-pod', kube_context: pod.kube_context, name: pod.name })}
                       >Recreate</button>
                       <button className="bg-yellow-500 text-black px-2 py-1 rounded hover:bg-yellow-400"
                         onClick={willSend({ op: 'kop-scale-down', kube_context: pod.kube_context, pod_name: pod.name })}
                       >Down</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </Td>
+                </Tr>) }
+            </tbody>
+          </Table>
 
         </>}
 
+        {(tab??'') === 'cio' && <>
+
+          <Table>
+            <thead>
+              <tr>
+                <Th>Context</Th><Th>Status</Th><Th>Queue</Th><Th>Task</Th>
+              </tr>
+            </thead>
+            <tbody>
+                { cio_tasks.length===0 && [<Tr><Td colSpan="4">Not found</Td></Tr>] }
+                { cio_tasks.map((t, index) => <Tr key={t.task_name} index={index}>
+                    <Td>{t.kube_context}</Td><Td>{t.status}</Td><Td>{t.queue_name}</Td><Td>{t.task_name}</Td>
+                </Tr>)}
+            </tbody>
+          </Table>
+
+        </>}
       </div>
     </div>
-  );
-};
+)
+
+const Th = ({children}) => <th className="py-2 px-4 border-b border-gray-700 text-left">{children}</th>
+const Td = props => <td className="py-2 px-4 space-x-2 space-y-2" {...props}/>
+const Tr = ({index,...props}) => <tr className={`border-b border-gray-700 hover:bg-gray-700 ${(index??0) % 2 !== 0 ? 'bg-gray-800' : 'bg-gray-900'}`} {...props}/>
+const Table = ({children}) => (
+    <div className="overflow-x-auto rounded-t-md bg-gray-800">
+        <table className="w-full sm:min-w-full lg:min-w-[1100px] text-white rounded-b-md">{children}</table>
+    </div>
+)
 
 start("/kop", props => <PodDashboard {...props} lastCluster={props.last_cluster}/>)
