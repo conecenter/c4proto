@@ -115,7 +115,7 @@ void runTcpServer(int port, Properties kafkaConf) throws Exception {
 
 void main(String[] args){
     try{
-        runTcpServer(Integer.parseInt(args[0]), loadConf(args[1]))
+        runTcpServer(Integer.parseInt(args[0]), loadConf(args[1]));
     } catch(Exception e){
         //noinspection CallToPrintStackTrace
         e.printStackTrace();
