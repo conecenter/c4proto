@@ -9,7 +9,8 @@ from collections import namedtuple
 from signal import SIGTERM
 from traceback import print_exc
 from types import FunctionType
-from time import sleep
+from time import sleep, monotonic
+from hashlib import sha256
 
 from websockets import Headers
 from websockets.sync.server import serve
@@ -50,12 +51,15 @@ def build_client():
     run(("env","-C",client_proj,"node_modules/.bin/esbuild","app.jsx","--bundle","--outfile=out.js"))
     write_text(f"{client_proj}/input.css", '@import "tailwindcss" source(none);\n@source "app.jsx";')
     run(("env","-C",client_proj,"npx","tailwindcss","-i","input.css","-o","out.css"))
-    return lambda: (
-            '<!DOCTYPE html><html lang="en">' +
-            f'<head><meta charset="UTF-8"><title>c4</title><style>{read_text(f"{client_proj}/out.css")}</style></head>' +
-            f'<body><script type="module">{read_text(f"{client_proj}/out.js")}</script></body>' +
-            '</html>'
+    js_data = Path(f"{client_proj}/out.js").read_bytes()
+    ver = sha256(js_data).hexdigest()
+    content = (
+        '<!DOCTYPE html><html lang="en">' +
+        f'<head><meta charset="UTF-8"><title>c4</title><style>{read_text(f"{client_proj}/out.css")}</style></head>' +
+        f'<body><script type="module">const c4appVersion={dumps(ver)};\n{js_data.decode()}</script></body>' +
+        '</html>'
     )
+    return content, ver
 
 def run_proxy(api_port, handlers):
     conf_path = "/c4/oauth2-proxy.conf"
@@ -99,25 +103,29 @@ class Route:
             return to_resp(handle(**parse_q(query_str), mail=mail) if mail else "403")
         return Handler(True, handle_http, None)
     @staticmethod
-    def ws_auth(mut_tasks, actions):
+    def ws_auth(mut_tasks, app_ver, actions):
         def handle_http(request, query_str):
             log("going ws")
         def handle_task(task):
-            try:
-                mut_tasks["processing"] = mut_tasks.get("processing", 0) + 1
-                task()
-            finally:
-                mut_tasks["processing"] -= 1
+            try: task()
+            finally: mut_tasks["processing"] -= 1
         def handle_ws(ws):
             mail = check_auth(ws.request.headers)
             if not mail: return
+            ws.send(dumps({"appVersion": app_ver, "mail": mail}))
             was_resp = {}
+            view_time = 0
             for msg_str in ws:
+                started_at = monotonic()
                 msg = loads(msg_str)
-                match actions[msg["op"]](**mut_tasks, **msg, mail=mail):
-                    case dict(resp):
+                match actions[msg["op"]](**msg, mail=mail):
+                    case dict(c_resp):
+                        view_time = max(view_time, monotonic() - started_at)
+                        resp = { **c_resp, **mut_tasks, "viewTime": view_time }
                         ws.send(dumps({ k: v for k, v in resp.items() if v != was_resp.get(k) }))
                         was_resp = resp
-                    case FunctionType() as task: Thread(target=handle_task, args=[task], daemon=True).start()
-
+                    case FunctionType() as task:
+                        mut_tasks["processing"] = mut_tasks.get("processing", 0) + 1
+                        Thread(target=handle_task, args=[task], daemon=True).start()
+                        ws.send(dumps(mut_tasks))
         return Handler(True, handle_http, handle_ws)

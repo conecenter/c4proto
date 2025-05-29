@@ -2,6 +2,7 @@
 from subprocess import Popen, PIPE
 from json import loads
 from os import environ
+import re
 
 from util import run, dumps, never
 
@@ -31,9 +32,14 @@ def get_app_name(pod): return sel(pod,"metadata", "labels", "app")
 
 def init_pods(mut_pods, mut_services, mut_ingresses, active_contexts, get_forward_service_name):
     def get_pods(mail, pod_name_cond):
+        cond = pod_name_cond and re.compile(pod_name_cond)
         return sorted((
             {
-                "key": f'{kube_context}~{pod_name}', "kube_context": kube_context, "name": pod_name,
+                "key": f'{kube_context}~{pod_name}',
+                "kube_context": kube_context,
+                "nodeName": sel(pod, "spec", "nodeName"),
+                "name": pod_name,
+                "appName": get_app_name(pod),
                 "status": pod["status"]["phase"],
                 "creationTimestamp": pod["metadata"]["creationTimestamp"], #todo may be age on client
                 "startedAt": sel(container_status, "state", "running", "startedAt"),
@@ -45,7 +51,7 @@ def init_pods(mut_pods, mut_services, mut_ingresses, active_contexts, get_forwar
             }
             for kube_context, pods in mut_pods.items()
             for selected_app_name in [sel(mut_services[kube_context], get_forward_service_name(mail),"spec","selector","app")]
-            for pod_name, pod in pods.items() if pod_name_cond(pod_name)
+            for pod_name, pod in pods.items() if cond and cond.search(pod_name)
             for container_status in [one_opt(sel(pod,"status", "containerStatuses"))]
             #for m in [pod_re.fullmatch(pod_name)] if m and m.group(3) == user_abbr
         ), key=lambda p:p["key"])

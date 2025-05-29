@@ -6,8 +6,10 @@ const getHashParams = () => Object.fromEntries(new URLSearchParams(location.hash
 const setHashParams = o => { location.hash = "#" + new URLSearchParams({...getHashParams(),...o}).toString() }
 
 const manageEventListener = (element, evName, listener) => {
-    element.addEventListener(evName, listener)
-    return () => element.removeEventListener(evName, listener)
+    if(element && listener){
+        element.addEventListener(evName, listener)
+        return () => element.removeEventListener(evName, listener)
+    }
 }
 
 const now = () => Date.now()
@@ -26,7 +28,7 @@ const manageExchange = (url, setState) => {
             close()
             ws = new WebSocket(url)
             ws.addEventListener("message", ev => {
-                setState(was => ({...was, /*loading: false,*/ ...JSON.parse(ev.data), willNavigate, willSend}))
+                setState(was => ({...was, ...JSON.parse(ev.data), willNavigate, willSend}))
                 wasAt = now()
             })
             ws.addEventListener("open", ev => activate())
@@ -62,4 +64,20 @@ export const start = (url, getContent) => {
     const rootNativeElement = document.createElement("span")
     document.body.appendChild(rootNativeElement)
     createRoot(rootNativeElement).render(createElement(App, {url, getContent}))
+}
+
+// this control works well only being the only source of changes
+export const useSimpleInput = ({ value, onChange, dirtyClassName, className, ...props }) => {
+  const [element, setElement] = useState()
+  const [_, setDummyCounter] = useState(0)
+  const rerender = () => setDummyCounter(was=>was+1)
+  useEffect(() => manageEventListener(element, "change", ev => onChange(ev.target.value)), [element])
+  useEffect(() => {
+    if (element && element.value === value){
+        element.closest("form").reset()
+        rerender()
+    }
+  }, [value, element])
+  const mergedClassName = element && element.value !== value ? `${className} ${dirtyClassName}` : className
+  return { ...props, ref: setElement, defaultValue: value, onChange: rerender, className: mergedClassName }
 }
