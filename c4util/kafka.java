@@ -63,7 +63,7 @@ void runTcpServer(int port, Properties kafkaConf) throws Exception {
                             writeLine(writer, "OK");
                             String line;
                             while ((line = reader.readLine()) != null) {
-                                final var record = new ProducerRecord<>(topic, line.getBytes(StandardCharsets.UTF_8));
+                                final var record = new ProducerRecord<byte[], byte[]>(topic, line.getBytes(StandardCharsets.UTF_8));
                                 final var future = producer.send(record);
                                 writeLine(writer, "ACK " + future.get().offset());
                             }
