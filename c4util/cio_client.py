@@ -15,6 +15,8 @@ def log_addr(): return localhost(), 8001
 
 def reporting_addr(): return localhost(), 8002
 
+def kafka_addr(offset): return localhost(), 9000 + offset
+
 def task_kv(arg):
     uid = str(uuid4())
     return uid, f'{uid.split("-")[0]}-{arg}'
@@ -25,17 +27,24 @@ def post_json(addr, path, d):
     http_check(*http_exchange(HTTPConnection(*addr), "POST", path, dumps(d).encode("utf-8")))
 
 def main():
-    steps_str, = argv[1:]
-    if steps_str == "reporting": return reporting()
-    steps = loads(steps_str)
-    hint = task_hint("call")
-    post_json(cmd_addr(), "/c4q", [["queue","hint",hint],*steps])
-    return hint
+    match argv[1:]:
+        case ["reporting"]:
+            with create_connection(reporting_addr()) as sock:
+                return to_stdout(sock)
+        case ["consume_log", offset_str]:
+            with create_connection(kafka_addr(0)) as sock:
+                sock.sendall(f"CONSUME_FROM_OFFSET cio_log {offset_str}\n".encode())
+                return to_stdout(sock)
+        case [steps_str]:
+            steps = loads(steps_str)
+            hint = task_hint("call")
+            post_json(cmd_addr(), "/c4q", [["queue","hint",hint],*steps])
+            return hint
+        case _: raise Exception("bad args")
 
-def reporting():
-    with create_connection(reporting_addr()) as sock:
-        while True:
-            data = sock.recv(4096)
-            if not data: break  # connection closed
-            stdout.buffer.write(data)
-            stdout.buffer.flush()
+def to_stdout(sock):
+    while True:
+        data = sock.recv(4096)
+        if not data: break  # connection closed
+        stdout.buffer.write(data)
+        stdout.buffer.flush()

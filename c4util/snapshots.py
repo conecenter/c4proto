@@ -6,10 +6,11 @@ import base64
 import time
 import urllib.parse
 import re
+from socket import create_connection
 
 from . import run, never_if, one, read_text, list_dir, run_text_out, http_exchange, http_check, Popen, never, log
 from .cluster import get_prefixes_from_pods, s3path, s3init, s3list, get_kubectl, get_pods_json, wait_no_active_prefix,\
-    get_all_contexts, kafka_post
+    get_all_contexts, sock_exchange_init
 
 
 def s3get(cmd, size, try_count):
@@ -116,7 +117,7 @@ def injection_substitute(data, from_str, to):
 
 # prefix raw put do not conform to SnapshotPatchIgnore-s including filtering S_ReadyProcess
 # but elector uses currentTxLogName to avoid the bug
-def snapshot_copy(env, fr, to):
+def snapshot_copy(env, def_kafka_addr, fr, to):
     deploy_context = env["C4DEPLOY_CONTEXT"]
     fr = with_kube_contexts(deploy_context,fr)
     fr_kube_context = None
@@ -141,7 +142,10 @@ def snapshot_copy(env, fr, to):
         #
         wait_no_active_prefix(to_kc, to_prefix)
         #
-        new_offset = f'{int(http_check(*kafka_post(0, "send", to_prefix)).strip())+1:016x}'
+        with create_connection(def_kafka_addr) as sock:
+            exchange = sock_exchange_init(sock)
+            exchange(f'PRODUCE {to_prefix}.inbox'.encode(), "OK")
+            new_offset = f'{int(one(*exchange(b"", "ACK")))+1:016x}'
         #
         old_offset, minus, postfix = name.partition("-")
         never_if(None if minus == "-" and len(old_offset) == len(new_offset) else "bad name")

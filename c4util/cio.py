@@ -9,9 +9,10 @@ from logging import info, debug
 from os import kill
 from signal import SIGTERM
 from subprocess import run as sp_run
+from socket import create_connection
 
 from .threads import TaskQ, daemon
-from .cio_client import post_json, task_kv, log_addr, localhost
+from .cio_client import post_json, task_kv, log_addr, localhost, kafka_addr
 from . import snapshots as sn, cluster as cl, git, kube_reporter as kr, distribution
 from .cio_preproc import arg_substitute
 from . import run, list_dir, Popen, wait_processes, changing_text, one, read_text, never_if, need_dir, \
@@ -55,7 +56,7 @@ def app_cold_start_blocking(env, conf_from, snapshot_from):
         never_if(f'bad ctx {it["kube-context"]} {it["c4env"]}' if it["kube-context"] != env["C4DEPLOY_CONTEXT"] else None)
         pod_templates = [man["spec"]["template"] for man in it["manifests"] if man["kind"] == "Deployment"]
         install_prefix = one(*sn.get_prefixes_from_pods(pod_templates))
-        sn.snapshot_copy(env, snapshot_from, {"prefix": install_prefix})
+        sn.snapshot_copy(env, kafka_addr(0), snapshot_from, {"prefix": install_prefix})
     app_up(it)
 
 
@@ -98,7 +99,7 @@ def kafka_client_serve(deploy_context, port_offset, conf):
     changing_text(conf_path, "".join(f"{k}={v}\n" for c, k, v in todo if c == "L"))
     cp = read_text("/c4/kafka-clients-classpath").strip()
     src_path = str(Path(__file__).parent/"kafka.java")
-    run(("java", "--source", "21", "--enable-preview", "-cp", cp, src_path, str(cl.kafka_port(port_offset)), conf_path))
+    run(("java", "--source", "21", "--enable-preview", "-cp", cp, src_path, str(kafka_addr(port_offset)[-1]), conf_path))
 
 
 def purge(env, prefix, clients):
@@ -112,7 +113,10 @@ def purge(env, prefix, clients):
         return [f'{bucket}/{loads(line)["key"]}' for line in proc.stdout.splitlines()] if proc.returncode == 0 else []
     to_rm = (*ls(".snapshots"), *ls(".txr"))
     if to_rm: run_no_die((*mc, "rm", *to_rm))
-    for cl_id in clients: info(cl.kafka_post(cl_id, "rm", prefix))
+    for cl_id in clients:
+        with create_connection(kafka_addr(cl_id)) as sock:
+            exchange = cl.sock_exchange_init(sock)
+            info(exchange(f'DELETE {prefix}.inbox'.encode(), "EXISTED"))
     never_if(ls(".snapshots"))
 
 
@@ -157,7 +161,7 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "called": lambda *args: None,
     "queue": lambda *args: None,
     "snapshot_list_dump": lambda opt: sn.snapshot_list_dump(deploy_context, opt),
-    "snapshot_copy": lambda opt: sn.snapshot_copy(env, opt["from"], opt["to"]),
+    "snapshot_copy": lambda opt: sn.snapshot_copy(env, kafka_addr(0), opt["from"], opt["to"]),
     "snapshot_make": lambda opt: sn.snapshot_make(deploy_context, opt),
     "injection_make": lambda opt: sn.injection_make(
         deploy_context, get_dir(opt["from"]), opt.get("substitute", []), opt["to"]
