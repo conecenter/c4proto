@@ -103,7 +103,7 @@ class Route:
             return to_resp(handle(**parse_q(query_str), mail=mail) if mail else "403")
         return Handler(True, handle_http, None)
     @staticmethod
-    def ws_auth(mut_tasks, app_ver, actions):
+    def ws_auth(mut_tasks, initial_load, actions):
         def handle_http(request, query_str):
             log("going ws")
         def handle_task(task):
@@ -112,16 +112,19 @@ class Route:
         def handle_ws(ws):
             mail = check_auth(ws.request.headers)
             if not mail: return
-            ws.send(dumps({"appVersion": app_ver, "mail": mail}))
+            ws.send(dumps(initial_load(mail=mail)))
             was_resp = {}
             view_time = 0
             for msg_str in ws:
                 started_at = monotonic()
                 msg = loads(msg_str)
-                match actions[msg["op"]](**msg, mail=mail):
+                #log(f'{msg.get("tab","")}.{msg["op"]}' + str(actions[f'{msg.get("tab","")}.{msg["op"]}']))
+                tab = msg.get("tab","")
+                if not tab: continue
+                match actions[f'{tab}.{msg["op"]}'](**msg, mail=mail):
                     case dict(c_resp):
                         view_time = max(view_time, monotonic() - started_at)
-                        resp = { **c_resp, **mut_tasks, "viewTime": view_time }
+                        resp = { tab: c_resp, **mut_tasks, "viewTime": view_time }
                         ws.send(dumps({ k: v for k, v in resp.items() if v != was_resp.get(k) }))
                         was_resp = resp
                     case FunctionType() as task:

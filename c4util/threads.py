@@ -40,12 +40,15 @@ class TaskQ:
         return lambda cmd, cwd = None, env=None: daemon(self.follow, task_key, value, min_exec_time, cmd, cwd, env)
     def follow(self, task_key, value, min_exec_time, cmd, cwd, env):
         until = monotonic() + min_exec_time
-        hint, _, title_left = f'{value} [{task_key}]'.partition(" ")
+        hint = value.split()[0]
         with Popen(cmd, stdout=PIPE, stderr=STDOUT, cwd=cwd, env=env) as proc, create_connection(self.log_addr) as sock:
-            sendall(sock, hint, title_left, "started", proc.args)
+            sendall(sock, hint, {
+                "event": "started", "pid": proc.pid, "args": proc.args, "ppid": getpid(),
+                "queue": task_key, "task": value
+            })
             for line in proc.stdout: sendall(sock, hint, line.decode().rstrip("\n"))
             ok = proc.wait() == 0
-            sendall(sock,hint, title_left, "succeeded" if ok else "failed")
+            sendall(sock, hint, { "event": ("succeeded" if ok else "failed"), "pid": proc.pid })
         sleep(max(0., until - monotonic()))
         self.q.put(TaskFin(ok, task_key, value))
     def wait_all(self, need_ok):
@@ -54,7 +57,8 @@ class TaskQ:
             if len(self.active) == 0: break
             self.get()
 
-def sendall(sock, *args): sock.sendall(f'{dumps([datetime.now().isoformat(), *args])}\n'.encode())
+def sendall(sock, abbr, arg):
+    sock.sendall(f'{dumps([datetime.now().isoformat(), abbr, arg], sort_keys=True)}\n'.encode())
 
 def fatal(f, *args):
     res = []
