@@ -34,7 +34,7 @@ def main():
         case ["reporting"]:
             with create_connection(reporting_addr()) as sock:
                 return to_stdout(sock)
-        case ["consume_log", offset_str]:
+        case ["consume_log"]:
             with create_connection(kafka_addr(0)) as sock:
                 def sender():
                     sock.sendall(f"CONSUME cio_log\n".encode())
