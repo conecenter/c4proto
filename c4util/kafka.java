@@ -35,7 +35,7 @@ void writeLine(OutputStream writer, String value) throws Exception {
 void runTcpServer(int port, Properties kafkaConf) throws Exception {
     final var threadPool = Executors.newCachedThreadPool();
     final var serializer = new ByteArraySerializer();
-
+    final var deserializer = new ByteArrayDeserializer();
     try (
             final var serverSocket = new ServerSocket(port, 50, InetAddress.getByName("127.0.0.1"));
             final var adminClient = AdminClient.create(kafkaConf);
@@ -51,15 +51,14 @@ void runTcpServer(int port, Properties kafkaConf) throws Exception {
                     final var writer = socket.getOutputStream()
                 ) {
                     final var args = reader.readLine().split(" ");
+                    final var topic = args[1];
                     switch (args[0]) {
                         case "DELETE" -> {
-                            final var topic = args[1];
                             final var exists = adminClient.listTopics().names().get().contains(topic);
                             if(exists) adminClient.deleteTopics(Collections.singletonList(topic)).all().get();
                             writeLine(writer, "EXISTED "+exists);
                         }
                         case "PRODUCE" -> { // Produce mode: send lines to topic
-                            final var topic = args[1];
                             writeLine(writer, "OK");
                             String line;
                             while ((line = reader.readLine()) != null) {
@@ -68,24 +67,14 @@ void runTcpServer(int port, Properties kafkaConf) throws Exception {
                                 writeLine(writer, "ACK " + future.get().offset());
                             }
                         }
-                        case "CONSUME_FROM_OFFSET" -> {
-                            final var topic = args[1];
-                            final var requestedOffset = java.lang.Long.parseLong(args[2]);
-                            final var partition = new TopicPartition(topic, 0);
-
-                            try (var consumer = new KafkaConsumer<byte[], byte[]>(kafkaConf)) {
+                        case "CONSUME" ->
+                            try (var consumer = new KafkaConsumer<byte[], byte[]>(kafkaConf,deserializer,deserializer)) {
+                                final var partition = new TopicPartition(topic, 0);
                                 consumer.assign(List.of(partition));
-
-                                // Query valid range
                                 final var beginning = consumer.beginningOffsets(List.of(partition)).get(partition);
                                 final var end = consumer.endOffsets(List.of(partition)).get(partition);
-
-                                final var actualOffset = Math.max(requestedOffset, beginning);
-                                consumer.seek(partition, actualOffset);
-
-                                // Inform client of effective offset range
-                                writeLine(writer, "FROM " + actualOffset + " END " + end);
-
+                                writeLine(writer, "BEGINNING " + beginning + " END " + end);
+                                consumer.seek(partition, java.lang.Long.parseLong(reader.readLine()));
                                 while (true) {
                                     final var records = consumer.poll(Duration.ofMillis(500));
                                     for (var record : records) {
@@ -95,7 +84,6 @@ void runTcpServer(int port, Properties kafkaConf) throws Exception {
                                     writer.flush();
                                 }
                             }
-                        }
                         default -> {
                             writer.write("Unknown mode\n".getBytes(StandardCharsets.UTF_8));
                             writer.flush();

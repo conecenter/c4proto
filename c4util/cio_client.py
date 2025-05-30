@@ -1,11 +1,14 @@
 
 from http.client import HTTPConnection
+from threading import Thread
 from uuid import uuid4
 from json import dumps, loads
-from sys import argv, stdout
+from sys import argv, stdout, stdin
 from socket import create_connection
 
 from . import http_check, http_exchange, one
+
+
 
 def localhost(): return "127.0.0.1"
 
@@ -33,7 +36,10 @@ def main():
                 return to_stdout(sock)
         case ["consume_log", offset_str]:
             with create_connection(kafka_addr(0)) as sock:
-                sock.sendall(f"CONSUME_FROM_OFFSET cio_log {offset_str}\n".encode())
+                def sender():
+                    sock.sendall(f"CONSUME cio_log\n".encode())
+                    sock.sendall(stdin.readline().encode())
+                Thread(target=sender, daemon=True).start()
                 return to_stdout(sock)
         case [steps_str]:
             steps = loads(steps_str)
