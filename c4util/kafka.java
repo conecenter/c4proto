@@ -67,8 +67,8 @@ void runTcpServer(int port, Properties kafkaConf) throws Exception {
                                 writeLine(writer, "ACK " + future.get().offset());
                             }
                         }
-                        case "CONSUME" ->
-                            try (var consumer = new KafkaConsumer<byte[], byte[]>(kafkaConf,deserializer,deserializer)) {
+                        case "CONSUME" -> {
+                            try (var consumer = new KafkaConsumer<byte[], byte[]>(kafkaConf, deserializer, deserializer)) {
                                 final var partition = new TopicPartition(topic, 0);
                                 consumer.assign(List.of(partition));
                                 final var beginning = consumer.beginningOffsets(List.of(partition)).get(partition);
@@ -84,6 +84,7 @@ void runTcpServer(int port, Properties kafkaConf) throws Exception {
                                     writer.flush();
                                 }
                             }
+                        }
                         default -> {
                             writer.write("Unknown mode\n".getBytes(StandardCharsets.UTF_8));
                             writer.flush();
