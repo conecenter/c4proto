@@ -42,10 +42,10 @@ class TaskQ:
         until = monotonic() + min_exec_time
         hint, _, title_left = f'{value} [{task_key}]'.partition(" ")
         with Popen(cmd, stdout=PIPE, stderr=STDOUT, cwd=cwd, env=env) as proc, create_connection(self.log_addr) as sock:
-            sendall(sock, [hint, title_left], "started", proc.args)
+            sendall(sock, hint, title_left, "started", proc.args)
             for line in proc.stdout: sendall(sock, hint, line.decode().rstrip("\n"))
             ok = proc.wait() == 0
-            sendall(sock,[hint, title_left], "succeeded" if ok else "failed")
+            sendall(sock,hint, title_left, "succeeded" if ok else "failed")
         sleep(max(0., until - monotonic()))
         self.q.put(TaskFin(ok, task_key, value))
     def wait_all(self, need_ok):
