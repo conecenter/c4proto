@@ -15,7 +15,7 @@ from .threads import TaskQ, daemon, TaskFin
 from .servers import http_serve, tcp_serve
 from .cluster import get_kubectl, get_secret_part, init_kafka_producer
 from .cio_preproc import plan_steps, arg_substitute
-from .cio_client import log_addr, cmd_addr, reporting_addr, task_hint, kafka_addr
+from .cio_client import log_addr, cmd_addr, reporting_addr, task_hint, kafka_addr, log_topic
 from .cio import run_steps
 from .reporting import init_reporting
 
@@ -90,7 +90,7 @@ def main():
     daemon(http_serve, cmd_addr(), {"/c4q": lambda d: msg_q.put(PostReq(d))})
     daemon(repeat, lambda: (msg_q.put(CronCheck()), sleep(30)))
     reporting_to_start, report_send = init_reporting(reporting_addr(), lambda: msg_q.put(ReportReq()))
-    logger_to_start, logger_send = init_kafka_producer(kafka_addr(0), "cio_log")
+    logger_to_start, logger_send = init_kafka_producer(kafka_addr(0), log_topic())
     for f in [*reporting_to_start, logger_to_start]: daemon(f)
     dir_life = TemporaryDirectory()
     def_repo_dir = f"{dir_life.name}/def_repo"

@@ -29,6 +29,8 @@ def task_hint(arg): return one(*task_kv(arg)[1:])
 def post_json(addr, path, d):
     http_check(*http_exchange(HTTPConnection(*addr), "POST", path, dumps(d).encode("utf-8")))
 
+def log_topic(): return "cio_log.0"
+
 def main():
     match argv[1:]:
         case ["reporting"]:
@@ -37,7 +39,7 @@ def main():
         case ["consume_log"]:
             with create_connection(kafka_addr(0)) as sock:
                 def sender():
-                    sock.sendall(f"CONSUME cio_log\n".encode())
+                    sock.sendall(f"CONSUME {log_topic()}\n".encode())
                     sock.sendall(stdin.readline().encode())
                 Thread(target=sender, daemon=True).start()
                 return to_stdout(sock)
