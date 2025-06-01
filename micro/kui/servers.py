@@ -79,7 +79,7 @@ def to_resp(res):
         (int(res), (), b'') if res.isdigit() else
         (302, [("Location",res)], b'') if res.startswith("http") else
         (200, [("Content-Type","text/html")], res.encode()) if res.startswith("<!DOCTYPE html>") else
-        (200, [("Content-Type","application/json")], res.encode()) if res.startswith("{") else
+        (200, [("Content-Type","application/json")], res.encode()) if res.startswith("{") or res.startswith("[") else
         never("bad result")
     )
     return Response(status, '', Headers(headers), data)
@@ -103,7 +103,7 @@ class Route:
             return to_resp(handle(**parse_q(query_str), mail=mail) if mail else "403")
         return Handler(True, handle_http, None)
     @staticmethod
-    def ws_auth(mut_tasks, app_ver, actions):
+    def ws_auth(mut_tasks, initial_load, actions):
         def handle_http(request, query_str):
             log("going ws")
         def handle_task(task):
@@ -112,19 +112,24 @@ class Route:
         def handle_ws(ws):
             mail = check_auth(ws.request.headers)
             if not mail: return
-            ws.send(dumps({"appVersion": app_ver, "mail": mail}))
+            ws.send(dumps(initial_load(mail=mail)))
             was_resp = {}
             view_time = 0
             for msg_str in ws:
-                started_at = monotonic()
                 msg = loads(msg_str)
-                match actions[msg["op"]](**msg, mail=mail):
-                    case dict(c_resp):
+                match msg["op"]:
+                    case "load":
+                        tab = msg.get("tab")
+                        if not tab: continue
+                        started_at = monotonic()
+                        c_resp = actions[f'{tab}.load'](**msg, mail=mail)
                         view_time = max(view_time, monotonic() - started_at)
-                        resp = { **c_resp, **mut_tasks, "viewTime": view_time }
+                        resp = { tab: c_resp, **mut_tasks, "viewTime": view_time }
                         ws.send(dumps({ k: v for k, v in resp.items() if v != was_resp.get(k) }))
                         was_resp = resp
-                    case FunctionType() as task:
+                    case op:
+                        task = actions[op](**msg, mail=mail)
+                        if not task: continue
                         mut_tasks["processing"] = mut_tasks.get("processing", 0) + 1
                         Thread(target=handle_task, args=[task], daemon=True).start()
                         ws.send(dumps(mut_tasks))

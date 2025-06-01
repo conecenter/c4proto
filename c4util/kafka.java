@@ -4,14 +4,16 @@ import com.sun.net.httpserver.HttpServer;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.ByteArraySerializer;
+import org.apache.kafka.common.serialization.*;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.TopicPartition;
 
-import java.io.IOException;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.io.FileInputStream;
-import java.net.InetSocketAddress;
-import java.util.Collections;
-import java.util.Properties;
+import java.util.*;
+import java.time.Duration;
+import java.util.concurrent.Executors;
+import java.net.*;
 
 Properties loadConf(String path) throws Exception {
     try(final var input = new FileInputStream(path)) {
@@ -21,54 +23,87 @@ Properties loadConf(String path) throws Exception {
     }
 }
 
-void respond(HttpExchange exchange, int code, String content) throws IOException {
-    final var data = content.getBytes(StandardCharsets.UTF_8);
-    exchange.getResponseHeaders().add("Content-Type", "text/plain");
-    exchange.sendResponseHeaders(code, data.length);
-    exchange.getResponseBody().write(data);
-    exchange.close();
+boolean isDebugging(){
+    return System.getenv("C4KAFKA_DEBUG") != null;
 }
 
-long kafkaSendEmpty(KafkaProducer<byte[],byte[]> producer, String topic) throws Exception {
-    return producer.send(new ProducerRecord<>(topic, new byte[0])).get().offset();
+void writeLine(OutputStream writer, String value) throws Exception {
+    writer.write((value + "\n").getBytes(StandardCharsets.UTF_8));
+    writer.flush();
 }
 
-boolean kafkaDelete(AdminClient client, String topic) throws Exception {
-    final var exists = client.listTopics().names().get().contains(topic);
-    if(exists) client.deleteTopics(Collections.singletonList(topic)).all().get();
-    return exists;
+void runTcpServer(int port, Properties kafkaConf) throws Exception {
+    final var threadPool = Executors.newCachedThreadPool();
+    final var serializer = new ByteArraySerializer();
+    final var deserializer = new ByteArrayDeserializer();
+    try (
+            final var serverSocket = new ServerSocket(port, 50, InetAddress.getByName("127.0.0.1"));
+            final var adminClient = AdminClient.create(kafkaConf);
+            final var producer = new KafkaProducer<byte[], byte[]>(kafkaConf, serializer, serializer)
+    ) {
+        while (true) {
+            final var socket = serverSocket.accept();
+            threadPool.submit(() -> {
+                if(isDebugging()) System.err.println("Client connected: " + socket.getRemoteSocketAddress());
+                try (
+                    socket;
+                    final var reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+                    final var writer = socket.getOutputStream()
+                ) {
+                    final var args = reader.readLine().split(" ");
+                    final var topic = args[1];
+                    switch (args[0]) {
+                        case "DELETE" -> {
+                            final var exists = adminClient.listTopics().names().get().contains(topic);
+                            if(exists) adminClient.deleteTopics(Collections.singletonList(topic)).all().get();
+                            writeLine(writer, "EXISTED "+exists);
+                        }
+                        case "PRODUCE" -> { // Produce mode: send lines to topic
+                            writeLine(writer, "OK");
+                            String line;
+                            while ((line = reader.readLine()) != null) {
+                                final var record = new ProducerRecord<byte[], byte[]>(topic, line.getBytes(StandardCharsets.UTF_8));
+                                final var future = producer.send(record);
+                                writeLine(writer, "ACK " + future.get().offset());
+                            }
+                        }
+                        case "CONSUME" -> {
+                            try (var consumer = new KafkaConsumer<byte[], byte[]>(kafkaConf, deserializer, deserializer)) {
+                                final var partition = new TopicPartition(topic, 0);
+                                consumer.assign(List.of(partition));
+                                final var beginning = consumer.beginningOffsets(List.of(partition)).get(partition);
+                                final var end = consumer.endOffsets(List.of(partition)).get(partition);
+                                writeLine(writer, "BEGINNING " + beginning + " END " + end);
+                                consumer.seek(partition, java.lang.Long.parseLong(reader.readLine()));
+                                while (true) {
+                                    final var records = consumer.poll(Duration.ofMillis(500));
+                                    for (var record : records) {
+                                        writer.write(record.value());
+                                        writer.write('\n');
+                                    }
+                                    writer.flush();
+                                }
+                            }
+                        }
+                        default -> {
+                            writer.write("Unknown mode\n".getBytes(StandardCharsets.UTF_8));
+                            writer.flush();
+                        }
+                    }
+                } catch (Exception e) {
+                    if(isDebugging()) {
+                        System.err.println("Client disconnected: " + socket.getRemoteSocketAddress());
+                        e.printStackTrace();
+                    }
+                }
+            });
+        }
+    }
 }
 
 void main(String[] args){
     try{
-        final var port = Integer.parseInt(args[0]);
-        final var kafkaConf = loadConf(args[1]);
-        final var serializer = new ByteArraySerializer();
-        try (
-                final var adminClient = AdminClient.create(kafkaConf);
-                final var producer = new KafkaProducer<byte[],byte[]>(kafkaConf, serializer, serializer)
-        ) {
-            final var server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 2);
-            server.createContext("/", exchange -> {
-                try {
-                    final var method = exchange.getRequestMethod();
-                    final var path = exchange.getRequestURI().getPath().split("/");
-                    if (!method.equals("POST")) respond(exchange, 405, "");
-                    else if(path.length != 3) respond(exchange, 404, "");
-                    else switch (path[1]) {
-                        case "send" -> respond(exchange, 200, String.valueOf(kafkaSendEmpty(producer, path[2])));
-                        case "rm" -> respond(exchange, 200, String.valueOf(kafkaDelete(adminClient, path[2])));
-                    }
-                } catch (Exception e) {
-                    //noinspection CallToPrintStackTrace
-                    e.printStackTrace();
-                    respond(exchange, 500, "");
-                }
-            });
-            //server.setExecutor(null)
-            server.start();
-            Thread.sleep(Long.MAX_VALUE);
-        }
+        runTcpServer(Integer.parseInt(args[0]), loadConf(args[1]));
     } catch(Exception e){
         //noinspection CallToPrintStackTrace
         e.printStackTrace();

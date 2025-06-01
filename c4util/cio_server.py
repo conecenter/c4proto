@@ -13,9 +13,9 @@ from .git import git_pull, git_clone
 from .cmd import get_cmd
 from .threads import TaskQ, daemon, TaskFin
 from .servers import http_serve, tcp_serve
-from .cluster import get_kubectl, get_secret_part
+from .cluster import get_kubectl, get_secret_part, init_kafka_producer
 from .cio_preproc import plan_steps, arg_substitute
-from .cio_client import log_addr, cmd_addr, reporting_addr, task_hint
+from .cio_client import log_addr, cmd_addr, reporting_addr, task_hint, kafka_addr, log_topic
 from .cio import run_steps
 from .reporting import init_reporting
 
@@ -86,11 +86,12 @@ def main():
     basicConfig(level=INFO)
     msg_q = Queue()
     task_q = TaskQ(msg_q, log_addr())
-    daemon(tcp_serve, log_addr(), lambda b: msg_q.put(LogLine(b)), lambda: msg_q.put(LogFin()))
+    daemon(tcp_serve, log_addr(), lambda b: (msg_q.put(LogLine(b)), logger_send(b)), lambda: msg_q.put(LogFin()))
     daemon(http_serve, cmd_addr(), {"/c4q": lambda d: msg_q.put(PostReq(d))})
     daemon(repeat, lambda: (msg_q.put(CronCheck()), sleep(30)))
     reporting_to_start, report_send = init_reporting(reporting_addr(), lambda: msg_q.put(ReportReq()))
-    for f in reporting_to_start: daemon(f)
+    logger_to_start, logger_send = init_kafka_producer(kafka_addr(0), log_topic())
+    for f in [*reporting_to_start, logger_to_start]: daemon(f)
     dir_life = TemporaryDirectory()
     def_repo_dir = f"{dir_life.name}/def_repo"
     repo = decode(get_secret_part(get_kubectl(env["C4DEPLOY_CONTEXT"]), env["C4CRON_REPO"]))
@@ -113,7 +114,7 @@ def main():
 def handle_any(env, def_repo_dir, report, report_send, tasks, requested_steps, tm_abbr, msg):
     reschedule = False
     match msg:
-        case LogLine(bs): stderr.write(decode(bs))
+        case LogLine(bs): stderr.write(decode(bs) + "\n")
         case LogFin():
             pass #stderr.write("FIN\n")
         case PostReq(data):

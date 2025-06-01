@@ -15,7 +15,7 @@ def tcp_serve(addr, on_line, on_fin):
     from socketserver import ThreadingTCPServer, StreamRequestHandler
     class LogHandler(StreamRequestHandler):
         def handle(self):
-            for line in self.rfile: on_line(line)
+            for line in self.rfile: on_line(line.rstrip(b'\n'))
             on_fin()
     class LogServer(ThreadingTCPServer):
         allow_reuse_address = True

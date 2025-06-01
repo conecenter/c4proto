@@ -81,3 +81,9 @@ export const useSimpleInput = ({ value, onChange, dirtyClassName, className, ...
   const mergedClassName = element && element.value !== value ? `${className} ${dirtyClassName}` : className
   return { ...props, ref: setElement, defaultValue: value, onChange: rerender, className: mergedClassName }
 }
+
+export const useTabs = ({viewProps, tabs}) => {
+    const {tab, willNavigate} = viewProps
+    useEffect(()=>{ tab || willNavigate({ tab: tabs[0].key })() }, [tab])
+    return tabs.find(({key}) => tab === key)?.view({...viewProps,...viewProps[tab]})
+}
