@@ -13,6 +13,14 @@ from cio import init_cio_tasks, init_cio_logs
 def get_user_abbr(mail): return sub(r"[^A-Za-z]+","",mail.split("@")[0])
 def get_forward_service_name(mail): return f'fu-{get_user_abbr(mail)}'
 
+def load_links(**_): return {
+    "cluster_links": [{
+        "name": c["name"],
+        "grafana": c.get("grafana", environ["C4KUI_GRAFANA"].replace('{zone}',c["zone"])),
+    } for c in loads(environ["C4KUI_CLUSTERS"])],
+    "custom_links": loads(environ["C4KUI_LINKS"]),
+}
+
 def main():
     dir_life = TemporaryDirectory()
     active_contexts = [c for c in loads(environ["C4KUI_CONTEXTS"]) if c.get("watch")]
@@ -28,7 +36,9 @@ def main():
     handlers = {
         **agent_auth_handlers, **cio_log_handlers,
         "/": Route.http_auth(lambda **_: index_content),
-        "/kop": Route.ws_auth({}, load_shared, { **pod_actions, **cio_task_actions, **cio_log_actions }),
+        "/kop": Route.ws_auth({}, load_shared, {
+            **pod_actions, **cio_task_actions, **cio_log_actions, "links.load": load_links,
+        }),
         "_": Route.http_auth(lambda **_: "404"),
     }
     api_port = 1180

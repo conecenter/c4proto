@@ -17,6 +17,8 @@ def pop_one_time(mut_one_time, key):
 
 def get_redirect_uri(): return f'https://{environ["C4KUI_HOST"]}/ind-auth'
 
+def get_issuer(cluster): return cluster.get("issuer", environ["C4KUI_ISSUER"].replace('{zone}',cluster["zone"]))
+
 def handle_ind_login(mut_one_time,name,**_):
     cluster = one(*(c for c in loads(environ["C4KUI_CLUSTERS"]) if c["name"] == name))
     state_key = token_urlsafe(16)
@@ -25,7 +27,7 @@ def handle_ind_login(mut_one_time,name,**_):
         "scope": "openid profile email offline_access groups", "state": state_key
     }
     set_one_time(mut_one_time, state_key, cluster)
-    return f'https://{cluster["issuer"]}/auth?{urlencode(query_params)}'
+    return f'https://{get_issuer(cluster)}/auth?{urlencode(query_params)}'
 
 def handle_ind_auth(mut_one_time,get_forward_service_name,mail,state,code,**_):
     forward_service_name = get_forward_service_name(mail)
@@ -37,7 +39,7 @@ def handle_ind_auth(mut_one_time,get_forward_service_name,mail,state,code,**_):
         "client_id": name, "client_secret": client_secret
     }
     log(f'fetching token for {forward_service_name} / {name}')
-    with urlopen(f'https://{cluster["issuer"]}/token',urlencode(params).encode()) as f:
+    with urlopen(f'https://{get_issuer(cluster)}/token',urlencode(params).encode()) as f:
         f.status == 200 or never(f"bad status: {f.status}")
         msg = loads(f.read().decode())
     log(f'fetched token for {forward_service_name} / {name}')
@@ -51,7 +53,7 @@ def handle_ind_auth(mut_one_time,get_forward_service_name,mail,state,code,**_):
             [
                 "set-credentials", name,
                 "--auth-provider", "oidc",
-                "--auth-provider-arg", f'idp-issuer-url=https://{cluster["issuer"]}',
+                "--auth-provider-arg", f'idp-issuer-url=https://{get_issuer(cluster)}',
                 "--auth-provider-arg", f'client-id={name}',
                 "--auth-provider-arg", f'client-secret={client_secret}',
                 "--auth-provider-arg", f'refresh-token={msg["refresh_token"]}',

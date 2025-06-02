@@ -11,6 +11,7 @@ export const Page = viewProps => {
         { key: "pods", hint: "Pods", view: p => <PodsTabView {...p}/> },
         { key: "cio_tasks", hint: "CIO tasks", view: p => <CIOTasksTabView {...p}/> },
         { key: "cio_logs", hint: "CIO logs", view: p => <CIOLogsTabView {...p}/> },
+        { key: "links", hint: "Links", view: p => <LinksTabView {...p}/> },
     ]
 
     return (
@@ -176,7 +177,7 @@ const CIOLogsTabView = viewProps => {
     const {
         all_log_sizes, cio_kube_context, cio_query,
         searching_size, search_result_code, search_result_size, result_page, willSend
-    } = viewProps;
+    } = viewProps
 
     return (
         <div className="space-y-6 p-4 text-sm text-white">
@@ -251,8 +252,57 @@ const CIOLogsTabView = viewProps => {
                 </div>
             )}
         </div>
-    );
-};
+    )
+}
+
+const LinksTabView = ({ cluster_links = [], custom_links = [] }) => {
+    const groupedLinks = Object.groupBy(custom_links, link => link.group)
+
+    return (
+        <div className="space-y-8 p-4 text-sm text-white">
+            {/* Cluster Links */}
+            <section>
+                <h2 className="text-lg font-semibold mb-2">Cluster Dashboards</h2>
+                <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {cluster_links.map(({ name, grafana }) => (
+                        <li key={name}>
+                            <a
+                                href={`https://${grafana}/dashboard`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block px-4 py-2 rounded bg-blue-700 hover:bg-blue-600 text-white"
+                            >
+                                {name}
+                            </a>
+                        </li>
+                    ))}
+                </ul>
+            </section>
+
+            {/* Custom Links Grouped */}
+            {Object.entries(groupedLinks).map(([group, links]) => (
+                <section key={group}>
+                    <h2 className="text-lg font-semibold mb-2 capitalize">{group}</h2>
+                    <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {links.map(({ name, url }) => (
+                            <li key={name}>
+                                <a
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 text-white"
+                                >
+                                    {name}
+                                </a>
+                            </li>
+                        ))}
+                    </ul>
+                </section>
+            ))}
+        </div>
+    )
+}
+
 
 const NotFoundTr = ({viewProps,...props}) => {
     const {items, need_filters} = viewProps
