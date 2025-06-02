@@ -175,7 +175,7 @@ const formatLogSize = v => `${(v / 1024).toFixed(1)} KB`;
 const CIOLogsTabView = viewProps => {
     const {
         all_log_sizes, cio_kube_context, cio_query,
-        searching_size, search_result_size, result_page, willSend
+        searching_size, search_result_code, search_result_size, result_page, willSend
     } = viewProps;
 
     return (
@@ -208,16 +208,21 @@ const CIOLogsTabView = viewProps => {
                     </button>
                 </div>
                 <div className="text-gray-400 space-y-1">
-                    {searching_size &&
-                        <p>Searching… <span className="text-white">{formatLogSize(searching_size)}</span></p>}
-                    {search_result_size &&
-                        <a
-                            className="underline hover:text-blue-400"
-                            href={`/cio-log-search-download?time=${Date.now()}`}
-                            target="_blank" rel="noopener noreferrer"
-                        >
-                            Found {formatLogSize(search_result_size)} — Download result
-                        </a>}
+                    {
+                        search_result_code > 1 ? <p>Search error</p> :
+                        search_result_code === 1 ? <p>Not found</p> :
+                        search_result_code === 0 ?
+                            <a
+                                className="underline hover:text-blue-400"
+                                href={`/cio-log-search-download?time=${Date.now()}`}
+                                target="_blank" rel="noopener noreferrer"
+                            >
+                                Found {formatLogSize(search_result_size)} — Download result
+                            </a> :
+                        Number.isInteger(searching_size) ?
+                            <p>Searching… <span className="text-white">{formatLogSize(searching_size)}</span></p> :
+                        undefined
+                    }
                 </div>
             </div>
 
