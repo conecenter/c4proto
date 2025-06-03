@@ -3,7 +3,8 @@ import {useState,useEffect,createElement} from "react"
 import {createRoot} from "react-dom/client"
 
 const getHashParams = () => Object.fromEntries(new URLSearchParams(location.hash.substring(1)))
-const setHashParams = o => { location.hash = "#" + new URLSearchParams({...getHashParams(),...o}).toString() }
+export const withHashParams = o => new URLSearchParams({...getHashParams(),...o}).toString()
+const setHashParams = o => { location.hash = "#" + withHashParams(o) }
 
 const manageEventListener = (element, evName, listener) => {
     if(element && listener){

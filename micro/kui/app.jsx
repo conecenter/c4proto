@@ -1,6 +1,6 @@
 
 import React from "react"
-import {start,useSimpleInput,useTabs} from "./util.js"
+import {start,useSimpleInput,useTabs,withHashParams} from "./util.js"
 
 export const Page = viewProps => {
     const {
@@ -36,9 +36,9 @@ export const Page = viewProps => {
                 <div className="flex justify-start items-center flex-wrap gap-2">
                   {(clusters??[]).map((c) => (
                     (showAllClusters || c.watch) &&
-                    <a key={c.name} href={`/ind-login?${new URLSearchParams({name:c.name,location_hash:location.hash.substring(1)}).toString()}`}
-                      className={roundedFull(lastCluster === c.name)}
-                    >{c.name}</a>
+                    <a key={c.name} href={`/ind-login?${new URLSearchParams({
+                        name: c.name, location_hash: withHashParams({last_cluster:c.name})
+                    }).toString()}`} className={roundedFull(lastCluster === c.name)}>{c.name}</a>
                   ))}
                   <button onClick={willNavigate({showAllClusters: showAllClusters ? "":"1"})} className="text-sm text-blue-400 hover:underline">
                     {showAllClusters ? 'Show less clusters for auth' : '... Show all clusters for auth'}
