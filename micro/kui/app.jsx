@@ -103,7 +103,14 @@ const PodsTabView = viewProps => {
                         />
                     </Td>
                     <Td>
-                        {(() => {
+                      <div class="flex items-center gap-1">
+                        {
+                            pod.host && <a {...tBlank()} href={`https://${pod.host}`}>
+                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M21 11V3h-8v2h4v2h-2v2h-2v2h-2v2H9v2h2v-2h2v-2h2V9h2V7h2v4h2zM11 5H3v16h16v-8h-2v6H5V7h6V5z" fill="#FFFFFF"/>
+                                </svg>
+                            </a>
+                        }{(() => {
                             const parts = pod.name.split('-')
                             const name = (
                               (parts[0] === 'de' || parts[0] === 'sp') && parts.length > 4
@@ -119,9 +126,10 @@ const PodsTabView = viewProps => {
                             })() : (
                               <span className="text-sm text-gray-300">{pod.name}</span>
                             )
-                            return pod.host ? <a href={`https://${pod.host}`}>{name}</a>: name
-                        })()} <br/>
-                        {pod.image && pod.image.split(":").at(-1)}
+                            return name
+                        })()}
+                      </div>
+                      {pod.image && pod.image.split(":").at(-1)}
                     </Td>
                     <Td>{pod.status}{pod.ready && <div>ready</div>}</Td>
                     <Td>{pod.creationTimestamp} <br/> {pod.startedAt}</Td>
@@ -216,7 +224,7 @@ const CIOLogsTabView = viewProps => {
                             <a
                                 className="underline hover:text-blue-400"
                                 href={`/cio-log-search-download?time=${Date.now()}`}
-                                target="_blank" rel="noopener noreferrer"
+                                {...tBlank()}
                             >
                                 Found {formatLogSize(search_result_size)} — Download result
                             </a> :
@@ -267,9 +275,8 @@ const LinksTabView = ({ cluster_links = [], custom_links = [] }) => {
                     {cluster_links.map(({ name, grafana }) => (
                         <li key={name}>
                             <a
-                                href={`https://${grafana}/dashboard`}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                                href={`https://${grafana}/dashboards`}
+                                {...tBlank()}
                                 className="block px-4 py-2 rounded bg-blue-700 hover:bg-blue-600 text-white"
                             >
                                 {name}
@@ -288,8 +295,7 @@ const LinksTabView = ({ cluster_links = [], custom_links = [] }) => {
                             <li key={name}>
                                 <a
                                     href={url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                    {...tBlank()}
                                     className="block px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 text-white"
                                 >
                                     {name}
@@ -303,6 +309,7 @@ const LinksTabView = ({ cluster_links = [], custom_links = [] }) => {
     )
 }
 
+const tBlank = () => ({ target: "_blank", rel: "noopener noreferrer" })
 
 const NotFoundTr = ({viewProps,...props}) => {
     const {items, need_filters} = viewProps

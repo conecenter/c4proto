@@ -1,4 +1,4 @@
-
+from base64 import b64encode
 from json import loads
 from os import environ, kill, getpid
 from threading import Thread, get_native_id
@@ -8,7 +8,6 @@ from urllib.parse import urlparse, parse_qs
 from collections import namedtuple
 from signal import SIGTERM
 from traceback import print_exc
-from types import FunctionType
 from time import sleep, monotonic
 from hashlib import sha256
 
@@ -47,15 +46,19 @@ def check_auth(headers):
 def build_client():
     client_proj = "/c4/c4client"
     paths = [p for p in Path(__file__).parent.iterdir() if p.name.endswith(".js") or p.name.endswith(".jsx")]
-    for p in paths: write_text(f"{client_proj}/{p.name}", read_text(p))
+    for p in paths: Path(f"{client_proj}/{p.name}").write_bytes(p.read_bytes())
     run(("env","-C",client_proj,"node_modules/.bin/esbuild","app.jsx","--bundle","--outfile=out.js"))
     write_text(f"{client_proj}/input.css", '@import "tailwindcss" source(none);\n@source "app.jsx";')
     run(("env","-C",client_proj,"npx","tailwindcss","-i","input.css","-o","out.css"))
     js_data = Path(f"{client_proj}/out.js").read_bytes()
     ver = sha256(js_data).hexdigest()
+    favicon_data = (Path(__file__).parent / "favicon.png").read_bytes()
     content = (
         '<!DOCTYPE html><html lang="en">' +
-        f'<head><meta charset="UTF-8"><title>c4</title><style>{read_text(f"{client_proj}/out.css")}</style></head>' +
+        '<head>' +
+        f'<link rel="icon" type="image/png" href="data:image/png;base64,{b64encode(favicon_data).decode()}" />' +
+        f'<meta charset="UTF-8"><title>c4</title><style>{read_text(f"{client_proj}/out.css")}</style>' +
+        '</head>' +
         f'<body><script type="module">const c4appVersion={dumps(ver)};\n{js_data.decode()}</script></body>' +
         '</html>'
     )
