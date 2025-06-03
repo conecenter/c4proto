@@ -36,7 +36,7 @@ export const Page = viewProps => {
                 <div className="flex justify-start items-center flex-wrap gap-2">
                   {(clusters??[]).map((c) => (
                     (showAllClusters || c.watch) &&
-                    <a key={c.name} href={`/ind-login?${new URLSearchParams({name:c.name}).toString()}`}
+                    <a key={c.name} href={`/ind-login?${new URLSearchParams({name:c.name,location_hash:location.hash.substring(1)}).toString()}`}
                       className={roundedFull(lastCluster === c.name)}
                     >{c.name}</a>
                   ))}

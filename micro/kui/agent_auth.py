@@ -19,19 +19,19 @@ def get_redirect_uri(): return f'https://{environ["C4KUI_HOST"]}/ind-auth'
 
 def get_issuer(cluster): return cluster.get("issuer", environ["C4KUI_ISSUER"].replace('{zone}',cluster["zone"]))
 
-def handle_ind_login(mut_one_time,name,**_):
+def handle_ind_login(mut_one_time,name,location_hash,**_):
     cluster = one(*(c for c in loads(environ["C4KUI_CLUSTERS"]) if c["name"] == name))
     state_key = token_urlsafe(16)
     query_params = {
         "response_type": "code", "client_id": name, "redirect_uri": get_redirect_uri(),
         "scope": "openid profile email offline_access groups", "state": state_key
     }
-    set_one_time(mut_one_time, state_key, cluster)
+    set_one_time(mut_one_time, state_key, (cluster, location_hash))
     return f'https://{get_issuer(cluster)}/auth?{urlencode(query_params)}'
 
 def handle_ind_auth(mut_one_time,get_forward_service_name,mail,state,code,**_):
     forward_service_name = get_forward_service_name(mail)
-    cluster = pop_one_time(mut_one_time,state)
+    cluster, location_hash = pop_one_time(mut_one_time,state)
     name = cluster["name"]
     client_secret = loads(read_text(environ["C4KUI_CLIENT_SECRETS"]))[name]
     params = {
@@ -62,7 +62,7 @@ def handle_ind_auth(mut_one_time,get_forward_service_name,mail,state,code,**_):
             *(["set-context",c["name"],"--cluster",name,"--user",name,"--namespace",c["ns"]] for c in contexts)
         ],
         "pod_selectors": [f'{c["name"]}~svc~{forward_service_name}' for c in contexts if c.get("watch")],
-        "redirect": f'https://{environ["C4KUI_HOST"]}/#last_cluster={name}',
+        "redirect": f'https://{environ["C4KUI_HOST"]}/#last_cluster={name}&{location_hash}',
     }
     a_code = token_urlsafe(16)
     set_one_time(mut_one_time, a_code, out_msg)
