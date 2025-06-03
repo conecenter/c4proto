@@ -52,11 +52,11 @@ def build_client():
     run(("env","-C",client_proj,"npx","tailwindcss","-i","input.css","-o","out.css"))
     js_data = Path(f"{client_proj}/out.js").read_bytes()
     ver = sha256(js_data).hexdigest()
-    favicon_data = (Path(__file__).parent / "favicon.png").read_bytes()
+    favicon_data = (Path(__file__).parent / "favicon.svg").read_bytes()
     content = (
         '<!DOCTYPE html><html lang="en">' +
         '<head>' +
-        f'<link rel="icon" type="image/png" href="data:image/png;base64,{b64encode(favicon_data).decode()}" />' +
+        f'<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,{b64encode(favicon_data).decode()}" />' +
         f'<meta charset="UTF-8"><title>c4</title><style>{read_text(f"{client_proj}/out.css")}</style>' +
         '</head>' +
         f'<body><script type="module">const c4appVersion={dumps(ver)};\n{js_data.decode()}</script></body>' +
