@@ -1,12 +1,10 @@
 
 from functools import partial
-from json import loads
+from json import loads, dumps
 from os import environ
 from pathlib import Path
-from subprocess import Popen, PIPE
-import subprocess
-
-from util import run_text_out, never, log, run, dumps
+from subprocess import Popen, PIPE, check_output, run
+from logging import info
 
 def sel(v, *path): return v if not path or v is None else sel(v.get(path[0]), *path[1:])
 
@@ -14,7 +12,7 @@ def get_kc(kube_context): return "kubectl","--kubeconfig",environ["C4KUBECONFIG"
 
 def get_ci_serve(kube_context):
     kc = get_kc(kube_context)
-    cio_name, = run_text_out((*kc, "get", "deploy", "-l", "c4cio", "-o", "name")).split()
+    cio_name, = check_output((*kc, "get", "deploy", "-l", "c4cio", "-o", "name")).decode().split()
     return *kc, "exec", "-i", cio_name, "--", "python3", "-u", "/ci_serve.py"
 
 def init_cio_tasks(mut_cio_tasks, active_contexts):
@@ -61,7 +59,7 @@ def init_cio_logs(tmp_dir: Path, active_contexts, get_user_abbr, rt):
             get_page_path(mail).unlink(missing_ok=True)
             with get_searching_path(mail).open("wb") as f:
                 all_log_path = get_all_log_path(kube_context)
-                proc = subprocess.run(("grep", "-P", "-f-", str(all_log_path)), input=query.encode(), stdout=f)
+                proc = run(("grep", "-P", "-f-", str(all_log_path)), input=query.encode(), stdout=f)
             get_searching_path(mail).replace(get_search_res_path(mail)) # would protect from concurrent search
             get_search_res_code_path(mail).write_bytes(str(proc.returncode).encode())
             if proc.returncode == 0: write_page(mail, 1)
@@ -73,7 +71,7 @@ def init_cio_logs(tmp_dir: Path, active_contexts, get_user_abbr, rt):
         if page <= 0: return
         take_line_count = page * lines_per_page()
         skip_line_count = (page-1) * lines_per_page()
-        taken_lines = run_text_out(("tail","-n",str(take_line_count),str(search_res_path))).splitlines()
+        taken_lines = check_output(("tail","-n",str(take_line_count),str(search_res_path))).decode().splitlines()
         lines = taken_lines[:-skip_line_count] if skip_line_count else taken_lines
         if lines: page_path.write_bytes(dumps({"lines":lines,"page":page}).encode())
     def goto_page(mail, page, **_): write_page(mail, page)
@@ -84,8 +82,8 @@ def init_cio_logs(tmp_dir: Path, active_contexts, get_user_abbr, rt):
                     proc.stdin.write(f'{b}\n')
                     proc.stdin.flush()
                     offset = int(b)
-                case s: never(f'bad header: {s}')
-            log(f"CIO LOG WATCH : {kube_context} {offset}")
+                case s: raise Exception(f'bad header: {s}')
+            info(f"CIO LOG WATCH : {kube_context} {offset}")
             path = get_all_log_path(kube_context)
             path.unlink(missing_ok=True)
             with path.open("w") as f:

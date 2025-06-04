@@ -4,6 +4,7 @@ from os import environ
 from re import sub
 from tempfile import TemporaryDirectory
 from pathlib import Path
+from logging import basicConfig, INFO, DEBUG
 
 from servers import daemon, restarting, build_client, run_proxy, http_serve, Route
 from agent_auth import init_agent_auth
@@ -22,6 +23,7 @@ def load_links(**_): return {
 }
 
 def main():
+    basicConfig(level= DEBUG if environ.get("C4KUI_DEBUG") else INFO)
     dir_life = TemporaryDirectory()
     active_contexts = [c for c in loads(environ["C4KUI_CONTEXTS"]) if c.get("watch")]
     index_content, app_ver = build_client()

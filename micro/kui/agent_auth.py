@@ -1,5 +1,5 @@
 from functools import partial
-from json import loads
+from json import loads, dumps
 from os import environ
 from pathlib import Path
 from urllib.parse import urlencode
@@ -7,20 +7,20 @@ from urllib.request import urlopen
 from secrets import token_urlsafe
 from base64 import b64encode
 from time import monotonic
-
-from util import one, never, log, read_text, dumps
+from logging import debug
 
 def set_one_time(mut_one_time, key, value): mut_one_time[key] = (monotonic(), value)
 def pop_one_time(mut_one_time, key):
     tm, value = mut_one_time.pop(key)
-    return value if monotonic() - tm < 30 else never("expired")
+    if monotonic() - tm < 30: return value
+    else: raise Exception("expired")
 
 def get_redirect_uri(): return f'https://{environ["C4KUI_HOST"]}/ind-auth'
 
 def get_issuer(cluster): return cluster.get("issuer", environ["C4KUI_ISSUER"].replace('{zone}',cluster["zone"]))
 
 def handle_ind_login(mut_one_time,name,location_hash,**_):
-    cluster = one(*(c for c in loads(environ["C4KUI_CLUSTERS"]) if c["name"] == name))
+    cluster, = [c for c in loads(environ["C4KUI_CLUSTERS"]) if c["name"] == name]
     state_key = token_urlsafe(16)
     query_params = {
         "response_type": "code", "client_id": name, "redirect_uri": get_redirect_uri(),
@@ -33,16 +33,16 @@ def handle_ind_auth(mut_one_time,get_forward_service_name,mail,state,code,**_):
     forward_service_name = get_forward_service_name(mail)
     cluster, location_hash = pop_one_time(mut_one_time,state)
     name = cluster["name"]
-    client_secret = loads(read_text(environ["C4KUI_CLIENT_SECRETS"]))[name]
+    client_secret = loads(Path(environ["C4KUI_CLIENT_SECRETS"]).read_bytes())[name]
     params = {
         "grant_type": "authorization_code", "code": code, "redirect_uri": get_redirect_uri(),
         "client_id": name, "client_secret": client_secret
     }
-    log(f'fetching token for {forward_service_name} / {name}')
+    debug(f'fetching token for {forward_service_name} / {name}')
     with urlopen(f'https://{get_issuer(cluster)}/token',urlencode(params).encode()) as f:
-        f.status == 200 or never(f"bad status: {f.status}")
+        if f.status != 200: raise Exception(f"bad status: {f.status}")
         msg = loads(f.read().decode())
-    log(f'fetched token for {forward_service_name} / {name}')
+    debug(f'fetched token for {forward_service_name} / {name}')
     contexts = [c for c in loads(environ["C4KUI_CONTEXTS"]) if c["cluster"] == name]
     cert_content = b64encode(Path(environ["C4KUI_CERTS"].replace("{name}", name)).read_bytes()).decode()
     server = f'https://{environ["C4KUI_API_SERVER"].replace("{name}", name)}:{cluster.get("port","443")}'

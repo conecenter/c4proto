@@ -1,10 +1,10 @@
 
-from subprocess import Popen, PIPE
-from json import loads
+from subprocess import Popen, PIPE, check_call, run
+from json import loads, dumps
 from os import environ
 import re
 
-from util import run, dumps, never
+def never(m): raise Exception(m)
 
 def get_kc(kube_context): return "kubectl","--kubeconfig",environ["C4KUBECONFIG"],"--context",kube_context
 
@@ -61,18 +61,18 @@ def init_pods(mut_pods, mut_services, mut_ingresses, active_contexts, get_forwar
         debug_port = 4005
         pod = mut_pods[kube_context][name]
         app_nm = get_app_name(pod) or never("no app")
-        manifest = {
+        manifest = dumps({
             "kind": "Service", "apiVersion": "v1", "metadata": { "name": get_forward_service_name(mail) },
             "spec": { "ports": [{"port": debug_port}], "selector": {"app": app_nm} }
-        }
-        return lambda: run((*get_kc(kube_context),"apply","-f-"), text=True, input=dumps(manifest))
+        }, sort_keys=True)
+        return lambda: run((*get_kc(kube_context),"apply","-f-"), check=True, text=True, input=manifest)
     def handle_recreate_pod(kube_context, name, **_):
         pod = mut_pods[kube_context][name]
-        return lambda: run((*get_kc(kube_context),"delete","pod",get_name(pod)))
+        return lambda: check_call((*get_kc(kube_context),"delete","pod",get_name(pod)))
     def handle_scale_down(kube_context, pod_name, **_):
         pod = mut_pods[kube_context][pod_name]
         app_nm = get_app_name(pod) or never("no app")
-        return lambda: run((*get_kc(kube_context),"scale","--replicas","0","deploy",app_nm))
+        return lambda: check_call((*get_kc(kube_context),"scale","--replicas","0","deploy",app_nm))
     pod_actions = {
         "pods.select_pod": handle_select_pod,
         "pods.recreate_pod": handle_recreate_pod,

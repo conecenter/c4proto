@@ -1,5 +1,6 @@
 from base64 import b64encode
 from json import loads
+import json
 from os import environ, kill, getpid
 from threading import Thread, get_native_id
 from pathlib import Path
@@ -10,15 +11,17 @@ from signal import SIGTERM
 from traceback import print_exc
 from time import sleep, monotonic
 from hashlib import sha256
+from subprocess import check_call
+from logging import debug
 
 from websockets import Headers
 from websockets.sync.server import serve
 from websockets.http11 import Response
 
-from util import one, log, read_text, write_text, run, never, dumps
-
 Handler = namedtuple("Handler", ("need_auth", "handle_http", "handle_ws"))
 
+def one(it): return it
+def dumps(st, **opt): return json.dumps(st, sort_keys=True, **opt)
 def fatal(f, *args):
     try: f(*args)
     except:
@@ -40,16 +43,16 @@ def check_auth(headers):
     groups = split_to_set(headers.get("x-forwarded-groups"))
     mails = split_to_set(headers.get("x-forwarded-email"))
     if (groups & allow_groups) or (mails & allow_mails): return one(*mails)
-    log(f'mails: {mails} ; groups: {groups}')
+    debug(f'mails: {mails} ; groups: {groups}')
     return None
 
 def build_client():
     client_proj = "/c4/c4client"
     paths = [p for p in Path(__file__).parent.iterdir() if p.name.endswith(".js") or p.name.endswith(".jsx")]
     for p in paths: Path(f"{client_proj}/{p.name}").write_bytes(p.read_bytes())
-    run(("env","-C",client_proj,"node_modules/.bin/esbuild","app.jsx","--bundle","--outfile=out.js"))
-    write_text(f"{client_proj}/input.css", '@import "tailwindcss" source(none);\n@source "app.jsx";')
-    run(("env","-C",client_proj,"npx","tailwindcss","-i","input.css","-o","out.css"))
+    check_call(("env","-C",client_proj,"node_modules/.bin/esbuild","app.jsx","--bundle","--outfile=out.js"))
+    Path(f"{client_proj}/input.css").write_bytes(b'@import "tailwindcss" source(none);\n@source "app.jsx";')
+    check_call(("env","-C",client_proj,"npx","tailwindcss","-i","input.css","-o","out.css"))
     js_data = Path(f"{client_proj}/out.js").read_bytes()
     ver = sha256(js_data).hexdigest()
     favicon_data = (Path(__file__).parent / "favicon.svg").read_bytes()
@@ -57,7 +60,7 @@ def build_client():
         '<!DOCTYPE html><html lang="en">' +
         '<head>' +
         f'<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,{b64encode(favicon_data).decode()}" />' +
-        f'<meta charset="UTF-8"><title>c4</title><style>{read_text(f"{client_proj}/out.css")}</style>' +
+        f'<meta charset="UTF-8"><title>c4</title><style>{Path(f"{client_proj}/out.css").read_bytes().decode()}</style>' +
         '</head>' +
         f'<body><script type="module">const c4appVersion={dumps(ver)};\n{js_data.decode()}</script></body>' +
         '</html>'
@@ -67,14 +70,14 @@ def build_client():
 def run_proxy(api_port, handlers):
     conf_path = "/c4/oauth2-proxy.conf"
     proxy_conf = {
-        "cookie_secret": read_text(environ["C4KUI_COOKIE_SECRET_FILE"]),
-        "client_secret": read_text(environ["C4KUI_CLIENT_SECRET_FILE"]),
+        "cookie_secret": Path(environ["C4KUI_COOKIE_SECRET_FILE"]).read_bytes().decode(),
+        "client_secret": Path(environ["C4KUI_CLIENT_SECRET_FILE"]).read_bytes().decode(),
         "email_domains": ["*"],
         "upstreams": [f"http://127.0.0.1:{api_port}/"], #f"file://{pub_dir}/#/"
         "skip_auth_routes": [f'GET=^{k}' for k, v in handlers.items() if not v.need_auth],
     }
-    write_text(conf_path, "\n".join(f'{k} = {dumps(v)}' for k, v in proxy_conf.items()))
-    run(("oauth2-proxy","--config",conf_path))
+    Path(conf_path).write_bytes("\n".join(f'{k} = {dumps(v)}' for k, v in proxy_conf.items()).encode())
+    check_call(("oauth2-proxy","--config",conf_path))
 
 def parse_q(s): return { k: one(*v) for k, v in parse_qs(s, keep_blank_values=True).items()}
 def to_resp(res):
@@ -83,13 +86,13 @@ def to_resp(res):
         (302, [("Location",res)], b'') if res.startswith("http") else
         (200, [("Content-Type","text/html")], res.encode()) if res.startswith("<!DOCTYPE html>") else
         (200, [("Content-Type","application/json")], res.encode()) if res.startswith("{") or res.startswith("[") else
-        never("bad result")
+        None
     )
     return Response(status, '', Headers(headers), data)
 
 def http_serve(api_port, handlers):
     def process_request(_, request):
-        log(f'handling {get_native_id()} {request.path}')
+        debug(f'handling {get_native_id()} {request.path}')
         parsed = urlparse(request.path)
         return handlers.get(parsed.path, handlers["_"]).handle_http(request, parsed.query)
     def handler(ws): return handlers[urlparse(ws.request.path).path].handle_ws(ws)
@@ -108,7 +111,7 @@ class Route:
     @staticmethod
     def ws_auth(mut_tasks, initial_load, actions):
         def handle_http(request, query_str):
-            log("going ws")
+            debug("going ws")
         def handle_task(task):
             try: task()
             finally: mut_tasks["processing"] -= 1
