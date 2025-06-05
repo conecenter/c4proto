@@ -51,7 +51,7 @@ my $serve_app = sub{
         %$paths,
         (-e "/c4/debug-components") ? (C4DEBUG_COMPONENTS => "1") : (),
         JAVA_TOOL_OPTIONS => $tool_opt,
-        (-e "/c4/debug-enable") ? (C4JDWP_ADDRESS => "0.0.0.0:".&$mandatory_of(C4DEBUG_PORT => \%ENV)) : (),
+        #(-e "/c4/debug-enable") ? (C4JDWP_ADDRESS => "0.0.0.0:".&$mandatory_of(C4DEBUG_PORT => \%ENV)) : (),
         C4READINESS_PATH => $ready_path,
         C4STATE_TOPIC_PREFIX => $nm,
         C4APP_CLASS => "ee.cone.c4actor.ParentElectorClientApp",

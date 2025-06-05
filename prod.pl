@@ -527,10 +527,9 @@ push @tasks, ["secret_add_arg","$composes_txt <secret-content>",sub{
 my $supervisor = sub{ sy("supervisorctl","-c","/c4/supervisord.conf",@_) };
 my $restart = sub{ &$supervisor("restart","build") };
 
-push @tasks, ["debug","<on|off> [components]",sub{
-    my($arg,$obj)=@_;
-    my $d_path = $obj eq "" ? "/c4/debug-enable" :
-        $obj eq "components" ? "/c4/debug-components" : die;
+push @tasks, ["debug_components","<on|off>",sub{
+    my($arg)=@_;
+    my $d_path = "/c4/debug-components";
     if($arg eq "on"){
         -e $d_path or &$put_text($d_path,"");
     }elsif($arg eq "off"){
