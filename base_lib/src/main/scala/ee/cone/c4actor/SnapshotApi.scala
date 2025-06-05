@@ -20,9 +20,6 @@ trait RawSnapshotLoaderFactory {
 trait SnapshotSaver {
   def save(offset: NextOffset, data: Array[Byte], headers: List[RawHeader]): RawSnapshot
 }
-trait SnapshotSaverFactory {
-  def create(subDirStr: String): SnapshotSaver
-}
 trait SnapshotUtil {
   def hashFromName: RawSnapshot=>Option[SnapshotInfo]
   def getName(subDirStr: String, offset: NextOffset, data: Array[Byte], headers: List[RawHeader]): String
@@ -37,26 +34,20 @@ trait SnapshotLoaderFactory {
 
 sealed abstract class SnapshotTask(val name: String, val offsetOpt: Option[NextOffset]) extends Product
 case class NextSnapshotTask(offsetOptArg: Option[NextOffset]) extends SnapshotTask("next",offsetOptArg)
-case class DebugSnapshotTask(offsetArg: NextOffset) extends SnapshotTask("debug",Option(offsetArg))
 
 trait SnapshotTaskSigner extends Signer[SnapshotTask]
 
 trait SnapshotMaker {
-  def make(task: SnapshotTask): List[RawSnapshot]
+  def makeOrFind(local: Context, offsetOpt: Option[NextOffset]): List[RawSnapshot]
 }
 
 trait RemoteSnapshotUtil {
   def request(appURL: String, signed: String): ()=>List[RawSnapshot]
 }
 
-trait SnapshotMerger {
-  def merge(baseURL: String, signed: String): Context => Context
-}
-
 trait SnapshotDiffer {
-  def diff(currentSnapshot: RawEvent, targetFullSnapshot: RawEvent, addIgnore: Set[Long]): List[N_UpdateFrom]
-  def diff(currentSnapshot: RawEvent, target: List[N_UpdateFrom], addIgnore: Set[Long]): List[N_UpdateFrom]
-  def needCurrentSnapshot: Context=>RawEvent
+  def diff(local: Context, targetFullSnapshot: RawEvent, addIgnore: Set[Long]): List[N_UpdateFrom]
+  def diff(local: Context, target: List[N_UpdateFrom], addIgnore: Set[Long]): List[N_UpdateFrom]
 }
 
 case class TimedSnapshotInfo(snapshot: SnapshotInfo, mTime: Long)

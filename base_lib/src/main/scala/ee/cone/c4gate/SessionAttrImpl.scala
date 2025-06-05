@@ -117,7 +117,7 @@ object SessionAttrLens {
   def joinUserLife(
     key: SrcId,
     @by[SessionKey] sessionDataValues: Values[U_RawSessionData]
-  ): Values[(Alive, U_RawSessionData)] = for {
+  ): Values[(A live, U_RawSessionData)] = for {
     sessionData <- sessionDataValues if sessionData.sessionKey.isEmpty
   } yield WithPK(sessionData)
 

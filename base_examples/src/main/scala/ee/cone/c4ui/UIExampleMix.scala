@@ -21,8 +21,6 @@ trait PublicViewAssembleAppBase
   with RemoteRawSnapshotApp
   with PublicViewAssembleApp
   with ModelAccessFactoryCompApp
-  with SessionAttrCompApp
-  with MortalFactoryCompApp
   with AvailabilityApp
   with BasicLoggingApp
   with PublisherApp
@@ -31,4 +29,3 @@ trait PublicViewAssembleAppBase
   with AuthProtocolApp
   with AuthOperationsApp
   with AkkaGatewayApp
-  //with AlienProtocolApp

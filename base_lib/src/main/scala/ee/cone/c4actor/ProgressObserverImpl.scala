@@ -5,10 +5,11 @@ import java.nio.file.{Files, Path, Paths}
 import scala.concurrent.Future
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.S_Firstborn
-import ee.cone.c4actor.Types.{NextOffset, SrcId}
+import ee.cone.c4actor.Types.{NextOffset, SrcId, TxEvents}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Replace, c4assemble}
 import ee.cone.c4di.{c4, c4multi}
+
 import java.time.Instant
 import java.util.concurrent.{BlockingQueue, LinkedBlockingQueue}
 import scala.annotation.tailrec
@@ -94,23 +95,27 @@ class ProgressObserverImpl(
 @c4("ServerCompApp") final class ServerExecutionFilter(inner: ExecutionFilter)
   extends ExecutionFilter(e=>inner.check(e) && e.isInstanceOf[Early])
 
-@c4assemble("ServerCompApp") class LateInitAssembleBase(
-  factory: LateInitTxFactory
-){
-  def lateInit(
-    key: SrcId,
-    firstborn: Each[S_Firstborn],
-  ): Values[(SrcId,TxTransform)] = List(WithPK(factory.create("LateInitTx")))
+@c4assemble("ServerCompApp") class SingleTxTrAssembleBase(txTrs: List[SingleTxTr], factory: SingleWrapTxFactory){
+  def map(key: SrcId, firstborn: Each[S_Firstborn]): Values[(SrcId,TxTransform)] =
+    txTrs.map(t=>WithPK(factory.create(t)))
+}
+@c4multi("ServerCompApp") final case class SingleWrapTx(inner: SingleTxTr)(txAdd: LTxAdd) extends TxTransform {
+  def transform(local: Context): Context = txAdd.add(inner.transform(local))(local)
 }
 
-@c4multi("ServerCompApp") final case class LateInitTx(srcId: SrcId)(
-  getToStart: DeferredSeq[Executable],
-  execution: Execution,
-) extends TxTransform with LazyLogging {
-  def transform(local: Context): Context = {
+@c4("ServerCompApp") final case class LateInitTx(srcId: SrcId = "LateInitTx")(
+  getToStart: DeferredSeq[Executable], execution: Execution,
+) extends SingleTxTr with LazyLogging {
+  def transform(local: Context): TxEvents = {
     val toStart = getToStart.value.filterNot(_.isInstanceOf[Early])
     logger.info(s"tracking ${toStart.size} late services")
     toStart.foreach(f => execution.unboundedFatal(Future(f.run())(_)))
-    SleepUntilKey.set(Instant.MAX)(local)
+    Seq(SleepUntilEventImpl(Instant.MAX))
   }
+}
+
+case class SleepUntilEventImpl(value: Instant) extends TransientEvent(SleepUntilKey, value)
+@c4("ServerCompApp") final class SleepImpl extends Sleep {
+  def forSeconds(value: Long): TxEvents = Seq(SleepUntilEventImpl(Instant.now.plusSeconds(value)))
+  def untilMillis(value: Long): TxEvents = Seq(SleepUntilEventImpl(Instant.ofEpochMilli(value)))
 }

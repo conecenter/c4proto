@@ -2,7 +2,7 @@ package ee.cone.c4ui
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.S_Firstborn
-import ee.cone.c4actor.Types.{LEvents, SrcId}
+import ee.cone.c4actor.Types.{LEvents, SrcId, TxEvents}
 import ee.cone.c4actor._
 import ee.cone.c4actor_branch._
 import ee.cone.c4actor_branch.BranchProtocol.{N_BranchResult, N_RestPeriod}
@@ -23,7 +23,7 @@ import java.time.Instant
 import scala.Function.chain
 
 @c4assemble("UICompApp") class UIAssembleBase(
-  txFactory: UITxFactory, taskFactory: FromAlienTaskImplFactory, purgerFactory: UIAlienPurgerTxFactory,
+  txFactory: UITxFactory, taskFactory: FromAlienTaskImplFactory,
 ){
   def mapTask(
     key: SrcId, session: Each[U_AuthenticatedSession], fromAlien: Each[U_FromAlienState]
@@ -39,19 +39,14 @@ import scala.Function.chain
     Seq(session.logKey -> session)
   def joinHandler(key: SrcId, @by[ByBranch] sessions: Values[U_AuthenticatedSession]): Values[(SrcId,TxTransform)] =
     Seq(WithPK(txFactory.create(key, sessions.map(_.sessionKey).min)))
-  //
-  def purger(key: SrcId, firstborn: Each[S_Firstborn]): Values[(SrcId,TxTransform)] =
-    Seq(WithPK(purgerFactory.create()))
 }
 
-@c4multi("UICompApp") final case class UIAlienPurgerTx(srcId: SrcId = "UIAlienPurgerTx")(
-  fromAlienWishUtil: FromAlienWishUtil, toAlienMessageUtil: ToAlienMessageUtil, locationUtil: LocationUtil,
-  txAdd: LTxAdd,
-) extends TxTransform {
-  def transform(local: Context): Context = {
-    val lEvents = fromAlienWishUtil.purgeAllExpired(local) ++ toAlienMessageUtil.purgeAllExpired(local) ++ locationUtil.purgeAllExpired(local)
-    txAdd.add(lEvents).andThen(SleepUntilKey.set(Instant.now.plusSeconds(300)))(local)
-  }
+@c4("UICompApp") final case class UIAlienPurgerTx(srcId: SrcId = "UIAlienPurgerTx")(
+  fromAlienWishUtil: FromAlienWishUtil, toAlienMessageUtil: ToAlienMessageUtil, locationUtil: LocationUtil, sleep: Sleep,
+) extends SingleTxTr {
+  def transform(local: Context): TxEvents =
+    fromAlienWishUtil.purgeAllExpired(local) ++ toAlienMessageUtil.purgeAllExpired(local) ++
+      locationUtil.purgeAllExpired(local) ++ sleep.forSeconds(300)
 }
 
 

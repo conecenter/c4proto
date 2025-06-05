@@ -246,7 +246,7 @@ trait TestCondition extends SerializationUtilsApp {
 
   def conditions: List[Condition[D_TestObject]] = condition1 /*:: condition2*//*:: condition3*/ :: Nil
 
-  def idGenUtil: IdGenUtil
+  def idGenUtil: IdGenUtil = resolveSingle(classOf[IdGenUtil])
   def indexUtil: IndexUtil
 
   def factory = new StaticFactoryImpl(new ModelConditionFactoryImpl, serializer, idGenUtil, indexUtil)
@@ -289,8 +289,6 @@ trait TestCondition extends SerializationUtilsApp {
 
   override def hashSearchRangers: List[RangerWithCl[_ <: Product, _]] = StrStartsWithRanger :: IntEqRanger() :: super.hashSearchRangers
 
-  //override def rawQSender: RawQSender = NoRawQSender
-
   //override def dynamicIndexAssembleDebugMode: Boolean = false
 
   override def assembles: List[Assemble] = {
@@ -300,8 +298,6 @@ trait TestCondition extends SerializationUtilsApp {
     new CreateRequest(conditions, changingCondition) :: /*joiners*/
       super.assembles
   }
-
-  lazy val assembleProfiler = NoAssembleProfiler //ConsoleAssembleProfiler //ValueAssembleProfiler2
 
   def dynamicIndexRefreshRateSeconds: Long = 1L
 

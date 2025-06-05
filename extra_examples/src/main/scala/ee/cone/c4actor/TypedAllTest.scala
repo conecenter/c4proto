@@ -180,6 +180,4 @@ trait TypedAllTestProtocolAppBase
     typedAllTestAssembleFactory.create(classOf[D_Model1]) :: typedAllTestAssembleFactory.create(classOf[D_Model2]) ::
       super.assembles
   }
-
-  lazy val assembleProfiler = NoAssembleProfiler //ValueAssembleProfiler2
 }

@@ -88,6 +88,3 @@ case class AllTestRich(srcId: SrcId, twos: List[D_AllTestOrig2])
   with ExecutableApp
   with VMExecutionApp
   with ToStartApp
-{
-  lazy val assembleProfiler = ConsoleAssembleProfiler //ValueAssembleProfiler
-}

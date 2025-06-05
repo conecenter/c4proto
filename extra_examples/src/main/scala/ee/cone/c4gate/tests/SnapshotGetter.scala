@@ -62,5 +62,4 @@ class SnapshotGetterApp
     with EnvConfigApp {
 
   override def toStart: List[Executable] = new SnapshotGetterTest(execution) :: super.toStart
-  def assembleProfiler: AssembleProfiler = NoAssembleProfiler
 }

@@ -1,12 +1,9 @@
 package ee.cone.c4gate
 
-import java.util.UUID
-
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.{Each, Values}
+import ee.cone.c4assemble.Types.{Each, Outs, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4di._
 import ee.cone.c4gate.HttpProtocol._
@@ -49,10 +46,7 @@ import ee.cone.c4gate.HttpProtocol._
 
 case class ByPathHttpPublicationUntilCase(srcId: SrcId, path: String, until: Long)
 
-@c4assemble("PublisherApp") class PublicationByPathAssembleBase(idGenUtil: IdGenUtil)(
-  val max: Values[S_HttpPublicationV2] => Option[S_HttpPublicationV2] =
-    _.maxByOption(p => (p.time, p.srcId))
-) {
+@c4assemble("PublisherApp") class PublicationByPathAssembleBase(idGenUtil: IdGenUtil){
   type ByPath = String
 
   def mapListedByPath(
@@ -82,17 +76,14 @@ case class ByPathHttpPublicationUntilCase(srcId: SrcId, path: String, until: Lon
   def selectMax(
     key: SrcId,
     @by[ByPath] publications: Values[S_HttpPublicationV2],
-    listed: Each[ByPathHttpPublicationUntil]
-  ): Values[(SrcId,ByPathHttpPublication)] = for {
-    p <- max(publications).toList
-  } yield WithPK(ByPathHttpPublication(p.path,p.headers,p.body))
-
-  def life(
-    key: SrcId,
-    @by[ByPath] publications: Values[S_HttpPublicationV2],
-    listed: Each[ByPathHttpPublicationUntil]
-  ): Values[(Alive,S_HttpPublicationV2)] = for {
-    p <- max(publications).toList
-  } yield WithPK(p)
-
+    listed: Values[ByPathHttpPublicationUntil],
+    byPathOut: OutFactory[SrcId,ByPathHttpPublication],
+    purgeOut: OutFactory[SrcId,PurgePublication],
+  ): Outs = {
+    val chosen = if(listed.nonEmpty) publications.maxByOption(p => (p.time, p.srcId)) else None
+    for(p <- publications) yield (
+      if(chosen.exists(_ eq p)) byPathOut.result(WithPK(ByPathHttpPublication(p.path,p.headers,p.body)))
+      else purgeOut.result(WithPK(PurgePublication(p.srcId)))
+    )
+  }
 }

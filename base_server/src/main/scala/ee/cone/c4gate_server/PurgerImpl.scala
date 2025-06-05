@@ -1,13 +1,9 @@
 package ee.cone.c4gate_server
 
-import java.nio.file.{Files, Path, Paths}
 import java.time.Instant
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor._
-import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble, c4assemble}
+import ee.cone.c4actor.Types.{SrcId, TxEvents}
 import ee.cone.c4di.c4
 
 object PurgerDefaultPolicy {
@@ -47,18 +43,8 @@ trait Purger {
   }
 }
 
-case class PurgerTx(
-  srcId: SrcId, keepPolicyList: List[KeepPolicy]
-)(purger: Purger) extends TxTransform {
-  def transform(local: Context): Context = {
-    purger.process(keepPolicyList)
-    SleepUntilKey.set(Instant.now.plusSeconds(60L))(local)
-  }
-}
-
-@c4assemble("SnapshotMakingApp") class PurgerAssembleBase(
-  purger: Purger,
-  config: Config,
+@c4("SnapshotMakingApp") final case class PurgerTx(srcId: SrcId = "purger")(
+  purger: Purger, config: Config, sleep: Sleep,
 )(
   policy: List[KeepPolicy] = {
     val value = config.get("C4KEEP_SNAPSHOTS")
@@ -70,10 +56,9 @@ case class PurgerTx(
     assert(res.nonEmpty)
     res
   }
-){
-  def joinPurger(
-    key: SrcId,
-    first: Each[S_Firstborn]
-  ): Values[(SrcId,TxTransform)] =
-    List(WithPK(PurgerTx("purger",policy)(purger)))
+) extends SingleTxTr {
+  def transform(local: Context): TxEvents = {
+    purger.process(policy)
+    sleep.forSeconds(60L)
+  }
 }

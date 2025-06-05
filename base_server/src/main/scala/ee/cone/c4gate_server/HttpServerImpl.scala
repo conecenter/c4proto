@@ -2,17 +2,13 @@
 package ee.cone.c4gate_server
 
 import java.util.{Locale, UUID}
-import scala.concurrent.{ExecutionContext, Future, Promise}
-import scala.util.{Failure, Success}
 import com.typesafe.scalalogging.LazyLogging
 import okio.ByteString
-import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.{LEvents, SrcId}
 import ee.cone.c4gate.HttpProtocol._
-import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, by, c4assemble, distinct}
+import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.c4assemble
 import ee.cone.c4actor._
-import ee.cone.c4gate.AlienProtocol.E_HttpConsumer
 import ee.cone.c4gate.HttpProtocol.{S_HttpRequest, S_HttpResponse}
 import ee.cone.c4di._
 import ee.cone.c4gate._
@@ -74,39 +70,11 @@ import ee.cone.c4gate_server.RHttpTypes.{RHttpHandler, RHttpHandlerCreate}
   }
 }
 
-@c4("AbstractHttpGatewayApp") final class HttpReqAssemblesBase(mortal: MortalFactory) {
-  @provide def subAssembles: Seq[Assemble] = List(mortal(classOf[S_HttpRequest]))
-}
-
 case class LocalHttpConsumerExists(condition: String)
 
-@c4assemble("AbstractHttpGatewayApp") class PostLifeAssembleBase()   {
-  type Condition = SrcId
-
-  def requestsByCondition(
-    key: SrcId,
-    request: Each[S_HttpRequest]
-  ): Values[(Condition, S_HttpRequest)] =
-    ReqGroup.conditions(request).map(_->request)
-
-  def consumersByCondition(
-    key: SrcId,
-    c: Each[E_HttpConsumer]
-  ): Values[(Condition, LocalHttpConsumer)] =
-    List(WithPK(LocalHttpConsumer(c.condition)))
-
-  def consumerExists(
-    key: SrcId,
-    @by[Condition] consumers: Values[LocalHttpConsumer],//it's not ok if postConsumers.size > 1
-  ): Values[(SrcId, LocalHttpConsumerExists)] =
-      WithPK(LocalHttpConsumerExists(key)) :: Nil
-
-  def lifeToRequests(
-    key: SrcId,
-    consumers: Each[LocalHttpConsumerExists],
-    @by[Condition] req: Each[S_HttpRequest]
-  ): Values[(Alive, S_HttpRequest)] =
-    List(WithPK(req))
+@c4assemble("AbstractHttpGatewayApp") class PostLifeAssembleBase {
+  def consumerExists(key: SrcId, consumers: Values[LocalHttpConsumer]): Values[(SrcId, LocalHttpConsumerExists)] =
+    Seq(WithPK(LocalHttpConsumerExists(key))) //it's not ok if postConsumers.size > 1
 }
 
 object ReqGroup {
@@ -121,14 +89,13 @@ object ReqGroup {
   worldProvider: WorldProvider, requestByPK: GetByPK[S_HttpRequest], responseByPK: GetByPK[S_HttpResponse],
 ) extends FHttpHandler with LazyLogging {
   import WorldProvider._
-  private val dummyInj = new Injected{}
   def handle(request: FHttpRequest): S_HttpResponse = {
     val now = System.currentTimeMillis
     val headers = normalize(request.headers)
     val id = UUID.randomUUID.toString
     val requestEv = S_HttpRequest(id, request.method, request.path, request.rawQueryString, headers, request.body, now)
     val resp: S_HttpResponse = worldProvider.run(List(
-      world => handler(requestEv, new Context(dummyInj, world.assembled, world.executionContext, Map.empty)) match {
+      world => handler(requestEv, new Context(world.assembled, Map.empty)) match {
         case result if result.events.isEmpty => Stop(result.response)
         case result => Next(LEvent.update(result.response) ++ result.events)
       },

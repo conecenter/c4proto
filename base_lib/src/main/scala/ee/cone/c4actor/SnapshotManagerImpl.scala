@@ -40,17 +40,13 @@ object SnapshotUtilImpl extends SnapshotUtil {
 import SnapshotUtilImpl._
 
 //case class Snapshot(offset: NextOffset, uuid: String, raw: RawSnapshot)
-@c4multi("SnapshotSaverApp") final class SnapshotSaverImpl(subDirStr: String)(inner: RawSnapshotSaver) extends SnapshotSaver {
+@c4("SnapshotSaverApp") final class SnapshotSaverImpl(inner: RawSnapshotSaver) extends SnapshotSaver {
   def save(offset: NextOffset, data: Array[Byte], headers: List[RawHeader]): RawSnapshot = {
-    val snapshot = RawSnapshot(getName(subDirStr, offset, data, headers))
+    val snapshot = RawSnapshot(getName("snapshots", offset, data, headers))
     assert(hashFromName(snapshot).nonEmpty, s"Not a valid name ${snapshot.relativePath}")
     inner.save(snapshot, data)
     snapshot
   }
-}
-
-@c4("SnapshotSaverApp") final class SnapshotSaverFactoryImpl(inner: SnapshotSaverImplFactory) extends SnapshotSaverFactory {
-  def create(subDirStr: String): SnapshotSaver = inner.create(subDirStr)
 }
 
 @c4("SnapshotLoaderImplApp") final class SnapshotLoaderImpl(raw: RawSnapshotLoader) extends SnapshotLoader with LazyLogging {

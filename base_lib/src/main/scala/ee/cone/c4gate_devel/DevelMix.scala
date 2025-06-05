@@ -8,9 +8,9 @@ import ee.cone.c4di.c4app
 import ee.cone.c4gate.DevConfigApp
 import ee.cone.c4gate.DisableDefaultSafeToRunApp
 
-@c4app class TopicToDirAppBase extends VMExecutionApp with ExecutableApp with BaseApp with ProtoApp
-  with KafkaConsumerApp with SnapshotUtilImplApp with EnvConfigCompApp
-  with BasicLoggingApp with CatchNonFatalApp with SnapshotSaverApp
+//@c4app class TopicToDirAppBase extends VMExecutionApp with ExecutableApp with BaseApp with ProtoApp
+//  with KafkaConsumerApp with SnapshotUtilImplApp with EnvConfigCompApp
+//  with BasicLoggingApp with CatchNonFatalApp with SnapshotSaverApp
 
 @c4app class TopicToS3AppBase extends VMExecutionApp with ExecutableApp with BaseApp with ProtoApp
   with KafkaConsumerApp with SnapshotUtilImplApp with EnvConfigCompApp

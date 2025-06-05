@@ -46,7 +46,7 @@ import scala.concurrent.Future
       deleted <- Future.sequence(
         for {
           (name,tStr) <- dataOpt.toList.flatten if s3L.parseTime(tStr) < beforeMillis
-        } yield s3.delete(txLogName,s"${loBroker.bucketPostfix}/$name")
+        } yield s3.delete(s3.join(txLogName,s"${loBroker.bucketPostfix}/$name"))
       )
     } yield deleted
   }

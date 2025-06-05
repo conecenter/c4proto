@@ -144,7 +144,5 @@ class MD5HashingTestApp extends TestVMRichDataApp
   override def toStart: List[Executable] = new MD5HashingTest(execution, toUpdate, contextFactory, resolveSingle(classOf[LTxAdd])) :: super.toStart
 
   override def assembles: List[Assemble] = new MD5HashingAssemble(PreHashingMurMur3()) :: super.assembles
-
-  lazy val assembleProfiler = NoAssembleProfiler //ValueAssembleProfiler
 }
 

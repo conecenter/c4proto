@@ -33,18 +33,18 @@ final class RawObjectListProtoAdapter extends ProtoAdapter[List[(Int,Any)]](
   def redact(e: Res): Res = e
 }
 
-
 @c4("ProtoApp") final class UpdateMapUtilImpl(
   val adapter: RawObjectListProtoAdapter = new RawObjectListProtoAdapter
 ) extends UpdateMapUtil with LazyLogging {
+  //private val strict = strictList.map(s => qAdapterRegistry.byName(s.cl.getName).id).toSet
 
-  class UpdateMappingImpl(
-    doAdd: (UpdateMap,N_UpdateFrom)=>UpdateMap,
+  private class UpdateMappingImpl(
+    doAdd: (N_UpdateFrom=>Boolean)=>(UpdateMap,N_UpdateFrom)=>UpdateMap,
     state: UpdateMap,
     finish: List[N_UpdateFrom]=>List[N_UpdateFrom]
   ) extends UpdateMapping {
-    def add(updates: List[N_UpdateFrom]): UpdateMapping =
-      new UpdateMappingImpl(doAdd, updates.foldLeft(state)(doAdd), finish)
+    def add(updates: List[N_UpdateFrom], onError: N_UpdateFrom=>Boolean): UpdateMapping =
+      new UpdateMappingImpl(doAdd, updates.foldLeft(state)(doAdd(onError)), finish)
     def result: List[N_UpdateFrom] = finish(toUpdates(state))
   }
 
@@ -72,19 +72,21 @@ final class RawObjectListProtoAdapter extends ProtoAdapter[List[(Int,Any)]](
       al == bl
     }
 
-  private def addLast(wasFromValue: ByteString, wasValue: ByteString, up: N_UpdateFrom): N_UpdateFrom = {
+  private def addLast(
+    wasFromValue: ByteString, wasValue: ByteString, up: N_UpdateFrom, onError: N_UpdateFrom=>Boolean
+  ): N_UpdateFrom = {
     if(up.flags != 0)
       logger.warn(s"flagged update "+toSzStr(up))
-    if(!eqEncoded(wasValue,up.fromValue))
+    if(!eqEncoded(wasValue,up.fromValue) && onError(up))
       logger.warn(s"inconsistent update from ${wasValue.size} to "+toSzStr(up))
     if(wasFromValue != up.fromValue) up.copy(fromValue = wasFromValue) else up
   }
   private def start(ignore: Set[Long], fromEmpty: Boolean, finish: List[N_UpdateFrom]=>List[N_UpdateFrom]): UpdateMapping =
-    new UpdateMappingImpl((state,up) => if(ignore(up.valueTypeId)) state else{
+    new UpdateMappingImpl(onError => (state,up) => if(ignore(up.valueTypeId)) state else{
       val key = toKey(up)
       val will = state.get(key).fold(
-        if(fromEmpty) addLast(ByteString.EMPTY, ByteString.EMPTY, up) else up
-      )(was=>addLast(was.fromValue, was.value, up))
+        if(fromEmpty) addLast(ByteString.EMPTY, ByteString.EMPTY, up, onError) else up
+      )(was=>addLast(was.fromValue, was.value, up, onError))
       if(will.fromValue==will.value) state - key else state + (key->will)
     }, Map.empty, finish)
 
@@ -100,9 +102,10 @@ final class RawObjectListProtoAdapter extends ProtoAdapter[List[(Int,Any)]](
   private def invert(up: N_UpdateFrom) =
     up.copy(fromValue = up.value, value=up.fromValue)
 
+  private def diffError(up: N_UpdateFrom): Boolean = throw new Exception("diff error")
   def diff(currentUpdates: List[N_UpdateFrom], targetUpdates: List[N_UpdateFrom], ignore: Set[Long]): List[N_UpdateFrom] =
     start(ignore,fromEmpty=false,u=>u)
-      .add(currentUpdates.map(invert)).add(targetUpdates).result
+      .add(currentUpdates.map(invert), diffError).add(targetUpdates, diffError).result
 
   private def toUpdateFrom(up: N_Update, fromValue: ByteString): N_UpdateFrom = {
     val res = N_UpdateFrom(up.srcId,up.valueTypeId,fromValue,up.value,up.flags)

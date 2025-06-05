@@ -50,50 +50,22 @@ trait ToInjectApp extends ComponentsApp {
 
 @deprecated trait PreHashingApp
 
-trait ServerApp extends ServerCompApp with RichDataApp with DeadlockDetectApp { //e-only
-  lazy val snapshotLoader: SnapshotLoader = resolveSingle(classOf[SnapshotLoader])
-  lazy val qMessages: QMessages = resolveSingle(classOf[QMessages])
-  lazy val consuming: Consuming = resolveSingle(classOf[Consuming])
-  lazy val rawQSender: RawQSender = resolveSingle(classOf[RawQSender])
-  //
-  lazy val remoteSnapshotUtil: RemoteSnapshotUtil = resolveSingle(classOf[RemoteSnapshotUtil])
-  lazy val snapshotMaker: SnapshotMaker = resolveSingle(classOf[SnapshotMaker])
-  lazy val rawSnapshotLoader: RawSnapshotLoader = resolveSingle(classOf[RawSnapshotLoader])
-}
+trait ServerApp extends ServerCompApp with RichDataApp with DeadlockDetectApp //e-only
 
 trait TestVMRichDataApp extends TestVMRichDataCompApp
   with RichDataApp
   with ToStartApp
-{// extra-only
-  lazy val contextFactory: ContextFactory = resolveSingle(classOf[ContextFactory])
-  lazy val actorName: String = getClass.getName
-}
+// extra-only
+  //actorName: String = getClass.getName
 
-trait MortalFactoryApp extends MortalFactoryCompApp with ComponentProviderApp {
-  def mortal: MortalFactory = resolveSingle(classOf[MortalFactory])
-}
-
-@deprecated trait SimpleIndexValueMergerFactoryApp
 @deprecated trait TreeIndexValueMergerFactoryApp
 
 trait RichDataAppBase extends RichDataCompApp
-  // with AssembleProfilerApp
   with DefaultKeyFactoryApp
   with DefaultUpdateProcessorApp
   with ExpressionsDumpersApp
   with ComponentProviderApp
   with AssemblesApp
-{
-  lazy val qAdapterRegistry: QAdapterRegistry = resolveSingle(classOf[QAdapterRegistry])
-  lazy val toUpdate: ToUpdate = resolveSingle(classOf[ToUpdate])
-  lazy val richRawWorldReducer: RichRawWorldReducer = resolveSingle(classOf[RichRawWorldReducer])
-  lazy val idGenUtil: IdGenUtil = resolveSingle(classOf[IdGenUtil])
-  lazy val modelFactory: ModelFactory = resolveSingle(classOf[ModelFactory])
-  lazy val modelConditionFactory: ModelConditionFactory[Unit] = resolveSingle(classOf[ModelConditionFactoryHolder]).value
-
-  @deprecated def parallelAssembleOn: Boolean = false
-  // @deprecated def assembleSeqOptimizer: AssembleSeqOptimizer = new NoAssembleSeqOptimizer
-}
 
 abstract class GeneralCompatHolder {
   def value: Any
@@ -102,13 +74,6 @@ class CompatHolder[T](val value: T) extends GeneralCompatHolder
 
 @c4("RichDataApp") final class ModelConditionFactoryHolder(value: ModelConditionFactory[Unit])
   extends CompatHolder[ModelConditionFactory[Unit]](value)
-/*
-trait AssembleProfilerApp extends ComponentsApp {
-  def assembleProfiler: AssembleProfiler
-  private lazy val assembleProfilerComponent =
-    provide(classOf[AssembleProfiler],()=>List(assembleProfiler))
-  override def components: List[Component] = assembleProfilerComponent :: super.components
-}*/
 
 trait DefaultKeyFactoryApp extends ComponentsApp {
   def origKeyFactoryOpt: Option[KeyFactory] = None
@@ -141,19 +106,12 @@ trait UMLClientsApp {
   lazy val umlExpressionsDumper: ExpressionsDumper[String] = UMLExpressionsDumper
 }
 
-trait EnvConfigApp extends EnvConfigCompApp with ComponentProviderApp {
-  lazy val config: Config = resolveSingle(classOf[Config])
-  lazy val actorName: String = resolveSingle(classOf[ActorName]).value
-}
+trait EnvConfigApp extends EnvConfigCompApp
 
 trait UpdatesProcessorsApp extends ComponentsApp {
   private lazy val processorsComponent = provide(classOf[UpdatesPreprocessor], ()=>processors)
   override def components: List[Component] = processorsComponent :: super.components
   def processors: List[UpdatesPreprocessor] = Nil
-}
-
-trait SimpleAssembleProfilerApp extends SimpleAssembleProfilerCompApp with ComponentProviderApp {
-  def assembleProfiler: AssembleProfiler = resolveSingle(classOf[AssembleProfiler])
 }
 
 //// injectable api
@@ -164,8 +122,8 @@ class Injectable(val pair: (SharedComponentKey[_],Object))
 trait InjectableGetter[C,I] extends Getter[C,I] {
   def set: I => List[Injectable]
 }
-@deprecated abstract class SharedComponentKey[D_Item<:Object] extends InjectableGetter[SharedContext,D_Item] with LazyLogging {
-  def of: SharedContext => D_Item = context => context.injected match {
+@deprecated abstract class SharedComponentKey[D_Item<:Object] extends InjectableGetter[Context,D_Item] with LazyLogging {
+  def of: Context => D_Item = context => Single(SharedContextKey.of(context)) match {
     case r: ToInjectRegistry =>
       r.values.getOrElse(this, throw new Exception(s"$this was not injected")).asInstanceOf[D_Item]
   }

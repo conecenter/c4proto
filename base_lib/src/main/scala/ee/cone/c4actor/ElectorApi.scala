@@ -31,3 +31,8 @@ trait ReadyProcess extends Product {
 }
 
 case class EnabledTxTr(value: TxTransform)
+
+trait ReadyProcessUtil {
+  def getAll(local: AssembledContext): ReadyProcesses
+  def getCurrent(local: AssembledContext): ReadyProcess
+}

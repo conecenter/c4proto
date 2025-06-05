@@ -236,34 +236,22 @@ object TestCanvasView {
 ////////////////////////////
 
 @c4tags("TestTodoApp") trait RevertRootViewTags[C] {
-  @c4el("ExampleReverting") def reverting(
-    key: String, makeSavepoint: Receiver[C], revertToSavepoint: Receiver[C], offset: String,
-  ): ToChildPair
+  @c4el("ExampleReverting") def reverting(key: String, revertToSavepoint: Receiver[C]): ToChildPair
 }
 
 @c4("TestTodoApp") final case class RevertRootView(locationHash: String = "revert")(
-  revert: Reverting, wrapView: WrapView, revertRootViewTagsProvider: RevertRootViewTagsProvider,
-  val rc: UpdatingReceiverFactory, revertToSavepoint: RevertToSavepoint,
+  wrapView: WrapView, revertRootViewTagsProvider: RevertRootViewTagsProvider, revertToSavepoint: RevertToSavepoint,
 )(
   tags: RevertRootViewTags[Context] = revertRootViewTagsProvider.get[Context],
-) extends ByLocationHashView with Updater {
+) extends ByLocationHashView {
   import RevertRootView._
   def view: Context => ViewRes = wrapView.wrap { local =>
-    val res = tags.reverting(
-      key = "reverting", makeSavepoint = rc(MakeSavepoint()), revertToSavepoint = revertToSavepoint,
-      offset = revert.getSavepoint(local).toList.mkString
-    )
+    val res = tags.reverting(key = "reverting", revertToSavepoint = revertToSavepoint)
     List(res.toChildPair)
   }
-  def receive: Handler = value => local => {
-    case MakeSavepoint() => revert.makeSavepoint
-  }
 }
-object RevertRootView {
-  private case class MakeSavepoint() extends VAction
-}
-@c4("TestTodoApp") final case class RevertToSavepoint()(revert: Reverting) extends Receiver[Context] {
-  def receive: Handler = _ => revert.revertToSavepoint
+@c4("TestTodoApp") final case class RevertToSavepoint()(reducer: RichRawWorldReducer) extends Receiver[Context] {
+  def receive: Handler = _ => l => WriteModelKey.modify(_.enqueueAll(reducer.toRevertUpdates(l)))(l)
 }
 
 ////////////////////////////
@@ -281,16 +269,14 @@ trait ReplicaEl extends ToChildPair
 @c4("TestTodoApp") final case class ReplicaListRootView(locationHash: String = "replicas")(
   wrapView: WrapView,
   exampleTagsProvider: ExampleReplicaTagsProvider,
-  getReadyProcesses: GetByPK[ReadyProcesses],
-  actorName: ActorName,
+  readyProcessUtil: ReadyProcessUtil,
   val rc: UpdatingReceiverFactory,
 )(
   tags: ExampleReplicaTags[Context] = exampleTagsProvider.get[Context],
 ) extends ByLocationHashView with Updater {
   import ReplicaListRootView._
   def view: Context => ViewRes = wrapView.wrap { local =>
-    val processes = getReadyProcesses.ofA(local).get(actorName.value).fold(List.empty[ReadyProcess])(_.all)
-    val res = tags.replicas("replicas", for(p <- processes) yield tags.replica(
+    val res = tags.replicas("replicas", for(p <- readyProcessUtil.getAll(local).all) yield tags.replica(
       key = p.id, role = p.role, startedAt = Instant.ofEpochMilli(p.startedAt).toString, hostname = p.hostname,
       version = p.refDescr, completion = p.completionReqAt.fold("")(_.toString), complete = rc(Complete(p)),
       forceRemove = rc(ForceRemove(p)),

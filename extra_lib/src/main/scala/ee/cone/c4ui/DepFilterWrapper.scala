@@ -14,21 +14,19 @@ import ee.cone.c4ui.dep.request.{FLRequestDef, FilterListRequestApp}
 import scala.collection.immutable.Seq
 
 case class DepFilterPK(filtersPK: String, matches: List[String])
-
+/*
 trait DepFilterWrapperApp {
   def depFilterWrapper[Model <: Product](modelCl: Class[Model], listName: String, matches: List[DepFilterPK] = DepFilterPK("", ".*" :: Nil) :: Nil): DepFilterWrapper[Model]
 }
-
-trait DepFilterWrapperMix extends DepFilterWrapperApp with HashSearchRangerRegistryApp with DepFactoryApp {
+*/
+trait DepFilterWrapperMix extends /*DepFilterWrapperApp with*/ HashSearchRangerRegistryApp with DepFactoryApp /*{
   def modelConditionFactory: ModelConditionFactory[Unit]
-
-  def modelFactory: ModelFactory
 
   def depFilterWrapper[Model <: Product](modelCl: Class[Model], listName: String, matches: List[DepFilterPK] = DepFilterPK("", ".*" :: Nil) :: Nil): DepFilterWrapper[Model] = {
     val modelCondFactoryTyped = modelConditionFactory.ofWithCl(modelCl)
     DepFilterWrapperImpl(Nil, listName, matches)(Seq({ _ => depFactory.resolvedRequestDep(modelCondFactoryTyped.any) }), modelCl, modelCondFactoryTyped, depFactory)
   }
-}
+}*/
 
 trait DepFilterWrapperProvider {
   def filterWrappers: List[DepFilterWrapper[_ <: Product]]

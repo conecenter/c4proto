@@ -56,13 +56,16 @@ trait UpdateFlag {
     @Id(0x0015) updates: List[N_UpdateFrom]
   )
 
-    @Id(0x0016) case class S_Firstborn(
+  @Id(0x0016) case class S_Firstborn(
     @Id(0x0011) srcId: SrcId, //app class
     @Id(0x001A) txId: String
   )
 
-  @Id(0x0017) case class S_FailedUpdates(
+  @Id(0x0017) case class S_TxReport(
     @Id(0x0011) srcId: SrcId,
+    @Id(0x00B1) electorClientId: SrcId, // it is id of tx receiver process
+    @Id(0x001A) txId: String,
+    @Id(0x0010) sum: String,
     @Id(0x0018) reason: String
   )
 
@@ -71,20 +74,12 @@ trait UpdateFlag {
     @Id(0x001A) txId: String
   )
 
-  @Id(0x001B) case class S_Offset(
-    @Id(0x0011) srcId: SrcId, //app class
-    @Id(0x001A) txId: String
-  )
-
-  /*@Id(0x0018) case class Leader(
-    @Id(0x0019) actorName: String,
-    @Id(0x001A) incarnationId: String
-  )*/
+  // @Id(0x001B) case class S_Offset
+  // @Id(0x0018) case class Leader
   case class N_CompressedUpdates(
     @Id(0x001D) compressorName: String,
     @Id(0x001E) values: List[ByteString]
   )
-
 }
 
 //case class Task(srcId: SrcId, value: Product, offset: Long)
@@ -94,13 +89,11 @@ trait TxLogName extends Product {
 }
 trait CurrentTxLogName extends TxLogName
 
-trait QRecord {
-  def topic: TxLogName
-  def value: Array[Byte]
-  def headers: Seq[RawHeader]
-}
+class QRecord(val value: Array[Byte], val headers: Seq[RawHeader])
 
 trait RawQSender {
+  // to implement it for log storage, like kafka
+  // to call from system code only
   def send(rec: QRecord): NextOffset
 }
 trait RawQSenderExecutable extends Executable
@@ -131,12 +124,12 @@ trait ToUpdate {
   def toBytes(updates: List[N_UpdateFrom]): (Array[Byte], List[RawHeader])
 
   /**
-    * Transforms RawEvents to updates, adds TxId and removes ALL flags
+    * Transforms RawEvent to updates, adds TxId and removes ALL flags
     *
-    * @param events events from Kafka or Snapshot
+    * @param event from Kafka or Snapshot
     * @return updates
     */
-  def toUpdates(events: List[RawEvent], hint: String): List[N_UpdateFrom]
+  def toUpdates(event: RawEvent, hint: String): List[N_UpdateFrom]
 
   /**
     * Transforms RawEvents to updates, adds TxId and keeps ALL but TxId flags
@@ -161,32 +154,21 @@ object Types {
   type UpdateKey = (Long,SrcId)
   type UpdateMap = Map[UpdateKey,N_UpdateFrom]
   type LEvents = Seq[LEvent[Product]]
+  type TxEvents = Seq[TxEvent]
 }
-
 
 trait Injected
-
-trait SharedContext {
-  def injected: Injected
-}
+case object SharedContextKey extends TransientLens[Seq[Injected]](Nil)
 
 trait AssembledContext {
   def assembled: ReadModel
-  def executionContext: OuterExecutionContext
 }
 
-trait OffsetContext {
+trait RichContext extends AssembledContext {
   def offset: NextOffset
 }
 
-trait RichContext extends OffsetContext with SharedContext with AssembledContext
-
-class Context(
-  val injected: Injected,
-  val assembled: ReadModel,
-  val executionContext: OuterExecutionContext,
-  val transient: TransientMap
-) extends SharedContext with AssembledContext
+class Context(val assembled: ReadModel, val transient: TransientMap) extends AssembledContext
 
 trait GetByPK[V<:Product] extends Product {
   def ofA(context: AssembledContext): Map[SrcId,V]
@@ -211,14 +193,12 @@ trait AbstractLens[C,I] extends Lens[C,I] {
 abstract class TransientLens[Item](val default: Item) extends AbstractLens[Context,Item] with Product {
   def of: Context => Item = context => context.transient.getOrElse(this, default).asInstanceOf[Item]
   def set: Item => Context => Context = value => context => new Context(
-    context.injected,
-    context.assembled,
-    context.executionContext,
-    context.transient + (this -> value.asInstanceOf[Object])
+    context.assembled, context.transient + (this -> value.asInstanceOf[Object])
   )
 }
 
-trait LEvent[+M <: Product] extends Product {
+trait TxEvent extends Product
+trait LEvent[+M <: Product] extends TxEvent {
   def srcId: SrcId
   def className: String
 }
@@ -243,16 +223,14 @@ object WithPK {
 }
 
 trait LTxAdd extends Product {
-  def add[M<:Product](out: Seq[LEvent[M]]): Context=>Context
+  def add(out: Seq[TxEvent]): Context=>Context
 }
 trait RawTxAdd {
   def add(out: Seq[N_Update]): Context=>Context
 }
-trait ReadModelAdd {
-  def add(executionContext: OuterExecutionContext, events: Seq[RawEvent]): ReadModel=>ReadModel
-}
-trait GetAssembleOptions {
-  def get(assembled: ReadModel): AssembleOptions
+
+trait AssemblerUtil {
+  def toTreeReplace(assembled: ReadModel, updates: Seq[N_Update], profilingContext: RAssProfilingContext): ReadModel
 }
 
 trait Observer[Message] {
@@ -287,10 +265,17 @@ trait RawEvent extends Product {
 }
 case class SimpleRawEvent(srcId: SrcId, data: ByteString, headers: List[RawHeader]) extends RawEvent
 
-trait GetOffset extends Getter[SharedContext with AssembledContext,NextOffset]
+trait GetOffset extends Getter[AssembledContext,NextOffset]
 
 trait RichRawWorldReducer {
-  def reduce(context: Option[SharedContext with AssembledContext], events: List[RawEvent]): RichContext
+  def createContext(events: Option[RawEvent]): RichContext
+  def reduce(context: RichContext, events: Seq[RawEvent]): RichContext
+  def toLocal(context: RichContext, transient: TransientMap): Context
+  def toHistoryUpdates(local: Context): List[N_UpdateFrom]
+  def toSnapshotUpdates(context: Context): List[N_UpdateFrom]
+  def toRevertUpdates(context: Context): List[N_UpdateFrom]
+  def history(context: Context): TxHistory
+  def appCanRevert: Boolean
 }
 
 trait ProgressObserverFactory {
@@ -308,6 +293,7 @@ case class ExtendedRawEvent(srcId: SrcId, data: ByteString, headers: List[RawHea
 // problem with ErrorKey is that when we check it world is different
 case object ErrorKey extends TransientLens[List[Exception]](Nil)
 case object SleepUntilKey extends TransientLens[Instant](Instant.MIN)
+case object PrevTxFailedKey extends TransientLens[Long](0L)
 
 object CheckedMap {
   def apply[K,V](pairs: Seq[(K,V)]): Map[K,V] =
@@ -325,8 +311,6 @@ trait AssembleProfiler {
   def createJoiningProfiling(localOpt: Option[Context]): JoiningProfiling
   def addMeta(transition: WorldTransition, updates: Seq[N_Update]): Future[Seq[N_Update]]
 }
-
-case object DebugStateKey extends TransientLens[Option[(RichContext,RawEvent)]](None)
 
 trait UpdatesPreprocessor {
   /**
@@ -364,9 +348,10 @@ trait HttpClientProvider {
 }
 
 trait S3Manager {
-  def get(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Option[Array[Byte]]]
-  def put(txLogName: TxLogName, resource: String, body: Array[Byte]): Unit
-  def delete(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Boolean]
+  def join(txLogName: TxLogName, resource: String): String
+  def get(resource: String)(implicit ec: ExecutionContext): Future[Option[Array[Byte]]]
+  def put(resource: String, body: Array[Byte]): Unit
+  def delete(resource: String)(implicit ec: ExecutionContext): Future[Boolean]
 }
 
 trait S3Lister {
@@ -380,14 +365,8 @@ trait LOBroker {
   def bucketPostfix: String
 }
 
-trait Reverting {
-  def getSavepoint: Context=>Option[NextOffset]
-  def revertToSavepoint: Context=>Context
-  def makeSavepoint: LEvents
-}
-
 trait UpdateMapping {
-  def add(updates: List[N_UpdateFrom]): UpdateMapping
+  def add(updates: List[N_UpdateFrom], onError: N_UpdateFrom=>Boolean): UpdateMapping
   def result: List[N_UpdateFrom]
 }
 
@@ -401,9 +380,6 @@ trait UpdateMapUtil {
 
 trait GeneralSnapshotPatchIgnore
 class SnapshotPatchIgnore[T<:Product](val cl: Class[T]) extends GeneralSnapshotPatchIgnore
-trait SnapshotPatchIgnoreRegistry {
-  def ignore: Set[Long]
-}
 
 trait UpdateFromUtil {
   def get(local: AssembledContext, updates: Seq[N_Update]): Seq[N_UpdateFrom]
@@ -418,3 +394,35 @@ trait AbstractIndentedParser {
 }
 
 case object TxAddAssembleDebugKey extends TransientLens[Boolean](false)
+
+trait SnapshotConfig {
+  def ignore: Set[Long]
+}
+
+trait WorldCheckHandler {
+  def handle(context: RichContext): Unit
+}
+
+trait TxHistory
+trait TxHistoryReducer {
+  def isFailed(history: TxHistory, txId: String): Option[Boolean]
+  def empty: TxHistory
+  def reduce(history: TxHistory, updates: List[N_UpdateFrom], txIdOpt: Option[String], errOpt: Option[Throwable]): (TxHistory, List[N_UpdateFrom])
+  def toUpdates(history: TxHistory, txId: String): List[N_UpdateFrom]
+}
+
+trait PrevTxFailedUtil {
+  def prepare(local: Context): Context
+  def handle(local: Context): Context
+}
+
+trait SingleTxTr extends Product {
+  def transform(local: Context): TxEvents
+}
+
+abstract class TransientEvent[V](val key: TransientLens[V], val innerValue: V) extends TxEvent
+
+trait Sleep {
+  def forSeconds(value: Long): TxEvents
+  def untilMillis(value: Long): TxEvents
+}

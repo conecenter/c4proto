@@ -13,7 +13,7 @@ import scala.xml.XML
 @c4("S3ListerApp") final class S3ListerImpl(s3: S3Manager) extends S3Lister with LazyLogging {
   def list(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Option[List[(String,String)]]] = {
     def iter(addSearch: String, was: List[List[(String,String)]]): Future[Option[List[(String,String)]]] =
-      s3.get(txLogName,s"$resource?list-type=2$addSearch")(ec).flatMap(
+      s3.get(s3.join(txLogName,s"$resource?list-type=2$addSearch"))(ec).flatMap(
         _.fold(Future.successful(None:Option[List[(String,String)]])){ data =>
           val content = new String(data, UTF_8)
           val xml = XML.loadString(content)

@@ -35,9 +35,7 @@ import ee.cone.c4di.{c4, c4app}
   with VMExecutionApp
   with SandboxProtocolsApp
   with SandboxJoinersApp
-{
-  lazy val assembleProfiler: AssembleProfiler = NoAssembleProfiler //ValueAssembleProfiler
-}
+
 /*
 object ValueAssembleProfiler extends AssembleProfiler {
   def get(ruleName: String): String => Int => Unit = startAction => {

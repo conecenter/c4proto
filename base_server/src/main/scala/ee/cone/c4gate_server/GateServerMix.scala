@@ -20,7 +20,6 @@ trait AbstractHttpGatewayAppBase extends ServerCompApp
   with ParallelObserversApp
   with PublisherApp with AuthProtocolApp
   // with NoAssembleProfilerCompApp #customize later
-  // with MortalFactoryCompApp #customize later
   with ManagementApp
   with SnapshotMakingApp
   with LZ4RawCompressorApp
@@ -69,8 +68,8 @@ trait SnapshotMakingAppBase extends TaskSignerApp with LOBrokerApp
 
 //provide httpHandler: FHttpHandler
 
-@c4app class SimpleMakerAppBase extends RichDataCompApp with ExecutableApp
-  with EnvConfigCompApp with VMExecutionApp
-  with SnapshotMakingApp with NoAssembleProfilerCompApp with KafkaConsumerApp with SnapshotLoaderImplApp
-  with LZ4RawCompressorApp with KafkaPurgerApp with DevConfigApp
-  with PublisherApp with BasicLoggingApp
+//@c4app class SimpleMakerAppBase extends RichDataCompApp with ExecutableApp
+//  with EnvConfigCompApp with VMExecutionApp
+//  with SnapshotMakingApp with NoAssembleProfilerCompApp with KafkaConsumerApp with SnapshotLoaderImplApp
+//  with LZ4RawCompressorApp with KafkaPurgerApp with DevConfigApp
+//  with PublisherApp with BasicLoggingApp

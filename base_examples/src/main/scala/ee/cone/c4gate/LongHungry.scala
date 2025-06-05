@@ -19,29 +19,23 @@ import java.time.Instant
   @Id(0x6a98) case class D_Blob(@Id(0x6a99) srcId: SrcId, @Id(0x6a9a) data: ByteString)
 }
 
-@c4assemble("LongHungryApp") class LongHungryAssembleBase(
-  factory: LongHungryTxFactory
-){
-  def join(
-    key: SrcId,
-    firstborn: Each[S_Firstborn]
-  ): Values[(SrcId, TxTransform)] =
-    Seq(WithPK(factory.create("Long-LongHungry")), WithPK(factory.create("Hungry-LongHungry")))
+@c4("LongHungryApp") final case class LongHungryLongTx(srcId: SrcId = "LongHungryLongTx")
+  extends SingleTxTr with LazyLogging
+{
+  def transform(local: Context): TxEvents = {
+    for(i <- LazyList.from(0)){
+      logger.info("more long")
+      Thread.sleep(1000)
+    }
+    Nil
+  }
 }
 
-@c4multi("LongHungryApp") final case class LongHungryTx(srcId: SrcId)(
-  txAdd: LTxAdd
-) extends TxTransform with LazyLogging {
-  def transform(local: Context): Context = srcId match {
-    case "Long-LongHungry" =>
-      for(i <- LazyList.from(0)){
-        logger.info("more long")
-        Thread.sleep(1000)
-      }
-      local
-    case "Hungry-LongHungry" =>
-      logger.info("more hungry")
-      val events = LEvent.update(D_Blob("LongHungry", ToByteString(Instant.now.toString * 1000000)))
-      txAdd.add(events).andThen(SleepUntilKey.set(Instant.now.plusSeconds(1)))(local)
+@c4("LongHungryApp") final case class LongHungryHungryTx(srcId: SrcId = "LongHungryHungryTx")(
+  sleep: Sleep,
+) extends SingleTxTr with LazyLogging {
+  def transform(local: Context): TxEvents = {
+    logger.info("more hungry")
+    LEvent.update(D_Blob("LongHungry", ToByteString(Instant.now.toString * 1000000))) ++ sleep.forSeconds(1)
   }
 }

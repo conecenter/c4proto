@@ -32,7 +32,7 @@ import scala.jdk.CollectionConverters.{IterableHasAsScala,MapHasAsJava,MapHasAsS
 
 @c4multi("KafkaProducerApp") final class KafkaRawQSender()(
   conf: KafkaConfig, execution: Execution,
-  loBroker: LOBroker, listConfig: ListConfig,
+  loBroker: LOBroker, listConfig: ListConfig, currentTxLogName: CurrentTxLogName,
 )(
   producer: CompletableFuture[Producer[Array[Byte], Array[Byte]]] =
     new CompletableFuture(),
@@ -57,7 +57,7 @@ import scala.jdk.CollectionConverters.{IterableHasAsScala,MapHasAsJava,MapHasAsS
   private def sendStart(rec: QRecord): java.util.concurrent.Future[RecordMetadata] = {
     //println(s"sending to server [$bootstrapServers] topic [${topicNameToString(rec.topic)}]")
     @SuppressWarnings(Array("org.wartremover.warts.Null")) val value: Array[Byte] = if(rec.value.nonEmpty) rec.value else null //why null?
-    val topic: String = conf.topicNameToString(rec.topic)
+    val topic: String = conf.topicNameToString(currentTxLogName)
     val headers = rec.headers.map(h => new RecordHeader(h.key, h.value.getBytes(UTF_8)).asInstanceOf[Header]).asJava
     /*val record = new ProducerRecord[Array[Byte], Array[Byte]](topic, 0, null, Array.emptyByteArray, value, headers)
     producer.get.send(record)*/
