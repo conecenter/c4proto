@@ -33,7 +33,7 @@ my $mandatory_of = sub{ my($k,$h)=@_; (exists $$h{$k}) ? $$h{$k} : die "no $k" }
 
 my $debug_port = 5005;
 my $serve_proxy = sub{
-    my $debug_ext_address = "0.0.0.0:".&$mandatory_of(C4DEBUG_PORT => \%ENV);
+    my $debug_ext_address = "127.0.0.1:4005";
     my $debug_int_address = &$get_text_or_empty("/c4/haproxy.to");
     $debug_ext_address && $debug_int_address or &$exec("sleep","infinity");
     my $ha_cfg_path = "/c4/haproxy.cfg";
@@ -109,7 +109,7 @@ my $remake = sub{
             %$paths,
             (-e "/c4/debug-components") ? (C4DEBUG_COMPONENTS => "1") : (),
             JAVA_TOOL_OPTIONS => $tool_opt,
-            (-e "/c4/debug-enable") ? (C4JDWP_ADDRESS => "$debug_int_ip:$debug_port") : (),
+            C4JDWP_ADDRESS => "$debug_int_ip:$debug_port",
             C4PARENT_PID => $ppid,
             C4READINESS_PATH => "$dir/c4is-ready",
             C4STATE_TOPIC_PREFIX => $nm,
