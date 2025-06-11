@@ -11,6 +11,7 @@ export const Page = viewProps => {
         { key: "pods", hint: "Pods", view: p => <PodsTabView {...p}/> },
         { key: "cio_tasks", hint: "CIO tasks", view: p => <CIOTasksTabView {...p}/> },
         { key: "cio_logs", hint: "CIO logs", view: p => <CIOLogsTabView {...p}/> },
+        { key: "s3", hint: "S3", view: p => <S3SnapshotsTabView {...p}/> },
         { key: "links", hint: "Links", view: p => <LinksTabView {...p}/> },
     ]
 
@@ -179,7 +180,7 @@ const CIOTasksTabView = viewProps => {
     </>
 }
 
-const formatLogSize = v => `${(v / 1024).toFixed(1)} KB`;
+const formatLogSize = v => `${(v / 1024).toFixed(1)} KB`
 
 const CIOLogsTabView = viewProps => {
     const {
@@ -260,6 +261,54 @@ const CIOLogsTabView = viewProps => {
                 </div>
             )}
         </div>
+    )
+}
+
+const formatS3Size = v => `${(v / 1024).toFixed(1)} KB`;
+const S3SnapshotsTabView = viewProps => {
+    const {items, s3contexts, s3context} = viewProps
+    //flex gap-2
+    return (
+        <>
+            <div className="mb-4">
+                <SelectorFilterGroup
+                    viewProps={viewProps}
+                    fieldName="s3context"
+                    items={s3contexts.map(key => ({ key, hint: key }))}
+                />
+                <button
+                    onClick={willSend({ op: 's3.search', s3context })}
+                    className="bg-blue-600 hover:bg-blue-500 px-4 py-1 rounded text-white"
+                >
+                    Search
+                </button>
+            </div>
+            <Table>
+                <thead>
+                    <tr>
+                        <Th>Bucket</Th>
+                        <Th>Objects</Th>
+                        <Th>Size</Th>
+                        <Th>Last Key</Th>
+                        <Th>Last Size</Th>
+                        <Th>Last Modified</Th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <NotFoundTr viewProps={viewProps} colSpan="6" />
+                    {items?.map((b, index) => (
+                        <Tr key={b.bucket_name} index={index}>
+                            <Td>{b.bucket_name}</Td>
+                            <Td>{b.is_truncated?">":""}{b.objects_count}</Td>
+                            <Td>{b.is_truncated?">":""}{formatS3Size(b.objects_size)}</Td>
+                            <Td>{b.last_obj_key ? `${b.last_obj_key.split("-")[0]}…` : "-"}</Td>
+                            <Td>{formatS3Size(b.last_obj_size)}</Td>
+                            <Td>{b.last_obj_mod_time || "-"}</Td>
+                        </Tr>
+                    ))}
+                </tbody>
+            </Table>
+        </>
     )
 }
 

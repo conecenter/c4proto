@@ -8,5 +8,5 @@ RUN perl install.pl curl https://dl.k8s.io/release/v1.33.1/bin/linux/amd64/kubec
 USER c4
 ENV PATH=${PATH}:/tools:/tools/oauth:/tools/node/bin
 RUN mkdir /c4/c4client && cd /c4/c4client && npm install esbuild@^0.25.4 react@^19.1.0 react-dom@^19.1.0 @tailwindcss/cli@^4.1.7
-RUN python3 -m venv /c4/venv && /c4/venv/bin/pip install --no-cache-dir websockets==15.0.1
+RUN python3 -m venv /c4/venv && /c4/venv/bin/pip install --no-cache-dir websockets==15.0.1 boto3==1.38.34
 ENTRYPOINT ["tini","--","/c4/venv/bin/python","-u","-c","from app import main;main()"]

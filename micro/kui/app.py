@@ -5,7 +5,9 @@ from re import sub
 from tempfile import TemporaryDirectory
 from pathlib import Path
 from logging import basicConfig, INFO, DEBUG
+from concurrent.futures import ThreadPoolExecutor
 
+from s3 import init_s3
 from servers import daemon, restarting, build_client, run_proxy, http_serve, Route
 from agent_auth import init_agent_auth
 from pods import init_pods
@@ -35,11 +37,13 @@ def main():
     pod_watchers, pod_actions = init_pods({}, {}, {}, active_contexts, get_forward_service_name)
     cio_task_watchers, cio_task_actions = init_cio_tasks({}, active_contexts)
     cio_log_watchers, cio_log_actions, cio_log_handlers = init_cio_logs(Path(dir_life.name), active_contexts, get_user_abbr, Route)
+    executor = ThreadPoolExecutor(max_workers=16)
+    s3_actions = init_s3(executor)
     handlers = {
         **agent_auth_handlers, **cio_log_handlers,
         "/": Route.http_auth(lambda **_: index_content),
         "/kop": Route.ws_auth({}, load_shared, {
-            **pod_actions, **cio_task_actions, **cio_log_actions, "links.load": load_links,
+            **pod_actions, **cio_task_actions, **cio_log_actions, **s3_actions, "links.load": load_links,
         }),
         "_": Route.http_auth(lambda **_: "404"),
     }
