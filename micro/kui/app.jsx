@@ -180,7 +180,7 @@ const CIOTasksTabView = viewProps => {
     </>
 }
 
-const formatLogSize = v => `${(v / 1024).toFixed(1)} KB`
+const formatLogSize = v => `${(v / 1024).toFixed(1)} KiB`
 
 const CIOLogsTabView = viewProps => {
     const {
@@ -264,17 +264,16 @@ const CIOLogsTabView = viewProps => {
     )
 }
 
-const formatS3Size = v => `${(v / 1024).toFixed(1)} KB`;
+const formatS3Size = v => `${(v / 1024 / 1024).toFixed(1)} MiB`;
 const S3SnapshotsTabView = viewProps => {
-    const {items, s3contexts, s3context} = viewProps
-    //flex gap-2
+    const {items, s3contexts, s3context, willSend} = viewProps
     return (
         <>
-            <div className="mb-4">
+            <div className="flex gap-2 mb-4">
                 <SelectorFilterGroup
                     viewProps={viewProps}
                     fieldName="s3context"
-                    items={s3contexts.map(key => ({ key, hint: key }))}
+                    items={(s3contexts||[]).map(key => ({ key, hint: key }))}
                 />
                 <button
                     onClick={willSend({ op: 's3.search', s3context })}
@@ -287,10 +286,10 @@ const S3SnapshotsTabView = viewProps => {
                 <thead>
                     <tr>
                         <Th>Bucket</Th>
-                        <Th>Objects</Th>
-                        <Th>Size</Th>
+                        <Th className="text-right">Objects</Th>
+                        <Th className="text-right">Size</Th>
                         <Th>Last Key</Th>
-                        <Th>Last Size</Th>
+                        <Th className="text-right">Last Size</Th>
                         <Th>Last Modified</Th>
                     </tr>
                 </thead>
@@ -299,11 +298,11 @@ const S3SnapshotsTabView = viewProps => {
                     {items?.map((b, index) => (
                         <Tr key={b.bucket_name} index={index}>
                             <Td>{b.bucket_name}</Td>
-                            <Td>{b.is_truncated?">":""}{b.objects_count}</Td>
-                            <Td>{b.is_truncated?">":""}{formatS3Size(b.objects_size)}</Td>
+                            <Td className="text-right">{b.is_truncated?">":""}{b.objects_count}</Td>
+                            <Td className="text-right">{b.is_truncated?">":""}{formatS3Size(b.objects_size)}</Td>
                             <Td>{b.last_obj_key ? `${b.last_obj_key.split("-")[0]}…` : "-"}</Td>
-                            <Td>{formatS3Size(b.last_obj_size)}</Td>
-                            <Td>{b.last_obj_mod_time || "-"}</Td>
+                            <Td className="text-right">{b.last_obj_size ? formatS3Size(b.last_obj_size) : ""}</Td>
+                            <Td>{b.last_obj_mod_time ? b.last_obj_mod_time.split(".")[0] : "-"}</Td>
                         </Tr>
                     ))}
                 </tbody>
@@ -386,7 +385,7 @@ const SimpleFilterInput = ({viewProps,fieldName,...props}) => <form noValidate o
     dirtyClassName: "outline outline-dashed outline-orange-400",
     value: viewProps[fieldName] ?? "", onChange: v => viewProps.willNavigate({ [fieldName]: v })(),
 })}/></form>
-const Th = ({children}) => <th className="py-2 px-4 border-b border-gray-700 text-left">{children}</th>
+const Th = ({className,...props}) => <th {...props} className={`py-2 px-4 border-b border-gray-700 text-left ${className??''}`}/>
 const Td = ({className,...props}) => <td {...props} className={`py-2 px-4 space-x-2 space-y-2 ${className??''}`}/>
 const Tr = ({index,...props}) => <tr className={`border-b border-gray-700 hover:bg-gray-700 ${(index??0) % 2 !== 0 ? 'bg-gray-800' : 'bg-gray-900'}`} {...props}/>
 const Table = ({children}) => (
