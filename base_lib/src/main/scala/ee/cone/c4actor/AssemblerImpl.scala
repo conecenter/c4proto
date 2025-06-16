@@ -246,7 +246,11 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   def add(out: Seq[TxEvent]): Context=>Context = local => if(out.isEmpty) local else {
     logger.debug(out.map(v=>s"\nevent added: $v").mkString)
     val updates = out.collect{ case e: LEvent[_] => toUpdate.toUpdate(e) }
-    chain(Seq(rawTxAdd.add(updates)) ++ out.collect{ case e: TransientEvent[_] => e.key.set(e.innerValue) })(local)
+    val rawUpdates = out.collect{ case e: RawTxEvent =>e.value }
+    chain(
+      Seq(rawTxAdd.add(updates), WriteModelKey.modify(_.enqueueAll(rawUpdates))) ++
+        out.collect{ case e: TransientEvent[_] => e.key.set(e.innerValue) }
+    )(local)
   }
 }
 

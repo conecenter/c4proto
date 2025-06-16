@@ -46,8 +46,8 @@ trait RemoteSnapshotUtil {
 }
 
 trait SnapshotDiffer {
-  def diff(local: Context, targetFullSnapshot: RawEvent, addIgnore: Set[Long]): List[N_UpdateFrom]
-  def diff(local: Context, target: List[N_UpdateFrom], addIgnore: Set[Long]): List[N_UpdateFrom]
+  def diff(local: Context, targetFullSnapshot: RawEvent, addIgnore: Set[Long]): TxEvents
+  def diff(local: Context, target: List[N_UpdateFrom], addIgnore: Set[Long]): TxEvents
 }
 
 case class TimedSnapshotInfo(snapshot: SnapshotInfo, mTime: Long)

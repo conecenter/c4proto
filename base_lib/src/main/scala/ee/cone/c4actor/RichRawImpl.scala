@@ -71,7 +71,7 @@ import ee.cone.c4di.c4
     txHistoryUtil.toUpdates(context.history, context.offset)
   }
   def toSnapshotUpdates(local: Context): List[N_UpdateFrom] = impl(ParentContextKey.of(local).get).snapshot.result
-  def toRevertUpdates(local: Context): List[N_UpdateFrom] = impl(ParentContextKey.of(local).get).reverting.result
+  def toRevertUpdates(local: Context): TxEvents = impl(ParentContextKey.of(local).get).reverting.result.map(RawTxEvent)
   def history(local: Context): TxHistory = impl(ParentContextKey.of(local).get).history
 }
 case object ParentContextKey extends TransientLens[Option[RichContext]](None)
@@ -91,8 +91,9 @@ class RichRawWorldImpl(
   toUpdate: ToUpdate, reducer: RichRawWorldReducer, updateMapUtil: UpdateMapUtil,
   snapshotPatchIgnoreRegistry: SnapshotPatchIgnoreRegistry,
 ) extends SnapshotDiffer {
-  def diff(local: Context, targetFullSnapshot: RawEvent, addIgnore: Set[Long]): List[N_UpdateFrom] =
+  def diff(local: Context, targetFullSnapshot: RawEvent, addIgnore: Set[Long]): TxEvents =
     diff(local, toUpdate.toUpdates(targetFullSnapshot,"diff-to"), addIgnore)
-  def diff(local: Context, target: List[N_UpdateFrom], addIgnore: Set[Long]): List[N_UpdateFrom] =
+  def diff(local: Context, target: List[N_UpdateFrom], addIgnore: Set[Long]): TxEvents =
     updateMapUtil.diff(reducer.toSnapshotUpdates(local), target, snapshotPatchIgnoreRegistry.ignore ++ addIgnore)
+      .map(RawTxEvent)
 }

@@ -273,7 +273,7 @@ trait RichRawWorldReducer {
   def toLocal(context: RichContext, transient: TransientMap): Context
   def toHistoryUpdates(local: Context): List[N_UpdateFrom]
   def toSnapshotUpdates(context: Context): List[N_UpdateFrom]
-  def toRevertUpdates(context: Context): List[N_UpdateFrom]
+  def toRevertUpdates(context: Context): TxEvents
   def history(context: Context): TxHistory
   def appCanRevert: Boolean
 }
@@ -293,7 +293,6 @@ case class ExtendedRawEvent(srcId: SrcId, data: ByteString, headers: List[RawHea
 // problem with ErrorKey is that when we check it world is different
 case object ErrorKey extends TransientLens[List[Exception]](Nil)
 case object SleepUntilKey extends TransientLens[Instant](Instant.MIN)
-case object PrevTxFailedKey extends TransientLens[Long](0L)
 
 object CheckedMap {
   def apply[K,V](pairs: Seq[(K,V)]): Map[K,V] =
@@ -411,9 +410,8 @@ trait TxHistoryReducer {
   def toUpdates(history: TxHistory, txId: String): List[N_UpdateFrom]
 }
 
-trait PrevTxFailedUtil {
-  def prepare(local: Context): Context
-  def handle(local: Context): Context
+trait TxTry {
+  def apply[T](local: Context)(aTry: =>T)(hint: =>String)(aCatch: Throwable=>T): T
 }
 
 trait SingleTxTr extends Product {
@@ -421,6 +419,7 @@ trait SingleTxTr extends Product {
 }
 
 abstract class TransientEvent[V](val key: TransientLens[V], val innerValue: V) extends TxEvent
+case class RawTxEvent(value: N_UpdateFrom) extends TxEvent
 
 trait Sleep {
   def forSeconds(value: Long): TxEvents

@@ -33,21 +33,13 @@ import ee.cone.c4di.c4multi
 }
 
 @c4multi("SnapshotListRequestHandlerApp") final case class SnapshotListRequestTransform(requests: List[S_ListSnapshotsRequest])(
-  snapshotLister: SnapshotLister,
-  txAdd: LTxAdd
+  snapshotLister: SnapshotLister, txAdd: LTxAdd, txTry: TxTry
 ) extends TxTransform {
-  def transform(local: Context): Context = {
-    if (requests.nonEmpty) {
-      if (ErrorKey.of(local).isEmpty) {
-        val response: S_ListSnapshotsResponse = toResponse(snapshotLister.listWithMTime)
-        //PrintColored("g")(s"ListSnapshotsRequestHandler success with ${response.snapshotsInfo.size}")
-        txAdd.add(requests.flatMap(LEvent.delete) ++ LEvent.update(response))(local)
-      } else {
-        //PrintColored("r")("ListSnapshotsRequestHandler fail")
-        (txAdd.add(requests.flatMap(LEvent.delete)) andThen ErrorKey.set(Nil)) (local)
-      }
-    } else
-      local
+  def transform(local: Context): Context = txTry(local){
+    val response: S_ListSnapshotsResponse = toResponse(snapshotLister.listWithMTime)
+    txAdd.add(requests.flatMap(LEvent.delete) ++ LEvent.update(response))(local)
+  }("SnapshotListRequestTransform"){ err =>
+    txAdd.add(requests.flatMap(LEvent.delete))(local)
   }
   def toProto(timed: TimedSnapshotInfo): N_SnapshotInfoProto = {
     val info = timed.snapshot

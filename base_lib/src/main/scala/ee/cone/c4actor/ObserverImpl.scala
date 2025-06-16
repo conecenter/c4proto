@@ -2,8 +2,10 @@ package ee.cone.c4actor
 
 import java.time.Instant
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.Types.{SrcId, TransientMap}
+import ee.cone.c4actor.ObserverProtocol.S_TxTrBlock
+import ee.cone.c4actor.Types.{SrcId, TransientMap, TxEvents}
 import ee.cone.c4di.c4
+import ee.cone.c4proto.{Id, protocol}
 
 import java.util.concurrent.{BlockingQueue, LinkedBlockingQueue}
 import scala.annotation.tailrec
@@ -18,7 +20,7 @@ trait TxTransforms {
 @c4("ServerCompApp") final class TxTransformsImpl(
   qMessages: QMessages, warnPeriod: LongTxWarnPeriod, catchNonFatal: CatchNonFatal,
   getTxTransform: GetByPK[EnabledTxTr], injected: List[Injected], reducer: RichRawWorldReducer,
-  prevTxFailedUtil: PrevTxFailedUtil,
+  txBlocking: TxBlocking, txAdd: LTxAdd, hReducer: TxHistoryReducer,
 ) extends TxTransforms with LazyLogging {
   def get(global: RichContext): Map[SrcId,TransientMap=>TransientMap] =
     getTxTransform.ofA(global).keys.map(k=>k->handle(global,k)).toMap
@@ -39,7 +41,9 @@ trait TxTransforms {
     val was = thread.getName
     try f(thread.setName) finally thread.setName(was)
   }
-
+  // ReadAfterWriteOffsetKey is previous write tx, not just previous; and isFailed can be None, including for zero offset
+  private def recentlyFailed(local: Context) =
+    hReducer.isFailed(reducer.history(local), ReadAfterWriteOffsetKey.of(local)).contains(true)
   private def doHandle(global: RichContext, key: SrcId, setName: String=>Unit, prev: TransientMap): TransientMap =
     catchNonFatal {
         getTxTransform.ofA(global).get(key) match {
@@ -50,10 +54,16 @@ trait TxTransforms {
             val clName = tr.getClass.getName
             val name = s"$clName-$key"
             setName(s"tx-from-${System.currentTimeMillis}-$name")
-            val prepLocal = reducer.toLocal(global, prev + (SharedContextKey->injected))
-            val transformedLocal = Function.chain(Seq(
-              TxTransformOrigMeta(clName), prevTxFailedUtil.prepare(_), tr.transform(_), prevTxFailedUtil.handle(_)
-            ))(prepLocal)
+            val prepLocal = reducer.toLocal(global, prev + (SharedContextKey->injected) + (TxTrIdKey->key))
+            val transformedLocal = Function.chain(
+              if(recentlyFailed(prepLocal)) Seq(l=>txAdd.add(txBlocking.block(l))(l)) // .block makes tx itself, so next time it will not be recentlyFailed, but blocked
+              else Seq(
+                TxTransformOrigMeta(clName),
+                tr.transform(_),
+                l=>txAdd.add(txBlocking.unblock(l))(l),
+                ErrorKey.set(Nil),
+              )
+            )(prepLocal)
             val transformPeriod = workTimer.ms
             val nextLocal = qMessages.send(transformedLocal)
             val period = workTimer.ms
@@ -72,6 +82,35 @@ trait TxTransforms {
           InnerSleepUntilKey.set(Instant.now.plusSeconds(was.size))
         ))(Map.empty)
     }
+}
+
+case object TxTrIdKey extends TransientLens[Option[SrcId]](None)
+
+class PrevTxFailedException extends Exception
+@c4("RichDataCompApp") final class TxTryImpl(
+  txBlocking: TxBlocking, catchNonFatal: CatchNonFatal,
+) extends TxTry {
+  def apply[T](local: Context)(aTry: =>T)(hint: =>String)(aCatch: Throwable=>T): T =
+    if(ErrorKey.of(local).nonEmpty) aCatch(ErrorKey.of(local).head)
+    else if(txBlocking.isBlocked(local)) aCatch(new PrevTxFailedException)
+    else catchNonFatal(aTry)(hint)(aCatch)
+}
+
+@protocol("ProtoApp") object ObserverProtocol {
+  @Id(0x001F) case class S_TxTrBlock(
+    @Id(0x0011) srcId: SrcId, // txTr
+    @Id(0x001B) failureCount: Long,
+  )
+}
+
+@c4("RichDataCompApp") final class TxBlocking(sleep: Sleep, getTxTrBlock: GetByPK[S_TxTrBlock]) {
+  private def getBlock(local: Context) = getTxTrBlock.ofA(local).get(TxTrIdKey.of(local).get)
+  def block(local: Context): TxEvents = {
+    val failureCount = getBlock(local).fold(0L)(_.failureCount) + 1L
+    LEvent.update(S_TxTrBlock(TxTrIdKey.of(local).get, failureCount)) ++ sleep.forSeconds(failureCount)
+  }
+  def unblock(local: Context): TxEvents = getBlock(local).toSeq.flatMap(LEvent.delete(_))
+  def isBlocked(local: Context): Boolean = getBlock(local).nonEmpty
 }
 
 case object InnerErrorKey extends InnerTransientLens(ErrorKey)

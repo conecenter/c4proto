@@ -3,7 +3,7 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{N_UpdateFrom, S_Firstborn, S_TxReport}
 import ee.cone.c4actor.TxHistoryProtocol._
-import ee.cone.c4actor.Types.{LEvents, SrcId, TxEvents}
+import ee.cone.c4actor.Types.{LEvents, NextOffset, SrcId, TxEvents}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{ToPrimaryKey, by, c4assemble}
 import ee.cone.c4di.{c4, c4multi}
@@ -13,7 +13,14 @@ import java.time.Instant
 import scala.Function.chain
 import scala.collection.immutable.TreeMap
 
-case class TxHistoryImpl(sums: TreeMap[String,String], reports: Map[String,S_TxReport]) extends TxHistory
+case class TxHistoryImpl(
+  sums: TreeMap[String,String],
+  // error reports that was not yet shared between replicas;
+  // reducer adds one when reduce fails;
+  // then txtr in replica sends it as update;
+  // then reducer removes it from TxHistory, when it comes back to reduce as update to the world;
+  reports: Map[String,S_TxReport]
+) extends TxHistory
 
 @protocol("ProtoApp") object TxHistoryProtocol {
   case class N_TxSum(@Id(0x001A) txId: String, @Id(0x0010) sum: String)
@@ -21,7 +28,11 @@ case class TxHistoryImpl(sums: TreeMap[String,String], reports: Map[String,S_TxR
     @Id(0x0011) srcId: SrcId, // snapshot tx id
     @Id(0x001F) sums: List[N_TxSum], // 1st txId is unknown, rest are failed
   )
-  @Id(0x001D) case class S_TxHistoryPurge(@Id(0x0011) srcId: SrcId)
+  @Id(0x001D) case class S_TxHistoryPurge(
+    // points to tx after which reducer will keep history;
+    // replaced by more recent periodically according to creation times of snapshots
+    @Id(0x0011) srcId: SrcId
+  )
   @Id(0x001E) case class S_TxHistorySplit(@Id(0x0011) srcId: SrcId, @Id(0x001A) txId: String, @Id(0x002E) until: Long)
 }
 
@@ -91,18 +102,6 @@ object SortByPK {
   }
   def toUpdates(history: TxHistory, txId: String): List[N_UpdateFrom] =
     LEvent.update(toOrig(impl(history), txId)).map(toUpdate.toUpdate).map(updateMapUtil.insert).toList
-}
-
-@c4("RichDataCompApp") final class PrevTxFailedUtilImpl(
-  reducer: RichRawWorldReducer, hReducer: TxHistoryReducer
-) extends PrevTxFailedUtil {
-  def prepare(local: Context): Context =
-    if(hReducer.isFailed(reducer.history(local), ReadAfterWriteOffsetKey.of(local)).contains(false)) local
-    else PrevTxFailedKey.modify(_+1L)(local)
-  private def max(a: Instant, b: Instant): Instant = if(a.isAfter(b)) a else b
-  def handle(local: Context): Context = PrevTxFailedKey.of(local) match {
-    case 0L => local case n => SleepUntilKey.modify(max(_, Instant.now.plusSeconds(n)))(local)
-  }
 }
 
 /// every tx-s:

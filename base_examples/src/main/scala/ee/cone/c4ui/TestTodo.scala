@@ -240,18 +240,21 @@ object TestCanvasView {
 }
 
 @c4("TestTodoApp") final case class RevertRootView(locationHash: String = "revert")(
-  wrapView: WrapView, revertRootViewTagsProvider: RevertRootViewTagsProvider, revertToSavepoint: RevertToSavepoint,
+  wrapView: WrapView, revertRootViewTagsProvider: RevertRootViewTagsProvider, reducer: RichRawWorldReducer,
 )(
   tags: RevertRootViewTags[Context] = revertRootViewTagsProvider.get[Context],
-) extends ByLocationHashView {
+) extends ByLocationHashView with Updater {
   import RevertRootView._
   def view: Context => ViewRes = wrapView.wrap { local =>
-    val res = tags.reverting(key = "reverting", revertToSavepoint = revertToSavepoint)
+    val res = tags.reverting(key = "reverting", revertToSavepoint = rc(Revert()))
     List(res.toChildPair)
   }
+  def receive: Handler = _ => _ => {
+    case Revert() => reducer.toRevertUpdates(l)
+  }
 }
-@c4("TestTodoApp") final case class RevertToSavepoint()(reducer: RichRawWorldReducer) extends Receiver[Context] {
-  def receive: Handler = _ => l => WriteModelKey.modify(_.enqueueAll(reducer.toRevertUpdates(l)))(l)
+object RevertRootView {
+  private case class Revert() extends VAction
 }
 
 ////////////////////////////
