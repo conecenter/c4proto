@@ -34,6 +34,7 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 
 @c4("ServerCompApp") final class QMessagesImpl(
   toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender], flagsCheck: UpdateFlagsCheck,
+  updatesDebug: UpdatesDebug,
 ) extends QMessages with LazyLogging {
   assert(flagsCheck.flagsOk, s"Some of the flags are incorrect: ${flagsCheck.updateFlags}")
   //import qAdapterRegistry._
@@ -51,7 +52,7 @@ import scala.concurrent.{Await, ExecutionContext, Future}
     }
   }
   def doSend(updates: List[N_UpdateFrom]): NextOffset = {
-    logger.debug(s"sending: ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
+    logger.debug(s"sending: ${updatesDebug.describe("sending",updates)}")
     val (bytes, headers) = toUpdate.toBytes(updates)
     val rec = new QRecord(bytes, headers)
     val offset = Single(getRawQSender.value).send(rec)
@@ -80,6 +81,7 @@ import scala.concurrent.{Await, ExecutionContext, Future}
   compressedUpdatesAdapter: ProtoAdapter[N_CompressedUpdates],
   deCompressors: List[DeCompressor],
   rawCompressor: RawCompressor,
+  updatesDebug: UpdatesDebug,
 )(
   updatesAdapter: ProtoAdapter[S_Updates] with HasId =
   qAdapterRegistry.byName(classOf[QProtocol.S_Updates].getName)
@@ -174,18 +176,7 @@ import scala.concurrent.{Await, ExecutionContext, Future}
       }
     val period = msNow() - started
     if(period > 5000) logger.info(s"E2U $hint was for $period ms ")
-    logger.debug(
-      s"E2U $hint ${event.srcId} " + updates.groupMapReduce(u=>(
-        u.valueTypeId,
-        "D"*(if(u.fromValue.size > 0) 1 else 0) + "A"*(if(u.value.size > 0) 1 else 0) // D A DA are valid
-      ))(_=>1)((a,b)=>a+b).toSeq.sorted.map{
-        case ((id,dma),count) =>
-          val idStr = java.lang.Long.toHexString(id)
-          val idL = s"0x${"0"*Math.max(0, 4-idStr.length)}$idStr"
-          val name = qAdapterRegistry.byId.get(id).fold("")(_.protoOrigMeta.cl.getSimpleName)
-          s"\n\tE2U $hint $idL:$dma:$count\t$name"
-      }.mkString
-    )
+    logger.debug(s"E2U $hint ${event.srcId} ${updatesDebug.describe(s"E2U $hint", updates)}")
     updates
   }
 
@@ -205,6 +196,21 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 
   def toUpdateLost(up: N_UpdateFrom): N_Update =
     N_Update(up.srcId,up.valueTypeId,up.value,up.flags)
+}
+
+@c4("ProtoApp") final class UpdatesDebug(
+  qAdapterRegistry: QAdapterRegistry
+){
+  def describe(hint: String, updates: Seq[N_UpdateFrom]): String = updates.groupMapReduce(u=>(
+    u.valueTypeId,
+    "D"*(if(u.fromValue.size > 0) 1 else 0) + "A"*(if(u.value.size > 0) 1 else 0) // D A DA are valid
+  ))(_=>1)((a,b)=>a+b).toSeq.sorted.map{
+    case ((id,dma),count) =>
+      val idStr = java.lang.Long.toHexString(id)
+      val idL = s"0x${"0"*Math.max(0, 4-idStr.length)}$idStr"
+      val name = qAdapterRegistry.byId.get(id).fold("")(_.protoOrigMeta.cl.getSimpleName)
+      s"\n\t$hint $idL:$dma:$count\t$name"
+  }.mkString
 }
 
 case class CurrentTxLogNameImpl(value: String) extends CurrentTxLogName
