@@ -6,11 +6,10 @@ import base64
 import time
 import urllib.parse
 import re
-from socket import create_connection
 
 from . import run, never_if, one, read_text, list_dir, run_text_out, http_exchange, http_check, Popen, never, log
 from .cluster import get_prefixes_from_pods, s3path, s3init, s3list, get_kubectl, get_pods_json, wait_no_active_prefix,\
-    get_all_contexts, sock_exchange_init
+    get_all_contexts, get_any_pod
 
 
 def s3get(cmd, size, try_count):
@@ -78,14 +77,14 @@ def post_signed(kube_contexts, app, url, args, data):
 
 
 def snapshot_list_dump(deploy_context, fr):
-    kube_context, prefix = snapshot_prefix_resolve(deploy_context, with_kube_contexts(deploy_context,fr))
+    kube_context, prefix = snapshot_prefix_resolve(with_kube_contexts(deploy_context,fr))
     mc = s3init(get_kubectl(kube_context))
     log(run_text_out((*mc, "ls", s3path(f"{prefix}.snapshots"))))
 
 
-def snapshot_prefix_resolve(deploy_context, opt):
+def snapshot_prefix_resolve(opt):
     if opt["type"] == "prefix":
-        return deploy_context, opt["prefix"]
+        return opt["kube_context"], opt["prefix"]
     elif opt["type"] == "app":
         kube_context, kc, pods = get_app_kc_pods(opt["kube_contexts"], opt["app"])
         return kube_context, one(*get_prefixes_from_pods(pods))
@@ -125,7 +124,7 @@ def snapshot_copy(env, def_kafka_addr, fr, to):
     if fr["type"] == "nil":
         name, get_data = ("0000000000000000-d41d8cd9-8f00-3204-a980-0998ecf8427e", lambda: b"")
     else:
-        fr_kube_context, fr_prefix = snapshot_prefix_resolve(deploy_context, fr)
+        fr_kube_context, fr_prefix = snapshot_prefix_resolve(fr)
         fr_mc = s3init(get_kubectl(fr_kube_context))
         fr_bucket = f"{fr_prefix}.snapshots"
         lines = s3list(fr_mc, s3path(fr_bucket))
@@ -135,30 +134,30 @@ def snapshot_copy(env, def_kafka_addr, fr, to):
         get_data = lambda: s3get((*fr_mc, "cat", s3path(f"{fr_bucket}/{name}")), size, fr.get("try_count", 3))
     to = with_kube_contexts(deploy_context,to)
     if to["type"] == "prefix":
-        to_kc = get_kubectl(deploy_context)
+        to_kube_context = to["kube_context"]
+        to_kc = get_kubectl(to_kube_context)
         to_prefix = to["prefix"]
         util_dir = f'{env["C4CI_PROTO_DIR"]}/c4util'
         java = ("java", "--source", "21", "--enable-preview")
         #
         wait_no_active_prefix(to_kc, to_prefix)
         #
-        with create_connection(def_kafka_addr) as sock:
-            exchange = sock_exchange_init(sock)
-            exchange(f'PRODUCE {to_prefix}.inbox'.encode(), "OK")
-            new_offset = f'{int(one(*exchange(b"", "ACK")))+1:016x}'
+        s3exec =  (*to_kc, "exec", "-i", get_any_pod(to_kc, "c4s3client"), "--" )
+        offset_res = run_text_out((*s3exec, "python3", "-u", "/app/main.py", "produce_one", f"{to_prefix}.inbox", ""))
+        new_offset = f'{int(offset_res)+1:016x}'
         #
         old_offset, minus, postfix = name.partition("-")
         never_if(None if minus == "-" and len(old_offset) == len(new_offset) else "bad name")
         new_fn = f"{new_offset}{minus}{postfix}"
         #
-        to_mc = s3init(to_kc)
+        to_mc = (*s3exec, "/tools/mc")
         to_bucket = f"{to_prefix}.snapshots"
         run((*to_mc, "mb", s3path(to_bucket)))
         never_if([
             f'bad offset: has {it["key"]} >= new {new_fn}'
             for it in s3list(to_mc, s3path(to_bucket)) if it["key"] >= new_fn
         ])
-        if fr_kube_context == deploy_context:
+        if fr_kube_context == deploy_context and to_kube_context == deploy_context:
             source = f"{fr_bucket}/{name}"
             url = f"/{to_bucket}/{new_fn}"
             can_in = f"PUT\n\n\n[date]\nx-amz-copy-source:{source}\n{url}"
@@ -190,7 +189,7 @@ def with_kube_contexts(deploy_context, opt): return (
             opt["kube_contexts"]
         )
     } if "app" in opt and "prefix" not in opt else
-    {**opt, "type": "prefix"} if (
+    { **opt, "type": "prefix", "kube_context": opt.get("kube_context", deploy_context) } if (
         "prefix" in opt and "app" not in opt and
         re.fullmatch(r'[a-z]{2}-[a-z\d]+-[a-z]+-[a-z]+(\.\d)?', opt["prefix"])
     ) else

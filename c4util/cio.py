@@ -179,7 +179,10 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "app_stop_start": lambda kube_context, app: app_stop_start(kube_context, app),
     "app_prep_start": lambda opt: app_prep_start(main_q, env, opt["app"], get_dir(opt["ver"]), get_dir(opt["conf_to"])),
     "app_substitute": lambda opt: app_substitute(get_dir(opt["conf_from"]), opt["substitute"], get_dir(opt["conf_to"])),
-    "app_scale": lambda app, n: run((*cl.get_kubectl(deploy_context), "scale", "--replicas", str(n), "deploy", app)),
+    "app_scale": lambda opt: run((
+        *cl.get_kubectl(opt.get("kube_context",deploy_context)),
+        "scale", "--replicas", str(opt["replicas"]), "deploy", opt["deployment"]
+    )),
     "purge_start": lambda opt: main_q.submit(*task_kv(f'purge {opt["prefix"]}'))(
         get_cmd(purge, env, opt["prefix"], opt["clients"])
     ),
