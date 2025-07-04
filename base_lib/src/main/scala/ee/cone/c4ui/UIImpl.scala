@@ -102,6 +102,10 @@ case class SimpleSeedElement(seed: S_BranchResult) extends SeedVDomValue {
   def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
     builder.append("tp").append("span")
+    builder.append("style").startObject(); {
+      builder.append("display").append("none")
+      builder.end()
+    }
     builder.end()
   }
 }
