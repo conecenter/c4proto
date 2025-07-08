@@ -5,6 +5,7 @@ import {splitFirst,spreadAll,oValues}    from "../main/util.js"
 import {ifInputsChanged,dictKeys,branchByKey,rootCtx,ctxToPath,chain,someKeys} from "../main/vdom-util.js"
 import {useSync,createSyncProviders} from "../../c4f/main/vdom-hooks.js"
 import {weakCache} from "../../c4f/main/vdom-util.js"
+import {createRoot} from "react-dom/client";
 
 //todo branch LIFE
 
@@ -90,12 +91,16 @@ export function VDomCore(log,activeTransforms,getRootElement){
         return {...changed(state), rootNativeElement}
     })
 
+    let root;
     const SyncInputRoot = activeTransforms.tp.SyncInputRoot
     const rendering = ifInputsChanged(log)("renderedFrom", {incoming:1,ack:1,rootNativeElement:1,isRoot:1,branchKey:1}, changed => state => {
         if(state.incoming && state.rootNativeElement){
             const rootVirtualElement =
                 createElement(SyncInputRoot,{ack:state.ack,incoming:state.incoming,isRoot:state.isRoot,branchKey:state.branchKey})
-            ReactDOM.render(rootVirtualElement, state.rootNativeElement)
+            if (!root) {
+                root = createRoot(state.rootNativeElement)
+            }
+            root.render(rootVirtualElement)
         }
         return changed(state)
     })
@@ -104,7 +109,10 @@ export function VDomCore(log,activeTransforms,getRootElement){
         if(state.isActive) return changed(state)
         if(Date.now()-state.incomingTime < 100) return state 
         if(state.rootNativeElement) {
-            ReactDOM.unmountComponentAtNode(state.rootNativeElement)
+            if (root) {
+                root.unmount()
+                root = null;
+            }
             //parentNode.removeChild(was)
         }
         return null
