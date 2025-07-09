@@ -54,13 +54,13 @@ trait TxTransforms {
             val clName = tr.getClass.getName
             val name = s"$clName-$key"
             setName(s"tx-from-${System.currentTimeMillis}-$name")
-            val prepLocal = reducer.toLocal(global, prev + (SharedContextKey->injected) + (TxTrIdKey->key))
+            val prepLocal = reducer.toLocal(global, prev + (SharedContextKey->injected) + (TxTrIdKey->Option(key)))
             val transformedLocal = Function.chain(
-              if(recentlyFailed(prepLocal)) Seq(l=>txAdd.add(txBlocking.block(l))(l)) // .block makes tx itself, so next time it will not be recentlyFailed, but blocked
+              if(recentlyFailed(prepLocal)) Seq((l:Context)=>txAdd.add(txBlocking.block(l))(l)) // .block makes tx itself, so next time it will not be recentlyFailed, but blocked
               else Seq(
                 TxTransformOrigMeta(clName),
                 tr.transform(_),
-                l=>txAdd.add(txBlocking.unblock(l))(l),
+                (l:Context)=>txAdd.add(txBlocking.unblock(l))(l),
                 ErrorKey.set(Nil),
               )
             )(prepLocal)

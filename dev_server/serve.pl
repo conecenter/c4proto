@@ -151,6 +151,7 @@ my $get_gate_env = sub{
     (
         C4HTTP_PORT => &$http_port($replica),
         C4KEEP_SNAPSHOTS => "default",
+        C4CAN_REVERT => "1",
     )
 };
 

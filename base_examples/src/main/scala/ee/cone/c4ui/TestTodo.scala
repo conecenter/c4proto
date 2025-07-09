@@ -240,17 +240,21 @@ object TestCanvasView {
 }
 
 @c4("TestTodoApp") final case class RevertRootView(locationHash: String = "revert")(
-  wrapView: WrapView, revertRootViewTagsProvider: RevertRootViewTagsProvider, reducer: RichRawWorldReducer,
+  val rc: UpdatingReceiverFactory, wrapView: WrapView,
+  revertRootViewTagsProvider: RevertRootViewTagsProvider, reducer: RichRawWorldReducer,
 )(
   tags: RevertRootViewTags[Context] = revertRootViewTagsProvider.get[Context],
-) extends ByLocationHashView with Updater {
+) extends ByLocationHashView with Updater with LazyLogging {
   import RevertRootView._
   def view: Context => ViewRes = wrapView.wrap { local =>
     val res = tags.reverting(key = "reverting", revertToSavepoint = rc(Revert()))
     List(res.toChildPair)
   }
-  def receive: Handler = _ => _ => {
-    case Revert() => reducer.toRevertUpdates(l)
+  def receive: Handler = _ => l => {
+    case Revert() =>
+      val res = reducer.toRevertUpdates(l)
+      logger.info(s"${res.size}")
+      res
   }
 }
 object RevertRootView {

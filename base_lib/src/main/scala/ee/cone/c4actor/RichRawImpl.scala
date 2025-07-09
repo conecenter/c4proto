@@ -27,7 +27,7 @@ import ee.cone.c4di.c4
   def createContext(events: Option[RawEvent]): RichContext = {
     val assembled = Single(replaces.value).emptyReadModel
     val snapshot = updateMapUtil.startSnapshot(snapshotConfig.ignore)
-    val reverting = updateMapUtil.startSnapshot(ignoreRegistry.ignore)
+    val reverting = updateMapUtil.startRevert(ignoreRegistry.ignore)
     val context = new RichRawWorldImpl(assembled, snapshot, reverting, getOffset.empty, txHistoryUtil.empty)
     val firstborn = toUp(S_Firstborn(actorName.value, events.fold(getOffset.empty)(_.srcId)))
     add(context, firstborn, events.toList, None, canRevert = false)
@@ -71,7 +71,10 @@ import ee.cone.c4di.c4
     txHistoryUtil.toUpdates(context.history, context.offset)
   }
   def toSnapshotUpdates(local: Context): List[N_UpdateFrom] = impl(ParentContextKey.of(local).get).snapshot.result
-  def toRevertUpdates(local: Context): TxEvents = impl(ParentContextKey.of(local).get).reverting.result.map(RawTxEvent)
+  def toRevertUpdates(local: Context): TxEvents = {
+    if(!appCanRevert) throw new Exception("revert is not enabled")
+    impl(ParentContextKey.of(local).get).reverting.result.map(RawTxEvent)
+  }
   def history(local: Context): TxHistory = impl(ParentContextKey.of(local).get).history
 }
 case object ParentContextKey extends TransientLens[Option[RichContext]](None)

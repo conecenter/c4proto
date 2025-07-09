@@ -1,6 +1,6 @@
 package ee.cone.c4ui
 
-import ee.cone.c4actor.Types.{LEvents, SrcId}
+import ee.cone.c4actor.Types.{LEvents, SrcId, TxEvents}
 import ee.cone.c4actor.{Context, TransientLens}
 import ee.cone.c4actor_branch.BranchTask
 import ee.cone.c4actor_branch.BranchTypes.BranchResult
@@ -54,7 +54,7 @@ trait UpdatingReceiverFactory {
   def create(updater: Updater, action: VAction): Receiver[Context]
 }
 trait Updater extends Product {
-  type Handler = String => Context => VAction => LEvents
+  type Handler = String => Context => VAction => TxEvents
   def receive: Handler
   def rc: UpdatingReceiverFactory
   def rc(action: VAction): Receiver[Context] = rc.create(this, action)
