@@ -406,7 +406,8 @@ trait TxHistory
 trait TxHistoryReducer {
   def isFailed(history: TxHistory, txId: String): Option[Boolean]
   def empty: TxHistory
-  def reduce(history: TxHistory, updates: List[N_UpdateFrom], txIdOpt: Option[String], errOpt: Option[Throwable]): (TxHistory, List[N_UpdateFrom])
+  def reduce(history: TxHistory, updates: List[N_UpdateFrom], txIdOpt: Option[String]): (TxHistory, List[N_UpdateFrom])
+  def addFailed(history: TxHistory, txId: String, err: Throwable): TxHistory
   def toUpdates(history: TxHistory, txId: String): List[N_UpdateFrom]
 }
 

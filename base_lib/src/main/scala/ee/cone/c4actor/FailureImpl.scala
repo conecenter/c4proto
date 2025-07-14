@@ -60,7 +60,8 @@ object SortByPK {
   def report(txId: String, sum: String, reason: String): S_TxReport = S_TxReport(
     srcId = idGenUtil.srcIdRandom(), electorClientId = currentProcess.id, txId = txId, sum = sum, reason = reason
   )
-  private def addFailed(h: TxHistoryImpl, txId: String, err: Throwable) = {
+  def addFailed(history: TxHistory, txId: String, err: Throwable): TxHistory = {
+    val h = impl(history)
     val (lastTxId, lastSum) = h.sums.last
     if(txId <= lastTxId) throw new Exception("inconsistent txId")
     val sum = idGenUtil.srcIdFromStrings(lastSum, txId)
@@ -85,26 +86,28 @@ object SortByPK {
     S_TxHistory(txId,h.sums.map{ case (txId,sum) => N_TxSum(txId,sum) }.toList)
   def empty: TxHistory = TxHistoryImpl(TreeMap(""->""), Map.empty)
   //
-  def reduce(
-    history: TxHistory, updates: List[N_UpdateFrom], txIdOpt: Option[String], errOpt: Option[Throwable]
-  ): (TxHistory, List[N_UpdateFrom]) = {
+  def reduce(history: TxHistory, updates: List[N_UpdateFrom], txIdOpt: Option[NextOffset]): (TxHistory, List[N_UpdateFrom]) = {
     val reportAdapter = getAdapter(classOf[S_TxReport])
     val historyAdapter = getAdapter(classOf[S_TxHistory])
     val purgeAdapter = getAdapter(classOf[S_TxHistoryPurge])
-    val upd = (hist: TxHistoryImpl) => updates.foldLeft(hist)((h,u) =>
+    val hist = updates.foldLeft(impl(history))((h,u) =>
       if(isUpd(historyAdapter,u)) fromOrig(historyAdapter.decode(u.value), txIdOpt.get).getOrElse(h)
       else if(isUpd(reportAdapter,u)) purgeReport(h, u.srcId)
       else if(isUpd(purgeAdapter,u)) keepAfter(h, u.srcId)
       else h
     )
-    val add = (hist: TxHistoryImpl) => errOpt.fold(hist)(err => addFailed(hist, txIdOpt.get, err))
-    (chain(Seq(upd,add))(impl(history)), filterNot(updates, isUpd(historyAdapter, _)))
+    (hist, filterNot(updates, isUpd(historyAdapter, _)))
   }
+
   def toUpdates(history: TxHistory, txId: String): List[N_UpdateFrom] =
     LEvent.update(toOrig(impl(history), txId)).map(toUpdate.toUpdate).map(updateMapUtil.insert).toList
 }
 
 /// every tx-s:
+// unsent failure-reports are written instantly;
+// reports are aggregated to TxReportingStatus-s of replica-s, where maxTxId is common for all replicas;
+// ok-report is written in response to failure-report by other replica (if not maxTxReported);
+// need to write ok-reports are checked every second;
 
 @c4assemble("ServerCompApp") class TxHistoryAssembleBase(
   txHistoryEveryTxFactory: TxHistoryEveryTxFactory, actorName: ActorName,
@@ -151,6 +154,8 @@ case class TxReportingStatus(electorClientId: SrcId, maxTxId: String, maxTxRepor
 
 /// main tx-s:
 
+// reports are purged every `period`;
+// we remember their max-tx-id from period ago, then purge `< prevMaxTxId` (keeping for last tx);
 case object TxHistoryPrevMaxTxIdKey extends TransientLens[Option[String]](None)
 case class TxHistoryPrevMaxTxIdEvent(value: Option[String]) extends TransientEvent(TxHistoryPrevMaxTxIdKey, value)
 @c4("ServerCompApp") final case class TxReportPurgeTx(srcId: SrcId = "TxReportPurgeTx")(
@@ -168,8 +173,8 @@ case class TxHistoryPrevMaxTxIdEvent(value: Option[String]) extends TransientEve
 }
 
 @c4("ServerCompApp") final case class TxHistoryPurgeTx(srcId: SrcId = "TxHistoryPurgeTx")(
-  snapshotLister: SnapshotLister, getPurge: GetByPK[S_TxHistoryPurge], sleep: Sleep,
-) extends SingleTxTr {
+  snapshotLister: SnapshotLister, getPurge: GetByPK[S_TxHistoryPurge], sleep: Sleep, reducer: RichRawWorldReducer,
+) extends SingleTxTr with LazyLogging {
   private val checkPeriod = 60*5 //s
   private val keepPeriod = 60*60*24*30 //s
   def transform(local: Context): TxEvents = {
@@ -177,6 +182,7 @@ case class TxHistoryPrevMaxTxIdEvent(value: Option[String]) extends TransientEve
     val msUntil = snapshots.map(_.mTime).maxOption.fold(0L)(_-keepPeriod*1000)
     val was = getPurge.ofA(local).values.toSet
     val will = snapshots.filter(_.mTime < msUntil).map(_.snapshot.offset).maxOption.map(S_TxHistoryPurge).toSet
+    logger.debug(s"$will ... ${reducer.history(local)}")
     LEvent.delete(SortByPK(was--will)) ++ LEvent.update(SortByPK(will--was)) ++ sleep.forSeconds(checkPeriod)
   }
 }
@@ -189,7 +195,8 @@ case class TxHistoryPrevMaxTxIdEvent(value: Option[String]) extends TransientEve
   private def detected(local: Context) = { // only when single replica is active, there will be not detected, so we prevent restarting all but one;
     val pids = readyProcessUtil.getAll(local).enabledForCurrentRole.toSet
     val reports = getReports.ofA(local).values
-    val res = reports.filter(r=>pids(r.electorClientId)).groupBy(_.txId).values.exists(r => r.map(_.sum).toSet.size > 1)
+    val reportsOfActiveReplicas = reports.filter(r=>pids(r.electorClientId))
+    val res = reportsOfActiveReplicas.groupBy(_.txId).values.exists(r => r.map(_.sum).toSet.size > 1)
     if(res) logger.error(s"detected tx history split: ${reports.toSeq.sortBy(_.srcId)}")
     res
   }
@@ -207,3 +214,13 @@ case class TxHistoryPrevMaxTxIdEvent(value: Option[String]) extends TransientEve
     else createHistorySplit(now) ++ proc.complete(Instant.now)
   }
 }
+
+/*
+testing:
+  make some assemble-error; observe report-updates by different replicas;
+then make flaky error; observe ok-report from some replica;
+observe split detected; make a few times: observe case with 1 and 2 restarts, no more;
+observe non-last reports are deleted after a period, and last reports are kept;
+history persists in snapshot: have some failure history, make snap, restart;
+check weeks later that S_TxHistoryPurge contains some reasonable offset, and there are no history points earlier;
+*/

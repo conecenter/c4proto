@@ -47,13 +47,14 @@ import ee.cone.c4di.c4
   ): RichRawWorldImpl = {
     val eventIds = events.map(_.srcId)
     (new AssemblerProfiling).debugOffsets(s"starts-reducing ${errOpt.isEmpty}", eventIds)
-    val updates = if(errOpt.nonEmpty) Nil else events.flatMap(toUpdate.toUpdates(_,"rma"))
     val onlyTxId = eventIds match { case Seq(id) => Option(id) case _ => None }
-    val (history, snUpdates) = txHistoryUtil.reduce(context.history, updates, onlyTxId, errOpt)
-    val snapshot = context.snapshot.add(snUpdates, _=>true)
-    val reverting = if(canRevert) context.reverting.add(snUpdates, _=>true) else context.reverting
-    val nOffset = eventIds.maxOption.getOrElse(context.offset)
-    val updatesL = firstborn ::: snUpdates.map(toUpdate.toUpdateLost)
+    val (history, updates) =
+      if(errOpt.isEmpty) txHistoryUtil.reduce(context.history, events.flatMap(toUpdate.toUpdates(_,"rma")), onlyTxId)
+      else (txHistoryUtil.addFailed(context.history, onlyTxId.get, errOpt.get), Nil)
+    val snapshot = context.snapshot.add(updates, _=>true)
+    val reverting = if(canRevert) context.reverting.add(updates, _=>true) else context.reverting
+    val nOffset = (context.offset :: eventIds).max
+    val updatesL = firstborn ::: updates.map(toUpdate.toUpdateLost)
     val debug = debugTxs.exists(cfTxs=>eventIds.exists(id=>id.contains(cfTxs)||cfTxs.contains(id)))
     val util = Single(utilOpt.value)
     val nAssembled = util.toTreeReplace(context.assembled, updatesL, RAssProfilingContext(0, eventIds, debug))
