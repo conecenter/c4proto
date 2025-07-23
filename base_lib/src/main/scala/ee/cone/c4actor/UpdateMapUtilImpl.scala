@@ -77,8 +77,10 @@ final class RawObjectListProtoAdapter extends ProtoAdapter[List[(Int,Any)]](
   ): N_UpdateFrom = {
     if(up.flags != 0)
       logger.warn(s"flagged update "+toSzStr(up))
-    if(!eqEncoded(wasValue,up.fromValue) && onError(up))
+    if(!eqEncoded(wasValue,up.fromValue) && onError(up)) {
       logger.warn(s"inconsistent update from ${wasValue.size} to "+toSzStr(up))
+      logger.debug(s"${adapter.decode(wasValue)} vs ${adapter.decode(up.fromValue)}")
+    }
     if(wasFromValue != up.fromValue) up.copy(fromValue = wasFromValue) else up
   }
   private def start(ignore: Set[Long], fromEmpty: Boolean, finish: List[N_UpdateFrom]=>List[N_UpdateFrom]): UpdateMapping =

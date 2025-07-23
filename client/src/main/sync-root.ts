@@ -72,7 +72,7 @@ const Receiver = ({setState,doAck,createNode}:ReceiverArgs) => {
         Object.keys(spec).forEach(key=>{
             //console.log("U",key,spec[key])
             const sValue: object = asObjectOrArray(spec[key])
-            // @ts-expect-error
+            //#@ts-expect-error
             const value = Array.isArray(sValue) ? sValue : "$set" in sValue ? sValue["$set"] : sValue
             const cIdentity = pIdentity === "root" ? "" : resolve(pIdentity, key)
             if(isIncomingKey(key)) 

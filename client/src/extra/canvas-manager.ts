@@ -92,8 +92,8 @@ export const UseCanvas = ({canvasFactory,useBranch}:CanvasModArgs) => (prop:Canv
         const [commands,colorToContext] = gatherDataFromPathTree(prop)
         const parsed = {...prop,commands,value,onChange}
         const sendToServer = (patch: {headers: ObjS<string>}, color: string) => {
-            if(!colorToContext[color]) return
-            enqueue(colorToContext[color], {value: "", skipByPath: false, ...patch}) //?move closure
+            const context = colorToContext[color] ?? ''
+            if(context) return enqueue(context, {value: "", skipByPath: false, ...patch}) //?move closure
         }
         const state = {parentNode,sizesSyncEnabled:isRoot,canvas,parsed,sendToServer}
         return manageAnimationFrame(win, ()=>canvas.checkActivate(state))

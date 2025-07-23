@@ -5,7 +5,7 @@ import ee.cone.c4actor.QProtocol.{N_UpdateFrom, S_Firstborn, S_TxReport}
 import ee.cone.c4actor.TxHistoryProtocol._
 import ee.cone.c4actor.Types.{LEvents, NextOffset, SrcId, TxEvents}
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{ToPrimaryKey, by, c4assemble}
+import ee.cone.c4assemble.{Single, ToPrimaryKey, by, c4assemble}
 import ee.cone.c4di.{c4, c4multi}
 import ee.cone.c4proto.{HasId, Id, ProtoAdapter, protocol}
 
@@ -23,7 +23,7 @@ case class TxHistoryImpl(
 ) extends TxHistory
 
 @protocol("ProtoApp") object TxHistoryProtocol {
-  case class N_TxSum(@Id(0x001A) txId: String, @Id(0x0010) sum: String)
+  case class N_TxSum(@Id(0x0019) txId: String, @Id(0x0010) sum: String)
   @Id(0x001C) case class S_TxHistory(
     @Id(0x0011) srcId: SrcId, // snapshot tx id
     @Id(0x001F) sums: List[N_TxSum], // 1st txId is unknown, rest are failed
@@ -160,12 +160,14 @@ case object TxHistoryPrevMaxTxIdKey extends TransientLens[Option[String]](None)
 case class TxHistoryPrevMaxTxIdEvent(value: Option[String]) extends TransientEvent(TxHistoryPrevMaxTxIdKey, value)
 @c4("ServerCompApp") final case class TxReportPurgeTx(srcId: SrcId = "TxReportPurgeTx")(
   getReports: GetByPK[S_TxReport], getTxReportingStatus: GetTxReportingStatus, sleep: Sleep,
-) extends SingleTxTr {
+) extends SingleTxTr with LazyLogging {
   private val period = 60 //s
   def transform(local: Context): TxEvents = {
+    val reports = SortByPK(getReports.ofA(local).values)
+    logger.debug(s"$reports")
     val deletes = LEvent.delete(for {
       prevMaxTxId <- TxHistoryPrevMaxTxIdKey.of(local).toSeq
-      report <- SortByPK(getReports.ofA(local).values.filter(_.txId < prevMaxTxId))
+      report <- reports.filter(_.txId < prevMaxTxId)
     } yield report)
     val maxTxIdOpt = getTxReportingStatus.of(local).map(_.maxTxId)
     deletes ++ Seq(TxHistoryPrevMaxTxIdEvent(maxTxIdOpt)) ++ sleep.forSeconds(period)
@@ -189,38 +191,49 @@ case class TxHistoryPrevMaxTxIdEvent(value: Option[String]) extends TransientEve
 
 @c4("ServerCompApp") final case class TxHistorySplitTx(srcId: SrcId = "TxHistorySplitTx")(
   getReports: GetByPK[S_TxReport], readyProcessUtil: ReadyProcessUtil, getTxHistorySplit: GetByPK[S_TxHistorySplit],
-  sleep: Sleep,
+  sleep: Sleep, config: ListConfig,
 ) extends SingleTxTr with LazyLogging {
-  private val preventRestartPeriod = 60 * 60 * 2 //s
+  private val preventRestartPeriod =
+    Single.option(config.get("C4PREVENT_RESTART_PERIOD_SEC")).fold(60L * 60L * 2L)(_.toLong)
   private def detected(local: Context) = { // only when single replica is active, there will be not detected, so we prevent restarting all but one;
     val pids = readyProcessUtil.getAll(local).enabledForCurrentRole.toSet
-    val reports = getReports.ofA(local).values
-    val reportsOfActiveReplicas = reports.filter(r=>pids(r.electorClientId))
-    val res = reportsOfActiveReplicas.groupBy(_.txId).values.exists(r => r.map(_.sum).toSet.size > 1)
-    if(res) logger.error(s"detected tx history split: ${reports.toSeq.sortBy(_.srcId)}")
+    val reportsOfActiveReplicas = getReports.ofA(local).values.filter(r=>pids(r.electorClientId)).toSeq
+    val res = reportsOfActiveReplicas.groupBy(_.txId).collect{ case (txk,r) if r.map(_.sum).toSet.size > 1 => txk }.toSeq.sorted
+    if(res.nonEmpty){
+      logger.error(s"detected tx history split, txs: $res")
+      for(rep <- reportsOfActiveReplicas.sortBy(r => (r.txId,r.srcId))) logger.error(s"a rep: $rep")
+    }
+    res.nonEmpty
+  }
+  private def restartedRecently(splitOpt: Option[S_TxHistorySplit], proc: ReadyProcess) = {
+    val res = splitOpt.exists(split => split.txId < proc.txId)
+    logger.info(if(res) "restarted recently" else "not restarted yet")
     res
   }
-  private def restartedRecently(local: Context, proc: ReadyProcess, now: Long) = {
-    val res = getTxHistorySplit.ofA(local).exists{ case (_,s) => s.txId < proc.txId && now < s.until }
-    if(res) logger.error(s"restarted recently")
+  private def needHistorySplit(splitOpt: Option[S_TxHistorySplit], now: Long): LEvents = {
+    val res =
+      if(splitOpt.nonEmpty) Nil
+      else LEvent.update(S_TxHistorySplit("TxHistorySplit", "", now + preventRestartPeriod * 1000))
+    logger.info(if(res.isEmpty) "using existing split" else "creating new split")
     res
   }
-  private def createHistorySplit(now: Long): LEvents =
-    LEvent.update(S_TxHistorySplit("TxHistorySplit", "", now + preventRestartPeriod * 1000))
   def transform(local: Context): TxEvents = {
     val now = System.currentTimeMillis()
     val proc = readyProcessUtil.getCurrent(local)
-    if(!detected(local) || proc.completionReqAt.nonEmpty || restartedRecently(local, proc, now)) sleep.forSeconds(1)
-    else createHistorySplit(now) ++ proc.complete(Instant.now)
+    val splitOpt = Single.option(getTxHistorySplit.ofA(local).values.filter(s => now < s.until).toSeq)
+    if(proc.completionReqAt.nonEmpty || !detected(local) || restartedRecently(splitOpt, proc)) sleep.forSeconds(1)
+    else needHistorySplit(splitOpt, now) ++ proc.complete(Instant.now)
   }
 }
 
 /*
 testing:
-  make some assemble-error; observe report-updates by different replicas;
-then make flaky error; observe ok-report from some replica;
-observe split detected; make a few times: observe case with 1 and 2 restarts, no more;
-observe non-last reports are deleted after a period, and last reports are kept;
-history persists in snapshot: have some failure history, make snap, restart;
-check weeks later that S_TxHistoryPurge contains some reasonable offset, and there are no history points earlier;
+  +make some assemble-error; observe report-updates by different replicas;
+  +then make flaky error; observe ok-report from some replica;
+  +observe split detected; make a few times: observe case with 1 and 2 restarts, no more;
+  +observe non-last reports are deleted after a period, and last reports are kept;
++history persists in snapshot: have some failure history, make snap, restart;
+-check weeks later that S_TxHistoryPurge contains some reasonable offset, and there are no history points earlier;
+
+Even if we write duplicate fail-report, it might not be problem, if sum is same;
 */

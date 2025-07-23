@@ -64,7 +64,7 @@ trait UpdateFlag {
   @Id(0x0017) case class S_TxReport(
     @Id(0x0011) srcId: SrcId,
     @Id(0x00B1) electorClientId: SrcId, // it is id of tx receiver process
-    @Id(0x001A) txId: String,
+    @Id(0x0019) txId: String, // not 0x001A that autofill-s
     @Id(0x0010) sum: String,
     @Id(0x0018) reason: String
   )

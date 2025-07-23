@@ -39,8 +39,14 @@ function ExampleReplicaList({replicas}:{replicas?:{
 }
 
 const revertToSavepointIdOf = identityAt("revertToSavepoint")
+const makeSnapshotIdOf = identityAt("makeSnapshot")
+const makeFailureIdOf = identityAt("makeFailure")
 function ExampleReverting({identity}:{identity: Identity}){
-    return <div><ExampleButton caption="revert" identity={revertToSavepointIdOf(identity)}/></div>
+    return <div>
+        <ExampleButton caption="revert" identity={revertToSavepointIdOf(identity)}/>
+        <ExampleButton caption="make snapshot" identity={makeSnapshotIdOf(identity)}/>
+        <ExampleButton caption="make failure" identity={makeFailureIdOf(identity)}/>
+    </div>
 }
 
 const activateIdOf = identityAt("activate")

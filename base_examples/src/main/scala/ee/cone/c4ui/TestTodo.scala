@@ -17,6 +17,10 @@ import ee.cone.c4proto._
 import ee.cone.c4ui.TestCanvasProtocol.B_TestFigure
 import ee.cone.c4vdom.Types._
 import ee.cone.c4vdom._
+import TestFailureProtocol._
+import ee.cone.c4actor_branch.BranchErrorSaver
+import ee.cone.c4actor_branch.BranchTypes.BranchKey
+import java.util.concurrent.atomic.AtomicLong
 
 ////
 
@@ -108,8 +112,10 @@ case class TodoTasks(srcId: SrcId, tasks: List[TodoTask])
 
   type ToList = SrcId
   def mapTask(key: SrcId, task: Each[TodoTask]): Values[(ToList, TodoTask)] = List(TodoTasks.listKey->task)
-  def joinList(key: SrcId, @by[ToList] tasks: Values[TodoTask]): Values[(SrcId, TodoTasks)] =
+  def joinList(key: SrcId, @by[ToList] tasks: Values[TodoTask]): Values[(SrcId, TodoTasks)] = {
+    //if(true) throw new Exception("test snapshot load failure");
     List(WithPK(TodoTasks(key, tasks.sortBy(-_.orig.createdAt).toList)))
+  }
 }
 
 trait TodoTaskEl extends ToChildPair
@@ -235,19 +241,57 @@ object TestCanvasView {
 
 ////////////////////////////
 
+@protocol("TestTodoApp") object TestFailureProtocol {
+  @Id(0x000D) case class B_TestFailure(@Id(0x0009) srcId: String)
+}
+case class TestFailures(srcId: String)
+@c4assemble("TestTodoApp") class TestFailureAssembleBase(
+  actorName: ActorName, config: Config,
+)(
+  val counter: AtomicLong = new AtomicLong(0L)
+) extends LazyLogging {
+  type ByOne = String
+  def map(key: SrcId, testFailure: Each[B_TestFailure]): Values[(ByOne, B_TestFailure)] =
+    Seq(actorName.value -> testFailure)
+  // && Random.nextBoolean()
+  // if(Random.nextDouble()>0.65)
+  def join(
+    key: SrcId,
+    @by[ByOne] testFailures: Values[B_TestFailure]
+  ): Values[(SrcId, TestFailures)] = {
+    logger.info(s"flacky join ${counter.get()}")
+    if(counter.getAndAdd(1L)>0 && config.get("C4HTTP_PORT") == "8067") throw new Exception("never TestFailure")
+    logger.info("flacky join OK")
+    Nil
+  }
+}
+@c4("TestTodoApp") final class TestBranchErrorSaver extends BranchErrorSaver with LazyLogging {
+  def saveErrors(local: Context, branchKey: BranchKey, error: Throwable): Seq[LEvent[Product]] = {
+    logger.error(s"$error")
+    Nil
+  }
+}
+
+
 @c4tags("TestTodoApp") trait RevertRootViewTags[C] {
-  @c4el("ExampleReverting") def reverting(key: String, revertToSavepoint: Receiver[C]): ToChildPair
+  @c4el("ExampleReverting") def reverting(
+    key: String, revertToSavepoint: Receiver[C], makeSnapshot: Receiver[C], makeFailure: Receiver[C],
+  ): ToChildPair
 }
 
 @c4("TestTodoApp") final case class RevertRootView(locationHash: String = "revert")(
-  val rc: UpdatingReceiverFactory, wrapView: WrapView,
-  revertRootViewTagsProvider: RevertRootViewTagsProvider, reducer: RichRawWorldReducer,
+  val rc: UpdatingReceiverFactory, wrapView: WrapView, idGenUtil: IdGenUtil,
+  revertRootViewTagsProvider: RevertRootViewTagsProvider, reducer: RichRawWorldReducer, snapshotMaker: SnapshotMaker,
+  getB_TestFailure: GetByPK[B_TestFailure], getTestFailures: GetByPK[TestFailures] /*for NeedWorldPartRule*/,
+  updateMapUtil: UpdateMapUtil, toUpdate: ToUpdate,
 )(
   tags: RevertRootViewTags[Context] = revertRootViewTagsProvider.get[Context],
 ) extends ByLocationHashView with Updater with LazyLogging {
   import RevertRootView._
   def view: Context => ViewRes = wrapView.wrap { local =>
-    val res = tags.reverting(key = "reverting", revertToSavepoint = rc(Revert()))
+    val res = tags.reverting(key = "reverting",
+      revertToSavepoint = rc(Revert()), makeSnapshot = rc(MakeSnapshot()), makeFailure = rc(MakeFailure())
+    )
     List(res.toChildPair)
   }
   def receive: Handler = _ => l => {
@@ -255,10 +299,20 @@ object TestCanvasView {
       val res = reducer.toRevertUpdates(l)
       logger.info(s"${res.size}")
       res
+    case MakeSnapshot() =>
+      val responses = snapshotMaker.makeOrFind(l, None)
+      logger.info(s"${responses}")
+      Nil
+    case MakeFailure() =>
+      logger.info(s"AAA: ${getB_TestFailure.ofA(l).size}")
+      LEvent.update(B_TestFailure(idGenUtil.srcIdRandom()))
+        .map(lE=>RawTxEvent(updateMapUtil.insert(toUpdate.toUpdate(lE)))) // we need it while have local txAdd
   }
 }
 object RevertRootView {
   private case class Revert() extends VAction
+  private case class MakeSnapshot() extends VAction
+  private case class MakeFailure() extends VAction
 }
 
 ////////////////////////////

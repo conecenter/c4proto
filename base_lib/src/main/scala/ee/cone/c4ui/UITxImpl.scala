@@ -64,7 +64,7 @@ import scala.Function.chain
 @c4("UICompApp") final class EnableBranchScaling extends EnableSimpleScaling(classOf[UITx])
 
 @c4("UICompApp") final case class UIPostHandler(
-  branchErrorSaver: Option[BranchErrorSaver], catchNonFatal: CatchNonFatal, fromAlienWishUtil: FromAlienWishUtil,
+  branchErrorSaver: Option[BranchErrorSaver], txTry: TxTry, fromAlienWishUtil: FromAlienWishUtil,
   vDomResolver: VDomResolver,
 ) extends LazyLogging {
   // do
@@ -94,7 +94,7 @@ import scala.Function.chain
   private def resetUntil: Context => Context = VDomStateKey.modify(_.map(st=>st.copy(until = 0)))
   def handle(local: Context, wish: BranchWish): (Context, LEvents) =
     measure(s"branch ${wish.branchKey} tx begin ${wish.index}"){() =>
-      val (nLocal, lEvents) = catchNonFatal{
+      val (nLocal, lEvents) = txTry(local){
         val message = VDomMessageImpl(wish, fromAlienWishUtil.parsePairs(wish.value).toMap)
         dispatch(local, message)
       }(s"branch ${wish.branchKey} dispatch failed")(handleError(local, wish.branchKey, _))
