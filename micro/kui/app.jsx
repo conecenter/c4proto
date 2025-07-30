@@ -96,7 +96,7 @@ const PodsTabView = viewProps => {
                 { items?.map((pod, index) => <Tr key={pod.key} index={index}>
                     <Td>
                         {pod.kube_context} <br/>
-                        {pod.nodeName?.length <= 7 ? pod.nodeName : `${pod.nodeName.substring(0,7)}…`}
+                        {pod.nodeName?.length <= 7 ? pod.nodeName : `${pod.nodeName?.substring(0,7)}…`}
                     </Td>
                     <Td>
                         <input type="radio" checked={pod.selected /*'✔️'*/}
