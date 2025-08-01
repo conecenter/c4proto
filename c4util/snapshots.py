@@ -7,7 +7,7 @@ import time
 import urllib.parse
 import re
 
-from . import run, never_if, one, read_text, list_dir, run_text_out, http_exchange, http_check, Popen, never, log
+from . import run, never_if, one, read_text, list_dir, run_text_out, http_exchange, http_check, Popen, never, log, run_no_die
 from .cluster import get_prefixes_from_pods, s3path, s3init, s3list, get_kubectl, get_pods_json, wait_no_active_prefix,\
     get_all_contexts, get_any_pod
 
@@ -152,7 +152,7 @@ def snapshot_copy(env, def_kafka_addr, fr, to):
         #
         to_mc = (*s3exec, "/tools/mc")
         to_bucket = f"{to_prefix}.snapshots"
-        run((*to_mc, "mb", s3path(to_bucket)))
+        run_no_die((*to_mc, "mb", s3path(to_bucket)))
         never_if([
             f'bad offset: has {it["key"]} >= new {new_fn}'
             for it in s3list(to_mc, s3path(to_bucket)) if it["key"] >= new_fn
