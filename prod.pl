@@ -334,7 +334,7 @@ my $build_client = sub{
     my $conf_dir = &$single_or_undef(grep{-e} map{"$_/webpack"} <$dir/src/*>) || die;
     if(&$if_changed("$dir/package.json", &$get_text("$conf_dir/package.json"), sub{1})){
         sy("cp -r $conf_dir/patches $dir/.") if -e "$conf_dir/patches";
-        sy("cd $dir && npm install --no-save --legacy-peer-deps");
+        sy("cd $dir && npm install --no-save");
     }
     sy("cd $dir && cp $conf_dir/webpack.config.js . && cp $conf_dir/tsconfig.json . && cp $conf_dir/.eslintrc.json . && node_modules/webpack/bin/webpack.js --color $opt");# -d
     &$put_text("$build_dir/publish_time",time);
