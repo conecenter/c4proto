@@ -44,7 +44,7 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
   def send[M<:Product](local: Context): Context = {
     val updates: List[N_UpdateFrom] = WriteModelKey.of(local).toList
     if(updates.isEmpty) local else {
-      logger.debug(s"sending: ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
+      logger.debug(s"sending by ${Thread.currentThread.getName} ${updates.size}: ${updates.map(_.valueTypeId).distinct.map(java.lang.Long.toHexString)}")
       val (bytes, headers) = toUpdate.toBytes(updates)
       val rec = new QRecordImpl(currentTxLogName, bytes, headers)
       val offset = Single(getRawQSender.value).send(rec)
