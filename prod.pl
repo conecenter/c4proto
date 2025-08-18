@@ -447,15 +447,17 @@ my $make_kc_yml = sub{
             http => {
                 paths => [map{+{
                     backend => {
-                        serviceName => $name,
-                        servicePort => $$_{port},
+                        service => {
+                            name => $name,
+                            port => { number => $$_{port} },
+                        },
                     },
                     $$_{path} ? (path=>$$_{path}) : (),
                 }}@$v],
             },
         }});
         @rules ? {
-            apiVersion => "extensions/v1beta1",
+            apiVersion => "networking.k8s.io/v1",
             kind => "Ingress",
             metadata => {
                 name => $name,
