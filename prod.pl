@@ -782,7 +782,7 @@ my $ci_measure = sub{
 my @kinds = (
     [qw[core v1 Secret]],[qw[core v1 Service]],
     [qw[apps v1 Deployment]],[qw[apps v1 StatefulSet]],
-    [qw[extensions v1beta1 Ingress]],
+    [qw[networking.k8s.io v1 Ingress]],
 );
 
 my $ci_get_image = sub{
