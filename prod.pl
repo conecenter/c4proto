@@ -452,7 +452,7 @@ my $make_kc_yml = sub{
                             port => { number => $$_{port} },
                         },
                     },
-                    $$_{path} ? (path=>$$_{path}) : (),
+                    $$_{path} ? (path=>$$_{path}, pathType=>"Prefix") : (),
                 }}@$v],
             },
         }});
