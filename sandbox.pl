@@ -33,7 +33,7 @@ my $mandatory_of = sub{ my($k,$h)=@_; (exists $$h{$k}) ? $$h{$k} : die "no $k" }
 
 my $debug_port = 5005;
 my $serve_proxy = sub{
-    my $debug_ext_address = "0.0.0.0:".&$mandatory_of(C4DEBUG_PORT => \%ENV);
+    my $debug_ext_address = &$mandatory_of(C4JDWP_ADDRESS => \%ENV);
     my $debug_int_address = &$get_text_or_empty("/c4/haproxy.to");
     $debug_ext_address && $debug_int_address or &$exec("sleep","infinity");
     my $ha_cfg_path = "/c4/haproxy.cfg";
