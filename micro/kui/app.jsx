@@ -73,8 +73,12 @@ export const Page = viewProps => {
 }
 
 const PodsTabView = viewProps => {
-    const {userAbbr, items, pod_name_like, willSend} = viewProps
+    const {userAbbr, items, pod_name_like, pod_contexts, willSend} = viewProps
     return <>
+          {pod_contexts && <div className="mb-4">
+              <SelectorFilterGroup viewProps={viewProps} fieldName="pod_list_kube_context" items={pod_contexts.map(key => ({key,hint:key}))}/>
+          </div>}
+
           <div className="mb-4 flex flex-wrap gap-2 justify-start">
               <SelectorFilterGroup viewProps={viewProps} fieldName="pod_name_like" items={[
                 { key: `^(de|sp)-u?${userAbbr}.*-main-`, hint: `${userAbbr} pods` },

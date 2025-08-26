@@ -30,10 +30,13 @@ def one_opt(l): return l[0] if l and len(l)==1 else None
 
 def get_app_name(pod): return sel(pod,"metadata", "labels", "app")
 
-def init_pods(mut_pods, mut_services, mut_ingresses, active_contexts, get_forward_service_name):
-    def load(mail, pod_name_like='', **_):
-        if not pod_name_like: return { "need_filters": True }
+def init_pods(mut_pods, mut_services, mut_ingresses, contexts, get_forward_service_name):
+    def load(mail, pod_name_like='', pod_list_kube_context='', **_):
+        pod_contexts = [c["name"] for c in contexts]
+        kube_context = pod_list_kube_context
+        if not kube_context or not pod_name_like: return { "need_filters": True, "pod_contexts": pod_contexts }
         cond = re.compile(pod_name_like)
+        pods = mut_pods.get(kube_context, [])
         items = sorted((
             {
                 "key": f'{kube_context}~{pod_name}',
@@ -50,13 +53,12 @@ def init_pods(mut_pods, mut_services, mut_ingresses, active_contexts, get_forwar
                 "selected": selected_app_name and get_app_name(pod) == selected_app_name,
                 "host": sel(one_opt(sel(mut_ingresses[kube_context], get_app_name(pod), "spec", "rules")),"host"),
             }
-            for kube_context, pods in mut_pods.items()
             for selected_app_name in [sel(mut_services[kube_context], get_forward_service_name(mail),"spec","selector","app")]
             for pod_name, pod in pods.items() if cond.search(pod_name)
             for container_status in [one_opt(sel(pod,"status", "containerStatuses"))]
             #for m in [pod_re.fullmatch(pod_name)] if m and m.group(3) == user_abbr
         ), key=lambda p:p["key"])
-        return { "items": items }
+        return { "items": items, "pod_contexts": pod_contexts }
     def handle_select_pod(mail, kube_context, name, **_):
         debug_port = 4005
         pod = mut_pods[kube_context][name]
@@ -81,7 +83,7 @@ def init_pods(mut_pods, mut_services, mut_ingresses, active_contexts, get_forwar
     }
     watchers = [
         d
-        for c in active_contexts
+        for c in contexts
         for d in [
             kube_watcher(mut_pods, c, "api/v1", "pods"),
             kube_watcher(mut_services, c, "api/v1", "services"),

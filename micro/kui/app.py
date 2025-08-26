@@ -27,14 +27,15 @@ def load_links(**_): return {
 def main():
     basicConfig(level= DEBUG if environ.get("C4KUI_DEBUG") else INFO)
     dir_life = TemporaryDirectory()
-    active_contexts = [c for c in loads(environ["C4KUI_CONTEXTS"]) if c.get("watch")]
+    contexts = loads(environ["C4KUI_CONTEXTS"])
+    active_contexts = [c for c in contexts if c.get("watch")]
     index_content, app_ver = build_client()
     get_clusters, agent_auth_handlers = init_agent_auth({}, active_contexts, get_forward_service_name, Route)
     def load_shared(mail): return {
         "appVersion": app_ver, "userAbbr": get_user_abbr(mail), "clusters": get_clusters(),
         "managedKubeContexts": [c["name"] for c in active_contexts],
     }
-    pod_watchers, pod_actions = init_pods({}, {}, {}, active_contexts, get_forward_service_name)
+    pod_watchers, pod_actions = init_pods({}, {}, {}, contexts, get_forward_service_name)
     cio_task_watchers, cio_task_actions = init_cio_tasks({}, active_contexts)
     cio_log_watchers, cio_log_actions, cio_log_handlers = init_cio_logs(Path(dir_life.name), active_contexts, get_user_abbr, Route)
     executor = ThreadPoolExecutor(max_workers=16)
