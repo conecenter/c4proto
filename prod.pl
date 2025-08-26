@@ -632,7 +632,7 @@ my $up_gate = sub{
         C4SSE_PORT => $inner_sse_port,
         need_pod_ip => 1,
         (map{($_=>&$mandatory_of($_=>$conf))} qw[C4KEEP_SNAPSHOTS replicas]),
-        (map{($_=>&$mandatory_of($_=>$conf))} grep{$$conf{$_}} qw[C4HTTP_DOWNGRADE]),
+        (map{($_=>&$mandatory_of($_=>$conf))} grep{$$conf{$_}} qw[C4HTTP_DOWNGRADE C4AUTH_KEY_FILE]),
     });
 };
 
