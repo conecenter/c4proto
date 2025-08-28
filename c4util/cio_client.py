@@ -29,24 +29,31 @@ def task_hint(arg): return one(*task_kv(arg)[1:])
 def post_json(addr, path, d):
     http_check(*http_exchange(HTTPConnection(*addr), "POST", path, dumps(d).encode("utf-8")))
 
+def post_steps(steps): post_json(cmd_addr(), "/c4q", steps)
+
 def log_topic(): return "cio_log.0"
+
+def ev_topic(): return "cio_ev.0"
+
+def consume(topic):
+    with create_connection(kafka_addr(0)) as sock:
+        def sender():
+            sock.sendall(f"CONSUME {ev_topic()}\n".encode())
+            sock.sendall(stdin.readline().encode())
+        Thread(target=sender, daemon=True).start()
+        return to_stdout(sock)
 
 def main():
     match argv[1:]:
         case ["reporting"]:
             with create_connection(reporting_addr()) as sock:
                 return to_stdout(sock)
-        case ["consume_log"]:
-            with create_connection(kafka_addr(0)) as sock:
-                def sender():
-                    sock.sendall(f"CONSUME {log_topic()}\n".encode())
-                    sock.sendall(stdin.readline().encode())
-                Thread(target=sender, daemon=True).start()
-                return to_stdout(sock)
+        case ["consume_log"]: consume(log_topic())
+        case ["consume_events"]: consume(ev_topic())
         case [steps_str]:
             steps = loads(steps_str)
             hint = task_hint("call")
-            post_json(cmd_addr(), "/c4q", [["queue","hint",hint],*steps])
+            post_steps([["queue","hint",hint],*steps])
             return hint
         case _: raise Exception("bad args")
 

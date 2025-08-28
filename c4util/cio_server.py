@@ -67,10 +67,9 @@ def get_cron_steps(main_def_list, tm_abbr):
         *select_def(main_def_list, "daily", tm_abbr[1])
     ]]
 
-def steps_to_task(env, report, def_list, steps):
+def steps_to_task(env, def_list, steps):
     steps = plan_steps((steps, (def_list, None)))
     steps = arg_substitute({"group":"{group}","task":"{task}"}, steps, die_on_undef=True)
-    steps = [([*d,report()] if d[0] == "queue_report" else d) for d in steps]
     cmd = get_cmd(run_steps, env, steps)
     opt = {k:one(*{*vs}) for k, vs in group_map([d[1:] for d in steps if d[0] == "queue"], lambda d: d).items()}
     return PlainTask(opt.get("name", "def"), opt.get("hint", task_hint("script")), opt.get("skip"), cmd)
@@ -133,7 +132,7 @@ def handle_any(env, def_repo_dir, report, report_send, tasks, requested_steps, t
                 same_tm = was_tm_abbr == tm_abbr
                 cron_steps = () if same_tm else fallback((), get_cron_steps, def_lists[main_dir], tm_abbr)
                 for ss in [*requested_steps,*cron_steps,*service_steps]:
-                    task = fallback(None, steps_to_task, env, report, def_lists[util_dir], ss)
+                    task = fallback(None, steps_to_task, env, def_lists[util_dir], ss)
                     if task is not None: tasks = tasks_push_skip(tasks, task)
                 requested_steps = ()
             reschedule = True

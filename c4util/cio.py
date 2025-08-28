@@ -1,5 +1,5 @@
 
-from time import sleep
+from time import sleep, time
 from tempfile import TemporaryDirectory
 from json import dumps, loads
 from pathlib import Path
@@ -12,7 +12,7 @@ from subprocess import run as sp_run
 from socket import create_connection
 
 from .threads import TaskQ, daemon
-from .cio_client import post_json, task_kv, log_addr, localhost, kafka_addr
+from .cio_client import post_steps, task_kv, log_addr, kafka_addr, ev_topic
 from . import snapshots as sn, cluster as cl, git, kube_reporter as kr, distribution
 from .cio_preproc import arg_substitute
 from . import run, list_dir, Popen, wait_processes, changing_text, one, read_text, never_if, need_dir, \
@@ -156,6 +156,13 @@ def access_once(deploy_context, d):
     return decode(cl.get_secret_part(cl.get_kubectl(deploy_context), res))
 
 
+def produce_event(event):
+    with create_connection(kafka_addr(0)) as sock:
+        exchange = cl.sock_exchange_init(sock)
+        exchange(f'PRODUCE {ev_topic()}'.encode(), "OK")
+        exchange(dumps({**event, "at": time()}, sort_keys=True).encode(), "ACK")
+
+
 def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "#": lambda *args: None,
     "called": lambda *args: None,
@@ -204,10 +211,8 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "local_kill_serve": lambda: repeat(local_kill_serve),
     "die_after": lambda per: daemon(lambda: (sleep(int(per[:-1]) * {"m":60, "h":3600}[per[-1]]), never("expired"))),
     "kafka_client_serve": lambda opt: kafka_client_serve(deploy_context, opt["port_offset"], opt["conf"]),
-    "queue_report": lambda opt, report: (
-        info(dumps(report, indent=4, sort_keys=True)),
-        opt and post_json((localhost(),opt["port"]), opt["path"], report)
-    ),
+    "queue_submit": lambda steps: post_steps(steps),
+    "produce_event": lambda ev: produce_event(ev),
 }
 
 
