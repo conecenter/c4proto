@@ -10,6 +10,7 @@ export const Page = viewProps => {
     const tabs = [
         { key: "pods", hint: "Pods", view: p => <PodsTabView {...p}/> },
         { key: "cio_tasks", hint: "CIO tasks", view: p => <CIOTasksTabView {...p}/> },
+        { key: "cio_events", hint: "CIO events", view: p => <CIOEventsTabView {...p}/> },
         { key: "cio_logs", hint: "CIO logs", view: p => <CIOLogsTabView {...p}/> },
         { key: "s3", hint: "S3", view: p => <S3SnapshotsTabView {...p}/> },
         { key: "links", hint: "Links", view: p => <LinksTabView {...p}/> },
@@ -178,6 +179,30 @@ const CIOTasksTabView = viewProps => {
                 <NotFoundTr viewProps={viewProps} colSpan="3"/>
                 { items?.map((t, index) => <Tr key={t.task_name} index={index}>
                     <Td>{t.status}</Td><Td>{t.queue_name}</Td><Td>{t.task_name}</Td>
+                </Tr>)}
+            </tbody>
+          </Table>
+    </>
+}
+
+const CIOEventsTabView = viewProps => {
+    const {items, willSend} = viewProps
+    return <>
+          <Table>
+            <thead>
+              <tr>
+                <Th>Context</Th><Th>Task</Th><Th>Status</Th><Th>Actions</Th>
+              </tr>
+            </thead>
+            <tbody>
+                <NotFoundTr viewProps={viewProps} colSpan="4"/>
+                { items?.map((t, index) => <Tr key={`${t.kube_context}/${t.task}`} index={index}>
+                    <Td>{t.kube_context}</Td><Td>{t.task}</Td><Td>{t.status}</Td>
+                    <Td>
+                        <button className="bg-yellow-500 text-black px-2 py-1 rounded hover:bg-yellow-400"
+                            onClick={willSend({ op: 'cio_events.hide', kube_context: t.kube_context, task: t.task })}
+                        >Hide</button>
+                    </Td>
                 </Tr>)}
             </tbody>
           </Table>

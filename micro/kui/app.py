@@ -11,7 +11,7 @@ from s3 import init_s3
 from servers import daemon, restarting, build_client, run_proxy, http_serve, Route
 from agent_auth import init_agent_auth
 from pods import init_pods
-from cio import init_cio_tasks, init_cio_logs
+from cio import init_cio_tasks, init_cio_logs, init_cio_events
 
 def get_user_abbr(mail): return sub(r"[^A-Za-z]+","",mail.split("@")[0])
 def get_forward_service_name(mail): return f'fu-{get_user_abbr(mail)}'
@@ -38,17 +38,19 @@ def main():
     pod_watchers, pod_actions = init_pods({}, {}, {}, contexts, get_forward_service_name)
     cio_task_watchers, cio_task_actions = init_cio_tasks({}, active_contexts)
     cio_log_watchers, cio_log_actions, cio_log_handlers = init_cio_logs(Path(dir_life.name), active_contexts, get_user_abbr, Route)
+    cio_event_watchers, cio_event_actions = init_cio_events({}, active_contexts)
     executor = ThreadPoolExecutor(max_workers=16)
     s3_actions = init_s3(executor)
     handlers = {
         **agent_auth_handlers, **cio_log_handlers,
         "/": Route.http_auth(lambda **_: index_content),
         "/kop": Route.ws_auth({}, load_shared, {
-            **pod_actions, **cio_task_actions, **cio_log_actions, **s3_actions, "links.load": load_links,
+            **pod_actions, **cio_task_actions, **cio_log_actions, **cio_event_actions, **s3_actions,
+            "links.load": load_links,
         }),
         "_": Route.http_auth(lambda **_: "404"),
     }
     api_port = 1180
-    for watcher in [*pod_watchers,*cio_task_watchers,*cio_log_watchers]: daemon(restarting, watcher)
+    for watcher in [*pod_watchers,*cio_task_watchers,*cio_log_watchers,*cio_event_watchers]: daemon(restarting, watcher)
     daemon(run_proxy, api_port, handlers)
     http_serve(api_port, handlers)
