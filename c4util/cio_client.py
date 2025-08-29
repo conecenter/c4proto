@@ -38,7 +38,7 @@ def ev_topic(): return "cio_ev.0"
 def consume(topic):
     with create_connection(kafka_addr(0)) as sock:
         def sender():
-            sock.sendall(f"CONSUME {ev_topic()}\n".encode())
+            sock.sendall(f"CONSUME {topic}\n".encode())
             sock.sendall(stdin.readline().encode())
         Thread(target=sender, daemon=True).start()
         return to_stdout(sock)
