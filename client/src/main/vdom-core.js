@@ -75,8 +75,10 @@ export function VDomCore(log,activeTransforms,getRootElement){
         const body = contentWindow && contentWindow.document.body
         const frameParentElement = body && body.id && body
         if(frameElement && !frameParentElement) return state;
-        if(frameParentElement)
+        if(frameParentElement) {
             frameParentElement.style.fontSize = fontSize || ""
+            frameParentElement.style.setProperty("--frame-scale", parseFloat(fontSize) || 1); 
+        }
         return ({...changed(state), frameParentElement})
     })
 
