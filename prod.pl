@@ -432,8 +432,8 @@ push @tasks, ["chk_pkg_dep"," ",sub{
     &$chk_pkg_dep($gen_dir,$mod);
 }];
 my $install_jdk = sub{(
-    "RUN perl install.pl curl https://download.bell-sw.com/java/17.0.8+7/bellsoft-jdk17.0.8+7-linux-amd64.tar.gz",
-    #"RUN perl install.pl curl https://download.bell-sw.com/java/17.0.2+9/bellsoft-jdk17.0.2+9-linux-amd64.tar.gz",
+    #"RUN perl install.pl curl https://download.bell-sw.com/java/17.0.8+7/bellsoft-jdk17.0.8+7-linux-amd64.tar.gz",
+    "RUN perl install.pl curl https://download.bell-sw.com/java/24.0.2+12/bellsoft-jdk24.0.2+12-linux-amd64.tar.gz",
 )};
 
 push @tasks, ["ci_rt_chk","",sub{ &$chk_pkg_dep(@_) }];
