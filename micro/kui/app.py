@@ -12,6 +12,7 @@ from servers import daemon, restarting, build_client, run_proxy, http_serve, Rou
 from agent_auth import init_agent_auth
 from pods import init_pods
 from cio import init_cio_tasks, init_cio_logs, init_cio_events
+from profiling import init_profiling
 
 def get_user_abbr(mail): return sub(r"[^A-Za-z]+","",mail.split("@")[0])
 def get_forward_service_name(mail): return f'fu-{get_user_abbr(mail)}'
@@ -39,13 +40,14 @@ def main():
     cio_task_watchers, cio_task_actions = init_cio_tasks({}, active_contexts)
     cio_log_watchers, cio_log_actions, cio_log_handlers = init_cio_logs(Path(dir_life.name), active_contexts, get_user_abbr, Route)
     cio_event_watchers, cio_event_actions = init_cio_events({}, active_contexts)
+    profiling_actions, profiling_handlers = init_profiling({}, contexts, Route)
     executor = ThreadPoolExecutor(max_workers=16)
     s3_actions = init_s3(executor)
     handlers = {
-        **agent_auth_handlers, **cio_log_handlers,
+        **agent_auth_handlers, **cio_log_handlers, **profiling_handlers,
         "/": Route.http_auth(lambda **_: index_content),
         "/kop": Route.ws_auth({}, load_shared, {
-            **pod_actions, **cio_task_actions, **cio_log_actions, **cio_event_actions, **s3_actions,
+            **pod_actions, **cio_task_actions, **cio_log_actions, **cio_event_actions, **profiling_actions, **s3_actions,
             "links.load": load_links,
         }),
         "_": Route.http_auth(lambda **_: "404"),
