@@ -12,7 +12,7 @@ from traceback import print_exc
 from time import sleep, monotonic
 from hashlib import sha256
 from subprocess import check_call
-from logging import debug
+from logging import debug, info
 
 from websockets import Headers
 from websockets.sync.server import serve

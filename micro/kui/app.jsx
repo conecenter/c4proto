@@ -1,5 +1,6 @@
 
 import React from "react"
+import {useState,useEffect} from "react"
 import {start,useSimpleInput,useTabs,withHashParams} from "./util.js"
 
 export const Page = viewProps => {
@@ -13,6 +14,7 @@ export const Page = viewProps => {
         { key: "cio_events", hint: "CIO events", view: p => <CIOEventsTabView {...p}/> },
         { key: "cio_logs", hint: "CIO logs", view: p => <CIOLogsTabView {...p}/> },
         { key: "s3", hint: "S3", view: p => <S3SnapshotsTabView {...p}/> },
+        { key: "profiling", hint: "Profiling", view: p => <ProfilingTabView {...p}/> },
         { key: "links", hint: "Links", view: p => <LinksTabView {...p}/> },
     ]
 
@@ -74,7 +76,7 @@ export const Page = viewProps => {
 }
 
 const PodsTabView = viewProps => {
-    const {userAbbr, items, pod_name_like, pod_contexts, willSend} = viewProps
+    const {userAbbr, items, pod_name_like, pod_contexts, willSend, willNavigate} = viewProps
     return <>
           {pod_contexts && <div className="mb-4">
               <SelectorFilterGroup viewProps={viewProps} fieldName="pod_list_kube_context" items={pod_contexts.map(key => ({key,hint:key}))}/>
@@ -151,7 +153,14 @@ const PodsTabView = viewProps => {
                 </Tr>) }
             </tbody>
           </Table>
-
+          {(()=>{
+              const item = items?.find(p => p.selected)
+              return item && <button onClick={willNavigate({
+                  tab: "profiling", profiling_kube_context: item.kube_context, profiling_pod_name: item.name
+              })} className="text-sm text-blue-400 hover:underline">
+                  Profile selected
+              </button>
+          })()}
           {(()=>{
               const kube_context = items?.find(p => p.selected)?.kube_context
               return kube_context && userAbbr && <pre>{`
@@ -338,6 +347,68 @@ const S3SnapshotsTabView = viewProps => {
             </Table>
         </>
     )
+}
+
+const ProfilingTabView = viewProps => {
+    const {
+        profiling_kube_context, profiling_pod_name, profiling_period,
+        profiling_contexts, profiling_status, willSend
+    } = viewProps
+    const [seconds, setSeconds] = useState(0)
+    useEffect(() => {
+        setSeconds(0)
+        if (profiling_status === "P") {
+            const interval = setInterval(() => {
+                setSeconds(prev => prev + 1)
+            }, 1000)
+            return () => clearInterval(interval)
+        }
+    }, [profiling_status])
+    return <>
+        <div className="flex gap-2 mb-4">
+            <SelectorFilterGroup
+                viewProps={viewProps}
+                fieldName="profiling_kube_context"
+                items={(profiling_contexts||[]).map(key => ({ key, hint: key }))}
+            />
+        </div>
+        <div className="flex gap-2 mb-4">
+            <SimpleFilterInput
+                viewProps={viewProps}
+                fieldName="profiling_pod_name"
+                placeholder="Pod name..."
+            />
+            <SelectorFilterGroup
+                viewProps={viewProps}
+                fieldName="profiling_period"
+                items={[{ key: "15", hint: "15s" }, { key: "", hint: "60s" }, { key: "300", hint: "300s" }]}
+            />
+            <button
+                onClick={willSend({
+                    op: 'profiling.profile',
+                    kube_context: profiling_kube_context, pod_name: profiling_pod_name, period: profiling_period || "60"
+                })}
+                className="bg-blue-600 hover:bg-blue-500 px-4 py-1 rounded text-white"
+            >
+                Profile
+            </button>
+        </div>
+        <div className="text-gray-400">
+            {
+                profiling_status === "F" ? <p>Failed</p> :
+                profiling_status === "S" ?
+                    <a
+                        className="underline hover:text-blue-400"
+                        href={`/profiling-flamegraph.html?time=${Date.now()}`}
+                        {...tBlank()}
+                    >
+                        Download result
+                    </a> :
+                profiling_status === "P" ? <p>Profiling… {seconds}s</p> :
+                undefined
+            }
+        </div>
+    </>
 }
 
 const LinksTabView = ({ cluster_links = [], custom_links = [] }) => {
