@@ -3,9 +3,19 @@ import React from "react"
 import {useState,useEffect} from "react"
 import {start,useSimpleInput,useTabs,withHashParams} from "./util.js"
 
+const ReloadDialog = message => (
+    <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white shadow-lg rounded-xl px-6 py-4 z-50 flex items-center space-x-4 animate-fadeIn border border-gray-700">
+        <span className="text-sm">{message}</span>
+        <button
+            onClick={ev=>location.reload()}
+            className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium py-1 px-3 rounded-lg"
+        >Reload</button>
+    </div>
+)
+
 export const Page = viewProps => {
     const {
-      processing, mail, appVersion, viewTime, clusters, lastCluster, showAllClusters, tab, willNavigate
+      processing, mail, appVersion, viewTime, clusters, lastCluster, showAllClusters, tab, willNavigate, connectionAttempts
     } = viewProps
 
     const tabs = [
@@ -23,17 +33,9 @@ export const Page = viewProps => {
           <div className="w-full max-w-7xl">
 
             {
-                appVersion !== c4appVersion && <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white shadow-lg rounded-xl px-6 py-4 z-50 flex items-center space-x-4 animate-fadeIn border border-gray-700">
-                  <span className="text-sm">
-                    A new version is available.
-                  </span>
-                  <button
-                    onClick={ev=>location.reload()}
-                    className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium py-1 px-3 rounded-lg"
-                  >
-                    Reload
-                  </button>
-                </div>
+                appVersion !== c4appVersion ? ReloadDialog("A new version is available.") :
+                connectionAttempts > 2 ? ReloadDialog("Connection problems.") :
+                null
             }
 
             <div className="mb-4 flex justify-between items-start">

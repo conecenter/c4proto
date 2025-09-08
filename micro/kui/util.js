@@ -29,11 +29,12 @@ const manageExchange = (url, setState) => {
             close()
             ws = new WebSocket(url)
             ws.addEventListener("message", ev => {
-                setState(was => ({...was, ...JSON.parse(ev.data), willNavigate, willSend}))
+                setState(was => ({...was, ...JSON.parse(ev.data), willNavigate, willSend, connectionAttempts: 0}))
                 wasAt = now()
             })
             ws.addEventListener("open", ev => activate())
             wasAt = now()
+            setState(was => ({...was, connectionAttempts: (was.connectionAttempts||0)+1}))
         }
     }
     const willNavigate = o => () => { // cat become memo/cache later
