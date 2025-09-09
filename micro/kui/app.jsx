@@ -105,7 +105,7 @@ const PodsTabView = viewProps => {
                 { items?.map((pod, index) => <Tr key={pod.key} index={index}>
                     <Td>
                         {pod.kube_context} <br/>
-                        {pod.nodeName?.length <= 7 ? pod.nodeName : `${pod.nodeName?.substring(0,7)}…`}
+                        <TruncatedText text={pod.nodeName||"-"} startChars={7} align="left"/>
                     </Td>
                     <Td>
                         <input type="radio" checked={pod.selected /*'✔️'*/}
@@ -343,11 +343,7 @@ const S3SnapshotsTabView = viewProps => {
                             <Td>{b.bucket_name}</Td>
                             <Td className="text-right">{b.is_truncated?">":""}{b.objects_count}</Td>
                             <Td className="text-right">{b.is_truncated?">":""}{formatS3Size(b.objects_size)}</Td>
-                            <Td>{
-                                !b.last_obj_key ? "-" :
-                                b.last_obj_key.length <= (17+21) ? <pre>b.last_obj_key</pre> :
-                                <pre>{`${b.last_obj_key.substring(0,17)}…${b.last_obj_key.substring(b.last_obj_key.length-21)}`}</pre>
-                            }</Td>
+                            <Td><TruncatedText text={b.last_obj_key||"-"} startChars={17} align="right"/></Td>
                             <Td className="text-right">{b.last_obj_size ? formatS3Size(b.last_obj_size) : ""}</Td>
                             <Td>{b.last_obj_mod_time ? b.last_obj_mod_time.split(".")[0] : "-"}</Td>
                         </Tr>
@@ -510,5 +506,26 @@ const Table = ({children}) => (
         <table className="w-full sm:min-w-full lg:min-w-[1100px] text-white rounded-b-md">{children}</table>
     </div>
 )
+
+const TruncatedText = ({text, startChars, align}) => {
+    const [isHovered, setIsHovered] = useState(false)
+    const className = "font-mono text-sm"
+    const truncated = `${text.substring(0, startChars)}…`
+    return !text || text.length <= startChars ? <span className={className}>{text}</span> : (
+        <span
+            className={`relative cursor-help ${className}`}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
+            {isHovered && (
+                <div
+                    className="absolute whitespace-nowrap bg-gray-800 text-white border border-gray-600 rounded px-2 py-1"
+                    style={{[align]: "0"}}
+                >{text}</div>
+            )}
+            {truncated}
+        </span>
+    )
+}
 
 start("/kop", props => <Page {...props} lastCluster={props.last_cluster}/>)
