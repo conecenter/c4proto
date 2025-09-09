@@ -203,13 +203,14 @@ const CIOEventsTabView = viewProps => {
           <Table>
             <thead>
               <tr>
-                <Th>Context</Th><Th>Task</Th><Th>Status</Th><Th>Actions</Th>
+                <Th>Context</Th><Th>Task</Th><Th>Status</Th><Th>At</Th><Th>Actions</Th>
               </tr>
             </thead>
             <tbody>
                 <NotFoundTr viewProps={viewProps} colSpan="4"/>
                 { items?.map((t, index) => <Tr key={`${t.kube_context}/${t.task}`} index={index}>
                     <Td>{t.kube_context}</Td><Td>{t.task}</Td><Td>{t.status}</Td>
+                    <Td>{new Date(t.at*1000).toISOString()}</Td>
                     <Td>
                         <button className="bg-yellow-500 text-black px-2 py-1 rounded hover:bg-yellow-400"
                             onClick={willSend({ op: 'cio_events.hide', kube_context: t.kube_context, task: t.task })}

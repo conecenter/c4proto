@@ -28,8 +28,8 @@ def consumer_init(proc, hint):
 def init_cio_events(mut_cio_statuses, active_contexts):
     def load(cio_kube_context='', **_):
         return { "items": [
-            { "kube_context": kube_context, "task": task, "status": status }
-            for kube_context, task, status in sorted((*k, v) for k, v in mut_cio_statuses.items()) if status
+            { "kube_context": kube_context, "task": task, "status": status, "at": at }
+            for kube_context, task, status, at in sorted((*k, *v) for k, v in mut_cio_statuses.items()) if status
         ]}
     def hide(kube_context, task, **_):
         if mut_cio_statuses.get((kube_context, task)) is None: raise Exception(f"missing {kube_context} {task}")
@@ -40,7 +40,8 @@ def init_cio_events(mut_cio_statuses, active_contexts):
             consumer_init(proc, f"CIO EVENTS WATCH : {kube_context}")
             for line in proc.stdout:
                 event = loads(line)
-                if event["type"] == "task_status": mut_cio_statuses[(kube_context,event["task"])] = event["status"]
+                if event["type"] == "task_status":
+                    mut_cio_statuses[(kube_context,event["task"])] = (event["status"], event.get("at"))
     watchers = [partial(watcher, c["name"]) for c in active_contexts]
     return watchers, { "cio_events.load": load, "cio_events.hide": hide }
 
