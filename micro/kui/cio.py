@@ -5,6 +5,7 @@ from os import environ
 from pathlib import Path
 from subprocess import Popen, PIPE, check_output, run
 from logging import info, warning
+from math import ceil
 
 def sel(v, *path): return v if not path or v is None else sel(v.get(path[0]), *path[1:])
 
@@ -63,42 +64,48 @@ def init_cio_tasks(mut_cio_tasks, active_contexts):
 def init_cio_logs(tmp_dir: Path, active_contexts, get_user_abbr, rt):
     def get_size(path): return path.stat().st_size if path.exists() else None
     def load_json_opt(path): return loads(path.read_bytes()) if path.exists() else None
-    def load_int_opt(path): return int(path.read_bytes().decode()) if path.exists() else None
     def load(mail,**_):
+        meta = load_json_opt(get_search_meta_path(mail))
         return {
             "all_log_sizes": [{
                 "kube_context": c["name"], "log_size": get_size(get_all_log_path(c["name"]))
             } for c in active_contexts],
             "searching_size": get_size(get_searching_path(mail)),
             "search_result_size": get_size(get_search_res_path(mail)),
-            "search_result_code": load_int_opt(get_search_res_code_path(mail)),
+            "search_result_code": meta and meta["result_code"],
             "result_page": load_json_opt(get_page_path(mail)),
+            "result_page_count": meta and ceil(meta["result_lines"] / meta["page_lines"])
         }
     def get_all_log_path(kube_context): return tmp_dir / f"cio_log.all.{kube_context}"
     def get_searching_path(mail): return tmp_dir / f"cio_log.searching.{get_user_abbr(mail)}"
     def get_search_res_path(mail): return tmp_dir / f"cio_log.search_result.{get_user_abbr(mail)}"
-    def get_search_res_code_path(mail): return tmp_dir / f"cio_log.search_result_code.{get_user_abbr(mail)}"
+    def get_search_meta_path(mail): return tmp_dir / f"cio_log.search_meta.{get_user_abbr(mail)}"
     def get_page_path(mail): return tmp_dir / f"cio_log.page.{get_user_abbr(mail)}"
-    def search(mail, kube_context, query, **_):
+    def search(mail, kube_context, query, context_lines, page_lines, **_):
         def run_search():
             get_searching_path(mail).unlink(missing_ok=True)
             get_search_res_path(mail).unlink(missing_ok=True)
-            get_search_res_code_path(mail).unlink(missing_ok=True)
+            get_search_meta_path(mail).unlink(missing_ok=True)
             get_page_path(mail).unlink(missing_ok=True)
+            context_lines_int = int(context_lines)
+            context_arg = ("-C", str(context_lines_int)) if context_lines_int > 0 else ()
             with get_searching_path(mail).open("wb") as f:
                 all_log_path = get_all_log_path(kube_context)
-                proc = run(("grep", "-P", "-f-", str(all_log_path)), input=query.encode(), stdout=f)
+                proc = run(("grep", "-P", "-f-", str(all_log_path), *context_arg), input=query.encode(), stdout=f)
+            result_line_count = int(check_output(("wc","-l",get_searching_path(mail))).decode().split()[0])
             get_searching_path(mail).replace(get_search_res_path(mail)) # would protect from concurrent search
-            get_search_res_code_path(mail).write_bytes(str(proc.returncode).encode())
+            meta = {"result_code": proc.returncode, "page_lines": int(page_lines), "result_lines": result_line_count}
+            get_search_meta_path(mail).write_bytes(dumps(meta).encode())
             if proc.returncode == 0: write_page(mail, 1)
         return run_search
-    def lines_per_page(): return 20
     def write_page(mail, page):
         search_res_path = get_search_res_path(mail)
         page_path = get_page_path(mail)
         if page <= 0: return
-        take_line_count = page * lines_per_page()
-        skip_line_count = (page-1) * lines_per_page()
+        meta = load_json_opt(get_search_meta_path(mail)) or {}
+        lines_per_page = meta["page_lines"]
+        take_line_count = page * lines_per_page
+        skip_line_count = (page-1) * lines_per_page
         taken_lines = check_output(("tail","-n",str(take_line_count),str(search_res_path))).decode().splitlines()
         lines = taken_lines[:-skip_line_count] if skip_line_count else taken_lines
         if lines: page_path.write_bytes(dumps({"lines":lines,"page":page}).encode())

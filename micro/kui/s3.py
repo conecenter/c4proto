@@ -2,6 +2,7 @@
 from json import loads
 from pathlib import Path
 from os import environ
+import re
 
 import boto3
 
@@ -38,9 +39,12 @@ def init_s3(executor):
     s3contexts = [c["name"] for c in get_contexts()]
     def load(mail, **_):
         return { "s3contexts": s3contexts, "items": mut_found_buckets_by_user.get(mail, []) }
-    def search(mail, s3context, **_):
+    def search(mail, s3context, bucket_name_like='', **_):
         def run_search():
-            mut_found_buckets_by_user[mail] = do_search(s3context, executor, lambda nm: nm.endswith(".snapshots"))
+            mut_found_buckets_by_user[mail] = do_search(
+                s3context, executor, 
+                lambda nm: nm.endswith(".snapshots") and re.compile(bucket_name_like or ".").search(nm)
+            )
         return run_search
     actions = { "s3.load": load, "s3.search": search }
     return actions

@@ -225,8 +225,8 @@ const formatLogSize = v => `${(v / 1024).toFixed(1)} KiB`
 
 const CIOLogsTabView = viewProps => {
     const {
-        all_log_sizes, cio_kube_context, cio_query,
-        searching_size, search_result_code, search_result_size, result_page, willSend
+        all_log_sizes, cio_kube_context, cio_query, cio_context_lines, cio_page_lines,
+        searching_size, search_result_code, search_result_size, result_page, result_page_count, willSend,
     } = viewProps
 
     return (
@@ -243,15 +243,18 @@ const CIOLogsTabView = viewProps => {
                 />
                 <div className="flex gap-2">
                     <SimpleFilterInput
-                        viewProps={viewProps}
-                        fieldName="cio_query"
-                        placeholder="Search query..."
+                        viewProps={viewProps} fieldName="cio_query" placeholder="Search query..."
+                    />
+                    <SimpleFilterInput
+                        viewProps={viewProps} fieldName="cio_context_lines" placeholder="Context lines..."
+                    />
+                    <SimpleFilterInput
+                        viewProps={viewProps} fieldName="cio_page_lines" placeholder="Lines per page..."
                     />
                     <button
                         onClick={willSend({
-                            op: 'cio_logs.search',
-                            kube_context: cio_kube_context,
-                            query: cio_query
+                            op: 'cio_logs.search', kube_context: cio_kube_context, query: cio_query,
+                            context_lines: cio_context_lines || "0", page_lines: cio_page_lines || "20",
                         })}
                         className="bg-blue-600 hover:bg-blue-500 px-4 py-1 rounded text-white"
                     >
@@ -288,7 +291,7 @@ const CIOLogsTabView = viewProps => {
                         >
                             &larr; Later
                         </button>
-                        <span className="text-gray-300">Page {result_page.page}</span>
+                        <span className="text-gray-300">Page {result_page.page} / {result_page_count}</span>
                         <button
                             onClick={willSend({ op: "cio_logs.goto_page", page: result_page.page + 1 })}
                             className="px-3 py-1 rounded border border-gray-600 hover:bg-gray-700"
@@ -307,7 +310,7 @@ const CIOLogsTabView = viewProps => {
 
 const formatS3Size = v => `${(v / 1024 / 1024).toFixed(1)} MiB`;
 const S3SnapshotsTabView = viewProps => {
-    const {items, s3contexts, s3context, willSend} = viewProps
+    const {items, s3contexts, s3context, bucket_name_like, willSend} = viewProps
     return (
         <>
             <div className="flex gap-2 mb-4">
@@ -316,12 +319,11 @@ const S3SnapshotsTabView = viewProps => {
                     fieldName="s3context"
                     items={(s3contexts||[]).map(key => ({ key, hint: key }))}
                 />
+                <SimpleFilterInput viewProps={viewProps} fieldName="bucket_name_like" placeholder="Filter buckets..."/>
                 <button
-                    onClick={willSend({ op: 's3.search', s3context })}
+                    onClick={willSend({ op: 's3.search', s3context, bucket_name_like })}
                     className="bg-blue-600 hover:bg-blue-500 px-4 py-1 rounded text-white"
-                >
-                    Search
-                </button>
+                >Search</button>
             </div>
             <Table>
                 <thead>
@@ -341,7 +343,11 @@ const S3SnapshotsTabView = viewProps => {
                             <Td>{b.bucket_name}</Td>
                             <Td className="text-right">{b.is_truncated?">":""}{b.objects_count}</Td>
                             <Td className="text-right">{b.is_truncated?">":""}{formatS3Size(b.objects_size)}</Td>
-                            <Td>{b.last_obj_key ? `${b.last_obj_key.split("-")[0]}…` : "-"}</Td>
+                            <Td>{
+                                !b.last_obj_key ? "-" :
+                                b.last_obj_key.length <= (17+21) ? <pre>b.last_obj_key</pre> :
+                                <pre>{`${b.last_obj_key.substring(0,17)}…${b.last_obj_key.substring(b.last_obj_key.length-21)}`}</pre>
+                            }</Td>
                             <Td className="text-right">{b.last_obj_size ? formatS3Size(b.last_obj_size) : ""}</Td>
                             <Td>{b.last_obj_mod_time ? b.last_obj_mod_time.split(".")[0] : "-"}</Td>
                         </Tr>
