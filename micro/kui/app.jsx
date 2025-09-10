@@ -311,7 +311,7 @@ const CIOLogsTabView = viewProps => {
 
 const formatS3Size = v => `${(v / 1024 / 1024).toFixed(1)} MiB`;
 const S3SnapshotsTabView = viewProps => {
-    const {items, s3contexts, s3context, bucket_name_like, willSend} = viewProps
+    const {items, reset_message, s3contexts, s3context, bucket_name_like, willSend} = viewProps
     return (
         <>
             <div className="flex gap-2 mb-4">
@@ -326,7 +326,13 @@ const S3SnapshotsTabView = viewProps => {
                     className="bg-blue-600 hover:bg-blue-500 px-4 py-1 rounded text-white"
                 >Search</button>
             </div>
-            <Table>
+
+            {reset_message ? (
+                <div className="bg-gray-800 border border-gray-600 rounded-lg p-6 text-center">
+                    <p className="text-white text-lg mb-4">{reset_message}</p>
+                    <p className="text-gray-400">Press "Search" to refresh bucket list</p>
+                </div>
+            ) : <Table>
                 <thead>
                     <tr>
                         <Th>Bucket</Th>
@@ -335,10 +341,11 @@ const S3SnapshotsTabView = viewProps => {
                         <Th>Last Key</Th>
                         <Th className="text-right">Last Size</Th>
                         <Th>Last Modified</Th>
+                        <Th>Actions</Th>
                     </tr>
                 </thead>
                 <tbody>
-                    <NotFoundTr viewProps={viewProps} colSpan="6" />
+                    <NotFoundTr viewProps={viewProps} colSpan="7" />
                     {items?.map((b, index) => (
                         <Tr key={b.bucket_name} index={index}>
                             <Td>{b.bucket_name}</Td>
@@ -347,10 +354,25 @@ const S3SnapshotsTabView = viewProps => {
                             <Td><TruncatedText text={b.last_obj_key||"-"} startChars={17} align="right"/></Td>
                             <Td className="text-right">{b.last_obj_size ? formatS3Size(b.last_obj_size) : ""}</Td>
                             <Td>{b.last_obj_mod_time ? b.last_obj_mod_time.split(".")[0] : "-"}</Td>
+                            <Td>
+                                {b.has_reset_file ? <span className="text-gray-400 text-sm">🔄 Reset pending</span> : (
+                                    <button
+                                        onClick={willSend({
+                                            op: 's3.reset_bucket',
+                                            s3context,
+                                            bucket_name: b.bucket_name
+                                        })}
+                                        className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-sm"
+                                        title="Schedule snapshot reset"
+                                    >
+                                        Reset
+                                    </button>
+                                )}
+                            </Td>
                         </Tr>
                     ))}
                 </tbody>
-            </Table>
+            </Table>}
         </>
     )
 }
