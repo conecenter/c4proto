@@ -10,13 +10,15 @@ from os import kill
 from signal import SIGTERM
 from subprocess import run as sp_run
 from socket import create_connection
+import re
+from datetime import fromtimestamp, timezone
 
 from .threads import TaskQ, daemon
 from .cio_client import post_steps, task_kv, log_addr, kafka_addr, ev_topic
 from . import snapshots as sn, cluster as cl, git, kube_reporter as kr, distribution
 from .cio_preproc import arg_substitute
 from . import run, list_dir, Popen, wait_processes, changing_text, one, read_text, never_if, need_dir, \
-    path_exists, read_json, never, repeat, decode, run_no_die, debug_args
+    path_exists, read_json, never, repeat, decode, run_no_die, debug_args, run_text_out
 from .cmd import get_cmd
 
 
@@ -163,6 +165,39 @@ def produce_event(event):
         exchange(dumps({**event, "at": time()}, sort_keys=True).encode(), "ACK")
 
 
+def parse_duration_seconds(period_str): return int(period_str[:-1]) * {'m': 60, 'h': 3600, 'd': 86400}[period_str[-1]]
+
+
+def get_owner_ref_set(objects, ref_kind):
+    return {
+        ref["name"] for obj in objects
+        for ref in obj["metadata"].get("ownerReferences", [])
+        if ref.get("kind") == ref_kind
+    }
+
+def app_scale_old_down(kube_context, name_pattern, max_age):
+    kc = cl.get_kubectl(kube_context)
+    pattern = re.compile(name_pattern)
+    cutoff_ts = time() - max_age
+    cutoff_time_str = fromtimestamp(cutoff_ts, tz=timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+    pods = cl.get_pods_json(kc, ())
+    old_pods = [pod for pod in pods if pod["metadata"].get("creationTimestamp", "") < cutoff_time_str]
+    # Get ReplicaSets owned by old pods
+    old_rs_names = get_owner_ref_set(old_pods, "ReplicaSet")
+    # Get ReplicaSet details
+    rs_list = loads(run_text_out((*kc, "get", "rs", "-o", "json"), timeout=8))["items"]
+    old_rs_list = [rs for rs in rs_list if rs["metadata"]["name"] in old_rs_names]
+    # Get Deployments that own these ReplicaSets and matching pattern
+    old_deployment_names = sorted(
+        dn for dn in get_owner_ref_set(old_rs_list, "Deployment") if pattern.search(dn)
+    )
+
+    if old_deployment_names:
+        debug(f"Scaling down old deployments: {old_deployment_names}")
+        run((*kc, "scale", "--replicas", "0", *(f"deployment/{n}" for n in old_deployment_names)))
+
+
 def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "#": lambda *args: None,
     "called": lambda *args: None,
@@ -209,10 +244,13 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "write_lines": lambda fn, lines: changing_text(get_dir(fn), "\n".join(lines)),
     "wait_no_app": lambda kube_context, app: wait_no_app(kube_context, app),
     "local_kill_serve": lambda: repeat(local_kill_serve),
-    "die_after": lambda per: daemon(lambda: (sleep(int(per[:-1]) * {"m":60, "h":3600}[per[-1]]), never("expired"))),
+    "die_after": lambda per: daemon(lambda: (sleep(parse_duration_seconds(per)), never("expired"))),
     "kafka_client_serve": lambda opt: kafka_client_serve(deploy_context, opt["port_offset"], opt["conf"]),
     "queue_submit": lambda steps: post_steps(steps),
     "produce_event": lambda ev: produce_event(ev),
+    "app_scale_old_down": lambda opt: app_scale_old_down(
+        opt["kube_context"], opt["pattern"], parse_duration_seconds(opt["age"])
+    ),
 }
 
 
