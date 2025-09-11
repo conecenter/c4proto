@@ -11,7 +11,7 @@ from signal import SIGTERM
 from subprocess import run as sp_run
 from socket import create_connection
 import re
-from datetime import fromtimestamp, timezone
+from datetime import datetime, timezone
 
 from .threads import TaskQ, daemon
 from .cio_client import post_steps, task_kv, log_addr, kafka_addr, ev_topic
@@ -179,7 +179,7 @@ def app_scale_old_down(kube_context, name_pattern, max_age):
     kc = cl.get_kubectl(kube_context)
     pattern = re.compile(name_pattern)
     cutoff_ts = time() - max_age
-    cutoff_time_str = fromtimestamp(cutoff_ts, tz=timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    cutoff_time_str = datetime.fromtimestamp(cutoff_ts, tz=timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
     pods = cl.get_pods_json(kc, ())
     old_pods = [pod for pod in pods if pod["metadata"].get("creationTimestamp", "") < cutoff_time_str]
