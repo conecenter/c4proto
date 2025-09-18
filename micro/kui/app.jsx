@@ -20,6 +20,7 @@ export const Page = viewProps => {
 
     const tabs = [
         { key: "pods", hint: "Pods", view: p => <PodsTabView {...p}/> },
+        { key: "top", hint: "Top", view: p => <TopTabView {...p}/> },
         { key: "cio_tasks", hint: "CIO tasks", view: p => <CIOTasksTabView {...p}/> },
         { key: "cio_events", hint: "CIO events", view: p => <CIOEventsTabView {...p}/> },
         { key: "cio_logs", hint: "CIO logs", view: p => <CIOLogsTabView {...p}/> },
@@ -173,6 +174,72 @@ const PodsTabView = viewProps => {
               `}</pre>
           })()}
     </>
+}
+
+const reformatTopSize = v => (
+    v.substring(v.length-2) === "Ki" ? `${(v.substring(0, v.length-2) / 1024 / 1024).toFixed(1)} GiB` :
+    v.substring(v.length-2) === "Mi" ? `${(v.substring(0, v.length-2) / 1024 ).toFixed(1)} GiB` :
+    v
+)
+const reformatTopCPU = v => v.substring(v.length-1) === "n" ? `${(v.substring(0, v.length-1) / 1024 / 1024)|0}m` : v
+const TopTabView = viewProps => {
+    const {
+        items, top_contexts, top_kube_context,
+        willSend, willNavigate
+    } = viewProps
+
+    return (
+        <div className="space-y-4">
+            {/* Controls */}
+            <div className="flex flex-wrap gap-4 items-center">
+                <div className="flex gap-2">
+                    <SelectorFilterGroup
+                        viewProps={viewProps}
+                        fieldName="top_kube_context"
+                        items={(top_contexts||[]).map(key => ({key, hint: key}))}
+                    />
+                </div>
+            </div>
+
+            {/* Nodes and Containers Table */}
+            <Table>
+                <thead>
+                    <tr>
+                        <Th>Resource</Th>
+                        <Th className="text-right">CPU</Th>
+                        <Th className="text-right">Memory</Th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <NotFoundTr viewProps={viewProps} colSpan="6"/>
+                    {items?.map((node, nodeIndex) => [
+                        // Node row
+                        <Tr key={`node-${node.name}`} index={nodeIndex * 2}>
+                            <Td><span className="text-blue-400 font-semibold">🖥️ {node.name}</span></Td>
+                            <Td className="text-right font-mono text-sm"></Td>
+                            <Td className="text-right font-mono text-sm"></Td>
+                        </Tr>,
+                        // Container rows
+                        ...(node.containers || []).map((container, containerIndex) =>
+                            <Tr key={`container-${node.name}-${container.pod_name}-${container.container_name}`}
+                                index={1 + containerIndex}>
+                                <Td>
+                                    <div className="pl-6 flex items-center">
+                                        <span className="text-gray-300">
+                                            📦 {container.pod_name}
+                                            {(container.container_name === "main"?"":` / ${container.container_name}`)}
+                                        </span>
+                                    </div>
+                                </Td>
+                                <Td className="text-right font-mono text-sm">{reformatTopCPU(container.usage_cpu)}</Td>
+                                <Td className="text-right font-mono text-sm">{reformatTopSize(container.usage_memory)}</Td>
+                            </Tr>
+                        )
+                    ]).flat()}
+                </tbody>
+            </Table>
+        </div>
+    )
 }
 
 const CIOTasksTabView = viewProps => {

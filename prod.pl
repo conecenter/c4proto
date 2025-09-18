@@ -398,11 +398,11 @@ push @tasks, ["up_kc_host", "", sub{ # the last multi container kc
                 resources => ["pods/log"],
                 verbs => ["get"],
             },
-            {
-                apiGroups => [""],
-                resources => ["nodes"],
-                verbs => ["list"],
-            }
+#            {
+#                apiGroups => [""],
+#                resources => ["nodes"],
+#                verbs => ["list","watch"],
+#            }
         ],
     }, {
         apiVersion => "v1",
