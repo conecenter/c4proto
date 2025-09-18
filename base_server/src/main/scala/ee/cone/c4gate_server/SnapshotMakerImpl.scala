@@ -168,7 +168,7 @@ class SnapshotSavers(val full: SnapshotSaver, val tx: SnapshotSaver)
 
   def make(task: SnapshotTask): List[RawSnapshot] = concurrent.blocking {
     val result = makeInner(task)
-    System.gc()
+    //System.gc()
     result
   }
 
