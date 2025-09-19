@@ -198,6 +198,20 @@ def app_scale_old_down(kube_context, name_pattern, max_age):
         run((*kc, "scale", "--replicas", "0", *(f"deployment/{n}" for n in old_deployment_names)))
 
 
+def app_pause(kube_context, name_pattern, period_str):
+    kc = cl.get_kubectl(kube_context)
+    pattern = re.compile(name_pattern)
+    pod_names = [pod["metadata"]["name"] for pod in cl.get_pods_json(kc, ())]
+    def cmd(pod_name, act): return
+    p_open = lambda pod_name, act: (pod_name, Popen((*kc, "exec", pod_name, "--", "supervisorctl", act, "app")))
+    status_processes = [p_open(pod_name, "status") for pod_name in pod_names if pattern.search(pod_name)]
+    stop_processes = [p_open(pod_name, "stop") for pod_name, proc in status_processes if proc.wait() == 0]
+    for pod_name, proc in stop_processes: proc.wait()
+    sleep(parse_duration_seconds(period_str))
+    start_processes = [p_open(pod_name, "start") for pod_name, proc in stop_processes]
+    for pod_name, proc in start_processes: proc.wait()
+
+
 def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "#": lambda *args: None,
     "called": lambda *args: None,
@@ -251,6 +265,7 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "app_scale_old_down": lambda opt: app_scale_old_down(
         opt["kube_context"], opt["pattern"], parse_duration_seconds(opt["age"])
     ),
+    "app_pause": lambda opt: app_pause(opt["kube_context"], opt["pattern"], opt["period"]),
 }
 
 
