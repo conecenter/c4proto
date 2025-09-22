@@ -41,11 +41,12 @@ def main():
     # kube
     kcp = ("kubectl", "--kubeconfig", environ["C4KUBECONFIG"], "--context")
     mut_resources = {}
+    mut_metrics = {}
     kube_resource_watchers = init_kube_resource_watchers(mut_resources, contexts, kcp)
-    kube_pod_actions = init_kube_pods(mut_resources, contexts, get_forward_service_name, kcp)
-    kube_top_watchers, kube_top_actions = init_kube_top({}, mut_resources, contexts, kcp)
+    kube_pod_actions = init_kube_pods(mut_resources, mut_metrics, contexts, get_forward_service_name, kcp)
+    kube_top_watchers = init_kube_top(mut_metrics, contexts, kcp)
     kube_watchers = [*kube_resource_watchers, *kube_top_watchers]
-    kube_actions = {**kube_pod_actions, **kube_top_actions}
+    kube_actions = {**kube_pod_actions}
     # cio
     cio_task_watchers, cio_task_actions = init_cio_tasks({}, active_contexts)
     cio_log_watchers, cio_log_actions, cio_log_handlers = init_cio_logs(Path(dir_life.name), active_contexts, get_user_abbr, Route)

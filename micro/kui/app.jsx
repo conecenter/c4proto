@@ -1,6 +1,5 @@
-
 import React from "react"
-import {useState,useEffect} from "react"
+import {useState,useEffect,useMemo} from "react"
 import {start,useSimpleInput,useTabs,withHashParams} from "./util.js"
 
 const ReloadDialog = message => (
@@ -20,7 +19,6 @@ export const Page = viewProps => {
 
     const tabs = [
         { key: "pods", hint: "Pods", view: p => <PodsTabView {...p}/> },
-        { key: "top", hint: "Top", view: p => <TopTabView {...p}/> },
         { key: "cio_tasks", hint: "CIO tasks", view: p => <CIOTasksTabView {...p}/> },
         { key: "cio_events", hint: "CIO events", view: p => <CIOEventsTabView {...p}/> },
         { key: "cio_logs", hint: "CIO logs", view: p => <CIOLogsTabView {...p}/> },
@@ -78,8 +76,11 @@ export const Page = viewProps => {
     )
 }
 
+const compareBy = getKey => (a, b) => getKey(a).localeCompare(getKey(b))
+
 const PodsTabView = viewProps => {
-    const {userAbbr, items, pod_name_like, pod_contexts, willSend, willNavigate} = viewProps
+    const {userAbbr, items, pod_name_like, pod_contexts, sort_by_node, willSend, willNavigate} = viewProps
+    const sortedItems = useMemo(() => sort_by_node ? items?.toSorted(compareBy(it => it.nodeName)) : items, [items, sort_by_node])
     return <>
           {pod_contexts && <div className="mb-4">
               <SelectorFilterGroup viewProps={viewProps} fieldName="pod_list_kube_context" items={pod_contexts.map(key => ({key,hint:key}))}/>
@@ -92,20 +93,25 @@ const PodsTabView = viewProps => {
                 { key: ".", hint: "all pods" },
               ]}/>
               <SimpleFilterInput viewProps={viewProps} fieldName="pod_name_like" placeholder="Filter pods..."/>
+              <button onClick={willNavigate({sort_by_node: sort_by_node ? "" : "1"})}
+                      className={`px-3 py-1 rounded-full text-sm border whitespace-nowrap ${
+                          sort_by_node ? "bg-blue-600 border-blue-400" : "bg-gray-700 border-gray-600"
+                      }`}>
+                  🖥️ Group by node
+              </button>
           </div>
 
           <Table>
             <thead>
                 <tr>
-                  <Th>Context<br/>Node</Th><Th>S</Th><Th>Pod<br/>Image tag</Th>
-                  <Th>Status</Th><Th>Created at<br/>Started at</Th><Th>Restarts</Th><Th>Actions</Th>
+                  <Th>Node</Th><Th>S</Th><Th>Pod<br/>Image tag</Th>
+                  <Th>Status</Th><Th>Created at<br/>Started at</Th><Th>Restarts</Th><Th>Usage</Th><Th>Actions</Th>
                 </tr>
             </thead>
             <tbody>
-                <NotFoundTr viewProps={viewProps} colSpan="7"/>
-                { items?.map((pod, index) => <Tr key={pod.key} index={index}>
+                <NotFoundTr viewProps={viewProps} colSpan="8"/>
+                { sortedItems?.map((pod, index) => <Tr key={pod.key} index={index}>
                     <Td>
-                        {pod.kube_context} <br/>
                         <TruncatedText text={pod.nodeName||"-"} startChars={7} align="left"/>
                     </Td>
                     <Td>
@@ -154,13 +160,16 @@ const PodsTabView = viewProps => {
                     <Td>{pod.status}{pod.ready && <div>ready</div>}</Td>
                     <Td>{pod.creationTimestamp} <br/> {pod.startedAt}</Td>
                     <Td>{pod.restarts}</Td>
+                    <Td className="text-right font-mono text-xs">
+                        {reformatTopCPU(pod.usage_cpu||'')}<br/>{reformatTopSize(pod.usage_memory||'')}
+                    </Td>
                     <Td>
                       <button className="bg-yellow-500 text-black px-2 py-1 rounded hover:bg-yellow-400"
                         onClick={willSend({ op: 'pods.recreate_pod', kube_context: pod.kube_context, name: pod.name })}
                       >Recreate</button>
-                      <button className="bg-yellow-500 text-black px-2 py-1 rounded hover:bg-yellow-400"
+                      {pod.name.match(/^(de|sp)-/) && <button className="bg-yellow-500 text-black px-2 py-1 rounded hover:bg-yellow-400"
                         onClick={willSend({ op: 'pods.scale_down', kube_context: pod.kube_context, pod_name: pod.name })}
-                      >Down</button>
+                      >Down</button>}
                     </Td>
                 </Tr>) }
             </tbody>
@@ -182,65 +191,6 @@ const reformatTopSize = v => (
     v
 )
 const reformatTopCPU = v => v.substring(v.length-1) === "n" ? `${(v.substring(0, v.length-1) / 1024 / 1024)|0}m` : v
-const TopTabView = viewProps => {
-    const {
-        items, top_contexts, top_kube_context,
-        willSend, willNavigate
-    } = viewProps
-
-    return (
-        <div className="space-y-4">
-            {/* Controls */}
-            <div className="flex flex-wrap gap-4 items-center">
-                <div className="flex gap-2">
-                    <SelectorFilterGroup
-                        viewProps={viewProps}
-                        fieldName="top_kube_context"
-                        items={(top_contexts||[]).map(key => ({key, hint: key}))}
-                    />
-                </div>
-            </div>
-
-            {/* Nodes and Containers Table */}
-            <Table>
-                <thead>
-                    <tr>
-                        <Th>Resource</Th>
-                        <Th className="text-right">CPU</Th>
-                        <Th className="text-right">Memory</Th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <NotFoundTr viewProps={viewProps} colSpan="6"/>
-                    {items?.map((node, nodeIndex) => [
-                        // Node row
-                        <Tr key={`node-${node.name}`} index={nodeIndex * 2}>
-                            <Td><span className="text-blue-400 font-semibold">🖥️ {node.name}</span></Td>
-                            <Td className="text-right font-mono text-sm"></Td>
-                            <Td className="text-right font-mono text-sm"></Td>
-                        </Tr>,
-                        // Container rows
-                        ...(node.containers || []).map((container, containerIndex) =>
-                            <Tr key={`container-${node.name}-${container.pod_name}-${container.container_name}`}
-                                index={1 + containerIndex}>
-                                <Td>
-                                    <div className="pl-6 flex items-center">
-                                        <span className="text-gray-300">
-                                            📦 {container.pod_name}
-                                            {(container.container_name === "main"?"":` / ${container.container_name}`)}
-                                        </span>
-                                    </div>
-                                </Td>
-                                <Td className="text-right font-mono text-sm">{reformatTopCPU(container.usage_cpu)}</Td>
-                                <Td className="text-right font-mono text-sm">{reformatTopSize(container.usage_memory)}</Td>
-                            </Tr>
-                        )
-                    ]).flat()}
-                </tbody>
-            </Table>
-        </div>
-    )
-}
 
 const CIOTasksTabView = viewProps => {
     const {items, managedKubeContexts} = viewProps
