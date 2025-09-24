@@ -44,6 +44,10 @@ trait PublicDirProvider {
   def get: List[(String,Path)]
 }
 
+trait PublicDirHeaders {
+  def headers: List[N_Header]
+}
+
 @c4("PublishingCompApp") final class PublicPaths(config: ListConfig)(
   val value: List[Path] =
     config.get("C4PUBLIC_PATH")
@@ -81,6 +85,7 @@ case object PublishFromStringsCache extends TransientLens[Option[List[ByPathHttp
   publisher: Publisher,
   txAdd: LTxAdd,
   publicPaths: PublicPaths,
+  publicDirHeaders: List[PublicDirHeaders],
 )(
   mimeTypes: String=>Option[String] = mimeTypesProviders.flatMap(_.get).toMap.get,
   compressor: RawCompressor = publishFullCompressor.value
@@ -122,7 +127,8 @@ case object PublishFromStringsCache extends TransientLens[Option[List[ByPathHttp
     val headers =
       N_Header("etag", s""""$eTag"""") ::
         N_Header("content-encoding", compressor.name) ::
-        mimeType.map(N_Header("content-type",_)).toList
+        mimeType.map(N_Header("content-type",_)).toList :::
+        publicDirHeaders.flatMap(_.headers)
     ByPathHttpPublication(path,headers,byteString)
   }
 }
