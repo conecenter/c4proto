@@ -80,7 +80,7 @@ const compareBy = getKey => (a, b) => getKey(a).localeCompare(getKey(b))
 
 const PodsTabView = viewProps => {
     const {userAbbr, items, pod_name_like, pod_contexts, sort_by_node, willSend, willNavigate} = viewProps
-    const sortedItems = useMemo(() => sort_by_node ? items?.toSorted(compareBy(it => it.nodeName)) : items, [items, sort_by_node])
+    const sortedItems = useMemo(() => sort_by_node ? items?.toSorted(compareBy(it => it.nodeName||"")) : items, [items, sort_by_node])
     return <>
           {pod_contexts && <div className="mb-4">
               <SelectorFilterGroup viewProps={viewProps} fieldName="pod_list_kube_context" items={pod_contexts.map(key => ({key,hint:key}))}/>

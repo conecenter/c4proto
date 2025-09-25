@@ -168,41 +168,41 @@ def produce_event(event):
 def parse_duration_seconds(period_str): return int(period_str[:-1]) * {'m': 60, 'h': 3600, 'd': 86400}[period_str[-1]]
 
 
-def get_owner_ref_set(objects, ref_kind):
-    return {
-        ref["name"] for obj in objects
-        for ref in obj["metadata"].get("ownerReferences", [])
-        if ref.get("kind") == ref_kind
-    }
+def app_scale(kc, replicas, names):
+    if names: run((*kc, "scale", "--replicas", str(replicas), *(f"deployment/{n}" for n in names)))
+
 
 def app_scale_old_down(kube_context, name_pattern, max_age):
     kc = cl.get_kubectl(kube_context)
     pattern = re.compile(name_pattern)
     cutoff_ts = time() - max_age
     cutoff_time_str = datetime.fromtimestamp(cutoff_ts, tz=timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
-
-    pods = cl.get_pods_json(kc, ())
-    old_pods = [pod for pod in pods if pod["metadata"].get("creationTimestamp", "") < cutoff_time_str]
-    # Get ReplicaSets owned by old pods
-    old_rs_names = get_owner_ref_set(old_pods, "ReplicaSet")
-    # Get ReplicaSet details
-    rs_list = loads(run_text_out((*kc, "get", "rs", "-o", "json"), timeout=8))["items"]
-    old_rs_list = [rs for rs in rs_list if rs["metadata"]["name"] in old_rs_names]
-    # Get Deployments that own these ReplicaSets and matching pattern
-    old_deployment_names = sorted(
-        dn for dn in get_owner_ref_set(old_rs_list, "Deployment") if pattern.search(dn)
-    )
-
-    if old_deployment_names:
-        debug(f"Scaling down old deployments: {old_deployment_names}")
-        run((*kc, "scale", "--replicas", "0", *(f"deployment/{n}" for n in old_deployment_names)))
+    app_scale(kc, 0, sorted({
+        ref["name"]
+        for rs in loads(run_text_out((*kc, "get", "rs", "-o", "json"), timeout=8))["items"]
+        if rs["spec"]["replicas"] > 0 and rs["metadata"]["creationTimestamp"] < cutoff_time_str
+        for ref in rs["metadata"].get("ownerReferences", [])
+        if ref.get("kind") == "Deployment" and pattern.search(ref["name"])
+    }))
 
 
-def app_pause(kube_context, name_pattern, period_str):
+def app_pause_rt(kube_context, name_pattern, period_str):
+    kc = cl.get_kubectl(kube_context)
+    pattern = re.compile(name_pattern)
+    deployment_names = [
+        d["metadata"]["name"]
+        for d in loads(run_text_out((*kc, "get", "deploy", "-o", "json"), timeout=8))["items"]
+        if pattern.search(d["metadata"]["name"]) and d["spec"].get("replicas") == 1
+    ]
+    app_scale(kc, 0, deployment_names)
+    sleep(parse_duration_seconds(period_str))
+    app_scale(kc, 1, deployment_names)
+
+
+def app_pause_de(kube_context, name_pattern, period_str):
     kc = cl.get_kubectl(kube_context)
     pattern = re.compile(name_pattern)
     pod_names = [pod["metadata"]["name"] for pod in cl.get_pods_json(kc, ())]
-    def cmd(pod_name, act): return
     p_open = lambda pod_name, act: (pod_name, Popen((*kc, "exec", pod_name, "--", "supervisorctl", act, "app")))
     status_processes = [p_open(pod_name, "status") for pod_name in pod_names if pattern.search(pod_name)]
     stop_processes = [p_open(pod_name, "stop") for pod_name, proc in status_processes if proc.wait() == 0]
@@ -235,10 +235,7 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "app_stop_start": lambda kube_context, app: app_stop_start(kube_context, app),
     "app_prep_start": lambda opt: app_prep_start(main_q, env, opt["app"], get_dir(opt["ver"]), get_dir(opt["conf_to"])),
     "app_substitute": lambda opt: app_substitute(get_dir(opt["conf_from"]), opt["substitute"], get_dir(opt["conf_to"])),
-    "app_scale": lambda opt: run((
-        *cl.get_kubectl(opt.get("kube_context",deploy_context)),
-        "scale", "--replicas", str(opt["replicas"]), "deploy", opt["deployment"]
-    )),
+    "app_scale": lambda opt: app_scale(cl.get_kubectl(opt["kube_context"]), str(opt["replicas"]), [opt["deployment"]]),
     "purge_start": lambda opt: main_q.submit(*task_kv(f'purge {opt["prefix"]}'))(
         get_cmd(purge, env, opt["prefix"], opt["clients"])
     ),
@@ -265,7 +262,8 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "app_scale_old_down": lambda opt: app_scale_old_down(
         opt["kube_context"], opt["pattern"], parse_duration_seconds(opt["age"])
     ),
-    "app_pause": lambda opt: app_pause(opt["kube_context"], opt["pattern"], opt["period"]),
+    "app_pause_de": lambda opt: app_pause_de(opt["kube_context"], opt["pattern"], opt["period"]),
+    "app_pause_rt": lambda opt: app_pause_rt(opt["kube_context"], opt["pattern"], opt["period"]),
 }
 
 
