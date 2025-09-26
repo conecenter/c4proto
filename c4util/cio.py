@@ -186,13 +186,23 @@ def app_scale_old_down(kube_context, name_pattern, max_age):
     }))
 
 
+def get_deployments(kc): return loads(run_text_out((*kc, "get", "deploy", "-o", "json"), timeout=8))["items"]
+
+
+def app_history_reset(kube_context, name_pattern):
+    kc = cl.get_kubectl(kube_context)
+    pattern = re.compile(name_pattern)
+    deployment_names = [d["metadata"]["name"] for d in get_deployments(kc) if pattern.search(d["metadata"]["name"])]
+    patch = dumps({"spec":{"revisionHistoryLimit":0}})
+    run((*kc, "patch", "--type=merge", "-p", patch, *(f"deployment/{n}" for n in deployment_names)))
+
+
 def app_pause_rt(kube_context, name_pattern, period_str):
     kc = cl.get_kubectl(kube_context)
     pattern = re.compile(name_pattern)
     deployment_names = [
         d["metadata"]["name"]
-        for d in loads(run_text_out((*kc, "get", "deploy", "-o", "json"), timeout=8))["items"]
-        if pattern.search(d["metadata"]["name"]) and d["spec"].get("replicas") == 1
+        for d in get_deployments(kc) if pattern.search(d["metadata"]["name"]) and d["spec"].get("replicas") == 1
     ]
     app_scale(kc, 0, deployment_names)
     sleep(parse_duration_seconds(period_str))
@@ -264,6 +274,7 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     ),
     "app_pause_de": lambda opt: app_pause_de(opt["kube_context"], opt["pattern"], opt["period"]),
     "app_pause_rt": lambda opt: app_pause_rt(opt["kube_context"], opt["pattern"], opt["period"]),
+    "app_history_reset": lambda opt: app_history_reset(opt["kube_context"], opt["pattern"]),
 }
 
 
