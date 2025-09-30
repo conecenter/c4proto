@@ -132,11 +132,12 @@ my $make_kc_yml = sub{
     };
     #
     my @labels = &$map($opt,sub{ my($k,$v)=@_; $k=~/^label:(c4\w+)$/ ? ("$1"=>$v) : () });
+    my @annotations = &$map($opt,sub{ my($k,$v)=@_; $k=~/^annotation:([\w\.\/]+)$/ ? ("$1"=>$v) : () });
     my $spec = {
             (exists $$opt{replicas}) ? (replicas=>$$opt{replicas}) : (),
             selector => { matchLabels => { app => $name } },
             template => {
-                metadata => { labels => { @labels, app => $name } },
+                metadata => { labels => { @labels, app => $name }, annotations => { @annotations } },
                 spec => {
                     containers => [$container],
                     volumes => [@secret_volumes, @host_volumes],
