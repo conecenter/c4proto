@@ -2,7 +2,10 @@
 import { useEffect, useState } from "./react"
 import {manageEventListener, getKey, asObject, asString, assertNever, Login} from "./util"
 
-export type Session = { sessionKey: string, branchKey: string, login: Login, check: ()=>Promise<void>, manageUnload: ()=>void }
+export type Session = {
+    sessionKey: string, branchKey: string,
+    login: Login, setupSession: (sessionKey: string)=>Promise<void>, check: ()=>Promise<void>, manageUnload: ()=>void
+}
 const SessionManager = (win: Window, setSession: (session: Session)=>void) => {
     const getBranch = async (sessionKey: string): Promise<{branchKey?:string,error?:string}> => {
         const rj = await (await win.fetch("/auth/branch",{method: "POST", headers: {"x-r-session":sessionKey}})).json()
@@ -11,6 +14,9 @@ const SessionManager = (win: Window, setSession: (session: Session)=>void) => {
     const loginInner = async (body: string): Promise<void> => {
         const rj = await (await win.fetch("/auth/check",{ method: "POST", body })).json()
         const sessionKey = asString(getKey(asObject(rj), "sessionKey")) || assertNever("no sessionKey")
+        await setupSession(sessionKey)
+    }
+    const setupSession = async (sessionKey: string): Promise<void> => {
         const branchKey = (await getBranch(sessionKey)).branchKey || assertNever("no branchKey")
         createSetSession(sessionKey, branchKey)
     }
@@ -21,7 +27,7 @@ const SessionManager = (win: Window, setSession: (session: Session)=>void) => {
         const manageUnload = () => manageEventListener(win, "beforeunload", ()=>{
             win.sessionStorage.setItem(stateKey, `${sessionKey}\n${branchKey}`)
         })
-        setSession({sessionKey,branchKey,login,check,manageUnload})
+        setSession({sessionKey,branchKey,login,check,manageUnload,setupSession})
     }
     const load = async (): Promise<void> => {
         const state = win.sessionStorage.getItem(stateKey)
@@ -40,7 +46,7 @@ export const useSessionManager = (win: Window) => {
     useEffect(() => { SessionManager(win, setSession).load().then(()=>{},setFailure) }, [win, setSession, setFailure])
     useEffect(() => session?.manageUnload(), [session])
     if(!session) return {failure}
-    const {sessionKey, branchKey, login, check} = session
-    const result = {sessionKey, branchKey, login, reloadBranchKey: check, isRoot: true, win, key: branchKey}
+    const {sessionKey, branchKey, login, check, setupSession} = session
+    const result = {sessionKey, branchKey, login, setupSession, reloadBranchKey: check, isRoot: true, win, key: branchKey}
     return {result,failure}
 }

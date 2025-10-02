@@ -136,11 +136,11 @@ const BranchContext = createContext(undefined)
 BranchContext.displayName = "BranchContext"
 export const useBranch = () => useContext(BranchContext) ?? assertNever("no BranchContext")
 const createBranchProvider = ({
-        createNode, sessionKey, branchKey, isRoot, win, login, enqueue, children,
+        createNode, sessionKey, branchKey, isRoot, win, login, setupSession, enqueue, children,
 }) => {
     const value = useMemo(()=>({
-        createNode, sessionKey, branchKey, isRoot, win, login, enqueue
-    }),[createNode, sessionKey, branchKey, isRoot, win, login, enqueue])
+        createNode, sessionKey, branchKey, isRoot, win, login, setupSession, enqueue
+    }),[createNode, sessionKey, branchKey, isRoot, win, login, setupSession, enqueue])
     return createElement(BranchContext.Provider, {value, children})
 }
 const useSync = UseSyncMod(useBranch)
@@ -168,10 +168,10 @@ export const RootComponents = ({createSyncProviders,checkActivate,receivers}) =>
     }
     const SyncRoot = (prop) => {
         const { enqueue, children, ack, busyFor, failure } = useSyncRoot(prop)
-        const { createNode, sessionKey, branchKey, isRoot, win, login } = prop
+        const { createNode, sessionKey, branchKey, isRoot, win, login, setupSession } = prop
         const sender = useMemo(()=>({ enqueue, ctxToPath, busyFor }), [enqueue, ctxToPath, busyFor])
         return createSyncProviders({sender,ack,isRoot,branchKey,children:
-            createBranchProvider({createNode, sessionKey, branchKey, isRoot, win, login, enqueue, children: [
+            createBranchProvider({createNode, sessionKey, branchKey, isRoot, win, login, setupSession, enqueue, children: [
                 failure && createElement('div', {key: 'failure'}, `VIEW FAILED: ${failure}`),
                 createElement(AckContext.Provider, { key: 'ack-ctx', value: ack }, ...children)
             ]})
