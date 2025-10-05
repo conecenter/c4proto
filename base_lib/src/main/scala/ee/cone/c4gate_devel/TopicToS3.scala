@@ -148,8 +148,7 @@ object TxGroup {
   private def runGetLines(cmd: Seq[String]): Array[String] = new String(runGetBytes(cmd), UTF_8).split("\n")
   def list(kubeContext: String, bucket: String): List[(String,()=>Array[Byte])] = {
     val kc = Seq("kubectl", "--context", kubeContext)
-    val s3pod :: _ = runGetLines(kc ++ Seq("get", "pods", "-o", "name", "-l", "c4s3client")).toList
-    val mc = kc ++ Seq("exec", s3pod, "--", "/tools/mc")
+    val mc = kc ++ Seq("exec", "svc/c4s3client", "--", "/tools/mc")
     //
     runGetLines(mc ++ Seq("ls","--json",s"def/$bucket")).toList.map{ line =>
       val obj = ujson.read(line)

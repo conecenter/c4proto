@@ -1,5 +1,5 @@
 
-import json
+from json import loads
 from http.client import HTTPConnection, HTTPSConnection
 import hashlib
 import base64
@@ -9,7 +9,7 @@ import re
 
 from . import run, never_if, one, read_text, list_dir, run_text_out, http_exchange, http_check, Popen, never, log, run_no_die
 from .cluster import get_prefixes_from_pods, s3path, s3init, s3list, get_kubectl, get_pods_json, wait_no_active_prefix,\
-    get_all_contexts, get_any_pod
+    get_all_contexts
 
 
 def s3get(cmd, size, try_count):
@@ -21,7 +21,7 @@ def s3get(cmd, size, try_count):
 def get_hostname(kc, app):
     return max(
         r["host"]
-        for ingress in json.loads(run_text_out((*kc, "get", "ingress", "-o", "json", "-l", f"c4env={app}")))["items"]
+        for ingress in loads(run_text_out((*kc, "get", "ingress", "-o", "json", "-l", f"c4env={app}")))["items"]
         for r in ingress["spec"]["rules"]
     )
 
@@ -142,7 +142,7 @@ def snapshot_copy(env, def_kafka_addr, fr, to):
         #
         wait_no_active_prefix(to_kc, to_prefix)
         #
-        s3exec =  (*to_kc, "exec", "-i", get_any_pod(to_kc, "c4s3client"), "--" )
+        s3exec =  (*to_kc, "exec", "-i", "svc/c4s3client", "--" )
         offset_res = run_text_out((*s3exec, "python3", "-u", "/app/main.py", "produce_one", f"{to_prefix}.inbox", ""))
         new_offset = f'{int(offset_res)+1:016x}'
         #
@@ -169,8 +169,7 @@ def snapshot_copy(env, def_kafka_addr, fr, to):
             never_if(None if proto == "http" and splitter == "://" else "bad address")
             headers = {**add_head, "x-amz-copy-source": source}
             http_check(*http_exchange(HTTPConnection(host, None), "PUT", url, b'', headers))
-        else:
-            run((*to_mc, "pipe", s3path(f"{to_bucket}/{new_fn}")), input=get_data())
+        else: s3put(to_mc, s3path(f"{to_bucket}/{new_fn}"), get_data(), to.get("try_count", 3))
     elif to["type"] == "app":
         data = get_data()
         ignore = [iv for iv in [to.get("ignore")] if iv]
@@ -178,6 +177,12 @@ def snapshot_copy(env, def_kafka_addr, fr, to):
         post_signed(to["kube_contexts"], to["app"], "/put-snapshot", [f"snapshots/{name}", *ignore], data)
     else:
         never(f"bad to {to}")
+
+
+def s3put(mc, path, data, try_count):
+    never_if("bad upload" if try_count <= 0 else None)
+    run((*mc, "pipe", path), input=data)
+    if loads(run_text_out((*mc, "ls", "--json", path)))["size"] != len(data): s3put(mc, path, data, try_count-1)
 
 
 def with_kube_contexts(deploy_context, opt): return (
