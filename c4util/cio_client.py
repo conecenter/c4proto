@@ -54,7 +54,7 @@ def main():
             steps = loads(steps_str)
             hint = task_hint("call")
             post_steps([["queue","hint",hint],*steps])
-            return hint
+            print(hint)
         case _: raise Exception("bad args")
 
 def to_stdout(sock):
