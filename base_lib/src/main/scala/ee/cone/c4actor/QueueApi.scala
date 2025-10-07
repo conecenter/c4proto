@@ -306,11 +306,13 @@ object CheckedMap {
     pairs.groupBy(_._1).transform((k,l)=>Single(l)._2)
 }
 
+class LazyDict[K,V](inner: collection.concurrent.TrieMap[K,V], calc: K=>V) {
+  def apply(k: K): V = inner.getOrElseUpdate(k, calc(k))
+  def clear(): Unit = inner.clear()
+}
+
 object LazyDict {
-  def apply[K,V](calc: K=>V): K=>V = {
-    val inner = collection.concurrent.TrieMap[K,V]()
-    k => inner.getOrElseUpdate(k, calc(k))
-  }
+  def apply[K,V](calc: K=>V): LazyDict[K,V] = new LazyDict(collection.concurrent.TrieMap[K,V]() , calc)
 }
 
 trait AssembleProfiler {
