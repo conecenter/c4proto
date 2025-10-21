@@ -26,4 +26,8 @@ trait Publisher {
   def publish(man: String, publications: List[ByPathHttpPublication]): Context=>Seq[LEvent[Product]]
 }
 
+////
 
+trait PublicDirHeaders {
+  def headers: List[N_Header]
+}

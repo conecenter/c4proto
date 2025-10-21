@@ -36,7 +36,7 @@ trait AkkaHttp {
   }
   def content: String = List(
     //"akka.log-config-on-start = on",
-    "akka.http.server.idle-timeout = 300 s",
+    "akka.http.server.idle-timeout = 600 s",
     "akka.http.server.parsing.max-content-length = infinite",
     //"akka.http.server.parsing.max-to-strict-bytes = infinite",
     "akka.http.client.parsing.max-content-length = infinite",

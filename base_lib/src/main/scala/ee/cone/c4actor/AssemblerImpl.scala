@@ -89,7 +89,7 @@ object SpreadUpdates extends SpreadHandler[N_Update] {
   }
   def seq[T](s: Seq[Future[T]])(implicit ec: ExecutionContext): Future[Seq[T]] = Future.sequence(s)
   def toTreeReplace(assembled: ReadModel, updates: Seq[N_Update], profilingContext: RAssProfilingContext): ReadModel = {
-    //val end = NanoTimer()
+    val end = NanoTimer()
     val isActiveOrig: Set[AssembledKey] = activeOrigKeyRegistry.values
     val outFactory = composes.createOutFactory(0, +1)
     logger.debug("toTreeReplace indexGroups before")
@@ -122,12 +122,14 @@ object SpreadUpdates extends SpreadHandler[N_Update] {
     val diff = taskResults.flatten.groupMap(_._1)(_._2).transform((_,v)=>v.toArray.flatten).toSeq
     //assert(diff.map(_._1).distinct.size == diff.size)
     logger.debug("toTreeReplace indexGroups after")
-    replace.replace(assembled,diff,executionContext,profilingContext)
-    //val period = end.ms
-//    if(logger.underlying.isDebugEnabled){
-//      val ids = updates.map(_.valueTypeId).distinct.map(v=>s"0x${java.lang.Long.toHexString(v)}").mkString(" ")
+    val res = replace.replace(assembled,diff,executionContext,profilingContext)
+    val period = end.ms
+    if(logger.underlying.isDebugEnabled){
+      val ids = updates.map(_.valueTypeId).distinct.map(v=>s"0x${java.lang.Long.toHexString(v)}").mkString(" ")
+      logger.debug(s"toTreeReplace by ${Thread.currentThread.getName} period ${period}ms ids ($ids)")
 //      logger.debug(s"checked: ${transition.taskLog.size} rules by $txName ($ids)")
-//    }
+    }
+    res
   }
 }
 

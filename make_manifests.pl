@@ -116,7 +116,7 @@ my $make_kc_yml = sub{
             resources => {
                 limits => {
                     cpu => $$opt{lim_cpu} || "64",
-                    memory => $$opt{lim_mem} || "64Gi",
+                    memory => $$opt{lim_mem} || "128Gi",
                 },
                 requests => {
                     cpu => &$mandatory_of(req_cpu=>$opt),
@@ -231,8 +231,8 @@ my $make_kc_yml = sub{
             metadata => {
                 annotations=>{
                     "kubernetes.io/ingress.class" => "nginx",
-                    "nginx.ingress.kubernetes.io/proxy-read-timeout" => "300",
-                    "nginx.ingress.kubernetes.io/proxy-send-timeout" => "300",
+                    "nginx.ingress.kubernetes.io/proxy-read-timeout" => "600",
+                    "nginx.ingress.kubernetes.io/proxy-send-timeout" => "600",
                     @tls_annotations,
                 },
             },

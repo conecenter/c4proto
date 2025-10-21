@@ -52,7 +52,7 @@ import scala.concurrent.{Await, ExecutionContext, Future}
     }
   }
   def doSend(updates: List[N_UpdateFrom]): NextOffset = {
-    logger.debug(s"sending: ${updatesDebug.describe("sending",updates)}")
+    logger.debug(s"sending by ${Thread.currentThread.getName} ${updates.size}: ${updatesDebug.describe("sending",updates)}")
     val (bytes, headers) = toUpdate.toBytes(updates)
     val rec = new QRecord(bytes, headers)
     val offset = Single(getRawQSender.value).send(rec)

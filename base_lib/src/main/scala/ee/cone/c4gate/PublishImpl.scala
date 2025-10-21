@@ -69,6 +69,7 @@ case class PublishFromStringsCacheEvent(value: List[ByPathHttpPublication])
   publisher: Publisher,
   publicPaths: PublicPaths,
   sleep: Sleep,
+  publicDirHeaders: List[PublicDirHeaders],
 )(
   mimeTypes: String=>Option[String] = mimeTypesProviders.flatMap(_.get).toMap.get,
   compressor: RawCompressor = publishFullCompressor.value
@@ -107,7 +108,8 @@ case class PublishFromStringsCacheEvent(value: List[ByPathHttpPublication])
     val headers =
       N_Header("etag", s""""$eTag"""") ::
         N_Header("content-encoding", compressor.name) ::
-        mimeType.map(N_Header("content-type",_)).toList
+        mimeType.map(N_Header("content-type",_)).toList :::
+        publicDirHeaders.flatMap(_.headers)
     ByPathHttpPublication(path,headers,byteString)
   }
 }
