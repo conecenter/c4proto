@@ -51,3 +51,7 @@ trait DisableDefaultS3RawSnapshotAppBase
 trait ProductCheckerAppBase
 
 trait StartUpSnapshotAppBase
+
+trait InjectionAppBase
+
+trait WorldProviderAppBase

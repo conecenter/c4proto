@@ -25,19 +25,6 @@ trait RHttpResponseFactory {
   def deferredResponse(request: S_HttpRequest, patch: S_HttpResponse=>S_HttpResponse, events: LEvents): RHttpResponse
 }
 
-object WorldProvider{
-  sealed trait Ctl[R]
-  case class Next[R](events: LEvents) extends Ctl[R]
-  case class Redo[R]() extends Ctl[R]
-  case class Stop[R](value: R) extends Ctl[R]
-  type Steps[R] = List[AssembledContext=>Ctl[R]]
-}
-trait WorldProvider {
-  import WorldProvider._
-  def run[R](steps: Steps[R]): R
-  def runUpdCheck(f: AssembledContext=>LEvents): Unit
-}
-
 trait AlienExchangeState extends Product
 trait AlienUtil {
   def read(state: AlienExchangeState): (AlienExchangeState, String)

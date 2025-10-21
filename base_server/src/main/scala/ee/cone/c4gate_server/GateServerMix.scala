@@ -12,7 +12,6 @@ import ee.cone.c4gate._
 trait SnapshotListRequestHandlerAppBase
 trait S3RawSnapshotSaverAppBase
 trait SafeToRunAppBase
-trait WorldProviderAppBase
 
 trait AbstractHttpGatewayAppBase extends ServerCompApp
   with EnvConfigCompApp with VMExecutionApp

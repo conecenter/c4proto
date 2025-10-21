@@ -4,7 +4,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ScalingProtocol.S_ScaledTxTr
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Single, by, byEq, c4assemble, ignore}
+import ee.cone.c4assemble.{Single, by, byEq, c4assemble, distinct, ignore}
 import ee.cone.c4di.{c4, c4multi}
 import ee.cone.c4proto.{Id, protocol}
 
@@ -61,9 +61,10 @@ import ee.cone.c4proto.{Id, protocol}
     key: SrcId,
     txTrs: Values[TxTransform],
     @by[TxTrKey] scaled: Values[S_ScaledTxTr],
+    @distinct disables: Values[DisableTxTr],
     @byEq[SrcId](actorName.value) processes: Each[ReadyProcesses],
   ): Values[(SrcId,EnabledTxTr)] =
-    if(processes.enabledForCurrentRole.isEmpty) Nil else {
+    if(processes.enabledForCurrentRole.isEmpty || disables.nonEmpty) Nil else {
       val masterId :: followerIds = processes.enabledForCurrentRole
       val worksAtId = Single.option(scaled).fold(masterId)(_.electorClientId)
       if(worksAtId != currentProcess.id) Nil else {

@@ -275,6 +275,7 @@ trait RichRawWorldReducer {
   def toSnapshotUpdates(context: Context): List[N_UpdateFrom]
   def toRevertUpdates(context: Context): TxEvents
   def history(context: Context): TxHistory
+  def history(context: RichContext): TxHistory
   def appCanRevert: Boolean
 }
 
@@ -427,4 +428,17 @@ case class RawTxEvent(value: N_UpdateFrom) extends TxEvent
 trait Sleep {
   def forSeconds(value: Long): TxEvents
   def untilMillis(value: Long): TxEvents
+}
+
+object WorldProvider{
+  sealed trait Ctl[R]
+  case class Next[R](events: TxEvents) extends Ctl[R]
+  case class Redo[R]() extends Ctl[R]
+  case class Stop[R](value: R) extends Ctl[R]
+  type Steps[R] = List[AssembledContext=>Ctl[R]]
+}
+trait WorldProvider {
+  import WorldProvider._
+  def run[R](steps: Steps[R]): R
+  def runUpdCheck(f: AssembledContext=>TxEvents): Unit
 }

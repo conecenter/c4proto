@@ -4,6 +4,7 @@ import java.time.Instant
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ObserverProtocol.S_TxTrBlock
 import ee.cone.c4actor.Types.{SrcId, TransientMap, TxEvents}
+import ee.cone.c4assemble.Single
 import ee.cone.c4di.c4
 import ee.cone.c4proto.{Id, protocol}
 
@@ -15,7 +16,8 @@ trait TxTransforms {
   def get(global: RichContext): Map[SrcId,TransientMap=>TransientMap]
 }
 
-@c4("ServerCompApp") final class DefLongTxWarnPeriod extends LongTxWarnPeriod(Option(System.getenv("C4TX_WARN_PERIOD_MS")).fold(500L)(_.toLong))
+@c4("ServerCompApp") final class DefLongTxWarnPeriod(config: ListConfig)
+  extends LongTxWarnPeriod(Single.option(config.get("C4TX_WARN_PERIOD_MS")).fold(500L)(_.toLong))
 
 @c4("ServerCompApp") final class TxTransformsImpl(
   qMessages: QMessages, warnPeriod: LongTxWarnPeriod, catchNonFatal: CatchNonFatal,

@@ -232,6 +232,9 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "injection_make": lambda opt: sn.injection_make(
         deploy_context, get_dir(opt["from"]), opt.get("substitute", []), opt["to"]
     ),
+    "injection_copy": lambda opt: sn.injection_copy(
+        deploy_context, get_dir(opt["from"]), opt.get("substitute", []), opt["to"]
+    ),
     "empty_dir": lambda name: need_dir(get_dir(name)),
     "git_repo": lambda name, k8s_path: changing_text(f'{need_dir(get_dir(name))}/.c4k8s_path', k8s_path),
     "git_init": lambda name: git.git_init(access_once(deploy_context, get_dir(name)), get_dir(name)),

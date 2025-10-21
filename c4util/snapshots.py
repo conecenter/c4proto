@@ -140,7 +140,7 @@ def snapshot_copy(env, def_kafka_addr, fr, to):
         util_dir = f'{env["C4CI_PROTO_DIR"]}/c4util'
         java = ("java", "--source", "21", "--enable-preview")
         #
-        wait_no_active_prefix(to_kc, to_prefix)
+        if "no_wait" not in to: wait_no_active_prefix(to_kc, to_prefix)
         #
         s3exec =  (*to_kc, "exec", "-i", "svc/c4s3client", "--" )
         offset_res = run_text_out((*s3exec, "python3", "-u", "/app/main.py", "produce_one", f"{to_prefix}.inbox", ""))
@@ -201,10 +201,22 @@ def with_kube_contexts(deploy_context, opt): return (
     never(f"bad from/to {opt}")
 )
 
-def injection_make(deploy_context, fr, sub, to):
-    to = with_kube_contexts(deploy_context, to)
-    a_dir, suffix = fr.split("*")
-    injection = injection_get(a_dir, suffix)
+def injection_substitutes(injection, sub):
     for s_fr, s_to in sub:
         injection = injection_substitute(injection, s_fr, s_to)
+    return injection
+
+def injection_make(deploy_context, fr, sub, to):
+    to = with_kube_contexts(deploy_context, to)
+    injection = injection_substitutes(injection_get(*fr.split("*")), sub)
     injection_post(injection, to["kube_contexts"], to["app"])
+
+def injection_copy(deploy_context, fr, sub, to):
+    to = with_kube_contexts(deploy_context, to)
+    injection = injection_substitutes(injection_get(*fr.split("*")), sub)
+    to_kc = get_kubectl(to["kube_context"])
+    to_prefix = to["prefix"]
+    part = to["part"]
+    never_if(part not in ("del","add"))
+    if "no_wait" not in to: wait_no_active_prefix(to_kc, to_prefix)
+    s3put(s3init(to_kc), s3path(f"{to_prefix}.snapshots/.injection.{part}"), injection.encode(), to.get("try_count", 3))

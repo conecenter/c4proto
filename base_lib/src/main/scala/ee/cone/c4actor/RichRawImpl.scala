@@ -77,6 +77,7 @@ import ee.cone.c4di.c4
     impl(ParentContextKey.of(local).get).reverting.result.map(RawTxEvent)
   }
   def history(local: Context): TxHistory = impl(ParentContextKey.of(local).get).history
+  def history(context: RichContext): TxHistory = impl(context).history
 }
 case object ParentContextKey extends TransientLens[Option[RichContext]](None)
 class RichRawWorldImpl(

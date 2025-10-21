@@ -36,3 +36,7 @@ trait ReadyProcessUtil {
   def getAll(local: AssembledContext): ReadyProcesses
   def getCurrent(local: AssembledContext): ReadyProcess
 }
+
+case class DisableTxTr(srcId: SrcId)
+
+case class BeforeInjection(srcId: SrcId)

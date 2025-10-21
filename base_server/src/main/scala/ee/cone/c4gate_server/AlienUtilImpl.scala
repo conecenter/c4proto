@@ -2,7 +2,7 @@ package ee.cone.c4gate_server
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.LEvents
-import ee.cone.c4actor.{AssembledContext, ListConfig}
+import ee.cone.c4actor._
 import ee.cone.c4assemble.Single
 import ee.cone.c4di.c4
 import ee.cone.c4gate.{EventLogUtil, FromAlienWishUtil, SessionUtil}
