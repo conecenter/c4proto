@@ -5,7 +5,6 @@ from re import sub
 from tempfile import TemporaryDirectory
 from pathlib import Path
 from logging import basicConfig, INFO, DEBUG
-from concurrent.futures import ThreadPoolExecutor
 
 from s3 import init_s3
 from servers import daemon, restarting, build_client, run_proxy, http_serve, Route
@@ -53,8 +52,7 @@ def main():
     cio_event_watchers, cio_event_actions = init_cio_events({}, active_contexts)
     #
     profiling_actions, profiling_handlers = init_profiling({}, contexts, Route)
-    executor = ThreadPoolExecutor(max_workers=16)
-    s3_actions = init_s3(executor)
+    s3_actions = init_s3(contexts)
     handlers = {
         **agent_auth_handlers, **cio_log_handlers, **profiling_handlers,
         "/": Route.http_auth(lambda **_: index_content),

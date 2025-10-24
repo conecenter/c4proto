@@ -328,7 +328,11 @@ const CIOLogsTabView = viewProps => {
 
 const formatS3Size = v => `${(v / 1024 / 1024).toFixed(1)} MiB`;
 const S3SnapshotsTabView = viewProps => {
-    const {items, reset_message, s3contexts, s3context, bucket_name_like, willSend} = viewProps
+    const {
+        items, reset_message, s3contexts, s3context, bucket_name_like,
+        selected_bucket, bucket_objects, bucket_too_many,
+        willSend
+    } = viewProps
     return (
         <>
             <div className="flex gap-2 mb-4">
@@ -348,6 +352,59 @@ const S3SnapshotsTabView = viewProps => {
                 <div className="bg-gray-800 border border-gray-600 rounded-lg p-6 text-center">
                     <p className="text-white text-lg mb-4">{reset_message}</p>
                     <p className="text-gray-400">Press "Search" to refresh bucket list</p>
+                </div>
+            ) : selected_bucket ? (
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-lg text-white">Objects in {selected_bucket}</h3>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={willSend({ op: 's3.list_objects', s3context, bucket_name: selected_bucket })}
+                                className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white disabled:opacity-40"
+                                disabled={!s3context}
+                            >
+                                Refresh
+                            </button>
+                            <button
+                                onClick={willSend({ op: 's3.search', s3context, bucket_name_like })}
+                                className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-white disabled:opacity-40"
+                                disabled={!s3context}
+                            >
+                                Back to buckets
+                            </button>
+                        </div>
+                    </div>
+                    {bucket_too_many ? (
+                        <div className="bg-yellow-900 text-yellow-100 border border-yellow-700 rounded-lg p-4">
+                            Unable to display objects: bucket returned more than 1000 keys. Use CLI tools for detailed listing.
+                        </div>
+                    ) : (
+                        <Table>
+                            <thead>
+                                <tr>
+                                    <Th>Key</Th>
+                                    <Th className="text-right">Size</Th>
+                                    <Th>Last Modified</Th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {(!bucket_objects || bucket_objects.length === 0) && (
+                                    <tr>
+                                        <Td colSpan="3" className="text-center text-gray-400 py-6">
+                                            No objects found
+                                        </Td>
+                                    </tr>
+                                )}
+                                {bucket_objects?.map((obj, index) => (
+                                    <Tr key={obj.key} index={index}>
+                                        <Td><TruncatedText text={obj.key} startChars={24} align="left"/></Td>
+                                        <Td className="text-right">{formatS3Size(obj.size || 0)}</Td>
+                                        <Td>{obj.last_modified ? String(obj.last_modified).split(".")[0] : "-"}</Td>
+                                    </Tr>
+                                ))}
+                            </tbody>
+                        </Table>
+                    )}
                 </div>
             ) : <Table>
                 <thead>
@@ -372,8 +429,20 @@ const S3SnapshotsTabView = viewProps => {
                             <Td className="text-right">{b.last_obj_size ? formatS3Size(b.last_obj_size) : ""}</Td>
                             <Td>{b.last_obj_mod_time ? b.last_obj_mod_time.split(".")[0] : "-"}</Td>
                             <Td>
+                                <button
+                                    onClick={willSend({
+                                        op: 's3.list_objects',
+                                        s3context,
+                                        bucket_name: b.bucket_name
+                                    })}
+                                    className="bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-sm mr-2 disabled:opacity-40"
+                                    disabled={!s3context}
+                                    title="View objects"
+                                >
+                                    🔍
+                                </button>
                                 {b.has_reset_file ? <span className="text-gray-400 text-sm">🔄 Reset pending</span> : (
-                                    <button
+                                    b.bucket_name.match(/^(de|sp)-/) && <button
                                         onClick={willSend({
                                             op: 's3.reset_bucket',
                                             s3context,

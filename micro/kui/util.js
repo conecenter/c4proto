@@ -58,7 +58,7 @@ const manageExchange = (url, setState) => {
 
 const App = ({url, getContent}) => {
     const [state, setState] = useState(() => ({loading: 0}))
-    useEffect(() => manageExchange(url, setState), [setState])
+    useEffect(() => manageExchange(url, setState), [url, setState])
     return state.willSend && getContent({...state, ...getHashParams()})
 }
 
@@ -73,7 +73,7 @@ export const useSimpleInput = ({ value, onChange, dirtyClassName, className, ...
   const [element, setElement] = useState()
   const [_, setDummyCounter] = useState(0)
   const rerender = () => setDummyCounter(was=>was+1)
-  useEffect(() => manageEventListener(element, "change", ev => onChange(ev.target.value)), [element])
+  useEffect(() => manageEventListener(element, "change", ev => onChange(ev.target.value)), [element, onChange])
   useEffect(() => {
     if (element && element.value === value){
         element.closest("form").reset()
@@ -86,6 +86,6 @@ export const useSimpleInput = ({ value, onChange, dirtyClassName, className, ...
 
 export const useTabs = ({viewProps, tabs}) => {
     const {tab, willNavigate} = viewProps
-    useEffect(()=>{ tab || willNavigate({ tab: tabs[0].key })() }, [tab])
+    useEffect(()=>{ tab || willNavigate({ tab: tabs[0].key })() }, [tab, tabs, willNavigate])
     return tabs.find(({key}) => tab === key)?.view({...viewProps,...viewProps[tab]})
 }
