@@ -69,10 +69,11 @@ def get_cron_steps(main_def_list, tm_abbr):
 
 def steps_to_task(env, def_list, steps):
     steps = plan_steps((steps, (def_list, None)))
-    steps = arg_substitute({"group":"{group}","task":"{task}"}, steps, die_on_undef=True)
-    cmd = get_cmd(run_steps, env, steps)
     opt = {k:one(*{*vs}) for k, vs in group_map([d[1:] for d in steps if d[0] == "queue"], lambda d: d).items()}
-    return PlainTask(opt.get("name", "def"), opt.get("hint", task_hint("script")), opt.get("skip"), cmd)
+    hint = opt.get("hint", task_hint("script"))
+    steps = arg_substitute({"group":"{group}","task":"{task}","hint":hint}, steps, die_on_undef=True)
+    cmd = get_cmd(run_steps, env, steps)
+    return PlainTask(opt.get("name", "def"), hint, opt.get("skip"), cmd)
 
 def get_pull_task(def_repo_dir):
     return PlainTask("pull", task_hint("pull"), "pull", get_cmd(git_pull, def_repo_dir))
