@@ -498,7 +498,7 @@ const S3BucketTabView = viewProps => {
 const ProfilingTabView = viewProps => {
     const {
         profiling_kube_context, profiling_pod_name, profiling_period,
-        profiling_contexts, profiling_status, willSend
+        profiling_status, thread_dump_status, willSend
     } = viewProps
     const [seconds, setSeconds] = useState(0)
     useEffect(() => {
@@ -510,59 +510,134 @@ const ProfilingTabView = viewProps => {
             return () => clearInterval(interval)
         }
     }, [profiling_status])
-    return !profiling_status ? <>
-        <div className="flex gap-2 mb-4">
-            <SelectorFilterGroup
-                viewProps={viewProps}
-                fieldName="profiling_kube_context"
-                items={(profiling_contexts||[]).map(key => ({ key, hint: key }))}
-            />
+    const hasSelection = profiling_kube_context && profiling_pod_name
+    return (
+        <div className="space-y-6 text-gray-200">
+            <div className="bg-gray-800 border border-gray-700 rounded p-4">
+                <h3 className="text-sm uppercase tracking-wide text-gray-400">Target pod</h3>
+                <p className="text-lg font-semibold text-white">
+                    {profiling_pod_name || "No pod selected"}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                    Context: {profiling_kube_context || "-"}
+                </p>
+            </div>
+            {!hasSelection ? (
+                <div className="bg-gray-800 border border-gray-700 rounded p-4 text-sm text-gray-300">
+                    Pick a pod from the Pods tab to run profiling tools.
+                </div>
+            ) : (
+                <>
+                    <div className="bg-gray-800 border border-gray-700 rounded p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm uppercase tracking-wide text-gray-400">Flame graph</h3>
+                            {profiling_status === "P" ? (
+                                <p className="text-xs text-gray-500">Profiling… {seconds}s</p>
+                            ) : null}
+                        </div>
+                        {profiling_status === "S" ? (
+                            <div className="flex gap-2 items-center">
+                                <a
+                                    className="underline hover:text-blue-400"
+                                    href={`/profiling-flamegraph.html?time=${Date.now()}`}
+                                    {...tBlank()}
+                                >
+                                    Download flame graph
+                                </a>
+                                <button
+                                    onClick={willSend({ op: 'profiling.reset_profile_status' })}
+                                    className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white"
+                                >
+                                    Clear
+                                </button>
+                            </div>
+                        ) : profiling_status === "F" ? (
+                            <div className="flex gap-2 items-center text-red-300">
+                                <p>Profiling failed.</p>
+                                <button
+                                    onClick={willSend({ op: 'profiling.reset_profile_status' })}
+                                    className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white"
+                                >
+                                    Clear
+                                </button>
+                            </div>
+                        ) : !profiling_status ? (
+                            <p className="text-xs text-gray-500">No flame graph collected yet.</p>
+                        ) : null}
+                        {profiling_status !== "P" ? (
+                            <div className="flex flex-wrap gap-2 items-center">
+                                <SelectorFilterGroup
+                                    viewProps={viewProps}
+                                    fieldName="profiling_period"
+                                    items={[{ key: "15", hint: "15s" }, { key: "", hint: "60s" }, { key: "300", hint: "300s" }]}
+                                />
+                                <button
+                                    onClick={willSend({
+                                        op: 'profiling.profile',
+                                        kube_context: profiling_kube_context,
+                                        pod_name: profiling_pod_name,
+                                        period: profiling_period || "60"
+                                    })}
+                                    className="bg-blue-600 hover:bg-blue-500 px-4 py-1 rounded text-white"
+                                >
+                                    Profile
+                                </button>
+                            </div>
+                        ) : null}
+                    </div>
+                    <div className="bg-gray-800 border border-gray-700 rounded p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm uppercase tracking-wide text-gray-400">Thread dump</h3>
+                            {thread_dump_status === "P" ? (
+                                <p className="text-xs text-gray-500">Collecting…</p>
+                            ) : null}
+                        </div>
+                        {thread_dump_status === "S" ? (
+                            <div className="flex gap-2 items-center">
+                                <a
+                                    className="underline hover:text-blue-400"
+                                    href={`/profiling-thread-dump.html?time=${Date.now()}`}
+                                    {...tBlank()}
+                                >
+                                    Download thread dump
+                                </a>
+                                <button
+                                    onClick={willSend({ op: 'profiling.reset_thread_status' })}
+                                    className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white"
+                                >
+                                    Clear
+                                </button>
+                            </div>
+                        ) : thread_dump_status === "F" ? (
+                            <div className="flex gap-2 items-center text-red-300">
+                                <p>Thread dump failed.</p>
+                                <button
+                                    onClick={willSend({ op: 'profiling.reset_thread_status' })}
+                                    className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white"
+                                >
+                                    Clear
+                                </button>
+                            </div>
+                        ) : !thread_dump_status ? (
+                            <p className="text-xs text-gray-500">No thread dump collected yet.</p>
+                        ) : null}
+                        {thread_dump_status !== "P" ? (
+                            <button
+                                onClick={willSend({
+                                    op: 'profiling.thread_dump',
+                                    kube_context: profiling_kube_context,
+                                    pod_name: profiling_pod_name
+                                })}
+                                className="bg-gray-600 hover:bg-gray-500 px-4 py-1 rounded text-white w-fit"
+                            >
+                                Collect thread dump
+                            </button>
+                        ) : null}
+                    </div>
+                </>
+            )}
         </div>
-        <div className="flex gap-2 mb-4">
-            <SimpleFilterInput
-                viewProps={viewProps}
-                fieldName="profiling_pod_name"
-                placeholder="Pod name..."
-            />
-            <SelectorFilterGroup
-                viewProps={viewProps}
-                fieldName="profiling_period"
-                items={[{ key: "15", hint: "15s" }, { key: "", hint: "60s" }, { key: "300", hint: "300s" }]}
-            />
-            <button
-                onClick={willSend({
-                    op: 'profiling.profile',
-                    kube_context: profiling_kube_context, pod_name: profiling_pod_name, period: profiling_period || "60"
-                })}
-                className="bg-blue-600 hover:bg-blue-500 px-4 py-1 rounded text-white"
-            >
-                Profile
-            </button>
-        </div>
-    </> :
-    <div className="flex gap-2 items-center text-gray-400">
-        {
-            profiling_status === "F" ? <>
-                <p>Failed…</p>
-                <button
-                    onClick={willSend({ op: 'profiling.reset_status' })}
-                    className="bg-blue-600 hover:bg-blue-500 px-4 py-1 rounded text-white"
-                >
-                    Reset status
-                </button>
-            </> :
-            profiling_status === "S" ?
-                <a
-                    className="underline hover:text-blue-400"
-                    href={`/profiling-flamegraph.html?time=${Date.now()}`}
-                    {...tBlank()}
-                >
-                    Download result
-                </a> :
-            profiling_status === "P" ? <p>Profiling… {seconds}s</p> :
-            undefined
-        }
-    </div>
+    )
 }
 
 const LinksTabView = ({ cluster_links = [], custom_links = [] }) => {
