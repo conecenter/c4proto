@@ -15,6 +15,13 @@ def grouped(l): return [(k,[v for _,v in kvs]) for k,kvs in groupby(sorted(l, ke
 
 def get_app_name(pod): return sel(pod,"metadata", "labels", "app")
 
+def get_env_value(pod, name):
+    for container in sel(pod, "spec", "containers") or []:
+        for env in container.get("env") or []:
+            if env.get("name") == name:
+                return env.get("value")
+    return None
+
 def init_kube_pods(mut_resources, mut_metrics, contexts, get_forward_service_name, kcp):
     def load(mail, pod_name_like='', pod_list_kube_context='', **_):
         pod_contexts = [c["name"] for c in contexts]
@@ -44,11 +51,13 @@ def init_kube_pods(mut_resources, mut_metrics, contexts, get_forward_service_nam
                 "host": sel(one_opt(sel(mut_resources, ("ingresses", kube_context), get_app_name(pod), "spec", "rules")),"host"),
                 "usage_cpu": sel(usage, "cpu"),
                 "usage_memory": sel(usage, "memory"),
+                "inbox_bucket": f'{inbox_prefix}.snapshots' if inbox_prefix else None,
             }
             for selected_app_name in [sel(mut_resources, ("services", kube_context), get_forward_service_name(mail),"spec","selector","app")]
             for pod_name, pod in (sel(mut_resources, ("pods", kube_context)) or {}).items() if cond.search(pod_name)
             for container_status in [one_opt(sel(pod,"status", "containerStatuses"))]
             for usage in [one_opt(usage_by_pod.get(pod_name))]
+            for inbox_prefix in [get_env_value(pod, "C4INBOX_TOPIC_PREFIX")]
             #for m in [pod_re.fullmatch(pod_name)] if m and m.group(3) == user_abbr
         ), key=lambda p:p["key"])
         return { "items": items, "pod_contexts": pod_contexts }

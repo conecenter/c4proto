@@ -18,10 +18,12 @@
 - `kube_pods.py`: Supplies `pods.load` (filtered list enriched with metrics), `pods.select_pod`, `pods.recreate_pod`, and `pods.scale_down`. Uses `kubectl` via the global kubeconfig and watches maintained in `mut_resources`.
 - `kube_top.py`: Periodically refreshes metrics API snapshots into `mut_metrics[(key, kube_context)]`. `pods.load` triggers refreshes by touching `mut_metrics[("expired", kube_context)]`.
 - `cio.py`: Talks to the `c4cio` service in each active context. Three subsystems cover task queues, event feeds, and log streaming/search (with temporary files in a process-local directory).
-- `s3.py`: S3 snapshot tooling. `init_s3` exposes:
-  - `s3.load`: returns cached state (`mut_state_by_user[mail]`).
+- `s3.py`: S3 snapshot tooling. `init_s3` (bucket list) and `init_s3bucket` (object view) expose:
+  - `s3.load`: returns cached state (`mut_state_by_user[mail]`) plus any status message.
   - `s3.search`: enqueues a parallel scan of buckets (names ending in `.snapshots`) using the shared executor.
   - `s3.reset_bucket`: writes a `.reset` object into the bucket to signal an external reset job.
+  - `s3bucket.load`: enqueues a bucket refresh and serves cached objects keyed by `(context, bucket)`.
+  - `s3bucket.refresh`: forces a bucket refresh; a background watcher drains the queue and updates the shared cache.
   Credentials and endpoints come from `C4KUI_S3_CONTEXTS` plus secrets JSON stored at `C4KUI_S3_SECRETS`.
 - `profiling.py`: Launches async-profiler inside selected pods. Tracks profiling status/result per user and serves the generated flamegraph over `/profiling-flamegraph.html`.
 - `servers.py`: OAuth2 proxy config, WebSocket/HTTP routing, response helpers, and the frontend build step (esbuild + Tailwind).
@@ -60,6 +62,9 @@
 - Many functions assume the relevant dictionaries are populated; guard for missing keys when adding new features.
 - Long-running shell commands (`kubectl`, `tar`, `grep`) are invoked synchronously; consider executor usage if you introduce extra latency.
 - The frontend assumes every new tab follows the existing filter pattern: store filters in hash, call `willSend` to trigger actions, and expect the backend to echo new state on completion.
+- Treat the `mut_*` containers as mutable maps with immutable payloads: replace values wholesale instead of mutating nested keys so diffing and concurrency stay predictable.
+- Loader functions should stay non-blocking: queue background work and return a snapshot immediately; watchers are responsible for driving refreshes.
+- Each module should return watcher callables from its `init_*` entry point; the caller (usually `app.py`) owns thread creation and restart handling.
 
 ## Style & Conventions
 - **Single orchestrator**: `app.py` owns composition. Individual modules should stay focused on their own concerns and avoid importing one another directly (pass callbacks/data through `init_*` hooks instead).
@@ -68,5 +73,7 @@
 - **Concise/KISS**: Keep implementations short and direct—lean on expressions, inline `lambda`s, and comprehensions rather than auxiliary classes or elaborate abstractions. Mirror this in JSX: no semicolons, rely on hash-param helpers for navigation, and keep component state minimal.
 - **Minimal branching**: Guard upfront, return early, and keep the “happy path” straight so helpers read top-to-bottom without nested conditionals.
 - **Fail fast**: Validate required config/inputs immediately and raise when invariants break; translate those exceptions into user-facing errors only at the outermost boundary.
+- **Surface failures**: Log errors and surface a clear status to the user, but avoid returning raw exception objects or tracebacks over WebSocket payloads.
 - **Diff discipline**: Prefer small, incremental diffs. If broader refactors are unavoidable, stage them stepwise and call out optional pieces so reviews stay quick.
 - **Default style deltas**: Python keeps close to PEP 8 but tolerates tightly-packed expressions; manual line wrapping and imports should remain tidy. JavaScript/JSX sticks with modern React, omits semicolons, and spells out every `useEffect` dependency; follow the existing patterns when extending the UI.
+- **Direct construction**: Prefer comprehensions and whole-object replacements (`replace_state` style factories) over piecemeal mutation so cached snapshots stay easy to diff and reason about.

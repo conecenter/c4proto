@@ -1,13 +1,9 @@
 
-from subprocess import Popen, PIPE, check_call, run, check_output
-from json import loads
+from subprocess import check_call, run, check_output
 from collections import namedtuple
 from traceback import print_exc
-from os import environ
 
 Profiling = namedtuple("Profiling", ("status", "data"))
-
-def get_kc(kube_context): return "kubectl","--kubeconfig",environ["C4KUBECONFIG"],"--context",kube_context
 
 def get_name(obj): return obj["metadata"]["name"]
 
@@ -15,7 +11,7 @@ def never(m): raise Exception(m)
 
 def limit_by_list(v, l): return v if v in l else never(f"{v} not in {l}")
 
-def init_profiling(mut_pr, contexts, rt):
+def init_profiling(mut_pr, contexts, rt, kcp):
     profiling_contexts = [c["name"] for c in contexts]
     def load(mail, profiling_kube_context='', profiling_pod_name='', **_):
         profiling_status = mut_pr.get(mail,Profiling("","")).status
@@ -24,7 +20,7 @@ def init_profiling(mut_pr, contexts, rt):
         def run_profile():
             try:
                 mut_pr[mail] = Profiling("P", "")
-                kc = get_kc(limit_by_list(kube_context, profiling_contexts))
+                kc = (*kcp, limit_by_list(kube_context, profiling_contexts))
                 pod_names = check_output((*kc, "get", "pods", "-o", "name")).decode().splitlines()
                 pod_nm = limit_by_list(f"pod/{pod_name}", pod_names)
                 kc_exec = (*kc,"exec","-i",pod_nm,"--")
