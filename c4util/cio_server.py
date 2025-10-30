@@ -4,9 +4,10 @@ from queue import Queue
 from sys import stderr
 from os import environ
 from json import loads, decoder as json_decoder
-from time import sleep, gmtime, strftime
+from time import sleep
+from datetime import datetime, timezone, timedelta
 from tempfile import TemporaryDirectory
-from logging import exception, info, basicConfig, DEBUG, INFO
+from logging import exception, info, basicConfig, INFO
 
 from . import list_dir, repeat, read_text, one, group_map, decode
 from .git import git_pull, git_clone
@@ -56,16 +57,11 @@ def get_service_steps(def_list):
     services = [one(*d[1:]) for d in def_list if d and d[0] == "service"]
     return [[["queue","name",s],["queue","hint",task_hint(s)],["queue","skip",s],["call",{"op":s}]] for s in services]
 
-def get_tm_abbr():
-    tm = gmtime()
-    return "ETKNRLP"[tm.tm_wday], strftime("%H:%M", tm)
+def get_tz_dh(main_def_list): return next((one(*d[1:]) for d in main_def_list if d and d[0] == "timezone_dh"), 0)
 
 def get_cron_steps(main_def_list, tm_abbr):
     info(f"at {tm_abbr}")
-    return [[["call", act]] for act in [
-        *select_def(main_def_list, "weekly", tm_abbr[0]+tm_abbr[1]),
-        *select_def(main_def_list, "daily", tm_abbr[1])
-    ]]
+    return [[["call", act]] for act in select_def(main_def_list, "daily", tm_abbr)]
 
 def steps_to_task(env, def_list, steps):
     steps = plan_steps((steps, (def_list, None)))
@@ -129,7 +125,8 @@ def handle_any(env, def_repo_dir, report, report_send, tasks, requested_steps, t
                 main_dir, util_dir = env["C4CRON_MAIN_DIR"], env["C4CRON_UTIL_DIR"]
                 def_lists = {k: load_def_list(f'{def_repo_dir}/{k}') for k in sorted({main_dir, util_dir})}
                 service_steps = fallback((), get_service_steps, def_lists[main_dir])
-                tm_abbr, was_tm_abbr = get_tm_abbr(), tm_abbr
+                tz_dh = fallback(0, get_tz_dh, def_lists[main_dir])
+                tm_abbr, was_tm_abbr = datetime.now(timezone(timedelta(hours=tz_dh))).strftime("%H:%M"), tm_abbr
                 same_tm = was_tm_abbr == tm_abbr
                 cron_steps = () if same_tm else fallback((), get_cron_steps, def_lists[main_dir], tm_abbr)
                 for ss in [*requested_steps,*cron_steps,*service_steps]:

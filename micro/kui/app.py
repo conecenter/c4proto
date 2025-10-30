@@ -47,8 +47,12 @@ def main():
     kube_watchers = [*kube_resource_watchers, *kube_top_watchers]
     kube_actions = {**kube_pod_actions}
     # cio
-    cio_task_watchers, cio_task_actions = init_cio_tasks({}, active_contexts, kcp)
-    cio_log_watchers, cio_log_actions, cio_log_handlers = init_cio_logs(Path(dir_life.name), active_contexts, get_user_abbr, Route, kcp)
+    mut_cio_tasks = {}
+    mut_cio_proc_by_pid = {}
+    cio_task_watchers, cio_task_actions = init_cio_tasks(mut_cio_tasks, mut_cio_proc_by_pid, active_contexts, kcp)
+    cio_log_watchers, cio_log_actions, cio_log_handlers = init_cio_logs(
+        Path(dir_life.name), active_contexts, get_user_abbr, Route, kcp, mut_cio_proc_by_pid
+    )
     cio_event_watchers, cio_event_actions = init_cio_events({}, active_contexts, kcp)
     #
     profiling_actions, profiling_handlers = init_profiling({}, contexts, Route, kcp)

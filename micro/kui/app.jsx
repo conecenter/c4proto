@@ -3,12 +3,18 @@ import {useState,useEffect,useMemo} from "react"
 import {start,useSimpleInput,useTabs,withHashParams} from "./util.js"
 
 const ReloadDialog = message => (
-    <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white shadow-lg rounded-xl px-6 py-4 z-50 flex items-center space-x-4 animate-fadeIn border border-gray-700">
-        <span className="text-sm">{message}</span>
-        <button
-            onClick={ev=>location.reload()}
-            className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium py-1 px-3 rounded-lg"
-        >Reload</button>
+    <div className="fixed inset-x-0 top-0 z-50 flex justify-center pointer-events-none">
+        <div className="pointer-events-auto mt-6 mx-4 max-w-xl w-full bg-gradient-to-r from-amber-500 via-rose-600 to-red-600 text-white shadow-2xl rounded-2xl px-6 py-5 flex items-start gap-4 border border-white/30 backdrop-blur-sm">
+            <div className="text-2xl leading-none" aria-hidden>⟳</div>
+            <div className="flex-1">
+                <div className="font-semibold text-lg">{message}</div>
+                <div className="text-sm text-white/90 mt-1">Reload to pick up the latest changes and restore connectivity.</div>
+            </div>
+            <button
+                onClick={ev=>location.reload()}
+                className="bg-black/40 hover:bg-black/60 text-white text-sm font-semibold py-2 px-4 rounded-lg uppercase tracking-wide"
+            >Reload</button>
+        </div>
     </div>
 )
 
@@ -215,7 +221,7 @@ const reformatTopSize = v => (
 const reformatTopCPU = v => v.substring(v.length-1) === "n" ? `${(v.substring(0, v.length-1) / 1024 / 1024)|0}m` : v
 
 const CIOTasksTabView = viewProps => {
-    const {items, managedKubeContexts} = viewProps
+    const {items, managedKubeContexts = [], willSend, cio_kube_context} = viewProps
     return <>
           <div className="mb-4">
               <SelectorFilterGroup viewProps={viewProps} fieldName="cio_kube_context" items={managedKubeContexts.map(key => ({key,hint:key}))}/>
@@ -223,13 +229,27 @@ const CIOTasksTabView = viewProps => {
           <Table>
             <thead>
               <tr>
-                <Th>Status</Th><Th>Queue</Th><Th>Task</Th>
+                <Th>Status</Th><Th>Queue</Th><Th>Task</Th><Th>PID</Th><Th>Actions</Th>
               </tr>
             </thead>
             <tbody>
-                <NotFoundTr viewProps={viewProps} colSpan="3"/>
-                { items?.map((t, index) => <Tr key={t.task_name} index={index}>
-                    <Td>{t.status}</Td><Td>{t.queue_name}</Td><Td>{t.task_name}</Td>
+                <NotFoundTr viewProps={viewProps} colSpan="5"/>
+                { items?.map((t, index) => <Tr key={`${t.queue_name}/${t.task_name}/${t.pid ?? "none"}`} index={index}>
+                    <Td>{t.status}</Td>
+                    <Td>{t.queue_name}</Td>
+                    <Td>{t.task_name}</Td>
+                    <Td>{t.pid ?? "—"}</Td>
+                    <Td>
+                        <button
+                            disabled={!t.pid || !cio_kube_context}
+                            className={`px-3 py-1 rounded text-sm font-semibold ${
+                                t.pid && cio_kube_context
+                                    ? "bg-red-600 hover:bg-red-500 text-white"
+                                    : "bg-gray-700 text-gray-400 cursor-not-allowed"
+                            }`}
+                            onClick={willSend({ op: 'cio_tasks.kill', cio_kube_context, pid: t.pid })}
+                        >Kill</button>
+                    </Td>
                 </Tr>)}
             </tbody>
           </Table>
