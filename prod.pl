@@ -371,7 +371,7 @@ push @tasks, ["up_kc_host", "", sub{ # the last multi container kc
                 apiGroups => ["","apps","extensions","metrics.k8s.io","networking.k8s.io","kafka.strimzi.io"],
                 resources => [
                     "statefulsets","secrets","services","deployments","ingresses","pods","replicasets","kafkatopics",
-                    "deployments/scale"
+                    "deployments/scale", "pods/resize",
                 ],
                 verbs => ["get","create","patch","delete","update","list","watch"],
             },
