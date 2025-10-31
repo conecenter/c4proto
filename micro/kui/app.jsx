@@ -98,7 +98,7 @@ const PodsTabView = viewProps => {
     const sortedItems = useMemo(() => sort_by_node ? items?.toSorted(compareBy(it => it.nodeName||"")) : items, [items, sort_by_node])
     return <>
           {pod_contexts && <div className="mb-4">
-              <SelectorFilterGroup viewProps={viewProps} fieldName="pod_list_kube_context" items={pod_contexts.map(key => ({key,hint:key}))}/>
+              <SelectorFilterGroup viewProps={viewProps} fieldName="filter_kube_context" items={pod_contexts.map(key => ({key,hint:key}))}/>
           </div>}
 
           <div className="mb-4 flex flex-wrap gap-2 justify-start">
@@ -149,7 +149,7 @@ const PodsTabView = viewProps => {
                             <button
                                 onClick={willNavigate({
                                     tab: 's3bucket',
-                                    s3context: pod.kube_context,
+                                    bucket_kube_context: pod.kube_context,
                                     bucket_name: pod.inbox_bucket
                                 })}
                                 className="p-1"
@@ -370,19 +370,20 @@ const CIOLogsTabView = viewProps => {
 
 const formatS3Size = v => `${(v / 1024 / 1024).toFixed(1)} MiB`;
 const S3SnapshotsTabView = viewProps => {
-    const { items, status_message, s3contexts, s3context, bucket_name_like, willSend, willNavigate } = viewProps
+    const { items, status_message, s3contexts, filter_kube_context, bucket_name_like, willSend, willNavigate } = viewProps
     return (
         <>
             <div className="flex gap-2 mb-4">
                 <SelectorFilterGroup
                     viewProps={viewProps}
-                    fieldName="s3context"
+                    fieldName="filter_kube_context"
                     items={(s3contexts||[]).map(key => ({ key, hint: key }))}
                 />
                 <SimpleFilterInput viewProps={viewProps} fieldName="bucket_name_like" placeholder="Filter buckets..."/>
                 <button
-                    onClick={willSend({ op: 's3.search', s3context, bucket_name_like })}
+                    onClick={willSend({ op: 's3.search', kube_context: filter_kube_context, bucket_name_like })}
                     className="bg-blue-600 hover:bg-blue-500 px-4 py-1 rounded text-white"
+                    disabled={!filter_kube_context}
                 >Search</button>
             </div>
 
@@ -417,11 +418,11 @@ const S3SnapshotsTabView = viewProps => {
                                 <button
                                     onClick={willNavigate({
                                         tab: 's3bucket',
-                                        s3context,
+                                        bucket_kube_context: filter_kube_context,
                                         bucket_name: b.bucket_name,
                                     })}
                                     className="bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-sm mr-2 disabled:opacity-40"
-                                    disabled={!s3context}
+                                    disabled={!filter_kube_context}
                                     title="View objects"
                                 >
                                     🔍
@@ -430,7 +431,7 @@ const S3SnapshotsTabView = viewProps => {
                                     b.bucket_name.match(/^(de|sp)-/) && <button
                                         onClick={willSend({
                                             op: 's3.reset_bucket',
-                                            s3context,
+                                            kube_context: filter_kube_context,
                                             bucket_name: b.bucket_name
                                         })}
                                         className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-sm"
@@ -449,7 +450,7 @@ const S3SnapshotsTabView = viewProps => {
 }
 
 const S3BucketTabView = viewProps => {
-    const { bucket_name, s3context, bucket_objects, loaded_at, error, willSend, willNavigate } = viewProps
+    const { bucket_name, bucket_kube_context, bucket_objects, loaded_at, error, willSend, willNavigate } = viewProps
     return (
         <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -461,20 +462,21 @@ const S3BucketTabView = viewProps => {
                 </div>
                 <div className="flex gap-2">
                     <button
-                        onClick={willSend({ op: 's3bucket.refresh', s3context, bucket_name })}
-                        className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white disabled:opacity-40"
+                        onClick={willSend({ op: 's3bucket.refresh', kube_context: bucket_kube_context, bucket_name })}
+                        className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white"
+                        disabled={!bucket_name || !bucket_kube_context}
                     >
                         Refresh
                     </button>
                     <button
-                        onClick={willNavigate({ tab: 's3', bucket_name: '' })}
+                        onClick={ev=>history.back()}
                         className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-white"
                     >
-                        Back to buckets
+                        Back
                     </button>
                 </div>
             </div>
-            { !bucket_name || !s3context ? (
+            { !bucket_name || !bucket_kube_context ? (
                 <div className="bg-gray-800 border border-gray-600 rounded-lg p-6 text-center text-gray-300">
                     No bucket selected.
                 </div>

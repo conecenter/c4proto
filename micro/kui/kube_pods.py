@@ -23,9 +23,9 @@ def get_env_value(pod, name):
     return None
 
 def init_kube_pods(mut_resources, mut_metrics, contexts, get_forward_service_name, kcp):
-    def load(mail, pod_name_like='', pod_list_kube_context='', **_):
+    def load(mail, pod_name_like='', filter_kube_context='', **_):
         pod_contexts = [c["name"] for c in contexts]
-        kube_context = pod_list_kube_context
+        kube_context = filter_kube_context
         if not kube_context or not pod_name_like: return { "need_filters": True, "pod_contexts": pod_contexts }
         cond = re.compile(pod_name_like)
         mut_metrics[("expired", kube_context)] = time() - 15 # Trigger metrics fetch
