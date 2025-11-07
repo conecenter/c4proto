@@ -226,7 +226,6 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "#": lambda *args: None,
     "called": lambda *args: None,
     "queue": lambda *args: None,
-    "snapshot_list_dump": lambda opt: sn.snapshot_list_dump(deploy_context, opt),
     "snapshot_copy": lambda opt: sn.snapshot_copy(env, kafka_addr(0), opt["from"], opt["to"]),
     "snapshot_make": lambda opt: sn.snapshot_make(deploy_context, opt),
     "injection_make": lambda opt: sn.injection_make(

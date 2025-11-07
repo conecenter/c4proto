@@ -76,12 +76,6 @@ def post_signed(kube_contexts, app, url, args, data):
     http_check(*http_exchange(HTTPSConnection(host, None), "POST", url, data, headers))
 
 
-def snapshot_list_dump(deploy_context, fr):
-    kube_context, prefix = snapshot_prefix_resolve(with_kube_contexts(deploy_context,fr))
-    mc = s3init(get_kubectl(kube_context))
-    log(run_text_out((*mc, "ls", s3path(f"{prefix}.snapshots"))))
-
-
 def snapshot_prefix_resolve(opt):
     if opt["type"] == "prefix":
         return opt["kube_context"], opt["prefix"]

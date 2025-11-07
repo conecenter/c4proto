@@ -3,12 +3,18 @@ import {useState,useEffect,useMemo} from "react"
 import {start,useSimpleInput,useTabs,withHashParams} from "./util.js"
 
 const ReloadDialog = message => (
-    <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white shadow-lg rounded-xl px-6 py-4 z-50 flex items-center space-x-4 animate-fadeIn border border-gray-700">
-        <span className="text-sm">{message}</span>
-        <button
-            onClick={ev=>location.reload()}
-            className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium py-1 px-3 rounded-lg"
-        >Reload</button>
+    <div className="fixed inset-x-0 top-0 z-50 flex justify-center pointer-events-none">
+        <div className="pointer-events-auto mt-6 mx-4 max-w-xl w-full bg-gradient-to-r from-amber-500 via-rose-600 to-red-600 text-white shadow-2xl rounded-2xl px-6 py-5 flex items-start gap-4 border border-white/30 backdrop-blur-sm">
+            <div className="text-2xl leading-none" aria-hidden>⟳</div>
+            <div className="flex-1">
+                <div className="font-semibold text-lg">{message}</div>
+                <div className="text-sm text-white/90 mt-1">Reload to pick up the latest changes and restore connectivity.</div>
+            </div>
+            <button
+                onClick={ev=>location.reload()}
+                className="bg-black/40 hover:bg-black/60 text-white text-sm font-semibold py-2 px-4 rounded-lg uppercase tracking-wide"
+            >Reload</button>
+        </div>
     </div>
 )
 
@@ -17,14 +23,23 @@ export const Page = viewProps => {
       processing, mail, appVersion, viewTime, clusters, lastCluster, showAllClusters, tab, willNavigate, connectionAttempts
     } = viewProps
 
-    const tabs = [
-        { key: "pods", hint: "Pods", view: p => <PodsTabView {...p}/> },
-        { key: "cio_tasks", hint: "CIO tasks", view: p => <CIOTasksTabView {...p}/> },
-        { key: "cio_events", hint: "CIO events", view: p => <CIOEventsTabView {...p}/> },
-        { key: "cio_logs", hint: "CIO logs", view: p => <CIOLogsTabView {...p}/> },
-        { key: "s3", hint: "S3", view: p => <S3SnapshotsTabView {...p}/> },
-        { key: "profiling", hint: "Profiling", view: p => <ProfilingTabView {...p}/> },
-        { key: "links", hint: "Links", view: p => <LinksTabView {...p}/> },
+    const tabBodyList = [
+        { key: "pods", view: p => <PodsTabView {...p}/> },
+        { key: "cio_tasks", view: p => <CIOTasksTabView {...p}/> },
+        { key: "cio_events", view: p => <CIOEventsTabView {...p}/> },
+        { key: "cio_logs", view: p => <CIOLogsTabView {...p}/> },
+        { key: "s3", view: p => <S3SnapshotsTabView {...p}/> },
+        { key: "s3bucket", view: p => <S3BucketTabView {...p}/> },
+        { key: "profiling", view: p => <ProfilingTabView {...p}/> },
+        { key: "links", view: p => <LinksTabView {...p}/> },
+    ]
+    const tabTitles = [
+        { keys: ["pods","profiling"], hint: "Pods" },
+        { keys: ["cio_tasks"], hint: "CIO tasks" },
+        { keys: ["cio_events"], hint: "CIO events" },
+        { keys: ["cio_logs"], hint: "CIO logs" },
+        { keys: ["s3", "s3bucket"], hint: "S3" },
+        { keys: ["links"], hint: "Links" },
     ]
 
     return (
@@ -60,16 +75,16 @@ export const Page = viewProps => {
 
             <div className="border-b border-gray-700 mb-4">
               <nav className="flex space-x-4 text-gray-300">
-                {tabs.map(({key,hint}) => (
-                    <button key={key}
-                      onClick={willNavigate({tab: key})}
-                      className={`px-3 py-2 rounded-t-md ${(tab??'') === key ? 'bg-gray-800 text-white' : 'hover:bg-gray-700'}`}
+                {tabTitles.map(({keys,hint}) => (
+                    <button key={keys[0]}
+                      onClick={willNavigate({tab: keys[0]})}
+                      className={`px-3 py-2 rounded-t-md ${keys.includes(tab??'') ? 'bg-gray-800 text-white' : 'hover:bg-gray-700'}`}
                     >{hint}</button>
                 ))}
               </nav>
             </div>
 
-            {useTabs({viewProps,tabs})}
+            {useTabs({viewProps,tabs:tabBodyList})}
 
           </div>
         </div>
@@ -83,7 +98,7 @@ const PodsTabView = viewProps => {
     const sortedItems = useMemo(() => sort_by_node ? items?.toSorted(compareBy(it => it.nodeName||"")) : items, [items, sort_by_node])
     return <>
           {pod_contexts && <div className="mb-4">
-              <SelectorFilterGroup viewProps={viewProps} fieldName="pod_list_kube_context" items={pod_contexts.map(key => ({key,hint:key}))}/>
+              <SelectorFilterGroup viewProps={viewProps} fieldName="filter_kube_context" items={pod_contexts.map(key => ({key,hint:key}))}/>
           </div>}
 
           <div className="mb-4 flex flex-wrap gap-2 justify-start">
@@ -130,6 +145,19 @@ const PodsTabView = viewProps => {
                         >
                             📊
                         </button>
+                        {pod.inbox_bucket && (
+                            <button
+                                onClick={willNavigate({
+                                    tab: 's3bucket',
+                                    bucket_kube_context: pod.kube_context,
+                                    bucket_name: pod.inbox_bucket
+                                })}
+                                className="p-1"
+                                title={`Open ${pod.inbox_bucket}`}
+                            >
+                                🪣
+                            </button>
+                        )}
                         {
                             pod.host && <a {...tBlank()} href={`https://${pod.host}`}>
                                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -193,7 +221,7 @@ const reformatTopSize = v => (
 const reformatTopCPU = v => v.substring(v.length-1) === "n" ? `${(v.substring(0, v.length-1) / 1024 / 1024)|0}m` : v
 
 const CIOTasksTabView = viewProps => {
-    const {items, managedKubeContexts} = viewProps
+    const {items, managedKubeContexts = [], willSend, cio_kube_context} = viewProps
     return <>
           <div className="mb-4">
               <SelectorFilterGroup viewProps={viewProps} fieldName="cio_kube_context" items={managedKubeContexts.map(key => ({key,hint:key}))}/>
@@ -201,13 +229,27 @@ const CIOTasksTabView = viewProps => {
           <Table>
             <thead>
               <tr>
-                <Th>Status</Th><Th>Queue</Th><Th>Task</Th>
+                <Th>Status</Th><Th>Queue</Th><Th>Task</Th><Th>PID</Th><Th>Actions</Th>
               </tr>
             </thead>
             <tbody>
-                <NotFoundTr viewProps={viewProps} colSpan="3"/>
-                { items?.map((t, index) => <Tr key={t.task_name} index={index}>
-                    <Td>{t.status}</Td><Td>{t.queue_name}</Td><Td>{t.task_name}</Td>
+                <NotFoundTr viewProps={viewProps} colSpan="5"/>
+                { items?.map((t, index) => <Tr key={`${t.queue_name}/${t.task_name}/${t.pid ?? "none"}`} index={index}>
+                    <Td>{t.status}</Td>
+                    <Td>{t.queue_name}</Td>
+                    <Td>{t.task_name}</Td>
+                    <Td>{t.pid ?? "—"}</Td>
+                    <Td>
+                        <button
+                            disabled={!t.pid || !cio_kube_context}
+                            className={`px-3 py-1 rounded text-sm font-semibold ${
+                                t.pid && cio_kube_context
+                                    ? "bg-red-600 hover:bg-red-500 text-white"
+                                    : "bg-gray-700 text-gray-400 cursor-not-allowed"
+                            }`}
+                            onClick={willSend({ op: 'cio_tasks.kill', cio_kube_context, pid: t.pid })}
+                        >Kill</button>
+                    </Td>
                 </Tr>)}
             </tbody>
           </Table>
@@ -328,26 +370,27 @@ const CIOLogsTabView = viewProps => {
 
 const formatS3Size = v => `${(v / 1024 / 1024).toFixed(1)} MiB`;
 const S3SnapshotsTabView = viewProps => {
-    const {items, reset_message, s3contexts, s3context, bucket_name_like, willSend} = viewProps
+    const { items, status_message, s3contexts, filter_kube_context, bucket_name_like, willSend, willNavigate } = viewProps
     return (
         <>
             <div className="flex gap-2 mb-4">
                 <SelectorFilterGroup
                     viewProps={viewProps}
-                    fieldName="s3context"
+                    fieldName="filter_kube_context"
                     items={(s3contexts||[]).map(key => ({ key, hint: key }))}
                 />
                 <SimpleFilterInput viewProps={viewProps} fieldName="bucket_name_like" placeholder="Filter buckets..."/>
                 <button
-                    onClick={willSend({ op: 's3.search', s3context, bucket_name_like })}
+                    onClick={willSend({ op: 's3.search', kube_context: filter_kube_context, bucket_name_like })}
                     className="bg-blue-600 hover:bg-blue-500 px-4 py-1 rounded text-white"
+                    disabled={!filter_kube_context}
                 >Search</button>
             </div>
 
-            {reset_message ? (
+            {status_message ? (
                 <div className="bg-gray-800 border border-gray-600 rounded-lg p-6 text-center">
-                    <p className="text-white text-lg mb-4">{reset_message}</p>
-                    <p className="text-gray-400">Press "Search" to refresh bucket list</p>
+                    <p className="text-white text-lg mb-2">{status_message}</p>
+                    <p className="text-gray-400">Run a new search to refresh this list.</p>
                 </div>
             ) : <Table>
                 <thead>
@@ -372,11 +415,23 @@ const S3SnapshotsTabView = viewProps => {
                             <Td className="text-right">{b.last_obj_size ? formatS3Size(b.last_obj_size) : ""}</Td>
                             <Td>{b.last_obj_mod_time ? b.last_obj_mod_time.split(".")[0] : "-"}</Td>
                             <Td>
+                                <button
+                                    onClick={willNavigate({
+                                        tab: 's3bucket',
+                                        bucket_kube_context: filter_kube_context,
+                                        bucket_name: b.bucket_name,
+                                    })}
+                                    className="bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-sm mr-2 disabled:opacity-40"
+                                    disabled={!filter_kube_context}
+                                    title="View objects"
+                                >
+                                    🔍
+                                </button>
                                 {b.has_reset_file ? <span className="text-gray-400 text-sm">🔄 Reset pending</span> : (
-                                    <button
+                                    b.bucket_name.match(/^(de|sp)-/) && <button
                                         onClick={willSend({
                                             op: 's3.reset_bucket',
-                                            s3context,
+                                            kube_context: filter_kube_context,
                                             bucket_name: b.bucket_name
                                         })}
                                         className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-sm"
@@ -394,10 +449,78 @@ const S3SnapshotsTabView = viewProps => {
     )
 }
 
+const S3BucketTabView = viewProps => {
+    const { bucket_name, bucket_kube_context, bucket_objects, loaded_at, error, willSend, willNavigate } = viewProps
+    return (
+        <div className="space-y-3">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h3 className="text-lg text-white">Objects in {bucket_name}</h3>
+                    <div className="text-xs text-gray-400">
+                        { !loaded_at ? "Loading…" : `Last updated ${new Date(loaded_at * 1000).toLocaleTimeString()}` }
+                    </div>
+                </div>
+                <div className="flex gap-2">
+                    <button
+                        onClick={willSend({ op: 's3bucket.refresh', kube_context: bucket_kube_context, bucket_name })}
+                        className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white"
+                        disabled={!bucket_name || !bucket_kube_context}
+                    >
+                        Refresh
+                    </button>
+                    <button
+                        onClick={ev=>history.back()}
+                        className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-white"
+                    >
+                        Back
+                    </button>
+                </div>
+            </div>
+            { !bucket_name || !bucket_kube_context ? (
+                <div className="bg-gray-800 border border-gray-600 rounded-lg p-6 text-center text-gray-300">
+                    No bucket selected.
+                </div>
+            ) : !loaded_at ? (
+                <div className="bg-gray-800 border border-gray-700 rounded p-3 text-gray-300 text-sm">
+                    Loading latest objects…
+                </div>
+            ) : error ? (
+                <div className="bg-red-900 border border-red-600 rounded p-3 text-red-100 text-sm">{error}</div>
+            ) : (
+                <Table>
+                    <thead>
+                        <tr>
+                            <Th>Key</Th>
+                            <Th className="text-right">Size</Th>
+                            <Th>Last Modified</Th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {(!bucket_objects || bucket_objects.length === 0) && (
+                            <tr>
+                                <Td colSpan="3" className="text-center text-gray-400 py-6">
+                                    No objects found
+                                </Td>
+                            </tr>
+                        )}
+                        {bucket_objects?.map((obj, index) => (
+                            <Tr key={obj.key} index={index}>
+                                <Td><TruncatedText text={obj.key} startChars={24} align="left"/></Td>
+                                <Td className="text-right">{formatS3Size(obj.size || 0)}</Td>
+                                <Td>{obj.last_modified ? String(obj.last_modified).split(".")[0] : "-"}</Td>
+                            </Tr>
+                        ))}
+                    </tbody>
+                </Table>
+            )}
+        </div>
+    )
+}
+
 const ProfilingTabView = viewProps => {
     const {
         profiling_kube_context, profiling_pod_name, profiling_period,
-        profiling_contexts, profiling_status, willSend
+        profiling_status, thread_dump_status, willSend
     } = viewProps
     const [seconds, setSeconds] = useState(0)
     useEffect(() => {
@@ -409,59 +532,134 @@ const ProfilingTabView = viewProps => {
             return () => clearInterval(interval)
         }
     }, [profiling_status])
-    return !profiling_status ? <>
-        <div className="flex gap-2 mb-4">
-            <SelectorFilterGroup
-                viewProps={viewProps}
-                fieldName="profiling_kube_context"
-                items={(profiling_contexts||[]).map(key => ({ key, hint: key }))}
-            />
+    const hasSelection = profiling_kube_context && profiling_pod_name
+    return (
+        <div className="space-y-6 text-gray-200">
+            <div className="bg-gray-800 border border-gray-700 rounded p-4">
+                <h3 className="text-sm uppercase tracking-wide text-gray-400">Target pod</h3>
+                <p className="text-lg font-semibold text-white">
+                    {profiling_pod_name || "No pod selected"}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                    Context: {profiling_kube_context || "-"}
+                </p>
+            </div>
+            {!hasSelection ? (
+                <div className="bg-gray-800 border border-gray-700 rounded p-4 text-sm text-gray-300">
+                    Pick a pod from the Pods tab to run profiling tools.
+                </div>
+            ) : (
+                <>
+                    <div className="bg-gray-800 border border-gray-700 rounded p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm uppercase tracking-wide text-gray-400">Flame graph</h3>
+                            {profiling_status === "P" ? (
+                                <p className="text-xs text-gray-500">Profiling… {seconds}s</p>
+                            ) : null}
+                        </div>
+                        {profiling_status === "S" ? (
+                            <div className="flex gap-2 items-center">
+                                <a
+                                    className="underline hover:text-blue-400"
+                                    href={`/profiling-flamegraph.html?time=${Date.now()}`}
+                                    {...tBlank()}
+                                >
+                                    Download flame graph
+                                </a>
+                                <button
+                                    onClick={willSend({ op: 'profiling.reset_profile_status' })}
+                                    className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white"
+                                >
+                                    Clear
+                                </button>
+                            </div>
+                        ) : profiling_status === "F" ? (
+                            <div className="flex gap-2 items-center text-red-300">
+                                <p>Profiling failed.</p>
+                                <button
+                                    onClick={willSend({ op: 'profiling.reset_profile_status' })}
+                                    className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white"
+                                >
+                                    Clear
+                                </button>
+                            </div>
+                        ) : !profiling_status ? (
+                            <p className="text-xs text-gray-500">No flame graph collected yet.</p>
+                        ) : null}
+                        {profiling_status !== "P" ? (
+                            <div className="flex flex-wrap gap-2 items-center">
+                                <SelectorFilterGroup
+                                    viewProps={viewProps}
+                                    fieldName="profiling_period"
+                                    items={[{ key: "15", hint: "15s" }, { key: "", hint: "60s" }, { key: "300", hint: "300s" }]}
+                                />
+                                <button
+                                    onClick={willSend({
+                                        op: 'profiling.profile',
+                                        kube_context: profiling_kube_context,
+                                        pod_name: profiling_pod_name,
+                                        period: profiling_period || "60"
+                                    })}
+                                    className="bg-blue-600 hover:bg-blue-500 px-4 py-1 rounded text-white"
+                                >
+                                    Profile
+                                </button>
+                            </div>
+                        ) : null}
+                    </div>
+                    <div className="bg-gray-800 border border-gray-700 rounded p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm uppercase tracking-wide text-gray-400">Thread dump</h3>
+                            {thread_dump_status === "P" ? (
+                                <p className="text-xs text-gray-500">Collecting…</p>
+                            ) : null}
+                        </div>
+                        {thread_dump_status === "S" ? (
+                            <div className="flex gap-2 items-center">
+                                <a
+                                    className="underline hover:text-blue-400"
+                                    href={`/profiling-thread-dump.html?time=${Date.now()}`}
+                                    {...tBlank()}
+                                >
+                                    Download thread dump
+                                </a>
+                                <button
+                                    onClick={willSend({ op: 'profiling.reset_thread_status' })}
+                                    className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white"
+                                >
+                                    Clear
+                                </button>
+                            </div>
+                        ) : thread_dump_status === "F" ? (
+                            <div className="flex gap-2 items-center text-red-300">
+                                <p>Thread dump failed.</p>
+                                <button
+                                    onClick={willSend({ op: 'profiling.reset_thread_status' })}
+                                    className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white"
+                                >
+                                    Clear
+                                </button>
+                            </div>
+                        ) : !thread_dump_status ? (
+                            <p className="text-xs text-gray-500">No thread dump collected yet.</p>
+                        ) : null}
+                        {thread_dump_status !== "P" ? (
+                            <button
+                                onClick={willSend({
+                                    op: 'profiling.thread_dump',
+                                    kube_context: profiling_kube_context,
+                                    pod_name: profiling_pod_name
+                                })}
+                                className="bg-gray-600 hover:bg-gray-500 px-4 py-1 rounded text-white w-fit"
+                            >
+                                Collect thread dump
+                            </button>
+                        ) : null}
+                    </div>
+                </>
+            )}
         </div>
-        <div className="flex gap-2 mb-4">
-            <SimpleFilterInput
-                viewProps={viewProps}
-                fieldName="profiling_pod_name"
-                placeholder="Pod name..."
-            />
-            <SelectorFilterGroup
-                viewProps={viewProps}
-                fieldName="profiling_period"
-                items={[{ key: "15", hint: "15s" }, { key: "", hint: "60s" }, { key: "300", hint: "300s" }]}
-            />
-            <button
-                onClick={willSend({
-                    op: 'profiling.profile',
-                    kube_context: profiling_kube_context, pod_name: profiling_pod_name, period: profiling_period || "60"
-                })}
-                className="bg-blue-600 hover:bg-blue-500 px-4 py-1 rounded text-white"
-            >
-                Profile
-            </button>
-        </div>
-    </> :
-    <div className="flex gap-2 items-center text-gray-400">
-        {
-            profiling_status === "F" ? <>
-                <p>Failed…</p>
-                <button
-                    onClick={willSend({ op: 'profiling.reset_status' })}
-                    className="bg-blue-600 hover:bg-blue-500 px-4 py-1 rounded text-white"
-                >
-                    Reset status
-                </button>
-            </> :
-            profiling_status === "S" ?
-                <a
-                    className="underline hover:text-blue-400"
-                    href={`/profiling-flamegraph.html?time=${Date.now()}`}
-                    {...tBlank()}
-                >
-                    Download result
-                </a> :
-            profiling_status === "P" ? <p>Profiling… {seconds}s</p> :
-            undefined
-        }
-    </div>
+    )
 }
 
 const LinksTabView = ({ cluster_links = [], custom_links = [] }) => {

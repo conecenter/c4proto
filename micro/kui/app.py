@@ -5,9 +5,8 @@ from re import sub
 from tempfile import TemporaryDirectory
 from pathlib import Path
 from logging import basicConfig, INFO, DEBUG
-from concurrent.futures import ThreadPoolExecutor
 
-from s3 import init_s3
+from s3 import init_s3, init_s3bucket
 from servers import daemon, restarting, build_client, run_proxy, http_serve, Route
 from agent_auth import init_agent_auth
 from kube_util import init_kube_resource_watchers
@@ -48,23 +47,27 @@ def main():
     kube_watchers = [*kube_resource_watchers, *kube_top_watchers]
     kube_actions = {**kube_pod_actions}
     # cio
-    cio_task_watchers, cio_task_actions = init_cio_tasks({}, active_contexts)
-    cio_log_watchers, cio_log_actions, cio_log_handlers = init_cio_logs(Path(dir_life.name), active_contexts, get_user_abbr, Route)
-    cio_event_watchers, cio_event_actions = init_cio_events({}, active_contexts)
+    mut_cio_tasks = {}
+    mut_cio_proc_by_pid = {}
+    cio_task_watchers, cio_task_actions = init_cio_tasks(mut_cio_tasks, mut_cio_proc_by_pid, active_contexts, kcp)
+    cio_log_watchers, cio_log_actions, cio_log_handlers = init_cio_logs(
+        Path(dir_life.name), active_contexts, get_user_abbr, Route, kcp, mut_cio_proc_by_pid
+    )
+    cio_event_watchers, cio_event_actions = init_cio_events({}, active_contexts, kcp)
     #
-    profiling_actions, profiling_handlers = init_profiling({}, contexts, Route)
-    executor = ThreadPoolExecutor(max_workers=16)
-    s3_actions = init_s3(executor)
+    profiling_actions, profiling_handlers = init_profiling({}, contexts, Route, kcp)
+    s3_actions = init_s3(contexts, kcp)
+    s3bucket_actions, s3bucket_watcher = init_s3bucket(contexts, kcp)
     handlers = {
         **agent_auth_handlers, **cio_log_handlers, **profiling_handlers,
         "/": Route.http_auth(lambda **_: index_content),
         "/kop": Route.ws_auth({}, load_shared, {
-            **kube_actions, **cio_task_actions, **cio_log_actions, **cio_event_actions, **profiling_actions, **s3_actions,
+            **kube_actions, **cio_task_actions, **cio_log_actions, **cio_event_actions, **profiling_actions, **s3_actions, **s3bucket_actions,
             "links.load": load_links,
         }),
         "_": Route.http_auth(lambda **_: "404"),
     }
     api_port = 1180
-    for watcher in [*kube_watchers,*cio_task_watchers,*cio_log_watchers,*cio_event_watchers]: daemon(restarting, watcher)
+    for watcher in [*kube_watchers,*cio_task_watchers,*cio_log_watchers,*cio_event_watchers, s3bucket_watcher]: daemon(restarting, watcher)
     daemon(run_proxy, api_port, handlers)
     http_serve(api_port, handlers)

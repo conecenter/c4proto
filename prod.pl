@@ -212,13 +212,6 @@ push @tasks, ["pods_gc","$composes_txt",sub{
     }
 }];
 
-push @tasks, ["pods_del","$composes_txt",sub{
-    my($comp)=@_;
-    my $kubectl = &$get_kubectl($comp);
-    my $pods = join " ", &$get_pods($comp);
-    $pods and sy("$kubectl delete pods $pods");
-}];
-
 #### composer
 
 my $md5_hex = sub{ md5_hex(@_) };
@@ -232,25 +225,19 @@ my $ci_run = sub{
 my $get_snap_st = sub{
     &$mandatory_of(HOSTNAME=>\%ENV)=~/^(de|sp)-(\w+-\w+-\w+)-/ ? (prefix=>"st-$2") : die;
 };
-push @tasks, ["snapshot_get", "$composes_txt [snapshot|last]", sub{
-    my($comp,@arg)=@_;
+push @tasks, ["snapshot_get", "$composes_txt <snapshot|last>", sub{
+    my($comp,$arg)=@_;
     my %fr = (app => $comp, kube_contexts => "all");
-    &$ci_run(
-        @arg==0 ? ["snapshot_list_dump", \%fr] :
-        @arg==1 ? ["snapshot_copy", {
-            from => {%fr,name=>$arg[0]}, to=>{&$get_snap_st()}
-        }] : die
-    );
+    &$ci_run(["snapshot_copy", { from => {%fr,name=>$arg||die}, to=>{&$get_snap_st()} }]);
 }];
-push @tasks, ["snapshot_put", "$composes_txt [snapshot|last|nil]", sub{
-    my($gate_comp,@arg)=@_;
+push @tasks, ["snapshot_put", "$composes_txt <snapshot|last|nil>", sub{
+    my($gate_comp,$arg)=@_;
     my %ss = &$get_snap_st();
     &$ci_run(
-        @arg==0 ? ["snapshot_list_dump", \%ss] :
-        @arg==1 ? ["snapshot_copy", {
-            from => $arg[0] eq "nil" ? "nil" : {%ss,name=>$arg[0]},
+        ["snapshot_copy", {
+            from => $arg eq "nil" ? "nil" : {%ss,name=>$arg||die},
             to => { app=>$gate_comp, kube_contexts=>"all" }
-        }] : die
+        }]
     );
 }];
 push @tasks, ["snapshot_make", "$composes_txt", sub{
@@ -384,7 +371,7 @@ push @tasks, ["up_kc_host", "", sub{ # the last multi container kc
                 apiGroups => ["","apps","extensions","metrics.k8s.io","networking.k8s.io","kafka.strimzi.io"],
                 resources => [
                     "statefulsets","secrets","services","deployments","ingresses","pods","replicasets","kafkatopics",
-                    "deployments/scale"
+                    "deployments/scale", "pods/resize",
                 ],
                 verbs => ["get","create","patch","delete","update","list","watch"],
             },

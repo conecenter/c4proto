@@ -1,20 +1,17 @@
 
 from functools import partial
 from json import loads, dumps
-from os import environ
 from pathlib import Path
 from subprocess import Popen, PIPE, check_output, run
-from logging import info, warning
+from logging import info
 from math import ceil
 
 def sel(v, *path): return v if not path or v is None else sel(v.get(path[0]), *path[1:])
 
-def get_kc(kube_context): return "kubectl","--kubeconfig",environ["C4KUBECONFIG"],"--context",kube_context
+def get_ci_serve(kcp, kube_context):
+    return (*kcp, kube_context, "exec", "-i", "svc/c4cio", "--", "python3", "-u", "/ci_serve.py")
 
-def get_ci_serve(kube_context):
-    return *get_kc(kube_context), "exec", "-i", "svc/c4cio", "--", "python3", "-u", "/ci_serve.py"
-
-def consumer_open(kube_context, op): return Popen((*get_ci_serve(kube_context), op), text=True, stdout=PIPE, stdin=PIPE)
+def consumer_open(kcp, kube_context, op): return Popen((*get_ci_serve(kcp, kube_context), op), text=True, stdout=PIPE, stdin=PIPE)
 
 def consumer_init(proc, hint):
     match proc.stdout.readline().split():
@@ -25,7 +22,7 @@ def consumer_init(proc, hint):
             info(f"{hint}: {offset}")
         case s: raise Exception(f'bad header: {s}')
 
-def init_cio_events(mut_cio_statuses, active_contexts):
+def init_cio_events(mut_cio_statuses, active_contexts, kcp):
     def load(cio_kube_context='', **_):
         return { "items": [
             { "kube_context": kube_context, "task": task, "status": status, "at": at }
@@ -34,9 +31,9 @@ def init_cio_events(mut_cio_statuses, active_contexts):
     def hide(kube_context, task, **_):
         if mut_cio_statuses.get((kube_context, task)) is None: raise Exception(f"missing {kube_context} {task}")
         event = { "type": "task_status", "task": task, "status": "" }
-        check_output((*get_ci_serve(kube_context), dumps([["produce_event", event]])))
+        check_output((*get_ci_serve(kcp, kube_context), dumps([["produce_event", event]])))
     def watcher(kube_context):
-        with consumer_open(kube_context, "consume_events") as proc:
+        with consumer_open(kcp, kube_context, "consume_events") as proc:
             consumer_init(proc, f"CIO EVENTS WATCH : {kube_context}")
             for line in proc.stdout:
                 event = loads(line)
@@ -45,24 +42,39 @@ def init_cio_events(mut_cio_statuses, active_contexts):
     watchers = [partial(watcher, c["name"]) for c in active_contexts]
     return watchers, { "cio_events.load": load, "cio_events.hide": hide }
 
-def init_cio_tasks(mut_cio_tasks, active_contexts):
+def init_cio_tasks(mut_cio_tasks, mut_cio_proc_by_pid, active_contexts, kcp):
     def load(cio_kube_context='', **_):
         if not cio_kube_context: return { "need_filters": True }
+        report = loads(mut_cio_tasks.get(cio_kube_context,"{}"))
+        pid_by_task = {
+            (entry.get("queue"), entry.get("task")): pid
+            for (ctx, pid), entry in mut_cio_proc_by_pid.items()
+            if ctx == cio_kube_context
+        }
         return { "items": [
-            { "status": status, "task_name": task_name, "queue_name": queue_name }
-            for report in [loads(mut_cio_tasks.get(cio_kube_context,"{}"))]
+            {
+                "status": status,
+                "queue_name": queue_name,
+                "task_name": task_name,
+                "pid": pid_by_task.get((queue_name, task_name)),
+            }
             for status, tasks in [
-                ("active", sorted(report.get("active", {}).items())), ("pending", report.get("pending") or [])
+                ("active", sorted((report.get("active") or {}).items())),
+                ("pending", report.get("pending") or [])
             ]
             for queue_name, task_name in tasks
         ]}
+    def kill(cio_kube_context=None, pid=None, **_):
+        if (cio_kube_context, pid) not in mut_cio_proc_by_pid: raise Exception(f"no pid {pid} for {cio_kube_context}")
+        info(f"CIO TASK KILL {cio_kube_context} pid={pid}")
+        return lambda: run((*kcp, cio_kube_context, "exec", "svc/c4cio", "--", "kill", str(pid)), check=True)
     def watcher(kube_context):
-        with Popen((*get_ci_serve(kube_context), "reporting"), text=True, stdout=PIPE) as proc:
+        with Popen((*get_ci_serve(kcp, kube_context), "reporting"), text=True, stdout=PIPE) as proc:
             for line in proc.stdout: mut_cio_tasks[kube_context] = line
     watchers = [partial(watcher, c["name"]) for c in active_contexts]
-    return watchers, { "cio_tasks.load": load }
+    return watchers, { "cio_tasks.load": load, "cio_tasks.kill": kill }
 
-def init_cio_logs(tmp_dir: Path, active_contexts, get_user_abbr, rt):
+def init_cio_logs(tmp_dir: Path, active_contexts, get_user_abbr, rt, kcp, mut_cio_proc_by_pid):
     def get_size(path): return path.stat().st_size if path.exists() else None
     def load_json_opt(path): return loads(path.read_bytes()) if path.exists() else None
     def load(mail,**_):
@@ -111,8 +123,17 @@ def init_cio_logs(tmp_dir: Path, active_contexts, get_user_abbr, rt):
         lines = taken_lines[:-skip_line_count] if skip_line_count else taken_lines
         if lines: page_path.write_bytes(dumps({"lines":lines,"page":page}).encode())
     def goto_page(mail, page, **_): write_page(mail, page)
+    def note_proc_event(kube_context, line):
+        if not isinstance(line, list) or len(line) != 3: return
+        event = line[-1]
+        if not isinstance(event, dict): return
+        pid = event.get("pid")
+        if pid is None: return
+        match event.get("event"):
+            case "started": mut_cio_proc_by_pid[(kube_context, pid)] = event
+            case "succeeded" | "failed": mut_cio_proc_by_pid.pop((kube_context, pid), None) # can be not paired due to log truncation
     def watcher(kube_context):
-        with consumer_open(kube_context, "consume_log") as proc:
+        with consumer_open(kcp, kube_context, "consume_log") as proc:
             consumer_init(proc, f"CIO LOG WATCH : {kube_context}")
             path = get_all_log_path(kube_context)
             path.unlink(missing_ok=True)
@@ -120,6 +141,10 @@ def init_cio_logs(tmp_dir: Path, active_contexts, get_user_abbr, rt):
                 for line in proc.stdout:
                     f.write(line)
                     f.flush()
+                    try:
+                        note_proc_event(kube_context, loads(line))
+                    except Exception:
+                        pass
     watchers = [partial(watcher, c["name"]) for c in active_contexts]
     actions = { "cio_logs.load": load, "cio_logs.search": search, "cio_logs.goto_page": goto_page }
     handlers = {
