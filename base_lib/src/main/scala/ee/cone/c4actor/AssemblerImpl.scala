@@ -273,8 +273,8 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
     replace.active.collect{ case o: OriginalWorldPart[_] => o.outputWorldKeys }.flatten.toSet
   )
   @provide def getReplace: Seq[Replace] = {
-    logger.debug(s"active rules: ${replace.active.size}")
-    logger.debug{
+    logger.info(s"active rules: ${replace.active.size}")
+      if(ComponentRegistry.debug) logger.debug{
       val isActive = replace.active.toSet
       rules.map{ rule =>
         s"\n${if(isActive(rule))"[+]" else "[-]"} ${rule match {

@@ -15,7 +15,7 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
 }
 
 @c4("BaseApp") final class ComponentRegistryImpl(app: AbstractComponents)(
-  debug: Boolean = Option(System.getenv("C4DEBUG_COMPONENTS")).nonEmpty
+  debug: Boolean = ComponentRegistry.debug
 ) extends ComponentRegistry {
   def toTypeKey[T](cl: Class[T], args: Seq[TypeKey]): TypeKey =
     CreateTypeKey(cl,cl.getSimpleName,args.toList)

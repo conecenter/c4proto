@@ -7,6 +7,7 @@ import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 
 object ComponentRegistry {
+  val debug: Boolean = Option(System.getenv("C4DEBUG_COMPONENTS")).nonEmpty
   def isRegistry: Component=>Boolean = {
     val clName = classOf[AbstractComponents].getName
     c => c.in match {
@@ -25,7 +26,6 @@ object ComponentRegistry {
       if (wasS(mixer)) was else mixer.dependencies.foldRight((wasS + mixer, mixer :: wasL))(mixersOf)
     }
     val (_, mixers) = mixersOf(mixer, (Set.empty, Nil))
-    val debug = Option(System.getenv("C4DEBUG_COMPONENTS")).nonEmpty
     if(debug) println(s"mixers found: ${mixers.size}")
     val componentsF = Future.sequence(mixers.map(v => Future(v.getComponents()))).map(_.flatten)
     val components = Await.result(componentsF, Duration.Inf)

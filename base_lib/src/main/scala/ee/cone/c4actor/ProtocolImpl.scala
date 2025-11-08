@@ -130,7 +130,7 @@ import com.squareup.wire.ProtoAdapter._
 @c4("ProtoApp") final class QAdapterRegistryProvider(adapters: List[HasId]) {
   @provide def get: Seq[QAdapterRegistry] = {
     val cAdapters = adapters.distinct.map(_.asInstanceOf[ProtoAdapter[Product] with HasId])
-    Option(System.getenv("C4DEBUG_COMPONENTS")).foreach(_=>cAdapters.foreach(c=>println(s"adapter: ${c.className}")))
+    if(ComponentRegistry.debug) cAdapters.foreach(c=>println(s"adapter: ${c.className}"))
     val byName = CheckedMap(cAdapters.map(a => a.className -> a))
     val byId = CheckedMap(cAdapters.collect{ case a if a.hasId => a.id -> a })
     List(QAdapterRegistryImpl()(byName,byId))

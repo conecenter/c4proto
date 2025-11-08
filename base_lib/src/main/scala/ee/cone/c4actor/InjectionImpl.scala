@@ -6,7 +6,7 @@ import ee.cone.c4actor.InjectionProtocol.S_InjectionDone
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{byEq, c4assemble}
-import ee.cone.c4di.c4
+import ee.cone.c4di.{c4, c4multi, provide}
 import ee.cone.c4proto.{Id, protocol}
 
 import java.util.concurrent.{BlockingQueue, LinkedBlockingQueue}
@@ -62,8 +62,11 @@ import scala.annotation.tailrec
   }
 }
 
-/*
-@c4("InjectionApp") final class TxTrLogger(
+@c4("InjectionApp") final class TxTrLoggerProvider(config: ListConfig, factory: TxTrLoggerFactory){
+  @provide def get: Seq[Executable] = if(config.get("C4DEBUG_TXTR").nonEmpty) Seq(factory.create()) else Nil
+}
+
+@c4multi("InjectionApp") final class TxTrLogger()(
   worldSource: WorldSource, getTxTr: GetByPK[TxTransform]
 ) extends Executable with Early with LazyLogging {
   private type Q = BlockingQueue[Either[RichContext,Unit]]
@@ -80,4 +83,3 @@ import scala.annotation.tailrec
       will
   })
 }
-*/
