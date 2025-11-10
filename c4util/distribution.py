@@ -17,9 +17,9 @@ class Event(NamedTuple):
 def distribution_calc(groups, task_list, try_count, check_task, events: list[Event]):
     last_res = (lambda d, k: d[k][-1] if k in d else "F")
     # tasks: Processing, Succeeded, Failed, FinallyFailed
-    # groups: Processing, Succeeded, Failed
+    # groups: Processing, Succeeded (checked), Failed (dirty/unchecked)
     t2rs = group_map(events, lambda ev: (ev.task, ev.status))
-    g2rs = group_map(events, lambda ev: (ev.group, ev.status))
+    g2rs = group_map(events, lambda ev: (ev.group, "F" if ev.task != check_task and ev.status == "S" else ev.status))
     last_r2ts = group_map(task_list, lambda t: (last_res(t2rs, t), t))
     last_r2gs = group_map(groups   , lambda g: (last_res(g2rs, g), g))
     check_to_starts = [(g, check_task) for g in last_r2gs.get("F",())]
