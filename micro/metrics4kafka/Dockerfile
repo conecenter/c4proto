@@ -7,5 +7,4 @@ USER c4
 ENV PATH=${PATH}:/tools
 RUN coursier fetch --classpath org.apache.kafka:kafka-clients:3.7.1 > /c4/kafka-clients-classpath
 ENTRYPOINT ["tini","--","python3","-u","/app/main.py"]
-
-COPY . /app
+#COPY . /app
