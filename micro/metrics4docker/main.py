@@ -6,13 +6,13 @@ from logging import basicConfig, exception, DEBUG
 from json import loads
 
 def get_metrics_content():
-    key_path = environ["C4DOCKER_KEY_PATH"] # .../id_rsa
     conf = loads(environ["C4DOCKER_HOSTS"])
     # Reuse SSH control master for long-lived session. No reconnections on each request.
     processes = [(c["host"], Popen((
         "timeout", "3", "ssh", "-o", "ControlMaster=auto", "-o", "ControlPath=/tmp/ssh_mux_%r_%h_%p",
-        "-o", "ControlPersist=60", "-o", "ServerAliveInterval=4", "-i", key_path, f'{c["user"]}@{c["host"]}',
-        "cat /proc/stat",
+        "-o", "ControlPersist=60", "-o", "ServerAliveInterval=4", "-o", "StrictHostKeyChecking=yes",
+        "-o", f'UserKnownHostsFile={environ["C4DOCKER_KNOWN_HOSTS"]}', "-i", environ["C4DOCKER_KEY_PATH"],
+        f'{c["user"]}@{c["host"]}', "cat /proc/stat",
     ), stdout=PIPE)) for c in conf]
     titles = ("user","nice","system","idle","iowait","irq","softirq")
     return "\n".join(
