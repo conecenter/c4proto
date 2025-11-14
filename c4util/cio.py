@@ -265,6 +265,7 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
         cl.get_secret_part(cl.get_kubectl(deploy_context), k8s_path)
     )),
     "write_lines": lambda fn, lines: changing_text(get_dir(fn), "\n".join(lines)),
+    "write_json": lambda fn, st: changing_text(get_dir(fn), dumps(st, sort_keys=True)),
     "wait_no_app": lambda kube_context, app: wait_no_app(kube_context, app),
     "local_kill_serve": lambda: repeat(local_kill_serve),
     "die_after": lambda per: daemon(lambda: (sleep(parse_duration_seconds(per)), never("expired"))),
