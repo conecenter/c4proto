@@ -274,7 +274,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   )
   @provide def getReplace: Seq[Replace] = {
     logger.info(s"active rules: ${replace.active.size}")
-      if(ComponentRegistry.debug) logger.debug{
+    if(ComponentRegistry.debug) logger.debug{
       val isActive = replace.active.toSet
       rules.map{ rule =>
         s"\n${if(isActive(rule))"[+]" else "[-]"} ${rule match {

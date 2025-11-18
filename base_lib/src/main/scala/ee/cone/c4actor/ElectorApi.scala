@@ -40,3 +40,5 @@ trait ReadyProcessUtil {
 case class DisableTxTr(srcId: SrcId)
 
 case class BeforeInjection(srcId: SrcId)
+abstract class GeneralBeforeInjectionTxTrCl(val cl: Class[_])
+abstract class BeforeInjectionTxTrCl[T<:TxTransform](cl: Class[T]) extends GeneralBeforeInjectionTxTrCl(cl)
