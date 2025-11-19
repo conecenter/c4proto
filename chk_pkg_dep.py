@@ -1,6 +1,7 @@
 
 import sys
 import re
+from pathlib import Path
 from c4util import group_map, parse_table, read_json, read_text, run_text_out
 
 
@@ -32,6 +33,7 @@ def get_full_deps(build_conf): return {k: {k, *l} for k, l in build_conf["allow_
 
 def handle_by_classpath(context, cp):
     build_conf = load_conf(context)
+    restrict(context, build_conf)
     allow_pkg_dep = get_full_deps(build_conf)
     cp_by_tp = group_map(cp.split(":"), lambda p: (
         "jar" if p.endswith(".jar") else
@@ -48,6 +50,7 @@ def handle_by_classpath(context, cp):
 
 def handle_by_text(context):
     build_conf = load_conf(context)
+    restrict(context, build_conf)
     allow_pkg_dep = get_full_deps(build_conf)
     print(next(line[0] for line in build_conf["plain"]))
     mod_prefix = next(line[2] for line in build_conf["plain"] if line[0] == "C4DEP_REASONING_PREFIX")
@@ -80,6 +83,14 @@ def handle_by_text(context):
     res = "".join(sorted({msg for path, imp_list, msg in found if msg}))
     if res:
         raise Exception(res)
+
+
+def restrict(context, build_conf):
+    path = Path(f"{context}/uses.re")
+    if not path.exists(): return
+    dep_str = "".join(sorted(f'{k}->{v}\n' for k, l in build_conf["allow_pkg_dep"].items() for v in l))
+    found = "".join(f'\t{m}\n' for m in re.findall(path.read_bytes().decode(), dep_str, re.VERBOSE))
+    if found: raise Exception(f'restricted deps found:\n{found}')
 
 
 def main():
