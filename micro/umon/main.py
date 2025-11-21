@@ -12,7 +12,7 @@ def main():
     SITE = environ["C4MON_SITE"]
     ok = Gauge("c4synthetic_ok", "Synthetic OK", ["site"])
     lat = Gauge("c4synthetic_latency_seconds", "Latency", ["site"])
-    start_http_server(environ["C4METRICS_PORT"])
+    start_http_server(int(environ["C4METRICS_PORT"]))
     page = sync_playwright().start().chromium.launch(headless=True).new_context().new_page()
     page.goto(f"https://{SITE}")
     while True:
