@@ -13,7 +13,7 @@ RUN /install.pl apt \
     atop less bash-completion tmux '#debug more' \
     python3-pip '#pip3 install'
 # build tools:
-RUN /install.pl curl https://download.bell-sw.com/java/17.0.8+7/bellsoft-jdk17.0.8+7-linux-amd64.tar.gz
+RUN /install.pl curl https://download.bell-sw.com/java/17.0.17+15/bellsoft-jdk17.0.17+15-linux-amd64.tar.gz
 RUN /install.pl curl https://github.com/coursier/launchers/raw/master/coursier && chmod +x /tools/coursier
 RUN /install.pl curl https://github.com/sbt/sbt/releases/download/v1.9.3/sbt-1.9.3.tgz
 #RUN /install.pl curl https://nodejs.org/dist/v20.5.0/node-v20.5.0-linux-x64.tar.xz
