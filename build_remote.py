@@ -413,7 +413,7 @@ def build_type_rt(proj_tag, context, out):
         " lsof mc iputils-ping netcat-openbsd fontconfig" +
         " openssh-client" +  # repl
         " python3",  # vault
-        "RUN perl install.pl curl https://download.bell-sw.com/java/17.0.8+7/bellsoft-jdk17.0.8+7-linux-amd64.tar.gz",
+        "RUN perl install.pl curl https://download.bell-sw.com/java/17.0.17+15/bellsoft-jdk17.0.17+15-linux-amd64.tar.gz",
         'ENV PATH=${PATH}:/tools/jdk/bin',
         "ENV JAVA_HOME=/tools/jdk",
         "RUN chown -R c4:c4 /c4",

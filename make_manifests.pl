@@ -183,7 +183,7 @@ my $make_kc_yml = sub{
             apiVersion => "v1",
             kind => "Service",
             spec => {
-                selector => { app => $name },
+                selector => { app => $$opt{service_app} || $name },
                 ports => \@ports,
                 $$opt{headless} ? (clusterIP=>"None") : (),
             },

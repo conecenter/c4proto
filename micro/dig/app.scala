@@ -124,8 +124,10 @@ def createPod(q: BlockingQueue[PodManMsg], start: StartVT, nm: String): String=>
 
 def activatePods(q: BlockingQueue[PodManMsg], start: StartVT): Unit =
   val re = env("C4DIG_POD_RE")
+  val prefix = "pod/"
+  def getName(l: String) = if l.startsWith(prefix) then Option(l.substring(prefix.length)) else None
   val proc = new ProcessBuilder(Seq("timeout", "5") ++ getKC ++ Seq("get", "pods", "-o", "name") *).start()
-  vtWrapInputStream(proc.getInputStream, l => if re.r.matches(l) then q.put(ActivatePodMsg(l)), start)
+  vtWrapInputStream(proc.getInputStream, l => for n <- getName(l) if re.r.matches(n) do q.put(ActivatePodMsg(n)), start)
   vtWrapInputStream(proc.getErrorStream, l => q.put(LogMsg(s"manager $l")), start)
 
 def startMetricsServer(q: BlockingQueue[PodManMsg]): Unit =
@@ -164,16 +166,14 @@ def handlePodOutMsg(q: BlockingQueue[PodManMsg], s3: S3Man, from: String, line: 
       val FN(fileName) = msg("name").str: @unchecked
       val compressed = Base64.getDecoder().decode(msg("data").str)
       val data = Using(new GZIPInputStream(new ByteArrayInputStream(compressed)))(_.readAllBytes()).get
-      s3.put(s"/$bucket/$from/$fileName", data)
+      s3.put(s"/$bucket/pod/$from/$fileName", data)
       q.put(DelInPodMsg(from, fileName))
     case "metrics" =>
-      val From = """pod/(.+)""".r
       val Key = """([a-z_]+)""".r
       val Val = """(\d+)""".r
-      val From(p) = from: @unchecked
       val Key(k) = msg("key").str: @unchecked
       val Val(v) = msg("value").str: @unchecked
-      q.put(MetricsSetMsg(p, k, v))
+      q.put(MetricsSetMsg(from, k, v))
 
 @main def main(): Unit =
   println("starting...")

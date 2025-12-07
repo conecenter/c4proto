@@ -46,6 +46,16 @@ def report_proc_status(out_dir, pid):
     mre = r'^Threads:\s*(?P<threads>\d+)$|^VmHWM:\s*(?P<vm_hwm_kb>\d+)\s*kB$|^VmPeak:\s*(?P<vm_peak_kb>\d+)\s*kB$|^VmRSS:\s*(?P<vm_rss_kb>\d+)\s*kB$'
     extract_send_metrics(mre, data.decode())
 
+def report_proc_stat():
+    data = Path("/proc/stat").read_bytes()
+    mre = r'^cpu\s+\d+\s+\d+\s+\d+\s+(?P<cpu_idle>\d+)'
+    extract_send_metrics(mre, data.decode())
+
+def report_proc_meminfo():
+    data = Path("/proc/meminfo").read_bytes()
+    mre = r'^MemTotal:\s+(?P<mem_total>\d+)\s+kB$|^MemAvailable:\s+(?P<mem_available>\d+)\s+kB$'
+    extract_send_metrics(mre, data.decode())
+
 def get_pid():
     pids = [int(line.split()[0]) for line in check_output(["jcmd"]).decode().splitlines() if "ServerMain" in line]
     return max(pids) if pids else None
@@ -62,6 +72,8 @@ def handle(req):
             if pid is not None:
                 need_profiler(prof_out_dir, pid)
                 report_proc_status(prof_out_dir, pid)
+                report_proc_stat()
+                report_proc_meminfo()
                 report_jcmd(prof_out_dir, pid)
             for p in prof_out_dir.iterdir(): send({"tp": "file", "name": p.name, "data": b64gz(p.read_bytes())})
 
