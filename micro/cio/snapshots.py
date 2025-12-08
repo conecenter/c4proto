@@ -6,9 +6,10 @@ import base64
 import time
 import urllib.parse
 import re
+from pathlib import Path
 
-from . import run, never_if, one, read_text, list_dir, run_text_out, http_exchange, http_check, Popen, never, log, run_no_die
-from .cluster import get_prefixes_from_pods, s3path, s3init, s3list, get_kubectl, get_pods_json, wait_no_active_prefix,\
+from util import run, never_if, one, read_text, list_dir, run_text_out, http_exchange, http_check, Popen, never, run_no_die
+from cluster import get_prefixes_from_pods, s3path, s3init, s3list, get_kubectl, get_pods_json, wait_no_active_prefix,\
     get_all_contexts
 
 
@@ -131,7 +132,7 @@ def snapshot_copy(env, def_kafka_addr, fr, to):
         to_kube_context = to["kube_context"]
         to_kc = get_kubectl(to_kube_context)
         to_prefix = to["prefix"]
-        util_dir = f'{env["C4CI_PROTO_DIR"]}/c4util'
+        s3sign = Path(__file__).with_name("s3sign.java")
         java = ("java", "--source", "21", "--enable-preview")
         #
         if "no_wait" not in to: wait_no_active_prefix(to_kc, to_prefix)
@@ -156,7 +157,7 @@ def snapshot_copy(env, def_kafka_addr, fr, to):
             url = f"/{to_bucket}/{new_fn}"
             can_in = f"PUT\n\n\n[date]\nx-amz-copy-source:{source}\n{url}"
             add_head = {
-                k: v for l in run_text_out((*java, f"{util_dir}/s3sign.java", can_in)).splitlines()
+                k: v for l in run_text_out((*java, str(s3sign), can_in)).splitlines()
                 for k, splitter, v in [l.partition(":")] if splitter == ":"
             }
             proto, splitter, host = read_text(f'{env["C4S3_CONF_DIR"]}/address').partition("://")

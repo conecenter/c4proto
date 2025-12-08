@@ -2,7 +2,7 @@
 import re
 from json import dumps, loads
 
-from . import never, never_if
+from util import never, never_if
 
 
 def find_def(scope, name):

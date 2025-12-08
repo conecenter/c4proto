@@ -9,7 +9,7 @@ from functools import partial
 from traceback import print_exc
 from queue import Queue
 
-from . import run_text_out, repeat, never
+from util import run_text_out, repeat, never
 
 
 def get_secret_data(kc, secret_name):

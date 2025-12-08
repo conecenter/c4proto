@@ -6,7 +6,7 @@ from json import dumps
 from typing import NamedTuple
 from logging import info, warning
 
-from . import group_map
+from util import group_map
 
 class Event(NamedTuple):
     group: str

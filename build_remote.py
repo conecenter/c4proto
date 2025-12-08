@@ -300,39 +300,6 @@ def build_type_resource_tracker(context, out):
     ])
 
 
-def build_type_ci_operator(context, out):
-    get_plain_option = get_main_conf(context)
-    deploy_context = get_plain_option("C4DEPLOY_CONTEXT")
-    changing_text(f"{out}/ci_serve.py", "from c4util.cio_client import main;main()")
-    changing_text(f"{out}/main.py", "\n".join((
-        'from os import environ as e', 'from time import sleep', 'from subprocess import run',
-        'run(("git","clone","-b",e["C4CI_PROTO_BRANCH"],"--depth","1","--",e["C4CI_PROTO_REPO"],e["C4CI_PROTO_DIR"]))',
-        'while True: (run(("python3", "-u", "-c", "from c4util.cio_server import main;main()")), sleep(10))',
-    )))
-    build_micro(context, out, [], [
-        "FROM ubuntu:22.04",
-        "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /replink.pl /",  # replink for ci_prep
-        "RUN perl install.pl useradd 1979",
-        "RUN perl install.pl apt curl ca-certificates python3 git tini" +
-        " libjson-xs-perl" +  # for ci_prep/prod/deploy_info
-        " rsync",  # for ci_prep and steps
-        "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl" +
-        " && chmod +x /tools/kubectl",
-        "RUN perl install.pl curl https://download.bell-sw.com/java/21.0.4+9/bellsoft-jdk21.0.4+9-linux-amd64.tar.gz", # tests
-        "RUN curl -L -o /t.tgz" +
-        " https://github.com/google/go-containerregistry/releases/download/v0.12.1/go-containerregistry_Linux_x86_64.tar.gz" +
-        " && tar -C /tools -xzf /t.tgz crane && rm /t.tgz",  # ci_prep
-        "RUN perl install.pl curl https://dlcdn.apache.org/maven/maven-3/3.9.7/binaries/apache-maven-3.9.7-bin.tar.gz",
-        "RUN perl install.pl curl https://github.com/sbt/sbt/releases/download/v1.9.3/sbt-1.9.3.tgz",
-        "RUN perl install.pl curl https://github.com/coursier/launchers/raw/master/coursier && chmod +x /tools/coursier",
-        "USER c4",
-        'ENV PATH=${PATH}:/tools:/tools/jdk/bin:/tools/apache/bin:/tools/sbt/bin',  # /tools/apache/bin for maven
-        "RUN coursier fetch --classpath org.apache.kafka:kafka-clients:3.7.1 > /c4/kafka-clients-classpath",
-        f"ENV C4DEPLOY_CONTEXT={deploy_context}",
-        'ENTRYPOINT ["tini","--","python3","-u","/main.py"]',
-    ])
-
-
 def find_parent_path(path, cond):
     return path if cond(path) else never("not found") if path == "/" else find_parent_path(str(Path(path).parent), cond)
 
@@ -466,7 +433,6 @@ def main():
         "build_type-de": lambda proj_tag: (lambda *args: build_type_de(proj_tag, *args)),
         "build_type-elector": lambda proj_tag: build_type_elector,
         "build_type-resource_tracker": lambda proj_tag: build_type_resource_tracker,
-        "build_type-ci_operator": lambda proj_tag: build_type_ci_operator,
         "build_type-micro": lambda proj_tag: (lambda *args: build_type_micro(proj_tag, *args)),
     }
     opt = setup_parser((

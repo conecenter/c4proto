@@ -12,25 +12,47 @@ from subprocess import run as sp_run
 from socket import create_connection
 import re
 from datetime import datetime, timezone
+from hashlib import sha256
 
-from .threads import TaskQ, daemon
-from .cio_client import post_steps, task_kv, log_addr, kafka_addr, ev_topic
-from . import snapshots as sn, cluster as cl, git, kube_reporter as kr, distribution
-from .cio_preproc import arg_substitute
-from . import run, list_dir, Popen, wait_processes, changing_text, one, read_text, never_if, need_dir, \
-    path_exists, read_json, never, repeat, decode, run_no_die, debug_args, run_text_out
-from .cmd import get_cmd
+from threads import TaskQ, daemon
+from cio_client import post_steps, task_kv, log_addr, kafka_addr, ev_topic
+import snapshots as sn, cluster as cl, git, kube_reporter as kr, distribution
+from cio_preproc import arg_substitute
+from util import run, list_dir, Popen, changing_text, one, read_text, never_if, \
+    path_exists, read_json, never, repeat, decode, run_no_die, debug_args, run_text_out, log
+from cmd import get_cmd
+
+
+def need_dir(d):
+    Path(d).mkdir(parents=True, exist_ok=True)
+    return d
 
 
 def app_prep_start(q, env, app, app_dir, up_path):
     changing_text(lock_path(up_path), "")
     q.submit(*task_kv(f'prep {up_path}'))(get_cmd(app_prep, env, app, app_dir, up_path))
 
-
 def app_prep(env, app, app_dir, up_path):
+    tmp_life = TemporaryDirectory()
+    kube_conf = f'{tmp_life.name}/config'
+    run(("cp", env["C4KUBECONFIG"], kube_conf)) # normal user will not be able to create remote /c4conf-... dir
+    kc = cl.get_kubectl(env["C4DEPLOY_CONTEXT"])
+    image = loads((Path(app_dir)/"gitlab-ci-generated.yml").read_bytes())[".handler"]["image"]
+    name = f'cb-w0-{sha256(image.encode()).hexdigest()[:8]}'
+    cont_security = { "allowPrivilegeEscalation": False }
+    container = { "name": "main", "image": image, "command": ["sleep","infinity"], "securityContext": cont_security }
+    pod_security = { "runAsUser": 1979, "runAsGroup": 1979, "fsGroup": 1979, "runAsNonRoot": True } # need same user, at least for git; tar saves it
+    spec = { "containers": [container], "imagePullSecrets": [{ "name": "c4pull" }], "securityContext": pod_security }
+    pod = { "apiVersion": "v1", "kind": "Pod", "metadata": { "name": name }, "spec": spec }
+    run((*kc, "apply", "-f-"), input=dumps(pod, sort_keys=True).encode())
+    run((*kc, "wait", "--for", "condition=ready", "--timeout", "30s", f'pod/{name}'))
+    Path(up_path).write_bytes(b'')
+    tar = run(("tar", "-czf-", app_dir, kube_conf, up_path), capture_output=True).stdout
+    run((*kc, "exec", "-i", name, "--", "tar", "-xzf-"), input=tar)
     args = ("--context", app_dir, "--c4env", app, "--state", "main", "--info-out", up_path)
-    cmd = ("python3", "-u", f'{env["C4CI_PROTO_DIR"]}/ci_prep.py', *args)
-    run(cmd, env={**env, "KUBECONFIG": env["C4KUBECONFIG"]})
+    run((*kc, "exec", name, "--", "env", f"KUBECONFIG={kube_conf}", "c4ci_prep", *args))
+    Path(up_path).write_bytes(run((*kc, "exec", name, "--", "cat", up_path), capture_output=True).stdout)
+    run((*kc, "exec", name, "--", "rm", "-r", app_dir, kube_conf, up_path))
     Path(lock_path(up_path)).unlink()
 
 
@@ -99,7 +121,7 @@ def kafka_client_serve(deploy_context, port_offset, conf):
     for c, k, v in todo: c == "F" and Path(k).write_bytes(v)
     conf_path = f"{life.name}/kafka.conf"
     changing_text(conf_path, "".join(f"{k}={v}\n" for c, k, v in todo if c == "L"))
-    cp = read_text("/c4/kafka-clients-classpath").strip()
+    cp = "/c4/c4lib/*"
     src_path = str(Path(__file__).parent/"kafka.java")
     run(("java", "--source", "21", "--enable-preview", "-cp", cp, src_path, str(kafka_addr(port_offset)[-1]), conf_path))
 
@@ -121,6 +143,12 @@ def purge(env, prefix, clients):
             info(exchange(f'DELETE {prefix}.inbox'.encode(), "EXISTED"))
     never_if(ls(".snapshots"))
 
+
+def wait_processes(processes):
+    for proc in processes:
+        proc.wait()
+        hint = f"finished with {proc.returncode}"
+        log(hint) if proc.returncode == 0 else debug_args(hint, proc.args)
 
 def kube_report_serve(d, subdir_pf):
     life = TemporaryDirectory()

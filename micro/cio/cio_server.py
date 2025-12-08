@@ -9,16 +9,16 @@ from datetime import datetime, timezone, timedelta
 from tempfile import TemporaryDirectory
 from logging import exception, info, basicConfig, INFO
 
-from . import list_dir, repeat, read_text, one, group_map, decode
-from .git import git_pull, git_clone
-from .cmd import get_cmd
-from .threads import TaskQ, daemon, TaskFin
-from .servers import http_serve, tcp_serve
-from .cluster import get_kubectl, get_secret_part, init_kafka_producer
-from .cio_preproc import plan_steps, arg_substitute
-from .cio_client import log_addr, cmd_addr, reporting_addr, task_hint, kafka_addr, log_topic
-from .cio import run_steps
-from .reporting import init_reporting
+from util import list_dir, repeat, read_text, one, group_map, decode
+from git import git_pull, git_clone
+from cmd import get_cmd
+from threads import TaskQ, daemon, TaskFin
+from servers import http_serve, tcp_serve
+from cluster import get_kubectl, get_secret_part, init_kafka_producer
+from cio_preproc import plan_steps, arg_substitute
+from cio_client import log_addr, cmd_addr, reporting_addr, task_hint, kafka_addr, log_topic
+from cio import run_steps
+from reporting import init_reporting
 
 class ReportReq(NamedTuple): pass
 

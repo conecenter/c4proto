@@ -7,7 +7,7 @@ from logging import basicConfig, DEBUG
 
 
 def get_cmd(f, *args): return (
-    "python3", "-u", "-c", "from c4util.cmd import run_cmd as f;f()",
+    "python3", "-u", "-c", "from cmd import run_cmd as f;f()",
     dumps([f.__module__, f.__name__,*(("env",*args[1:]) if args and args[0] is environ else ("",*args))])
 )
 

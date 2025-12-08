@@ -4,6 +4,7 @@ from pathlib import Path
 import subprocess
 import time
 import sys
+from types import MappingProxyType
 
 def group_map(l,f):
     res = {}
@@ -47,15 +48,17 @@ def never(a): raise Exception(a)
 
 def list_dir(d): return sorted(str(p) for p in Path(d).iterdir())
 
-def need_dir(d):
-    Path(d).mkdir(parents=True, exist_ok=True)
-    return d
+def never_if(e): return never(e) if e else e
 
-def wait_processes(processes):
-    for proc in processes:
-        proc.wait()
-        hint = f"finished with {proc.returncode}"
-        log(hint) if proc.returncode == 0 else debug_args(hint, proc.args)
-    return all(proc.returncode == 0 for proc in processes)
+def http_exchange(conn, method, url, data=b'', headers=MappingProxyType({})):
+    conn.request(method, url, data, headers)
+    resp = conn.getresponse()
+    msg = resp.read()
+    return resp.status, msg
 
-def parse_table(data): return [line.split() for line in data.split("\n") if len(line) > 0]
+def http_check(status, msg): return msg if 200 <= status < 300 else never(f"request failed: {status}\n{msg}")
+
+def repeat(f, exits=()):
+    while f() not in exits: pass
+
+def decode(bs): return bs.decode()

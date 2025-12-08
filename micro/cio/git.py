@@ -1,5 +1,5 @@
 
-from . import run, run_no_die, run_text_out, log, never_if
+from util import run, run_no_die, run_text_out, log, never_if
 
 
 def git_init(repo, d):

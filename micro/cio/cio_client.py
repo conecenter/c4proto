@@ -6,7 +6,7 @@ from json import dumps, loads
 from sys import argv, stdout, stdin
 from socket import create_connection
 
-from . import http_check, http_exchange, one
+from util import http_check, http_exchange, one
 
 
 

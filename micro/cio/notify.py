@@ -4,8 +4,8 @@ from json import dumps
 import http.client
 from pathlib import Path
 
-from . import http_check, http_exchange, changing_text, read_json, run
-from .cmd import get_cmd
+from util import http_check, http_exchange, changing_text, read_json, run
+from cmd import get_cmd
 
 # "notify_started": lambda opt: ny.notify_started(get_dir, ny.notify_create_requests(
 #     access(deploy_context, opt["auth"]), opt["url"],

@@ -7,7 +7,7 @@ import argparse
 import contextlib
 import base64
 import hashlib
-from . import group_map, read_json, one, run, run_text_out, Popen, wait_processes, never, decode, run_no_die
+from . import group_map, read_json, one, run, run_text_out, Popen, wait_processes, never, run_no_die
 
 
 def run_pipe_no_die(from_args, to_args):
@@ -131,7 +131,7 @@ def get_secret_data(secret_name):
     return lambda secret_fn: base64.b64decode(secret["data"][secret_fn])
 def secret_part_to_text(k8s_path):
     secret_name, secret_fn = k8s_path.split("/")
-    return decode(get_secret_data(secret_name)(secret_fn))
+    return get_secret_data(secret_name)(secret_fn).decode()
 
 
 def get_main_conf(context):
