@@ -11,7 +11,7 @@ def get_metrics_content():
     processes = [(c["host"], Popen((
         "timeout", "3", "ssh", "-o", "ControlMaster=auto", "-o", "ControlPath=/tmp/ssh_mux_%r_%h_%p",
         "-o", "ControlPersist=60", "-o", "ServerAliveInterval=4", "-o", "StrictHostKeyChecking=yes",
-        "-o", f'UserKnownHostsFile={environ["C4DOCKER_KNOWN_HOSTS"]}', "-i", environ["C4DOCKER_KEY_PATH"],
+        "-o", f'UserKnownHostsFile={environ["C4DOCKER_KNOWN_HOSTS"]}', "-i", environ["C4DOCKER_KEY_PATH"], # use `ssh-keyscan $HOST` to get line for known_hosts
         f'{c["user"]}@{c["host"]}', "cat /proc/stat",
     ), stdout=PIPE)) for c in conf]
     titles = ("user","nice","system","idle","iowait","irq","softirq")
@@ -21,6 +21,7 @@ def get_metrics_content():
         for line in proc.communicate()[0].decode().splitlines() if line.startswith("cpu ")
         for i, v in enumerate(line.split()[1:1+len(titles)])
     )
+    # metrics are in jiffies - usually it is “% of one core”
 
 def handle(path):
     try:
