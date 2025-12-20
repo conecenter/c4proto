@@ -16,7 +16,14 @@ import scala.annotation.tailrec
   @Id(0x00B5) case class S_InjectionDone(@Id(0x0011) srcId: SrcId, @Id(0x00B1) electorClientId: SrcId)
 }
 
-@c4assemble("InjectionApp") class InjectionAssembleBase(actorName: ActorName){
+@c4assemble("InjectionApp") class InjectionAssembleBase(
+  actorName: ActorName, clList: List[GeneralBeforeInjectionTxTrCl]
+)(
+  clSet: Set[String] = clList.map(_.cl.getName).toSet
+){
+  def ofCl(key: SrcId, txTr: Each[TxTransform]): Values[(SrcId,BeforeInjection)] =
+    if(clSet contains txTr.getClass.getName) Seq(WithPK(BeforeInjection(key))) else Nil
+
   def disable(
     key: SrcId,
     txTr: Each[TxTransform],
