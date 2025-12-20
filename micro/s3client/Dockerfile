@@ -10,3 +10,4 @@ ENV PATH=${PATH}:/tools:/tools/jdk/bin
 RUN coursier fetch --classpath org.apache.kafka:kafka-clients:3.7.1 > /c4/kafka-clients-classpath
 RUN python3 -m venv /c4/venv && /c4/venv/bin/pip install --no-cache-dir boto3==1.38.34
 ENTRYPOINT ["tini","--","python3","-u","/app/main.py","serve"]
+COPY . /app

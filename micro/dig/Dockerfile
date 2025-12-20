@@ -1,7 +1,7 @@
 FROM ubuntu:24.04
 COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /
 RUN /install.pl useradd 1979
-RUN /install.pl apt curl ca-certificates unzip
+RUN /install.pl apt curl ca-certificates unzip tini
 RUN /install.pl curl https://download.bell-sw.com/java/25.0.1+13/bellsoft-jdk25.0.1+13-linux-amd64.tar.gz
 RUN /install.pl curl https://dl.k8s.io/release/v1.33.1/bin/linux/amd64/kubectl && chmod +x /tools/kubectl
 RUN curl -L https://github.com/com-lihaoyi/Ammonite/releases/download/3.0.4/3.3-3.0.4 -o /tmp/amm \
@@ -17,5 +17,6 @@ RUN mkdir -p /tmp/c4dig/arthas \
  && cd /tmp && tar -C /tmp -czf /c4/c4dig.tar.gz c4dig \
  && rm -r /tmp/c4dig
 ENV PATH=${PATH}:/tools/:/tools/jdk/bin
-ENTRYPOINT ["perl","-e","-e and exec 'amm', $_ for map{$_.'/app.scala'} split ':', $ENV{C4UP_PATH}; die"]
+ENTRYPOINT ["tini","--","perl","-e","-e and exec 'amm', $_ for map{$_.'/app.scala'} split ':', $ENV{C4UP_PATH}; die"]
 #todo: using compilation image can save some memory and boot time
+COPY . /app

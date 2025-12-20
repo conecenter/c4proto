@@ -4,3 +4,4 @@ RUN perl install.pl useradd 1979
 RUN perl install.pl apt curl ca-certificates tini python3 openssh-client
 USER c4
 ENTRYPOINT ["tini","--","python3","-u","/app/main.py"]
+COPY . /app

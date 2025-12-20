@@ -212,3 +212,4 @@ def handlePodOutMsg(q: BlockingQueue[PodManMsg], s3: S3Man, from: String, line: 
       was
   Iterator.continually(q.take()).foldLeft(MainState(Map.empty, Map.empty, Map.empty)) : (was, msg) =>
     Try(handle(was, msg)).recover(notifyErr(was, _)).get
+///

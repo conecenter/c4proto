@@ -1,9 +1,14 @@
 
-import sys
+from sys import argv
 import re
+from json import loads
 from pathlib import Path
-from c4util import group_map, parse_table, read_json, read_text, run_text_out
+from subprocess import check_output
 
+from c4util import group_map, da
+
+
+def parse_table(data): return [line.split() for line in data.split("\n") if len(line) > 0]
 
 def get_base(pkg, coll):
     return pkg if (pkg in coll) or not pkg else get_base(".".join(pkg.split(".")[:-1]), coll)
@@ -25,7 +30,7 @@ def chk_line(line,allow_pkg_dep):
     return True
 
 
-def load_conf(context): return read_json(f"{context}/target/c4/build.json")
+def load_conf(context): return loads(Path(f"{context}/target/c4/build.json").read_bytes())
 
 
 def get_full_deps(build_conf): return {k: {k, *l} for k, l in build_conf["allow_pkg_dep"].items()}
@@ -41,7 +46,7 @@ def handle_by_classpath(context, cp):
         "-"
     ,p))
     if "-" in cp_by_tp: raise cp_by_tp
-    jdeps_res = run_text_out(("jdeps", "--multi-release", "16", "-cp", cp, *cp_by_tp["classes"]))
+    jdeps_res = check_output(da("jdeps", "--multi-release", "16", "-cp", cp, *cp_by_tp["classes"])).decode()
     bad = "".join(
         " ".join(line)+"\n" for line in parse_table(jdeps_res) if not chk_line(line,allow_pkg_dep)
     )
@@ -54,7 +59,7 @@ def handle_by_text(context):
     allow_pkg_dep = get_full_deps(build_conf)
     print(next(line[0] for line in build_conf["plain"]))
     mod_prefix = next(line[2] for line in build_conf["plain"] if line[0] == "C4DEP_REASONING_PREFIX")
-    group, point, pkg_prefix = mod_prefix.partition(".")
+    group, point, pkg_pre = mod_prefix.partition(".")
     if point != ".":
         raise Exception(f"bad conf: {mod_prefix}")
     src_dirs = sorted(f"{context}/{line[2]}" for line in build_conf["plain"] if line[0] == "C4SRC" and line[1] == group)
@@ -67,14 +72,14 @@ def handle_by_text(context):
             None
         ))
         for src_dir in src_dirs
-        for path in sorted(run_text_out(("find", src_dir, "-type", "f", "-name", "*.scala")).splitlines())
+        for path in sorted(check_output(da("find", src_dir, "-type", "f", "-name", "*.scala")).decode().splitlines())
         for path_parts in [path[len(src_dir)+1:].split("/")]
         for fn_parts in [path_parts[-1].split(".")]
         if not (fn_parts[0] == "c4gen" and len(fn_parts) == 3)
         # so if scala is generated from non-scala, it can introduce new deps
         for from_pkg in [".".join(path_parts[:-1])]
         for pkg_base in [get_base(from_pkg, allow_pkg_dep)]
-        for imp_list in [[imp for imp in re_imp.findall(read_text(path)) if imp.startswith(pkg_prefix)]]
+        for imp_list in [[imp for imp in re_imp.findall(Path(path).read_bytes().decode()) if imp.startswith(pkg_pre)]]
         for bad_imp_lines in [pkg_base and [f"\n {to}" for to in imp_list if not get_base(to, allow_pkg_dep[pkg_base])]]
     ]
     # for path, imp_list, msg in found:
@@ -95,7 +100,7 @@ def restrict(context, build_conf):
 
 def main():
     handlers = {"by_classpath": handle_by_classpath, "by_text": handle_by_text}
-    script, op, *args = sys.argv
+    script, op, *args = argv
     handlers[op](*args)
 
 

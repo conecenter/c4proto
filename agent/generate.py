@@ -1,14 +1,14 @@
 
 import subprocess
 from pathlib import Path
+from subprocess import check_output
 from sys import argv
-from json import loads, dumps
+from json import loads
 
-def run(args, **opt): return subprocess.run(args, check=True, **opt)
-def write_text(path, text):
+def write_text(path: str, text: str):
     Path(path).parent.mkdir(parents=True, exist_ok=True)
-    Path(path).write_text(text, encoding="utf-8", errors="strict")
-def read_text(path): return Path(path).read_text(encoding='utf-8', errors='strict')
+    Path(path).write_bytes(text.encode())
+def read_text(path: str): return Path(path).read_bytes().decode()
 
 def gen_conf(path,comment,line_wrap,uid,home,setup,arch_name,network):
     write_text(path, "\n".join((
@@ -28,6 +28,11 @@ def main(opt_str):
     opt = loads(opt_str)
     to = opt["to"]
     write_text(f"{to}/Dockerfile", "\n".join((
+        "FROM ubuntu:24.04 AS dl-buildkit",
+        "RUN apt update && apt install -y ca-certificates curl && mkdir /out",
+        "ARG C4CPU_ARCH",
+        "RUN curl -L https://github.com/moby/buildkit/releases/download/v0.26.3/buildkit-v0.26.3.linux-$C4CPU_ARCH.tar.gz | tar -C /out -xzf-",
+        #
         "FROM ubuntu:22.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /replink.pl /",
         "ARG C4UID",
@@ -37,6 +42,7 @@ def main(opt_str):
         "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/$C4CPU_ARCH/kubectl && chmod +x /tools/kubectl",
         "RUN curl -L -o /t.tgz https://github.com/google/go-containerregistry/releases/download/v0.12.1/go-containerregistry_Linux_x86_64.tar.gz" +
         " && tar -C /tools -xzf /t.tgz crane && rm /t.tgz",
+        "COPY --from=dl-buildkit /out/bin/buildctl /tools/buildctl",
         "USER c4",
         "ENV PATH=${PATH}:/c4/bin:/tools:"+opt["generated_dir"]+"/bin",
         "ENV KUBE_EDITOR=micro",
@@ -63,6 +69,8 @@ def main(opt_str):
     agent_dir = str(Path(__file__).parent)
     proto_dir = str(Path(__file__).parent.parent)
     write_text(f"{to}/server.py", read_text(f"{agent_dir}/server.py"))
+    for p in ("ci_deploy_info.pl","ci_build.py","make_manifests.pl","gitlab.py"):
+        write_text(f"{to}/ci/{p}", read_text(f"{proto_dir}/{p}"))
     write_text(f"{bin}/c4ci_prep", read_text(f"{proto_dir}/ci_prep.py"))
     write_text(f"{bin}/c4ci_up", read_text(f"{proto_dir}/ci_up.py"))
     write_text(f"{bin}/c4forward", read_text(f"{agent_dir}/forward.py"))
@@ -70,6 +78,6 @@ def main(opt_str):
     write_text(f"{host_bin}/a4", perl_exec('exec "docker", "exec", "-i", "c4agent_kc", @ARGV;'))
     write_text(f"{host_bin}/a4t", perl_exec('exec "docker", "exec", "-it", "c4agent_kc", @ARGV ? @ARGV : "bash";'))
     for k, v in opt["bin"].items(): write_text(f"{to}/bin/{k}", v)
-    run(("sh","-c",f"chmod +x {to}/up* {bin}/* {host_bin}/*"))
+    check_output(("sh","-c",f"chmod +x {to}/up* {bin}/* {host_bin}/*"))
 
 main(*argv[1:])

@@ -215,7 +215,7 @@ my $serve_elector = sub{
     my($replica)=@_;
     &$exec_at($elector_dir,{
         C4HTTP_PORT => $elector_port_base+$replica
-    }, "node","elector.js");
+    }, "node","micro/elector/elector.js");
 };
 
 my $replicas = sub{

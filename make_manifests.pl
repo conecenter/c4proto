@@ -252,15 +252,6 @@ my $encode = sub{
     $yml_str
 };
 
-my $put_text = sub{
-    my($fn,$content)=@_;
-    open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
-};
-
-my $main = sub{
-    my %opt = @_;
-    my ($o_values,$o_out) = map{&$mandatory_of($_,\%opt)} "--values", "--out";
-    &$put_text($o_out, &$encode([map{&$make_kc_yml($_)} @{&$decode($o_values)}]));
-};
+my $main = sub{ print &$encode([&$make_kc_yml(&$decode($_[0]||die "value arg required"))]) };
 
 &$main(@ARGV);

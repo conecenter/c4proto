@@ -9,3 +9,4 @@ RUN /c4/venv/bin/playwright install-deps && rm -rf /var/lib/apt/lists/*
 USER c4
 RUN /c4/venv/bin/playwright install chromium-headless-shell
 ENTRYPOINT ["tini","--","/c4/venv/bin/python","-u","-c","from app import main;main()"]
+COPY . /app

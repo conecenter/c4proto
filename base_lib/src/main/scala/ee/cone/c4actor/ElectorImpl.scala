@@ -229,7 +229,7 @@ case object PurgeReadyProcessStateKey extends TransientLens[Option[ElectorReques
     once.check()
     val process = S_ReadyProcess(
       electorClientId, "", fullActorName, System.currentTimeMillis, config.get("HOSTNAME"),
-      readTextOrEmpty("/c4ref_descr")
+      readTextOrEmpty("/c4/c4ref_descr")
     )
     logger.info(process.toString)
     txAdd.add(LEvent.update(process))(local)

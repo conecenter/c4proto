@@ -6,3 +6,4 @@ RUN perl install.pl curl https://dl.k8s.io/release/v1.33.1/bin/linux/amd64/kubec
 USER c4
 ENV PATH=${PATH}:/tools
 ENTRYPOINT ["tini","--","python3","-u","/app/main.py"]
+COPY . /app

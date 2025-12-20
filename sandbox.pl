@@ -66,9 +66,11 @@ my $serve_build = sub{
     my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR => \%ENV);
     my $user = $ENV{HOSTNAME}=~/^de-(\w+)-/ ? $1 : die;
     local $ENV{KUBECONFIG} = $ENV{C4KUBECONFIG};
-    my @opt = ("--proj-tag", &$get_tag(), "--user", $user, "--context", $build_dir);
-    sy("python3", "-u", "$proto_dir/build_remote.py", "compile", @opt);
-    sy("perl", "$proto_dir/prod.pl", "build_client", $build_dir, "dev");
+    sy(
+        "python3", "-u", "$proto_dir/compile.py",
+        "--proj-tag", &$get_tag(), "--user", $user, "--context", $build_dir, "--kube-context", $ENV{C4DEPLOY_CONTEXT},
+    );
+    sy("perl", "$proto_dir/build_client.pl", $build_dir, "dev");
     &$supervisor("restart","app");
 };
 
@@ -99,6 +101,13 @@ my $serve_history = sub{
 };
 
 my $init = sub{
+    my %opt = @_;
+    symlink(&$mandatory_of("--context" => \%opt), $ENV{C4CI_BUILD_DIR}) or die;
+    &$put_text("/c4/debug-tag", &$mandatory_of("--proj-tag" => \%opt));
+    #
+    mkdir "/c4/bin";
+    &$put_text($_, "#!/usr/bin/perl\nexec 'kubectl','--context',@ARGV;"), chmod 0755, $_ or die for "/c4/bin/kc";
+    #
     my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR => \%ENV);
     sy("python3","-u","$proto_dir/vault.py");
     sy("perl","$proto_dir/ceph.pl");
@@ -134,4 +143,4 @@ my $cmd_map = {
     prebuild => $serve_prebuild, build => $serve_build, app => $serve_app, history => $serve_history, main => $init
 };
 $| = 1;
-$$cmd_map{$ARGV[0]}->();
+$$cmd_map{$ARGV[0]}->(1..$#ARGV);

@@ -1,34 +1,25 @@
+from base64 import b64encode
+from json import dumps, loads
+from os import environ
+from subprocess import check_output
+from sys import argv
+from pathlib import Path
+from re import findall
 
-import json
-import sys
-import tempfile
-from c4util import changing_text, read_text
-from c4util.build import build_cached_by_content, get_main_conf, get_proto, get_image_conf
+def changing(path: Path, data: bytes): path.exists() and path.read_bytes() == data or path.write_bytes(data)
 
-
-def main(build_path):
-    temp_root = tempfile.TemporaryDirectory()
-    get_plain_option = get_main_conf(build_path)
-    proto_postfix, proto_dir = get_proto(build_path, get_plain_option)
-    repo, image_tag_prefix = get_image_conf(get_plain_option)
-    changing_text(f"{temp_root.name}/c4ci_prep", read_text(f"{proto_dir}/ci_prep.py"))
-    changing_text(f"{temp_root.name}/c4ci_up", read_text(f"{proto_dir}/ci_up.py"))
-    steps = "\n".join((
-        "FROM ubuntu:22.04",
-        "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /replink.pl /",
-        "RUN perl install.pl useradd 1979",
-        "RUN perl install.pl apt curl ca-certificates python3 git libjson-xs-perl rsync",
-        "RUN perl install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl" +
-        " && chmod +x /tools/kubectl",
-        "RUN curl -L -o /t.tgz https://github.com/google/go-containerregistry/releases/download/v0.12.1/go-containerregistry_Linux_x86_64.tar.gz" +
-        " && tar -C /tools -xzf /t.tgz crane && rm /t.tgz",
-        "COPY c4ci_prep c4ci_up /tools/", "RUN chmod +x /tools/c4ci_prep /tools/c4ci_up",
-        "ENV PATH=${PATH}:/tools:/tools/linux",
-    ))
-    changing_text(f"{temp_root.name}/Dockerfile", steps)
-    image = build_cached_by_content(temp_root.name, repo, "c4push/.dockerconfigjson")
+def main(kube_context, context):
+    ld = lambda nm: (Path(__file__).parent / nm).read_bytes()
+    content = ld("build.def.dockerfile").decode()
+    names_to_copy = findall(r"COPY\s+--from=c4emb\s+/(\S+).*", content)
+    add = " && ".join(f"echo '{b64encode(ld(s)).decode()}' | base64 -d > /{s}" for s in names_to_copy)
+    res_content = "\n".join(("### THIS FILE IS GENERATED ###","FROM ubuntu:24.04 AS c4emb",f"RUN {add}",content))
+    changing(Path(f"{context}/Dockerfile"), res_content.encode())
+    #
+    build = ("python3", "-u", str(Path(__file__).parent / "ci_build.py"))
+    args = ("--kube-context", kube_context, "--context", f'{context}/Dockerfile', "--opt", dumps({"image_type": "ci"}))
+    image = check_output((*build, *args)).decode().strip()
     out = {".handler": {"image": image}}
-    changing_text(f"{build_path}/gitlab-ci-generated.yml", json.dumps(out, sort_keys=True, indent=4))
+    changing(Path(f"{context}/gitlab-ci-generated.yml"), dumps(out, sort_keys=True, indent=4).encode())
 
-
-main(*sys.argv[1:])
+main(environ["C4DEPLOY_CONTEXT"], *argv[1:])

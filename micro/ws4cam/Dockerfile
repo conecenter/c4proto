@@ -5,3 +5,4 @@ RUN perl install.pl apt curl ca-certificates python3-venv tini lsof
 USER c4
 RUN python3 -m venv /c4/venv && /c4/venv/bin/pip install --no-cache-dir av pillow websockets
 ENTRYPOINT ["tini","--","/c4/venv/bin/python","-u","/app/ws4cam.py"]
+COPY . /app

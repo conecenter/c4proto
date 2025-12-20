@@ -1,12 +1,15 @@
 
-import json
-import sys
-import pathlib
-from c4util import group_map, one, read_text, changing_text_observe, read_json, run
-from c4util.build import dir_sum
+from json import loads, dumps
+from sys import argv
+from pathlib import Path
+from hashlib import sha256
+from subprocess import check_output
 
+from c4util import group_map, changing_observe, da
 
 ### util
+
+def one(it): return it
 
 def lazy_dict(f):
     h = {}
@@ -16,15 +19,15 @@ def lazy_dict(f):
     return get
 
 ###
-def write_changed(path,data):
+def write_changed(path: Path, content: str):
+    data = content.encode()
     path.parent.mkdir(parents=True, exist_ok=True)
-    if not (path.exists() and data == path.read_text(encoding='utf-8', errors='strict')):
-        path.write_text(data, encoding='utf-8', errors='strict')
+    if not (path.exists() and data == path.read_bytes()): path.write_bytes(data)
 
 def load_dep(build_path_str, path):
     return [
         i_item
-        for o_item in read_json(f"{build_path_str}/{path}")
+        for o_item in loads(Path(f"{build_path_str}/{path}").read_bytes())
         for i_item in (load_dep(build_path_str, o_item[2]) if o_item[0] == "C4INC" else [o_item])
     ]
 
@@ -103,17 +106,20 @@ def main(build_path_str):
     generate_configs(build_path_str, tmp_part, conf_plain)
     compile_run_generator(build_path_str, tmp_part, conf_plain)
 
+def dir_sum(context, paths, args):
+    files = sorted(check_output(da("find", *paths, "-type", "f", *args), cwd=context).decode().splitlines())
+    return sha256(check_output(da("sha256sum", "--", *files), cwd=context)).hexdigest()
 
 def compile_run_generator(build_path_str, tmp_part, conf_plain):
     generator_conf, = [line[1:] for line in conf_plain if line[0] == "C4GENERATOR_MAIN"]
     g_main, g_mod = generator_conf
     proj_part = f"{tmp_part}/mod.{g_mod}.d"
-    g_sum = dir_sum(build_path_str, read_json(f"{build_path_str}/{proj_part}/c4sync_paths.json"), ("-name", "*.scala"))
-    for save in changing_text_observe(f"{build_path_str}/{tmp_part}/generator-src-sum", g_sum):
-        run(("sbt", "c4build"), cwd=f"{build_path_str}/{proj_part}")
+    g_sum = dir_sum(build_path_str, loads(Path(f"{build_path_str}/{proj_part}/c4sync_paths.json").read_bytes()), ("-name", "*.scala"))
+    for save in changing_observe(Path(f"{build_path_str}/{tmp_part}/generator-src-sum"), g_sum.encode()):
+        check_output(da("sbt", "c4build"), cwd=f"{build_path_str}/{proj_part}")
         save()
-    cp = read_text(f"{build_path_str}/{proj_part}/target/c4classpath")
-    run(("java", "-cp", cp, g_main, "--ver", g_sum, "--context", build_path_str))
+    cp = Path(f"{build_path_str}/{proj_part}/target/c4classpath").read_bytes().decode()
+    check_output(da("java", "-cp", cp, g_main, "--ver", g_sum, "--context", build_path_str))
 
 
 def two_col_str(d):
@@ -122,7 +128,7 @@ def two_col_str(d):
 
 
 def generate_configs(build_path_str, tmp_part, conf_plain):
-    build_path = pathlib.Path(build_path_str)
+    build_path = Path(build_path_str)
     conf = {
         k: group_map(l, lambda it: (it[0],it[1]))
         for k, l in group_map(conf_plain, lambda it: (it[0],it[1:])).items()
@@ -172,7 +178,7 @@ def generate_configs(build_path_str, tmp_part, conf_plain):
         plugins_text = 'addSbtPlugin("org.wartremover" % "sbt-wartremover" % "3.1.3")'
         write_changed(build_path / plugins_sbt, plugins_text)
         write_changed(build_path / f"{proj_part}/c4modules", ":".join(modules))
-        write_changed(build_path / f"{proj_part}/c4sync_paths.json", json.dumps([
+        write_changed(build_path / f"{proj_part}/c4sync_paths.json", dumps([
             build_sbt, plugins_sbt, *get_src_dirs(conf,modules),
             *sorted({ dep for m in modules for dep in get_list(conf,"C4LIB",m) })
         ]))
@@ -202,7 +208,7 @@ def generate_configs(build_path_str, tmp_part, conf_plain):
             ).items()
         },
     }
-    write_changed(build_path / f"{tmp_part}/build.json", json.dumps(out_conf, sort_keys=True, indent=4))
+    write_changed(build_path / f"{tmp_part}/build.json", dumps(out_conf, sort_keys=True, indent=4))
     # no src_dirs_generator_off
     src_dirs_generator_off = [
         ["C4GENERATOR_DIR_MODE", "OFF", s_dir]
@@ -239,7 +245,7 @@ def get_mod_groups_1(mod, deps, modules):
     ) for group_id in sorted(groups.keys())),)
 
 
-main(*sys.argv[1:])
+main(*argv[1:])
 
 #ThisBuild / exportJars := true
 
