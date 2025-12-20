@@ -65,10 +65,9 @@ RUN apt update && DEBIAN_FRONTEND=noninteractive apt install -y --no-install-rec
 ADD --link --unpack "https://download.bell-sw.com/java/17.0.17+15/bellsoft-jdk17.0.17+15-linux-amd64.tar.gz" /tools
 ENV PATH=${PATH}:/tools:/tools/jdk-17.0.17/bin
 ENV JAVA_HOME=/tools/jdk-17.0.17
-RUN chown -R c4:c4 /c4
 WORKDIR /c4
 USER c4
 ENTRYPOINT ["perl","run.pl"]
-COPY --link --from=de /c4/c4res/* /c4
+COPY --link --from=de --chown=c4:c4 /c4/c4res/ /c4/
 RUN echo "descr#${C4COMMIT}" > /c4/c4ref_descr
 # `git describe --all` seems depending on how we make checkout, it can be w/o commit and not good generally
