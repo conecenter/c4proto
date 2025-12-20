@@ -68,6 +68,6 @@ ENV JAVA_HOME=/tools/jdk-17.0.17
 WORKDIR /c4
 USER c4
 ENTRYPOINT ["perl","run.pl"]
-COPY --link --from=de --chown=c4:c4 /c4/c4res/ /c4/
+COPY --link --from=de --chown=1979:1979 /c4/c4res/ /c4/
 RUN echo "descr#${C4COMMIT}" > /c4/c4ref_descr
 # `git describe --all` seems depending on how we make checkout, it can be w/o commit and not good generally
