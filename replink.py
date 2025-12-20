@@ -1,7 +1,7 @@
 from argparse import ArgumentParser
-from json import dumps, loads
+from json import loads
 from pathlib import Path
-from subprocess import check_call, Popen
+from subprocess import check_output, Popen
 from sys import stderr
 from tempfile import TemporaryDirectory
 from re import fullmatch
@@ -35,7 +35,7 @@ def main():
     dl_proc = [(k, Popen(da("curl","-L",f'{url}/archive/{ref}.zip',"-o",str(tmp/f'{k}.zip')))) for k, url, ref in rels]
     for k, proc in dl_proc:
         if proc.wait(30) != 0: raise Exception()
-        check_call(da("unzip", str(tmp/f'{k}.zip'), "-d", str(tmp/k)))
+        check_output(da("unzip", str(tmp/f'{k}.zip'), "-d", str(tmp/k), "-q"))
         for p in (tmp/k).iterdir(): p.rename(context/k)
     #
     if args.commits_out:

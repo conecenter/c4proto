@@ -143,4 +143,4 @@ my $cmd_map = {
     prebuild => $serve_prebuild, build => $serve_build, app => $serve_app, history => $serve_history, main => $init
 };
 $| = 1;
-$$cmd_map{$ARGV[0]}->(1..$#ARGV);
+$$cmd_map{$ARGV[0]}->(@ARGV[1..$#ARGV]);
