@@ -29,6 +29,7 @@ def build_type_rt(proj_tag, context, out):
     tag_info, mod_dir, sbt_args = get_more_compile_options(context, proj_tag)  # after build.py
     serv_proc, serv_proc_log = with_prefix("server", Popen(da(*sbt_args), stdout=PIPE, stderr=STDOUT))
     wait_all_ok([cl_proc, cl_proc_log, serv_proc, serv_proc_log])
+    return
     #
     paths = loads(check_output(da("python3", f"{proto_dir}/build_env.py", context, tag_info["mod"])).decode())
     chk_cmd = da("python3", "-u", f"{proto_dir}/chk_pkg_dep.py", "by_classpath", context, paths["CLASSPATH"])

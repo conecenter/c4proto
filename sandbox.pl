@@ -67,7 +67,7 @@ my $serve_build = sub{
     my $user = $ENV{HOSTNAME}=~/^de-(\w+)-/ ? $1 : die;
     local $ENV{KUBECONFIG} = $ENV{C4KUBECONFIG};
     sy(
-        "python3", "-u", "$proto_dir/compile.py",
+        "python3", "-u", "$proto_dir/compile_remote.py",
         "--proj-tag", &$get_tag(), "--user", $user, "--context", $build_dir, "--kube-context", $ENV{C4DEPLOY_CONTEXT},
     );
     sy("perl", "$proto_dir/build_client.pl", $build_dir, "dev");
