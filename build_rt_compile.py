@@ -19,7 +19,7 @@ def precompile(proj_tag, context):
     if failed: raise Exception(failed)
     ok_path.write_bytes(b'')
 
-precompile(**parse_args(('--proj-tag', '--context', '--out')))
+precompile(**parse_args(('--proj-tag', '--context')))
 
 # argparse.Namespace
 # "docker/config.json"
