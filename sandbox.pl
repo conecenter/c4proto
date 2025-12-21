@@ -103,10 +103,9 @@ my $serve_history = sub{
 my $init = sub{
     my %opt = @_;
     symlink(&$mandatory_of("--context" => \%opt), $ENV{C4CI_BUILD_DIR}) or die;
-    &$put_text("/c4/debug-tag", &$mandatory_of("--proj-tag" => \%opt));
     #
     mkdir "/c4/bin";
-    &$put_text($_, "#!/usr/bin/perl\nexec 'kubectl','--context',@ARGV;"), chmod 0755, $_ or die for "/c4/bin/kc";
+    &$put_text($_, "#!/usr/bin/perl\nexec 'kubectl','--context',\@ARGV;"), chmod 0755, $_ or die for "/c4/bin/kc";
     #
     my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR => \%ENV);
     sy("python3","-u","$proto_dir/vault.py");

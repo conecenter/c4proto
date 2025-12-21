@@ -42,7 +42,7 @@ ADD --link --unpack https://github.com/jvm-profiling-tools/async-profiler/releas
 RUN pip3 install setuptools supervisor
 RUN echo en_DK.UTF-8 UTF-8 >> /etc/locale.gen && locale-gen
 USER c4
-ENV PATH=${PATH}:/tools:/tools/jdk-17.0.17/bin:/tools/sbt/bin:/tools/node-v20.9.0-linux-x64/bin:/tools/async-profiler-2.7-linux-x64
+ENV PATH=${PATH}:/tools:/tools/jdk-17.0.17/bin:/tools/sbt/bin:/tools/node-v20.9.0-linux-x64/bin:/tools/async-profiler-2.7-linux-x64:/c4/bin
 ENV JAVA_HOME=/tools/jdk-17.0.17
 WORKDIR /c4
 ENTRYPOINT ["perl","-e","exec 'bash', @ARGV; die"]
@@ -52,10 +52,13 @@ COPY --from=c4emb /replink.py /tools/replink.py
 COPY --chown=c4:c4 . /c4/c4proj
 ARG C4PROJECT
 ARG C4COMMIT
-RUN python3 -u /tools/replink.py --context /c4/c4proj --set-proto-dir /c4/c4proto --commit '${C4COMMIT}' --commits-out /c4/c4proj/target/c4repo_commits
-RUN timeout 1800 python3 -u /c4/c4proto/build_rt.py --proj-tag ${C4PROJECT} --context /c4/c4proj --out /c4/c4res \
- || echo 'FULL BUILD FAILED'
-ENTRYPOINT ["perl","/c4/c4proto/sandbox.pl","main","--context","/c4/c4proj","--proj-tag","${C4PROJECT}"]
+RUN python3 -u /tools/replink.py --context /c4/c4proj --set-proto-dir /c4/c4proto --commit '${C4COMMIT}' --commits-out /c4/c4proj/target/c4repo_commits \
+ && echo ${C4PROJECT} > /c4/debug-tag
+RUN timeout 1800 python3 -u /c4/c4proto/build_rt.py --proj-tag ${C4PROJECT} --context /c4/c4proj --out '' || echo 'FULL BUILD FAILED'
+ENTRYPOINT ["perl","/c4/c4proto/sandbox.pl","main","--context","/c4/c4proj"]
+
+FROM de AS pkg
+RUN timeout 120 python3 -u /c4/c4proto/build_rt.py --proj-tag ${C4PROJECT} --context /c4/c4proj --out /c4/c4res
 
 FROM u22 AS rt
 RUN apt update && DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends \
@@ -68,6 +71,6 @@ ENV JAVA_HOME=/tools/jdk-17.0.17
 WORKDIR /c4
 USER c4
 ENTRYPOINT ["perl","run.pl"]
-COPY --link --from=de --chown=1979:1979 /c4/c4res/ /c4/
+COPY --link --from=pkg --chown=1979:1979 /c4/c4res/ /c4/
 RUN echo "descr#${C4COMMIT}" > /c4/c4ref_descr
 # `git describe --all` seems depending on how we make checkout, it can be w/o commit and not good generally
