@@ -53,7 +53,7 @@ COPY --chown=c4:c4 . /c4/c4proj
 ARG C4PROJECT
 ARG C4COMMIT
 RUN python3 -u /tools/replink.py --context /c4/c4proj --set-proto-dir /c4/c4proto --commit '${C4COMMIT}' --commits-out /c4/c4proj/target/c4repo_commits \
- && echo ${C4PROJECT} > /c4/debug-tag
+ && echo -n ${C4PROJECT} > /c4/debug-tag
 RUN timeout 1800 python3 -u /c4/c4proto/build_rt_compile.py --proj-tag ${C4PROJECT} --context /c4/c4proj || echo 'FULL BUILD FAILED'
 ENTRYPOINT ["perl","/c4/c4proto/sandbox.pl","main","--context","/c4/c4proj"]
 
@@ -72,5 +72,5 @@ WORKDIR /c4
 USER c4
 ENTRYPOINT ["perl","run.pl"]
 COPY --link --from=pkg --chown=1979:1979 /c4/c4res/ /c4/
-RUN echo "descr#${C4COMMIT}" > /c4/c4ref_descr
+RUN echo -n "descr#${C4COMMIT}" > /c4/c4ref_descr
 # `git describe --all` seems depending on how we make checkout, it can be w/o commit and not good generally

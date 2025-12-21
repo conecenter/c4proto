@@ -120,6 +120,7 @@ def compile_run_generator(build_path_str, tmp_part, conf_plain):
         save()
     cp = Path(f"{build_path_str}/{proj_part}/target/c4classpath").read_bytes().decode()
     check_output(da("java", "-cp", cp, g_main, "--ver", g_sum, "--context", build_path_str))
+    da("out of generator")
 
 
 def two_col_str(d):
