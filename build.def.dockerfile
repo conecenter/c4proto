@@ -54,11 +54,11 @@ ARG C4PROJECT
 ARG C4COMMIT
 RUN python3 -u /tools/replink.py --context /c4/c4proj --set-proto-dir /c4/c4proto --commit '${C4COMMIT}' --commits-out /c4/c4proj/target/c4repo_commits \
  && echo ${C4PROJECT} > /c4/debug-tag
-RUN timeout 1800 python3 -u /c4/c4proto/build_rt.py --proj-tag ${C4PROJECT} --context /c4/c4proj --out '' || echo 'FULL BUILD FAILED'
+RUN timeout 1800 python3 -u /c4/c4proto/build_rt_compile.py --proj-tag ${C4PROJECT} --context /c4/c4proj || echo 'FULL BUILD FAILED'
 ENTRYPOINT ["perl","/c4/c4proto/sandbox.pl","main","--context","/c4/c4proj"]
 
 FROM de AS pkg
-RUN timeout 120 python3 -u /c4/c4proto/build_rt.py --proj-tag ${C4PROJECT} --context /c4/c4proj --out /c4/c4res
+RUN python3 -u /c4/c4proto/build_rt_finish.py --proj-tag ${C4PROJECT} --context /c4/c4proj --out /c4/c4res
 
 FROM u22 AS rt
 RUN apt update && DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends \

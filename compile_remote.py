@@ -1,10 +1,11 @@
 
-from argparse import ArgumentParser
 from json import dumps, loads
 from pathlib import Path
 from subprocess import check_output, Popen, PIPE, run
 
-from c4util import group_map, da, changing_observe, die, perl_exec, parse_classpath, get_more_compile_options
+from c4util import group_map, da, changing_observe, die, parse_classpath, get_more_compile_options, parse_args
+
+def perl_exec(*lines): return "\n".join(('#!/usr/bin/perl', 'use strict;', *lines, 'die;'))
 
 def construct_pod(opt):
     option_group_rules = {
@@ -66,7 +67,7 @@ def need_base_image(kube_context, context):
     return check_output((*build, *args)).decode().strip()
 
 def remote_compile(kube_context, context, user, proj_tag):
-    tag_info, mod_dir, sbt_args = get_more_compile_options(context, proj_tag)
+    tag_info, mod_dir, sbt_args, ok_path = get_more_compile_options(context, proj_tag)
     pod = get_cb_name(f"u{user}")
     cp_path = f"{mod_dir}/target/c4classpath"
     need_pod(kube_context, pod, lambda: {"image": need_base_image(kube_context, context), **opt_compiler()})
@@ -84,12 +85,4 @@ def opt_cpu_node(): return {
 }
 def opt_compiler(): return { **opt_pull_secret(), **opt_sleep(), **opt_cpu_node() }
 
-def main():
-    parser = ArgumentParser()
-    parser.add_argument("--kube-context", required=True)
-    parser.add_argument("--context", required=True)
-    parser.add_argument("--user", required=True)
-    parser.add_argument("--proj-tag", required=True)
-    remote_compile(**vars(parser.parse_args()))
-
-main()
+remote_compile(**parse_args(("--kube-context", "--context", "--user", "--proj-tag")))
