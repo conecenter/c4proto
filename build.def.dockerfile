@@ -26,10 +26,10 @@ ENV PATH=${PATH}:/tools
 
 FROM u22 AS base
 RUN apt update && DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends \
-    ca-certificates curl libjson-xs-perl python3 unzip zip rsync fontconfig locales python3-pip uuid-runtime \
+    ca-certificates curl python3 git libjson-xs-perl unzip zip rsync fontconfig locales python3-pip uuid-runtime \
     lsof mc netcat-openbsd atop less bash-completion tmux \
  && rm -rf /var/lib/apt/lists/*
-# zip rsync - build final-copy; curl, unzip - replink; fontconfig locales - ?some for runtime ; uuid-runtime - sandbox->ci
+# zip rsync - build final-copy; curl, unzip - replink; git - ci_build; fontconfig locales - ?some for runtime ; uuid-runtime - sandbox->ci
 # lsof mc netcat-openbsd atop less bash-completion tmux - debug
 # build tools:
 ADD --link --unpack "https://download.bell-sw.com/java/17.0.17+15/bellsoft-jdk17.0.17+15-linux-amd64.tar.gz" /tools
@@ -38,6 +38,8 @@ ADD --link --unpack https://github.com/sbt/sbt/releases/download/v1.9.3/sbt-1.9.
 ADD --link --unpack https://nodejs.org/dist/v20.9.0/node-v20.9.0-linux-x64.tar.xz /tools
 # sandbox tools/fixes:
 ADD --link --chmod=755 https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl /tools/kubectl
+COPY --link --from=dl /tools/crane /tools/crane
+COPY --link --from=dl /tools/bin/buildctl /tools/buildctl
 ADD --link --unpack https://github.com/jvm-profiling-tools/async-profiler/releases/download/v2.7/async-profiler-2.7-linux-x64.tar.gz /tools
 RUN pip3 install setuptools supervisor
 RUN echo en_DK.UTF-8 UTF-8 >> /etc/locale.gen && locale-gen
