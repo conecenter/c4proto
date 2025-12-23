@@ -51,10 +51,14 @@ def c4dsync(kube_ctx):
         check_output(da("chmod", "+x", rsh_raw))
     return "rsync", "--blocking-io", "-e", rsh_raw
 
-def rsync_args(kube_ctx, from_pod, to_pod): return (*c4dsync(kube_ctx), "-acr", "--del", "--files-from", "-", *(
-    (f"{from_pod}:/", "/") if from_pod and not to_pod else
-    ("/", f"{to_pod}:/") if not from_pod and to_pod else die(Exception("bad args"))
-))
+def rsync_args(kube_ctx, from_pod, to_pod): return (
+    *c4dsync(kube_ctx), "-acr", "--del", "--files-from", "-",
+    "--log-file=/tmp/rsync.log", "-i", "-v", "--progress", "--stats",
+    *(
+        (f"{from_pod}:/", "/") if from_pod and not to_pod else
+        ("/", f"{to_pod}:/") if not from_pod and to_pod else die(Exception("bad args"))
+    )
+)
 
 def rsync(kube_ctx, from_pod, to_pod, files):
     check_output(da(*rsync_args(kube_ctx, from_pod, to_pod)), text=True, input="".join(f"{f}\n" for f in files))
