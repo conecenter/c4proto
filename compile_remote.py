@@ -51,17 +51,15 @@ def c4dsync(kube_ctx):
         check_output(da("chmod", "+x", rsh_raw))
     return "rsync", "--blocking-io", "-e", rsh_raw
 
-def rsync_args(kube_ctx, from_pod, to_pod): return (
-    *c4dsync(kube_ctx), "-acr", "--del", "--files-from", "-",
-    "--log-file=/tmp/rsync.log", "-i", "-v", "--progress", "--stats",
-    *(
-        (f"{from_pod}:/", "/") if from_pod and not to_pod else
-        ("/", f"{to_pod}:/") if not from_pod and to_pod else die(Exception("bad args"))
-    )
+#"--log-file=/tmp/rsync.log", "-i", "-v", "--progress", "--stats",
+def rsync_args(sp, from_pod, to_pod): return (
+    da(*sp, "-cr", "--del", "--files-from", "-", f"{from_pod}:/", "/") if from_pod and not to_pod else
+    da(*sp, "-acr", "--del", "--files-from", "-", "/", f"{to_pod}:/") if not from_pod and to_pod else
+    die(Exception("bad args"))
 )
 
-def rsync(kube_ctx, from_pod, to_pod, files):
-    check_output(da(*rsync_args(kube_ctx, from_pod, to_pod)), text=True, input="".join(f"{f}\n" for f in files))
+def rsync(sp, from_pod, to_pod, files):
+    check_output(rsync_args(sp, from_pod, to_pod), text=True, input="".join(f"{f}\n" for f in files))
 
 def get_cb_name(v): return f"cb-v1-{v}"
 
@@ -76,10 +74,11 @@ def remote_compile(kube_context, context, user, proj_tag):
     cp_path = f"{mod_dir}/target/c4classpath"
     need_pod(kube_context, pod, lambda: {"image": need_base_image(kube_context, context), **opt_compiler()})
     full_sync_paths = (f"{context}/{part}" for part in loads(Path(f"{mod_dir}/c4sync_paths.json").read_bytes()))
-    rsync(kube_context, None, pod, [path for path in full_sync_paths if Path(path).exists()])
+    sp = c4dsync(kube_context)
+    rsync(sp, None, pod, [path for path in full_sync_paths if Path(path).exists()])
     check_output(da("kubectl", "--context", kube_context, "exec", pod, "--", *sbt_args))
-    rsync(kube_context, pod, None, [cp_path])
-    rsync(kube_context, pod, None, parse_classpath(Path(cp_path).read_bytes().decode()))
+    rsync(sp, pod, None, [cp_path])
+    rsync(sp, pod, None, parse_classpath(Path(cp_path).read_bytes().decode()))
 
 def opt_sleep(): return { "command": ["sleep", "infinity"] }
 def opt_pull_secret(): return { "imagePullSecrets": [{ "name": "c4pull" }] }
