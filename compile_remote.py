@@ -25,8 +25,8 @@ def apply_manifest(kc, manifest):
 
 def wait_pod(kc, pod,timeout,phases):
     phase_lines = { f"{phase}\n": phase for phase in phases }
-    args = (*kc,"get","pod",pod,"--watch","-o",'jsonpath={.status.phase}{"\\n"}',"--request-timeout",f"{timeout}s")
-    with Popen(da(args), stdout=PIPE, text=True) as proc:
+    args = da(*kc,"get","pod",pod,"--watch","-o",'jsonpath={.status.phase}{"\\n"}',"--request-timeout",f"{timeout}s")
+    with Popen(args, stdout=PIPE, text=True) as proc:
         for line in proc.stdout:
             print(line)
             if line in phase_lines:

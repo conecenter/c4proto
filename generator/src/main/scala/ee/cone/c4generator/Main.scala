@@ -57,12 +57,13 @@ class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTe
   //
   def isGenerated(fileName: String): Boolean =
     fileName.startsWith("c4gen.") || fileName.startsWith("c4gen-") || fileName.startsWith("c4msg.")
-
+  def log(v: String): Unit =
+    System.err.println(s"[${System.currentTimeMillis}] generator $v")
   def run(args: Array[String]): Unit = {
     val opt = args.grouped(2).map{ case Array(a,b) => (a,b) }.toMap
     val workPath = Paths.get(opt("--context"))
     val version = opt("--ver")
-    //println(s"1:${System.currentTimeMillis()}") //130
+    log("start, will find and read") //130
     val conf = Files.readAllLines(workPath.resolve("target/c4/generator.conf")).asScala.toSeq.grouped(3).toSeq
       .groupMap(_.head)(_.tail match{ case Seq(fr,to) => ConfItem(fr,to) }).withDefaultValue(Nil)
     val dirs = for(it <- (conf("C4SRC") ++ conf("C4PUB")).distinct) yield workPath.resolve(it.to).toString
@@ -75,7 +76,7 @@ class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTe
       val path = Paths.get(pathStr)
       path -> Files.readAllBytes(path)
     }).toMap
-    //println(s"4:${System.currentTimeMillis()}") //1s
+    log("will willGenerators") //1s
     val deps = conf("C4DEP").toList.groupMap(_.from)(_.to).withDefaultValue(Nil)
     val srcRoots = conf("C4SRC").toList.groupMap(_.from)(it=>workPath.resolve(it.to)).withDefaultValue(Nil)
     val pubRoots = conf("C4PUB").toList.groupMap(_.from)(it=>workPath.resolve(it.to)).withDefaultValue(Nil)
@@ -109,7 +110,7 @@ class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTe
     })
     assert(will.keys.forall(path => isGenerated(path.getFileName.toString)))
 
-    //println(s"2:${System.currentTimeMillis()}")
+    log("will write")
     for(path <- was.keySet -- will.keys) {
       println(s"removing $path")
       Files.delete(path)
@@ -120,7 +121,7 @@ class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTe
       println(s"saving $path")
       Util.write(path,data)
     }
-    //println(s"3:${System.currentTimeMillis()}")
+    log("finish")
   }
 }
 
