@@ -3,6 +3,7 @@
 use strict;
 use Digest::MD5 qw(md5_hex);
 use JSON::XS;
+use FindBin;
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -93,7 +94,7 @@ my $secret_yml_from_files = sub{
 
 my $mandatory_of = sub{ my($k,$h)=@_; (exists $$h{$k}) ? $$h{$k} : die "no $k" };
 
-my $get_proto_dir = sub{ &$mandatory_of(C4CI_PROTO_DIR=>\%ENV) };
+my $get_proto_dir = sub{ $FindBin::Bin || die };
 my $py_run = sub{
     my ($nm,@args) = @_;
     my $gen_dir = &$get_proto_dir();

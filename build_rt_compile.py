@@ -8,7 +8,7 @@ def with_prefix(pre, proc): return proc, Popen(da("perl","-pe",f"$|=1;s/^/={pre}
 
 def precompile(proj_tag, context):
     proto_dir = str(Path(__file__).parent)
-    pr_env = {"C4CI_PROTO_DIR": proto_dir, "PATH": environ["PATH"]}
+    pr_env = {"PATH": environ["PATH"]}
     cl_cmd = da("perl", f"{proto_dir}/build_client.pl", context)
     cl_proc, cl_proc_log = with_prefix("client", Popen(cl_cmd, stdout=PIPE, stderr=STDOUT, env=pr_env))
     check_output(da("python3", f"{proto_dir}/build.py", context))

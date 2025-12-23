@@ -55,6 +55,7 @@ ARG C4COMMIT
 RUN python3 -u /tools/replink.py --context /c4/c4proj --set-proto-dir /c4/c4proto --commit '${C4COMMIT}' --commits-out /c4/c4proj/target/c4repo_commits \
  && echo -n ${C4PROJECT} > /c4/debug-tag
 RUN timeout 1800 python3 -u /c4/c4proto/build_rt_compile.py --proj-tag ${C4PROJECT} --context /c4/c4proj || echo 'FULL BUILD FAILED'
+ENV C4CI_BUILD_DIR=/c4/c4proj
 ENTRYPOINT ["perl","/c4/c4proto/sandbox.pl","main","--context","/c4/c4proj"]
 
 FROM de AS pkg
