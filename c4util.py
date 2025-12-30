@@ -1,3 +1,4 @@
+from argparse import ArgumentParser
 from json import loads
 from pathlib import Path
 import sys
@@ -20,8 +21,6 @@ def da(*args):
 
 def die(a): raise a
 
-def perl_exec(*lines): return "\n".join(('#!/usr/bin/perl', 'use strict;', *lines, 'die;'))
-
 ### compile utils
 
 def rm_dots(path):
@@ -35,4 +34,9 @@ def get_more_compile_options(context, proj_tag):
     java_options = " ".join((line[2] for line in build_conf["plain"] if line[0] == "C4BUILD_JAVA_TOOL_OPTIONS"))
     mod_dir = f'{context}/target/c4/mod.{tag_info["mod"]}.d'
     sbt_args = ["env", "-C", mod_dir, f"JAVA_TOOL_OPTIONS={java_options}", "sbt", "-Dsbt.color=true", "c4build"]
-    return tag_info, mod_dir, sbt_args
+    return tag_info, mod_dir, sbt_args, Path(f'{context}/target/c4/rt_compiled_ok.{proj_tag}')
+
+def parse_args(keys):
+    parser = ArgumentParser()
+    for a in keys: parser.add_argument(a, required=True)
+    return vars(parser.parse_args())

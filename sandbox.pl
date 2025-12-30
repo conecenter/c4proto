@@ -2,6 +2,7 @@
 use strict;
 use JSON::XS;
 use POSIX ":sys_wait_h";
+use FindBin;
 
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 sub syf{ my $res = scalar `$_[0]`; print "$_[0]\n$res"; $res }
@@ -26,6 +27,8 @@ my $get_text_or_empty = sub{
 };
 my $mandatory_of = sub{ my($k,$h)=@_; (exists $$h{$k}) ? $$h{$k} : die "no $k" };
 
+my $get_dirs = sub{ my %opt = @_; (&$mandatory_of("--context" => \%opt), $FindBin::Bin || die) };
+
 ###
 
 my $supervisor = sub{ sy("supervisorctl","-c","/c4/supervisord.conf",@_) };
@@ -33,8 +36,7 @@ my $supervisor = sub{ sy("supervisorctl","-c","/c4/supervisord.conf",@_) };
 my $get_tag = sub{ &$get_text_or_empty("/c4/debug-tag") || die };
 
 my $serve_app = sub{
-    my $build_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
-    my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR => \%ENV);
+    my ($build_dir, $proto_dir) = &$get_dirs(@_);
     my $build_data = JSON::XS->new->decode(&$get_text_or_empty("$build_dir/target/c4/build.json"));
     my ($nm,$mod,$cl) = map{$$build_data{tag_info}{&$get_tag()}{$_}||die} qw[name mod main];
     my $paths = JSON::XS->new->decode(syf("python3 $proto_dir/build_env.py $build_dir $mod"));
@@ -61,33 +63,31 @@ my $serve_app = sub{
 };
 
 my $serve_build = sub{
-    my ($was_active_pid_list) = @_;
-    my $build_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
-    my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR => \%ENV);
-    my $user = $ENV{HOSTNAME}=~/^de-(\w+)-/ ? $1 : die;
+    my ($build_dir, $proto_dir) = &$get_dirs(@_);
+    my $pod = $ENV{HOSTNAME}=~/^de-(.+)$/ ? "c4de-$1" : die;
     local $ENV{KUBECONFIG} = $ENV{C4KUBECONFIG};
     sy(
-        "python3", "-u", "$proto_dir/compile.py",
-        "--proj-tag", &$get_tag(), "--user", $user, "--context", $build_dir, "--kube-context", $ENV{C4DEPLOY_CONTEXT},
+        "python3", "-u", "$proto_dir/compile_remote.py",
+        "--proj-tag", &$get_tag(), "--pod", $pod, "--context", $build_dir, "--kube-context", $ENV{C4DEPLOY_CONTEXT},
     );
     sy("perl", "$proto_dir/build_client.pl", $build_dir, "dev");
     &$supervisor("restart","app");
 };
 
 my $serve_prebuild = sub{
-    my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR => \%ENV);
-    my $build_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
+    my ($build_dir, $proto_dir) = &$get_dirs(@_);
     sy("python3", "-u", "$proto_dir/build.py", $build_dir);
     &$supervisor("restart","build");
 };
 
 my $serve_history = sub{
+    my ($build_dir, $proto_dir) = &$get_dirs(@_);
     &$put_text("/c4/.bashrc", join "\n",
         &$get_text_or_empty("/c4/.bashrc"), #syf("ssh-agent"),
         "export KUBECONFIG=$ENV{C4KUBECONFIG}", # $C4KUBECONFIG was empty at this stage
         "export KUBE_EDITOR=mcedit",
         'history -c && history -r /c4/.bash_history_get && export PROMPT_COMMAND="history -a /c4/.bash_history_put"',
-        qq[alias prod="perl $ENV{C4CI_PROTO_DIR}/prod.pl "],
+        qq[alias prod="perl $proto_dir/prod.pl "],
         'alias h="history|grep "',
     );
     #
@@ -97,18 +97,15 @@ my $serve_history = sub{
         C4HISTORY_PUT => "/c4/.bash_history_put",
         C4HISTORY_GET => "/c4/.bash_history_get",
     };
-    &$exec_at($ENV{C4CI_PROTO_DIR},$env,"java","--source","15","history.java");
+    &$exec_at($proto_dir,$env,"java","--source","15","history.java");
 };
 
 my $init = sub{
-    my %opt = @_;
-    symlink(&$mandatory_of("--context" => \%opt), $ENV{C4CI_BUILD_DIR}) or die;
-    &$put_text("/c4/debug-tag", &$mandatory_of("--proj-tag" => \%opt));
+    my ($build_dir, $proto_dir) = &$get_dirs(@_);
     #
     mkdir "/c4/bin";
-    &$put_text($_, "#!/usr/bin/perl\nexec 'kubectl','--context',@ARGV;"), chmod 0755, $_ or die for "/c4/bin/kc";
+    &$put_text($_, "#!/usr/bin/perl\nexec 'kubectl','--context',\@ARGV;"), chmod 0755, $_ or die for "/c4/bin/kc";
     #
-    my $proto_dir = &$mandatory_of(C4CI_PROTO_DIR => \%ENV);
     sy("python3","-u","$proto_dir/vault.py");
     sy("perl","$proto_dir/ceph.pl");
     #
@@ -126,7 +123,7 @@ my $init = sub{
         "supervisor.rpcinterface_factory = supervisor.rpcinterface:make_main_rpcinterface",
         (map{(
             "[program:$$_[0]]",
-            "command=perl $ENV{C4CI_PROTO_DIR}/sandbox.pl $$_[0]",
+            "command=perl $proto_dir/sandbox.pl $$_[0] --context $build_dir",
             "autostart=".($$_[1]?"true":"false"),
             "autorestart=".($$_[2]?"true":"false"),
             "stopasgroup=true",
@@ -143,4 +140,4 @@ my $cmd_map = {
     prebuild => $serve_prebuild, build => $serve_build, app => $serve_app, history => $serve_history, main => $init
 };
 $| = 1;
-$$cmd_map{$ARGV[0]}->(1..$#ARGV);
+$$cmd_map{$ARGV[0]}->(@ARGV[1..$#ARGV]);

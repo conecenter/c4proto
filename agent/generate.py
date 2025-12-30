@@ -47,6 +47,7 @@ def main(opt_str):
         "ENV PATH=${PATH}:/c4/bin:/tools:"+opt["generated_dir"]+"/bin",
         "ENV KUBE_EDITOR=micro",
         f'ENV KUBECONFIG={opt["kube_config"]}',
+        f'ENV C4DEPLOY_CONTEXT={opt["kube_context"]}',
         "RUN " + " && ".join(f"git config --global --add safe.directory {d}" for d in opt["safe_dir_list"]),
         f'ENTRYPOINT ["tini","--","python3","-u","{opt["generated_dir"]}/server.py","{opt["kui_location"]}"]',
     )))

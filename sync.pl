@@ -131,7 +131,7 @@ push @tasks, ["back","",sub{
     my($dir)=@_;
     my $remote_dir = &$request_remote_dir();
     my $remote_pre = &$get_remote_pre();
-    my @changed = grep{/\bc4gen\b/ || /\bc4msg\b/ || /-generated\./} &$find($remote_pre,"$remote_dir/",$prune);
+    my @changed = grep{/\bc4gen\b/ || /\bc4msg\b/ || /-generated\./ || /\bDockerfile\b/ } &$find($remote_pre,"$remote_dir/",$prune);
     my %changed = map{($_=>1)} @changed;
     &$sync0($dir,$remote_dir,1,\@changed,sub{$changed{$_[0]}?"upd":"del"});
 }];

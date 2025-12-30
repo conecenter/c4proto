@@ -3,6 +3,7 @@
 use strict;
 use Digest::MD5 qw(md5_hex);
 use JSON::XS;
+use FindBin;
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -93,7 +94,7 @@ my $secret_yml_from_files = sub{
 
 my $mandatory_of = sub{ my($k,$h)=@_; (exists $$h{$k}) ? $$h{$k} : die "no $k" };
 
-my $get_proto_dir = sub{ &$mandatory_of(C4CI_PROTO_DIR=>\%ENV) };
+my $get_proto_dir = sub{ $FindBin::Bin || die };
 my $py_run = sub{
     my ($nm,@args) = @_;
     my $gen_dir = &$get_proto_dir();
@@ -149,7 +150,10 @@ my $get_tag_info = sub{
     JSON::XS->new->decode(&$get_text("$gen_dir/target/c4/build.json"))->{tag_info}{$tag} || die;
 };
 
-push @tasks, ["build_client","",sub{ sy("perl",&$get_proto_dir()."/build_client.pl",@_) }]; # abs dir
+push @tasks, ["build_client","",sub{
+    my $gen_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);
+    sy("perl",&$get_proto_dir()."/build_client.pl",$gen_dir,@_);
+}]; # abs dir
 
 push @tasks, ["chk_pkg_dep"," ",sub{
     my $gen_dir = &$mandatory_of(C4CI_BUILD_DIR => \%ENV);

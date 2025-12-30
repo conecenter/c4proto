@@ -114,10 +114,11 @@ def handle_generate(repo, branch):
         "stages": ["develop", "deploy", "start", "stop"],
         ".handler": {
             "before_script": [
-                "mkdir -p $CI_PROJECT_DIR/c4gitlab",
-                "export PATH=$PATH:$CI_PROJECT_DIR/c4gitlab",
-                f"echo '{over_bytes(base64.b64encode, script_body)}' | base64 -d > $CI_PROJECT_DIR/c4gitlab/c4gitlab",
-                "chmod +x $CI_PROJECT_DIR/c4gitlab/c4gitlab",
+                "C4GITLAB_TMP=$(mktemp -d)",
+                "echo $C4GITLAB_TMP",
+                "export PATH=$PATH:$C4GITLAB_TMP",
+                f"echo '{over_bytes(base64.b64encode, script_body)}' | base64 -d > $C4GITLAB_TMP/c4gitlab",
+                "chmod +x $C4GITLAB_TMP/c4gitlab",
             ],
             "variables": {"GIT_DEPTH": 10}, "needs": [],
         },
