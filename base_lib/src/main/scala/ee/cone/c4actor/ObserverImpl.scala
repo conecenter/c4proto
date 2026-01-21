@@ -128,7 +128,7 @@ abstract class InnerTransientLens[Item](key: TransientLens[Item]) extends Abstra
 
 @c4("ParallelObserversApp") final class ParallelObserverExecutable(
   worldSource: WorldSource, execution: Execution, transforms: TxTransforms
-) extends Executable with Early {
+) extends Executable with Early with LazyLogging {
   private final class DoneEv(val key: SrcId, val value: TransientMap)
   private def toActions(world: RichContext): Map[SrcId,TransientMap=>TransientMap] =
     transforms.get(world).withDefaultValue(transient =>
@@ -151,6 +151,7 @@ abstract class InnerTransientLens[Item](key: TransientLens[Item]) extends Abstra
   ): Unit = iteration(queue, queue.take() match {
     case Left(world) =>
       val actions = toActions(world)
+      logger.debug(s"actions: ${actions.keySet} states: ${wasStates.keySet}")
       (actions.keySet ++ wasStates.keySet).map{ k =>
         val wasState = wasStates.getOrElse(k,new ActorState(Map.empty, None, false))
         val action = actions(k)

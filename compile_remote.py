@@ -22,7 +22,7 @@ def c4dsync(kube_ctx, pod):
     return fr, to
 #"--log-file=/tmp/rsync.log", "-i", "-v", "--progress", "--stats",
 
-def file_list(files): "".join(f"{f}\n" for f in files).encode()
+def file_list(files): return "".join(f"{f}\n" for f in files).encode()
 
 def remote_compile(kube_context, context, pod, proj_tag):
     tag_info, mod_dir, sbt_args, ok_path = get_more_compile_options(context, proj_tag)
@@ -32,7 +32,7 @@ def remote_compile(kube_context, context, pod, proj_tag):
         if run(da(*ex, "true"), check=False).returncode == 0: break
         da("waiting a minute for pod ...")
         sleep(5)
-    full_sync_paths = (f"{context}/{part}" for part in loads(Path(f"{mod_dir}/c4sync_paths.json").read_bytes()))
+    full_sync_paths = [f"{context}/{part}" for part in loads(Path(f"{mod_dir}/c4sync_paths.json").read_bytes())]
     fr_cmd, to_cmd = c4dsync(kube_context, pod)
     check_output(da(*to_cmd), input=file_list(path for path in full_sync_paths if Path(path).exists()))
     check_output(da(*ex, *sbt_args))

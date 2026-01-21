@@ -16,6 +16,8 @@ import scala.annotation.tailrec
   @Id(0x00B5) case class S_InjectionDone(@Id(0x0011) srcId: SrcId, @Id(0x00B1) electorClientId: SrcId)
 }
 
+@c4("InjectionApp") final class InjectionDoneSnapshotPatchIgnore extends SnapshotPatchIgnore(classOf[S_InjectionDone])
+
 @c4assemble("InjectionApp") class InjectionAssembleBase(
   actorName: ActorName, clList: List[GeneralBeforeInjectionTxTrCl]
 )(
