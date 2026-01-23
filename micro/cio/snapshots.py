@@ -135,7 +135,7 @@ def snapshot_copy(env, def_kafka_addr, fr, to):
         s3sign = Path(__file__).with_name("s3sign.java")
         java = ("java", "--source", "21", "--enable-preview")
         #
-        if "no_wait" not in to: wait_no_active_prefix(to_kc, to_prefix)
+        wait_no_active_prefix(to_kc, to_prefix)
         #
         s3exec =  (*to_kc, "exec", "-i", "svc/c4s3client", "--" )
         offset_res = run_text_out((*s3exec, "python3", "-u", "/app/main.py", "produce_one", f"{to_prefix}.inbox", ""))
@@ -213,5 +213,5 @@ def injection_copy(deploy_context, fr, sub, to):
     to_prefix = to["prefix"]
     part = to["part"]
     never_if(part not in ("del","add"))
-    if "no_wait" not in to: wait_no_active_prefix(to_kc, to_prefix)
+    wait_no_active_prefix(to_kc, to_prefix)
     s3put(s3init(to_kc), s3path(f"{to_prefix}.snapshots/.injection.{part}"), injection.encode(), to.get("try_count", 3))

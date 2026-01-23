@@ -8,8 +8,9 @@ from typing import Tuple
 from functools import partial
 from traceback import print_exc
 from queue import Queue
+import subprocess
 
-from util import run_text_out, repeat, never
+from util import run_text_out, repeat, never, debug_args
 
 
 def get_secret_data(kc, secret_name):
@@ -51,8 +52,14 @@ def get_pods_json(kc, add):
 
 
 def wait_no_active_prefix(kc, prefix):
-    repeat(lambda: sleep(2) if prefix in get_prefixes_from_pods(get_pods_json(kc, ())) else True, (True,))
+    repeat(lambda: sleep(2) if any(check_pod_active(kc, prefix, p) for p in get_pods_json(kc, ())) else True, (True,))
 
+def check_pod_active(kc, prefix, pod):
+    nv = {"name": "C4INBOX_TOPIC_PREFIX", "value": prefix}
+    if all(e != nv for c in pod["spec"]["containers"] for e in c.get("env", [])): return False
+    cmd = (*kc, "exec", pod["metadata"]["name"], "--", "jcmd")
+    res = subprocess.run(debug_args("running", cmd), check=False, capture_output=True)
+    return res.returncode != 0 or b'ServerMain' in res.stdout
 
 ###
 

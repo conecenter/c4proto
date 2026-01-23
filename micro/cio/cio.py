@@ -250,6 +250,10 @@ def app_pause_de(kube_context, name_pattern, period_str):
     for pod_name, proc in start_processes: proc.wait()
 
 
+def app_ctl_de(kube_context, name, action):
+    run((*cl.get_kubectl(kube_context), "exec", f'deploy/{name}', "--", "supervisorctl", action, "app"))
+
+
 def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "#": lambda *args: None,
     "called": lambda *args: None,
@@ -306,6 +310,7 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "app_pause_de": lambda opt: app_pause_de(opt["kube_context"], opt["pattern"], opt["period"]),
     "app_pause_rt": lambda opt: app_pause_rt(opt["kube_context"], opt["pattern"], opt["period"]),
     "app_history_reset": lambda opt: app_history_reset(opt["kube_context"], opt["pattern"]),
+    "app_ctl_de": lambda opt: app_ctl_de(opt["kube_context"], opt["name"], opt["action"]),
 }
 
 
