@@ -584,7 +584,7 @@ my $make_kc_yml = sub{
                         ) :
                         die
                     },
-                    $$_{path} ? (path=>$$_{path}) : (),
+                    $$_{path} ? (path=>$$_{path}, pathType=>"Prefix") : (),
                 }}@$v],
             },
         }});
