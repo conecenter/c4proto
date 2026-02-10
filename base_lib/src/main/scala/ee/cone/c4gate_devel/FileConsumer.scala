@@ -44,15 +44,6 @@ import java.nio.file._
     Option(RawSnapshot(new String(Files.readAllBytes(dir.resolve("snapshot_name")), UTF_8)))
 }
 
-object InnerNoTxObserver extends Observer[RichContext] {
-  def activate(world: RichContext): Observer[RichContext] = this
-}
-
-@c4("FileConsumerApp") final class ReportingTxObserver(replace: Replace) extends TxObserver(world=>{
-    replace.report(world.assembled)
-    InnerNoTxObserver
-})
-
 @c4("FileConsumerApp") final class DisablingProvider(){
   @provide def senders: Seq[RawQSenderExecutable] = Seq(()=>())
   @provide def disableDefObserver: Seq[DisableDefObserver] = Seq(new DisableDefObserver)

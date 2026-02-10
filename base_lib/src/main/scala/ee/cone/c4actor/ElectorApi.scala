@@ -31,3 +31,14 @@ trait ReadyProcess extends Product {
 }
 
 case class EnabledTxTr(value: TxTransform)
+
+trait ReadyProcessUtil {
+  def getAll(local: AssembledContext): ReadyProcesses
+  def getCurrent(local: AssembledContext): ReadyProcess
+}
+
+case class DisableTxTr(srcId: SrcId)
+
+case class BeforeInjection(srcId: SrcId)
+abstract class GeneralBeforeInjectionTxTrCl(val cl: Class[_])
+abstract class BeforeInjectionTxTrCl[T<:TxTransform](cl: Class[T]) extends GeneralBeforeInjectionTxTrCl(cl)

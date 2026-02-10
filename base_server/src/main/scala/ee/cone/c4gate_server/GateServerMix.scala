@@ -13,7 +13,6 @@ trait SnapshotListRequestHandlerAppBase
 trait S3RawSnapshotSaverAppBase
 trait NoProxySSEConfigAppBase
 trait SafeToRunAppBase
-trait WorldProviderAppBase
 
 trait AbstractHttpGatewayAppBase extends ServerCompApp
   with EnvConfigCompApp with VMExecutionApp

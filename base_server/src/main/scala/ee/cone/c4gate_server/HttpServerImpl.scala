@@ -9,7 +9,7 @@ import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LifeTypes.Alive
-import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.Types._
 import ee.cone.c4gate.HttpProtocol._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, CallerAssemble, Single, assemble, by, c4assemble, distinct}
@@ -27,10 +27,12 @@ import scala.collection.immutable.Seq
 import scala.concurrent.{ExecutionContext, Future}
 
 @c4("AbstractHttpGatewayApp") final class RHttpResponseFactoryImpl extends RHttpResponseFactory {
-  def directResponse(request: S_HttpRequest, patch: S_HttpResponse=>S_HttpResponse): RHttpResponse = {
-    val resp = S_HttpResponse(request.srcId,200,Nil,ByteString.EMPTY,System.currentTimeMillis)
-    RHttpResponse(Option(patch(resp)),Nil)
-  }
+  def response(request: S_HttpRequest): S_HttpResponse =
+    S_HttpResponse(request.srcId,200,Nil,ByteString.EMPTY,System.currentTimeMillis)
+  def directResponse(request: S_HttpRequest, patch: S_HttpResponse=>S_HttpResponse): RHttpResponse =
+    RHttpResponse(patch(response(request)), Nil)
+  def deferredResponse(request: S_HttpRequest, patch: S_HttpResponse=>S_HttpResponse, events: LEvents): RHttpResponse =
+    RHttpResponse(patch(response(request)), events)
   def setSession(request: S_HttpRequest, userName: Option[String], wasSession: Option[U_AuthenticatedSession]): RHttpResponse = {
     val sessionOpt = userName.map(n=>U_AuthenticatedSession(UUID.randomUUID.toString, n , Instant.now.plusSeconds(20).getEpochSecond, request.headers))
     val events = sessionOpt.toList.flatMap(LEvent.update) ++ wasSession.toList.flatMap(LEvent.delete)
@@ -118,7 +120,7 @@ object AuthOperations {
         else {
           authPost(okio.ByteString.EMPTY)(2) :: Nil
         }
-        RHttpResponse(None, requests.flatMap(LEvent.update))
+        httpResponseFactory.deferredResponse(request, r=>r, requests.flatMap(LEvent.update))
       case Some("check") =>
         val Array(userName,password) = request.body.utf8().split("\n", 2) // limit == 2; when limit is not provided or limit is 0 it discards trailing empty strings
         val hashesByUser = getC_PasswordHashOfUser.ofA(local)
@@ -131,16 +133,18 @@ object AuthOperations {
           val wasSession = getU_AuthenticatedSession.ofA(local)(wasSessionKey)
           httpResponseFactory.setSession(request,Option(userName),Option(wasSession))
         }
-        else RHttpResponse(None, LEvent.update(request.copy(body = okio.ByteString.EMPTY)).toList)
+        else httpResponseFactory.deferredResponse(request, r=>r, LEvent.update(request.copy(body = okio.ByteString.EMPTY)).toList)
       case _ => throw new Exception("unsupported auth action")
     }
   }
 }
 // no "signedIn"
 
-@c4("AbstractHttpGatewayApp") final class DefSyncHttpHandler() extends LazyLogging {
+@c4("AbstractHttpGatewayApp") final class DefSyncHttpHandler(
+  httpResponseFactory: RHttpResponseFactory
+) extends LazyLogging {
   def wire: RHttpHandler = (request,local) =>
-    RHttpResponse(None, LEvent.update(request).toList)
+    httpResponseFactory.deferredResponse(request, r=>r, LEvent.update(request).toList)
 }
 
 @c4("AbstractHttpGatewayApp") final class NotFoundProtectionHttpHandler(
@@ -237,42 +241,27 @@ object ReqGroup {
 }
 
 @c4multi("AbstractHttpGatewayApp") final class FHttpHandlerImpl(handler: RHttpHandler)(
-  worldProvider: WorldProvider,
-  httpResponseFactory: RHttpResponseFactory,
-  getS_HttpRequest: GetByPK[S_HttpRequest],
-  getS_HttpResponse: GetByPK[S_HttpResponse],
+  worldProvider: WorldProvider, requestByPK: GetByPK[S_HttpRequest], responseByPK: GetByPK[S_HttpResponse],
 ) extends FHttpHandler with LazyLogging {
-  def handle(request: FHttpRequest)(implicit executionContext: ExecutionContext): Future[S_HttpResponse] = {
+  import WorldProvider._
+  def handle(request: FHttpRequest): S_HttpResponse = {
     val now = System.currentTimeMillis
     val headers = normalize(request.headers)
-    val requestEv = S_HttpRequest(UUID.randomUUID.toString, request.method, request.path, request.rawQueryString, headers, request.body, now)
-    val res = worldProvider.tx{ local =>
-      val result = handler(requestEv,local)
-      (result.events,result.instantResponse)
-    }.flatMap(new WaitFor(requestEv).iteration)
-    for(e <- res.failed) logger.error("http handling error",e)
-    res
+    val id = UUID.randomUUID.toString
+    val requestEv = S_HttpRequest(id, request.method, request.path, request.rawQueryString, headers, request.body, now)
+    val resp: S_HttpResponse = worldProvider.run(List(
+      world => handler(requestEv, new Context(world.asInstanceOf[SharedContext].injected, world.assembled, world.executionContext, Map.empty)) match {
+        case result if result.events.isEmpty => Stop(result.response)
+        case result => Next(LEvent.update(result.response) ++ result.events)
+      },
+      world => {
+        val resp = responseByPK.ofA(world)(id) // need to fail here if resp was not saved
+        if(requestByPK.ofA(world).contains(id)) Redo() else Stop(resp)
+      },
+    ):Steps[S_HttpResponse])
+    worldProvider.runUpdCheck(world => responseByPK.ofA(world).get(id).toSeq.flatMap(LEvent.delete))
+    resp
   }
-  def normalize(headers: List[N_Header]): List[N_Header] =
+  private def normalize(headers: List[N_Header]): List[N_Header] =
     headers.map(h=>h.copy(key = h.key.toLowerCase(Locale.ENGLISH)))
-  class WaitFor(
-    request: S_HttpRequest,
-    requestByPK: GetByPK[S_HttpRequest] = getS_HttpRequest,
-    responseByPK: GetByPK[S_HttpResponse] = getS_HttpResponse
-  )(implicit executionContext: ExecutionContext) {
-    def iteration(txRes: TxRes[Option[S_HttpResponse]]): Future[S_HttpResponse] =
-      txRes.value.fold(
-        txRes.next.tx{ local =>
-          if(requestByPK.ofA(local).get(request.srcId).nonEmpty) (Nil,None)
-          else {
-            val responseOpt = responseByPK.ofA(local).get(request.srcId)
-            val response = responseOpt.orElse(httpResponseFactory.directResponse(request,a=>a).instantResponse).get
-            val events = responseOpt.toList.flatMap(LEvent.delete)
-            (events,Option(response))
-          }
-        }.flatMap(iteration)
-      )(response =>
-        Future.successful(response.copy(headers = normalize(response.headers)))
-      )
-  }
 }

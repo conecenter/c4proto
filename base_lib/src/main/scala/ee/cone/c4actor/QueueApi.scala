@@ -11,6 +11,7 @@ import ee.cone.c4proto._
 import okio.ByteString
 
 import java.net.http.HttpClient
+import java.util.concurrent.BlockingQueue
 import scala.collection.immutable.{Map, Queue, Seq}
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -115,6 +116,7 @@ trait QMessages {
   // worldProvider can be not in App, but passed to richServer.init(worldProvider),
   // where richServers wrapped with txTr with AtomicRef;
   // HOWEVER READ-AFTER-WRITE problem here is harder
+  def doSend(updates: List[N_UpdateFrom]): NextOffset
 }
 
 class LongTxWarnPeriod(val value: Long)
@@ -158,6 +160,8 @@ object Types {
   type TypeKey = ee.cone.c4di.TypeKey
   type UpdateKey = (Long,SrcId)
   type UpdateMap = Map[UpdateKey,N_UpdateFrom]
+  type LEvents = Seq[LEvent[Product]]
+  type TxEvents = Seq[TxEvent]
 }
 
 
@@ -215,7 +219,8 @@ abstract class TransientLens[Item](val default: Item) extends AbstractLens[Conte
   )
 }
 
-trait LEvent[+M <: Product] extends Product {
+trait TxEvent extends Product
+trait LEvent[+M <: Product] extends TxEvent {
   def srcId: SrcId
   def className: String
 }
@@ -240,7 +245,7 @@ object WithPK {
 }
 
 trait LTxAdd extends Product {
-  def add[M<:Product](out: Seq[LEvent[M]]): Context=>Context
+  def add(out: Seq[TxEvent]): Context=>Context
 }
 trait RawTxAdd {
   def add(out: Seq[N_Update]): Context=>Context
@@ -256,7 +261,10 @@ trait Observer[Message] {
   def activate(world: Message): Observer[Message]
 }
 
-class TxObserver(val value: Observer[RichContext])
+trait WorldSource {
+  def doWith[M,R](queue: BlockingQueue[Either[RichContext,M]], f: ()=>R): R
+}
+
 final class DisableDefObserver
 final class DisableDefConsuming
 final class DisableDefProducer
@@ -340,6 +348,7 @@ trait KeyFactory {
 class OrigKeyFactoryProposition(val value: KeyFactory)
 class OrigKeyFactoryFinalHolder(val value: KeyFactory)
 
+trait OuterUpdateProcessor extends UpdateProcessor
 trait UpdateProcessor {
   def process(updates: Seq[N_Update], prevQueueSize: Int): Seq[N_Update]
 }
@@ -363,6 +372,7 @@ trait S3Manager {
   def put(txLogName: TxLogName, resource: String, body: Array[Byte]): Unit
   def delete(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Boolean]
   //
+  def join(txLogName: TxLogName, resource: String): String
   def get(resource: String)(implicit ec: ExecutionContext): Future[Option[Array[Byte]]]
   def put(resource: String, body: Array[Byte]): Unit
   def delete(resource: String)(implicit ec: ExecutionContext): Future[Boolean]
@@ -405,7 +415,7 @@ trait SnapshotPatchIgnoreRegistry {
 }
 
 trait UpdateFromUtil {
-  def get(local: Context, updates: Seq[N_Update]): Seq[N_UpdateFrom]
+  def get(local: AssembledContext, updates: Seq[N_Update]): Seq[N_UpdateFrom]
 }
 
 trait AssembleStatsAccumulator {
@@ -417,3 +427,19 @@ trait AbstractIndentedParser {
 }
 
 case object TxAddAssembleDebugKey extends TransientLens[Boolean](false)
+
+abstract class TransientEvent[V](val key: TransientLens[V], val innerValue: V) extends TxEvent
+case class RawTxEvent(value: N_UpdateFrom) extends TxEvent
+
+object WorldProvider{
+  sealed trait Ctl[R]
+  case class Next[R](events: TxEvents) extends Ctl[R]
+  case class Redo[R]() extends Ctl[R]
+  case class Stop[R](value: R) extends Ctl[R]
+  type Steps[R] = List[AssembledContext=>Ctl[R]]
+}
+trait WorldProvider {
+  import WorldProvider._
+  def run[R](steps: Steps[R]): R
+  def runUpdCheck(f: AssembledContext=>TxEvents): Unit
+}

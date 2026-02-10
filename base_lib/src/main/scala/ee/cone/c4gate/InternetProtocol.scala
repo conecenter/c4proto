@@ -139,7 +139,7 @@ import ee.cone.c4proto._
 
 @c4("HttpProtocolApp") final class HttpSnapshotPatchIgnores {
   @provide def get: Seq[GeneralSnapshotPatchIgnore] = Seq(
-    classOf[S_HttpRequest],
+    classOf[S_HttpRequest], classOf[S_HttpResponse]
     //classOf[S_HttpPublicationV2], classOf[S_Manifest],
   ).map(new SnapshotPatchIgnore(_))
 }

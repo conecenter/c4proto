@@ -5,7 +5,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.{SrcId, TransientMap}
 import ee.cone.c4di.{c4, provide}
 
-import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.{BlockingQueue, LinkedBlockingQueue}
 import scala.annotation.tailrec
 import scala.collection.immutable.{Map, Seq}
 import scala.concurrent.Future
@@ -82,62 +82,38 @@ abstract class InnerTransientLens[Item](key: TransientLens[Item]) extends Abstra
     value => m => m + (key -> value.asInstanceOf[Object])
 }
 
-@c4("SerialObserversApp") final class SerialTxObserver(
-  transforms: TxTransforms
-) extends TxObserver(new SerialObserver(Map.empty)(transforms))
-
-class SerialObserver(localStates: Map[SrcId,TransientMap])(
-  transforms: TxTransforms
-) extends Observer[RichContext] {
-  def activate(global: RichContext): Observer[RichContext] = {
-    val nLocalStates = transforms.get(global).transform{ case(key,handle) =>
-      handle(localStates.getOrElse(key,Map.empty))
-    }
-    new SerialObserver(nLocalStates)(transforms)
-  }
-}
-
-@c4("ParallelObserversApp") final class ParallelObserverProvider(
-  transforms: TxTransforms,
-  ex: ParallelObserverExecutable,
-  disable: List[DisableDefObserver]
-) {
-  @provide def observers: Seq[TxObserver] = if(disable.nonEmpty) Nil else Seq(new TxObserver(new Observer[RichContext] {
-    def activate(world: RichContext): Observer[RichContext] = {
-      ex.send(transforms.get(world).withDefaultValue(transient =>
-        if(world.offset < InnerReadAfterWriteOffsetKey.of(transient)) transient else Map.empty
-      ))
-      this
-    }
-  }))
-}
-
 @c4("ParallelObserversApp") final class ParallelObserverExecutable(
-  execution: Execution
+  worldSource: WorldSource, execution: Execution, transforms: TxTransforms
 ) extends Executable with Early {
-  private sealed trait ObservedEvent
-  private final class TodoEv(val value: Map[SrcId, TransientMap => TransientMap]) extends ObservedEvent
-  private final class DoneEv(val key: SrcId, val value: TransientMap) extends ObservedEvent
-  private val queue = new LinkedBlockingQueue[ObservedEvent]
-  def send(actions: Map[SrcId,TransientMap=>TransientMap]): Unit =
-    queue.put(new TodoEv(actions))
-  def run(): Unit = iteration(Map.empty)
+  private final class DoneEv(val key: SrcId, val value: TransientMap)
+  private def toActions(world: RichContext): Map[SrcId,TransientMap=>TransientMap] =
+    transforms.get(world).withDefaultValue(transient =>
+      if(world.offset < InnerReadAfterWriteOffsetKey.of(transient)) transient else Map.empty
+    )
+  def run(): Unit = {
+    val queue: Q = new LinkedBlockingQueue
+    worldSource.doWith(queue, ()=>iteration(queue, Map.empty))
+  }
   private class ActorState(
     val transient: TransientMap, val todo: Option[TransientMap=>TransientMap], val inProgress: Boolean
   )
-  private def checkActivate(k: SrcId, st: ActorState): ActorState = if(st.inProgress || st.todo.isEmpty) st else {
-    execution.fatal(Future(queue.put(new DoneEv(k, st.todo.get(st.transient))))(_))
+  private type Q = BlockingQueue[Either[RichContext,DoneEv]]
+  private def checkActivate(queue: Q, k: SrcId, st: ActorState): ActorState = if(st.inProgress || st.todo.isEmpty) st else {
+    execution.fatal(Future(queue.put(Right(new DoneEv(k, st.todo.get(st.transient)))))(_))
     new ActorState(st.transient, None, true)
   }
-  @tailrec private def iteration(wasStates: Map[SrcId,ActorState]): Unit = iteration(queue.take() match {
-    case ev: TodoEv =>
-      (ev.value.keySet ++ wasStates.keySet).map{ k =>
+  @tailrec private def iteration(
+    queue: Q, wasStates: Map[SrcId,ActorState]
+  ): Unit = iteration(queue, queue.take() match {
+    case Left(world) =>
+      val actions = toActions(world)
+      (actions.keySet ++ wasStates.keySet).map{ k =>
         val wasState = wasStates.getOrElse(k,new ActorState(Map.empty, None, false))
-        val action = ev.value(k)
-        k -> checkActivate(k, new ActorState(wasState.transient, Option(action), wasState.inProgress))
+        val action = actions(k)
+        k -> checkActivate(queue, k, new ActorState(wasState.transient, Option(action), wasState.inProgress))
       }.toMap
-    case ev: DoneEv =>
-      val state = checkActivate(ev.key, new ActorState(ev.value, wasStates(ev.key).todo, false))
+    case Right(ev) =>
+      val state = checkActivate(queue, ev.key, new ActorState(ev.value, wasStates(ev.key).todo, false))
       if(state.transient.isEmpty && state.todo.isEmpty && !state.inProgress)
         wasStates - ev.key  else wasStates + (ev.key->state)
   })

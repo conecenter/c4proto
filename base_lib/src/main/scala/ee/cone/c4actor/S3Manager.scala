@@ -74,7 +74,7 @@ import scala.jdk.FutureConverters._
   def put(resourceWithPrefix: String, body: Array[Byte]): Unit =
     if(!putInner(resourceWithPrefix, body)){
       val Array("",bucket,_) = resourceWithPrefix.split('/')
-      if(!putInner(bucket, Array.empty))
+      if(!putInner(s"/$bucket", Array.empty))
         throw new Exception(s"put ($resourceWithPrefix)")
       Thread.sleep(3000)
       if(!putInner(resourceWithPrefix, body))
@@ -88,7 +88,7 @@ import scala.jdk.FutureConverters._
   def get(resourceWithPrefix: String)(implicit ec: ExecutionContext): Future[Option[Array[Byte]]] =
     send(resourceWithPrefix, "GET", "", HttpRequest.newBuilder().GET())
 
-  private def join(txLogName: TxLogName, resource: String) = s"/${txLogName.value}.$resource"
+  def join(txLogName: TxLogName, resource: String): String = s"/${txLogName.value}.$resource"
   def put(txLogName: TxLogName, resource: String, body: Array[Byte]): Unit =
     put(join(txLogName, resource), body)
   def delete(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Boolean] =
