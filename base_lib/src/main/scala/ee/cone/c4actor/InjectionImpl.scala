@@ -42,6 +42,7 @@ import scala.annotation.tailrec
   actorName: ActorName, indentedParser: AbstractIndentedParser, updateFromUtil: UpdateFromUtil,
   currentProcess: CurrentProcess, readyProcessUtil: ReadyProcessUtil, worldProvider: WorldProvider,
   s3: S3Manager, currentTxLogName: CurrentTxLogName, execution: Execution, getBeforeInjection: GetByPK[BeforeInjection],
+  snapshotMaker: SnapshotMaker,
 ) extends Executable with Early with LazyLogging {
   import WorldProvider._
   private def until(cond: AssembledContext=>Boolean): Unit =
@@ -49,24 +50,28 @@ import scala.annotation.tailrec
   private def noActivity(world: AssembledContext): Boolean = getBeforeInjection.ofA(world).isEmpty
   private def isMaster(world: AssembledContext) =
     readyProcessUtil.getAll(world).enabledForCurrentRole.headOption.contains(currentProcess.id)
-  private def injectionPart(part: String): Unit = {
+  private def injectionPart(part: String): Boolean = {
     logger.info(s"will do $part")
     val path = s3.join(currentTxLogName, s"snapshots/.injection.$part")
-    for(data <- execution.aWait(s3.get(path)(_))){
+    val res = execution.aWait(s3.get(path)(_))
+    for (data <- res) {
       val updates = indentedParser.toUpdates(new String(data, UTF_8))
       worldProvider.runUpdCheck(updateFromUtil.get(_, updates).map(RawTxEvent))
       execution.aWait(s3.delete(path)(_))
     }
+    res.nonEmpty
   }
   def run(): Unit = {
     until(isMaster)
     logger.info("working as master")
     until(noActivity)
-    injectionPart("del")
+    val wasDel = injectionPart("del")
     until(noActivity)
-    injectionPart("add")
+    val wasAdd = injectionPart("add")
     until(noActivity)
     logger.info(s"done")
+    val rawSnapshots = if(wasDel||wasAdd) snapshotMaker.make(NextSnapshotTask(None)) else Nil
+    rawSnapshots.foreach(s=>logger.info(s"patched snapshot created: ${s.relativePath}"))
     worldProvider.runUpdCheck(_=>LEvent.update(S_InjectionDone(actorName.value, currentProcess.id)))
   }
 }
