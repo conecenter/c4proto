@@ -246,7 +246,7 @@ class ActiveOrigKeyRegistry(val values: Set[AssembledKey])
   rawTxAdd: RawTxAdd,
 ) extends LTxAdd with LazyLogging {
   def add(out: Seq[TxEvent]): Context=>Context = local => if(out.isEmpty) local else {
-    logger.debug(out.map(v=>s"\nevent added: $v").mkString)
+    logger.debug(out.map(v=>s"\nevent added by ${Thread.currentThread.getName}: $v").mkString)
     val updates = out.collect{ case e: LEvent[_] => toUpdate.toUpdate(e) }
     val rawUpdates = out.collect{ case e: RawTxEvent =>e.value }
     chain(
