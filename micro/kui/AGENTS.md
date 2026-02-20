@@ -21,7 +21,8 @@
 - `s3.py`: S3 snapshot tooling. `init_s3` (bucket list) and `init_s3bucket` (object view) expose:
   - `s3.load`: returns cached state (`mut_state_by_user[mail]`) plus any status message.
   - `s3.search`: enqueues a parallel scan of buckets (names ending in `.snapshots`) using the shared executor.
-  - `s3.reset_bucket`: writes a `.reset` object into the bucket to signal an external reset job.
+  - `s3bucket.reset_bucket`: writes a `.reset` object into the bucket to signal an external reset job.
+  - `s3bucket.make_snapshot`: ...
   - `s3bucket.load`: enqueues a bucket refresh and serves cached objects keyed by `(context, bucket)`.
   - `s3bucket.refresh`: forces a bucket refresh; a background watcher drains the queue and updates the shared cache.
   Credentials and endpoints come from `C4KUI_S3_CONTEXTS` plus secrets JSON stored at `C4KUI_S3_SECRETS`.
@@ -31,7 +32,7 @@
 
 ## WebSocket Contract
 - Each tab’s primary loader responds to `{ op: "{tab}.load", ...filters }`.
-- Actions returning work (e.g., `pods.recreate_pod`, `cio_logs.search`, `s3.reset_bucket`) must return a callable; `Route.ws_auth` increments `processing`, runs the callable in a background thread, and pushes updated shared state when complete.
+- Actions returning work (e.g., `pods.recreate_pod`, `cio_logs.search`) must return a callable; `Route.ws_auth` increments `processing`, runs the callable in a background thread, and pushes updated shared state when complete.
 - Updates are diffed before sending (`was_resp`) to reduce chatter; only changed keys are transmitted.
 
 ## Environment Variables

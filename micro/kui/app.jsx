@@ -427,19 +427,7 @@ const S3SnapshotsTabView = viewProps => {
                                 >
                                     🔍
                                 </button>
-                                {b.has_reset_file ? <span className="text-gray-400 text-sm">🔄 Reset pending</span> : (
-                                    b.bucket_name.match(/^(de|sp)-/) && <button
-                                        onClick={willSend({
-                                            op: 's3.reset_bucket',
-                                            kube_context: filter_kube_context,
-                                            bucket_name: b.bucket_name
-                                        })}
-                                        className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-sm"
-                                        title="Schedule snapshot reset"
-                                    >
-                                        Reset
-                                    </button>
-                                )}
+                                {b.has_reset_file && <span className="text-gray-400 text-sm">🔄 Reset pending</span>}
                             </Td>
                         </Tr>
                     ))}
@@ -461,6 +449,26 @@ const S3BucketTabView = viewProps => {
                     </div>
                 </div>
                 <div className="flex gap-2">
+                    {
+                        bucket_name && bucket_name.match(/^(de|sp)-/) && bucket_objects?.every(o => o.key != ".reset") && <button
+                            onClick={willSend({
+                                op: 's3bucket.reset_bucket',
+                                kube_context: bucket_kube_context,
+                                bucket_name: bucket_name
+                            })}
+                            className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-sm"
+                            title="Schedule snapshot reset"
+                        >
+                            Reset
+                        </button>
+                    }
+                    <button
+                        onClick={willSend({ op: 's3bucket.make_snapshot', kube_context: bucket_kube_context, bucket_name })}
+                        className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white"
+                        disabled={!bucket_name || !bucket_kube_context}
+                    >
+                        Make Snapshot
+                    </button>
                     <button
                         onClick={willSend({ op: 's3bucket.refresh', kube_context: bucket_kube_context, bucket_name })}
                         className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white"

@@ -1,10 +1,22 @@
 from json import loads, dumps
 from pathlib import Path
-from subprocess import run
+from subprocess import run, check_output
 from queue import SimpleQueue
 from time import monotonic, time
 
 # C4KUI_S3_CONTEXTS and C4KUI_S3_SECRETS are deprecated
+
+def get_ci_serve(kcp, kube_context):
+    return *kcp, kube_context, "exec", "-i", "svc/c4cio", "--", "python3", "-u", "/ci_serve.py"
+
+def sel(v, *path): return v if not path or v is None else sel(v.get(path[0]), *path[1:])
+
+def get_env_value(pod, name):
+    for container in sel(pod, "spec", "containers") or []:
+        for env in container.get("env") or []:
+            if env.get("name") == name:
+                return env.get("value")
+    return None
 
 def dispatch(kcp, s3contexts, kube_context, action, *args):
     if kube_context not in s3contexts: raise Exception("bad context")
@@ -45,23 +57,9 @@ def init_s3(contexts, kcp):
                 replace_state_error(mail, status_message="Search failed. Try again later.")
                 raise
         return run_search
-    def reset_bucket(mail, kube_context, bucket_name, **_):
-        def run_reset():
-            # Context validity is checked inside dispatch, no need extra check here.
-            # Bucket list stays stale until user triggers a fresh search.
-            try:
-                dispatch(kcp, s3contexts, kube_context, "handle_schedule_reset", bucket_name)
-                # Intentionally clear cached rows; searching again will repopulate the list.
-                replace_state_error(mail, status_message=f"Reset scheduled for {bucket_name}.")
-            except Exception:
-                replace_state_error(mail, status_message=f"Reset failed for {bucket_name}. Try again later.")
-                raise
-        return run_reset
-    # bucket names are validated remotely.
     return {
         "s3.load": load,
         "s3.search": search,
-        "s3.reset_bucket": reset_bucket,
     }
 
 def init_s3bucket(contexts, kcp):
@@ -96,10 +94,48 @@ def init_s3bucket(contexts, kcp):
     # Context validity is enforced inside dispatch; bucket names are validated remotely.
     # Treating “missing” args the same as “invalid”.
     # 5‑minute retry window keeps the exceptions down to one per cycle.
+    def reset_bucket(mail, kube_context, bucket_name, **_):
+        def run_reset():
+            # Context validity is checked inside dispatch, no need extra check here.
+            # Bucket list stays stale until user triggers a fresh search.
+            try:
+                dispatch(kcp, s3contexts, kube_context, "handle_schedule_reset", bucket_name)
+                requests.put((kube_context, bucket_name, False))
+            except Exception:
+                key = (kube_context, bucket_name)
+                msg = f"Reset failed for {bucket_name}. Try again later."
+                replace_state(key, create_response(None, msg, time()), 15)
+                raise
+        return run_reset
+    # bucket names are validated remotely.
+    def make_snapshot(mail, kube_context, bucket_name, **_):
+        if kube_context not in s3contexts: raise Exception("bad context")
+        def run_make():
+            try:
+                app, = {
+                    e
+                    for d in loads(check_output((*kcp, kube_context, "get", "deployments", "-o", "json")))["items"]
+                    for prefix in [get_env_value(sel(d,"spec","template"), "C4INBOX_TOPIC_PREFIX")]
+                    if prefix and f'{prefix}.snapshots' == bucket_name
+                    for e in [sel(d, "metadata", "labels", "c4env")] if e
+                }
+                opt = { "app": app, "kube_contexts": [kube_context] }
+                check_output((*get_ci_serve(kcp, kube_context), dumps([["snapshot_make", opt]])))
+            except Exception:
+                key = (kube_context, bucket_name)
+                msg = f"Snapshot making failed for {bucket_name}. Try again later."
+                replace_state(key, create_response(None, msg, time()), 15)
+                raise
+        return run_make
     return (
         {
             "s3bucket.load": load_bucket,
             "s3bucket.refresh": refresh_bucket,
+            "s3bucket.reset_bucket": reset_bucket,
+            "s3bucket.make_snapshot": make_snapshot,
         },
         watcher,
     )
+
+
+{"app": "{from}-{project}-{ms}", "kube_contexts": ["{kube_context}"]}
