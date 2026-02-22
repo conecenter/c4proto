@@ -96,6 +96,10 @@ const compareBy = getKey => (a, b) => getKey(a).localeCompare(getKey(b))
 const PodsTabView = viewProps => {
     const {userAbbr, items, pod_name_like, pod_contexts, sort_by_node, willSend, willNavigate} = viewProps
     const sortedItems = useMemo(() => sort_by_node ? items?.toSorted(compareBy(it => it.nodeName||"")) : items, [items, sort_by_node])
+    const minStartedAtByAppName = useMemo(() => items && Object.fromEntries(
+        Object.entries(Object.groupBy(items.filter(pod=>pod.ready), pod=>pod.appName))
+            .flatMap(([appName, its]) => its.length > 1 ? [[appName, its.map(it=>it.startedAt).toSorted()[0]]] : [])
+    ), [items])
     return <>
           {pod_contexts && <div className="mb-4">
               <SelectorFilterGroup viewProps={viewProps} fieldName="filter_kube_context" items={pod_contexts.map(key => ({key,hint:key}))}/>
@@ -185,7 +189,14 @@ const PodsTabView = viewProps => {
                       </div>
                       {pod.image && pod.image.split(":").at(-1)}
                     </Td>
-                    <Td>{pod.status}{pod.ready && <div>ready</div>}</Td>
+                    <Td>
+                        {pod.status}
+                        {pod.ready && (
+                            <div>
+                                ready{pod.appName && minStartedAtByAppName[pod.appName] === pod.startedAt ? " m" : ""}
+                            </div>
+                        )}
+                    </Td>
                     <Td>{pod.creationTimestamp} <br/> {pod.startedAt}</Td>
                     <Td>{pod.restarts}</Td>
                     <Td className="text-right font-mono text-xs">
