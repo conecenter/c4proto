@@ -50,7 +50,7 @@ def app_prep(env, app, app_dir, up_path):
     tar = run(("tar", "-czf-", app_dir, kube_conf, up_path), capture_output=True).stdout
     run((*kc, "exec", "-i", name, "--", "tar", "-xzf-"), input=tar)
     args = ("--context", app_dir, "--c4env", app, "--state", "main", "--info-out", up_path)
-    run((*kc, "exec", name, "--", "env", f"KUBECONFIG={kube_conf}", "c4ci_prep", *args))
+    run((*kc, "exec", name, "--", "env", f"KUBECONFIG={kube_conf}", f'C4DEPLOY_CONTEXT={env["C4DEPLOY_CONTEXT"]}', "c4ci_prep", *args))
     Path(up_path).write_bytes(run((*kc, "exec", name, "--", "cat", up_path), capture_output=True).stdout)
     run((*kc, "exec", name, "--", "rm", "-r", app_dir, kube_conf, up_path))
     Path(lock_path(up_path)).unlink()
