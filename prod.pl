@@ -113,33 +113,14 @@ push @tasks, ["","",sub{
 
 my $md5_hex = sub{ md5_hex(@_) };
 
-my $normalize_kc_target = sub{
-    my ($arg_opt) =@_;
+push @tasks, ["log","<kube-context> [pod|deployment] [tail] [add]",sub{
+    my($kube_context,$arg_opt,$tail,$add)=@_;
     my $arg_parts = scalar split '-', $arg_opt;
-    (
+    my $arg = (
         $arg_parts == 0 ? &$mandatory_of(HOSTNAME=>\%ENV) :
         $arg_parts == 4 ? "deploy/$arg_opt-main" :
         $arg_parts == 5 ? "deploy/$arg_opt" : $arg_opt
     );
-};
-
-push @tasks, ["log_debug","<kube-context> <pod|deployment|''> [class]",sub{ # ee.cone
-    my($kube_context,$arg_opt,$cl)=@_;
-    my $arg = &$normalize_kc_target($arg_opt);
-    my $kubectl = &$get_kubectl_raw($kube_context);
-
-
-    if($cl){
-        my $content = qq[<logger name="$cl" level="DEBUG"></logger>];
-        sy(qq[$kubectl exec -i $arg -- sh -c 'cat >> /tmp/logback.xml' < ].&$put_temp("logback.xml",$content));
-    } else {
-        so(qq[$kubectl exec -i $arg -- rm /tmp/logback.xml]);
-    }
-}];
-
-push @tasks, ["log","<kube-context> [pod|deployment] [tail] [add]",sub{
-    my($kube_context,$arg_opt,$tail,$add)=@_;
-    my $arg = &$normalize_kc_target($arg_opt);
     my $kubectl = &$get_kubectl_raw($kube_context);
     my $tail_or = ($tail+0) || 100;
     sy(qq[$kubectl logs -f $arg --tail $tail_or $add]);

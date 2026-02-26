@@ -539,7 +539,7 @@ const S3BucketTabView = viewProps => {
 const ProfilingTabView = viewProps => {
     const {
         profiling_kube_context, profiling_pod_name, profiling_period,
-        profiling_status, thread_dump_status, willSend
+        profiling_status, thread_dump_status, logback_loaded, logback_status, willSend
     } = viewProps
     const [seconds, setSeconds] = useState(0)
     useEffect(() => {
@@ -675,6 +675,14 @@ const ProfilingTabView = viewProps => {
                             </button>
                         ) : null}
                     </div>
+                    <LogbackPanel
+                        key={`${profiling_kube_context || ""}/${profiling_pod_name || ""}`}
+                        kubeContext={profiling_kube_context}
+                        podName={profiling_pod_name}
+                        logbackLoaded={logback_loaded}
+                        logbackStatus={logback_status}
+                        willSend={willSend}
+                    />
                 </>
             )}
         </div>
@@ -728,6 +736,141 @@ const LinksTabView = ({ cluster_links = [], custom_links = [] }) => {
 }
 
 const tBlank = () => ({ target: "_blank", rel: "noopener noreferrer" })
+
+const LogbackPanel = ({ kubeContext, podName, logbackLoaded, logbackStatus, willSend }) => {
+    const [logbackCustomClass, setLogbackCustomClass] = useState("")
+    const currentClasses =
+        logbackLoaded ? normalizeLogbackClasses(parseLogbackClasses(logbackLoaded)) : logbackLoaded === "" ? [] : null
+    const logbackPresets = [
+        {
+            name: "proto preset",
+            classes: [
+                "ee.cone.c4actor.TxAddImpl",
+                "ee.cone.c4actor.QMessagesImpl",
+                "ee.cone.c4actor.TxTrLogger",
+                "ee.cone.c4actor.AssemblerUtil",
+                "ee.cone.c4gate_server.SnapshotMakerImpl",
+                "ee.cone.c4actor.AssemblerProfiling",
+            ]
+        },
+    ]
+    const applyClasses = classes => {
+        const xml = buildLogbackXml(normalizeLogbackClasses(classes))
+        willSend({ op: 'profiling.save_logback', kube_context: kubeContext, pod_name: podName, logback_xml: xml })()
+    }
+    return (
+        <div className="bg-gray-800 border border-gray-700 rounded p-4 space-y-4">
+            <div className="flex items-center justify-between">
+                <h3 className="text-sm uppercase tracking-wide text-gray-400">LOG CLASSES</h3>
+                <div className="flex items-center gap-2">
+                    {logbackStatus === "F" && <p className="text-xs text-red-300">Failed</p>}
+                    {currentClasses !== null && (
+                        <button
+                            onClick={willSend({ op: 'profiling.unload_logback' })}
+                            className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-xs text-white"
+                        >
+                            Close
+                        </button>
+                    )}
+                </div>
+            </div>
+            { !currentClasses ? (
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={willSend({ op: 'profiling.load_logback', kube_context: kubeContext, pod_name: podName })}
+                        className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-xs"
+                    >
+                        Start editing
+                    </button>
+                    <span className="text-xs text-gray-500">Loads /tmp/logback.xml on demand.</span>
+                </div>
+            ) : (
+                <>
+                    <div className="space-y-2">
+                        {currentClasses.length === 0 ? <p className="text-xs text-gray-500">No logger entries.</p> : (
+                            <div className="flex flex-wrap gap-2">
+                                {currentClasses.map(cls => (
+                                    <span key={cls} className="flex items-center gap-2 bg-gray-900 border border-gray-700 rounded-full px-3 py-1 text-xs">
+                                        <span className="text-gray-200">{cls}</span>
+                                        <button
+                                            onClick={() => applyClasses(currentClasses.filter(item => item !== cls))}
+                                            className="text-gray-400 hover:text-white"
+                                            title={`Remove ${cls}`}
+                                        >
+                                            ×
+                                        </button>
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex flex-wrap gap-2 items-center">
+                        {logbackPresets.map(preset => (
+                            <button
+                                key={preset.name}
+                                onClick={() => applyClasses([...currentClasses, ...preset.classes])}
+                                className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-xs"
+                            >
+                                {preset.name}
+                            </button>
+                        ))}
+                        <button
+                            onClick={() => applyClasses([])}
+                            className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-xs"
+                        >
+                            Reset all
+                        </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2 items-center">
+                        <input
+                            value={logbackCustomClass}
+                            onChange={ev => setLogbackCustomClass(ev.target.value)}
+                            placeholder="ee.cone.MyClass"
+                            className="bg-gray-900 border border-gray-700 rounded px-3 py-1 text-xs text-gray-200 w-64"
+                        />
+                        <button
+                            onClick={() => {
+                                applyClasses([...currentClasses, logbackCustomClass])
+                                setLogbackCustomClass("")
+                            }}
+                            className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-xs text-white"
+                        >
+                            Add class
+                        </button>
+                    </div>
+                </>
+            )}
+        </div>
+    )
+}
+
+const normalizeLogbackClasses = classes => (
+    [...new Set((classes || []).map(item => (item || "").trim()).filter(Boolean))].toSorted()
+)
+
+const parseLogbackClasses = xml => {
+    if (!xml) return []
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(`<configuration>${xml}</configuration>`, "application/xml")
+    if (doc.getElementsByTagName("parsererror").length) return []
+    return [...doc.getElementsByTagName("logger")]
+        .map(node => node.getAttribute("name"))
+        .filter(Boolean)
+}
+
+const buildLogbackXml = classes => {
+    const serializer = new XMLSerializer()
+    const parser = new DOMParser()
+    const doc = parser.parseFromString("<configuration></configuration>", "application/xml")
+    const root = doc.documentElement
+    normalizeLogbackClasses(classes).forEach(name => {
+        const logger = doc.createElement("logger")
+        logger.setAttribute("name", name)
+        logger.setAttribute("level", "DEBUG")
+        root.appendChild(logger)
+    })
+    return [...root.children].map(node => serializer.serializeToString(node)).join("\n")
+}
 
 const NotFoundTr = ({viewProps,...props}) => {
     const {items, need_filters} = viewProps
