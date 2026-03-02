@@ -587,20 +587,30 @@ my $make_kc_yml = sub{
             hosts => \@hosts,
             secretName => $ingress_secret_name || "$name-tls",
         }]);
+        my $api_ver = $$opt{ingress_api_version} || "networking.k8s.io/v1";
         my @rules = &$map($by_host,sub{ my($host,$v)=@_; +{
             host => $host,
             http => {
                 paths => [map{+{
                     backend => {
-                        serviceName => $name,
-                        servicePort => $$_{port},
-                    },
-                    $$_{path} ? (path=>$$_{path}) : (),
+                        $api_ver eq "extensions/v1beta1" ? (
+                            serviceName => $name,
+                            servicePort => $$_{port},
+                        ) :
+                        $api_ver eq "networking.k8s.io/v1" ? (
+                            service => {
+                                name => $name,
+                                port => { number => $$_{port} },
+                            }
+                        ) :
+                        die
+                     },
+                    $$_{path} ? (path=>$$_{path}, pathType=>"Prefix") : (),
                 }}@$v],
             },
         }});
         @rules ? {
-            apiVersion => "extensions/v1beta1",
+            apiVersion => ($api_ver||die),
             kind => "Ingress",
             metadata => {
                 name => $name,
@@ -860,7 +870,7 @@ my $up_gate = sub{
     &$need_deploy_cert($run_comp,$from_path);
     &$need_logback($run_comp,$from_path);
     my $hostname = &$get_hostname($run_comp) || die "no le_hostname";
-    my ($ingress_secret_name) = &$get_deployer_conf($run_comp,0,qw[ingress_secret_name]);
+    my ($ingress_secret_name,$ingress_api_version) = &$get_deployer_conf($run_comp,0,qw[ingress_secret_name ingress_api_version]);
     my $conf = &$get_compose($run_comp);
     ($from_path, {
         image => $img, %consumer_options,
@@ -872,6 +882,7 @@ my $up_gate = sub{
         "ingress:$hostname/"=>$inner_http_port,
         #"ingress:$hostname/sse"=>$inner_sse_port,
         ingress_secret_name=>$ingress_secret_name,
+        ingress_api_version=>$ingress_api_version,
         C4HTTP_PORT => $inner_http_port,
         C4SSE_PORT => $inner_sse_port,
         need_pod_ip => 1,
@@ -1251,7 +1262,7 @@ my $ci_docker_tag = sub{
 my @kinds = (
     [qw[core v1 Secret]],[qw[core v1 Service]],
     [qw[apps v1 Deployment]],[qw[apps v1 StatefulSet]],
-    [qw[extensions v1beta1 Ingress]],
+    #[qw[extensions v1beta1 Ingress]], -- should be dynamic
 );
 
 my $ci_get_image = sub{
