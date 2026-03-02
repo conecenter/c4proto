@@ -215,6 +215,7 @@ my $serve_history = sub{
 };
 
 my $init = sub{
+    sy("perl","$ENV{C4CI_PROTO_DIR}/ceph.pl");
     my $sock = "/c4/supervisor.sock";
     &$put_text("/c4/supervisord.conf", join '', map{"$_\n"}
         "[supervisord]",

@@ -1614,7 +1614,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
         "RUN cd /tools/greys && bash ./install-local.sh",
         'ENTRYPOINT ["perl","run.pl"]',
     );
-    sy("cp $proto_dir/$_ $ctx_dir/$_") for "install.pl", "run.pl";
+    sy("cp $proto_dir/$_ $ctx_dir/$_") for "install.pl", "run.pl", "ceph.pl";
     sy("cd $ctx_dir && tar -xzf $proto_dir/tools/greys.tar.gz");
     #
     mkdir "$ctx_dir/app";

@@ -4,10 +4,12 @@
 use strict;
 
 my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
+sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 
 my @tasks;
 
 my $serve = sub{
+    sy("perl","ceph.pl");
     $ENV{JAVA_TOOL_OPTIONS} = join " ", $ENV{JAVA_TOOL_OPTIONS},
         "-XX:+ExitOnOutOfMemoryError",
         "-XX:+UnlockDiagnosticVMOptions", "-XX:GCLockerRetryAllocationCount=8",
