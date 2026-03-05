@@ -268,8 +268,50 @@ const CIOTasksTabView = viewProps => {
 }
 
 const CIOEventsTabView = viewProps => {
-    const {items, willSend} = viewProps
+    const {items, willSend, cio_events_task_like} = viewProps
+    const taskFilterRegex = useMemo(() => {
+        const pattern = (cio_events_task_like || "").trim()
+        if (!pattern) return { regex: null, error: null }
+        try {
+            return { regex: new RegExp(pattern, "i"), error: null }
+        } catch (e) {
+            return { regex: null, error: e?.message || "Invalid regex" }
+        }
+    }, [cio_events_task_like])
+    const filteredItems = useMemo(
+        () => (items || []).filter(t => (
+            !taskFilterRegex.regex || taskFilterRegex.regex.test(t.task || "")
+        )),
+        [items, taskFilterRegex]
+    )
+    const hideFiltered = async () => {
+        if (taskFilterRegex.error || filteredItems.length === 0) return
+        if (!confirm(`Hide ${filteredItems.length} filtered event(s)?`)) return
+        for (const t of filteredItems) {
+            await willSend({ op: 'cio_events.hide', kube_context: t.kube_context, task: t.task })()
+        }
+    }
     return <>
+          <div className="mb-4 flex gap-2 items-center">
+              <SimpleFilterInput
+                  viewProps={viewProps}
+                  fieldName="cio_events_task_like"
+                  placeholder="Filter task content (regex)..."
+              />
+              <button
+                  onClick={hideFiltered}
+                  disabled={!!taskFilterRegex.error || filteredItems.length === 0}
+                  className="bg-yellow-500 text-black px-3 py-1 rounded hover:bg-yellow-400 disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Hide all currently filtered events"
+              >
+                  Hide Filtered ({filteredItems.length})
+              </button>
+          </div>
+          <div className="mb-4">
+              {taskFilterRegex.error && (
+                  <div className="text-xs text-red-300">Invalid regex: {taskFilterRegex.error}</div>
+              )}
+          </div>
           <Table>
             <thead>
               <tr>
@@ -277,8 +319,10 @@ const CIOEventsTabView = viewProps => {
               </tr>
             </thead>
             <tbody>
-                <NotFoundTr viewProps={viewProps} colSpan="4"/>
-                { items?.map((t, index) => <Tr key={`${t.kube_context}/${t.task}`} index={index}>
+                {filteredItems.length === 0 && <Tr>
+                    <Td colSpan="5">{items?.length > 0 ? "Not found" : "Select more filters ..."}</Td>
+                </Tr>}
+                { filteredItems.map((t, index) => <Tr key={`${t.kube_context}/${t.task}`} index={index}>
                     <Td>{t.kube_context}</Td><Td>{t.task}</Td><Td>{t.status}</Td>
                     <Td>{new Date(t.at*1000).toISOString()}</Td>
                     <Td>
@@ -382,6 +426,7 @@ const CIOLogsTabView = viewProps => {
 const formatS3Size = v => `${(v / 1024 / 1024).toFixed(1)} MiB`;
 const S3SnapshotsTabView = viewProps => {
     const { items, status_message, s3contexts, filter_kube_context, bucket_name_like, willSend, willNavigate } = viewProps
+    const runSearch = willSend({ op: 's3.search', kube_context: filter_kube_context, bucket_name_like })
     return (
         <>
             <div className="flex gap-2 mb-4">
@@ -390,9 +435,19 @@ const S3SnapshotsTabView = viewProps => {
                     fieldName="filter_kube_context"
                     items={(s3contexts||[]).map(key => ({ key, hint: key }))}
                 />
-                <SimpleFilterInput viewProps={viewProps} fieldName="bucket_name_like" placeholder="Filter buckets..."/>
+                <SimpleFilterInput
+                    viewProps={viewProps}
+                    fieldName="bucket_name_like"
+                    placeholder="Filter buckets..."
+                    onKeyDown={e => {
+                        if (e.key === "Enter") {
+                            e.preventDefault()
+                            runSearch()
+                        }
+                    }}
+                />
                 <button
-                    onClick={willSend({ op: 's3.search', kube_context: filter_kube_context, bucket_name_like })}
+                    onClick={runSearch}
                     className="bg-blue-600 hover:bg-blue-500 px-4 py-1 rounded text-white"
                     disabled={!filter_kube_context}
                 >Search</button>
