@@ -22,6 +22,6 @@ trait MutablePlanner {
   def suggestedNonEmpty: Boolean
   def suggestedHead: TaskPos
   def planCount: Int
-  def getStarted: Seq[TaskPos]
+  def getTaskStates: Seq[(String,TaskPos)]
   def reportStarted(): Unit
 }

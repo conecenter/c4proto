@@ -384,7 +384,7 @@ trait ParallelExecution {
     val startedAt = System.nanoTime
     val planner = plannerFactory.createMutablePlanner(conf.plannerConf)
     val modelImpl = model match{ case m: ReadModelImpl => m }
-    val noDbg = !profilingContext.needDetailed
+    val noDbg = !profilingContext.needDetailed && !profiling.isDebug
     val context = new MutableSchedulingContext(
       if(noDbg) planner else new DebuggingPlanner(planner, reportPlanning),
       modelImpl.model.toMutable(if(noDbg) None else cowArrDebug("set-model",explainWorldPos,explainIndex)),
@@ -553,8 +553,8 @@ class DebuggingPlanner(inner: MutablePlanner, report: (String,TaskPos)=>Unit) ex
   def suggestedHead: TaskPos = inner.suggestedHead
   def planCount: Int = inner.planCount
 
-  def getStarted: Seq[TaskPos] = inner.getStarted
-  def reportStarted(): Unit = for(exprPos <- getStarted) report("is-started", exprPos)
+  def getTaskStates: Seq[(String,TaskPos)] = inner.getTaskStates
+  def reportStarted(): Unit = for((hint, exprPos) <- getTaskStates) report(hint, exprPos)
 }
 
 @SuppressWarnings(Array("org.wartremover.warts.While"))

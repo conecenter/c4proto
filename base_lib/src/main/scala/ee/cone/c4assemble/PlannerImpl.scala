@@ -49,7 +49,13 @@ final class MutablePlannerImpl(taskUsers: Array[Array[TaskPos]]) extends Mutable
     suggestedSet(exprPos) = reasonCountByExprPos(exprPos) == 1 && todoSet(exprPos) && !startedSet(exprPos)
   }
 
-  def getStarted: Seq[TaskPos] = (taskUsers.indices.asInstanceOf[Seq[TaskPos]]).filter(startedSet(_))
+  def getTaskStates: Seq[(String,TaskPos)] = for {
+    pos <- taskUsers.indices.asInstanceOf[Seq[TaskPos]]
+    hint <- (
+      if(startedSet(pos)) Seq("task-is-started") else if(!todoSet(pos)) Nil
+      else Seq(s"task-is-todo  ${reasonCountByExprPos(pos)}")
+    )
+  } yield (hint,pos)
   def reportStarted(): Unit = ()
 }
 

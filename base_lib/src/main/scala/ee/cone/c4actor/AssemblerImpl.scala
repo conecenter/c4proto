@@ -45,7 +45,8 @@ import scala.concurrent.duration.Duration
 )(
   val msWarnPeriod: Long = Single.option(listConfig.get("C4ASSEMBLE_WARN_PERIOD_MS")).fold(1000L)(_.toLong)
 ) extends RAssProfiling with LazyLogging {
-  def warn(content: String): Unit = logger.warn(content)
+  def isDebug: Boolean = logger.underlying.isDebugEnabled
+  def warn(content: String): Unit = logger.warn(s"$id $content")
   def debug(content: ()=>String): Unit =  logger.debug(s"$id ${content()}")
   private def id = s"T-${Thread.currentThread.getId}"
   def addPeriod(accId: Int, value: Long): Unit = assembleStatsAccumulator.add(accId, value)
