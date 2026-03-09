@@ -808,6 +808,12 @@ const LogbackPanel = ({ kubeContext, podName, logbackLoaded, logbackStatus, will
                 "ee.cone.c4actor.AssemblerProfiling",
             ]
         },
+        {
+            name: "assemble",
+            classes: [
+                "ee.cone.c4actor.RAssProfilingImpl",
+            ]
+        },
     ]
     const applyClasses = classes => {
         const xml = buildLogbackXml(normalizeLogbackClasses(classes))
