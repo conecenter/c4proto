@@ -293,7 +293,7 @@ my $up_gate = sub{
     my($run_comp)=@_;
     my %consumer_options = &$get_consumer_options($run_comp);
     my $hostname = &$get_hostname($run_comp) || die "no le_hostname";
-    my ($ingress_secret_name) = &$get_deployer_conf($run_comp,0,qw[ingress_secret_name]);
+    my ($ingress_secret_name,$ingress_api_version) = &$get_deployer_conf($run_comp,0,qw[ingress_secret_name ingress_api_version]);
     my $conf = &$get_compose($run_comp);
     +{
         %consumer_options,
@@ -305,6 +305,7 @@ my $up_gate = sub{
         "ingress:$hostname/"=>$inner_http_port,
         #"ingress:$hostname/sse"=>$inner_sse_port,
         ingress_secret_name=>$ingress_secret_name,
+        ingress_api_version=>$ingress_api_version,
         C4HTTP_PORT => $inner_http_port,
         C4SSE_PORT => $inner_sse_port,
         need_pod_ip => 1,
