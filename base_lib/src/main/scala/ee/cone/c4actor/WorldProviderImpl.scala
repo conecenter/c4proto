@@ -3,6 +3,7 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.{LEvents, NextOffset, TxEvents}
 import WorldProvider._
+import ee.cone.c4actor.QProtocol.S_FailedUpdates
 import ee.cone.c4di.c4
 
 import java.util.concurrent.LinkedBlockingQueue
@@ -20,7 +21,7 @@ import scala.annotation.tailrec
 }
 
 @c4("WorldProviderApp") final class WorldProviderImpl(
-  worldSource: WorldSource, txSend: TxSendImpl, reducer: RichRawWorldReducer, hReducer: TxHistoryReducer,
+  worldSource: WorldSource, txSend: TxSendImpl, txChecker: TxChecker,
 ) extends WorldProvider with LazyLogging {
   private def ready(world: RichContext, readAfterWriteOffsetOpt: Option[NextOffset]): Boolean =
     !readAfterWriteOffsetOpt.exists(world.offset < _)
@@ -30,8 +31,7 @@ import scala.annotation.tailrec
       val Left(world) = queue.take()
       if(!ready(world, readAfterWriteOffsetOpt)) iter(readAfterWriteOffsetOpt, left)
       else {
-        for(offset <- readAfterWriteOffsetOpt if hReducer.isFailed(reducer.history(world), offset).get)
-          throw new Exception("tx failed")
+        for(offset <- readAfterWriteOffsetOpt if txChecker.isFailed(world, offset)) throw new Exception("tx failed")
         left.head(world) match {
           case Redo() => iter(readAfterWriteOffsetOpt, left)
           case Next(events) if events.isEmpty => throw new Exception()
@@ -45,4 +45,10 @@ import scala.annotation.tailrec
   def runUpdCheck(f: AssembledContext=>TxEvents): Unit = run(List(
     world => f(world) match { case Seq() => Stop() case lEvents => Next(lEvents) }, _ => Stop()
   ):Steps[Unit])
+}
+
+// it is with TxHistory replica exchange support
+@c4("WorldProviderApp") final class TxChecker(reducer: RichRawWorldReducer, hReducer: TxHistoryReducer) {
+  def isFailed(context: RichContext, offset: NextOffset): Boolean =
+    hReducer.isFailed(reducer.history(context), offset).get
 }

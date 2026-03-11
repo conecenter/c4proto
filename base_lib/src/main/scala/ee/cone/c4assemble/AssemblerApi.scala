@@ -35,6 +35,7 @@ trait Replace {
 }
 
 trait RAssProfiling {
+  def isDebug: Boolean
   def msWarnPeriod: Long
   def warn(content: String): Unit
   def debug(content: ()=>String): Unit

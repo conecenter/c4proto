@@ -57,7 +57,7 @@ import scala.util.Try
     )
     val bodyStr = PrometheusMetricBuilder(metrics)
     val bodyBytes = ToByteString(bodyStr.getBytes(StandardCharsets.UTF_8))
-    logger.info(s"Posting ${metrics.size} metrics to $url")
+    logger.debug(s"Posting ${metrics.size} metrics to $url")
     util.post(url, Nil, bodyBytes, Option(5000), expectCode = 200, 202)
   }
 }
