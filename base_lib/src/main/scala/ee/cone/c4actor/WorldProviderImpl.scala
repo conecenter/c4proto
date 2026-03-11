@@ -3,7 +3,6 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.{LEvents, NextOffset, TxEvents}
 import WorldProvider._
-import ee.cone.c4actor.QProtocol.S_FailedUpdates
 import ee.cone.c4di.c4
 
 import java.util.concurrent.LinkedBlockingQueue
