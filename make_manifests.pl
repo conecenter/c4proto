@@ -84,7 +84,8 @@ my $make_kc_yml = sub{
     my %inner_affinity = (%node_affinity, %pod_anti_affinity);
     my %affinity = %inner_affinity ? (affinity=>\%inner_affinity) : ();
     my $tolerate = &$merge_list({},&$map($opt,sub{ my($k,$v)=@_;
-        $k=~/^tolerate:(.+)/ && $v ? { tolerations =>[{ key => $1, operator => "Exists", effect => "NoSchedule" }]} : ()
+        $k=~/^tolerate:(.+)/ && $v ?
+            { tolerations =>[{ key => $1, value => $v, operator => "Equal", effect => "NoSchedule" }]} : ()
     }));
     my $node_selector = &$merge_list({},&$map($opt,sub{ my($k,$v)=@_;
         $k=~/^node:(.+)/ ? { nodeSelector => { $1 => $v } } : ()
