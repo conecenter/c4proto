@@ -1445,7 +1445,7 @@ push @tasks, ["ci_inner_cp","",sub{ #to call from Dockerfile
         "RUN chown -R c4:c4 /c4",
         "WORKDIR /c4",
         "USER c4",
-        "RUN cd /tools/greys && bash ./install-local.sh",
+        #"RUN cd /tools/greys && bash ./install-local.sh",
         "COPY --chown=c4:c4 . /c4",
         'ENTRYPOINT ["perl","run.pl"]',
     );
