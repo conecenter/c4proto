@@ -159,7 +159,7 @@ push @tasks, ["gate_publish", sub{
     sy("perl $prod_pl build_client .");
 }];
 push @tasks, ["gate_server_run", sub{
-    &$inbox_configure();
+    #&$inbox_configure();
     local $ENV{C4STATE_REFRESH_SECONDS} = 100;
     &$exec_server("base_server.ee.cone.c4gate_akka.SimpleAkkaGatewayApp");
 }];
