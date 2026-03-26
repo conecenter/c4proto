@@ -45,7 +45,7 @@ public final class C4UUID {
         public String result(){
             assert pos == res.length: "pos must be res.length";
             calculate(md,res,buf);
-            return new String(buf, StandardCharsets.UTF_8);
+            return Interner.intern(new String(buf, StandardCharsets.UTF_8));
         }
     }
     private static void calculate(MessageDigest md, byte[] name, byte[] buf) {
