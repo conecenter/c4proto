@@ -48,7 +48,7 @@ def sbt_args(mod_dir, java_opt):
     return "env", "-C", mod_dir, f"JAVA_TOOL_OPTIONS={java_opt}", "sbt", "-Dsbt.color=true", "c4build"
 
 
-def get_cb_name(v): return f"cb-v1-{v}"
+def get_cb_name(v): return f"cb-v2-{v}"
 
 
 class CompileOptions(typing.NamedTuple):
@@ -413,7 +413,7 @@ def build_type_rt(proj_tag, context, out):
         " lsof mc iputils-ping netcat-openbsd fontconfig" +
         " openssh-client" +  # repl
         " python3",  # vault
-        "RUN perl install.pl curl https://download.bell-sw.com/java/17.0.8+7/bellsoft-jdk17.0.8+7-linux-amd64.tar.gz",
+        "RUN /install.pl curl https://download.bell-sw.com/java/25.0.2+12/bellsoft-jdk25.0.2+12-linux-amd64.tar.gz",
         'ENV PATH=${PATH}:/tools/jdk/bin',
         "ENV JAVA_HOME=/tools/jdk",
         "RUN chown -R c4:c4 /c4",

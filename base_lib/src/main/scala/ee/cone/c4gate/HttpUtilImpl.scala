@@ -15,7 +15,7 @@ import scala.jdk.CollectionConverters.ListHasAsScala
 
 @c4("HttpUtilApp") final class HttpUtilImpl extends HttpUtil with LazyLogging {
   private def withConnection[T](url: String): (HttpURLConnection => T) => T =
-    FinallyClose[HttpURLConnection, T](_.disconnect())(
+    FinallyClose.by[HttpURLConnection, T](_.disconnect())(
       new URL(url).openConnection().asInstanceOf[HttpURLConnection]
     )
   private def setHeaders(connection: HttpURLConnection, headers: List[(String, String)]): Unit = {

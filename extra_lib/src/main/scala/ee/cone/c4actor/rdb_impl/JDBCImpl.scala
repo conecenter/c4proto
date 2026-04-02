@@ -23,7 +23,7 @@ import scala.annotation.tailrec
         createConnection => new RConnectionPool {
           def doWith[T](f: RConnection => T): T = {
             FinallyClose(createConnection()) { sqlConn =>
-              FinallyClose[ExecutorService, T](_.shutdown())(Executors.newFixedThreadPool(1)) { pool =>
+              FinallyClose.by[ExecutorService, T](_.shutdown())(Executors.newFixedThreadPool(1)) { pool =>
                 sqlConn.setNetworkTimeout(pool, 1000 * 60 * 15)
                 val conn = new RConnectionImpl(sqlConn)
                 f(conn)
@@ -77,7 +77,7 @@ class InObjectRDBBind[R](val prev: RDBBindImpl[R], value: Object) extends ArgRDB
 
 class InTextRDBBind[R](val prev: RDBBindImpl[R], value: String) extends ArgRDBBind[R] {
   def execute(stmt: CallableStatement): R = {
-    FinallyClose[java.sql.Clob,R](_.free())(connection.createClob()){ clob =>
+    FinallyClose.by[java.sql.Clob,R](_.free())(connection.createClob()){ clob =>
       assert(clob.setString(1,value)==value.length)
       stmt.setClob(index,clob)
       prev.execute(stmt)
@@ -121,7 +121,7 @@ class OutTextRDBBind(
   def execute(stmt: CallableStatement): String = {
     stmt.registerOutParameter(index,java.sql.Types.CLOB)
     justExecute(stmt)
-    FinallyClose[Option[java.sql.Clob],String](_.foreach(_.free()))(
+    FinallyClose.by[Option[java.sql.Clob],String](_.foreach(_.free()))(
       Option(stmt.getClob(index))
     ){ clob =>
       clob.map(c=>c.getSubString(1,toIntExact(c.length()))).getOrElse("")

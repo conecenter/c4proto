@@ -42,7 +42,7 @@ my $serve_app = sub{
     !-e $_ or unlink $_ or die for $ready_path;
     my $tool_opt = join(" ", qw[
         -XX:+UseG1GC -XX:GCTimeRatio=1 -XX:MinHeapFreeRatio=15 -XX:MaxHeapFreeRatio=50 -XX:+UseStringDeduplication
-        -XX:+UnlockDiagnosticVMOptions -XX:GCLockerRetryAllocationCount=32 -XX:+DebugNonSafepoints
+        -XX:+UnlockDiagnosticVMOptions -XX:+UseCompactObjectHeaders -XX:+DebugNonSafepoints
     ], $ENV{JAVA_TOOL_OPTIONS});
     #-XX:NativeMemoryTracking=summary
     ### if need heap >32G keeping 32bit pointers, insert: -XX:ObjectAlignmentInBytes=16 -Xmx45g
@@ -91,7 +91,7 @@ my $serve_history = sub{
     #
     my $env = {
         JAVA_TOOL_OPTIONS => "",
-        CLASSPATH => (syf("coursier fetch --classpath org.apache.kafka:kafka-clients:3.7.1")=~/(\S+)/ ? $1 : die),
+        CLASSPATH => (syf("coursier fetch --classpath org.apache.kafka:kafka-clients:4.2.0")=~/(\S+)/ ? $1 : die),
         C4HISTORY_PUT => "/c4/.bash_history_put",
         C4HISTORY_GET => "/c4/.bash_history_get",
     };
