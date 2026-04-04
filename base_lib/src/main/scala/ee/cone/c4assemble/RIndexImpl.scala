@@ -34,11 +34,24 @@ object EmptyInnerIndex extends InnerIndex {
 object OneToOneInnerIndex extends InnerIndex {
   def ends(pos: Int): Int = pos + 1
 }
-final class SmallInnerIndex(aEnds: Array[Byte]) extends InnerIndex {
+final class SmallInnerIndex(private val aEnds: Array[Byte]) extends InnerIndex {
   def ends(pos: Int): Int = aEnds(pos)
+  def size: Int = aEnds.length
+  private val hash: Int = java.util.Arrays.hashCode(aEnds)
+  override def hashCode(): Int = hash
+  override def equals(other: Any): Boolean = other match {
+    case that: SmallInnerIndex => (this eq that) || java.util.Arrays.equals(this.aEnds, that.aEnds)
+    case _ => false
+  }
 }
-final class DefInnerIndex(aEnds: Array[Char]) extends InnerIndex {
+final class DefInnerIndex(private val aEnds: Array[Char]) extends InnerIndex {
   def ends(pos: Int): Int = aEnds(pos)
+  private val hash: Int = java.util.Arrays.hashCode(aEnds)
+  override def hashCode(): Int = hash
+  override def equals(other: Any): Boolean = other match {
+    case that: DefInnerIndex => (this eq that) || java.util.Arrays.equals(this.aEnds, that.aEnds)
+    case _ => false
+  }
 }
 final class BigInnerIndex(aEnds: Array[Int]) extends InnerIndex {
   def ends(pos: Int): Int = aEnds(pos)
@@ -674,12 +687,12 @@ final class RIndexBucketBuilder(
     else if(last <= Byte.MaxValue){
       val res = new Array[Byte](length)
       for(i <- 0 until length) res(i) = ends(i).toByte // .map boxes
-      new SmallInnerIndex(res)
+      ApproximateInterner.intern(new SmallInnerIndex(res))
     }
     else if(last <= Char.MaxValue){
       val res = new Array[Char](length)
       for(i <- 0 until length) res(i) = ends(i).toChar
-      new DefInnerIndex(res)
+      ApproximateInterner.intern(new DefInnerIndex(res))
     }
     else new BigInnerIndex(java.util.Arrays.copyOf(ends,length))
   }

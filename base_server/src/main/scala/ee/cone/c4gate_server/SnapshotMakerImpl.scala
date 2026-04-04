@@ -226,6 +226,7 @@ trait SnapshotMakerMaxTime {
   }
   @tailrec private def iter(): Unit = {
     assert(now < snapshotMaker.maxTime + 3*hour)
+    ApproximateInterner.clear()
     Thread.sleep(hour)
     iter()
   }
