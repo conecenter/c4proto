@@ -1,5 +1,6 @@
 package ee.cone.c4actor
 
+import ee.cone.c4assemble.ApproximateInterner
 import ee.cone.c4di.c4
 
 // http://www.artima.com/pins1ed/object-equality.html
@@ -12,7 +13,7 @@ final class PreHashedImpl[T](code: Int, val value: T) extends PreHashed[T] {
 
   override def equals(that: Any): Boolean = {
     that match {
-      case that: PreHashed[_] => value == that.value
+      case that: PreHashedImpl[_] => value == that.value
       case _ => false
     }
   }

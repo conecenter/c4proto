@@ -5,7 +5,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.InjectionProtocol.S_InjectionDone
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{IndexUtil, ReadModelUtil, byEq, c4assemble}
+import ee.cone.c4assemble.{ApproximateInterner, IndexUtil, ReadModelUtil, byEq, c4assemble}
 import ee.cone.c4di.{c4, c4multi, provide}
 import ee.cone.c4proto.{Id, protocol}
 
@@ -73,6 +73,9 @@ import scala.annotation.tailrec
     val rawSnapshots = if(wasDel||wasAdd) snapshotMaker.make(NextSnapshotTask(None)) else Nil
     rawSnapshots.foreach(s=>logger.info(s"patched snapshot created: ${s.relativePath}"))
     worldProvider.runUpdCheck(_=>LEvent.update(S_InjectionDone(actorName.value, currentProcess.id)))
+    logger.info(s"ApproximateInterner ${ApproximateInterner.count()}")
+    ApproximateInterner.clear()
+    logger.info(s"exit")
   }
 }
 

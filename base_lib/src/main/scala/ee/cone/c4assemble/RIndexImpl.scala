@@ -36,7 +36,6 @@ object OneToOneInnerIndex extends InnerIndex {
 }
 final class SmallInnerIndex(private val aEnds: Array[Byte]) extends InnerIndex {
   def ends(pos: Int): Int = aEnds(pos)
-  def size: Int = aEnds.length
   private val hash: Int = java.util.Arrays.hashCode(aEnds)
   override def hashCode(): Int = hash
   override def equals(other: Any): Boolean = other match {

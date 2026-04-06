@@ -426,6 +426,10 @@ trait AbstractIndentedParser {
   def toUpdates(textEncoded: String): List[N_Update]
 }
 
+trait WorldCheckHandler {
+  def handle(context: RichContext): Unit
+}
+
 case object TxAddAssembleDebugKey extends TransientLens[Boolean](false)
 
 abstract class TransientEvent[V](val key: TransientLens[V], val innerValue: V) extends TxEvent

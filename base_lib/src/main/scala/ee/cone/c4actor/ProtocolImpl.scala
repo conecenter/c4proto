@@ -80,7 +80,7 @@ class OptionArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter
   def defaultValue: Option[Value] = None
   def decodeReduce(reader: ProtoReader, prev: Option[Value]): Option[Value] =
     Option(inner().decode(reader))
-  def decodeFix(prev: Option[Value]): Option[Value] = prev
+  def decodeFix(prev: Option[Value]): Option[Value] = prev // we can not intern here; Some(Long.box(66)) == Some(BigDecimal(66))
 }
 
 @c4("ProtoApp") final class IntDefaultArgument extends DefaultArgument[Int](0)
