@@ -388,7 +388,8 @@ class ElectorRequests(
     val unlockRequests = electorRequestsFactory.createUnlock(owner)
     val initLockReq = sendWhile(lockRequests)(notSafelyLocked) // before process start
     val appClass = config.get("C4APP_CLASS_INNER")
-    val env = Map("C4APP_CLASS" -> appClass,"C4ELECTOR_CLIENT_ID" -> owner)
+    val toolOptions = config.get("JAVA_TOOL_OPTIONS_INNER")
+    val env = Map("C4APP_CLASS" -> appClass, "C4ELECTOR_CLIENT_ID" -> owner, "JAVA_TOOL_OPTIONS" -> toolOptions)
     val args = Seq("java") ++ debug ++ Seq("ee.cone.c4actor.ServerMain")
     processTree.withProcess(args, env, process => {
       val finLockReq = sendWhile(initLockReq){ req =>
