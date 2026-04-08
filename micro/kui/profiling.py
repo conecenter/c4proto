@@ -108,6 +108,11 @@ def init_profiling(mut_pr, contexts, rt, kcp):
         mut_pr.pop(mail, None)
     def handle_reset_thread_status(mail, **_):
         mut_thread_dumps.pop(mail, None)
+    def handle_enable_gc_log(mail, kube_context, pod_name, **_):
+        def do_run():
+            kc_exec, pid = get_exec_and_pid(kube_context, pod_name)
+            check_call((*kc_exec, "jcmd", str(pid), "VM.log", "what=gc*"))
+        return do_run
     actions = {
         "profiling.load": load,
         "profiling.profile": handle_profile,
@@ -117,6 +122,7 @@ def init_profiling(mut_pr, contexts, rt, kcp):
         "profiling.unload_logback": handle_unload_logback,
         "profiling.reset_profile_status": handle_reset_profile_status,
         "profiling.reset_thread_status": handle_reset_thread_status,
+        "profiling.enable_gc_log": handle_enable_gc_log,
     }
     handlers = {
         "/profiling-flamegraph.html": rt.http_auth(lambda mail,**_: mut_pr.pop(mail).data.decode()),

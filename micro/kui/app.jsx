@@ -617,6 +617,20 @@ const ProfilingTabView = viewProps => {
                 <p className="text-xs text-gray-500 mt-1">
                     Context: {profiling_kube_context || "-"}
                 </p>
+                {hasSelection && (
+                    <p className="mt-1">
+                        <button
+                            onClick={willSend({
+                                op: 'profiling.enable_gc_log',
+                                kube_context: profiling_kube_context,
+                                pod_name: profiling_pod_name
+                            })}
+                            className="bg-gray-600 hover:bg-gray-500 px-4 py-1 rounded text-white w-fit"
+                        >
+                            Enable gc log
+                        </button>
+                    </p>
+                )}
             </div>
             {!hasSelection ? (
                 <div className="bg-gray-800 border border-gray-700 rounded p-4 text-sm text-gray-300">
