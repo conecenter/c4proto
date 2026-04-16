@@ -2,7 +2,7 @@ package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.S_FailedUpdates
-import ee.cone.c4assemble.{ApproximateInterner, StartUpSpaceProfiler}
+import ee.cone.c4assemble.{StartUpSpaceProfiler}
 import ee.cone.c4di.c4
 
 import java.lang.management.ManagementFactory
@@ -17,6 +17,7 @@ import scala.annotation.tailrec
   getS_FailedUpdates: GetByPK[S_FailedUpdates],
   startUpSpaceProfiler: StartUpSpaceProfiler,
   snapshotCheckReset: SnapshotCheckReset,
+  approximateIntern: ApproximateIntern,
 ) extends Executable with Early with LazyLogging {
   def run(): Unit = concurrent.blocking { //ck mg
     logger.info(s"Starting RootConsumer...")
@@ -30,7 +31,7 @@ import scala.annotation.tailrec
     val world = reducer.reduce(None, events.toList)
     if(getS_FailedUpdates.ofA(world).nonEmpty) throw new Exception(s"Snapshot reduce failed $snapshot")
     logger.info(s"Snapshot reduced without failures $snapshot -- uptime ${rt.getUptime}ms")
-    logger.info(s"ApproximateInterner ${ApproximateInterner.count()}")
+    logger.info(s"ApproximateInterner ${approximateIntern.count}")
     GCLog("after loadRecent")
     startUpSpaceProfiler.out(world.assembled)
     consuming.process(world.offset, consumer => {

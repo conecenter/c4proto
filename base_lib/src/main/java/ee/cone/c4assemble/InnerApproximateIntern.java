@@ -2,23 +2,31 @@ package ee.cone.c4assemble;
 
 import java.util.Arrays;
 
-public final class ApproximateInterner {
+public final class InnerApproximateIntern {
     private static final int power = Integer.parseInt(nvl(System.getenv("C4INTERN_POWER"), "24"));
     public static final int size = 1 << power;
     private static final int mask = size - 1;
     private static final Object[] table = new Object[size];
 
+    // we can not intern any object safely; Some(Long.box(66)) == Some(BigDecimal(66)), Vector==List
+    public static final Eq unsafeSimpleEq = new Eq() {
+        @Override public boolean equals(Object a, Object b) { return a.equals(b); }
+    };
+
+    public interface Eq {
+        boolean equals(Object a, Object b);
+    }
+
     private static String nvl(String a, String b){
         return a == null ? b : a;
     }
 
-    // we can not intern any object safely; Some(Long.box(66)) == Some(BigDecimal(66)), Vector==List
     @SuppressWarnings("unchecked")
-    public static <T> T intern(T ref){
+    public static <T> T intern(T ref, Eq eq){
         final var h = ref.hashCode();
         final var ix = (h ^ (h >>> 16)) & mask;
         final var was = table[ix];
-        if(ref.equals(was)) return (T) was;
+        if(eq.equals(ref, was)) return (T) was;
         table[ix] = ref;
         return ref;
     }

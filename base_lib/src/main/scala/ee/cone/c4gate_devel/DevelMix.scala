@@ -28,4 +28,4 @@ trait ReplayApp extends FileConsumerApp with WorldCheckerApp with DisableDefault
   with ExtractTxApp with SnapshotLoaderImplApp with LZ4RawCompressorApp with LZ4DeCompressorApp
   with BasicLoggingApp with CatchNonFatalApp
 
-trait DedupReportAppBase
+trait DevelReportAppBase

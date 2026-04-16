@@ -1,6 +1,5 @@
 package ee.cone.c4actor
 
-import ee.cone.c4assemble.ApproximateInterner
 import ee.cone.c4di.c4
 
 // http://www.artima.com/pins1ed/object-equality.html

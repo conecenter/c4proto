@@ -1,6 +1,7 @@
 package ee.cone.c4actor
 
 import ee.cone.c4actor.PublicImage.RotationAngle
+import ee.cone.c4assemble.Interner
 
 import scala.util.matching.{Regex, UnanchoredRegex}
 
@@ -21,7 +22,7 @@ trait PublicPath extends Product {
     ImagePublicPath.packFormat.format(name, value)
   }
   def convert: String = {
-    s"${format(ImagePublicPath.pathType, pathType)} ${format(ImagePublicPath.path, path)}"
+    Interner.intern(s"${format(ImagePublicPath.pathType, pathType)} ${format(ImagePublicPath.path, path)}")
   }
 }
 

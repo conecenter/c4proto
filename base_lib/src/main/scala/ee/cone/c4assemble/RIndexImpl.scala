@@ -686,12 +686,12 @@ final class RIndexBucketBuilder(
     else if(last <= Byte.MaxValue){
       val res = new Array[Byte](length)
       for(i <- 0 until length) res(i) = ends(i).toByte // .map boxes
-      ApproximateInterner.intern(new SmallInnerIndex(res))
+      InnerApproximateIntern.intern(new SmallInnerIndex(res), InnerApproximateIntern.unsafeSimpleEq)
     }
     else if(last <= Char.MaxValue){
       val res = new Array[Char](length)
       for(i <- 0 until length) res(i) = ends(i).toChar
-      ApproximateInterner.intern(new DefInnerIndex(res))
+      InnerApproximateIntern.intern(new DefInnerIndex(res), InnerApproximateIntern.unsafeSimpleEq)
     }
     else new BigInnerIndex(java.util.Arrays.copyOf(ends,length))
   }
