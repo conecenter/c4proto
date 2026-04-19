@@ -8,7 +8,7 @@ from queue import Queue
 from logging import info, debug
 from os import kill
 from signal import SIGTERM
-from subprocess import run as sp_run
+from subprocess import run as sp_run, PIPE
 from socket import create_connection
 import re
 from datetime import datetime, timezone
@@ -253,6 +253,18 @@ def app_pause_de(kube_context, name_pattern, period_str):
 def app_ctl_de(kube_context, name, action):
     run((*cl.get_kubectl(kube_context), "exec", f'deploy/{name}', "--", "supervisorctl", action, "app"))
 
+def app_log_to_file(kube_context, app, to, until_str):
+    kc = cl.get_kubectl(kube_context)
+    until = until_str.encode()
+    labeled = ("-l", f"c4env={app}")
+    run((*kc, "wait", "--for", "jsonpath={.status.phase}=Running", "pod", *labeled))
+    with open(to, "wb") as f:
+        proc = Popen((*kc, "logs", "-f", *labeled), stdout=PIPE)
+        for l in proc.stdout:
+            f.write(l)
+            if until in l: break
+        proc.terminate()
+        proc.wait()
 
 def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "#": lambda *args: None,
@@ -311,6 +323,7 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "app_pause_rt": lambda opt: app_pause_rt(opt["kube_context"], opt["pattern"], opt["period"]),
     "app_history_reset": lambda opt: app_history_reset(opt["kube_context"], opt["pattern"]),
     "app_ctl_de": lambda opt: app_ctl_de(opt["kube_context"], opt["name"], opt["action"]),
+    "app_log_to_file": lambda opt: app_log_to_file(opt["kube_context"], opt["app"], get_dir(opt["to"]), opt["until"]),
 }
 
 
