@@ -27,3 +27,5 @@ trait ReplayApp extends FileConsumerApp with WorldCheckerApp with DisableDefault
   with FileConsumerApp with SnapshotUtilImplApp with EnvConfigCompApp with DevConfigApp
   with ExtractTxApp with SnapshotLoaderImplApp with LZ4RawCompressorApp with LZ4DeCompressorApp
   with BasicLoggingApp with CatchNonFatalApp
+
+trait DevelReportAppBase

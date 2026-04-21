@@ -4,7 +4,7 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ArgTypes._
 import ee.cone.c4actor.Types.{ClName, FieldId, SrcId, TypeId}
-import ee.cone.c4assemble.{Interner, Single}
+import ee.cone.c4assemble.{CUtil, Interner, Single}
 import ee.cone.c4di.Types.ComponentFactory
 import ee.cone.c4di.{CreateTypeKey, TypeKey, c4, provide}
 import ee.cone.c4proto._
@@ -67,12 +67,23 @@ class ListArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter[L
   def defaultValue: List[Value] = Nil
   def decodeReduce(reader: ProtoReader, prev: List[Value]): List[Value] =
     inner().decode(reader) :: prev
-  def decodeFix(prev: List[Value]): List[Value] = prev.reverse
+  def decodeFix(prev: List[Value]): List[Value] = prev.reverse // intern leads to N_UpdateFrom in cache
+}
+@c4("ProtoApp") final class SeqArgAdapterFactory(uKey: StrictTypeKey[Seq[Unit]]) extends ArgAdapterFactory(uKey.value.copy(args=Nil), new SeqArgAdapter(_))
+class SeqArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter[Seq[Value]] {
+  def encodedSizeWithTag(tag: Int, value: Seq[Value]): Int =
+    value.foldLeft(0)((res,item)=>res+inner().encodedSizeWithTag(tag,item))
+  def encodeWithTag(writer: ProtoWriter, tag: Int, value: Seq[Value]): Unit =
+    value.foreach(item=>inner().encodeWithTag(writer,tag,item))
+  def defaultValue: Seq[Value] = Vector.empty[Value]
+  def decodeReduce(reader: ProtoReader, prev: Seq[Value]): Seq[Value] =
+    prev :+ inner().decode(reader)
+  def decodeFix(prev: Seq[Value]): Seq[Value] = CUtil.toSeq(prev)
 }
 
-@c4("ProtoApp") final class LazyOptionArgAdapterFactory(uKey: StrictTypeKey[LazyOption[Unit]]) extends LazyArgAdapterFactory(uKey.value.copy(args=Nil), new OptionArgAdapter(_))
-@c4("ProtoApp") final class OptionArgAdapterFactory(uKey: StrictTypeKey[Option[Unit]]) extends ArgAdapterFactory(uKey.value.copy(args=Nil), new OptionArgAdapter(_))
-class OptionArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter[Option[Value]] {
+@c4("ProtoApp") final class LazyOptionArgAdapterFactory(uKey: StrictTypeKey[LazyOption[Unit]], approximateIntern: ApproximateIntern) extends LazyArgAdapterFactory(uKey.value.copy(args=Nil), new OptionArgAdapter(_, approximateIntern))
+@c4("ProtoApp") final class OptionArgAdapterFactory(uKey: StrictTypeKey[Option[Unit]], approximateIntern: ApproximateIntern) extends ArgAdapterFactory(uKey.value.copy(args=Nil), new OptionArgAdapter(_, approximateIntern))
+class OptionArgAdapter[Value](inner: ()=>ProtoAdapter[Value], approximateIntern: ApproximateIntern) extends ArgAdapter[Option[Value]] {
   def encodedSizeWithTag(tag: Int, value: Option[Value]): Int =
     value.foldLeft(0)((res,item)=>res+inner().encodedSizeWithTag(tag,item))
   def encodeWithTag(writer: ProtoWriter, tag: Int, value: Option[Value]): Unit =
@@ -80,7 +91,7 @@ class OptionArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter
   def defaultValue: Option[Value] = None
   def decodeReduce(reader: ProtoReader, prev: Option[Value]): Option[Value] =
     Option(inner().decode(reader))
-  def decodeFix(prev: Option[Value]): Option[Value] = prev
+  def decodeFix(prev: Option[Value]): Option[Value] = approximateIntern.intern(prev)
 }
 
 @c4("ProtoApp") final class IntDefaultArgument extends DefaultArgument[Int](0)

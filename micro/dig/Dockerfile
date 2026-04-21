@@ -2,7 +2,7 @@ FROM ubuntu:24.04
 COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /
 RUN /install.pl useradd 1979
 RUN /install.pl apt curl ca-certificates unzip tini
-RUN /install.pl curl https://download.bell-sw.com/java/25.0.1+13/bellsoft-jdk25.0.1+13-linux-amd64.tar.gz
+RUN /install.pl curl https://download.bell-sw.com/java/25.0.2+12/bellsoft-jdk25.0.2+12-linux-amd64.tar.gz
 RUN /install.pl curl https://dl.k8s.io/release/v1.33.1/bin/linux/amd64/kubectl && chmod +x /tools/kubectl
 RUN curl -L https://github.com/com-lihaoyi/Ammonite/releases/download/3.0.4/3.3-3.0.4 -o /tmp/amm \
  && echo "#!/usr/bin/env sh" > /tools/amm && cat /tmp/amm >> /tools/amm && chmod +x /tools/amm && chown c4:c4  /tools/amm \

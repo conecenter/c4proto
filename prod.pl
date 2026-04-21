@@ -208,7 +208,7 @@ push @tasks, ["build"," ",sub{ &$py_run("build.py",&$mandatory_of(C4CI_BUILD_DIR
 push @tasks, ["kafka","( topics | offsets <hours> | nodes | sizes <node> | topics_rm )",sub{
     my @args = @_;
     my $gen_dir = &$get_proto_dir();
-    my $cp = syf("coursier fetch --classpath org.apache.kafka:kafka-clients:3.7.1")=~/(\S+)/ ? $1 : die;
+    my $cp = syf("coursier fetch --classpath org.apache.kafka:kafka-clients:4.2.0")=~/(\S+)/ ? $1 : die;
     sy("JAVA_TOOL_OPTIONS= CLASSPATH=$cp java --source 15 $gen_dir/kafka_info.java ".join" ",@args);
 }];
 

@@ -29,7 +29,7 @@ RUN apt update && DEBIAN_FRONTEND=noninteractive apt install -y --no-install-rec
 # zip rsync - build final-copy; curl, unzip - replink; git - ci_build; fontconfig locales - ?some for runtime ; uuid-runtime - sandbox->ci
 # lsof mc netcat-openbsd atop less bash-completion tmux - debug
 # build tools:
-ADD --link --unpack "https://download.bell-sw.com/java/17.0.17+15/bellsoft-jdk17.0.17+15-linux-amd64.tar.gz" /tools
+ADD --link --unpack "https://download.bell-sw.com/java/25.0.2+12/bellsoft-jdk25.0.2+12-linux-amd64.tar.gz" /tools
 ADD --link --chmod=755 https://github.com/coursier/launchers/raw/master/coursier /tools/coursier
 ADD --link --unpack https://github.com/sbt/sbt/releases/download/v1.9.3/sbt-1.9.3.tgz /tools
 ADD --link --unpack https://nodejs.org/dist/v20.9.0/node-v20.9.0-linux-x64.tar.xz /tools
@@ -41,8 +41,8 @@ ADD --link --unpack https://github.com/jvm-profiling-tools/async-profiler/releas
 RUN pip3 install setuptools supervisor
 RUN echo en_DK.UTF-8 UTF-8 >> /etc/locale.gen && locale-gen
 USER c4
-ENV PATH=${PATH}:/tools:/tools/jdk-17.0.17/bin:/tools/sbt/bin:/tools/node-v20.9.0-linux-x64/bin:/tools/async-profiler-2.7-linux-x64:/c4/bin
-ENV JAVA_HOME=/tools/jdk-17.0.17
+ENV PATH=${PATH}:/tools:/tools/jdk-25.0.2/bin:/tools/sbt/bin:/tools/node-v20.9.0-linux-x64/bin:/tools/async-profiler-2.7-linux-x64:/c4/bin
+ENV JAVA_HOME=/tools/jdk-25.0.2
 WORKDIR /c4
 COPY --from=c4emb /replink.py /tools/replink.py
 COPY --chown=c4:c4 . /c4/c4proj
@@ -62,9 +62,9 @@ RUN apt update && DEBIAN_FRONTEND=noninteractive apt install -y --no-install-rec
     curl software-properties-common lsof mc iputils-ping netcat-openbsd fontconfig openssh-client python3 \
  && rm -rf /var/lib/apt/lists/*
 # openssh-client for repl; python3 for vault and dig
-ADD --link --unpack "https://download.bell-sw.com/java/17.0.17+15/bellsoft-jdk17.0.17+15-linux-amd64.tar.gz" /tools
-ENV PATH=${PATH}:/tools:/tools/jdk-17.0.17/bin
-ENV JAVA_HOME=/tools/jdk-17.0.17
+ADD --link --unpack "https://download.bell-sw.com/java/25.0.2+12/bellsoft-jdk25.0.2+12-linux-amd64.tar.gz" /tools
+ENV PATH=${PATH}:/tools:/tools/jdk-25.0.2/bin
+ENV JAVA_HOME=/tools/jdk-25.0.2
 WORKDIR /c4
 USER c4
 ENTRYPOINT ["perl","run.pl"]

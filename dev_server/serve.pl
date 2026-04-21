@@ -168,6 +168,8 @@ my $exec_server = sub{
         &$get_consumer_env($nm, $replica>0?$elector_proxy_port_base:$elector_port_base),
         C4APP_CLASS => "ee.cone.c4actor.ParentElectorClientApp",
         C4APP_CLASS_INNER => $cl,
+        JAVA_TOOL_OPTIONS => "-Xmx64m",
+        JAVA_TOOL_OPTIONS_INNER => $ENV{JAVA_TOOL_OPTIONS},
         %$paths,
         %$add_env,
     };

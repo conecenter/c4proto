@@ -38,7 +38,7 @@ def app_prep(env, app, app_dir, up_path):
     run(("cp", env["C4KUBECONFIG"], kube_conf)) # normal user will not be able to create remote /c4conf-... dir
     kc = cl.get_kubectl(env["C4DEPLOY_CONTEXT"])
     image = loads((Path(app_dir)/"gitlab-ci-generated.yml").read_bytes())[".handler"]["image"]
-    name = f'cb-w0-{sha256(image.encode()).hexdigest()[:8]}'
+    name = f'cb-w1-{sha256(image.encode()).hexdigest()[:8]}'
     cont_security = { "allowPrivilegeEscalation": False }
     container = { "name": "main", "image": image, "command": ["sleep","infinity"], "securityContext": cont_security }
     pod_security = { "runAsUser": 1979, "runAsGroup": 1979, "fsGroup": 1979, "runAsNonRoot": True } # need same user, at least for git; tar saves it

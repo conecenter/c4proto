@@ -25,6 +25,8 @@ def finish(proj_tag, context, out):
         f'export C4MODULES={paths["C4MODULES"]}',
         "export C4APP_CLASS=ee.cone.c4actor.ParentElectorClientApp",
         f'export C4APP_CLASS_INNER={tag_info["main"]}',
+        "export JAVA_TOOL_OPTIONS_INNER=$JAVA_TOOL_OPTIONS",
+        "export JAVA_TOOL_OPTIONS=-Xmx64m",
         "exec java ee.cone.c4actor.ServerMain"
     )).encode())
     #

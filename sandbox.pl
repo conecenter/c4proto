@@ -42,9 +42,13 @@ my $serve_app = sub{
     my $paths = JSON::XS->new->decode(syf("python3 $proto_dir/build_env.py $build_dir $mod"));
     my $ready_path = "/c4/c4is-ready";
     !-e $_ or unlink $_ or die for $ready_path;
+    #
+    my %dev_env = map{&$get_text_or_empty($_)=~/([^=\n]*)=(.*)/g} grep{$_} delete $ENV{C4DEV_ENV};
+    /(.*)\+$/ ? ($ENV{$1}.=$dev_env{$_}) : ($ENV{$_}=$dev_env{$_}) for sort keys %dev_env;
+    #
     my $tool_opt = join(" ", qw[
         -XX:+UseG1GC -XX:GCTimeRatio=1 -XX:MinHeapFreeRatio=15 -XX:MaxHeapFreeRatio=50 -XX:+UseStringDeduplication
-        -XX:+UnlockDiagnosticVMOptions -XX:GCLockerRetryAllocationCount=32 -XX:+DebugNonSafepoints
+        -XX:+UnlockDiagnosticVMOptions -XX:+UseCompactObjectHeaders -XX:+DebugNonSafepoints
     ], $ENV{JAVA_TOOL_OPTIONS});
     #-XX:NativeMemoryTracking=summary
     ### if need heap >32G keeping 32bit pointers, insert: -XX:ObjectAlignmentInBytes=16 -Xmx45g
@@ -52,7 +56,8 @@ my $serve_app = sub{
         KUBECONFIG => &$mandatory_of(C4KUBECONFIG => \%ENV),
         %$paths,
         (-e "/c4/debug-components") ? (C4DEBUG_COMPONENTS => "1") : (),
-        JAVA_TOOL_OPTIONS => $tool_opt,
+        JAVA_TOOL_OPTIONS => "-Xmx64m",
+        JAVA_TOOL_OPTIONS_INNER => $tool_opt,
         #(-e "/c4/debug-enable") ? (C4JDWP_ADDRESS => "0.0.0.0:".&$mandatory_of(C4DEBUG_PORT => \%ENV)) : (),
         C4READINESS_PATH => $ready_path,
         C4STATE_TOPIC_PREFIX => $nm,
@@ -93,7 +98,7 @@ my $serve_history = sub{
     #
     my $env = {
         JAVA_TOOL_OPTIONS => "",
-        CLASSPATH => (syf("coursier fetch --classpath org.apache.kafka:kafka-clients:3.7.1")=~/(\S+)/ ? $1 : die),
+        CLASSPATH => (syf("coursier fetch --classpath org.apache.kafka:kafka-clients:4.2.0")=~/(\S+)/ ? $1 : die),
         C4HISTORY_PUT => "/c4/.bash_history_put",
         C4HISTORY_GET => "/c4/.bash_history_get",
     };

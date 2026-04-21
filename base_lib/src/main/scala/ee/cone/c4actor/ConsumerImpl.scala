@@ -14,6 +14,7 @@ import scala.annotation.tailrec
   consuming: Consuming,
   startUpSpaceProfiler: StartUpSpaceProfiler,
   snapshotCheckReset: SnapshotCheckReset,
+  approximateIntern: ApproximateIntern,
 ) extends Executable with Early with LazyLogging {
   def run(): Unit = concurrent.blocking { //ck mg
     logger.info(s"Starting RootConsumer...")
@@ -26,6 +27,7 @@ import scala.annotation.tailrec
     logger.info(s"Reducing $snapshot -- uptime ${rt.getUptime}ms")
     val world = reducer.createContext(events)
     logger.info(s"Snapshot reduced without failures $snapshot -- uptime ${rt.getUptime}ms")
+    logger.info(s"ApproximateInterner ${approximateIntern.count}")
     GCLog("after loadRecent")
     startUpSpaceProfiler.out(world.assembled)
     consuming.process(world.offset, consumer => {

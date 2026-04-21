@@ -34,7 +34,7 @@ case class PreHashingMurMur3() extends PreHashing {
 
   def calculateModelHash[Model](model: Model, messengerInner: Java128HashInterface): Unit = {
     model match {
-      case i: List[_] =>
+      case i: Seq[_] =>
         messengerInner.updateLong(50 + i.length)
         i.foreach(calculateModelHash(_, messengerInner)) // TODO this is sad, but with out it can cause stackOverFlow
       case g: Product =>

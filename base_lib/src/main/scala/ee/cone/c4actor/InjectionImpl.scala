@@ -5,7 +5,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.InjectionProtocol.S_InjectionDone
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{byEq, c4assemble}
+import ee.cone.c4assemble.{IndexUtil, ReadModelUtil, byEq, c4assemble}
 import ee.cone.c4di.{c4, c4multi, provide}
 import ee.cone.c4proto.{Id, protocol}
 
@@ -42,7 +42,7 @@ import scala.annotation.tailrec
   actorName: ActorName, indentedParser: AbstractIndentedParser, updateFromUtil: UpdateFromUtil,
   currentProcess: CurrentProcess, readyProcessUtil: ReadyProcessUtil, worldProvider: WorldProvider,
   s3: S3Manager, currentTxLogName: CurrentTxLogName, execution: Execution, getBeforeInjection: GetByPK[BeforeInjection],
-  snapshotMaker: SnapshotMaker,
+  snapshotMaker: SnapshotMaker, approximateIntern: ApproximateIntern,
 ) extends Executable with Early with LazyLogging {
   import WorldProvider._
   private def until(cond: AssembledContext=>Boolean): Unit =
@@ -73,6 +73,9 @@ import scala.annotation.tailrec
     val rawSnapshots = if(wasDel||wasAdd) snapshotMaker.make(NextSnapshotTask(None)) else Nil
     rawSnapshots.foreach(s=>logger.info(s"patched snapshot created: ${s.relativePath}"))
     worldProvider.runUpdCheck(_=>LEvent.update(S_InjectionDone(actorName.value, currentProcess.id)))
+    logger.info(s"ApproximateInterner ${approximateIntern.count}")
+    approximateIntern.clear()
+    logger.info(s"exit")
   }
 }
 
@@ -96,4 +99,19 @@ import scala.annotation.tailrec
         logger.info(s"tx changed [$k] ${fmt(was.get(k))} -> ${fmt(will.get(k))}")
       will
   })
+}
+
+@c4("InjectionApp") final class IndexSizeLogger(
+  worldSource: WorldSource, readModelUtil: ReadModelUtil, indexUtil: IndexUtil,
+) extends Executable with LazyLogging {
+  private type Q = BlockingQueue[Either[RichContext,Unit]]
+  def run(): Unit = {
+    val queue: Q = new LinkedBlockingQueue
+    worldSource.doWith(queue, () => queue.take() match { case Left(world) =>
+      val res = for((worldKey, index) <- readModelUtil.toMap(world.assembled).toList)
+          yield (worldKey.toString, indexUtil.keyCount(index), indexUtil.valueCount(index))
+      logger.info(s"k ${res.map(_._2).sum} v ${res.map(_._3).sum} in ${res.size} indexes:")
+      for((wk, kc, vc) <- res.sortBy(_._1)) logger.info(s"k $kc v $vc in index $wk")
+    })
+  }
 }
