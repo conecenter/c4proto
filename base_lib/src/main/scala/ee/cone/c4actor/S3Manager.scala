@@ -74,7 +74,7 @@ import scala.jdk.FutureConverters._
   def put(resourceWithPrefix: String, body: Array[Byte]): Unit =
     if(!putInner(resourceWithPrefix, body)){
       val Array("",bucket,_) = resourceWithPrefix.split('/')
-      if(!putInner(bucket, Array.empty))
+      if(!putInner(s"/$bucket", Array.empty))
         throw new Exception(s"put ($resourceWithPrefix)")
       Thread.sleep(3000)
       if(!putInner(resourceWithPrefix, body))
