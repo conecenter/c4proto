@@ -14,6 +14,7 @@ from kube_pods import init_kube_pods
 from kube_top import init_kube_top
 from cio import init_cio_tasks, init_cio_logs, init_cio_events
 from profiling import init_profiling
+from s3_proxy import init_s3_proxy
 
 def get_user_abbr(mail): return sub(r"[^A-Za-z]+","",mail.split("@")[0])
 def get_forward_service_name(mail): return f'fu-{get_user_abbr(mail)}'
@@ -58,8 +59,9 @@ def main():
     profiling_actions, profiling_handlers = init_profiling({}, contexts, Route, kcp)
     s3_actions = init_s3(contexts, kcp)
     s3bucket_actions, s3bucket_watcher = init_s3bucket(contexts, kcp)
+    s3_proxy_handlers = init_s3_proxy(Route)
     handlers = {
-        **agent_auth_handlers, **cio_log_handlers, **profiling_handlers,
+        **agent_auth_handlers, **cio_log_handlers, **profiling_handlers, **s3_proxy_handlers,
         "/": Route.http_auth(lambda **_: index_content),
         "/kop": Route.ws_auth({}, load_shared, {
             **kube_actions, **cio_task_actions, **cio_log_actions, **cio_event_actions, **profiling_actions, **s3_actions, **s3bucket_actions,

@@ -21,7 +21,7 @@ from cio_preproc import arg_substitute
 from util import run, list_dir, Popen, changing_text, one, read_text, never_if, \
     path_exists, read_json, never, repeat, decode, run_no_die, debug_args, run_text_out, log
 from cmd import get_cmd
-
+from allure import allure_generate
 
 def need_dir(d):
     Path(d).mkdir(parents=True, exist_ok=True)
@@ -123,7 +123,7 @@ def kafka_client_serve(deploy_context, port_offset, conf):
     changing_text(conf_path, "".join(f"{k}={v}\n" for c, k, v in todo if c == "L"))
     cp = "/c4/c4lib/*"
     src_path = str(Path(__file__).parent/"kafka.java")
-    run(("java", "--source", "21", "--enable-preview", "-cp", cp, src_path, str(kafka_addr(port_offset)[-1]), conf_path))
+    run(("java", "--source", "25", "-cp", cp, src_path, str(kafka_addr(port_offset)[-1]), conf_path))
 
 
 def purge(env, prefix, clients):
@@ -324,6 +324,9 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "app_history_reset": lambda opt: app_history_reset(opt["kube_context"], opt["pattern"]),
     "app_ctl_de": lambda opt: app_ctl_de(opt["kube_context"], opt["name"], opt["action"]),
     "app_log_to_file": lambda opt: app_log_to_file(opt["kube_context"], opt["app"], get_dir(opt["to"]), opt["until"]),
+    "allure_generate": lambda opt: allure_generate(
+        get_dir(opt["from"]), env["C4S3_CONF_DIR"], opt["bucket"], opt["project"]
+    ),
 }
 
 

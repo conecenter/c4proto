@@ -91,26 +91,38 @@ def to_resp(res):
     return Response(status, '', Headers(headers), data)
 
 def http_serve(api_port, handlers):
+    def wo_last(path): return "/".join(path.split("/")[:-1])
+    def resolve_prefix(path): return handlers.get(f'{path}/*') or resolve_prefix(wo_last(path)) if path else None
     def process_request(_, request):
         debug(f'handling {get_native_id()} {request.path}')
         parsed = urlparse(request.path)
-        return handlers.get(parsed.path, handlers["_"]).handle_http(request, parsed.query)
+        some_handler = handlers.get(parsed.path) or resolve_prefix(wo_last(parsed.path)) or  handlers["_"]
+        return some_handler.handle_http(request, parsed)
     def handler(ws): return handlers[urlparse(ws.request.path).path].handle_ws(ws)
     serve(handler, "127.0.0.1", api_port, process_request=process_request).serve_forever()
 
 class Route:
     @staticmethod
+    def response(status, headers, data): return Response(status, '', Headers(headers), data)
+    @staticmethod
     def http_no_auth(handle):
-        return Handler(False, lambda request, query_str: to_resp(handle(**parse_q(query_str))), None)
+        def handle_http(request, parsed):
+            return to_resp(handle(**parse_q(parsed.query)))
+        return Handler(False, handle_http, None)
     @staticmethod
     def http_auth(handle):
-        def handle_http(request, query_str):
+        def handle_http(request, parsed):
             mail = check_auth(request.headers)
-            return to_resp(handle(**parse_q(query_str), mail=mail) if mail else "403")
+            return to_resp(handle(**parse_q(parsed.query), mail=mail) if mail else "403")
+        return Handler(True, handle_http, None)
+    @staticmethod
+    def http_auth_raw(handle):
+        def handle_http(request, parsed):
+            return handle(request, parsed) if check_auth(request.headers) else to_resp("403")
         return Handler(True, handle_http, None)
     @staticmethod
     def ws_auth(mut_tasks, initial_load, actions):
-        def handle_http(request, query_str):
+        def handle_http(request, parsed):
             debug("going ws")
         def handle_task(task):
             try: task()
