@@ -1,11 +1,9 @@
 
 from __future__ import annotations
-
 from json import dumps
 from subprocess import check_call, check_output
 from datetime import datetime, timezone
 from pathlib import Path
-from sys import argv
 from tempfile import TemporaryDirectory
 
 from util import debug_args, changing_text

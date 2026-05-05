@@ -133,7 +133,7 @@ def snapshot_copy(env, def_kafka_addr, fr, to):
         to_kc = get_kubectl(to_kube_context)
         to_prefix = to["prefix"]
         s3sign = Path(__file__).with_name("s3sign.java")
-        java = ("java", "--source", "21", "--enable-preview")
+        java = ("java", "--source", "25", "--enable-preview")
         #
         wait_no_active_prefix(to_kc, to_prefix)
         #
