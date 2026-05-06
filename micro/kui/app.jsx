@@ -91,11 +91,11 @@ export const Page = viewProps => {
     )
 }
 
-const compareBy = getKey => (a, b) => getKey(a).localeCompare(getKey(b))
+const compareBy = (dir, getKey) => (a, b) => dir * getKey(a).localeCompare(getKey(b))
 
 const PodsTabView = viewProps => {
     const {userAbbr, items, pod_name_like, pod_contexts, sort_by_node, willSend, willNavigate} = viewProps
-    const sortedItems = useMemo(() => sort_by_node ? items?.toSorted(compareBy(it => it.nodeName||"")) : items, [items, sort_by_node])
+    const sortedItems = useMemo(() => sort_by_node ? items?.toSorted(compareBy(1, it => it.nodeName||"")) : items, [items, sort_by_node])
     const minStartedAtByAppName = useMemo(() => items && Object.fromEntries(
         Object.entries(Object.groupBy(items.filter(pod=>pod.ready), pod=>pod.appName))
             .flatMap(([appName, its]) => its.length > 1 ? [[appName, its.map(it=>it.startedAt).toSorted()[0]]] : [])
@@ -268,7 +268,7 @@ const CIOTasksTabView = viewProps => {
 }
 
 const CIOEventsTabView = viewProps => {
-    const {items, willSend, cio_events_task_like} = viewProps
+    const {items, willSend, willNavigate, cio_events_task_like, cio_events_sort, cio_events_sort_dir} = viewProps
     const taskFilterRegex = useMemo(() => {
         const pattern = (cio_events_task_like || "").trim()
         if (!pattern) return { regex: null, error: null }
@@ -278,11 +278,15 @@ const CIOEventsTabView = viewProps => {
             return { regex: null, error: e?.message || "Invalid regex" }
         }
     }, [cio_events_task_like])
+    const sortKey = cio_events_sort || "task"
+    const sortDesc = cio_events_sort_dir === 'desc'
     const filteredItems = useMemo(
         () => (items || []).filter(t => (
             !taskFilterRegex.regex || taskFilterRegex.regex.test(t.task || "")
-        )),
-        [items, taskFilterRegex]
+        )).map(t => (
+            {...t, atStr: new Date(t.at*1000).toISOString() }
+        )).toSorted(compareBy(sortDesc ? -1 : 1,it => it[sortKey])),
+        [items, taskFilterRegex, sortKey, sortDesc]
     )
     const hideFiltered = async () => {
         if (taskFilterRegex.error || filteredItems.length === 0) return
@@ -291,6 +295,10 @@ const CIOEventsTabView = viewProps => {
             await willSend({ op: 'cio_events.hide', kube_context: t.kube_context, task: t.task })()
         }
     }
+    const sortAction = field => (
+       willNavigate({ cio_events_sort: field, cio_events_sort_dir: sortKey === field && !sortDesc ? 'desc' : '' })
+    )
+    const sortArrow = field => sortKey === field && (sortDesc ? '↑' : '↓')
     return <>
           <div className="mb-4 flex gap-2 items-center">
               <SimpleFilterInput
@@ -315,7 +323,11 @@ const CIOEventsTabView = viewProps => {
           <Table>
             <thead>
               <tr>
-                <Th>Context</Th><Th>Task</Th><Th>Status</Th><Th>At</Th><Th>Actions</Th>
+                  <Th>Context</Th>
+                  <Th onClick={sortAction("task")}>Task {sortArrow("task")}</Th>
+                  <Th>Status</Th>
+                  <Th onClick={sortAction("atStr")}>At {sortArrow("atStr")}</Th>
+                  <Th>Actions</Th>
               </tr>
             </thead>
             <tbody>
@@ -323,8 +335,7 @@ const CIOEventsTabView = viewProps => {
                     <Td colSpan="5">{items?.length > 0 ? "Not found" : "Select more filters ..."}</Td>
                 </Tr>}
                 { filteredItems.map((t, index) => <Tr key={`${t.kube_context}/${t.task}`} index={index}>
-                    <Td>{t.kube_context}</Td><Td>{t.task}</Td><Td>{t.status}</Td>
-                    <Td>{new Date(t.at*1000).toISOString()}</Td>
+                    <Td>{t.kube_context}</Td><Td>{t.task}</Td><Td>{t.status}</Td><Td>{t.atStr}</Td>
                     <Td>
                         <button className="bg-yellow-500 text-black px-2 py-1 rounded hover:bg-yellow-400"
                             onClick={willSend({ op: 'cio_events.hide', kube_context: t.kube_context, task: t.task })}

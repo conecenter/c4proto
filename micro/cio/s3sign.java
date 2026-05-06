@@ -26,8 +26,8 @@ void main(String[] args){
         final var UTF_8 = StandardCharsets.UTF_8;
         mac.init(new SecretKeySpec(secret, algorithm));
         final var signature = new String(Base64.getEncoder().encode(mac.doFinal(canonicalIn.getBytes(UTF_8))),UTF_8);
-        System.out.println(STR."Date:\{date}");
-        System.out.println(STR."Authorization:AWS \{key}:\{signature}");
+        System.out.println("Date:" + date);
+        System.out.println("Authorization:AWS " + key + ":" + signature);
     } catch(Exception e){
         e.printStackTrace();
         System.exit(1);
