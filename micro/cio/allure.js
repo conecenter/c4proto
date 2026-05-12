@@ -1,69 +1,19 @@
 
-onload = () => {
-    const pRuns = RUNS.map(name => {
-        const m = name.match(/^run\.([^.]+)\.([^.]+)\.(unp\/|tgz)$/)
-        return m && {
-            ts: m[1],
-            project: m[2],
-            kind: m[3] === "unp/" ? "html" : "tgz",
-            run: `run.${m[1]}.${m[2]}`,
-            href: name,
-        }
-    }).filter(Boolean)
-    const grouped = Object.values(Object.groupBy(pRuns, r => r.run)).map(group => ({
-        run: group[0].run,
-        ts: group[0].ts,
-        project: group[0].project,
-        html: group.find(x => x.kind === "html")?.href,
-        tgz: group.find(x => x.kind === "tgz")?.href,
-    }))
-    const rowsHtml = grouped
-        .sort((a, b) => b.run.localeCompare(a.run))
-        .map(r => `
-        <tr>
-          <td>${r.ts}</td>
-          <td>${r.project}</td>
-          <td class="run">${r.run}</td>
-          <td>${r.html ? `<a href="${r.html}index.html">open</a>` : ""}</td>
-          <td>${r.tgz ? `<a href="${r.tgz}">tgz</a>` : ""}</td>
-        </tr>
-      `).join("")
+const c4findParent = (node, cond) => node && (cond(node) ? node : c4findParent(node.parentNode, cond))
 
-    document.body.innerHTML = `
-      <meta charset="utf-8">
-      <style>
-        body { font-family: system-ui, sans-serif; margin: 2rem; }
-        input { margin: 0 0 1rem 0; padding: .4rem; width: 32rem; max-width: 100%; }
-        table { border-collapse: collapse; min-width: 60rem; }
-        th, td { border-bottom: 1px solid #ddd; padding: .45rem .7rem; text-align: left; }
-      </style>
-      <h1>Allure reports</h1>
-      <input id="q" placeholder="filter project / run">
-      <table>
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>Project</th>
-            <th>Run</th>
-            <th>HTML</th>
-            <th>TGZ</th>
-          </tr>
-        </thead>
-        <tbody id="rows">${rowsHtml}</tbody>
-      </table>
-    `
+const c4load = url => fetch(url).then(r => r.ok ? r.json() : null).catch(() => null)
 
-    const runs = [...document.querySelectorAll(".run")]
-        .map(el => ({ el, text: el.textContent.toLowerCase() }));
-
-    const render = () => {
-        const v = q.value.toLowerCase()
-        for (const r of runs) {
-            r.el.parentElement.style.display =
-                (!v || r.text.includes(v)) ? "" : "none"
-        }
-    }
-
-    q.oninput = render
-    render()
-}
+document.addEventListener("click", async ev => {
+  const uid = location.hash.match(/^#([^/]+)\/history$/)?.[1]
+  const item = c4findParent(ev.target, n => n.dataset?.testid === "test-result-history-item")
+  if (!item || !uid) return
+  const historyF = c4load(`./data/test-results/${uid}.json`)
+  const linksF = c4load(`/allure/c4-history-links-${c4proj}.json`)
+  // index among visible history items, instead of parsing date text
+  const items = [...document.querySelectorAll('[data-testid="test-result-history-item"]')]
+  const ix = items.indexOf(item)
+  if (ix < 0) return
+  const toId = (await historyF)?.history?.[ix]?.id
+  const url = (await linksF)?.[toId]
+  if (url) location.href = `${url}#${toId}/history`
+})

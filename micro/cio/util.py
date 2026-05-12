@@ -39,7 +39,7 @@ def run(args, **opt):
 
 def Popen(args, **opt): return subprocess.Popen(debug_args("starting", args), **opt)
 
-def run_text_out(args, **opt):
+def run_text_out(args, **opt) -> str:
     return subprocess.run(debug_args("running", args), check=True, text=True, capture_output=True, **opt).stdout
 
 def run_no_die(args, **opt): return subprocess.run(debug_args("running", args), **opt).returncode == 0

@@ -30,6 +30,7 @@ export const Page = viewProps => {
         { key: "cio_logs", view: p => <CIOLogsTabView {...p}/> },
         { key: "s3", view: p => <S3SnapshotsTabView {...p}/> },
         { key: "s3bucket", view: p => <S3BucketTabView {...p}/> },
+        { key: "allure", view: p => <AllureTabView {...p}/> },
         { key: "profiling", view: p => <ProfilingTabView {...p}/> },
         { key: "links", view: p => <LinksTabView {...p}/> },
     ]
@@ -39,6 +40,7 @@ export const Page = viewProps => {
         { keys: ["cio_events"], hint: "CIO events" },
         { keys: ["cio_logs"], hint: "CIO logs" },
         { keys: ["s3", "s3bucket"], hint: "S3" },
+        { keys: ["allure"], hint: "Allure" },
         { keys: ["links"], hint: "Links" },
     ]
 
@@ -593,6 +595,74 @@ const S3BucketTabView = viewProps => {
                                 <Td><TruncatedText text={obj.key} startChars={24} align="left"/></Td>
                                 <Td className="text-right">{formatS3Size(obj.size || 0)}</Td>
                                 <Td>{obj.last_modified ? String(obj.last_modified).split(".")[0] : "-"}</Td>
+                            </Tr>
+                        ))}
+                    </tbody>
+                </Table>
+            )}
+        </div>
+    )
+}
+
+const AllureTabView = viewProps => {
+    const {items, loaded_at, error, allure_query, willSend} = viewProps
+    const query = (allure_query || "").trim().toLowerCase()
+    const filteredItems = useMemo(
+        () => (items || []).filter(r => (
+            !query || r.project.toLowerCase().includes(query) || r.run.toLowerCase().includes(query)
+        )),
+        [items, query]
+    )
+    return (
+        <div className="space-y-4">
+            <div className="flex flex-wrap gap-2 items-center justify-between">
+                <div className="flex flex-wrap gap-2 items-center">
+                    <SimpleFilterInput viewProps={viewProps} fieldName="allure_query" placeholder="Filter project / run..."/>
+                    <button
+                        onClick={willSend({ op: 'allure.refresh' })}
+                        className="bg-blue-600 hover:bg-blue-500 px-4 py-1 rounded text-white"
+                    >
+                        Refresh
+                    </button>
+                </div>
+                <div className="text-xs text-gray-400">
+                    {loaded_at ? `Last updated ${new Date(loaded_at * 1000).toLocaleTimeString()}` : "Loading..."}
+                </div>
+            </div>
+            {error ? (
+                <div className="bg-red-900 border border-red-600 rounded p-3 text-red-100 text-sm">{error}</div>
+            ) : !items ? (
+                <div className="bg-gray-800 border border-gray-700 rounded p-3 text-gray-300 text-sm">
+                    Loading Allure reports...
+                </div>
+            ) : (
+                <Table>
+                    <thead>
+                        <tr>
+                            <Th>Time</Th>
+                            <Th>Project</Th>
+                            <Th>Run</Th>
+                            <Th>HTML</Th>
+                            <Th>TGZ</Th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filteredItems.length === 0 && (
+                            <Tr>
+                                <Td colSpan="5">{items.length > 0 ? "Not found" : "No reports found"}</Td>
+                            </Tr>
+                        )}
+                        {filteredItems.map((r, index) => (
+                            <Tr key={r.run} index={index}>
+                                <Td>{r.ts}</Td>
+                                <Td>{r.project}</Td>
+                                <Td className="font-mono text-xs">{r.run}</Td>
+                                <Td>
+                                    {r.html && <a className="underline hover:text-blue-400" href={`/allure/${r.html}index.html`} {...tBlank()}>open</a>}
+                                </Td>
+                                <Td>
+                                    {r.tgz && <a className="underline hover:text-blue-400" href={`/allure/${r.tgz}`} {...tBlank()}>tgz</a>}
+                                </Td>
                             </Tr>
                         ))}
                     </tbody>

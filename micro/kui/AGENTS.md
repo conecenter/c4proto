@@ -27,6 +27,7 @@
   - `s3bucket.refresh`: forces a bucket refresh; a background watcher drains the queue and updates the shared cache.
   Credentials and endpoints come from `C4KUI_S3_CONTEXTS` plus secrets JSON stored at `C4KUI_S3_SECRETS`.
 - `profiling.py`: Launches async-profiler inside selected pods. Tracks profiling status/result per user and serves the generated flamegraph over `/profiling-flamegraph.html`.
+- `allure.py`: Lists Allure report artifacts from the S3 proxy `allure` bucket and serves cached rows for the Allure tab. It currently carries a local copy of the small `grouped` helper from `kube_pods.py`; extract that helper to a shared module if a third KUI subsystem needs the same grouping pattern.
 - `servers.py`: OAuth2 proxy config, WebSocket/HTTP routing, response helpers, and the frontend build step (esbuild + Tailwind).
 - `util.js`: WebSocket management, hash-param navigation, and small React hooks (`useSimpleInput`, `useTabs`).
 

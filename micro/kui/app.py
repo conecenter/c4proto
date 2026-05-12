@@ -15,6 +15,7 @@ from kube_top import init_kube_top
 from cio import init_cio_tasks, init_cio_logs, init_cio_events
 from profiling import init_profiling
 from s3_proxy import init_s3_proxy
+from allure import init_allure
 
 def get_user_abbr(mail): return sub(r"[^A-Za-z]+","",mail.split("@")[0])
 def get_forward_service_name(mail): return f'fu-{get_user_abbr(mail)}'
@@ -60,16 +61,17 @@ def main():
     s3_actions = init_s3(contexts, kcp)
     s3bucket_actions, s3bucket_watcher = init_s3bucket(contexts, kcp)
     s3_proxy_handlers = init_s3_proxy(Route)
+    allure_actions, allure_watcher = init_allure()
     handlers = {
         **agent_auth_handlers, **cio_log_handlers, **profiling_handlers, **s3_proxy_handlers,
         "/": Route.http_auth(lambda **_: index_content),
         "/kop": Route.ws_auth({}, load_shared, {
             **kube_actions, **cio_task_actions, **cio_log_actions, **cio_event_actions, **profiling_actions, **s3_actions, **s3bucket_actions,
-            "links.load": load_links,
+            **allure_actions, "links.load": load_links,
         }),
         "_": Route.http_auth(lambda **_: "404"),
     }
     api_port = 1180
-    for watcher in [*kube_watchers,*cio_task_watchers,*cio_log_watchers,*cio_event_watchers, s3bucket_watcher]: daemon(restarting, watcher)
+    for watcher in [*kube_watchers,*cio_task_watchers,*cio_log_watchers,*cio_event_watchers, s3bucket_watcher, allure_watcher]: daemon(restarting, watcher)
     daemon(run_proxy, api_port, handlers)
     http_serve(api_port, handlers)
