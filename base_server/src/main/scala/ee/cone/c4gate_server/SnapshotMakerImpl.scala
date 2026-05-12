@@ -218,10 +218,10 @@ trait SnapshotMakerMaxTime {
 }
 
 @c4("SafeToRunApp") final class SafeToRun(
-  snapshotMaker: SnapshotMakerMaxTime, disable: Option[DisableDefaultSafeToRun],
+  snapshotMaker: SnapshotMakerMaxTime, disable: Option[DisableDefaultSafeToRun], config: ListConfig,
 ) extends Executable with Early {
   def run(): Unit = if(disable.isEmpty){
-    Thread.sleep(10*minute)
+    Thread.sleep(Single.option(config.get("C4SAFE_TO_RUN_SECONDS")).fold(10*minute)(s=>s.toLong*second))
     iter()
   }
   @tailrec private def iter(): Unit = {
