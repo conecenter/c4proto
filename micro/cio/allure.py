@@ -46,7 +46,7 @@ def allure_generate(allure_results, s3conf_dir, bucket, project) -> None:
 
     # patch navigation
     js_content = read_text(str(Path(__file__).parent/"allure.js"))
-    patch_content = f'<script>\nconst c4proj={dumps(project)}\n{js_content}\n</script>'
+    patch_content = f'<script>\nconst c4proj={dumps(project)};\n{js_content}\n</script>'
     index_path = f"{report_path}/index.html"
     changing_text(index_path, read_text(index_path).replace('</body>', f'{patch_content}</body>'))
 
