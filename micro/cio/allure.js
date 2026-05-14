@@ -23,4 +23,9 @@
     if (url) location.href = `${url}#${toId}/history`
   })
 
+  document.addEventListener("click", ev => {
+    const url = findParent(ev.target, n => n.tagName === "ASIDE")?.textContent?.match(/\[(https:[^\]]+)/)?.[1]
+    if (url) location.href = url
+  })
+
 })()
