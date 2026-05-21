@@ -3,20 +3,21 @@ from os import environ
 from pathlib import Path
 from dataclasses import dataclass
 from traceback import print_exc
+from json import loads
+
 from boto3 import client
 from botocore.client import BaseClient
-from botocore.exceptions import ClientError
-from fastapi import FastAPI
+
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from pydantic import TypeAdapter
 import uvicorn
+import asyncio
 
 @dataclass
 class SeqRecord:
     value: int
     etag: str
-
-@dataclass
-class SeqChangeResult:
-    ok: bool
 
 @dataclass
 class SeqService:
@@ -28,16 +29,9 @@ class SeqService:
         r = self.s3.get_object(Bucket=self.bucket, Key=self.obj_key)
         return SeqRecord(value=int(r["Body"].read()), etag=r["ETag"].strip('"'))
 
-    def put(self, body: SeqRecord) -> SeqChangeResult:
-        try:
-            data = str(body.value).encode()
-            self.s3.put_object(
-                Bucket=self.bucket, Key=self.obj_key, Body=data, ContentType="text/plain", IfMatch=body.etag
-            )
-            return SeqChangeResult(ok=True)
-        except ClientError as e:
-            print_exc()
-            return SeqChangeResult(ok=False)
+    def put(self, body: SeqRecord) -> None:
+        data = str(body.value).encode()
+        self.s3.put_object(Bucket=self.bucket, Key=self.obj_key, Body=data, ContentType="text/plain", IfMatch=body.etag)
 
 def main():
     s3conf = lambda k: (Path(environ["C4S3_CONF_DIR"]) / k).read_bytes().decode().strip()
@@ -49,7 +43,17 @@ def main():
     seq_service = SeqService(s3 = s3, bucket = environ["C4S3_SEQ_BUCKET"], obj_key = environ["C4S3_SEQ_OBJECT"])
     app = FastAPI()
     app.add_api_route("/c4/seq", seq_service.get, methods=["GET"])
-    app.add_api_route("/c4/seq", seq_service.put, methods=["PUT"])
+    seq_record_adapter = TypeAdapter(SeqRecord)
+    async def put(request: Request) -> JSONResponse:
+        """ returning json with "ok" is required by client """
+        try:
+            rec = seq_record_adapter.validate_python(loads(await request.body()))
+            await asyncio.get_running_loop().run_in_executor(None, seq_service.put, rec)
+            return JSONResponse({"ok": True})
+        except Exception as e:
+            print_exc()
+            return JSONResponse({"ok": False})
+    app.add_api_route("/c4/seq", put, methods=["PUT"])
     uvicorn.run(app, host="0.0.0.0", port=int(environ["C4HTTP_PORT"]))
 
 if __name__ == "__main__": main()
