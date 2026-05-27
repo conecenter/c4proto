@@ -1,22 +1,44 @@
-FROM ubuntu:24.04
-COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /
-RUN /install.pl useradd 1979
-RUN /install.pl apt curl ca-certificates unzip tini
-RUN /install.pl curl https://download.bell-sw.com/java/25.0.2+12/bellsoft-jdk25.0.2+12-linux-amd64.tar.gz
-RUN /install.pl curl https://dl.k8s.io/release/v1.33.1/bin/linux/amd64/kubectl && chmod +x /tools/kubectl
-RUN curl -L https://github.com/com-lihaoyi/Ammonite/releases/download/3.0.4/3.3-3.0.4 -o /tmp/amm \
- && echo "#!/usr/bin/env sh" > /tools/amm && cat /tmp/amm >> /tools/amm && chmod +x /tools/amm && chown c4:c4  /tools/amm \
- && rm /tmp/amm
+# syntax=docker/dockerfile:1
+FROM ubuntu:26.04 AS u26
+RUN useradd --home-dir /c4 --create-home --user-group --uid 1979 --shell /bin/bash c4
+
+FROM u26 AS build-c4dig
+RUN apt update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends unzip
+ADD --link --unpack "https://github.com/async-profiler/async-profiler/releases/download/v4.1/async-profiler-4.1-linux-x64.tar.gz" /c4dig
+ADD --link --unpack "https://github.com/alibaba/arthas/releases/download/arthas-all-4.1.1/arthas-bin.zip" /arthas-bin.zip
+RUN unzip /arthas-bin.zip -d /c4dig/arthas \
+ && mv /c4dig/async-profiler-4.1-linux-x64 /c4dig/async \
+ && mkdir /c4dig/async_out \
+ && chown -R c4:c4 /c4dig \
+ && tar -czf /c4/c4dig.tar.gz c4dig
+
+FROM u26 AS build-jdk
+ADD --link --unpack "https://download.bell-sw.com/java/25.0.2+12/bellsoft-jdk25.0.2+12-linux-amd64.tar.gz" /tools
+RUN mv /tools/jdk-25.0.2 /tools/jdk
+
+FROM u26 AS build-app
+RUN apt update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates
+ADD --link --unpack "https://github.com/sbt/sbt/releases/download/v1.11.7/sbt-1.11.7.tgz" /tools
+COPY --link --from=build-jdk /tools/jdk /tools/jdk
 USER c4
-RUN curl -L https://github.com/async-profiler/async-profiler/releases/download/v4.1/async-profiler-4.1-linux-x64.tar.gz -o /c4/profiler.tar.gz
-RUN curl -L https://github.com/alibaba/arthas/releases/download/arthas-all-4.1.1/arthas-bin.zip -o /c4/arthas-bin.zip
-RUN mkdir -p /tmp/c4dig/arthas \
- && cd /tmp/c4dig && tar xzf /c4/profiler.tar.gz && mv async-profiler-4.1-linux-x64 async \
- && mkdir async_out \
- && cd /tmp/c4dig/arthas && unzip /c4/arthas-bin.zip \
- && cd /tmp && tar -C /tmp -czf /c4/c4dig.tar.gz c4dig \
- && rm -r /tmp/c4dig
-ENV PATH=${PATH}:/tools/:/tools/jdk/bin
-ENTRYPOINT ["tini","--","perl","-e","-e and exec 'amm', $_ for map{$_.'/app.scala'} split ':', $ENV{C4UP_PATH}; die"]
-#todo: using compilation image can save some memory and boot time
-COPY . /app
+ENV PATH=${PATH}:/tools/jdk/bin:/tools/sbt/bin
+RUN mkdir -p /c4/app/project && cd /c4/app \
+ && echo 'addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "2.3.1")' > project/plugins.sbt \
+ && echo 'scalaVersion := "3.7.2"' > build.sbt \
+ && echo 'libraryDependencies += "com.lihaoyi" %% "ujson" % "4.4.1"' >> build.sbt \
+ && echo 'assembly / assemblyJarName := "c4dig.jar"' >> build.sbt \
+ && sbt update
+COPY app.scala /c4/app/
+RUN env -C /c4/app sbt assembly && cp /c4/app/target/scala-3.7.2/c4dig.jar /c4/c4dig.jar
+
+FROM u26
+RUN apt update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates tini && rm -rf /var/lib/apt/lists/*
+ADD --link --chmod=+x "https://dl.k8s.io/release/v1.33.1/bin/linux/amd64/kubectl" /tools/kubectl
+COPY --link --from=build-jdk /tools/jdk /tools/jdk
+COPY --link --from=build-c4dig /c4/c4dig.tar.gz /c4/c4dig.tar.gz
+COPY --link --from=build-app /c4/c4dig.jar /c4/c4dig.jar
+COPY agent.py /c4/agent.py
+USER c4
+ENV PATH=${PATH}:/tools:/tools/jdk/bin
+ENV C4UP_PATH=/c4
+ENTRYPOINT ["tini","--","java","-jar","/c4/c4dig.jar"]
