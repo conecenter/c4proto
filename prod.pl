@@ -327,8 +327,6 @@ my $if_changed = sub{
 };
 my $build_client = sub{
     my($dir, $mode)=@_;
-    my $opt = $mode eq "fast" ? "--env fast=true --mode development" : $mode eq "dev" ? "--mode development" :
-        "--mode production";
     my $build_dir = "$dir/out";
     unlink or die $! for <$build_dir/*>;
     my $conf_dir = &$single_or_undef(grep{-e} map{"$_/webpack"} <$dir/src/*>) || die;
@@ -336,7 +334,7 @@ my $build_client = sub{
         sy("cp -r $conf_dir/patches $dir/.") if -e "$conf_dir/patches";
         sy("cd $dir && npm install --no-save --legacy-peer-deps");
     }
-    sy("cd $dir && cp $conf_dir/webpack.config.js . && cp $conf_dir/tsconfig.json . && cp $conf_dir/.eslintrc.json . && node_modules/webpack/bin/webpack.js --color $opt");# -d
+    sy("cd $dir && perl $conf_dir/build.pl $mode");
     &$put_text("$build_dir/publish_time",time);
     &$put_text("$build_dir/c4gen.ht.links",join"",
         map{ my $u = m"^/(.+)$"?$1:die; "base_lib.ee.cone.c4gate /$u $u\n" }
