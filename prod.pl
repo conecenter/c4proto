@@ -334,7 +334,7 @@ my $build_client = sub{
         sy("cp -r $conf_dir/patches $dir/.") if -e "$conf_dir/patches";
         sy("cd $dir && npm install --no-save --legacy-peer-deps");
     }
-    sy("cd $dir && perl $conf_dir/build.pl $mode");
+    sy("cd $dir && perl $conf_dir/do_build $mode");
     &$put_text("$build_dir/publish_time",time);
     &$put_text("$build_dir/c4gen.ht.links",join"",
         map{ my $u = m"^/(.+)$"?$1:die; "base_lib.ee.cone.c4gate /$u $u\n" }
