@@ -33,17 +33,8 @@ class SeqService:
         data = str(body.value).encode()
         self.s3.put_object(Bucket=self.bucket, Key=self.obj_key, Body=data, ContentType="text/plain", IfMatch=body.etag)
 
-def main():
-    s3conf = lambda k: (Path(environ["C4S3_CONF_DIR"]) / k).read_bytes().decode().strip()
-    s3address = s3conf("address")
-    s3key = s3conf("key")
-    s3secret = s3conf("secret")
-    s3 = client("s3", endpoint_url=s3address, aws_access_key_id=s3key, aws_secret_access_key=s3secret)
-    # later operations with s3 seems to be thread safe
-    seq_service = SeqService(s3 = s3, bucket = environ["C4S3_SEQ_BUCKET"], obj_key = environ["C4S3_SEQ_OBJECT"])
-    app = FastAPI()
-    app.add_api_route("/c4/seq", seq_service.get, methods=["GET"])
-    seq_record_adapter = TypeAdapter(SeqRecord)
+def add_seq_routes(app, path, seq_service, seq_record_adapter):
+    app.add_api_route(path, seq_service.get, methods=["GET"])
     async def put(request: Request) -> JSONResponse:
         """ returning json with "ok" is required by client """
         try:
@@ -53,7 +44,22 @@ def main():
         except Exception as e:
             print_exc()
             return JSONResponse({"ok": False})
-    app.add_api_route("/c4/seq", put, methods=["PUT"])
+    app.add_api_route(path, put, methods=["PUT"])
+
+
+def main():
+    s3conf = lambda k: (Path(environ["C4S3_CONF_DIR"]) / k).read_bytes().decode().strip()
+    s3address = s3conf("address")
+    s3key = s3conf("key")
+    s3secret = s3conf("secret")
+    s3 = client("s3", endpoint_url=s3address, aws_access_key_id=s3key, aws_secret_access_key=s3secret)
+    # later operations with s3 seems to be thread safe
+    app = FastAPI()
+    seq_record_adapter = TypeAdapter(SeqRecord)
+    for path, bucket_obj_key in loads(environ["C4S3_SEQS"]).items():
+        bucket, obj_key = bucket_obj_key.split("/")
+        seq_service = SeqService(s3 = s3, bucket = bucket, obj_key = obj_key)
+        add_seq_routes(app=app, path=path, seq_service=seq_service, seq_record_adapter=seq_record_adapter)
     uvicorn.run(app, host="0.0.0.0", port=int(environ["C4HTTP_PORT"]))
 
 if __name__ == "__main__": main()
