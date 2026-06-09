@@ -221,9 +221,9 @@ case object SSEPingTimeKey extends TransientLens[Instant](Instant.MIN)
 case class Availability(path: String, until: Long)
 
 @c4("NoProxySSEConfigApp") final case class NoProxySSEConfig()(config: Config) extends SSEConfig {
-  def stateRefreshPeriodSeconds: Int = config.get("C4STATE_REFRESH_SECONDS").toInt
+  def stateRefreshPeriodSeconds: Int = 10//config.get("C4STATE_REFRESH_SECONDS").toInt
   def allowOrigin: Option[String] = Option("*")
   def pongURL: String = "/pong"
-  def tolerateOfflineSeconds: Int = 60
+  def tolerateOfflineSeconds: Int = 10//60
   def sessionWaitingRequests: Int = 8
 }
