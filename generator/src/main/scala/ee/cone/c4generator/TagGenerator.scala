@@ -264,7 +264,6 @@ single
 // Generates c4gen.<Name>.ts alongside each Scala sapi file that contains @c4tags traits.
 // Only handles new-API components (@c4el / @c4elPath) — legacy components have no @c4tags.
 // TODO: add caching (currently re-parses all scala files on every sbt c4build)
-// TODO: @c4tagSwitch types with @c4val impls in other files emit `unknown` — cross-file analysis not yet supported
 class TsTagWillGenerator extends WillGenerator {
 
   private sealed trait SwitchVariant
@@ -299,6 +298,7 @@ class TsTagWillGenerator extends WillGenerator {
     val switchTraitNames: Set[String] = parseCtx.stats.collect {
       case Defn.Trait(Seq(mod"@c4tagSwitch(...$_)"), Type.Name(name), _, _, _) => name
     }.toSet
+    val commonImports = scala.collection.mutable.Set.empty[String]
 
     val variantsByTrait: Map[String, List[SwitchVariant]] = parseCtx.stats.flatMap {
       case Defn.Trait(Seq(mod"@c4tags(...$_)"), _, tParams, _, template) =>
@@ -326,8 +326,8 @@ class TsTagWillGenerator extends WillGenerator {
         template.stats.flatMap {
           case q"..$mods def $_(...$args): $_" =>
             mods match {
-              case Seq(mod"@c4el(${Lit(t: String)})")     => List(toInterface(t, tpOpt, args.flatten.toList, hasPath = false, switchTraitNames))
-              case Seq(mod"@c4elPath(${Lit(t: String)})") => List(toInterface(t, tpOpt, args.flatten.toList, hasPath = true,  switchTraitNames))
+              case Seq(mod"@c4el(${Lit(t: String)})")     => List(toInterface(t, tpOpt, args.flatten.toList, hasPath = false, switchTraitNames, commonImports))
+              case Seq(mod"@c4elPath(${Lit(t: String)})") => List(toInterface(t, tpOpt, args.flatten.toList, hasPath = true,  switchTraitNames, commonImports))
               case _                                       => Nil
             }
           case _ => Nil
@@ -339,18 +339,23 @@ class TsTagWillGenerator extends WillGenerator {
 
     // Phase 3: assemble output
     val typeAliases = switchTraitNames.toList.sorted
-      .map(n => toTypeAlias(n, variantsByTrait.getOrElse(n, Nil), switchTraitNames))
+      .map(n => toTypeAlias(n, variantsByTrait.getOrElse(n, Nil), switchTraitNames, commonImports))
 
-    val reactImport  = if (interfaces.exists(_.contains("ReactElement"))) "import { ReactElement } from 'react'\n\n" else ""
+    val reactImport  = if (interfaces.exists(_.contains("ReactElement"))) "import { ReactElement } from 'react'\n" else ""
+    val commonImport = if (commonImports.nonEmpty)
+      s"import { ${commonImports.toList.sorted.mkString(", ")} } from 'c4f/sapi/ee/cone/c4ui/c4gen.CommonElementsApi'\n"
+    else ""
+    val importsBlock = List(reactImport, commonImport).filter(_.nonEmpty).mkString + "\n"
     val aliasSection = if (typeAliases.isEmpty) "" else typeAliases.mkString("\n") + "\n\n"
 
-    s"// THIS FILE IS GENERATED\n\n$reactImport$aliasSection${interfaces.mkString("\n\n")}\n"
+    s"// THIS FILE IS GENERATED\n\n$importsBlock$aliasSection${interfaces.mkString("\n\n")}\n"
   }
 
   private def toTypeAlias(
     traitName: String,
     variants: List[SwitchVariant],
     switchTraitNames: Set[String],
+    commonImports: scala.collection.mutable.Set[String],
   ): String = {
     if (variants.isEmpty)
       return s"export type $traitName = unknown // TODO: no @c4val found in this file"
@@ -362,7 +367,7 @@ class TsTagWillGenerator extends WillGenerator {
         val fields = tpField ::: params.collect {
           case Term.Param(_, Term.Name(n), Some(t), defVal) =>
             val opt = if (defVal.nonEmpty) "?" else ""
-            s"$n$opt: ${toTsType(t, tpOpt, switchTraitNames)}"
+            s"$n$opt: ${toTsType(t, tpOpt, switchTraitNames, commonImports)}"
         }
         s"{ ${fields.mkString(", ")} }"
     }
@@ -375,6 +380,7 @@ class TsTagWillGenerator extends WillGenerator {
     params: List[Term.Param],
     hasPath: Boolean,
     switchTraitNames: Set[String],
+    commonImports: scala.collection.mutable.Set[String],
   ): String = {
     val fields =
       "  identity: object" ::
@@ -382,7 +388,7 @@ class TsTagWillGenerator extends WillGenerator {
       params.collect {
         case Term.Param(_, Term.Name(paramName), Some(paramType), defVal) if paramName != "key" =>
           val opt = if (isOptional(paramType, hasDefault = defVal.nonEmpty)) "?" else ""
-          s"  $paramName$opt: ${toTsType(paramType, tpOpt, switchTraitNames)}"
+          s"  $paramName$opt: ${toTsType(paramType, tpOpt, switchTraitNames, commonImports)}"
       }
     s"export interface ${name}Props {\n${fields.mkString("\n")}\n}"
   }
@@ -398,26 +404,28 @@ class TsTagWillGenerator extends WillGenerator {
     paramType: Type,
     tpOpt: Option[String],
     switchTraitNames: Set[String],
+    commonImports: scala.collection.mutable.Set[String],
   ): String = paramType match {
     case Type.Name("ViewRes")                                                      => "ReactElement[]"
     case Type.Apply(Type.Name("ElList"), _)                                        => "ReactElement[]"
     case Type.Apply(Type.Name(_), List(Type.Name(inner))) if tpOpt.contains(inner) => "boolean" // Receiver[C]
-    case Type.Apply(Type.Name("List"), List(Type.Name(n)))                         => s"${resolveScalar(n, switchTraitNames)}[]"
-    case Type.Apply(Type.Name("Option"), List(Type.Name(n)))                       => resolveScalar(n, switchTraitNames)
-    case Type.Name(n)                                                              => resolveScalar(n, switchTraitNames)
+    case Type.Apply(Type.Name("List"), List(Type.Name(n)))                         => s"${resolveScalar(n, switchTraitNames, commonImports)}[]"
+    case Type.Apply(Type.Name("Option"), List(Type.Name(n)))                       => resolveScalar(n, switchTraitNames, commonImports)
+    case Type.Name(n)                                                              => resolveScalar(n, switchTraitNames, commonImports)
     case other                                                                     => s"unknown /* TODO: $other */"
   }
 
-  // Known Scala primitives map to TS primitives.
-  // @c4tagSwitch types resolve to their alias name (defined earlier in the same file).
-  // Anything else (ColorDef, Size, …) emits unknown.
-  private def resolveScalar(name: String, switchTraitNames: Set[String]): String = name match {
+  private def resolveScalar(
+    name: String,
+    switchTraitNames: Set[String],
+    commonImports: scala.collection.mutable.Set[String],
+  ): String = name match {
     case "String"                  => "string"
     case "Boolean"                 => "boolean"
     case "Int" | "Double" | "Float" => "number"
     case "Long"                    => "string" // Long can't round-trip through JS number; sent as string
     case "BigDecimal"              => "number"
     case n if switchTraitNames(n)  => n
-    case _                         => "unknown"
+    case n => commonImports += n; n
   }
 }
