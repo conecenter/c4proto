@@ -270,6 +270,7 @@ class TsTagWillGenerator extends WillGenerator {
   private sealed trait SwitchVariant
   private case class StringVariant(literal: String) extends SwitchVariant
   private case class ObjectVariant(params: List[Term.Param], tParamNameOpt: Option[String]) extends SwitchVariant
+  private case class ElVariant(propsName: String) extends SwitchVariant
 
   def get(ctx: WillGeneratorContext): List[(Path, Array[Byte])] =
     ctx.fromFiles
@@ -299,7 +300,7 @@ class TsTagWillGenerator extends WillGenerator {
       case Defn.Trait(Seq(mod"@c4tagSwitch(...$_)"), Type.Name(name), _, _, _) => name
     }.toSet
 
-    val valsByTrait: Map[String, List[SwitchVariant]] = parseCtx.stats.flatMap {
+    val variantsByTrait: Map[String, List[SwitchVariant]] = parseCtx.stats.flatMap {
       case Defn.Trait(Seq(mod"@c4tags(...$_)"), _, tParams, _, template) =>
         val tpOpt = tParamName(tParams)
         template.stats.flatMap {
@@ -308,6 +309,7 @@ class TsTagWillGenerator extends WillGenerator {
             mods match {
               case Seq(mod"@c4val(${Lit(t: String)})") if flatArgs.isEmpty => List((retType, StringVariant(t)))
               case Seq(mod"@c4val") if flatArgs.nonEmpty                   => List((retType, ObjectVariant(flatArgs, tpOpt)))
+              case Seq(mod"@c4el(${Lit(t: String)})")                      => List((retType, ElVariant(s"${t}Props")))
               case _                                                        => Nil
             }
           case _ => Nil
@@ -335,9 +337,9 @@ class TsTagWillGenerator extends WillGenerator {
 
     // Phase 3: assemble output
     val typeAliases = switchTraitNames.toList.sorted
-      .map(n => toTypeAlias(n, valsByTrait.getOrElse(n, Nil), switchTraitNames))
+      .map(n => toTypeAlias(n, variantsByTrait.getOrElse(n, Nil), switchTraitNames))
 
-    val reactImport  = if (interfaces.exists(_.contains("ReactNode"))) "import { ReactNode } from 'react'\n\n" else ""
+    val reactImport  = if (interfaces.exists(_.contains("ReactElement"))) "import { ReactElement } from 'react'\n\n" else ""
     val aliasSection = if (typeAliases.isEmpty) "" else typeAliases.mkString("\n") + "\n\n"
 
     s"// THIS FILE IS GENERATED\n\n$reactImport$aliasSection${interfaces.mkString("\n\n")}\n"
@@ -351,8 +353,8 @@ class TsTagWillGenerator extends WillGenerator {
     if (variants.isEmpty)
       return s"export type $traitName = unknown // TODO: no @c4val found in this file"
     val parts = variants.map {
-      case StringVariant(lit) =>
-        s""""$lit""""
+      case StringVariant(lit) => s""""$lit""""
+      case ElVariant(propsName) => propsName
       case ObjectVariant(params, tpOpt) =>
         val fields = params.collect {
           case Term.Param(_, Term.Name(n), Some(t), defVal) =>
@@ -394,8 +396,8 @@ class TsTagWillGenerator extends WillGenerator {
     tpOpt: Option[String],
     switchTraitNames: Set[String],
   ): String = paramType match {
-    case Type.Name("ViewRes")                                                      => "ReactNode[]"
-    case Type.Apply(Type.Name("ElList"), _)                                        => "ReactNode[]"
+    case Type.Name("ViewRes")                                                      => "ReactElement[]"
+    case Type.Apply(Type.Name("ElList"), _)                                        => "ReactElement[]"
     case Type.Apply(Type.Name(_), List(Type.Name(inner))) if tpOpt.contains(inner) => "boolean" // Receiver[C]
     case Type.Apply(Type.Name("List"), List(Type.Name(n)))                         => s"${resolveScalar(n, switchTraitNames)}[]"
     case Type.Apply(Type.Name("Option"), List(Type.Name(n)))                       => resolveScalar(n, switchTraitNames)
