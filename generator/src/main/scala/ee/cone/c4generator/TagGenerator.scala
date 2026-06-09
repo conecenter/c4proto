@@ -341,9 +341,9 @@ class TsTagWillGenerator extends WillGenerator {
     val typeAliases = switchTraitNames.toList.sorted
       .map(n => toTypeAlias(n, variantsByTrait.getOrElse(n, Nil), switchTraitNames, commonImports))
 
-    val reactImport  = if (interfaces.exists(_.contains("ReactElement"))) "import { ReactElement } from 'react'\n" else ""
+    val reactImport  = if (interfaces.exists(_.contains("ReactElement"))) "import type { ReactElement } from 'react'\n" else ""
     val commonImport = if (commonImports.nonEmpty)
-      s"import { ${commonImports.toList.sorted.mkString(", ")} } from 'c4f/sapi/ee/cone/c4ui/c4gen.CommonElementsApi'\n"
+      s"import type { ${commonImports.toList.sorted.mkString(", ")} } from 'c4f/sapi/ee/cone/c4ui/c4gen.CommonElementsApi'\n"
     else ""
     val importsBlock = List(reactImport, commonImport).filter(_.nonEmpty).mkString + "\n"
     val aliasSection = if (typeAliases.isEmpty) "" else typeAliases.mkString("\n") + "\n\n"
