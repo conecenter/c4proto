@@ -269,7 +269,7 @@ class TsTagWillGenerator extends WillGenerator {
 
   private sealed trait SwitchVariant
   private case class StringVariant(literal: String) extends SwitchVariant
-  private case class ObjectVariant(params: List[Term.Param], tParamNameOpt: Option[String]) extends SwitchVariant
+  private case class ObjectVariant(params: List[Term.Param], tParamNameOpt: Option[String], tp: Option[String] = None) extends SwitchVariant
   private case class ElVariant(propsName: String) extends SwitchVariant
 
   def get(ctx: WillGeneratorContext): List[(Path, Array[Byte])] =
@@ -308,7 +308,9 @@ class TsTagWillGenerator extends WillGenerator {
             val flatArgs = args.flatten.toList
             mods match {
               case Seq(mod"@c4val(${Lit(t: String)})") if flatArgs.isEmpty => List((retType, StringVariant(t)))
-              case Seq(mod"@c4val") if flatArgs.nonEmpty                   => List((retType, ObjectVariant(flatArgs, tpOpt)))
+              case Seq(mod"@c4val(...$e)") if flatArgs.nonEmpty            =>
+                val tp = e.flatten.collectFirst { case Lit(t: String) => t }
+                List((retType, ObjectVariant(flatArgs, tpOpt, tp)))
               case Seq(mod"@c4el(${Lit(t: String)})")                      => List((retType, ElVariant(s"${t}Props")))
               case _                                                        => Nil
             }
@@ -355,8 +357,9 @@ class TsTagWillGenerator extends WillGenerator {
     val parts = variants.map {
       case StringVariant(lit) => s""""$lit""""
       case ElVariant(propsName) => propsName
-      case ObjectVariant(params, tpOpt) =>
-        val fields = params.collect {
+      case ObjectVariant(params, tpOpt, tp) =>
+        val tpField = tp.map(t => s"""tp: "$t"""").toList
+        val fields = tpField ::: params.collect {
           case Term.Param(_, Term.Name(n), Some(t), defVal) =>
             val opt = if (defVal.nonEmpty) "?" else ""
             s"$n$opt: ${toTsType(t, tpOpt, switchTraitNames)}"
