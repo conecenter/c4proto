@@ -301,6 +301,11 @@ class TsTagWillGenerator extends WillGenerator {
     val commonImports = scala.collection.mutable.Set.empty[String]
 
     val variantsByTrait: Map[String, List[SwitchVariant]] = parseCtx.stats.flatMap {
+      case Defn.Trait(Seq(mod"@c4tagSwitch(...$_)"), Type.Name(childName), _, _, template) =>
+        template.inits.collect {
+          case Init(Type.Name(parentName), _, _) if switchTraitNames(parentName) =>
+            (parentName, ElVariant(childName))
+        }
       case Defn.Trait(Seq(mod"@c4tags(...$_)"), _, tParams, _, template) =>
         val tpOpt = tParamName(tParams)
         template.stats.flatMap {
