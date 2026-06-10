@@ -425,6 +425,7 @@ class TsTagWillGenerator extends WillGenerator {
     case "Int" | "Double" | "Float" => "number"
     case "Long"                    => "string" // Long can't round-trip through JS number; sent as string
     case "Em" | "BigDecimal"       => "number"
+    case "CSSClassName"            => "string"
     case n if switchTraitNames(n)  => n
     case n => commonImports += n; n
   }
