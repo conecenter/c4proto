@@ -263,29 +263,32 @@ single
 
 // Generates c4gen.<Name>.ts alongside each Scala sapi file that contains @c4tags traits.
 // Only handles new-API components (@c4el / @c4elPath) — legacy components have no @c4tags.
-// TODO: add caching (currently re-parses all scala files on every sbt c4build)
 class TsTagWillGenerator extends WillGenerator {
-
   private sealed trait SwitchVariant
   private case class StringVariant(literal: String) extends SwitchVariant
   private case class ObjectVariant(params: List[Term.Param], tParamNameOpt: Option[String], tp: Option[String] = None) extends SwitchVariant
   private case class ElVariant(propsName: String) extends SwitchVariant
 
-  def get(ctx: WillGeneratorContext): List[(Path, Array[Byte])] =
-    ctx.fromFiles
-      .filter(_.getFileName.toString.endsWith(".scala"))
-      .flatMap { path =>
-        val content = new String(Files.readAllBytes(path), UTF_8)
-        if (!content.contains("@c4tags")) Nil
-        else DefaultWillGenerator.getParseContext(path, content).toList.flatMap { parseCtx =>
-          val tsContent = generateFileContent(parseCtx)
-          if (tsContent.isEmpty) Nil
-          else {
-            val base = path.getFileName.toString.stripSuffix(".scala")
-            List(path.resolveSibling(s"c4gen.$base.ts") -> tsContent.getBytes(UTF_8))
-          }
+  def get(ctx: WillGeneratorContext): List[(Path, Array[Byte])] = {
+    val sapiFiles = ctx.fromFiles.filter { p =>
+      p.getFileName.toString.endsWith(".scala") &&
+        ctx.dirInfo.get(p.getParent).exists(
+          _.modInfo.group.srcDirs.exists(_.getFileName.toString == "sapi")
+        )
+    }
+    sapiFiles.flatMap { path =>
+      val content = new String(Files.readAllBytes(path), UTF_8)
+      if (!content.contains("@c4tags")) Nil
+      else DefaultWillGenerator.getParseContext(path, content).toList.flatMap { parseCtx =>
+        val tsContent = generateFileContent(parseCtx)
+        if (tsContent.isEmpty) Nil
+        else {
+          val base = path.getFileName.toString.stripSuffix(".scala")
+          List(path.resolveSibling(s"c4gen.$base.ts") -> tsContent.getBytes(UTF_8))
         }
       }
+    }
+  }
 
   private def tParamName(tParams: Seq[Type.Param]): Option[String] = tParams match {
     case Seq() => None
