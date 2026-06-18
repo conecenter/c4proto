@@ -301,6 +301,7 @@ class TsTagWillGenerator extends WillGenerator {
     val switchTraitNames: Set[String] = parseCtx.stats.collect {
       case Defn.Trait(Seq(mod"@c4tagSwitch(...$_)"), Type.Name(name), _, _, _) => name
     }.toSet
+    // using mutable is safe here as it's shared in single file generation - single thread
     val commonImports = scala.collection.mutable.Set.empty[String]
 
     val variantsByTrait: Map[String, List[SwitchVariant]] = parseCtx.stats.flatMap {
