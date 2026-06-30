@@ -115,7 +115,7 @@ import scala.util.control.NonFatal
   port: Int = config.get("C4HTTP_PORT").toInt,
   handlers: List[AkkaRequestHandler] = handlersUnsorted.sortBy(_.pathPrefix).reverse
 ) extends Executable with Early with LazyLogging {
-  def run(): Unit = execution.fatal{ implicit ec =>
+  def run(): Unit = execution.unboundedFatal{ implicit ec =>
     for{
       mat <- akkaMat.get
       http <- akkaHttp.get
