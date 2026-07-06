@@ -1,3 +1,4 @@
+
 from functools import partial
 from json import loads, dumps
 from os import environ
@@ -9,6 +10,13 @@ from base64 import b64encode
 from time import monotonic
 from logging import debug
 
+from util import rget
+
+def http_req(url, data, expect):
+    with urlopen(url, data) as f:
+        if f.status not in expect: raise Exception(f"bad status: {f.status}")
+        return f.read()
+
 def set_one_time(mut_one_time, key, value): mut_one_time[key] = (monotonic(), value)
 def pop_one_time(mut_one_time, key):
     tm, value = mut_one_time.pop(key)
@@ -19,7 +27,7 @@ def get_redirect_uri(): return f'https://{environ["C4KUI_HOST"]}/ind-auth'
 
 def get_issuer(cluster): return cluster.get("issuer", environ["C4KUI_ISSUER"].replace('{zone}',cluster["zone"]))
 
-def handle_ind_login(mut_one_time,name,location_hash,**_):
+def handle_ind_login(mut_one_time,redirect,name,location_hash):
     cluster, = [c for c in loads(environ["C4KUI_CLUSTERS"]) if c["name"] == name]
     state_key = token_urlsafe(16)
     query_params = {
@@ -27,9 +35,9 @@ def handle_ind_login(mut_one_time,name,location_hash,**_):
         "scope": "openid profile email offline_access groups", "state": state_key
     }
     set_one_time(mut_one_time, state_key, (cluster, location_hash))
-    return f'https://{get_issuer(cluster)}/auth?{urlencode(query_params)}'
+    return redirect(f'https://{get_issuer(cluster)}/auth?{urlencode(query_params)}')
 
-def handle_ind_auth(mut_one_time,get_forward_service_name,mail,state,code,**_):
+def handle_ind_auth(mut_one_time,redirect,get_forward_service_name,mail,state,code):
     forward_service_name = get_forward_service_name(mail)
     cluster, location_hash = pop_one_time(mut_one_time,state)
     name = cluster["name"]
@@ -39,9 +47,7 @@ def handle_ind_auth(mut_one_time,get_forward_service_name,mail,state,code,**_):
         "client_id": name, "client_secret": client_secret
     }
     debug(f'fetching token for {forward_service_name} / {name}')
-    with urlopen(f'https://{get_issuer(cluster)}/token',urlencode(params).encode()) as f:
-        if f.status != 200: raise Exception(f"bad status: {f.status}")
-        msg = loads(f.read().decode())
+    msg = loads(http_req(f'https://{get_issuer(cluster)}/token',urlencode(params).encode(), {200}))
     debug(f'fetched token for {forward_service_name} / {name}')
     contexts = [c for c in loads(environ["C4KUI_CONTEXTS"]) if c["cluster"] == name]
     cert_content = b64encode(Path(environ["C4KUI_CERTS"].replace("{name}", name)).read_bytes()).decode()
@@ -66,17 +72,23 @@ def handle_ind_auth(mut_one_time,get_forward_service_name,mail,state,code,**_):
     }
     a_code = token_urlsafe(16)
     set_one_time(mut_one_time, a_code, out_msg)
-    return f'http://localhost:1979/agent-auth?{urlencode({"code":a_code})}'
+    return redirect(f'http://localhost:1979/agent-auth?{urlencode({"code":a_code})}')
 
-def handle_agent_auth(mut_one_time,code,**_): return dumps(pop_one_time(mut_one_time,code))
+def handle_agent_auth(mut_one_time, code, _no_auth): return pop_one_time(mut_one_time,code)
 
-def init_agent_auth(mut_one_time, active_contexts, get_forward_service_name, rt):
+def init_agent_auth(get_forward_service_name, make_response):
+    def redirect(res): return make_response(302, [("Location",res)])
+    mut_one_time = {}
+    return (
+        rget("/ind-login")(partial(handle_ind_login,mut_one_time, redirect)),
+        rget("/ind-auth")(partial(handle_ind_auth, mut_one_time, redirect, get_forward_service_name)),
+        rget("/agent-auth")(partial(handle_agent_auth, mut_one_time)),
+    )
+
+def init_clusters(active_contexts):
     active_cluster_names = {c["cluster"] for c in active_contexts}
     cluster_names = [c["name"] for c in loads(environ["C4KUI_CLUSTERS"])]
     clusters = [{ "name": cn, "watch": cn in active_cluster_names } for cn in cluster_names]
-    handlers = {
-        "/ind-login": rt.http_auth(partial(handle_ind_login,mut_one_time)),
-        "/ind-auth": rt.http_auth(partial(handle_ind_auth, mut_one_time, get_forward_service_name)),
-        "/agent-auth": rt.http_no_auth(partial(handle_agent_auth, mut_one_time)),
-    }
-    return lambda: clusters, handlers
+    @rget("/clusters")
+    def load(): return { "clusters": clusters }
+    return load,

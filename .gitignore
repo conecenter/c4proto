@@ -40,3 +40,5 @@ c4front
 __pycache__
 
 .bsp
+
+.claude/

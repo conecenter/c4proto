@@ -75,7 +75,9 @@ def handle(req):
                 report_proc_stat()
                 report_proc_meminfo()
                 report_jcmd(prof_out_dir, pid)
-            for p in prof_out_dir.iterdir(): send({"tp": "file", "name": p.name, "data": b64gz(p.read_bytes())})
+            opened = { p.resolve() for p in Path(f'/proc/{pid}/fd').iterdir() }
+            to_transfer = [p for p in prof_out_dir.iterdir() if p not in opened]
+            for p in to_transfer: send({"tp": "file", "name": p.name, "data": b64gz(p.read_bytes())})
 
 def watchdog(alarm_q, timeout):
     try:

@@ -1,40 +1,30 @@
-from base64 import b64encode
-from json import loads
-import json
-from os import environ, kill, getpid
-from threading import Thread, get_native_id
+from collections.abc import Callable
+from functools import partial
+from json import dumps
+from concurrent.futures import Future
+from os import environ
 from pathlib import Path
 from re import findall
-from urllib.parse import urlparse, parse_qs
-from collections import namedtuple
-from signal import SIGTERM
-from traceback import print_exc
-from time import sleep, monotonic
-from hashlib import sha256
 from subprocess import check_call
-from logging import debug, info
+from sys import _is_gil_enabled
+from threading import get_native_id
+from typing import Sequence
+from logging import debug, exception
+from inspect import signature, Parameter
+from time import sleep
+from hashlib import blake2s
+from asyncio import get_running_loop
 
-from websockets import Headers
-from websockets.sync.server import serve
-from websockets.http11 import Response
+import uvicorn
+from starlette.applications import Starlette
+from starlette.middleware import Middleware
+from starlette.middleware.gzip import GZipMiddleware
+from starlette.responses import Response
+from starlette.routing import Route
 
-Handler = namedtuple("Handler", ("need_auth", "handle_http", "handle_ws"))
+from util import die, Export, grouped, Op, Watch, rget
 
-def one(it): return it
-def dumps(st, **opt): return json.dumps(st, sort_keys=True, **opt)
-def fatal(f, *args):
-    try: f(*args)
-    except:
-        print_exc()
-        kill(getpid(), SIGTERM)
-        raise
-def daemon(*args): Thread(target=fatal, args=args, daemon=True).start()
-
-def restarting(f,*args):
-    while True:
-        try: f(*args)
-        except Exception: print_exc()
-        sleep(2)
+def flat_exports(l): return [(e if isinstance(e, Export) else die(f"bad_export {e}")) for es in l for e in es]
 
 def split_to_set(v): return {*findall(r'[^\s,]+', v or '')}
 def check_auth(headers):
@@ -42,113 +32,72 @@ def check_auth(headers):
     allow_mails = split_to_set(environ.get("C4KUI_ALLOW_MAILS"))
     groups = split_to_set(headers.get("x-forwarded-groups"))
     mails = split_to_set(headers.get("x-forwarded-email"))
-    if (groups & allow_groups) or (mails & allow_mails): return one(*mails)
+    if ((groups & allow_groups) or (mails & allow_mails)) and len(mails) == 1: return next(iter(mails))
     debug(f'mails: {mails} ; groups: {groups}')
     return None
 
-def build_client():
-    client_proj = "/c4/c4client"
-    paths = [p for p in Path(__file__).parent.iterdir() if p.name.endswith(".js") or p.name.endswith(".jsx")]
-    for p in paths: Path(f"{client_proj}/{p.name}").write_bytes(p.read_bytes())
-    check_call(("env","-C",client_proj,"node_modules/.bin/esbuild","app.jsx","--bundle","--outfile=out.js"))
-    Path(f"{client_proj}/input.css").write_bytes(b'@import "tailwindcss" source(none);\n@source "app.jsx";')
-    check_call(("env","-C",client_proj,"npx","tailwindcss","-i","input.css","-o","out.css"))
-    js_data = Path(f"{client_proj}/out.js").read_bytes()
-    ver = sha256(js_data).hexdigest()
-    favicon_data = (Path(__file__).parent / "favicon.svg").read_bytes()
-    content = (
-        '<!DOCTYPE html><html lang="en">' +
-        '<head>' +
-        f'<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,{b64encode(favicon_data).decode()}" />' +
-        f'<meta charset="UTF-8"><title>c4</title><style>{Path(f"{client_proj}/out.css").read_bytes().decode()}</style>' +
-        '</head>' +
-        f'<body><script type="module">const c4appVersion={dumps(ver)};\n{js_data.decode()}</script></body>' +
-        '</html>'
-    )
-    return content, ver
-
-def run_proxy(api_port, handlers):
+def run_proxy(api_port, exports: Sequence[Export]):
+    handlers = [e for e in exports if isinstance(e, Op)]
     conf_path = "/c4/oauth2-proxy.conf"
     proxy_conf = {
         "cookie_secret": Path(environ["C4KUI_COOKIE_SECRET_FILE"]).read_bytes().decode(),
         "client_secret": Path(environ["C4KUI_CLIENT_SECRET_FILE"]).read_bytes().decode(),
         "email_domains": ["*"],
         "upstreams": [f"http://127.0.0.1:{api_port}/"], #f"file://{pub_dir}/#/"
-        "skip_auth_routes": [f'GET=^{k}' for k, v in handlers.items() if not v.need_auth],
+        "skip_auth_routes": [f'GET=^{e.path}' for e in handlers if "_no_auth" in signature(e.fn).parameters],
     }
-    Path(conf_path).write_bytes("\n".join(f'{k} = {dumps(v)}' for k, v in proxy_conf.items()).encode())
+    Path(conf_path).write_bytes("\n".join(f'{k} = {dumps(v, sort_keys=True)}' for k, v in proxy_conf.items()).encode())
     check_call(("oauth2-proxy","--config",conf_path))
 
-def parse_q(s): return { k: one(*v) for k, v in parse_qs(s, keep_blank_values=True).items()}
-def to_resp(res):
-    status, headers, data = (
-        (int(res), (), b'') if res.isdigit() else
-        (302, [("Location",res)], b'') if res.startswith("http") else
-        (200, [("Content-Type","text/html")], res.encode()) if res.startswith("<!DOCTYPE html>") else
-        (200, [("Content-Type","application/json")], res.encode()) if res.startswith("{") or res.startswith("[") else
-        None
-    )
-    return Response(status, '', Headers(headers), data)
+def restarting(executor, exports: Sequence[Export]):
+    fns = [e.fn for e in exports if isinstance(e, Watch)]
+    _is_gil_enabled() and die("gil_enabled")
+    mut_tasks: dict[Callable[[], None],Future] = {}
+    while True:
+        for fn in fns:
+            t = mut_tasks.get(fn)
+            if t and t.done(): exception("restartable failed", exc_info=None if t.cancelled() else t.exception())
+            if not t or t.done(): mut_tasks[fn] = executor.submit(fn)
+        sleep(4)
 
-def http_serve(api_port, handlers):
-    def wo_last(path): return "/".join(path.split("/")[:-1])
-    def resolve_prefix(path): return handlers.get(f'{path}/*') or resolve_prefix(wo_last(path)) if path else None
-    def process_request(_, request):
-        debug(f'handling {get_native_id()} {request.path}')
-        parsed = urlparse(request.path)
-        some_handler = handlers.get(parsed.path) or resolve_prefix(wo_last(parsed.path)) or  handlers["_"]
-        return some_handler.handle_http(request, parsed)
-    def handler(ws): return handlers[urlparse(ws.request.path).path].handle_ws(ws)
-    serve(handler, "127.0.0.1", api_port, process_request=process_request).serve_forever()
+def make_response(status, headers=(), data=b''): return Response(data, status_code=status, headers=dict(headers))
+def make_html_response(data): return make_response(200, [("Content-Type","text/html")], data)
+def http_serve(executor, api_port, exports: Sequence[Export]):
+    def handle(handler, params, req):
+        debug(f'handling {get_native_id()}')
+        mail = check_auth(req.headers)
+        if not mail and "_no_auth" not in params: return make_response(403)
+        msg = { **dict(req.query_params), "mail": mail, "_no_auth": not mail, "path": req.url.path }
+        res = handler(*(msg[k] for k in params))
+        if res is None: return make_response(200)
+        if isinstance(res, Response): return res
+        res_b = dumps(res, sort_keys=True).encode()
+        etag = blake2s(res_b, digest_size=8).hexdigest()
+        with_cache_head = (("Cache-Control", "private, no-cache"), ("ETag", etag))
+        return (
+            make_response(304, with_cache_head) if etag == req.headers.get("if-none-match") else
+            make_response(200, (*with_cache_head, ("Content-Type","application/json")), res_b)
+        )
+    async def endpoint(is_command, fns, req):
+        return await get_running_loop().run_in_executor(executor, handle, is_command, fns, req)
+    def run():
+        handlers = [e for e in exports if isinstance(e, Op)]
+        routes = [
+            Route(path, partial(endpoint, fn, params), methods=["POST" if is_command else "GET"])
+            for (path, is_command), fns in grouped(((h.path, h.is_command), h.fn) for h in handlers)
+            for fn in fns if len(fns)==1 or die(f"conflicting_handlers {path}")
+            for ps in [signature(fn).parameters]
+            for params in [[(die(f"VAR {n}") if p.kind is Parameter.VAR_KEYWORD else n) for n, p in ps.items()]]
+        ]
+        middleware = [Middleware(GZipMiddleware, minimum_size=1000, compresslevel=9)]
+        app = Starlette(routes=routes, middleware=middleware)
+        uvicorn.run(app, host="127.0.0.1", port=api_port, limit_concurrency=32)
+    run()
 
-class Route:
-    @staticmethod
-    def response(status, headers, data): return Response(status, '', Headers(headers), data)
-    @staticmethod
-    def http_no_auth(handle):
-        def handle_http(request, parsed):
-            return to_resp(handle(**parse_q(parsed.query)))
-        return Handler(False, handle_http, None)
-    @staticmethod
-    def http_auth(handle):
-        def handle_http(request, parsed):
-            mail = check_auth(request.headers)
-            return to_resp(handle(**parse_q(parsed.query), mail=mail) if mail else "403")
-        return Handler(True, handle_http, None)
-    @staticmethod
-    def http_auth_raw(handle):
-        def handle_http(request, parsed):
-            return handle(request, parsed) if check_auth(request.headers) else to_resp("403")
-        return Handler(True, handle_http, None)
-    @staticmethod
-    def ws_auth(mut_tasks, initial_load, actions):
-        def handle_http(request, parsed):
-            debug("going ws")
-        def handle_task(task):
-            try: task()
-            finally: mut_tasks["processing"] -= 1
-        def handle_ws(ws):
-            mail = check_auth(ws.request.headers)
-            if not mail: return
-            ws.send(dumps(initial_load(mail=mail)))
-            was_resp = {}
-            view_time = 0
-            for msg_str in ws:
-                msg = loads(msg_str)
-                match msg["op"]:
-                    case "load":
-                        tab = msg.get("tab")
-                        if not tab: continue
-                        started_at = monotonic()
-                        c_resp = actions[f'{tab}.load'](**msg, mail=mail)
-                        view_time = max(view_time, monotonic() - started_at)
-                        resp = { tab: c_resp, **mut_tasks, "viewTime": view_time }
-                        ws.send(dumps({ k: v for k, v in resp.items() if v != was_resp.get(k) }))
-                        was_resp = resp
-                    case op:
-                        task = actions[op](**msg, mail=mail)
-                        if not task: continue
-                        mut_tasks["processing"] = mut_tasks.get("processing", 0) + 1
-                        Thread(target=handle_task, args=[task], daemon=True).start()
-                        ws.send(dumps(mut_tasks))
-        return Handler(True, handle_http, handle_ws)
+def init_system_routes():
+    @rget("/shared")
+    def meta(mail): return {"mail": mail, "app_version": app_ver.decode()}
+    @rget("/")
+    def load_index(): return make_html_response(index_content)
+    index_content, app_ver = [(Path(__file__).parent/n).read_bytes() for n in ("app.html", "app.ver")]
+    return meta, load_index

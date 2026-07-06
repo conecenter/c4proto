@@ -1,131 +1,91 @@
-
-from subprocess import check_call, run, check_output
-from collections import namedtuple
-from traceback import print_exc
+from dataclasses import dataclass
+from subprocess import check_output, Popen
 from html import escape
+from time import monotonic
 
-Profiling = namedtuple("Profiling", ("status", "data"))
+from util import die, rget, post
 
-LogbackState = namedtuple("LogbackState", ("kube_context", "pod_name", "status", "data"))
+@dataclass(frozen=True,slots=True)
+class Profiling: proc: Popen; kc_exec: tuple[str,...]; at: float
 
-def never(m): raise Exception(m)
+def limit_by_list(v, l): return v if v in l else die(f"{v} not in {l}")
 
-def limit_by_list(v, l): return v if v in l else never(f"{v} not in {l}")
+def get_exec(kc, pod_name):
+    pod_names = check_output((*kc, "get", "pods", "-o", "name")).decode().splitlines()
+    pod_nm = limit_by_list(f"pod/{pod_name}", pod_names)
+    return (*kc, "exec", "-i", pod_nm, "--")
 
-def init_profiling(mut_pr, contexts, rt, kcp):
-    profiling_contexts = [c["name"] for c in contexts]
+def get_exec_and_pid(kc, pod_name):
+    kc_exec = get_exec(kc, pod_name)
+    jcmd_lines = check_output((*kc_exec, "jcmd")).decode().splitlines()
+    server_pids = [int(line.split()[0]) for line in jcmd_lines if "ServerMain" in line]
+    pid = max(server_pids) if server_pids else die("ServerMain JVM not found")
+    return kc_exec, pid
+
+def init_profiling_profiling(kcs, make_html_response):
+    mut_pr: dict[str,Profiling] = {}
+    def respond(s, t): return { "profiling_status": s, "profiling_spent": t }
+    @rget("/profiling.profiling")
+    def load(mail):
+        pi = mut_pr.get(mail)
+        if not pi: return respond("", None)
+        rc = pi.proc.poll()
+        return respond(*(("P",monotonic()-pi.at) if rc is None else ("S",None) if rc == 0 else ("F",None)))
+    @post("/profiling.profile")
+    def make(mail, kube_context, pod_name, period):
+        kc_exec, pid = get_exec_and_pid(kcs[kube_context], pod_name)
+        check_output((*kc_exec, "tar", "-xzf-"), input=check_output(("tar","-czf-","-C","/tools","async")))
+        # asprof is long; run detached, leaving the flamegraph in the pod. Status comes from proc.returncode;
+        # the result is fetched on download (see handler) so there is no local file/pipe to manage.
+        cmd = (*kc_exec, "async/bin/asprof", "-e", "itimer", "-f", "kui-profiled.html", "-d", str(int(period)), str(pid))
+        mut_pr[mail] = Profiling(Popen(cmd), kc_exec, monotonic())
+    @post("/profiling.reset_profile_status")
+    def reset(mail): mut_pr.pop(mail).proc.terminate()
+    @rget("/profiling.flamegraph.html")
+    def download(mail): return make_html_response(check_output((*mut_pr[mail].kc_exec, "cat", "kui-profiled.html")))
+    return load, make, reset, download
+
+def init_profiling_thread(kcs, make_html_response):
     mut_thread_dumps = {}
-    mut_logback = {}
-
-    def get_exec(kube_context, pod_name):
-        kc = (*kcp, limit_by_list(kube_context, profiling_contexts))
-        pod_names = check_output((*kc, "get", "pods", "-o", "name")).decode().splitlines()
-        pod_nm = limit_by_list(f"pod/{pod_name}", pod_names)
-        return (*kc, "exec", "-i", pod_nm, "--")
-
-    def get_exec_and_pid(kube_context, pod_name):
-        kc_exec = get_exec(kube_context, pod_name)
-        jcmd_lines = check_output((*kc_exec, "jcmd")).decode().splitlines()
-        server_pids = [int(line.split()[0]) for line in jcmd_lines if "ServerMain" in line]
-        pid = max(server_pids) if server_pids else never("ServerMain JVM not found")
-        return kc_exec, pid
-
-    def load(mail, profiling_kube_context='', profiling_pod_name='', **_):
-        profiling_status = mut_pr.get(mail, Profiling("", "")).status
-        thread_dump_status = mut_thread_dumps.get(mail, Profiling("", "")).status
-        logback = mut_logback.get(mail)
-        logback_status, logback_loaded = (
-            (logback.status, logback.data)
-            if logback and logback.kube_context == profiling_kube_context and logback.pod_name == profiling_pod_name
-            else ("",None)
-        )
-        return {
-            "profiling_contexts": profiling_contexts,
-            "profiling_status": profiling_status,
-            "thread_dump_status": thread_dump_status,
-            "logback_status": logback_status,
-            "logback_loaded": logback_loaded,
-        }
-    def handle_profile(mail, kube_context, pod_name, period, **_):
-        def run_profile():
-            try:
-                mut_pr[mail] = Profiling("P", "")
-                kc_exec, pid = get_exec_and_pid(kube_context, pod_name)
-                tar = check_output(("tar","-czf-","-C","/tools","async"))
-                run((*kc_exec, "tar", "-xzf-"), check=True, input=tar)
-                check_call((*kc_exec, "async/bin/asprof", "-e", "itimer", "-f", "kui-profiled.html", "-d", str(int(period)), str(pid)))
-                result = check_output((*kc_exec, "cat", "kui-profiled.html"))
-                mut_pr[mail] = Profiling("S", result)
-            except Exception as e:
-                print_exc()
-                mut_pr[mail] = Profiling("F", str(e))
-        return run_profile
-    def handle_thread_dump(mail, kube_context, pod_name, **_):
-        def run_thread_dump():
-            try:
-                mut_thread_dumps[mail] = Profiling("P", "")
-                kc_exec, pid = get_exec_and_pid(kube_context, pod_name)
-                dump_output = check_output((*kc_exec, "jcmd", str(pid), "Thread.print"))
-                html = (
+    @rget("/profiling.thread_dump")
+    def load(mail): return { "thread_dump_status": "S" if mail in mut_thread_dumps else "", }
+    @post("/profiling.thread_dump")
+    def make(mail, kube_context, pod_name):
+        kc_exec, pid = get_exec_and_pid(kcs[kube_context], pod_name)
+        dump_output = check_output((*kc_exec, "jcmd", str(pid), "Thread.print"))
+        mut_thread_dumps[mail] = (
                     "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
                     "<title>Thread Dump</title></head><body><pre>"
                     f"{escape(dump_output.decode())}"
                     "</pre></body></html>"
-                )
-                mut_thread_dumps[mail] = Profiling("S", html.encode())
-            except Exception as e:
-                print_exc()
-                mut_thread_dumps[mail] = Profiling("F", str(e))
-        return run_thread_dump
-    def start_logback_processing(mail, kube_context, pod_name):
-        logback = mut_logback.get(mail)
-        mut_logback[mail] = LogbackState(kube_context, pod_name, "P", logback and logback.data)
-    def handle_load_logback(mail, kube_context, pod_name, **_):
-        def run_load_logback():
-            try:
-                start_logback_processing(mail, kube_context, pod_name)
-                kc_exec = get_exec(kube_context, pod_name)
-                logback_xml = check_output((*kc_exec, "sh", "-c", "cat /tmp/logback.xml 2>/dev/null || true")).decode()
-                mut_logback[mail] = LogbackState(kube_context, pod_name, "S", logback_xml)
-            except Exception as e:
-                print_exc()
-                mut_logback[mail] = LogbackState(kube_context, pod_name, "F", None)
-        return run_load_logback
-    def handle_save_logback(mail, kube_context, pod_name, logback_xml="", **_):
-        def run_save_logback():
-            try:
-                start_logback_processing(mail, kube_context, pod_name)
-                kc_exec = get_exec(kube_context, pod_name)
-                check_output((*kc_exec, "sh", "-c", "cat > /tmp/logback.xml"), input=logback_xml.encode())
-                mut_logback[mail] = LogbackState(kube_context, pod_name, "S", logback_xml)
-            except Exception as e:
-                print_exc()
-                mut_logback[mail] = LogbackState(kube_context, pod_name, "F", None)
-        return run_save_logback
-    def handle_unload_logback(mail, **_):
-        mut_logback.pop(mail, None)
-    def handle_reset_profile_status(mail, **_):
-        mut_pr.pop(mail, None)
-    def handle_reset_thread_status(mail, **_):
-        mut_thread_dumps.pop(mail, None)
-    def handle_enable_gc_log(mail, kube_context, pod_name, **_):
-        def do_run():
-            kc_exec, pid = get_exec_and_pid(kube_context, pod_name)
-            check_call((*kc_exec, "jcmd", str(pid), "VM.log", "what=gc*"))
-        return do_run
-    actions = {
-        "profiling.load": load,
-        "profiling.profile": handle_profile,
-        "profiling.thread_dump": handle_thread_dump,
-        "profiling.load_logback": handle_load_logback,
-        "profiling.save_logback": handle_save_logback,
-        "profiling.unload_logback": handle_unload_logback,
-        "profiling.reset_profile_status": handle_reset_profile_status,
-        "profiling.reset_thread_status": handle_reset_thread_status,
-        "profiling.enable_gc_log": handle_enable_gc_log,
-    }
-    handlers = {
-        "/profiling-flamegraph.html": rt.http_auth(lambda mail,**_: mut_pr.pop(mail).data.decode()),
-        "/profiling-thread-dump.html": rt.http_auth(lambda mail,**_: mut_thread_dumps.pop(mail).data.decode()),
-    }
-    return actions, handlers
+        ).encode()
+    @post("/profiling.reset_thread_status")
+    def reset(mail): mut_thread_dumps.pop(mail, None)
+    @rget("/profiling.thread_dump.html")
+    def download(mail): return make_html_response(mut_thread_dumps.pop(mail))
+    return load, make, reset, download
+
+def init_profiling_logback(kcs):
+    mut_logback = {}
+    @rget("/profiling.logback")
+    def load(kube_context, pod_name): return { "logback_loaded": mut_logback.get((kube_context, pod_name)) }
+    @post("/profiling.load_logback")
+    def load_data(kube_context, pod_name):
+        kc_exec = get_exec(kcs[kube_context], pod_name)
+        logback_xml = (check_output((*kc_exec, "sh", "-c", "cat /tmp/logback.xml 2>/dev/null || true"))).decode()
+        mut_logback[(kube_context, pod_name)] = logback_xml
+    @post("/profiling.save_logback")
+    def save(kube_context, pod_name, logback_xml):
+        kc_exec = get_exec(kcs[kube_context], pod_name)
+        check_output((*kc_exec, "sh", "-c", "cat > /tmp/logback.xml"), input=logback_xml.encode())
+        mut_logback[(kube_context, pod_name)] = logback_xml
+    @post("/profiling.unload_logback")
+    def unload(kube_context, pod_name): mut_logback.pop((kube_context, pod_name), None)
+    return load, load_data, save, unload
+
+def init_profiling_gc(kcs):
+    @post("/profiling.enable_gc_log")
+    def enable_log(kube_context, pod_name):
+        kc_exec, pid = get_exec_and_pid(kcs[kube_context], pod_name)
+        check_output((*kc_exec, "jcmd", str(pid), "VM.log", "what=gc*"))
+    return enable_log,

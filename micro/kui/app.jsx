@@ -1,6 +1,9 @@
 import React from "react"
 import {useState,useEffect,useMemo} from "react"
-import {start,useSimpleInput,useTabs,withHashParams} from "./util.js"
+import {
+    start, toPath, useAppMutation, useErrorList, useNavigation, usePending, useSimpleInput, withHashParams,
+    queryOpt, useRQuery
+} from "./util.js"
 
 const ReloadDialog = message => (
     <div className="fixed inset-x-0 top-0 z-50 flex justify-center pointer-events-none">
@@ -18,60 +21,143 @@ const ReloadDialog = message => (
     </div>
 )
 
-export const Page = viewProps => {
-    const {
-      processing, mail, appVersion, viewTime, clusters, lastCluster, showAllClusters, tab, willNavigate, connectionAttempts
-    } = viewProps
+const tabTitles = [
+    { keys: ["pods","profiling"], hint: "Pods" },
+    { keys: ["cio_tasks"], hint: "CIO tasks" },
+    { keys: ["cio_events"], hint: "CIO events" },
+    { keys: ["cio_logs"], hint: "CIO logs" },
+    { keys: ["s3", "s3bucket"], hint: "S3" },
+    { keys: ["allure"], hint: "Allure" },
+    { keys: ["links"], hint: "Links" },
+]
 
-    const tabBodyList = [
-        { key: "pods", view: p => <PodsTabView {...p}/> },
-        { key: "cio_tasks", view: p => <CIOTasksTabView {...p}/> },
-        { key: "cio_events", view: p => <CIOEventsTabView {...p}/> },
-        { key: "cio_logs", view: p => <CIOLogsTabView {...p}/> },
-        { key: "s3", view: p => <S3SnapshotsTabView {...p}/> },
-        { key: "s3bucket", view: p => <S3BucketTabView {...p}/> },
-        { key: "allure", view: p => <AllureTabView {...p}/> },
-        { key: "profiling", view: p => <ProfilingTabView {...p}/> },
-        { key: "links", view: p => <LinksTabView {...p}/> },
-    ]
-    const tabTitles = [
-        { keys: ["pods","profiling"], hint: "Pods" },
-        { keys: ["cio_tasks"], hint: "CIO tasks" },
-        { keys: ["cio_events"], hint: "CIO events" },
-        { keys: ["cio_logs"], hint: "CIO logs" },
-        { keys: ["s3", "s3bucket"], hint: "S3" },
-        { keys: ["allure"], hint: "Allure" },
-        { keys: ["links"], hint: "Links" },
-    ]
+const opMessages = { // todo fix
+    "pods.select_pod": "Failed to select pod for port-forward.",
+    "pods.recreate_pod": "Failed to recreate pod.",
+    "pods.scale_down": "Failed to scale deployment down.",
+    "cio_tasks.kill": "Failed to kill task.",
+    "cio_events.hide": "Failed to hide event.",
+    "cio_logs.search": "Log search failed.",
+    "s3.search": "Bucket search failed. Try again later.",
+    "s3bucket.reset_bucket": "Failed to schedule reset.",
+    "s3bucket.make_snapshot": "Failed to make snapshot.",
+    "profiling.profile": "Failed to start profiling.",
+    "profiling.thread_dump": "Failed to collect thread dump.",
+    "profiling.load_logback": "Failed to load logback config.",
+    "profiling.save_logback": "Failed to save logback config.",
+    "profiling.unload_logback": "Failed to close logback editor.",
+    "profiling.reset_profile_status": "Failed to clear profiling.",
+    "profiling.reset_thread_status": "Failed to clear thread dump.",
+    "profiling.enable_gc_log": "Failed to enable GC log.",
+    "refresh": "Failed to refresh.",
+}
+const opOf = url => url.slice(1).split("?")[0] // mutation variable is the toPath URL; recover the op for messages
 
+const staticLoad = queryOpt({ invalidationGroup: "static", interval:15 })
+const rtLoad = queryOpt({ interval: 2 })
+const rareLoad = queryOpt({ interval: 15 })
+
+const views = [
+    {
+        op: "pods", view: p => <PodsTabView {...p}/>, loadOpt: rtLoad,
+        args: ({pod_name_like, filter_kube_context: kube_context})=> ({pod_name_like, kube_context}),
+    },
+    {
+        op: "cio_tasks", view: p => <CIOTasksTabView {...p}/>, loadOpt: rtLoad,
+        args: ({cio_kube_context:kube_context})=> ({kube_context}),
+    },
+    {
+        op: "cio_events", view: p => <CIOEventsTabView {...p}/>, loadOpt: rtLoad,
+    },
+    {
+        op: "cio_logs", view: p => <CIOLogsTabView {...p}/>, loadOpt: rtLoad,
+    },
+    {
+        op: "s3", view: p => <S3SnapshotsTabView {...p}/>, loadOpt: rtLoad,
+        args: ({filter_kube_context: kube_context, bucket_name_like})=> ({kube_context, bucket_name_like}),
+    },
+    {
+        op: "s3bucket", view: p => <S3BucketTabView {...p}/>, loadOpt: rareLoad,
+        args: ({bucket_kube_context: kube_context, bucket_name})=> ({kube_context, bucket_name}),
+    },
+    {
+        op: "allure", view: p => <AllureTabView {...p}/>, loadOpt: rareLoad,
+    },
+    {
+        tab: "profiling", view: p => <ProfilingTabView {...p}/>,
+    },
+    {
+        tab: "profiling", op: "profiling.profiling", view: p => <ProfilingPanel {...p}/>, loadOpt: rtLoad,
+    },
+    {
+        tab: "profiling", op: "profiling.thread_dump", view: p => <ThreadDumpPanel {...p}/>, loadOpt: rtLoad,
+    },
+    {
+        tab: "profiling", op: "profiling.logback", view: p => <LogbackPanel {...p}/>, loadOpt: rareLoad,
+        args: ({profiling_kube_context: kube_context, profiling_pod_name: pod_name})=> ({kube_context, pod_name})
+    },
+    {
+        op: "links", view: p => <LinksTabView {...p}/>, loadOpt: rareLoad,
+    },
+]
+
+const ExchangingPanelAdapter = ({op, args, loadOpt, view, viewProps}) => {
+    const {error, data} = useRQuery(loadOpt ? loadOpt({op, ...(args?args(viewProps):{})}) : {enabled: false})
+    return error ? "*** Query Error ***" : op && !data ? "*** Loading ***" : view({...viewProps, ...data})
+}
+
+const ClusterPanel = ({clusters, showAllClusters, last_cluster, willNavigate}) => (
+    <div className="flex justify-start items-center flex-wrap gap-2">
+        {(clusters??[]).map((c) => (
+            (showAllClusters || c.watch) &&
+            <a key={c.name} href={toPath({
+                op: "ind-login", name: c.name, location_hash: withHashParams({last_cluster:c.name})
+            })} className={roundedFull(last_cluster === c.name)}>{c.name}</a>
+        ))}
+        <button onClick={willNavigate({showAllClusters: showAllClusters ? "":"1"})} className="text-sm text-blue-400 hover:underline">
+            {showAllClusters ? 'Show less clusters for auth' : '... Show all clusters for auth'}
+        </button>
+    </div>
+)
+
+export const Page = () => {
+    const [nav, willNavigate] = useNavigation("pods")
+    const {errors: mutationErrors, addErrorText, delError} = useErrorList()
+    const willSend = useAppMutation((err, r) => addErrorText(opMessages[opOf(r)] || `${opOf(r)} failed`))
+    const [isFetching, pendingMutations] = usePending()
+    const shared = useRQuery(staticLoad({op: "shared"}))
+    const {mail, app_version} = shared.data ?? {}
+    const isBusy = isFetching || pendingMutations?.length
+    const viewProps = {...nav, willSend, willNavigate, pendingMutations}
+    const activeCh = views.filter(v => v.tab && v.tab === nav?.tab || v.op && v.op === nav?.tab)
+        .map(v => <ExchangingPanelAdapter {...v} viewProps={viewProps}/>)
     return (
         <div className="min-h-screen bg-gray-900 text-white p-4 font-sans flex flex-col items-center">
           <div className="w-full max-w-7xl">
-
-            {
-                appVersion !== c4appVersion ? ReloadDialog("A new version is available.") :
-                connectionAttempts > 2 ? ReloadDialog("Connection problems.") :
-                null
-            }
+            { app_version && app_version !== c4_app_version ? ReloadDialog("A new version is available.") : null }
+            { shared.error && ReloadDialog("Connection problems.") }
+            { mutationErrors.length > 0 && (
+                <div className="fixed inset-x-0 top-0 z-50 flex flex-col items-center gap-2 pt-6 pointer-events-none">
+                    {mutationErrors.map(e => (
+                        <div key={e.text} className="pointer-events-auto mx-4 max-w-xl w-full bg-red-700 text-white shadow-2xl rounded-2xl px-6 py-4 flex items-start gap-4 border border-white/30">
+                            <div className="text-2xl leading-none" aria-hidden>⚠️</div>
+                            <div className="flex-1">
+                                <div className="font-semibold">{e.text}</div>
+                                <div className="text-xs text-white/90 mt-1 font-mono select-all break-all">{e.op}</div>
+                            </div>
+                            <button onClick={()=>delError(e)} className="bg-black/40 hover:bg-black/60 text-sm font-semibold py-2 px-4 rounded-lg">Dismiss</button>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             <div className="mb-4 flex justify-between items-start">
-                <div className="flex justify-start items-center flex-wrap gap-2">
-                  {(clusters??[]).map((c) => (
-                    (showAllClusters || c.watch) &&
-                    <a key={c.name} href={`/ind-login?${new URLSearchParams({
-                        name: c.name, location_hash: withHashParams({last_cluster:c.name})
-                    }).toString()}`} className={roundedFull(lastCluster === c.name)}>{c.name}</a>
-                  ))}
-                  <button onClick={willNavigate({showAllClusters: showAllClusters ? "":"1"})} className="text-sm text-blue-400 hover:underline">
-                    {showAllClusters ? 'Show less clusters for auth' : '... Show all clusters for auth'}
-                  </button>
-                </div>
+                <ExchangingPanelAdapter op="clusters" loadOpt={staticLoad} viewProps={viewProps} view={p => <ClusterPanel {...p}/>}/>
 
                 <div className="flex justify-end items-center gap-4">
-                  {viewTime && <div className="text-xs text-gray-400 ml-4">{`${Math.round(viewTime * 1000)}ms`}</div>}
                   <h1 className="text-xl font-semibold">{mail}</h1>
                   <a className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-white" href="/oauth2/sign_out">Logout</a>
-                  <div className={`${processing ? "animate-spin" : ""} rounded-full h-6 w-6 border-t-2 border-b-2 border-white`}></div>
+                  <div style={{animationDelay: "300ms"}} className={`${isBusy ? "animate-spin" : ""} rounded-full h-6 w-6 border-t-2 border-b-2 border-white`}></div>
                 </div>
             </div>
 
@@ -80,14 +166,13 @@ export const Page = viewProps => {
                 {tabTitles.map(({keys,hint}) => (
                     <button key={keys[0]}
                       onClick={willNavigate({tab: keys[0]})}
-                      className={`px-3 py-2 rounded-t-md ${keys.includes(tab??'') ? 'bg-gray-800 text-white' : 'hover:bg-gray-700'}`}
+                      className={`px-3 py-2 rounded-t-md ${keys.includes(nav.tab??'') ? 'bg-gray-800 text-white' : 'hover:bg-gray-700'}`}
                     >{hint}</button>
                 ))}
               </nav>
             </div>
 
-            {useTabs({viewProps,tabs:tabBodyList})}
-
+            {...activeCh}
           </div>
         </div>
     )
@@ -96,11 +181,11 @@ export const Page = viewProps => {
 const compareBy = (dir, getKey) => (a, b) => dir * getKey(a).localeCompare(getKey(b))
 
 const PodsTabView = viewProps => {
-    const {userAbbr, items, pod_name_like, pod_contexts, sort_by_node, willSend, willNavigate} = viewProps
-    const sortedItems = useMemo(() => sort_by_node ? items?.toSorted(compareBy(1, it => it.nodeName||"")) : items, [items, sort_by_node])
+    const {user_abbr, items, pod_name_like, pod_contexts, sort_by_node, willSend, willNavigate} = viewProps
+    const sortedItems = useMemo(() => sort_by_node ? items?.toSorted(compareBy(1, it => it.node_name||"")) : items, [items, sort_by_node])
     const minStartedAtByAppName = useMemo(() => items && Object.fromEntries(
-        Object.entries(Object.groupBy(items.filter(pod=>pod.ready), pod=>pod.appName))
-            .flatMap(([appName, its]) => its.length > 1 ? [[appName, its.map(it=>it.startedAt).toSorted()[0]]] : [])
+        Object.entries(Object.groupBy(items.filter(pod=>pod.ready), pod=>pod.app_name))
+            .flatMap(([app_name, its]) => its.length > 1 ? [[app_name, its.map(it=>it.started_at).toSorted()[0]]] : [])
     ), [items])
     return <>
           {pod_contexts && <div className="mb-4">
@@ -109,7 +194,7 @@ const PodsTabView = viewProps => {
 
           <div className="mb-4 flex flex-wrap gap-2 justify-start">
               <SelectorFilterGroup viewProps={viewProps} fieldName="pod_name_like" items={[
-                { key: `^(de|sp)-u?${userAbbr}.*-main-`, hint: `${userAbbr} pods` },
+                { key: `^(de|sp)-u?${user_abbr}.*-main-`, hint: `${user_abbr} pods` },
                 { key: "^sp-.*test[0-9]+-.*-main-|-cio-", hint: "test pods" },
                 { key: ".", hint: "all pods" },
               ]}/>
@@ -133,7 +218,7 @@ const PodsTabView = viewProps => {
                 <NotFoundTr viewProps={viewProps} colSpan="8"/>
                 { sortedItems?.map((pod, index) => <Tr key={pod.key} index={index}>
                     <Td>
-                        <TruncatedText text={pod.nodeName||"-"} startChars={7} align="left"/>
+                        <TruncatedText text={pod.node_name||"-"} startChars={7} align="left"/>
                     </Td>
                     <Td>
                         <input type="radio" checked={pod.selected /*'✔️'*/}
@@ -141,7 +226,7 @@ const PodsTabView = viewProps => {
                         />
                     </Td>
                     <Td>
-                      <div class="flex items-center gap-1">
+                      <div className="flex items-center gap-1">
                         <button
                             onClick={willNavigate({
                                 tab: 'profiling', profiling_pod_name: pod.name, profiling_kube_context: pod.kube_context
@@ -195,11 +280,11 @@ const PodsTabView = viewProps => {
                         {pod.status}
                         {pod.ready && (
                             <div>
-                                ready{pod.appName && minStartedAtByAppName[pod.appName] === pod.startedAt ? " m" : ""}
+                                ready{pod.app_name && minStartedAtByAppName[pod.app_name] === pod.started_at ? " m" : ""}
                             </div>
                         )}
                     </Td>
-                    <Td>{pod.creationTimestamp} <br/> {pod.startedAt}</Td>
+                    <Td>{pod.creation_timestamp} <br/> {pod.started_at}</Td>
                     <Td>{pod.restarts}</Td>
                     <Td className="text-right font-mono text-xs">
                         {reformatTopCPU(pod.usage_cpu||'')}<br/>{reformatTopSize(pod.usage_memory||'')}
@@ -217,10 +302,10 @@ const PodsTabView = viewProps => {
           </Table>
           {(()=>{
               const kube_context = items?.find(p => p.selected)?.kube_context
-              return kube_context && userAbbr && <pre>{`
+              return kube_context && user_abbr && <pre>{`
                   # operate selected:
-                  kc ${kube_context} logs svc/fu-${userAbbr} -f --timestamps | grep ...
-                  kc ${kube_context} exec -it svc/fu-${userAbbr} -- bash
+                  kc ${kube_context} logs svc/fu-${user_abbr} -f --timestamps | grep ...
+                  kc ${kube_context} exec -it svc/fu-${user_abbr} -- bash
               `}</pre>
           })()}
     </>
@@ -234,10 +319,10 @@ const reformatTopSize = v => (
 const reformatTopCPU = v => v.substring(v.length-1) === "n" ? `${(v.substring(0, v.length-1) / 1024 / 1024)|0}m` : v
 
 const CIOTasksTabView = viewProps => {
-    const {items, managedKubeContexts = [], willSend, cio_kube_context} = viewProps
+    const {items, managed_kube_contexts = [], willSend, cio_kube_context} = viewProps
     return <>
           <div className="mb-4">
-              <SelectorFilterGroup viewProps={viewProps} fieldName="cio_kube_context" items={managedKubeContexts.map(key => ({key,hint:key}))}/>
+              <SelectorFilterGroup viewProps={viewProps} fieldName="cio_kube_context" items={managed_kube_contexts.map(key => ({key,hint:key}))}/>
           </div>
           <Table>
             <thead>
@@ -260,7 +345,7 @@ const CIOTasksTabView = viewProps => {
                                     ? "bg-red-600 hover:bg-red-500 text-white"
                                     : "bg-gray-700 text-gray-400 cursor-not-allowed"
                             }`}
-                            onClick={willSend({ op: 'cio_tasks.kill', cio_kube_context, pid: t.pid })}
+                            onClick={willSend({ op: 'cio_tasks.kill', kube_context: cio_kube_context, pid_str: `${t.pid}` })}
                         >Kill</button>
                     </Td>
                 </Tr>)}
@@ -294,7 +379,7 @@ const CIOEventsTabView = viewProps => {
         if (taskFilterRegex.error || filteredItems.length === 0) return
         if (!confirm(`Hide ${filteredItems.length} filtered event(s)?`)) return
         for (const t of filteredItems) {
-            await willSend({ op: 'cio_events.hide', kube_context: t.kube_context, task: t.task })()
+            willSend({ op: 'cio_events.hide', kube_context: t.kube_context, task: t.task })()
         }
     }
     const sortAction = field => (
@@ -352,15 +437,13 @@ const CIOEventsTabView = viewProps => {
 const formatLogSize = v => `${(v / 1024).toFixed(1)} KiB`
 
 const CIOLogsTabView = viewProps => {
-    const {
-        all_log_sizes, cio_kube_context, cio_query, cio_context_lines, cio_page_lines,
-        searching_size, search_result_code, search_result_size, result_page, result_page_count, willSend,
-    } = viewProps
+    const { all_log_sizes, cio_kube_context, cio_query, cio_context_lines, searches, willSend } = viewProps
+    const downloadUrl = (id, head, tail) => toPath({ op: "cio_logs.download", id, head, tail })
 
     return (
         <div className="space-y-6 p-4 text-sm text-white">
-            {/* Filter Controls */}
-            <div className="space-y-3">
+            {/* Filter controls — a new search appends a row to the history below */}
+            <div className="flex gap-2 flex-wrap items-center">
                 <SelectorFilterGroup
                     viewProps={viewProps}
                     fieldName="cio_kube_context"
@@ -369,69 +452,50 @@ const CIOLogsTabView = viewProps => {
                         hint: `${c.kube_context} (${formatLogSize(c.log_size)})`
                     }))}
                 />
-                <div className="flex gap-2">
-                    <SimpleFilterInput
-                        viewProps={viewProps} fieldName="cio_query" placeholder="Search query..."
-                    />
-                    <SimpleFilterInput
-                        viewProps={viewProps} fieldName="cio_context_lines" placeholder="Context lines..."
-                    />
-                    <SimpleFilterInput
-                        viewProps={viewProps} fieldName="cio_page_lines" placeholder="Lines per page..."
-                    />
-                    <button
-                        onClick={willSend({
-                            op: 'cio_logs.search', kube_context: cio_kube_context, query: cio_query,
-                            context_lines: cio_context_lines || "0", page_lines: cio_page_lines || "20",
-                        })}
-                        className="bg-blue-600 hover:bg-blue-500 px-4 py-1 rounded text-white"
-                    >
-                        Search
-                    </button>
-                </div>
-                <div className="text-gray-400 space-y-1">
-                    {
-                        search_result_code > 1 ? <p>Search error</p> :
-                        search_result_code === 1 ? <p>Not found</p> :
-                        search_result_code === 0 ?
-                            <a
-                                className="underline hover:text-blue-400"
-                                href={`/cio-log-search-download?time=${Date.now()}`}
-                                {...tBlank()}
-                            >
-                                Found {formatLogSize(search_result_size)} — Download result
-                            </a> :
-                        Number.isInteger(searching_size) ?
-                            <p>Searching… <span className="text-white">{formatLogSize(searching_size)}</span></p> :
-                        undefined
-                    }
-                </div>
+                <SimpleFilterInput viewProps={viewProps} fieldName="cio_query" placeholder="Search query..." />
+                <SimpleFilterInput viewProps={viewProps} fieldName="cio_context_lines" placeholder="Context lines..." />
+                <button
+                    onClick={willSend({
+                        op: 'cio_logs.search', kube_context: cio_kube_context, query: cio_query,
+                        context_lines: cio_context_lines || "0",
+                    })}
+                    className="bg-blue-600 hover:bg-blue-500 px-4 py-1 rounded text-white"
+                >
+                    Search
+                </button>
             </div>
 
-            {/* Log Results */}
-            {result_page && (
-                <div className="space-y-4">
-                    <div className="flex items-center gap-4">
-                        <button
-                            onClick={willSend({ op: "cio_logs.goto_page", page: result_page.page - 1 })}
-                            className="px-3 py-1 rounded border border-gray-600 hover:bg-gray-700"
-                            disabled={result_page.page <= 0}
-                        >
-                            &larr; Later
-                        </button>
-                        <span className="text-gray-300">Page {result_page.page} / {result_page_count}</span>
-                        <button
-                            onClick={willSend({ op: "cio_logs.goto_page", page: result_page.page + 1 })}
-                            className="px-3 py-1 rounded border border-gray-600 hover:bg-gray-700"
-                        >
-                            Earlier &rarr;
-                        </button>
-                    </div>
-                    <pre className="bg-gray-900 text-white p-4 rounded-lg overflow-auto max-h-[60vh] border border-gray-700">
-                        {result_page.lines.join("\n")}
-                    </pre>
-                </div>
-            )}
+            {/* History: one row per search, filters frozen as run. Big result? grab head/tail and scroll elsewhere. */}
+            <table className="w-full text-left border border-gray-700">
+                <thead className="text-gray-400">
+                    <tr>
+                        <th className="p-2">Time</th><th className="p-2">Query</th><th className="p-2">Context</th>
+                        <th className="p-2">±lines</th><th className="p-2">Lines</th><th className="p-2">Result</th><th className="p-2"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {(searches || []).map(s => (
+                        <tr key={s.id} className="border-t border-gray-700 align-top">
+                            <td className="p-2 text-gray-400 whitespace-nowrap">{new Date(Number(s.id) / 1e6).toLocaleTimeString()}</td>
+                            <td className="p-2 font-mono break-all">{s.query}</td>
+                            <td className="p-2">{s.kube_context}</td>
+                            <td className="p-2">{s.context_lines}</td>
+                            <td className="p-2">{s.result_lines ?? ""}</td>
+                            <td className="p-2">{
+                                s.result_code == null ? <span className="text-gray-400">Searching…</span> :
+                                s.result_code > 1 ? <span className="text-red-300">Error</span> :
+                                s.result_code === 1 ? <span className="text-gray-400">Not found</span> :
+                                <span className="flex gap-3">
+                                    <a className="underline hover:text-blue-400" href={downloadUrl(s.id, "", "")} {...tBlank()}>Download all</a>
+                                    <a className="underline hover:text-blue-400" href={downloadUrl(s.id, 1000, "")} {...tBlank()}>head 1k</a>
+                                    <a className="underline hover:text-blue-400" href={downloadUrl(s.id, "", 1000)} {...tBlank()}>tail 1k</a>
+                                </span>
+                            }</td>
+                            <td className="p-2"><button onClick={willSend({ op: 'cio_logs.forget', id: s.id })} className="text-gray-500 hover:text-red-300">×</button></td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
         </div>
     )
 }
@@ -517,7 +581,7 @@ const S3SnapshotsTabView = viewProps => {
 }
 
 const S3BucketTabView = viewProps => {
-    const { bucket_name, bucket_kube_context, bucket_objects, loaded_at, error, willSend, willNavigate } = viewProps
+    const { bucket_name, bucket_kube_context, bucket_objects, loaded_at, error, willSend } = viewProps
     return (
         <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -549,7 +613,7 @@ const S3BucketTabView = viewProps => {
                         Make Snapshot
                     </button>
                     <button
-                        onClick={willSend({ op: 's3bucket.refresh', kube_context: bucket_kube_context, bucket_name })}
+                        onClick={willSend({ op: 'refresh' })}
                         className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white"
                         disabled={!bucket_name || !bucket_kube_context}
                     >
@@ -572,7 +636,11 @@ const S3BucketTabView = viewProps => {
                     Loading latest objects…
                 </div>
             ) : error ? (
-                <div className="bg-red-900 border border-red-600 rounded p-3 text-red-100 text-sm">{error}</div>
+                <div className="bg-red-900 border border-red-600 rounded p-3 text-red-100 text-sm">{
+                    error === 'too_many' ?
+                        "Unable to display more than 1000 objects. Use CLI tools for detailed listing." :
+                        "Failed. Try again later."
+                }</div>
             ) : (
                 <Table>
                     <thead>
@@ -619,7 +687,7 @@ const AllureTabView = viewProps => {
                 <div className="flex flex-wrap gap-2 items-center">
                     <SimpleFilterInput viewProps={viewProps} fieldName="allure_query" placeholder="Filter project / run..."/>
                     <button
-                        onClick={willSend({ op: 'allure.refresh' })}
+                        onClick={willSend({ op: 'refresh' })}
                         className="bg-blue-600 hover:bg-blue-500 px-4 py-1 rounded text-white"
                     >
                         Refresh
@@ -629,9 +697,7 @@ const AllureTabView = viewProps => {
                     {loaded_at ? `Last updated ${new Date(loaded_at * 1000).toLocaleTimeString()}` : "Loading..."}
                 </div>
             </div>
-            {error ? (
-                <div className="bg-red-900 border border-red-600 rounded p-3 text-red-100 text-sm">{error}</div>
-            ) : !items ? (
+            {!items ? (
                 <div className="bg-gray-800 border border-gray-700 rounded p-3 text-gray-300 text-sm">
                     Loading Allure reports...
                 </div>
@@ -673,24 +739,9 @@ const AllureTabView = viewProps => {
 }
 
 const ProfilingTabView = viewProps => {
-    const {
-        profiling_kube_context, profiling_pod_name, profiling_period,
-        profiling_status, thread_dump_status, logback_loaded, logback_status, willSend
-    } = viewProps
-    const [seconds, setSeconds] = useState(0)
-    useEffect(() => {
-        setSeconds(0)
-        if (profiling_status === "P") {
-            const interval = setInterval(() => {
-                setSeconds(prev => prev + 1)
-            }, 1000)
-            return () => clearInterval(interval)
-        }
-    }, [profiling_status])
-    const hasSelection = profiling_kube_context && profiling_pod_name
+    const { profiling_kube_context, profiling_pod_name, willSend } = viewProps
     return (
-        <div className="space-y-6 text-gray-200">
-            <div className="bg-gray-800 border border-gray-700 rounded p-4">
+            <div className="mb-6 bg-gray-800 border border-gray-700 rounded p-4">
                 <h3 className="text-sm uppercase tracking-wide text-gray-400">Target pod</h3>
                 <p className="text-lg font-semibold text-white">
                     {profiling_pod_name || "No pod selected"}
@@ -698,7 +749,7 @@ const ProfilingTabView = viewProps => {
                 <p className="text-xs text-gray-500 mt-1">
                     Context: {profiling_kube_context || "-"}
                 </p>
-                {hasSelection && (
+                {profiling_kube_context && profiling_pod_name && (
                     <p className="mt-1">
                         <button
                             onClick={willSend({
@@ -713,73 +764,63 @@ const ProfilingTabView = viewProps => {
                     </p>
                 )}
             </div>
-            {!hasSelection ? (
-                <div className="bg-gray-800 border border-gray-700 rounded p-4 text-sm text-gray-300">
-                    Pick a pod from the Pods tab to run profiling tools.
-                </div>
-            ) : (
-                <>
-                    <div className="bg-gray-800 border border-gray-700 rounded p-4 space-y-3">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-sm uppercase tracking-wide text-gray-400">Flame graph</h3>
-                            {profiling_status === "P" ? (
-                                <p className="text-xs text-gray-500">Profiling… {seconds}s</p>
-                            ) : null}
-                        </div>
-                        {profiling_status === "S" ? (
-                            <div className="flex gap-2 items-center">
-                                <a
-                                    className="underline hover:text-blue-400"
-                                    href={`/profiling-flamegraph.html?time=${Date.now()}`}
-                                    {...tBlank()}
-                                >
-                                    Download flame graph
-                                </a>
-                                <button
-                                    onClick={willSend({ op: 'profiling.reset_profile_status' })}
-                                    className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white"
-                                >
-                                    Clear
-                                </button>
-                            </div>
-                        ) : profiling_status === "F" ? (
-                            <div className="flex gap-2 items-center text-red-300">
-                                <p>Profiling failed.</p>
-                                <button
-                                    onClick={willSend({ op: 'profiling.reset_profile_status' })}
-                                    className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white"
-                                >
-                                    Clear
-                                </button>
-                            </div>
-                        ) : !profiling_status ? (
-                            <p className="text-xs text-gray-500">No flame graph collected yet.</p>
-                        ) : null}
-                        {profiling_status !== "P" ? (
-                            <div className="flex flex-wrap gap-2 items-center">
-                                <SelectorFilterGroup
-                                    viewProps={viewProps}
-                                    fieldName="profiling_period"
-                                    items={[{ key: "15", hint: "15s" }, { key: "", hint: "60s" }, { key: "300", hint: "300s" }]}
-                                />
-                                <button
-                                    onClick={willSend({
-                                        op: 'profiling.profile',
-                                        kube_context: profiling_kube_context,
-                                        pod_name: profiling_pod_name,
-                                        period: profiling_period || "60"
-                                    })}
-                                    className="bg-blue-600 hover:bg-blue-500 px-4 py-1 rounded text-white"
-                                >
-                                    Profile
-                                </button>
-                            </div>
-                        ) : null}
-                    </div>
-                    <div className="bg-gray-800 border border-gray-700 rounded p-4 space-y-3">
+    )
+}
+
+const ProfilingPanel = viewProps => {
+    const {
+        profiling_kube_context, profiling_pod_name, profiling_period, profiling_status, profiling_spent, willSend
+    } = viewProps
+    return <div className="mb-6 bg-gray-800 border border-gray-700 rounded p-4 space-y-3">
+        <div className="flex items-center justify-between">
+            <h3 className="text-sm uppercase tracking-wide text-gray-400">Flame graph</h3>
+        </div>
+        <div className="flex flex-wrap gap-2 items-center">
+        {
+            !profiling_status ? <SelectorFilterGroup
+                viewProps={viewProps}
+                fieldName="profiling_period"
+                items={[{ key: "15", hint: "15s" }, { key: "", hint: "60s" }, { key: "300", hint: "300s" }]}
+            /> :
+            profiling_status === "P" ? <p className="text-xs text-gray-500">Profiling… {Math.round(profiling_spent)}s</p> :
+            profiling_status === "S" ? <a
+                className="underline hover:text-blue-400"
+                href={`/profiling.flamegraph.html?time=${Date.now()}`}
+                {...tBlank()}
+            >Download flame graph</a> :
+            profiling_status === "F" ? <p className="text-red-300">Profiling failed.</p> : null
+        }{
+            profiling_status ? <button
+                onClick={willSend({ op: 'profiling.reset_profile_status' })}
+                className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white"
+            >Clear</button> :
+            profiling_kube_context && profiling_pod_name ? <button
+                onClick={willSend({
+                    op: 'profiling.profile',
+                    kube_context: profiling_kube_context,
+                    pod_name: profiling_pod_name,
+                    period: profiling_period || "60"
+                })}
+                className="bg-blue-600 hover:bg-blue-500 px-4 py-1 rounded text-white"
+            >Profile</button> : null
+        }
+        </div>
+    </div>
+}
+
+const ThreadDumpPanel = viewProps => {
+    const { profiling_kube_context, profiling_pod_name, thread_dump_status, pendingMutations, willSend } = viewProps
+    const threadDumpAct = {
+        op: 'profiling.thread_dump', kube_context: profiling_kube_context, pod_name: profiling_pod_name
+    }
+    const threadDumpBusy = pendingMutations.includes(toPath(threadDumpAct))
+    const hasSelection = profiling_kube_context && profiling_pod_name
+
+    return (
+                    hasSelection && <div className="mb-6 bg-gray-800 border border-gray-700 rounded p-4 space-y-3">
                         <div className="flex items-center justify-between">
                             <h3 className="text-sm uppercase tracking-wide text-gray-400">Thread dump</h3>
-                            {thread_dump_status === "P" ? (
+                            {threadDumpBusy ? (
                                 <p className="text-xs text-gray-500">Collecting…</p>
                             ) : null}
                         </div>
@@ -787,7 +828,7 @@ const ProfilingTabView = viewProps => {
                             <div className="flex gap-2 items-center">
                                 <a
                                     className="underline hover:text-blue-400"
-                                    href={`/profiling-thread-dump.html?time=${Date.now()}`}
+                                    href={`/profiling.thread_dump.html?time=${Date.now()}`}
                                     {...tBlank()}
                                 >
                                     Download thread dump
@@ -799,43 +840,18 @@ const ProfilingTabView = viewProps => {
                                     Clear
                                 </button>
                             </div>
-                        ) : thread_dump_status === "F" ? (
-                            <div className="flex gap-2 items-center text-red-300">
-                                <p>Thread dump failed.</p>
-                                <button
-                                    onClick={willSend({ op: 'profiling.reset_thread_status' })}
-                                    className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-white"
-                                >
-                                    Clear
-                                </button>
-                            </div>
-                        ) : !thread_dump_status ? (
+                        ) : !threadDumpBusy ? (
                             <p className="text-xs text-gray-500">No thread dump collected yet.</p>
                         ) : null}
-                        {thread_dump_status !== "P" ? (
+                        {!threadDumpBusy ? (
                             <button
-                                onClick={willSend({
-                                    op: 'profiling.thread_dump',
-                                    kube_context: profiling_kube_context,
-                                    pod_name: profiling_pod_name
-                                })}
+                                onClick={willSend(threadDumpAct)}
                                 className="bg-gray-600 hover:bg-gray-500 px-4 py-1 rounded text-white w-fit"
                             >
                                 Collect thread dump
                             </button>
                         ) : null}
                     </div>
-                    <LogbackPanel
-                        key={`${profiling_kube_context || ""}/${profiling_pod_name || ""}`}
-                        kubeContext={profiling_kube_context}
-                        podName={profiling_pod_name}
-                        logbackLoaded={logback_loaded}
-                        logbackStatus={logback_status}
-                        willSend={willSend}
-                    />
-                </>
-            )}
-        </div>
     )
 }
 
@@ -887,7 +903,11 @@ const LinksTabView = ({ cluster_links = [], custom_links = [] }) => {
 
 const tBlank = () => ({ target: "_blank", rel: "noopener noreferrer" })
 
-const LogbackPanel = ({ kubeContext, podName, logbackLoaded, logbackStatus, willSend }) => {
+const LogbackPanel = viewProps => {
+    const {
+        profiling_kube_context: kubeContext, profiling_pod_name: podName, logback_loaded: logbackLoaded, willSend
+    } = viewProps
+    const hasSelection = kubeContext && podName
     const [logbackCustomClass, setLogbackCustomClass] = useState("")
     const currentClasses =
         logbackLoaded ? normalizeLogbackClasses(parseLogbackClasses(logbackLoaded)) : logbackLoaded === "" ? [] : null
@@ -915,14 +935,13 @@ const LogbackPanel = ({ kubeContext, podName, logbackLoaded, logbackStatus, will
         willSend({ op: 'profiling.save_logback', kube_context: kubeContext, pod_name: podName, logback_xml: xml })()
     }
     return (
-        <div className="bg-gray-800 border border-gray-700 rounded p-4 space-y-4">
+        hasSelection && <div className="mb-6 bg-gray-800 border border-gray-700 rounded p-4 space-y-4">
             <div className="flex items-center justify-between">
                 <h3 className="text-sm uppercase tracking-wide text-gray-400">LOG CLASSES</h3>
                 <div className="flex items-center gap-2">
-                    {logbackStatus === "F" && <p className="text-xs text-red-300">Failed</p>}
                     {currentClasses !== null && (
                         <button
-                            onClick={willSend({ op: 'profiling.unload_logback' })}
+                            onClick={willSend({ op: 'profiling.unload_logback', kube_context: kubeContext, pod_name: podName })}
                             className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-xs text-white"
                         >
                             Close
@@ -1084,4 +1103,4 @@ const TruncatedText = ({text, startChars, align}) => {
     )
 }
 
-start("/kop", props => <Page {...props} lastCluster={props.last_cluster}/>)
+start(<Page/>)

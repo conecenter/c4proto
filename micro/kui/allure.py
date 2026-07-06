@@ -1,51 +1,24 @@
 from json import loads
-from itertools import groupby
 from os import environ
-from pathlib import Path
-from queue import SimpleQueue
 from re import fullmatch
-from time import monotonic, time
+from time import time
 
-import boto3
+from util import grouped, rget
 
+def s3list(client, bucket): return [*client.get_paginator("list_objects_v2").paginate(Bucket=bucket, Delimiter="/")]
 
-def grouped(l): return [(k,[v for _,v in kvs]) for k,kvs in groupby(sorted(l, key=lambda kv: kv[0]), lambda kv: kv[0])]
-
-def init_allure():
+def init_allure(client):
     prefix2bucket = loads(environ["C4KUI_S3_PROXY_PREFIX_TO_BUCKET"])
     bucket = prefix2bucket["allure"]
-    conf_dir = Path(environ["C4KUI_S3_PROXY_CONF_DIR"])
-    ld = lambda k: (conf_dir / k).read_bytes().decode().strip()
-    client = boto3.client(
-        "s3", endpoint_url=ld("address"), aws_access_key_id=ld("key"), aws_secret_access_key=ld("secret"),
-    )
-    cache = {}
-    requests = SimpleQueue()
-
     # CIO owns producing immutable Allure artifacts; KUI owns listing/rendering them.
-    # The WebSocket client sends tab loads repeatedly while visible, so loads only enqueue
-    # refresh work and return cached state. expires_at is the soft-refresh dedupe gate,
     # matching the non-blocking S3 bucket view pattern.
-    def load(mail, **_):
-        requests.put(True)
-        cached = cache.get("allure")
-        return cached["state"] if cached else create_response(None, None, None)
-
-    def refresh(mail, **_):
-        requests.put(False)
-
-    def create_response(items, error, loaded_at):
-        return { "items": items, "error": error, "loaded_at": loaded_at }
-
-    def replace_state(state, ttl):
-        cache["allure"] = { "state": state, "expires_at": monotonic() + ttl }
+    @rget("/allure")
+    def load(): return { "items": group_runs(list_root_names()), "loaded_at": time() }
 
     def list_root_names():
-        paginator = client.get_paginator("list_objects_v2")
-        pages = paginator.paginate(Bucket=bucket, Delimiter="/")
         return [
             name
-            for page in pages
+            for page in s3list(client, bucket)
             for name in [
                 *[p["Prefix"] for p in page.get("CommonPrefixes") or []],
                 *[o["Key"] for o in page.get("Contents") or []],
@@ -75,22 +48,4 @@ def init_allure():
             for run, group in reversed(grouped((r["run"], r) for r in parts))
         ]
 
-    def watcher():
-        while True:
-            is_soft = requests.get()
-            cached = cache.get("allure")
-            if cached and is_soft and cached["expires_at"] > monotonic():
-                continue
-            try:
-                replace_state(create_response(group_runs(list_root_names()), None, time()), 15)
-            except Exception:
-                replace_state(create_response(None, "Failed to refresh Allure reports. Try again later.", time()), 15)
-                raise
-
-    return (
-        {
-            "allure.load": load,
-            "allure.refresh": refresh,
-        },
-        watcher,
-    )
+    return load,

@@ -1,10 +1,11 @@
-
-import {useState,useEffect,createElement} from "react"
+import {useState,useEffect,useCallback,useMemo,createElement} from "react"
 import {createRoot} from "react-dom/client"
+import {
+    useQuery, useMutation, useQueryClient, QueryClient, QueryClientProvider, useMutationState, useIsFetching
+} from '@tanstack/react-query'
 
-const getHashParams = () => Object.fromEntries(new URLSearchParams(location.hash.substring(1)))
-export const withHashParams = o => new URLSearchParams({...getHashParams(),...o}).toString()
-const setHashParams = o => { location.hash = "#" + withHashParams(o) }
+const toNavObj = str => Object.fromEntries(new URLSearchParams(str.substring(1)))
+export const withHashParams = o => `${new URLSearchParams({...toNavObj(location.hash),...o})}`
 
 const manageEventListener = (element, evName, listener) => {
     if(element && listener){
@@ -13,59 +14,55 @@ const manageEventListener = (element, evName, listener) => {
     }
 }
 
-const now = () => Date.now()
+export const toPath = ({op,...args}) => `/${op}?${new URLSearchParams(Object.entries(args).sort(([a],[b])=>a<b?-1:a>b?1:0).map(([k,v])=>[k,v??'']))}`
 
-const manageExchange = (url, setState) => {
-    let wasAt = 0
-    let ws = undefined
-    const close = () => {
-        try { ws && ws.readyState <= ws.OPEN && ws.close() } catch(e){ console.trace(e) }
-    }
-    const activate = () => {
-        if(document.hidden) close()
-        else if(ws && ws.readyState <= ws.OPEN && now() - wasAt < 5000)
-            ws.readyState === ws.OPEN && ws.send(JSON.stringify({...getHashParams(), op: "load" }))
-        else {
-            close()
-            ws = new WebSocket(url)
-            ws.addEventListener("message", ev => {
-                setState(was => ({...was, ...JSON.parse(ev.data), willNavigate, willSend, connectionAttempts: 0}))
-                wasAt = now()
-            })
-            ws.addEventListener("open", ev => activate())
-            wasAt = now()
-            setState(was => ({...was, connectionAttempts: (was.connectionAttempts||0)+1}))
-        }
-    }
-    const willNavigate = o => () => { // cat become memo/cache later
-        setHashParams(o)
-        activate()
-    }
-    const willSend = msg => async () => {
-        //setState(was => ({...was, loading: true}))
-        ws && ws.readyState === ws.OPEN && ws.send(JSON.stringify(msg))
-        activate()
-    }
-    const interval = setInterval(() => activate(), 1000)
-    const remove = manageEventListener(document, 'visibilitychange', () => activate())
-    activate()
-    return () => {
-        clearInterval(interval)
-        close()
-        remove()
-    }
+const die = e => { throw e }
+
+const processResp = resp => resp.ok ? resp : die(new Error('fetch_error'))
+const mutationFn = async u => { processResp(await fetch(u, {method: "POST"})) }
+const queryFn = async ({queryKey: [_pre, u]}) => ({
+    ...(await processResp(await fetch(u, {cache: "no-cache"})).json()), ldPath: u
+})
+
+export const useNavigation = defTab => {
+    const [state, setState] = useState(location.hash)
+    useEffect(()=>manageEventListener(document.defaultView, "hashchange", ()=>setState(location.hash)), [setState])
+    const willNavigate = useCallback(diff => () => setState(location.hash = "#" + withHashParams(diff)), [setState])
+    const nav = toNavObj(state)
+    const {tab} = nav
+    useEffect(()=> { tab || willNavigate({ tab: defTab })() }, [tab, willNavigate])
+    return [nav, willNavigate]
 }
 
-const App = ({url, getContent}) => {
-    const [state, setState] = useState(() => ({loading: 0}))
-    useEffect(() => manageExchange(url, setState), [url, setState])
-    return state.willSend && getContent({...state, ...getHashParams()})
+export const useErrorList = () => {
+    const [errors, setErrors] = useState([])
+    const addErrorText = useCallback(text => setErrors(s => [...s.filter(e => e.text !== text), {text}]), [setErrors])
+    const delError = useCallback(m => setErrors(s => s.filter(e => e !== m)), [setErrors])
+    return {errors, addErrorText, delError}
 }
 
-export const start = (url, getContent) => {
+export const queryOpt = ({invalidationGroup: ig, interval}) => msg => ({
+    queryFn, queryKey: [ig ?? 'dynamic', toPath(msg)], refetchInterval: interval*1000, retry: interval > 8
+})
+export const useRQuery = useQuery
+
+export const usePending = () => [
+    useIsFetching(), useMutationState({ filters: { status: 'pending' }, select: m => m.state.variables.at(-1) }),
+]
+
+export const useAppMutation = onError => {
+    const queryClient = useQueryClient()
+    const onSuccess = () => { queryClient.invalidateQueries({ queryKey: ['dynamic'] }) }
+    const {mutate} = useMutation({mutationFn, onSuccess, onError})
+    return useCallback(msg => () => mutate(toPath(msg)), [mutate])
+}
+
+export const start = appElement => {
     const rootNativeElement = document.createElement("span")
     document.body.appendChild(rootNativeElement)
-    createRoot(rootNativeElement).render(createElement(App, {url, getContent}))
+    const queryClient = new QueryClient()
+    const wrapElement = createElement(QueryClientProvider, { client: queryClient, children: appElement })
+    createRoot(rootNativeElement).render(wrapElement)
 }
 
 // this control works well only being the only source of changes
@@ -82,10 +79,4 @@ export const useSimpleInput = ({ value, onChange, dirtyClassName, className, ...
   }, [value, element])
   const mergedClassName = element && element.value !== value ? `${className} ${dirtyClassName}` : className
   return { ...props, ref: setElement, defaultValue: value, onChange: rerender, className: mergedClassName }
-}
-
-export const useTabs = ({viewProps, tabs}) => {
-    const {tab, willNavigate} = viewProps
-    useEffect(()=>{ tab || willNavigate({ tab: tabs[0].key })() }, [tab, tabs, willNavigate])
-    return tabs.find(({key}) => tab === key)?.view({...viewProps,...viewProps[tab]})
 }
