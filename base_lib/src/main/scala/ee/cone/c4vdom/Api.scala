@@ -13,6 +13,8 @@ class c4val(a: String*) extends StaticAnnotation
 class c4tagSwitch(a: String*) extends StaticAnnotation
 class c4el(a: String*) extends StaticAnnotation
 class c4elPath(a: String*) extends StaticAnnotation
+class c4msgSwitch(a: String*) extends StaticAnnotation
+class c4msg(action: String = "", body: String = "") extends StaticAnnotation
 
 trait ToChildPair {
   def toChildPair[T]: ChildPair[T]
@@ -106,6 +108,10 @@ trait GeneralReceiver extends Resolvable
 trait Receiver[State] extends GeneralReceiver {
   type Handler = VDomMessage => State => State
   def receive: Handler
+}
+trait ProtocolReceiver[State, Message] extends Receiver[State] {
+  def decodeUiMessage(message: VDomMessage): Option[Message]
+  def uiReceiveTyped: Message => State => State
 }
 // if we want to introduce other type of receiver,
 // we can tweak client sender-context to send short path + inner path

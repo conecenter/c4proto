@@ -41,6 +41,14 @@ object TagGenerator extends Generator {
     GeneratedImport("import ee.cone.c4vdom._"),
   )
 
+  private def isReceiverParam(paramType: Type, tParamNameOpt: Option[String]): Boolean = paramType match {
+    case Type.Apply(Type.Name(_), List(Type.Name(paramTypeNameInner))) =>
+      tParamNameOpt.contains(paramTypeNameInner)
+    case Type.Apply(Type.Name("ProtocolReceiver"), List(Type.Name(paramTypeNameInner), _)) =>
+      tParamNameOpt.contains(paramTypeNameInner)
+    case _ => false
+  }
+
   def get(parseContext: ParseContext): List[Generated] = parseContext.stats.flatMap {
     case Defn.Trait(Seq(mod"@c4tags(...$e)"), Type.Name(traitName), tParams, y, code) =>
       val tParamNameOpt = tParams match {
@@ -72,7 +80,7 @@ object TagGenerator extends Generator {
                   TagParam(paramName, paramTypeFullExpr, Option(ToJsonOptions(paramTypeName, paramTypeName, defValStr, isList = true, isOption = false)), isReceiver = false, None)
                 case t"Option[${Type.Name(paramTypeName)}]" =>
                   TagParam(paramName, paramTypeFullExpr, Option(ToJsonOptions(paramTypeName, paramTypeName, defValStr, isList = false, isOption = true)), isReceiver = false, None)
-                case Type.Apply(Type.Name(_), List(Type.Name(paramTypeNameInner))) if tParamNameOpt.contains(paramTypeNameInner) =>
+                case _ if isReceiverParam(paramType, tParamNameOpt) =>
                   TagParam(paramName, paramTypeFullExpr, Option(ReceiverToJsonOptions(defValStr)), isReceiver = true, None)
                 case p =>
                   throw new Exception(s"unsupported tag param type [$p] ${p.structure} of $defName")
@@ -418,6 +426,7 @@ class TsTagWillGenerator extends WillGenerator {
     case Type.Name("ViewRes")                                                      => "ReactElement[]"
     case Type.Apply(Type.Name("ElList"), _)                                        => "ReactElement[]"
     case Type.Apply(Type.Name(_), List(Type.Name(inner))) if tpOpt.contains(inner) => "boolean" // Receiver[C]
+    case Type.Apply(Type.Name("ProtocolReceiver"), List(Type.Name(inner), _)) if tpOpt.contains(inner) => "boolean"
     case Type.Apply(Type.Name("List"), List(Type.Name(n)))                         => s"${resolveScalar(n, switchTraitNames, commonImports)}[]"
     case Type.Apply(Type.Name("Option"), List(Type.Name(n)))                       => resolveScalar(n, switchTraitNames, commonImports)
     case Type.Name(n)                                                              => resolveScalar(n, switchTraitNames, commonImports)
