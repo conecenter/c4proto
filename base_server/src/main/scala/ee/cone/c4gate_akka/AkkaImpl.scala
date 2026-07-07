@@ -100,7 +100,8 @@ import scala.util.control.NonFatal
               .toMat(Sink.head)(Keep.right)
           } else {*/
           logger debug s"Redirecting to $uri"
-          val nReq = if(uri.startsWith("orig:")) req.withUri(uri.drop(5))
+          val nReq = if(uri.startsWith("orig:"))
+            req.withUri(uri.drop(5)).withHeaders(req.headers.filter(_.name != "Timeout-Access"))
             else HttpRequest(uri = uri)
           http.singleRequest(nReq)
           //}
