@@ -25,6 +25,7 @@ object Main {
       FieldAccessGenerator,
       AppGenerator,
       TagGenerator,
+      MsgDecoderGenerator,
       ProtoChangerGenerator,
       //ProductCheckGenerator,
     ) //,UnBaseGenerator
