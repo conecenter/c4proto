@@ -28,10 +28,8 @@ object EmptyInjected extends Injected
   injected: List[Injected],
   toUpdate: ToUpdate,
   actorName: ActorName,
-  execution: Execution,
   getOffset: GetOffsetImpl,
   readModelAdd: ReadModelAdd,
-  getAssembleOptions: GetAssembleOptions,
   updateMapUtil: UpdateMapUtil,
   replaces: DeferredSeq[Replace],
 ) extends RichRawWorldReducer with LazyLogging {
@@ -45,51 +43,22 @@ object EmptyInjected extends Injected
     }
     if(events.isEmpty) contextOpt.get match {
       case context: RichRawWorldImpl => context
-      case context => create(context.injected, context.assembled, context.executionContext)
+      case context => create(context.injected, context.assembled)
     } else {
       val context = contextOpt.getOrElse(
-        create(Single.option(injected).getOrElse(EmptyInjected), Single(replaces.value).emptyReadModel, EmptyOuterExecutionContext)
+        create(Single.option(injected).getOrElse(EmptyInjected), Single(replaces.value).emptyReadModel)
       )
-      val nAssembled = readModelAdd.add(context.executionContext,events)(context.assembled)
-      create(context.injected, nAssembled, context.executionContext)
+      create(context.injected, readModelAdd.add(events)(context.assembled))
     }
   }
-
-  def create(injected: Injected, assembled: ReadModel, executionContext: OuterExecutionContext): RichRawWorldImpl = {
-    val preWorld = new RichRawWorldImpl(injected, assembled, executionContext, "")
-    val threadCount = getAssembleOptions.get(assembled).threadCount
+  def create(injected: Injected, assembled: ReadModel): RichRawWorldImpl = {
+    val preWorld = new RichRawWorldImpl(injected, assembled, EmptyOuterExecutionContext, "")
     val offset = getOffset.of(preWorld)
-    new RichRawWorldImpl(injected, assembled, needExecutionContext(threadCount)(executionContext), offset)
-  }
-  def newExecutionContext(confThreadCount: Long): OuterExecutionContext = {
-    val fixedThreadCount = if(confThreadCount>0) toIntExact(confThreadCount) else Runtime.getRuntime.availableProcessors
-    val pool = execution.newExecutorService("ass-",Option(fixedThreadCount))
-    logger.info(s"ForkJoinPool create $fixedThreadCount")
-    val context = ExecutionContext.fromExecutor(pool)
-    new OuterExecutionContextImpl(confThreadCount,fixedThreadCount,context,pool)
-  }
-  def needExecutionContext(confThreadCount: Long): OuterExecutionContext=>OuterExecutionContext = {
-    case ec: OuterExecutionContextImpl if ec.confThreadCount == confThreadCount =>
-      ec
-    case ec: OuterExecutionContextImpl =>
-      ec.service.shutdown()
-      logger.info("ForkJoinPool shutdown")
-      newExecutionContext(confThreadCount)
-    case _ =>
-      newExecutionContext(confThreadCount)
+    new RichRawWorldImpl(injected, assembled, EmptyOuterExecutionContext, offset)
   }
 }
 
-class OuterExecutionContextImpl(
-  val confThreadCount: Long,
-  val threadCount: Long,
-  val value: ExecutionContext,
-  val service: ExecutorService
-) extends OuterExecutionContext
-object EmptyOuterExecutionContext extends OuterExecutionContext {
-  def value: ExecutionContext = throw new Exception("no ExecutionContext")
-  def threadCount: Long =  throw new Exception("no ExecutionContext")
-}
+object EmptyOuterExecutionContext extends OuterExecutionContext
 
 class RichRawWorldImpl(
   val injected: Injected,

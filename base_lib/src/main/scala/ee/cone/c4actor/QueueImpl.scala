@@ -199,6 +199,13 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
           s"\n\tE2U $hint $idL:$dma:$count\t$name"
       }.mkString
     )
+    /*
+    val universalProtoAdapter = qAdapterRegistry.byId(0x19ef)
+    logger.debug(updates.filter(u => u.valueTypeId == 0x19ef && u.value.size>0).flatMap { u =>
+      val r = universalProtoAdapter.decode(u.value)
+      for(i <- 0 until r.productArity if r.productElementName(i) != "origs")
+        yield s"${r.productElementName(i)} = ${r.productElement(i)}"
+    }.mkString("\n"))*/
     updates
   }
 
