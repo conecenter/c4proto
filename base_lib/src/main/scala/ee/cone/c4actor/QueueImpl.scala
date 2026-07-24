@@ -205,7 +205,11 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
       val r = universalProtoAdapter.decode(u.value)
       for(i <- 0 until r.productArity if r.productElementName(i) != "origs")
         yield s"${r.productElementName(i)} = ${r.productElement(i)}"
-    }.mkString("\n"))*/
+    }.mkString("\n"))
+
+    val uUpdates = updates.filter(u => u.valueTypeId == 0x0036 && u.value.size>0) // U_FromAlienState
+    if(uUpdates.nonEmpty) logger.debug(uUpdates.map(u => qAdapterRegistry.byId(u.valueTypeId).decode(u.value)).toString())
+    */
     updates
   }
 
