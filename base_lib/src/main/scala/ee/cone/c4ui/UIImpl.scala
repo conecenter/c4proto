@@ -175,5 +175,5 @@ case class AggrRestPeriod(location: String, periods: List[N_RestPeriod])
 }
 
 @c4("UICompApp") final class ViewFailedImpl extends ViewFailed {
-  def of(local: Context): Boolean = VDomStateKey.of(local).exists(_.failed)
+  def of(local: Context): Boolean = VDomStateKey.of(local).exists(System.currentTimeMillis-_.failed < 15_000)
 }

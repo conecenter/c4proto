@@ -55,7 +55,7 @@ case class VDomHandlerImpl[State](
     st=>st.copy(value = wasNoValue, seeds = Nil, until = 0)
   ))(state)
   private def init(state: State): State = vDomStateKey.modify(_.orElse(
-    Option(VDomState(wasNoValue,Nil,0,System.currentTimeMillis(),MakingViewStats(0,Nil,0),failed=false))
+    Option(VDomState(wasNoValue,Nil,0,System.currentTimeMillis(),MakingViewStats(0,Nil,0),failed=0L))
   ))(state)
 
   private def pathHeader: VDomMessage => String = _.header("x-r-vdom-path")
@@ -87,9 +87,9 @@ case class VDomHandlerImpl[State](
       }
     } catch {
       case error: DuplicateKeysException if left > 0 =>
-        vDomStateKey.of(state).filterNot(_.failed).foreach(_=>println(error.getMessage))
+        vDomStateKey.of(state).filter(_.failed == 0L).foreach(_=>println(error.getMessage))
         chain[State](Seq(
-          vDomStateKey.modify(_.map{ v => v.copy(value = fixDuplicateKeys.fix(error, v.value), failed=true) }),
+          vDomStateKey.modify(_.map{ v => v.copy(value = fixDuplicateKeys.fix(error, v.value), failed=System.currentTimeMillis) }),
           diffSend(prev, send, _, left = left - 1)
         ))(state)
     }
@@ -195,3 +195,8 @@ case class RootElement(branchKey: String) extends VDomValue {
     builder.end()
   }
 }
+
+/*
+  this can be used to test dup key error (40s on, 40s off):
+    tags.div("aaa", "aaa") :: ( if((System.currentTimeMillis() / 40000) % 2 == 0) tags.div("bbb", "bbb") else tags.div("aaa", "aaa") ) ::
+*/
