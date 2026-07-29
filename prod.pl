@@ -80,12 +80,12 @@ my $get_tmp_dir = sub{
 };
 
 my $decode = sub{ JSON::XS->new->decode(@_) };
-my $encode = sub{
-    my($generated) = @_;
-    my $yml_str = JSON::XS->new->canonical(1)->encode($generated);
+my $fix_bools = sub{
+    my($yml_str) = @_;
     $yml_str=~s/("\w+":\s*)"(true|false)"/$1$2/g;
     $yml_str
 };
+my $encode = sub{ &$fix_bools(JSON::XS->new->canonical(1)->encode(@_)) }; # $fix_bools will be better called explicitly - not here
 
 my $get_kubectl_raw = sub{"kubectl --context $_[0]"};
 
@@ -820,14 +820,10 @@ my $get_consumer_options = sub{
     my($comp)=@_;
     my $conf = &$get_compose($comp);
     my $prefix = $$conf{C4INBOX_TOPIC_PREFIX};
-    my ($bootstrap_servers,$elector) = &$get_deployer_conf($comp,1,qw[bootstrap_servers elector]);
+    my ($elector) = &$get_deployer_conf($comp,1,qw[elector]);
     (
         &$all_consumer_options(),
         C4INBOX_TOPIC_PREFIX => ($prefix || die "no C4INBOX_TOPIC_PREFIX"),
-        C4STORE_PASS_PATH    => "/c4conf-kafka-auth/kafka.store.auth",
-        C4KEYSTORE_PATH      => "/c4conf-kafka-certs/kafka.keystore.jks",
-        C4TRUSTSTORE_PATH    => "/c4conf-kafka-certs/kafka.truststore.jks",
-        C4BOOTSTRAP_SERVERS  => ($bootstrap_servers || die "no host bootstrap_servers"),
         C4S3_CONF_DIR        => "/c4conf-ceph-client",
         C4HTTP_SERVER        => "http://$comp:$inner_http_port",
         C4ELECTOR_SERVERS    => join(",", map {"http://$elector-$_.$elector:$elector_port"} 0, 1, 2),
@@ -878,15 +874,13 @@ my $up_gate = sub{
         C4STATE_REFRESH_SECONDS => 1000,
         req_mem => "4Gi", req_cpu => "1000m",
         "port:$inner_http_port:$inner_http_port"=>"",
-        #"port:$inner_sse_port:$inner_sse_port"=>"",
         "ingress:$hostname/"=>$inner_http_port,
-        #"ingress:$hostname/sse"=>$inner_sse_port,
         ingress_secret_name=>$ingress_secret_name,
         ingress_api_version=>$ingress_api_version,
         C4HTTP_PORT => $inner_http_port,
         C4SSE_PORT => $inner_sse_port,
         need_pod_ip => 1,
-        (map{($_=>&$mandatory_of($_=>$conf))} qw[C4KEEP_SNAPSHOTS replicas]),
+        %$conf,
     });
 };
 
@@ -2024,11 +2018,9 @@ push @tasks, ["tag","[tag]",sub{
 push @tasks, ["kafka","( topics | offsets <hours> | nodes | sizes <node> | topics_rm )",sub{
     my @args = @_;
     my $gen_dir = &$get_proto_dir();
-    my $cp = syf("coursier fetch --classpath org.apache.kafka:kafka-clients:2.8.0")=~/(\S+)/ ? $1 : die;
+    my $cp = syf("coursier fetch --classpath org.apache.kafka:kafka-clients:3.7.1")=~/(\S+)/ ? $1 : die;
     sy("CLASSPATH=$cp java --source 15 $gen_dir/kafka_info.java ".join" ",@args);
 }];
-
-push @tasks, ["kafka_purge"," ",sub{ &$py_run("kafka_purger.py") }];
 
 push @tasks, ["resources","( top <ctx> <search_str> | suggest <ctx> <level (ex 70)> )",sub{
     &$py_run("resources.py",@_)
