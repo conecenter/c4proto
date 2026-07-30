@@ -73,7 +73,7 @@ my $serve_sshd = sub{
 
 my $debug_port = 5005;
 my $serve_proxy = sub{
-    my $debug_ext_address = "0.0.0.0:".($ENV{C4DEBUG_PORT} || die "no C4DEBUG_PORT");
+    my $debug_ext_address = $ENV{C4JDWP_ADDRESS} || die "no C4JDWP_ADDRESS";
     my $debug_int_address = &$get_text_or_empty("/c4/haproxy.to");
     $debug_ext_address && $debug_int_address or &$exec("sleep","infinity");
     my $ha_cfg_path = "/c4/haproxy.cfg";
@@ -142,7 +142,7 @@ my $remake = sub{
             %$paths,
             (-e "/c4/debug-components") ? (C4DEBUG_COMPONENTS => "1") : (),
             JAVA_TOOL_OPTIONS => $tool_opt,
-            (-e "/c4/debug-enable") ? (C4JDWP_ADDRESS => "$debug_int_ip:$debug_port") : (),
+            C4JDWP_ADDRESS => "$debug_int_ip:$debug_port",
             C4PARENT_PID => $ppid,
             C4READINESS_PATH => "$dir/c4is-ready",
             C4STATE_TOPIC_PREFIX => $nm,
