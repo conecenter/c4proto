@@ -95,10 +95,10 @@ case class VDomHandlerImpl[State](
     }
 
   private def toAlien(exchange: VDomMessage, state: State): State = {
-    val vState = vDomStateKey.of(state).get
-    val (keepTo,freshTo) = sender.sending(state)
+    val ((keepTo,freshTo),sendingState) = sender.sending(state)
+    val vState = vDomStateKey.of(sendingState).get
     if(keepTo.isEmpty && freshTo.isEmpty){
-      reset(state) //orElse in init bug
+      reset(sendingState) //orElse in init bug
     }
     else if(
       vState.value != wasNoValue &&
@@ -108,13 +108,13 @@ case class VDomHandlerImpl[State](
         case "" => pathHeader(exchange).isEmpty
       }) &&
       freshTo.isEmpty
-    ) state
+    ) sendingState
     else chain[State](Seq(
       reset(_), // need to remove prev DomState before review to avoid leak: local-vdom-el-action-local
       reView(_),
       diffSend(vState.value, keepTo, _),
       diffSend(wasNoValue, freshTo, _)
-    ))(state)
+    ))(sendingState)
   }
 
   private def reView(state: State): State = {

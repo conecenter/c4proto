@@ -32,7 +32,7 @@ import okio.ByteString
 
 case class VDomBranchSender(pass: BranchTask) extends VDomSender[Context] {
   def branchKey: String = pass.branchKey
-  def sending: Context => (Send,Send) = pass.sending
+  def sending: Context => ((Send,Send),Context) = pass.sending
 }
 
 case class VDomMessageImpl(message: BranchMessage) extends VDomMessage {

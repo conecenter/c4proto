@@ -42,7 +42,7 @@ trait BranchTask extends Product {
   def product: Product
   def sessionKeys(visited: Set[SrcId] = Set.empty): Context => Set[String]
   type Send = Option[(String,String) => Context => Context]
-  def sending: Context => (Send,Send)
+  def sending: Context => ((Send,Send),Context)
   def relocate(to: String): Context => Context
 }
 

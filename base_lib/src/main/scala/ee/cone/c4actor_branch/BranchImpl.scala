@@ -21,7 +21,7 @@ case object SessionKeyToConnectionKey extends TransientLens[Map[String,String]](
   getBranchTask: GetByPK[BranchTask],
   toAlienSender: ToAlienSender,
 ) extends BranchTask with LazyLogging {
-  def sending: Context => (Send,Send) = local => {
+  def sending: Context => ((Send,Send),Context) = local => {
     val wasSessionKeyToConnectionKey = SessionKeyToConnectionKey.of(local);
     val newSessionKeyToConnectionKey: Map[String,String] = {
       val newSessionKeys: Set[String] = sessionKeys()(local)
@@ -34,9 +34,11 @@ case object SessionKeyToConnectionKey extends TransientLens[Map[String,String]](
       if(to.isEmpty) None
       else Some((eventName,data) =>
         toAlienSender.send(to.toList, eventName, data)
-          .andThen(SessionKeyToConnectionKey.set(newSessionKeyToConnectionKey))
       )
-    (sendingPart(keepTo), sendingPart(freshTo))
+    (
+      (sendingPart(keepTo), sendingPart(freshTo)),
+      SessionKeyToConnectionKey.set(newSessionKeyToConnectionKey)(local)
+    )
   }
 
   def sessionKeys(visited: Set[SrcId]): Context => Set[String] = local =>
