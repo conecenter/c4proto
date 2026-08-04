@@ -96,6 +96,8 @@ case class VDomHandlerImpl[State](
 
   private def toAlien(exchange: VDomMessage, state: State): State = {
     val ((keepTo,freshTo),sendingState) = sender.sending(state)
+    // freshTo is being returned only once, so it should be used in diffSend if present.
+    // Also, it can happen that some client will not be mentioned in freshTo, if it disappears and reappears between toAlien calls.
     val vState = vDomStateKey.of(sendingState).get
     if(keepTo.isEmpty && freshTo.isEmpty){
       reset(sendingState) //orElse in init bug
