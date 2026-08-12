@@ -41,6 +41,9 @@ import scala.annotation.tailrec
 class EnabledObserver(worldSource: WorldSourceImpl) extends Observer[RichContext]{
   def activate(world: RichContext): Observer[RichContext] = {
     worldSource.put(world)
+
+    if(Files.exists(Paths.get("/tmp/c4self-dos"))) Thread.sleep(600000)
+
     this
   }
 }
