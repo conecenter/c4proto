@@ -2,7 +2,7 @@
 from time import monotonic
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from os import environ
-from logging import basicConfig, exception, DEBUG
+from logging import basicConfig, exception, info, DEBUG
 from threading import Thread
 from playwright.sync_api import sync_playwright
 
@@ -38,5 +38,6 @@ def main():
         lat = monotonic() - started
         content = f'c4synthetic_ok{{app="{app}"}} {ok}\nc4synthetic_latency_seconds{{app="{app}"}} {lat}\n'
         mut_content["/metrics"] = (200, [("Content-Type", "text/plain")], content.encode())
+        if ok: info(f'refresh-ok')
         page.wait_for_timeout(30000)
         page.reload()

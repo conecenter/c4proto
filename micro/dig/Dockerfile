@@ -41,4 +41,4 @@ COPY agent.py /c4/agent.py
 USER c4
 ENV PATH=${PATH}:/tools:/tools/jdk/bin
 ENV C4UP_PATH=/c4
-ENTRYPOINT ["tini","--","java","-jar","/c4/c4dig.jar"]
+ENTRYPOINT ["tini","--","java","-XX:+ExitOnOutOfMemoryError","-jar","/c4/c4dig.jar"]
