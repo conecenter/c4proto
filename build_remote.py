@@ -80,9 +80,9 @@ def remote_compile(context, user, proj_tag):
     mod_dir = compile_options.mod_dir
     cache_pod_name = compile_options.cache_pod_name
     cache_path = compile_options.cache_path
-    pod = get_cb_name(f"u{user}")
+    pod = os.environ["HOSTNAME"].replace("de-","c4de-")
     cp_path = f"{mod_dir}/target/c4classpath"
-    need_pod(pod, lambda: {"image": need_base_image(context, get_main_conf(context)), **opt_compiler()})
+    #need_pod(pod, lambda: {"image": need_base_image(context, get_main_conf(context)), **opt_compiler()})
     for save in changing_text_observe(f"{context}/target/c4/compile_cache_ver", cache_path):
         if not run_no_die(kcd_args("exec", pod, "--", "test", "-e", mod_dir)):
             print("private cache does not exist")
