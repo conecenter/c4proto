@@ -80,5 +80,25 @@ def main(opt_str):
     write_text(f"{host_bin}/a4t", perl_exec('exec "docker", "exec", "-it", "c4agent_kc", @ARGV ? @ARGV : "bash";'))
     for k, v in opt["bin"].items(): write_text(f"{to}/bin/{k}", v)
     check_output(("sh","-c",f"chmod +x {to}/up* {bin}/* {host_bin}/*"))
+    make_ai(bin, f"{to}/skai")
+
+def make_ai(from_bin, to):
+    write_text(f"{to}/Dockerfile", "\n".join((
+        "# syntax=docker/dockerfile:1",
+        "FROM ubuntu:26.04",
+        "RUN useradd --home-dir /c4 --create-home --user-group --uid 1979 --shell /bin/bash c4",
+        "RUN apt update && DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends "
+        " ca-certificates curl tini libjson-xs-perl rsync lsof python3 git micro "
+        " && rm -rf /var/lib/apt/lists/*",
+        "ADD --link --chmod=755 https://dl.k8s.io/release/v1.33.1/bin/linux/amd64/kubectl /opt/kubectl",
+        "ADD --link --chmod=755 https://downloads.claude.ai/claude-code-releases/2.1.159/linux-x64/claude /opt/claude",
+        "COPY --from=ghcr.io/conecenter/c4replink:v3kc /replink.pl /",
+        "COPY --chmod=755 ./bin/* /opt/",
+        "RUN mkdir /c4repo && chown c4:c4 /c4repo",
+        "USER c4",
+        "ENV PATH=${PATH}:/opt",
+        """ENTRYPOINT ["tini","--","perl","-e","exec 'sleep','infinity';die"]""",
+    )))
+    for nm in ("c4rsh_raw", "c4dsync", "kc"): write_text(f"{to}/bin/{nm}", read_text(f"{from_bin}/{nm}"))
 
 main(*argv[1:])

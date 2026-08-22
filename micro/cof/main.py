@@ -45,7 +45,11 @@ def iteration(conf_path, from_kube_context, to_kube_context):
     to_add_str = "\n".join(dumps(v, sort_keys=True) for v in to_add)
     if to_add_str: check_output(da(*kcp, to_kube_context, "apply", "-f-"), input=to_add_str.encode())
 
+def iterations(conf_path, pairs):
+    for from_kube_context, to_kube_context in pairs:
+        try: iteration(conf_path, from_kube_context, to_kube_context)
+        except: print_exc()
+
 while True:
-    try: iteration(environ["C4KUBECONFIG"], environ["C4COF_FROM"], environ["C4COF_TO"])
-    except: print_exc()
+    iterations(environ["C4KUBECONFIG"], loads(environ["C4COF_FLOWS"]))
     sleep(30)
