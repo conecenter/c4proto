@@ -14,7 +14,7 @@ def main(build_path):
     changing_text(f"{temp_root.name}/c4ci_prep", read_text(f"{proto_dir}/ci_prep.py"))
     changing_text(f"{temp_root.name}/c4ci_up", read_text(f"{proto_dir}/ci_up.py"))
     steps = "\n".join((
-        "FROM ubuntu:22.04",
+        "FROM ubuntu:26.04",
         "COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /replink.pl /",
         "RUN perl install.pl useradd 1979",
         "RUN perl install.pl apt curl ca-certificates python3 git libjson-xs-perl rsync",
