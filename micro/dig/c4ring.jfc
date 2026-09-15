@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Компактный непрерывный ring под симптомы: зависания и "код в 100x медленней".
+     Java 17-совместим. Событий немного, чтобы буфер был лёгким.
+     Владелец — dig; ставится агентом через JFR.start settings=/tmp/c4dig/c4ring.jfc -->
+<configuration version="2.0" label="c4ring" description="gc, safepoint, deopt, codecache, monitor">
+
+  <!-- GC: паузы и STW -->
+  <event name="jdk.GarbageCollection"><setting name="enabled">true</setting></event>
+  <event name="jdk.GCPhasePause"><setting name="enabled">true</setting></event>
+  <event name="jdk.GCHeapSummary"><setting name="enabled">true</setting></event>
+
+  <!-- Safepoint / TTSP — главный кандидат на "замирает всё" -->
+  <event name="jdk.SafepointBegin"><setting name="enabled">true</setting></event>
+  <event name="jdk.SafepointStateSynchronization"><setting name="enabled">true</setting></event>
+  <event name="jdk.ExecuteVMOperation"><setting name="enabled">true</setting></event>
+
+  <!-- JIT: deopt-шторм и переполнение code cache -> интерпретатор -->
+  <event name="jdk.Deoptimization"><setting name="enabled">true</setting></event>
+  <event name="jdk.CodeCacheFull"><setting name="enabled">true</setting></event>
+  <event name="jdk.CodeCacheStatistics"><setting name="enabled">true</setting><setting name="period">everyChunk</setting></event>
+  <event name="jdk.CompilerStatistics"><setting name="enabled">true</setting><setting name="period">1 s</setting></event>
+
+  <!-- Контенция: блокировки и park -->
+  <event name="jdk.JavaMonitorEnter"><setting name="enabled">true</setting><setting name="threshold">10 ms</setting></event>
+  <event name="jdk.ThreadPark"><setting name="enabled">true</setting><setting name="threshold">10 ms</setting></event>
+
+  <!-- ExecutionSample НЕ включаем: сэмплинг бегущих потоков уже даёт async-profiler (itimer). -->
+
+</configuration>

@@ -3,7 +3,7 @@ from pathlib import Path
 from base64 import b64encode, b64decode
 from gzip import compress
 from re import finditer, MULTILINE
-from subprocess import check_output, check_call
+from subprocess import check_output, run
 from json import dumps, loads
 from tempfile import TemporaryDirectory
 from sys import stdin
@@ -20,7 +20,12 @@ def b64gz(s: bytes) -> str: return b64encode(compress(s)).decode()
 def need_profiler(out_dir, pid):
     prof_bin = "/tmp/c4dig/async/bin/asprof"
     if "Profiling is running" not in check_output((prof_bin, "status", str(pid))).decode():
-        check_call((prof_bin, "-e", "itimer,alloc", "--loop", "1m", "-f", f"{out_dir}/{pid}.%t.jfr", str(pid)))
+        check_output((prof_bin, "-e", "itimer,alloc", "--loop", "1m", "-f", f"{out_dir}/{pid}.%t.jfr", str(pid)))
+
+def need_jfr(pid):
+    if "c4ring" not in check_output(("jcmd", str(pid), "JFR.check")).decode():
+        cfg = "/tmp/c4dig/c4ring.jfc"
+        check_output(("jcmd", str(pid), "JFR.start", "name=c4ring", "maxage=15m", "maxsize=250m", f"settings={cfg}"))
 
 def extract_send_metrics(regex, data):
     for m in finditer(regex, data, MULTILINE):
@@ -56,6 +61,23 @@ def report_proc_meminfo():
     mre = r'^MemTotal:\s+(?P<mem_total>\d+)\s+kB$|^MemAvailable:\s+(?P<mem_available>\d+)\s+kB$'
     extract_send_metrics(mre, data.decode())
 
+def precapture():
+    # предрестартовый захват; вызывается хуком /tmp/c4dig/precapture из apprescue.
+    # минимум запусков JVM: одна jcmd -f на всё (каждый jcmd — отдельная JVM, а CPU уже насыщен).
+    # CPU-профиль берём из async-profiler (asprof dump — 0 новых JVM), первым: он приз и он дёшев,
+    # и снимается до того, как jcmd-JVM испачкает картину. thread-dump не снимаем — его даёт
+    # периодический report_jcmd раз в ~45с. хук зовётся под apprescue-таймаутом и check=False.
+    pid = get_pid()
+    if pid is None: return
+    prof_out_dir = Path("/tmp/c4dig/async_out")
+    base = f"{prof_out_dir}/{pid}.{now_fmt()}"
+    # run(check=False) — сбой async-дампа (напр. конфликт с --loop) не сорвёт jcmd ниже; try не нужен.
+    # run(("/tmp/c4dig/async/bin/asprof", "dump", "-f", f"{base}.async.jfr", str(pid)), check=False)
+    tmp_life = TemporaryDirectory()
+    path = Path(tmp_life.name) / "commands"
+    path.write_bytes(f"JFR.dump name=c4ring filename={base}.precapture.jfr\nCompiler.codecache\nCompiler.queue\n".encode())
+    Path(f"{base}.precapture.jcmd.txt").write_bytes(check_output(("jcmd", str(pid), "-f", str(path))))
+
 def get_pid():
     pids = [int(line.split()[0]) for line in check_output(["jcmd"]).decode().splitlines() if "ServerMain" in line]
     return max(pids) if pids else None
@@ -71,6 +93,7 @@ def handle(req):
             pid = get_pid()
             if pid is not None:
                 need_profiler(prof_out_dir, pid)
+                need_jfr(pid)
                 report_proc_status(prof_out_dir, pid)
                 report_proc_stat()
                 report_proc_meminfo()

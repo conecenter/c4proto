@@ -6,9 +6,13 @@ FROM u26 AS build-c4dig
 RUN apt update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends unzip
 ADD --link --unpack "https://github.com/async-profiler/async-profiler/releases/download/v4.1/async-profiler-4.1-linux-x64.tar.gz" /c4dig
 ADD --link --unpack "https://github.com/alibaba/arthas/releases/download/arthas-all-4.1.1/arthas-bin.zip" /arthas-bin.zip
+COPY --link c4ring.jfc /c4dig/
+COPY --link agent.py /tmp/agent.py
 RUN unzip /arthas-bin.zip -d /c4dig/arthas \
  && mv /c4dig/async-profiler-4.1-linux-x64 /c4dig/async \
  && mkdir /c4dig/async_out \
+ && { echo '#!/usr/bin/env python3'; cat /tmp/agent.py; echo 'precapture()'; } > /c4dig/precapture \
+ && chmod +x /c4dig/precapture \
  && chown -R c4:c4 /c4dig \
  && tar -czf /c4/c4dig.tar.gz c4dig
 
