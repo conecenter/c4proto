@@ -39,11 +39,16 @@ def report_jcmd(out_dir, pid):
     path = Path(tmp_life.name) / "commands"
     #thread_cmd = f'Thread.dump_to_file -format=json {out_dir}/{pid}.{now_fmt()}.threads.json'
     thread_cmd = "Thread.print"
-    path.write_bytes(f"{thread_cmd}\nGC.heap_info\nVM.flags\n".encode())
+    path.write_bytes(f"{thread_cmd}\nGC.heap_info\nVM.flags\nCompiler.codecache\n".encode())
     data = check_output(("jcmd", str(pid), "-f", str(path)))
     Path(f'{out_dir}/{pid}.{now_fmt()}.jcmd-out.txt').write_bytes(data)
-    mre = r'^\s*garbage-first\s+heap\s+total\s+\d+K,\s*used\s+(?P<heap_used_kb>\d+)K\b|-XX:MaxHeapSize=(?P<heap_max>\d+)\b'
-    extract_send_metrics(mre, data.decode())
+    mre = (r'^\s*garbage-first\s+heap\s+total\s+\d+K,\s*used\s+(?P<heap_used_kb>\d+)K\b|-XX:MaxHeapSize=(?P<heap_max>\d+)\b'
+        r"|^CodeHeap 'non-profiled nmethods': size=(?P<codeheap_np_size_kb>\d+)Kb used=(?P<codeheap_np_used_kb>\d+)Kb")
+    text = data.decode()
+    extract_send_metrics(mre, text)
+    # 'compilation: disabled' = code cache полон, JIT стоит; шлём только если строка есть
+    for m in finditer(r'^compilation: (\w+)', text, MULTILINE):
+        send({ "tp": "metrics", "key": "compilation_disabled", "value": str(int(m[1] != "enabled")) })
 
 def report_proc_status(out_dir, pid):
     data = Path(f'/proc/{str(pid)}/status').read_bytes()

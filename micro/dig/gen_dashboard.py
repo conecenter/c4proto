@@ -5,7 +5,7 @@ def pos(x,y): return { "gridPos":{"x":x*8,"y":y*6,"w":8,"h":6} }
 print(dumps({
     "title": "C4 System Status",
     "panels": [
-        { "type": "stat", "title": "Synthetic OK", **pos(0,0), "targets": [
+        { "type": "timeseries", "title": "Synthetic OK", **pos(0,0), "targets": [
             { "expr": 'c4synthetic_ok{exported_app=~"$app-.*"}', "legendFormat": "{{exported_app}}" },
         ]},
         { "type": "timeseries", "title": "Synthetic Latency", **pos(0,1), "targets": [
@@ -28,6 +28,9 @@ print(dumps({
         ]},
         { "type": "timeseries", "title": "Kafka Rates", **pos(0,2), "targets": [
             { "expr": 'rate(kafka_topic_partition_current_offset{topic=~"$app\\\\..*"}[10m])', "legendFormat": "{{topic}} rec/s" },
+        ]},
+        { "type": "timeseries", "title": "JIT Code Cache", **pos(1,2), "targets": [
+            { "expr": 'c4dig:codeheap_np_used_kb{pod=~"$app-.*"} / c4dig:codeheap_np_size_kb{pod=~"$app-.*"}', "legendFormat": "{{pod}} non-profiled used" },
         ]},
     ],
     "templating": { "list": [
