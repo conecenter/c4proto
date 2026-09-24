@@ -3,24 +3,33 @@ from pathlib import Path
 from base64 import b64encode, b64decode
 from gzip import compress
 from re import finditer, MULTILINE
-from subprocess import check_output, run
+from subprocess import check_output
 from json import dumps, loads
 from tempfile import TemporaryDirectory
-from sys import stdin
+from sys import stdin, stdout
 from traceback import print_exc
 from os import kill, getpid
 from signal import SIGTERM
 from queue import Queue
-from threading import Thread
+from threading import Thread, Lock
 from logging import info
 from datetime import datetime, timezone
+from time import monotonic
+
+RESEND_AFTER = 300
 
 def b64gz(s: bytes) -> str: return b64encode(compress(s)).decode()
 
-def need_profiler(out_dir, pid):
+def write_atomic(path: Path, data: bytes):
+    # файлы в async_out выгружаются параллельно с записью; точка в начале — выгрузка такие пропускает
+    tmp = path.with_name(f".{path.name}.tmp")
+    tmp.write_bytes(data)
+    tmp.rename(path)
+
+def need_profiler(pid):
     prof_bin = "/tmp/c4dig/async/bin/asprof"
     if "Profiling is running" not in check_output((prof_bin, "status", str(pid))).decode():
-        check_output((prof_bin, "-e", "itimer,alloc", "--loop", "1m", "-f", f"{out_dir}/{pid}.%t.jfr", str(pid)))
+        check_output((prof_bin, "-e", "itimer,alloc", "--loop", "1m", "-f", f"{get_prof_out_dir()}/{pid}.%t.jfr", str(pid)))
 
 def need_jfr(pid):
     if "c4ring" not in check_output(("jcmd", str(pid), "JFR.check")).decode():
@@ -34,14 +43,14 @@ def extract_send_metrics(regex, data):
 
 def now_fmt(): return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
 
-def report_jcmd(out_dir, pid):
+def report_jcmd(pid):
     tmp_life = TemporaryDirectory()
     path = Path(tmp_life.name) / "commands"
     #thread_cmd = f'Thread.dump_to_file -format=json {out_dir}/{pid}.{now_fmt()}.threads.json'
     thread_cmd = "Thread.print"
     path.write_bytes(f"{thread_cmd}\nGC.heap_info\nVM.flags\nCompiler.codecache\n".encode())
     data = check_output(("jcmd", str(pid), "-f", str(path)))
-    Path(f'{out_dir}/{pid}.{now_fmt()}.jcmd-out.txt').write_bytes(data)
+    write_atomic(Path(f'{get_prof_out_dir()}/{pid}.{now_fmt()}.jcmd-out.txt'), data)
     mre = (r'^\s*garbage-first\s+heap\s+total\s+\d+K,\s*used\s+(?P<heap_used_kb>\d+)K\b|-XX:MaxHeapSize=(?P<heap_max>\d+)\b'
         r"|^CodeHeap 'non-profiled nmethods': size=(?P<codeheap_np_size_kb>\d+)Kb used=(?P<codeheap_np_used_kb>\d+)Kb")
     text = data.decode()
@@ -50,9 +59,9 @@ def report_jcmd(out_dir, pid):
     for m in finditer(r'^compilation: (\w+)', text, MULTILINE):
         send({ "tp": "metrics", "key": "compilation_disabled", "value": str(int(m[1] != "enabled")) })
 
-def report_proc_status(out_dir, pid):
+def report_proc_status(pid):
     data = Path(f'/proc/{str(pid)}/status').read_bytes()
-    Path(f'{out_dir}/{pid}.{now_fmt()}.proc-status.txt').write_bytes(data)
+    write_atomic(Path(f'{get_prof_out_dir()}/{pid}.{now_fmt()}.proc-status.txt'), data)
     mre = r'^Threads:\s*(?P<threads>\d+)$|^VmHWM:\s*(?P<vm_hwm_kb>\d+)\s*kB$|^VmPeak:\s*(?P<vm_peak_kb>\d+)\s*kB$|^VmRSS:\s*(?P<vm_rss_kb>\d+)\s*kB$'
     extract_send_metrics(mre, data.decode())
 
@@ -66,6 +75,8 @@ def report_proc_meminfo():
     mre = r'^MemTotal:\s+(?P<mem_total>\d+)\s+kB$|^MemAvailable:\s+(?P<mem_available>\d+)\s+kB$'
     extract_send_metrics(mre, data.decode())
 
+def get_prof_out_dir(): return Path("/tmp/c4dig/async_out")
+
 def precapture():
     # предрестартовый захват; вызывается хуком /tmp/c4dig/precapture из apprescue.
     # минимум запусков JVM: одна jcmd -f на всё (каждый jcmd — отдельная JVM, а CPU уже насыщен).
@@ -74,38 +85,79 @@ def precapture():
     # периодический report_jcmd раз в ~45с. хук зовётся под apprescue-таймаутом и check=False.
     pid = get_pid()
     if pid is None: return
-    prof_out_dir = Path("/tmp/c4dig/async_out")
-    base = f"{prof_out_dir}/{pid}.{now_fmt()}"
+    base = f"{get_prof_out_dir()}/{pid}.{now_fmt()}"
     # run(check=False) — сбой async-дампа (напр. конфликт с --loop) не сорвёт jcmd ниже; try не нужен.
     # run(("/tmp/c4dig/async/bin/asprof", "dump", "-f", f"{base}.async.jfr", str(pid)), check=False)
     tmp_life = TemporaryDirectory()
     path = Path(tmp_life.name) / "commands"
     path.write_bytes(f"JFR.dump name=c4ring filename={base}.precapture.jfr\nCompiler.codecache\nCompiler.queue\n".encode())
-    Path(f"{base}.precapture.jcmd.txt").write_bytes(check_output(("jcmd", str(pid), "-f", str(path))))
+    write_atomic(Path(f"{base}.precapture.jcmd.txt"), check_output(("jcmd", str(pid), "-f", str(path))))
 
+def read_cmdline(pid):
+    try: return Path(f"/proc/{pid}/cmdline").read_bytes()
+    except OSError: return b"" # процесс успел завершиться
 def get_pid():
-    pids = [int(line.split()[0]) for line in check_output(["jcmd"]).decode().splitlines() if "ServerMain" in line]
+    # как `jcmd` без аргументов (он читает те же hsperfdata), но без запуска JVM — можно звать каждый тик
+    pids = [int(p.name) for p in Path("/tmp").glob("hsperfdata_*/*") if p.name.isdigit() and b"ServerMain" in read_cmdline(p.name)]
     return max(pids) if pids else None
 
-def send(arg): print(dumps(arg), flush=True)
+def open_files(pid):
+    fd_dir = Path(f"/proc/{pid}/fd")
+    return { p.resolve() for p in fd_dir.iterdir() } if pid is not None and fd_dir.exists() else set()
 
-def handle(req):
-    prof_out_dir = Path("/tmp/c4dig/async_out")
+send_lock = Lock()
+def send(arg):
+    line = f"{dumps(arg)}\n" # print пишет текст и \n двумя write — из разных потоков строки бы перемешались
+    with send_lock:
+        stdout.write(line)
+        stdout.flush()
+
+JOBS = ( # имя, период (с), действие; каждое — в своём потоке, не больше одного экземпляра
+    ("ensure", 100, lambda pid: (need_profiler(pid), need_jfr(pid))),
+    ("proc", 45, lambda pid: (report_proc_status(pid), report_proc_stat(), report_proc_meminfo())),
+    ("jcmd", 45, report_jcmd),
+)
+
+def run_job(act, *args):
+    try: act(*args)
+    except: print_exc()
+
+def submit_job(*args):
+    th = Thread(target=run_job, args=args, daemon=True)
+    th.start()
+    return th
+
+def submit_jobs(jobs, pid):
+    # не стартуем, пока прошлый экземпляр жив: зависший на замёрзшей JVM jcmd не плодит новых jcmd-JVM
+    # и не копит очередь в Attach Listener; остальные отчёты и выгрузка идут дальше.
+    # daemon-потоки, а не ThreadPoolExecutor: его воркеры не daemon, и выход агента ждал бы зависший jcmd
+    now = monotonic()
+    return {
+        nm: (
+            last if last is not None and (now - last[0] < period or last[1].is_alive()) else
+            (now, submit_job(act, pid))
+        )
+        for nm, period, act in JOBS
+        for last in [jobs.get(nm)] # (started, thread)
+    }
+
+def transfer_files(sent, pid):
+    now = monotonic()
+    opened = open_files(pid)
+    ready_files = [p for p in get_prof_out_dir().iterdir() if not p.name.startswith(".") and p not in opened]
+    to_transfer = [p for p in ready_files if now - (sent.get(p) or float("-inf")) >= RESEND_AFTER] # в полёте — не дублируем; без rm за RESEND_AFTER — шлём снова
+    for p in to_transfer: send({"tp": "file", "name": p.name, "data": b64gz(p.read_bytes())})
+    return { **{ p: sent.get(p) for p in ready_files }, **{ p: now for p in to_transfer } }
+
+def handle(mut_state, req):
     match req:
         case ["install", data]: check_output(("tar", "-C", "/tmp", "-xzf-"), input=b64decode(data))
-        case ["rm", nm]: (prof_out_dir / nm).unlink()
+        case ["rm", nm]: (get_prof_out_dir() / nm).unlink()
         case ["st"]:
+            # тик частый (~5с): закрытые файлы уезжают в пределах тика; отчёты — сабмитом, по своим периодам
             pid = get_pid()
-            if pid is not None:
-                need_profiler(prof_out_dir, pid)
-                need_jfr(pid)
-                report_proc_status(prof_out_dir, pid)
-                report_proc_stat()
-                report_proc_meminfo()
-                report_jcmd(prof_out_dir, pid)
-            opened = { p.resolve() for p in Path(f'/proc/{pid}/fd').iterdir() }
-            to_transfer = [p for p in prof_out_dir.iterdir() if p not in opened]
-            for p in to_transfer: send({"tp": "file", "name": p.name, "data": b64gz(p.read_bytes())})
+            mut_state["sent"] = transfer_files(mut_state["sent"], pid)
+            if pid is not None: mut_state["jobs"] = submit_jobs(mut_state["jobs"], pid)
 
 def watchdog(alarm_q, timeout):
     try:
@@ -117,9 +169,10 @@ def watchdog(alarm_q, timeout):
 def main():
     alarm_q = Queue()
     Thread(target=watchdog, args=(alarm_q, 60), daemon=True).start()
+    mut_state = { "jobs": {}, "sent": {} }
     for line in stdin:
         try:
             info(line)
-            handle(loads(line))
+            handle(mut_state, loads(line))
             alarm_q.put(None)
         except: print_exc()

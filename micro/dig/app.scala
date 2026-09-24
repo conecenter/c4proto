@@ -147,7 +147,7 @@ def startMetricsServer(q: BlockingQueue[PodManMsg]): Unit =
 def startTicking(q: BlockingQueue[PodManMsg]): Unit = fatalVT: () =>
   for _ <- Iterator.continually(()) do
     q.put(ActivatePodsMsg())
-    sleep(45000)
+    sleep(5000) // агент сам решает, когда тяжёлые отчёты (REPORT_PERIOD); тик — для быстрой выгрузки файлов
 
 def increment(errCount: Map[String, Long], key: String): Map[String, Long] =
   errCount.updated(key, errCount.getOrElse(key, 0L)+1L)
