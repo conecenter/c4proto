@@ -31,7 +31,7 @@ object DefInternEq extends InnerApproximateIntern.Eq {
       case as: Seq[AnyRef@unchecked] => iterate(as.iterator, b.asInstanceOf[Seq[AnyRef]].iterator)
       case ap: Product => iterate(iterator(ap), iterator(b.asInstanceOf[Product]))
       case an: String => an.equals(b)
-      case an: BigDecimal => an.equals(b)
+      case an: BigDecimal => an.bigDecimal.equals(b.asInstanceOf[BigDecimal].bigDecimal)
       case an: java.lang.Long => an.equals(b)
       case an: Integer => an.equals(b)
       case an: java.lang.Boolean => an.equals(b)

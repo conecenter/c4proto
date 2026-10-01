@@ -36,13 +36,13 @@ import ee.cone.c4di.{c4, c4multi, provide}
 ) extends BranchHandler with LazyLogging {
   def exchange: BranchMessage => Context => Context = message => local => {
     val now = Instant.now
-    val (keepTo,freshTo) = task.sending(local)
+    val ((keepTo,freshTo),sendingLocal) = task.sending(local)
     val send = chain(List(keepTo,freshTo).flatten.map(_("show",s"${now.getEpochSecond}")))
     logger.info(s"TestSSEHandler $keepTo $freshTo")
     getU_FromAlienStatus.ofA(local).values.foreach{ status =>
       logger.info(s"${status.isOnline} ... ${status.expirationSecond - now.getEpochSecond}")
     }
-    SleepUntilKey.set(now.plusSeconds(1)).andThen(send)(local)
+    SleepUntilKey.set(now.plusSeconds(1)).andThen(send)(sendingLocal)
   }
   def seeds: Context => List[BranchProtocol.S_BranchResult] = _ => Nil
 }

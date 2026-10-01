@@ -53,6 +53,7 @@ class RootGenerator(generators: List[Generator], fromTextGenerators: List[FromTe
     new PublicPathsGenerator,
     new ModRootsGenerator,
     new XsdWillGenerator,
+    new TsTagWillGenerator,
   )
   //
   def isGenerated(fileName: String): Boolean =

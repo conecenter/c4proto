@@ -94,7 +94,7 @@ trait VDomView[State] extends Product {
 trait VDomSender[State] {
   def branchKey: String
   type Send = Option[(String,String) => State => State]
-  def sending: State => (Send,Send)
+  def sending: State => ((Send,Send),State)
 }
 
 trait VDomMessage {

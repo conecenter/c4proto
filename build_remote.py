@@ -388,10 +388,10 @@ def build_type_rt(proj_tag, context, out):
     pr_env = {"C4CI_PROTO_DIR": proto_dir, "PATH": os.environ["PATH"]}
     prod = ("perl", f"{proto_dir}/prod.pl")
     pre = ("python3", "-u", f"{proto_dir}/run_with_prefix.py")
+    run(("python3", f"{proto_dir}/build.py", context))
     client_proc_opt = (
         [Popen((*pre, "=client=", *prod, "build_client", context), env=pr_env)] if proj_tag != "def" else ()
     )
-    run(("python3", f"{proto_dir}/build.py", context))
     compile_options = get_more_compile_options(context, get_commit(context), proj_tag)  # after build.py
     mod = compile_options.mod
     mod_dir = compile_options.mod_dir

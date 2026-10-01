@@ -54,6 +54,13 @@ import ee.cone.c4proto._
   )
 }
 
+object HttpHeaders {
+  // Prefix marking response headers the gate must deliver to the client even through an
+  // inner-redirect (x-r-redirect-inner): the gate strips it and applies the header to the
+  // proxied response. See DefaultAkkaRequestHandler.
+  val PassPrefix = "x-r-pass-"
+}
+
 @protocol("TcpProtocolApp") object TcpProtocol   {
   @Id(0x0026) case class S_TcpWrite(
     @Id(0x002A) srcId: String,
