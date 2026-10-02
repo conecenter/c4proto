@@ -8,7 +8,7 @@ import scala.annotation.StaticAnnotation
 import scala.collection.immutable.{Seq, TreeSet}
 import scala.concurrent.{ExecutionContext, Future}
 
-case class AssembleOptions(srcId: String, @deprecated isParallel: Boolean, threadCount: Long)
+@deprecated case class AssembleOptions(srcId: String, isParallel: Boolean, threadCount: Long)
 
 trait IndexUtil {
   def joinKey(was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String): JoinKey
@@ -60,10 +60,7 @@ trait OutFactory[K,V<:Product] {
   def result(pair: (K,V)): DOut
 }
 
-trait OuterExecutionContext {
-  def value: ExecutionContext
-  def threadCount: Long
-}
+@deprecated trait OuterExecutionContext
 
 trait AggrDOut
 

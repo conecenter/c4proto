@@ -251,10 +251,7 @@ trait RawTxAdd {
   def add(out: Seq[N_Update]): Context=>Context
 }
 trait ReadModelAdd {
-  def add(executionContext: OuterExecutionContext, events: Seq[RawEvent]): ReadModel=>ReadModel
-}
-trait GetAssembleOptions {
-  def get(assembled: ReadModel): AssembleOptions
+  def add(events: Seq[RawEvent]): ReadModel=>ReadModel
 }
 
 trait Observer[Message] {

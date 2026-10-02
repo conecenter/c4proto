@@ -87,7 +87,7 @@ function Sender(fetch,setTimeout){
         if(busy) fetch(busy.url,busy.options)
             .then(busy.onComplete,err=>false)
             .then(ok=>{
-                if(ok || !busy.retry){
+                if( ok || !busy.retry || Date.now() - busy.options.headers?.["x-r-alien-date"] > 300000 ){
                     queue = queue.filter(item=>item!==busy)
                     activate()
                 }

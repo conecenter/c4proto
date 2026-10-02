@@ -156,7 +156,7 @@ object AuthOperations {
     if(ReqGroup.conditions(request).flatMap(cond=>index.get(cond)).nonEmpty)
       next(request,local)
     else {
-      logger.warn(s"404 ${request.path}")
+      logger.warn(s"404 ${request.path} ${request.headers.filter(_.key.startsWith("x-r-"))}")
       logger.trace(index.keys.toList.sorted.mkString(", "))
       httpResponseFactory.directResponse(request,_.copy(status=404))
     }

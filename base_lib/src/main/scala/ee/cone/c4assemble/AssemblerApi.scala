@@ -5,7 +5,7 @@ import ee.cone.c4assemble.PlannerTypes.TaskPos
 import ee.cone.c4assemble.RIndexTypes.RIndexItem
 import ee.cone.c4assemble.Types._
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 object Single {
   def apply[C](l: Seq[C]): C =
@@ -29,7 +29,7 @@ class OriginalWorldPart[A<:Object](val outputWorldKeys: Seq[AssembledKey]) exten
 trait Replace {
   type Diffs = Seq[(AssembledKey, Array[Array[RIndexPair]])]
   def active: Seq[WorldPartRule]
-  def replace(model: ReadModel, diff: Diffs, executionContext: OuterExecutionContext, profilingContext: RAssProfilingContext): ReadModel
+  def replace(model: ReadModel, diff: Diffs, executionContext: ExecutionContext, profilingContext: RAssProfilingContext): ReadModel
   def emptyReadModel: ReadModel
   def report(model: ReadModel): Unit
 }

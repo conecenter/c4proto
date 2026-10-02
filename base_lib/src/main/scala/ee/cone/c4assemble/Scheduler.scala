@@ -380,7 +380,7 @@ trait ParallelExecution {
   private def nsToMilli(ns: Long) = ns / 1000000
   private def rangeStr(ids: Seq[String]) =
     ids.distinct match { case Seq() => "-" case Seq(id) => id case e => s"${e.head}-${e.last} (${e.size})" }
-  def replace(model: ReadModel, diff: Diffs, executionContext: OuterExecutionContext, profilingContext: RAssProfilingContext): ReadModel = {
+  def replace(model: ReadModel, diff: Diffs, executionContext: ExecutionContext, profilingContext: RAssProfilingContext): ReadModel = {
     val startedAt = System.nanoTime
     val planner = plannerFactory.createMutablePlanner(conf.plannerConf)
     val modelImpl = model match{ case m: ReadModelImpl => m }
@@ -394,7 +394,7 @@ trait ParallelExecution {
       new util.ArrayList
     )
     setTodoBuild(context, diff.map{ case (k: JoinKey, v) => (conf.worldPosFromKey(k),v) }.toArray)
-    loop(context, executionContext.value)
+    loop(context, executionContext)
     context.calculatedByBuildTask.requireIsEmpty()
     context.inputDiffs.requireIsEmpty()
     val period = nsToMilli(System.nanoTime - startedAt)
