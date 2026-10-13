@@ -13,7 +13,7 @@ import scala.jdk.CollectionConverters.IterableHasAsScala
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file._
 
-@c4("FileConsumerApp") final class FileConsuming(factory: FileConsumerFactory, dir: FileConsumerDir) extends Consuming {
+@c4("FileConsumerApp") final class FileConsuming(factory: FileConsumerFactory, dir: FileConsumerDir) extends PartConsuming {
   def process[R](from: NextOffset, body: Consumer=>R): R =
     body(factory.create(from, Files.readAllLines(dir.resolve("snapshot_tx_list")).asScala.map(RawSnapshot).toSeq))
 }

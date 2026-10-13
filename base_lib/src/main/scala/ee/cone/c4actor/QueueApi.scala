@@ -105,6 +105,14 @@ trait RawQSender {
 }
 trait RawQSenderExecutable extends Executable
 
+trait RawPartQSender {
+  def sendStart(rec: QRecord): () => NextOffset
+}
+trait QRecordFactory {
+  def copy(rec: QRecord, value: Array[Byte], headers: Seq[RawHeader]): QRecord // to the same log as rec
+}
+trait PartConsuming extends Consuming
+
 trait SnapshotCheckReset extends Executable
 
 object OffsetHexSize{ def apply() = 16 }

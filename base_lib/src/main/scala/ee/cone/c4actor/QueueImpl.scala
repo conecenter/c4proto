@@ -34,6 +34,11 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 
 class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
 
+@c4("ServerCompApp") final class QRecordFactoryImpl extends QRecordFactory {
+  def copy(rec: QRecord, value: Array[Byte], headers: Seq[RawHeader]): QRecord =
+    new QRecordImpl(rec.topic, value, headers)
+}
+
 @c4("ServerCompApp") final class QMessagesImpl(
   toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender],
   flagsCheck: UpdateFlagsCheck, currentTxLogName: CurrentTxLogName,

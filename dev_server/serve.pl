@@ -144,7 +144,6 @@ my $get_consumer_env = sub{
         C4STATE_TOPIC_PREFIX => $nm,
         C4INBOX_TOPIC_PREFIX => $inbox_topic_prefix,
         C4S3_CONF_DIR => $s3conf_dir,
-        C4BROKER_MIN_LO_SIZE => "0",
         C4AUTH_KEY_FILE => "$data_dir/simple.auth",
         C4ELECTOR_SERVERS => $elector_servers,
         C4READINESS_PATH => $readiness_path,

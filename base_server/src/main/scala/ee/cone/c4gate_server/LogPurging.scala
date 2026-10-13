@@ -24,6 +24,8 @@ import scala.concurrent.Future
     val willOffset = noNeed.headOption.map(_.snapshot.offset)
     if (wasOffset == willOffset) Thread.sleep(60000)
     else {
+      // LO parts (LOChunksImpl) before a kept snapshot are read again on start from it;
+      // LO is written within delivery.timeout.ms, so it can not span keepLogForSnapshotCount snapshots
       willOffset.foreach(purger.delete(_))
       need.map(_.mTime).minOption.foreach{ mTime =>
         s3LogPurger.delete(currentTxLogName, mTime - 5*60*1000)

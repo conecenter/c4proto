@@ -24,21 +24,18 @@ import scala.jdk.CollectionConverters.{IterableHasAsScala,MapHasAsJava,MapHasAsS
 @c4("KafkaProducerApp") final class KafkaRawQSenderProvider(
   factory: KafkaRawQSenderFactory, disable: List[DisableDefProducer]
 )(
-  res: Seq[RawQSender with RawQSenderExecutable] = if(disable.nonEmpty) Nil else Seq(factory.create())
+  res: Seq[RawPartQSender with RawQSenderExecutable] = if(disable.nonEmpty) Nil else Seq(factory.create())
 ){
-  @provide def senders: Seq[RawQSender] = res
+  @provide def senders: Seq[RawPartQSender] = res
   @provide def executables: Seq[RawQSenderExecutable] = res
 }
 
 @c4multi("KafkaProducerApp") final class KafkaRawQSender()(
   conf: KafkaConfig, execution: Execution,
-  loBroker: LOBroker, listConfig: ListConfig,
 )(
   producer: CompletableFuture[Producer[Array[Byte], Array[Byte]]] =
     new CompletableFuture(),
-  minLOSize: Long =
-    Single.option(listConfig.get("C4BROKER_MIN_LO_SIZE")).fold(1000000L)(_.toLong) // default max.request.size is 1048576
-) extends RawQSender with RawQSenderExecutable with LazyLogging {
+) extends RawPartQSender with RawQSenderExecutable with LazyLogging { // default max.request.size is 1048576
   def run(): Unit = if(!producer.isDone) concurrent.blocking {
     val props = conf.ssl ++ Map[String, Object](
       "acks" -> "all",
@@ -54,22 +51,15 @@ import scala.jdk.CollectionConverters.{IterableHasAsScala,MapHasAsJava,MapHasAsS
     val remove = execution.onShutdown("Producer",() => producer.get.close()) // we'll not remove hook
   }
 
-  private def sendStart(rec: QRecord): java.util.concurrent.Future[RecordMetadata] = {
+  def sendStart(rec: QRecord): () => NextOffset = {
     //println(s"sending to server [$bootstrapServers] topic [${topicNameToString(rec.topic)}]")
     @SuppressWarnings(Array("org.wartremover.warts.Null")) val value: Array[Byte] = if(rec.value.nonEmpty) rec.value else null //why null?
     val topic: String = conf.topicNameToString(rec.topic)
     val headers = rec.headers.map(h => new RecordHeader(h.key, h.value.getBytes(UTF_8)).asInstanceOf[Header]).asJava
     /*val record = new ProducerRecord[Array[Byte], Array[Byte]](topic, 0, null, Array.emptyByteArray, value, headers)
     producer.get.send(record)*/
-    KafkaMessageSender.send(topic, value, headers, producer)
-  }
-  def send(rec: QRecord): NextOffset = {
-    val isLO = rec.value.length >= minLOSize
-    val rRec = if(isLO) loBroker.put(rec) else rec
-    val future: java.util.concurrent.Future[RecordMetadata] = sendStart(rRec)
-    val offset = OffsetHex(future.get().offset()+1)
-    if(isLO) logger.debug(s"LO $offset")
-    offset
+    val future: java.util.concurrent.Future[RecordMetadata] = KafkaMessageSender.send(topic, value, headers, producer)
+    () => OffsetHex(future.get().offset()+1)
   }
 }
 
@@ -88,7 +78,7 @@ object OffsetHex {
   def topicNameToString(name: TxLogName): String = s"${name.value}.inbox"
 }
 
-@c4("KafkaConsumerApp") final class ConsumerBeginningOffsetImpl(consuming: Consuming) extends ConsumerBeginningOffset {
+@c4("KafkaConsumerApp") final class ConsumerBeginningOffsetImpl(consuming: PartConsuming) extends ConsumerBeginningOffset {
   def get(): NextOffset = consuming.process("0" * OffsetHexSize(), { case c: RKafkaConsumer => c.beginningOffset })
 }
 
@@ -96,14 +86,14 @@ object OffsetHex {
   disable: Option[DisableDefConsuming], factory: KafkaConsumingFactory,
   conf: KafkaConfig, currentTxLogName: CurrentTxLogName,
 ){
-  @provide def consumings: Seq[Consuming] = if(disable.nonEmpty) Nil else Seq(factory.create(conf, currentTxLogName))
+  @provide def consumings: Seq[PartConsuming] = if(disable.nonEmpty) Nil else Seq(factory.create(conf, currentTxLogName))
 }
 
 @c4multi("KafkaConsumerApp") final case class KafkaConsuming(
   conf: KafkaConfig, currentTxLogName: CurrentTxLogName,
 )(
   execution: Execution, consumerFactory: RKafkaConsumerFactory,
-) extends Consuming with LazyLogging {
+) extends PartConsuming with LazyLogging {
   def process[R](from: NextOffset, body: Consumer=>R): R =
     process(List(currentTxLogName->from), body)
   def process[R](from: List[(TxLogName,NextOffset)], body: Consumer=>R): R = { // conf.topicNameToString
