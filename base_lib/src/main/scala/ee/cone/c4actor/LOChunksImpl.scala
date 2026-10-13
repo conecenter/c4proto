@@ -63,12 +63,13 @@ object LO {
     header(ev) match {
       case Some(`partValue`) =>
         cache.update(ev.srcId, ev.data)
-        if (cache.size > maxSize) val _ = cache.remove(cache.head._1)
+        if (cache.size > maxSize) ignoreRemoved(cache.remove(cache.head._1).get)
         Nil
       case Some(`lastValue`) => List(assemble(ev))
       case _ => List(ev)
     }
   }
+  private def ignoreRemoved(value: ByteString): Unit = ()
   private def header(ev: RawEvent): Option[String] = ev.headers.collectFirst { case h if h.key == cKey => h.value }
   private def prev(offset: NextOffset): NextOffset = // position to read the record with this srcId from
     (("0" * OffsetHexSize()) + java.lang.Long.toHexString(java.lang.Long.parseLong(offset, 16) - 1L))

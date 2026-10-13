@@ -109,7 +109,7 @@ trait RawPartQSender {
   def sendStart(rec: QRecord): () => NextOffset
 }
 object QRecord {
-  class Impl(val topic: TxLogName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
+  final class Impl(val topic: TxLogName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
   def apply(topic: TxLogName, value: Array[Byte], headers: Seq[RawHeader]): QRecord = new Impl(topic, value, headers)
 }
 trait PartConsuming extends Consuming
