@@ -28,8 +28,8 @@ object LO {
   val lastValue = "lo"
 }
 
-@c4("LOBrokerApp") final class LOChunkerRawQSenderImpl(
-  rawPartQSenders: List[RawPartQSender], qRecordFactory: QRecordFactory, listConfig: ListConfig,
+@c4("LOPartApp") final class LOChunkerRawQSenderImpl(
+  rawPartQSenders: List[RawPartQSender], listConfig: ListConfig,
 )(
   size: Int = Single.option(listConfig.get("C4LO_CHUNK_SIZE")).fold(900_000)(_.toInt),
 ) extends RawQSender {
@@ -38,21 +38,21 @@ object LO {
     val sender = Single(rawPartQSenders)
     if (rec.value.length <= size) sender.sendStart(rec)() else {
       val partHeaders = List(RawHeader(cKey, partValue))
-      val parts = rec.value.grouped(size).toList.map(part => sender.sendStart(qRecordFactory.copy(rec, part, partHeaders)))
+      val parts = rec.value.grouped(size).toList.map(part => sender.sendStart(QRecord(rec.topic, part, partHeaders)))
       val partOffsets = parts.map(_()) // all started, then awaited
       val body = (partOffsets.mkString(",") :: rec.headers.toList.flatMap(h => List(h.key, h.value))).mkString(":")
-      sender.sendStart(qRecordFactory.copy(rec, body.getBytes(UTF_8), List(RawHeader(cKey, lastValue))))()
+      sender.sendStart(QRecord(rec.topic, body.getBytes(UTF_8), List(RawHeader(cKey, lastValue))))()
     }
   }
 }
 
-@c4("LOBrokerApp") final class LOConsuming(factory: LOConsumerFactory, inner: PartConsuming) extends Consuming {
+@c4("LOPartApp") final class LOConsuming(factory: LOConsumerFactory, inner: PartConsuming) extends Consuming {
   def process[R](from: NextOffset, body: Consumer => R): R =
     inner.process(from, consumer => body(factory.create(consumer)))
 }
 
 // one per consumer, used from its thread
-@c4multi("LOBrokerApp") final class LOConsumer(consumer: Consumer)(
+@c4multi("LOPartApp") final class LOConsumer(consumer: Consumer)(
   consuming: PartConsuming, listConfig: ListConfig
 ) extends Consumer with LazyLogging {
   import LO._
@@ -62,8 +62,8 @@ object LO {
   def poll(): List[RawEvent] = consumer.poll().flatMap { ev =>
     header(ev) match {
       case Some(`partValue`) =>
-        cache.update(offset, data)
-        if (cache.size > maxSize) cache.remove(cache.head._1)
+        cache.update(ev.srcId, ev.data)
+        if (cache.size > maxSize) val _ = cache.remove(cache.head._1)
         Nil
       case Some(`lastValue`) => List(assemble(ev))
       case _ => List(ev)
@@ -84,7 +84,7 @@ object LO {
       val partOffsetsSet = partOffsets.toSet
       val max = partOffsets.max
       def hasMissing = !partOffsets.forall(cache.contains)
-      @tailrec private def readAgainIter(consumer: Consumer): Unit = {
+      @tailrec def readAgainIter(consumer: Consumer): Unit = {
         logger.info(s"LO ${ev.srcId}: reading missing parts again")
         val events = consumer.poll()
         for (e <- events if partOffsetsSet(e.srcId) && header(e).contains(partValue)) cache.update(e.srcId, e.data)

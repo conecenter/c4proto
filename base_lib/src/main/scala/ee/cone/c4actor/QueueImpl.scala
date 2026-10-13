@@ -32,13 +32,6 @@ import scala.concurrent.{Await, ExecutionContext, Future}
   }
 )
 
-class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
-
-@c4("ServerCompApp") final class QRecordFactoryImpl extends QRecordFactory {
-  def copy(rec: QRecord, value: Array[Byte], headers: Seq[RawHeader]): QRecord =
-    new QRecordImpl(rec.topic, value, headers)
-}
-
 @c4("ServerCompApp") final class QMessagesImpl(
   toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender],
   flagsCheck: UpdateFlagsCheck, currentTxLogName: CurrentTxLogName,
@@ -61,7 +54,7 @@ class QRecordImpl(val topic: TxLogName, val value: Array[Byte], val headers: Seq
   def doSend(updates: List[N_UpdateFrom]): NextOffset = {
     logger.debug(s"sending by ${Thread.currentThread.getName} ${updates.size}: ${updates.map(_.valueTypeId).distinct.map(java.lang.Long.toHexString)}")
     val (bytes, headers) = toUpdate.toBytes(updates)
-    val rec = new QRecordImpl(currentTxLogName, bytes, headers)
+    val rec = QRecord(currentTxLogName, bytes, headers)
     val offset = Single(getRawQSender.value).send(rec)
     logger.debug(s"${updates.size} updates was sent -- $offset")
     (new AssemblerProfiling).debugOffsets("sent", Seq(offset))

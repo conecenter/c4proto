@@ -108,8 +108,9 @@ trait RawQSenderExecutable extends Executable
 trait RawPartQSender {
   def sendStart(rec: QRecord): () => NextOffset
 }
-trait QRecordFactory {
-  def copy(rec: QRecord, value: Array[Byte], headers: Seq[RawHeader]): QRecord // to the same log as rec
+object QRecord {
+  class Impl(val topic: TxLogName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
+  def apply(topic: TxLogName, value: Array[Byte], headers: Seq[RawHeader]): QRecord = new Impl(topic, value, headers)
 }
 trait PartConsuming extends Consuming
 
