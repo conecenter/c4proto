@@ -2,6 +2,7 @@ package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4di.c4
+import ee.cone.c4assemble.Single
 
 import java.net.URI
 import java.net.http.{HttpRequest, HttpResponse, HttpTimeoutException}
@@ -53,10 +54,10 @@ final class TouchingBodySubscriber[T](inner: HttpResponse.BodySubscriber[T], tou
 }
 
 @c4("S3ManagerApp") final class S3ManagerImpl(
-  config: Config, httpClientProvider: HttpClientProvider, execution: Execution
+  config: Config, listConfig: ListConfig, httpClientProvider: HttpClientProvider, execution: Execution
 )(
   confDir: Path = Paths.get(config.get("C4S3_CONF_DIR")),
-  idleTimeoutMs: Long = 10000L,
+  idleTimeoutMs: Long = Single.option(listConfig.get("C4S3_IDLE_MS")).fold(10000L)(_.toLong),
   watchdogScheduler: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor{ (r: Runnable) =>
     val t = new Thread(r, "s3-watchdog")
     t.setDaemon(true)
