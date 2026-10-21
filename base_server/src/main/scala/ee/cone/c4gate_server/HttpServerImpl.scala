@@ -106,19 +106,18 @@ object AuthOperations {
           request.copy(headers = N_Header("x-r-auth-status", status.toString) :: request.headers, body = body)
         def getPassRegex: Option[String] = getC_PasswordRequirements.ofA(local).get("gate-password-requirements").map(_.regex)
         val password :: again :: usernameAdd = request.body.utf8().split("\n").toList
-        // 0 - OK, 1 - passwords did not match, 2 - password did not match requirements
+        // 0 - OK, 1 - passwords did not match, 2 - password did not match requirements; 0 and 2 come with the change request id
         val requests: List[Product] = if (password != again)
           authPost(okio.ByteString.EMPTY)(1) :: Nil
-        else if (getPassRegex.forall(regex => regex.isEmpty || password.matches(regex))) {
+        else {
           val prevHashOpt = Single.option(usernameAdd)
             .flatMap(getC_PasswordHashOfUser.ofA(local).get)
             .map(_.hash.get)
           val hash: Option[N_SecureHash] = Option(AuthOperations.createHash(password, prevHashOpt))
+          val status = if (getPassRegex.forall(regex => regex.isEmpty || password.matches(regex))) 0 else 2
+          // the hash is kept on status 2 too: only the app knows from its session whether this user may break the rules, a request header would be set by the browser
           S_PasswordChangeRequest(request.srcId, hash) ::
-            authPost(okio.ByteString.encodeUtf8(request.srcId))(0) :: Nil
-        }
-        else {
-          authPost(okio.ByteString.EMPTY)(2) :: Nil
+            authPost(okio.ByteString.encodeUtf8(request.srcId))(status) :: Nil
         }
         httpResponseFactory.deferredResponse(request, r=>r, requests.flatMap(LEvent.update))
       case Some("check") =>
