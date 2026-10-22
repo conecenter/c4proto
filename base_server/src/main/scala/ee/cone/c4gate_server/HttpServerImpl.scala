@@ -106,9 +106,11 @@ object AuthOperations {
           request.copy(headers = N_Header("x-r-auth-status", status.toString) :: request.headers, body = body)
         def getPassRegex: Option[String] = getC_PasswordRequirements.ofA(local).get("gate-password-requirements").map(_.regex)
         val password :: again :: usernameAdd = request.body.utf8().split("\n").toList
-        // 0 - OK, 1 - passwords did not match, 2 - password did not match requirements; 0 and 2 come with the change request id
+        // 0 - OK, 1 - passwords did not match, 2 - password did not match requirements, 3 - password is empty; 0 and 2 come with the change request id
         val requests: List[Product] = if (password != again)
           authPost(okio.ByteString.EMPTY)(1) :: Nil
+        else if (password.isEmpty)
+          authPost(okio.ByteString.EMPTY)(3) :: Nil
         else {
           val prevHashOpt = Single.option(usernameAdd)
             .flatMap(getC_PasswordHashOfUser.ofA(local).get)
