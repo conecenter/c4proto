@@ -6,10 +6,10 @@ print(dumps({
     "title": "C4 System Status",
     "panels": [
         { "type": "timeseries", "title": "Synthetic OK", **pos(0,0), "targets": [
-            { "expr": 'c4synthetic_ok{exported_app=~"$app-.*"}', "legendFormat": "{{exported_app}}" },
+            { "expr": 'c4synthetic_ok{c4app=~"$app-.*"}', "legendFormat": "{{c4app}}" },
         ]},
         { "type": "timeseries", "title": "Synthetic Latency", **pos(0,1), "targets": [
-            { "expr": 'c4synthetic_latency_seconds{exported_app=~"$app-.*"}', "legendFormat": "{{exported_app}}" },
+            { "expr": 'c4synthetic_latency_seconds{c4app=~"$app-.*"}', "legendFormat": "{{c4app}}" },
         ]},
         { "type": "timeseries", "title": "Node CPU", **pos(1,0), "targets": [
             { "expr": 'rate(c4dig:cpu_idle{pod=~"$app-.*"}[2m]) / 100', "legendFormat": "{{pod}} idle cores" },
@@ -34,7 +34,7 @@ print(dumps({
         ]},
     ],
     "templating": { "list": [
-        { "name": "app", "query": "label_values(c4synthetic_ok, exported_app)", "type": "query", "regex": "/^(.*?)-main$/" },
+        { "name": "app", "query": "label_values(c4synthetic_ok, c4app)", "type": "query", "regex": "/^(.*?)-main$/" },
     ]},
 }, sort_keys=True, indent=4))
 

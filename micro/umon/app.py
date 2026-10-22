@@ -36,7 +36,8 @@ def main():
         started = monotonic()
         ok = 1 if fallback(None, lambda: page.wait_for_selector(selector, timeout=4000)) else 0
         lat = monotonic() - started
-        content = f'c4synthetic_ok{{app="{app}"}} {ok}\nc4synthetic_latency_seconds{{app="{app}"}} {lat}\n'
+        expr = f'{{app="{app}",c4app="{app}"}}'
+        content = f'c4synthetic_ok{expr} {ok}\nc4synthetic_latency_seconds{expr} {lat}\n'
         mut_content["/metrics"] = (200, [("Content-Type", "text/plain")], content.encode())
         if ok: info(f'refresh-ok')
         page.wait_for_timeout(30000)
