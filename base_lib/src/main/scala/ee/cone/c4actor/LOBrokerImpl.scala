@@ -6,6 +6,7 @@ import ee.cone.c4di.c4
 import ee.cone.c4proto.ToByteString
 import okio.ByteString
 
+import java.net.http.HttpTimeoutException
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.UUID
 import scala.annotation.tailrec
@@ -51,8 +52,10 @@ import scala.concurrent.{Await, ExecutionContext, Future, Promise}
             case k :: v :: Nil => RawHeader(k,v)
             case e => throw new Exception(e.toString)
           }.toList
-          for(dataOpt <- s3.get(ev.txLogName,path))
-            yield dataOpt.fold(ev)(data=>ev.copy(headers=headers,data=ToByteString(data)))
+          for(dataOpt <- s3.get(ev.txLogName,path).recover{ case e: HttpTimeoutException =>
+            logger.warn(s"s3 get failed $path", e)
+            None
+          }) yield dataOpt.fold(ev)(data=>ev.copy(headers=headers,data=ToByteString(data)))
       })},backoffLeft.tail)
     }
 }
