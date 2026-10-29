@@ -42,7 +42,7 @@ import scala.annotation.tailrec
   actorName: ActorName, indentedParser: AbstractIndentedParser, updateFromUtil: UpdateFromUtil,
   currentProcess: CurrentProcess, readyProcessUtil: ReadyProcessUtil, worldProvider: WorldProvider,
   s3: S3Manager, currentTxLogName: CurrentTxLogName, execution: Execution, getBeforeInjection: GetByPK[BeforeInjection],
-  snapshotMaker: SnapshotMaker, approximateIntern: ApproximateIntern,
+  snapshotMaker: SnapshotMaker, approximateIntern: ApproximateIntern, reducer: RichRawWorldReducer,
 ) extends Executable with Early with LazyLogging {
   import WorldProvider._
   private def until(cond: AssembledContext=>Boolean): Unit =
@@ -70,9 +70,14 @@ import scala.annotation.tailrec
     val wasAdd = injectionPart("add")
     until(noActivity)
     logger.info(s"done")
-    val rawSnapshots = if(wasDel||wasAdd) snapshotMaker.make(NextSnapshotTask(None)) else Nil
-    rawSnapshots.foreach(s=>logger.info(s"patched snapshot created: ${s.relativePath}"))
-    worldProvider.runUpdCheck(_=>LEvent.update(S_InjectionDone(actorName.value, currentProcess.id)))
+    // snapshot is made inside the step, so the world does not leave it; it already includes the injection (read after write)
+    worldProvider.runUpdCheck{ world =>
+      if(wasDel||wasAdd) world match { case w: RichContext =>
+        snapshotMaker.makeOrFind(reducer.toLocal(w, Map.empty), None)
+          .foreach(s=>logger.info(s"patched snapshot created: ${s.relativePath}"))
+      }
+      LEvent.update(S_InjectionDone(actorName.value, currentProcess.id))
+    }
     logger.info(s"ApproximateInterner ${approximateIntern.count}")
     approximateIntern.clear()
     logger.info(s"exit")

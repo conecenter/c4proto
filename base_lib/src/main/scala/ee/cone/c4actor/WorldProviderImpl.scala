@@ -28,6 +28,9 @@ import scala.annotation.tailrec
     val queue = new LinkedBlockingQueue[Either[RichContext,Unit]]()
     @tailrec def iter(readAfterWriteOffsetOpt: Option[NextOffset], left: Steps[R]): R = {
       val Left(world) = queue.take()
+      // todo: queue is unbounded and gets every world, so while a step works (makes snapshot etc.) all intermediate worlds are held;
+      //  seems only the newest is needed here: drain to the last one, if steps' conditions are monotonic
+      //  and TxChecker.isFailed sees the offset in the newest world's history
       if(!ready(world, readAfterWriteOffsetOpt)) iter(readAfterWriteOffsetOpt, left)
       else {
         for(offset <- readAfterWriteOffsetOpt if txChecker.isFailed(world, offset)) throw new Exception("tx failed")
