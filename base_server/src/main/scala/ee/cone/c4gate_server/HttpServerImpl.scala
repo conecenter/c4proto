@@ -63,7 +63,7 @@ import ee.cone.c4gate_server.RHttpTypes.{RHttpHandler, RHttpHandlerCreate}
     if(ReqGroup.conditions(request).flatMap(cond=>index.get(cond)).nonEmpty)
       httpResponseFactory.deferredResponse(request, r=>r, LEvent.update(request).toList)
     else {
-      logger.warn(s"404 ${request.path}")
+      logger.warn(s"404 ${request.path} ${request.headers.filter(_.key.startsWith("x-r-"))}")
       logger.trace(index.keys.toList.sorted.mkString(", "))
       httpResponseFactory.directResponse(request,_.copy(status=404))
     }

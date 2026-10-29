@@ -18,7 +18,7 @@ object VDomResolverImpl extends VDomResolver {
   }
 }
 
-case class CalcDiffRes(value: VDomValue, needSnapshot: Long, failed: Boolean, diff: String, snapshot: String)
+case class CalcDiffRes(value: VDomValue, needSnapshot: Long, failed: Long, diff: String, snapshot: String)
 class VDomHandlerImpl(
   diff: Diff,
   fixDuplicateKeys: FixDuplicateKeys,
@@ -26,7 +26,7 @@ class VDomHandlerImpl(
   wasNoValue: WasNoVDomValue,
 ) extends VDomHandler {
   def preView: Option[VDomState]=>Option[PreViewResult] = {
-    case None => Option(PreViewResult(VDomState(wasNoValue,0,System.currentTimeMillis(),MakingViewStats(0,Nil,0),failed=false,0L), wasNoValue, System.currentTimeMillis))
+    case None => Option(PreViewResult(VDomState(wasNoValue,0,System.currentTimeMillis(),MakingViewStats(0,Nil,0),failed=0L,0L), wasNoValue, System.currentTimeMillis))
     case Some(st) if st.value != wasNoValue && st.until > System.currentTimeMillis => None
     case Some(st) => Option(PreViewResult(st.copy(value = wasNoValue, until = 0), st.value, System.currentTimeMillis))
     // need to remove prev DomState before review to avoid leak: local-vdom-el-action-local
@@ -42,7 +42,7 @@ class VDomHandlerImpl(
   }
 
   private def calcDiff(
-    prev: VDomValue, next: VDomValue, needSnapshot: Long, failed: Boolean, left: Int = 50
+    prev: VDomValue, next: VDomValue, needSnapshot: Long, failed: Long, left: Int = 50
   ): CalcDiffRes = try {
     val diffStr = diff.diff(prev, next).fold("")(jsonToString(_))
     val snapshotStr = if(needSnapshot < 0) "" else jsonToString(diff.diff(wasNoValue, next).get)
@@ -50,8 +50,8 @@ class VDomHandlerImpl(
     new CalcDiffRes(next, willNeedSnapshot, failed, diffStr, snapshotStr)
   } catch {
     case error: DuplicateKeysException if left > 0 =>
-      if(!failed) println(error.getMessage)
-      calcDiff(prev, fixDuplicateKeys.fix(error, next), needSnapshot, failed = true, left = left - 1)
+      if(failed == 0L) println(error.getMessage)
+      calcDiff(prev, fixDuplicateKeys.fix(error, next), needSnapshot, failed = System.currentTimeMillis, left = left - 1)
   }
 
   private def addMakingViewStat(was: MakingViewStats, startedAt: Long, now: Long): MakingViewStats = {
@@ -87,3 +87,8 @@ class VDomHandlerImpl(
 }
 
 case class GatheredSeeds(pairs: List[(String,Product)])
+
+/*
+  this can be used to test dup key error (40s on, 40s off):
+    tags.div("aaa", "aaa") :: ( if((System.currentTimeMillis() / 40000) % 2 == 0) tags.div("bbb", "bbb") else tags.div("aaa", "aaa") ) ::
+*/

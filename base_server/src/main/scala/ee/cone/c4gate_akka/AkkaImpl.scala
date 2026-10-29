@@ -13,6 +13,7 @@ import com.typesafe.config.ConfigFactory
 import ee.cone.c4actor.{Config, Early, Executable, Execution, Observer}
 import ee.cone.c4assemble.Single
 import ee.cone.c4di.c4
+import ee.cone.c4gate.HttpHeaders.PassPrefix
 import ee.cone.c4gate.HttpProtocol.N_Header
 import ee.cone.c4gate_server._
 import ee.cone.c4proto.ToByteString
@@ -102,10 +103,25 @@ trait AkkaHttp {
               .toMat(Sink.head)(Keep.right)
           } else {*/
           logger debug s"Redirecting to $uri"
-          val nReq = if(uri.startsWith("orig:")) req.withUri(uri.drop(5))
+          val nReq = if(uri.startsWith("orig:"))
+            req.withUri(uri.drop(5)).withHeaders(req.headers.filter(_.name != "Timeout-Access"))
             else HttpRequest(uri = uri)
           http.singleRequest(nReq)
           //}
+        }.map { out =>
+          // PassPrefix-marked headers must reach the client even through the inner-redirect above
+          // (which otherwise returns only upstream headers): strip the prefix and graft them onto
+          // the final response, overriding same-named headers. They live on `response`, not `out`
+          // (the proxied upstream has none).
+          val passed = response.headers.collect {
+            case h if h.name.toLowerCase.startsWith(PassPrefix) => RawHeader(h.name.drop(PassPrefix.length), h.value)
+          }
+          if (passed.isEmpty) out
+          else {
+            val passedNames = passed.map(_.name.toLowerCase).toSet
+            out.withHeaders(out.headers.filterNot(h =>
+              h.name.toLowerCase.startsWith(PassPrefix) || passedNames(h.name.toLowerCase)) ++ passed)
+          }
         }
       }
     } yield response
@@ -118,7 +134,8 @@ trait AkkaHttp {
   port: Int = config.get("C4HTTP_PORT").toInt,
   handlers: List[AkkaRequestHandler] = handlersUnsorted.sortBy(_.pathPrefix).reverse
 ) extends Executable with Early with LazyLogging {
-  def run(): Unit = execution.fatal{ implicit ec =>
+  private def ignoreBinding(value: Future[Http.ServerBinding]): Unit = ()
+  def run(): Unit = ignoreBinding(execution.unboundedFatal{ implicit ec =>
     for{
       mat <- akkaMat.get
       http <- akkaHttp.get
@@ -139,7 +156,7 @@ trait AkkaHttp {
         //defapply(configOverrides: String): ServerSettings(system)//ServerSettings(system)
       )(mat)
     } yield binding
-  }
+  })
 }
 
 //execution: Execution,

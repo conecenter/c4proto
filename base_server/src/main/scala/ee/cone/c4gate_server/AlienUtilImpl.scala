@@ -19,7 +19,10 @@ case class AlienExchangeStateImpl(
 ) extends AlienUtil with LazyLogging {
   import WorldProvider._
   import worldProvider._
-  private val sessionTimeoutSec = Single.option(listConfig.get("C4STATE_REFRESH_SECONDS")).fold(100L)(_.toLong)
+  // as in SSE: refresh period + tolerated offline time
+  private val sessionTimeoutSec =
+    Single.option(listConfig.get("C4STATE_REFRESH_SECONDS")).fold(100L)(_.toLong) +
+    Single.option(listConfig.get("C4TOLERATE_OFFLINE_SECONDS")).fold(60L)(_.toLong)
   def read(state: AlienExchangeState): (AlienExchangeState, String) = {
     val until = Instant.now.plusSeconds(1)
     run(List(world => {

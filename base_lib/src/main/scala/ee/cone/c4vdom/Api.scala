@@ -115,7 +115,7 @@ case class MakingViewStats(sum: Long, recent: List[MakingViewStat], stable: Long
 case class VDomState(
   value: VDomValue, until: Long,
   startedAtMillis: Long, wasMakingViewMillis: MakingViewStats,
-  failed: Boolean, needSnapshot: Long
+  failed: Long, needSnapshot: Long // failed: time of last dup keys fix, 0 if none
 )
 
 case class PreViewResult(clean: VDomState, prev: VDomValue, startedAt: Long)

@@ -82,17 +82,18 @@ object SpreadUpdates extends SpreadHandler[N_Update] {
   origPartitionerRegistry: OrigPartitionerRegistry,
   execution: Execution,
 ) extends AssemblerUtil with LazyLogging {
-  private val executionContext = {
-    val fixedThreadCount = Runtime.getRuntime.availableProcessors
-    val pool = execution.newExecutorService("ass-",Option(fixedThreadCount))
-    logger.info(s"ForkJoinPool create $fixedThreadCount")
-    ExecutionContext.fromExecutor(pool)
+  // separate pools by RAssProfilingContext.accId (0 - read model reduce, 1 - tx local join), so one does not starve the other
+  private val executionContexts = {
+    val threadCount = Runtime.getRuntime.availableProcessors
+    logger.info(s"creating ass-pools of $threadCount")
+    for(i <- 0 to 1) yield ExecutionContext.fromExecutor(execution.newExecutorService(s"ass-$i-",Option(threadCount)))
   }
   def seq[T](s: Seq[Future[T]])(implicit ec: ExecutionContext): Future[Seq[T]] = Future.sequence(s)
   def toTreeReplace(assembled: ReadModel, updates: Seq[N_Update], profilingContext: RAssProfilingContext): ReadModel = {
     val end = NanoTimer()
     val isActiveOrig: Set[AssembledKey] = activeOrigKeyRegistry.values
     val outFactory = composes.createOutFactory(0, +1)
+    val executionContext = executionContexts(profilingContext.accId)
     logger.debug("toTreeReplace indexGroups before")
     def handle(updatesPart: Array[N_Update]): Seq[(AssembledKey, Array[Array[DOut]])] = for {
       tpPair <- updatesPart.groupBy(_.valueTypeId).toSeq

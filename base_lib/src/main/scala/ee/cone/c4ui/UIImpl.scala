@@ -7,7 +7,7 @@ import ee.cone.c4actor._
 import ee.cone.c4actor_branch.BranchTypes.BranchResult
 import ee.cone.c4actor_branch.{BranchOperations, BranchTask}
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{by, c4assemble}
+import ee.cone.c4assemble.{by, c4assemble, Single}
 import ee.cone.c4di.c4
 import ee.cone.c4gate.{Metric, MetricLabel, MetricsFactory}
 import ee.cone.c4vdom.Types.{VDomKey, ViewRes}
@@ -44,7 +44,9 @@ case class SimpleSeedElement(seed: BranchResult) extends SeedVDomValue {
   }
 }
 
-@c4("UICompApp") final class DynamicViewRestPeriodProvider() extends ViewRestPeriodProvider {
+@c4("UICompApp") final class DynamicViewRestPeriodProvider(listConfig: ListConfig)(
+   val viewRatio: Long = Single.option(listConfig.get("C4VIEW_RATIO")).fold(1L)(_.toLong)
+) extends ViewRestPeriodProvider {
   def get(local: Context): ViewRestPeriod = {
     val state = VDomStateKey.of(local).get
     //val age = System.currentTimeMillis() - state.startedAtMillis
@@ -53,7 +55,7 @@ case class SimpleSeedElement(seed: BranchResult) extends SeedVDomValue {
     //val age = System.currentTimeMillis() - state.startedAtMillis
     //DynamicViewRestPeriod(Math.max(Math.min(age / 4, state.wasMakingViewMillis * 10 - age), 500))
     val default = 500L
-    DynamicViewRestPeriod(Math.max(state.wasMakingViewMillis.stable * 10, default))
+    DynamicViewRestPeriod(Math.max(state.wasMakingViewMillis.stable * 10, default) * viewRatio)
   }
 }
 
@@ -109,5 +111,5 @@ case class AggrRestPeriod(location: String, periods: List[N_RestPeriod])
 }
 
 @c4("UICompApp") final class ViewFailedImpl extends ViewFailed {
-  def of(local: Context): Boolean = VDomStateKey.of(local).exists(_.failed)
+  def of(local: Context): Boolean = VDomStateKey.of(local).exists(System.currentTimeMillis-_.failed < 15_000)
 }

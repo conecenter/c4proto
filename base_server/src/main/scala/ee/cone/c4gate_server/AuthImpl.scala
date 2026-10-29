@@ -48,7 +48,7 @@ import scala.concurrent.duration.Duration
     case "/auth/change" => withSession(request, local, _ => {
       val re = getC_PasswordRequirements.ofA(local).get("gate-password-requirements").map(_.regex)
       val (userName, password, prevHashOpt) = bodySplitUserPass(request.body.utf8(), local)
-      if (re.forall(regex => regex.isEmpty || password.matches(regex))) {
+      if (password.nonEmpty && re.forall(regex => regex.isEmpty || password.matches(regex))) {
         val hash = authOperations.createHash(password, prevHashOpt)
         val lEvents = LEvent.update(S_PasswordChangeRequest(request.srcId, userName, Option(hash)))
         deferredResponse(request, _.copy(body=rawJson("requestId", request.srcId)), lEvents)
