@@ -45,6 +45,7 @@ trait ScalingAppBase extends ChildElectorClientApp
 trait ScalingTestAppBase
 
 trait S3ManagerAppBase extends HttpClientApp
+trait S3ConfRouterAppBase
 
 trait LOBrokerAppBase extends S3ManagerApp
 
