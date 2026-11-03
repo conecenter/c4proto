@@ -11,7 +11,8 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path, Paths}
 import java.time.format.DateTimeFormatter
 import java.time.{Instant, ZoneId}
-import java.util.concurrent.{CompletionStage, Executors, Flow, ScheduledExecutorService, TimeUnit}
+import java.util.concurrent.{CompletionStage, Executors, Flow, ScheduledExecutorService, ScheduledFuture, TimeUnit}
+import java.util.concurrent.atomic.{AtomicLong, AtomicReference}
 import java.util.{Base64, Locale}
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
@@ -23,14 +24,15 @@ import scala.jdk.FutureConverters._
 //   progress = request start, request body chunk taken for sending, response headers, response body chunk;
 //   so long but moving transfers are not limited, silent connections are
 final class IdleWatchdog(scheduler: ScheduledExecutorService, idleMs: Long) {
-  @volatile private var last: Long = System.nanoTime()
-  @volatile private var onIdle: Option[()=>Unit] = None
-  def touch(): Unit = last = System.nanoTime()
-  def start(f: ()=>Unit): Unit = { touch(); onIdle = Option(f); check() }
-  def stop(): Unit = onIdle = None // stale scheduled check keeps only this small object
-  private def check(): Unit = onIdle.foreach{ f =>
-    val left = last + TimeUnit.MILLISECONDS.toNanos(idleMs) - System.nanoTime()
-    if(left > 0) scheduler.schedule((()=>check()):Runnable, left, TimeUnit.NANOSECONDS)
+  private val last = new AtomicLong(System.nanoTime())
+  private val onIdle = new AtomicReference[Option[()=>Unit]](None)
+  def touch(): Unit = last.set(System.nanoTime())
+  def start(f: ()=>Unit): Unit = { touch(); onIdle.set(Option(f)); check() }
+  def stop(): Unit = onIdle.set(None) // stale scheduled check keeps only this small object
+  private def ignoreScheduled(value: ScheduledFuture[_]): Unit = ()
+  private def check(): Unit = onIdle.get.foreach{ f =>
+    val left = last.get + TimeUnit.MILLISECONDS.toNanos(idleMs) - System.nanoTime()
+    if(left > 0) ignoreScheduled(scheduler.schedule((()=>check()):Runnable, left, TimeUnit.NANOSECONDS))
     else { stop(); f() }
   }
 }
@@ -80,6 +82,8 @@ final class TouchingBodySubscriber[T](inner: HttpResponse.BodySubscriber[T], tou
   }
 
   private def newWatchdog(): IdleWatchdog = new IdleWatchdog(watchdogScheduler, idleTimeoutMs)
+  private def ignoreDone(value: Boolean): Unit = ()
+  private def ignorePromise[T](value: Promise[T]): Unit = ()
 
   def sendInner(resource: String, date: String, authorization: String, builder: HttpRequest.Builder, watchdog: IdleWatchdog)(implicit ec: ExecutionContext): Future[Option[Array[Byte]]] = {
     val client = Await.result(httpClientProvider.get, Duration.Inf)
@@ -97,10 +101,10 @@ final class TouchingBodySubscriber[T](inner: HttpResponse.BodySubscriber[T], tou
     val respPromise = Promise[HttpResponse[Array[Byte]]]()
     watchdog.start{ () =>
       logger.warn(s"no progress for $idleTimeoutMs ms: ${req.method} $uri")
-      respPromise.tryFailure(new HttpTimeoutException(s"no progress for $idleTimeoutMs ms: ${req.method} $uri"))
-      cf.cancel(true) // cancels the exchange, closing the connection, so it is not returned to the pool
+      ignoreDone(respPromise.tryFailure(new HttpTimeoutException(s"no progress for $idleTimeoutMs ms: ${req.method} $uri")))
+      ignoreDone(cf.cancel(true)) // cancels the exchange, closing the connection, so it is not returned to the pool
     }
-    respPromise.completeWith(cf.asScala.andThen{ case _ => watchdog.stop() })
+    ignorePromise(respPromise.completeWith(cf.asScala.andThen{ case _ => watchdog.stop() }))
     for(resp <- respPromise.future) yield {
       //println(req.method(),resp.statusCode(),resp.statusCode(),new String(resp.body(),StandardCharsets.UTF_8))
       val status = resp.statusCode()
