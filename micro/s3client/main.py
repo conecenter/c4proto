@@ -9,12 +9,17 @@ def one(it): return it
 
 def never(a): raise Exception(a)
 
-def read_conf(key): return (Path(environ["C4S3_CONF_DIR"]) / key).read_bytes().decode()
+def read_conf(env_key, key): return (Path(environ[env_key]) / key).read_bytes().decode()
+
+# mc aliases are named by conf dir env keys, so routes in jvm (S3ConfRoute) map 1:1; "def" is kept for older callers
+def alias_conf_env_keys(): return (("def", "C4S3_CONF_DIR"), ("C4S3_CONF_DIR", "C4S3_CONF_DIR"), ("C4S3_LOGS_CONF_DIR", "C4S3_LOGS_CONF_DIR"))
 
 def kafka_port(): return 9000
 
 def serve(_):
-    check_call(("/tools/mc", "alias", "set", "def", read_conf("address"), read_conf("key"), read_conf("secret")))
+    for alias, env_key in alias_conf_env_keys():
+        if env_key in environ or env_key == "C4S3_CONF_DIR": # main conf stays mandatory
+            check_call(("/tools/mc", "alias", "set", alias, *(read_conf(env_key, k) for k in ("address", "key", "secret"))))
     cp = Path("/c4/kafka-clients-classpath").read_bytes().decode().strip()
     check_call(("java", "--source", "21", "--enable-preview", "-cp", cp, "/app/kafka.java", str(kafka_port())))
 

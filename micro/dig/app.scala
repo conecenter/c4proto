@@ -64,7 +64,7 @@ def log(value: String): Unit = System.err.println(value)
 //// ---- s3 util
 
 final class S3Man:
-  private val confDir = Paths.get(env("C4S3_CONF_DIR"))
+  private val confDir = Paths.get(env("C4S3_LOGS_CONF_DIR"))
   private val confKey = readString(confDir.resolve("key"))
   private val confAddress = readString(confDir.resolve("address"))
   private val confSecret = readAllBytes(confDir.resolve("secret"))
