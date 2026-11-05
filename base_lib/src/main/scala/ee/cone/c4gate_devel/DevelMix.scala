@@ -19,7 +19,7 @@ import ee.cone.c4gate.DisableDefaultSafeToRunApp
 trait FileConsumerAppBase
 trait WorldCheckerAppBase
 trait TxGroupAppBase
-trait ExtractTxAppBase extends TxGroupApp
+trait ExtractTxAppBase extends TxGroupApp with S3ConfRouterApp
 trait ReplayApp extends FileConsumerApp with WorldCheckerApp with DisableDefaultS3RawSnapshotApp
   with ExtractTxApp with SnapshotUtilImplApp with DisableDefaultSafeToRunApp
 

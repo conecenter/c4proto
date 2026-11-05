@@ -361,6 +361,14 @@ trait S3Lister {
   def parseTime(s: String): Long
 }
 
+// route owner decides which buckets go to which S3 conf dir env key
+trait S3ConfRoute {
+  def envKey(bucket: String): Option[String]
+}
+trait S3ConfRouter {
+  def envKey(bucket: String): String
+}
+
 trait LOBroker {
   def put(rec: QRecord): QRecord
   def get(events: List[ExtendedRawEvent]): List[ExtendedRawEvent] // this can potentially lead to too big volume in single event list after getting LOB-s

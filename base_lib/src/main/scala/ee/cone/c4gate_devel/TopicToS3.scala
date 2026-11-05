@@ -33,6 +33,11 @@ object TxGroup {
   def splitter: String = "-"
 }
 
+@c4("TxGroupApp") final class TxGroupS3ConfRoute extends S3ConfRoute {
+  def envKey(bucket: String): Option[String] =
+    Option.when(bucket.endsWith(s".${TxGroup.bucketPostfix}"))("C4S3_LOGS_CONF_DIR")
+}
+
 @c4("TopicToS3App") final class TopicToS3(
   execution: Execution, snapshotUtil: SnapshotUtil, config: Config,
   s3: S3Manager, s3L: S3Lister, currentTxLogName: CurrentTxLogName, consuming: Consuming,
@@ -129,7 +134,7 @@ object TxGroup {
   def resolve(p: String): Path = Await.result(tmpRes.future, Duration.Inf).resolve(p)
 }
 
-@c4("ExtractTxApp") final class KubeS3Reader extends LazyLogging {
+@c4("ExtractTxApp") final class KubeS3Reader(router: S3ConfRouter) extends LazyLogging {
   @tailrec private def retry[T](f: ()=>Option[T]): T = f() match {
     case Some(r) => r
     case None =>
@@ -150,11 +155,12 @@ object TxGroup {
     val kc = Seq("kubectl", "--context", kubeContext)
     val mc = kc ++ Seq("exec", "svc/c4s3client", "--", "/tools/mc")
     //
-    runGetLines(mc ++ Seq("ls","--json",s"def/$bucket")).toList.map{ line =>
+    val alias = router.envKey(bucket) // c4s3client names mc aliases by conf dir env keys
+    runGetLines(mc ++ Seq("ls","--json",s"$alias/$bucket")).toList.map{ line =>
       val obj = ujson.read(line)
       val name =  obj("key").str
       val size =  obj("size").num.toInt
-      (name, ()=>retry(()=>Option(runGetBytes(mc ++ Seq("cat",s"def/$bucket/$name"))).filter(_.length==size)))
+      (name, ()=>retry(()=>Option(runGetBytes(mc ++ Seq("cat",s"$alias/$bucket/$name"))).filter(_.length==size)))
     }.sortBy(_._1)
   }
 }
