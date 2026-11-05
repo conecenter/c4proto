@@ -66,8 +66,8 @@ final class TouchingBodySubscriber[T](inner: HttpResponse.BodySubscriber[T], tou
     t
   },
 ) extends S3Manager with LazyLogging {
-  def confDir(resourceWithPrefix: String): Path = {
-    val bucket = resourceWithPrefix.split('/')(1).takeWhile(_ != '?')
+  def confDir(resourceWOSearch: String): Path = {
+    val bucket = resourceWOSearch.split('/')(1)
     Paths.get(config.get(router.envKey(bucket)))
   }
   def confBytes(dir: Path, key: String): Array[Byte] = Files.readAllBytes(dir.resolve(key))
@@ -123,7 +123,7 @@ final class TouchingBodySubscriber[T](inner: HttpResponse.BodySubscriber[T], tou
   def send(resourceWithPrefix: String, method: String, contentType: String, builder: HttpRequest.Builder, watchdog: IdleWatchdog = newWatchdog())(implicit ec: ExecutionContext): Future[Option[Array[Byte]]] = {
     val date = getDateStr
     val resourceWOSearch = resourceWithPrefix.takeWhile(_!='?')
-    val dir = confDir(resourceWithPrefix)
+    val dir = confDir(resourceWOSearch)
     sendInner(dir, resourceWithPrefix, date, sign(dir, s"$method\n\n$contentType\n$date\n$resourceWOSearch"), builder, watchdog)
   }
 
