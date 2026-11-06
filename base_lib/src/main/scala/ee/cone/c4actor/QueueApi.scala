@@ -358,6 +358,8 @@ trait S3Manager {
 
 trait S3Lister {
   def list(txLogName: TxLogName, resource: String)(implicit ec: ExecutionContext): Future[Option[List[(String,String)]]]
+  // keys under prefix, returned relative to it
+  def listPrefix(bucket: String, prefix: String)(implicit ec: ExecutionContext): Future[Option[List[(String,String)]]]
   def parseTime(s: String): Long
 }
 

@@ -31,6 +31,9 @@ import scala.jdk.CollectionConverters.IterableHasAsScala
 object TxGroup {
   def bucketPostfix: String = "txg"
   def splitter: String = "-"
+  // all tx groups live in one logs bucket (may be named differently per storage), under "<txLogName>.txg/"
+  def logsBucketEnvKey: String = "C4S3_LOGS_BUCKET"
+  def dir(txLogName: String): String = s"$txLogName.$bucketPostfix/"
 }
 
 @c4("TopicToS3App") final class TopicToS3(
@@ -41,8 +44,10 @@ object TxGroup {
 ) extends LazyLogging {
   private val keepPeriod = 1000 * 3600 * config.get("C4REPLAY_KEEP_HOURS").toInt //72
   import TxGroup._
+  private lazy val logsBucket: String = config.get(logsBucketEnvKey)
+  private def path(name: String): String = s"/$logsBucket/${dir(currentTxLogName.value)}$name"
   private def getSaved: List[(String,String)] =
-    execution.aWait(s3L.list(currentTxLogName, bucketPostfix)(_)).toList.flatten
+    execution.aWait(s3L.listPrefix(logsBucket, dir(currentTxLogName.value))(_)).toList.flatten
   private def targetGroupVolume: Long = 1_000_000_000L //1_000_000L
   @tailrec private def iteration(consumer: Consumer, wasTaken: Queue[RawEvent], wasSize: Long, time: Long): Unit = {
     val events = consumer.poll()
@@ -51,8 +56,8 @@ object TxGroup {
     //logger.warn(s"here ${taken.size} $size ${System.nanoTime - time}")
     if(taken.isEmpty) iteration(consumer, taken, size, System.nanoTime)
     else if(size > targetGroupVolume || System.nanoTime - time > 1_000_000_000L * 60L){
-      val rangeName = s"$bucketPostfix/${taken.head.srcId}$splitter${taken.last.srcId}"
-      s3.put(s3.join(currentTxLogName, rangeName), adapter.encode(N_TxGroup("", taken.toList.map(ev =>
+      val rangeName = s"${taken.head.srcId}$splitter${taken.last.srcId}"
+      s3.put(path(rangeName), adapter.encode(N_TxGroup("", taken.toList.map(ev =>
         N_Tx(snapshotUtil.getName("snapshot_txs", ev.srcId, ev.data.toByteArray, ev.headers), ev.data)
       ))))
       logger.info(s"saved $rangeName")
@@ -70,9 +75,9 @@ object TxGroup {
   @tailrec private def purgeIteration(): Unit = {
     val items = getSaved.map{ case (nm,tmStr) => (nm, s3L.parseTime(tmStr)) }
     val maxTm = items.map{ case (_,tm) => tm }.maxOption
-    val toDel = items.collect{ case (nm,tm) if maxTm.get-tm > keepPeriod => s"$bucketPostfix/$nm" }
+    val toDel = items.collect{ case (nm,tm) if maxTm.get-tm > keepPeriod => path(nm) }
     logger.info(s"purger: items ${items.size}, maxTm $maxTm, toDel ${toDel.size}")
-    execution.fatal(implicit ec => Future.sequence(toDel.map(d=>s3.delete(s3.join(currentTxLogName, d)))))
+    execution.fatal(implicit ec => Future.sequence(toDel.map(r => s3.delete(r))))
     Thread.sleep(1000 * 60)
     purgeIteration()
   }
@@ -104,12 +109,12 @@ object TxGroup {
     if(Files.notExists(txListPath)){
       val snapshotPf = s"snapshots/$snapshot"
       write(tmp.resolve("snapshot_name"), snapshotPf.getBytes(UTF_8))
-      val data = Single(s3.list(kubeContext, s"$topicPrefix.snapshots").collect{ case(k,get) if k==snapshot => get() })
+      val data = Single(s3.list(kubeContext, "def", s"$topicPrefix.snapshots", "").collect{ case(k,get) if k==snapshot => get() })
       write(tmp.resolve(snapshotPf), data)
       //
       val snapshotN = snapshot.split(splitter).head
       val txQ = new java.util.ArrayList[String]
-      for((group,get) <- s3.list(kubeContext, s"$topicPrefix.$bucketPostfix")){
+      for((group,get) <- s3.list(kubeContext, "logs", config.get(logsBucketEnvKey), dir(topicPrefix))){
         val Array(fromN,toN) = group.split(splitter)
         if(snapshotN < toN && fromN < replayUntil) {
           val bytes = get()
@@ -146,15 +151,17 @@ object TxGroup {
     //res
   }
   private def runGetLines(cmd: Seq[String]): Array[String] = new String(runGetBytes(cmd), UTF_8).split("\n")
-  def list(kubeContext: String, bucket: String): List[(String,()=>Array[Byte])] = {
+  // alias is c4s3client's mc alias: def or logs; names are relative to prefix; prefix is "" or ends with "/"
+  def list(kubeContext: String, alias: String, bucket: String, prefix: String): List[(String,()=>Array[Byte])] = {
     val kc = Seq("kubectl", "--context", kubeContext)
     val mc = kc ++ Seq("exec", "svc/c4s3client", "--", "/tools/mc")
     //
-    runGetLines(mc ++ Seq("ls","--json",s"def/$bucket")).toList.map{ line =>
+    val path = s"$alias/$bucket/$prefix"
+    runGetLines(mc ++ Seq("ls","--json",path)).toList.map{ line =>
       val obj = ujson.read(line)
       val name =  obj("key").str
       val size =  obj("size").num.toInt
-      (name, ()=>retry(()=>Option(runGetBytes(mc ++ Seq("cat",s"def/$bucket/$name"))).filter(_.length==size)))
+      (name, ()=>retry(()=>Option(runGetBytes(mc ++ Seq("cat",s"$path$name"))).filter(_.length==size)))
     }.sortBy(_._1)
   }
 }
