@@ -44,8 +44,10 @@ object TxGroup {
 ) extends LazyLogging {
   private val keepPeriod = 1000 * 3600 * config.get("C4REPLAY_KEEP_HOURS").toInt //72
   import TxGroup._
+  private lazy val logsBucket: String = config.get(logsBucketEnvKey)
+  private def path(name: String): String = s"/$logsBucket/${dir(currentTxLogName.value)}$name"
   private def getSaved: List[(String,String)] =
-    execution.aWait(s3L.list(currentTxLogName, bucketPostfix)(_)).toList.flatten
+    execution.aWait(s3L.listPrefix(logsBucket, dir(currentTxLogName.value))(_)).toList.flatten
   private def targetGroupVolume: Long = 1_000_000_000L //1_000_000L
   @tailrec private def iteration(consumer: Consumer, wasTaken: Queue[RawEvent], wasSize: Long, time: Long): Unit = {
     val events = consumer.poll()
@@ -54,8 +56,8 @@ object TxGroup {
     //logger.warn(s"here ${taken.size} $size ${System.nanoTime - time}")
     if(taken.isEmpty) iteration(consumer, taken, size, System.nanoTime)
     else if(size > targetGroupVolume || System.nanoTime - time > 1_000_000_000L * 60L){
-      val rangeName = s"$bucketPostfix/${taken.head.srcId}$splitter${taken.last.srcId}"
-      s3.put(currentTxLogName, rangeName, adapter.encode(N_TxGroup("", taken.toList.map(ev =>
+      val rangeName = s"${taken.head.srcId}$splitter${taken.last.srcId}"
+      s3.put(path(rangeName), adapter.encode(N_TxGroup("", taken.toList.map(ev =>
         N_Tx(snapshotUtil.getName("snapshot_txs", ev.srcId, ev.data.toByteArray, ev.headers), ev.data)
       ))))
       logger.info(s"saved $rangeName")
@@ -73,9 +75,9 @@ object TxGroup {
   @tailrec private def purgeIteration(): Unit = {
     val items = getSaved.map{ case (nm,tmStr) => (nm, s3L.parseTime(tmStr)) }
     val maxTm = items.map{ case (_,tm) => tm }.maxOption
-    val toDel = items.collect{ case (nm,tm) if maxTm.get-tm > keepPeriod => s"$bucketPostfix/$nm" }
+    val toDel = items.collect{ case (nm,tm) if maxTm.get-tm > keepPeriod => path(nm) }
     logger.info(s"purger: items ${items.size}, maxTm $maxTm, toDel ${toDel.size}")
-    execution.fatal(implicit ec => Future.sequence(toDel.map(s3.delete(currentTxLogName, _))))
+    execution.fatal(implicit ec => Future.sequence(toDel.map(r => s3.delete(r))))
     Thread.sleep(1000 * 60)
     purgeIteration()
   }
