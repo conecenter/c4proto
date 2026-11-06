@@ -56,9 +56,8 @@ final class TouchingBodySubscriber[T](inner: HttpResponse.BodySubscriber[T], tou
 }
 
 @c4("S3ManagerApp") final class S3ManagerImpl(
-  config: Config, listConfig: ListConfig, httpClientProvider: HttpClientProvider, execution: Execution
+  config: Config, listConfig: ListConfig, httpClientProvider: HttpClientProvider, execution: Execution,
 )(
-  confDir: Path = Paths.get(config.get("C4S3_CONF_DIR")),
   idleTimeoutMs: Long = Single.option(listConfig.get("C4S3_IDLE_MS")).fold(10000L)(_.toLong),
   watchdogScheduler: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor{ (r: Runnable) =>
     val t = new Thread(r, "s3-watchdog")
@@ -66,28 +65,33 @@ final class TouchingBodySubscriber[T](inner: HttpResponse.BodySubscriber[T], tou
     t
   },
 ) extends S3Manager with LazyLogging {
-  def confBytes(key: String): Array[Byte] = Files.readAllBytes(confDir.resolve(key))
-  def conf(key: String): String = new String(confBytes(key),UTF_8)
+  def confDir(resourceWOSearch: String): Path = {
+    val bucket = resourceWOSearch.split('/')(1)
+    val isLogs = listConfig.get("C4S3_LOGS_BUCKET").contains(bucket)
+    Paths.get(config.get(if(isLogs) "C4S3_LOGS_CONF_DIR" else "C4S3_CONF_DIR"))
+  }
+  def confBytes(dir: Path, key: String): Array[Byte] = Files.readAllBytes(dir.resolve(key))
+  def conf(dir: Path, key: String): String = new String(confBytes(dir, key),UTF_8)
 
   def getDateStr: String =
     DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss zzz",Locale.ENGLISH)
       .withZone(ZoneId.of("GMT")).format(Instant.now())
 
-  def sign(canonicalIn: String): String = {
+  def sign(dir: Path, canonicalIn: String): String = {
     val algorithm = "HmacSHA1"
     val mac = Mac.getInstance(algorithm)
-    mac.init(new SecretKeySpec(confBytes("secret"), algorithm))
+    mac.init(new SecretKeySpec(confBytes(dir, "secret"), algorithm))
     val signature = new String(Base64.getEncoder.encode(mac.doFinal(canonicalIn.getBytes(UTF_8))),UTF_8)
-    s"AWS ${conf("key")}:$signature"
+    s"AWS ${conf(dir, "key")}:$signature"
   }
 
   private def newWatchdog(): IdleWatchdog = new IdleWatchdog(watchdogScheduler, idleTimeoutMs)
   private def ignoreDone(value: Boolean): Unit = ()
   private def ignorePromise[T](value: Promise[T]): Unit = ()
 
-  def sendInner(resource: String, date: String, authorization: String, builder: HttpRequest.Builder, watchdog: IdleWatchdog)(implicit ec: ExecutionContext): Future[Option[Array[Byte]]] = {
+  def sendInner(dir: Path, resource: String, date: String, authorization: String, builder: HttpRequest.Builder, watchdog: IdleWatchdog)(implicit ec: ExecutionContext): Future[Option[Array[Byte]]] = {
     val client = Await.result(httpClientProvider.get, Duration.Inf)
-    val uri = s"${conf("address")}$resource"
+    val uri = s"${conf(dir, "address")}$resource"
     val req = builder.uri(new URI(uri))
       .header("Date",date)
       .header("Authorization",authorization)
@@ -119,7 +123,8 @@ final class TouchingBodySubscriber[T](inner: HttpResponse.BodySubscriber[T], tou
   def send(resourceWithPrefix: String, method: String, contentType: String, builder: HttpRequest.Builder, watchdog: IdleWatchdog = newWatchdog())(implicit ec: ExecutionContext): Future[Option[Array[Byte]]] = {
     val date = getDateStr
     val resourceWOSearch = resourceWithPrefix.takeWhile(_!='?')
-    sendInner(resourceWithPrefix, date, sign(s"$method\n\n$contentType\n$date\n$resourceWOSearch"), builder, watchdog)
+    val dir = confDir(resourceWOSearch)
+    sendInner(dir, resourceWithPrefix, date, sign(dir, s"$method\n\n$contentType\n$date\n$resourceWOSearch"), builder, watchdog)
   }
 
   def putInner(resourceWithPrefix: String, body: Array[Byte]): Boolean = {
@@ -134,7 +139,7 @@ final class TouchingBodySubscriber[T](inner: HttpResponse.BodySubscriber[T], tou
   }
   def put(resourceWithPrefix: String, body: Array[Byte]): Unit =
     if(!putInner(resourceWithPrefix, body)){
-      val Array("",bucket,_) = resourceWithPrefix.split('/')
+      val Array("",bucket,_) = resourceWithPrefix.split("/",3) // key may contain "/"
       if(!putInner(s"/$bucket", Array.empty))
         throw new Exception(s"put ($resourceWithPrefix)")
       Thread.sleep(3000)
