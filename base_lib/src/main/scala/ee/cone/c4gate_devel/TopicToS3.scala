@@ -31,6 +31,9 @@ import scala.jdk.CollectionConverters.IterableHasAsScala
 object TxGroup {
   def bucketPostfix: String = "txg"
   def splitter: String = "-"
+  // all tx groups live in one logs bucket (may be named differently per storage), under "<txLogName>.txg/"
+  def logsBucketEnvKey: String = "C4S3_LOGS_BUCKET"
+  def dir(txLogName: String): String = s"$txLogName.$bucketPostfix/"
 }
 
 @c4("TopicToS3App") final class TopicToS3(
@@ -104,12 +107,12 @@ object TxGroup {
     if(Files.notExists(txListPath)){
       val snapshotPf = s"snapshots/$snapshot"
       write(tmp.resolve("snapshot_name"), snapshotPf.getBytes(UTF_8))
-      val data = Single(s3.list(kubeContext, s"$topicPrefix.snapshots").collect{ case(k,get) if k==snapshot => get() })
+      val data = Single(s3.list(kubeContext, "def", s"$topicPrefix.snapshots", "").collect{ case(k,get) if k==snapshot => get() })
       write(tmp.resolve(snapshotPf), data)
       //
       val snapshotN = snapshot.split(splitter).head
       val txQ = new java.util.ArrayList[String]
-      for((group,get) <- s3.list(kubeContext, s"$topicPrefix.$bucketPostfix")){
+      for((group,get) <- s3.list(kubeContext, "logs", config.get(logsBucketEnvKey), dir(topicPrefix))){
         val Array(fromN,toN) = group.split(splitter)
         if(snapshotN < toN && fromN < replayUntil) {
           val bytes = get()
@@ -146,16 +149,18 @@ object TxGroup {
     //res
   }
   private def runGetLines(cmd: Seq[String]): Array[String] = new String(runGetBytes(cmd), UTF_8).split("\n")
-  def list(kubeContext: String, bucket: String): List[(String,()=>Array[Byte])] = {
+  // alias is c4s3client's mc alias: def or logs; names are relative to prefix; prefix is "" or ends with "/"
+  def list(kubeContext: String, alias: String, bucket: String, prefix: String): List[(String,()=>Array[Byte])] = {
     val kc = Seq("kubectl", "--context", kubeContext)
     val s3pod :: _ = runGetLines(kc ++ Seq("get", "pods", "-o", "name", "-l", "c4s3client")).toList
     val mc = kc ++ Seq("exec", s3pod, "--", "/tools/mc")
     //
-    runGetLines(mc ++ Seq("ls","--json",s"def/$bucket")).toList.map{ line =>
+    val path = s"$alias/$bucket/$prefix"
+    runGetLines(mc ++ Seq("ls","--json",path)).toList.map{ line =>
       val obj = ujson.read(line)
       val name =  obj("key").str
       val size =  obj("size").num.toInt
-      (name, ()=>retry(()=>Option(runGetBytes(mc ++ Seq("cat",s"def/$bucket/$name"))).filter(_.length==size)))
+      (name, ()=>retry(()=>Option(runGetBytes(mc ++ Seq("cat",s"$path$name"))).filter(_.length==size)))
     }.sortBy(_._1)
   }
 }
