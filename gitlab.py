@@ -5,9 +5,13 @@
 # So deploy to dynamic number of environments can be done in a few clicks without job/pipeline arguments manual editing.
 # Command `./gitlab.py generate $TO_REPO $BRANCH < $CONF`
 # will generate gitlab config (that can be included into the target project's config) and push it to the given repo.
-# $CONF is json array with 2 kind of statements:
+# $CONF is json array with 3 kinds of statements:
 #    ["C4AGGR_COND", "my-subproject", "^my-branch-re-"],
 #    ["C4DEPLOY","sandbox-{C4USER}-{C4AGGR}=main","sandbox personal"],
+#    ["C4TAG_COND", "^release/([a-z]+)/(\\d+\\.\\d+)$", "{0}/{1}"],
+# C4TAG_COND: every push into a matching branch gets the next version tag "<prefix>.<n>" on its last commit,
+# prefix is the template filled with the branch regex groups ("release/plt/25.2" -> "plt/25.2.<n>");
+# a new branch gets "<prefix>.0", a commit already tagged for the prefix gets nothing.
 # Also the target project should provide "image" for ".handler" job.
 # This image should contain executables: `c4ci_prep` and `c4ci_up`.
 # `c4ci_prep` is responsible for building/pushing images and making kubernetes manifests.
@@ -29,13 +33,14 @@
 ###############
 
 import base64
-from re import search, sub
+from re import search, sub, fullmatch
 import sys
 from os import environ as e
 from json import dumps, loads, load
 import subprocess
 from pathlib import Path
 import http.client
+from urllib.parse import quote
 from tempfile import TemporaryDirectory
 from time import sleep, monotonic
 
@@ -90,6 +95,44 @@ def exchange(conn_url, method, resource, data):
 def need_tag(conn_url, tag_name):
     status, res = exchange(conn_url, "POST", "repository/tags", {"tag_name": tag_name, "ref": e['CI_COMMIT_SHA']})
     debug_args("need_tag", (status, res))
+
+
+def list_all(conn_url, resource):
+    items, page = [], 1
+    while True:
+        status, res = exchange(conn_url, "GET", f"{resource}&per_page=100&page={page}", None)
+        if status != 200:
+            raise Exception((status, res))
+        items.extend(res)
+        if len(res) < 100:
+            return items
+        page += 1
+
+
+def need_version_tag(conn_url, prefix, sha):
+    def numbers(names):
+        return [int(n[len(prefix)+1:]) for n in names if n.startswith(prefix+".") and fullmatch(r"\d+", n[len(prefix)+1:])]
+    if numbers(r["name"] for r in list_all(conn_url, f"repository/commits/{sha}/refs?type=tag")):
+        debug_args("version tag exists:", (prefix, sha))
+        return
+    for attempt in range(5):
+        tags = list_all(conn_url, "repository/tags?search=" + quote("^"+prefix+".", safe=""))
+        last = numbers(t["name"] for t in tags)
+        tag_name = f"{prefix}.{max(last)+1 if last else 0}"
+        status, res = exchange(conn_url, "POST", "repository/tags", {"tag_name": tag_name, "ref": sha})
+        debug_args("version tag:", (status, tag_name))
+        if status == 201:
+            return
+        if not (status == 400 and "already exists" in str(res)):  # parallel push took the number: try the next
+            raise Exception((status, res))
+    raise Exception(("version tag not created", prefix, sha))
+
+
+def release_tags(conn_url, conf, branch, sha):
+    for op, cond, template in conf:
+        found = search(cond, branch) if op == "C4TAG_COND" else None
+        if found:
+            need_version_tag(conn_url, template.format(*found.groups()), sha)
 
 
 def post_pipeline(conn_url, tag_name, variables):
@@ -177,6 +220,7 @@ def handle_init():
     for aggr, tag_name in sorted(tag_name_by_aggr.items()):
         need_tag(conn_url, tag_name)
         post_pipeline(conn_url, tag_name, {"C4GITLAB_AGGR": aggr, "C4GITLAB_SUBJ": subj})
+    release_tags(conn_url, conf, branch, e["CI_COMMIT_SHA"])
 
 
 def handle_deploy(env_state_mask):
