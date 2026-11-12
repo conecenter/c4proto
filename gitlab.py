@@ -92,12 +92,16 @@ def need_tag(conn_url, tag_name):
     debug_args("need_tag", (status, res))
 
 
-def post_pipeline(conn_url, tag_name, variables):
+def post_pipeline(conn_url, tag_name, variables, retries):
     variables_list = [{"key": k, "value": v} for k, v in sorted(variables.items())]
     status, res = exchange(conn_url, "POST", "pipeline", {"ref": tag_name, "variables": variables_list})
     if status == 201:
         pipeline_id, pipeline_web_url = debug_args(f"pipeline created:", (res["id"], res["web_url"]))
         return pipeline_id
+    if status == 400 and retries > 0:
+        debug_args("retry after:", (status, res, retries))
+        sleep(5)
+        return post_pipeline(conn_url, tag_name, variables, retries - 1)
     raise Exception((status, res))
 
 
@@ -176,7 +180,7 @@ def handle_init():
     conn_url = connect()
     for aggr, tag_name in sorted(tag_name_by_aggr.items()):
         need_tag(conn_url, tag_name)
-        post_pipeline(conn_url, tag_name, {"C4GITLAB_AGGR": aggr, "C4GITLAB_SUBJ": subj})
+        post_pipeline(conn_url, tag_name, {"C4GITLAB_AGGR": aggr, "C4GITLAB_SUBJ": subj}, 1)
 
 
 def handle_deploy(env_state_mask):
@@ -203,7 +207,7 @@ def handle_deploy(env_state_mask):
         "C4GITLAB_ENV_INFO_START": over_bytes(base64.b64encode, start_info_raw),
         "C4GITLAB_ENV_INFO_STOP": over_bytes(base64.b64encode, stop_info_raw),
     }
-    pipeline_id = post_pipeline(conn_url, e["CI_COMMIT_TAG"], variables)
+    pipeline_id = post_pipeline(conn_url, e["CI_COMMIT_TAG"], variables, 0)
     while True:
         status, jobs = exchange(conn_url, "GET", f"pipelines/{pipeline_id}/jobs", None)
         job = next((j for j in jobs if j["name"] == "start"), None)
