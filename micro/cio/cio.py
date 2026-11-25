@@ -145,6 +145,7 @@ def purge(env, prefix, clients):
             exchange = cl.sock_exchange_init(sock)
             info(exchange(f'DELETE {prefix}.inbox'.encode(), "EXISTED"))
     never_if(ls(".snapshots"))
+    for tp in (".snapshots", ".txr"): run_no_die((*mc, "rb", cl.s3path(f"{prefix}{tp}")))  # no --force: keeps non-empty
 
 
 def wait_processes(processes):
