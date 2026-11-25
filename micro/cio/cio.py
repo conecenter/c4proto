@@ -13,13 +13,16 @@ from socket import create_connection
 import re
 from datetime import datetime, timezone
 from hashlib import sha256
+from http.client import HTTPConnection
+from contextlib import closing
 
 from threads import TaskQ, daemon
 from cio_client import post_steps, task_kv, log_addr, kafka_addr, ev_topic
 import snapshots as sn, cluster as cl, git, kube_reporter as kr, distribution
 from cio_preproc import arg_substitute
 from util import run, list_dir, Popen, changing_text, one, read_text, never_if, \
-    path_exists, read_json, never, repeat, decode, run_no_die, debug_args, run_text_out, log
+    path_exists, read_json, never, repeat, decode, run_no_die, debug_args, run_text_out, log, \
+    http_exchange, http_check
 from cmd import get_cmd
 from allure import allure_generate
 
@@ -266,6 +269,20 @@ def app_log_to_file(kube_context, app, to, until_str):
         proc.terminate()
         proc.wait()
 
+def vault_get(env, a_dir, secret_path):
+    kube_token = read_text("/var/run/secrets/kubernetes.io/serviceaccount/token")
+    with closing(HTTPConnection(env["C4VAULT_HOST_PORT"])) as conn:
+        login_req = dumps({"jwt": kube_token, "role": "app"}).encode()
+        login_resp = http_check(*http_exchange(conn, "POST", "/v1/auth/kubernetes/login", login_req))
+        headers = {"X-Vault-Token": loads(login_resp)["auth"]["client_token"]}
+        secret = loads(http_check(*http_exchange(conn, "GET", f"/v1/kv/data/{secret_path}", headers=headers)))
+        http_check(*http_exchange(conn, "POST", "/v1/auth/token/revoke-self", headers=headers))
+    Path(a_dir).mkdir(parents=True)
+    for key, content in secret["data"]["data"].items():
+        never_if(f"bad key {key}" if "/" in key or ".." in key else None)
+        Path(f"{a_dir}/{key}").write_bytes(content.encode())
+
+
 def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "#": lambda *args: None,
     "called": lambda *args: None,
@@ -308,7 +325,8 @@ def get_step_handlers(env, deploy_context, get_dir, main_q: TaskQ): return {
     "secret_get": lambda fn, k8s_path: changing_text(get_dir(fn), decode(
         cl.get_secret_part(cl.get_kubectl(deploy_context), k8s_path)
     )),
-    "write_lines": lambda fn, lines: changing_text(get_dir(fn), "\n".join(lines)),
+    "vault_get": lambda name, secret_path: vault_get(env, get_dir(name), secret_path),
+    "write_lines":lambda fn, lines: changing_text(get_dir(fn), "\n".join(lines)),
     "write_json": lambda fn, st: changing_text(get_dir(fn), dumps(st, sort_keys=True)),
     "wait_no_app": lambda kube_context, app: wait_no_app(kube_context, app),
     "local_kill_serve": lambda: repeat(local_kill_serve),
