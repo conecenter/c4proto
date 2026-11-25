@@ -1,7 +1,7 @@
 FROM ubuntu:26.04
 COPY --from=ghcr.io/conecenter/c4replink:v3kc /install.pl /
 RUN /install.pl useradd 1979
-RUN /install.pl apt curl ca-certificates python3 git tini rsync xz-utils rclone netcat-openbsd python3-venv
+RUN /install.pl apt curl ca-certificates python3 git tini rsync xz-utils rclone netcat-openbsd python3-venv libatomic1
 RUN /install.pl curl https://dl.k8s.io/release/v1.25.3/bin/linux/amd64/kubectl && chmod +x /tools/kubectl
 RUN /install.pl curl https://download.bell-sw.com/java/25.0.2+12/bellsoft-jdk25.0.2+12-linux-amd64.tar.gz
 RUN /install.pl curl https://dlcdn.apache.org/maven/maven-3/3.9.16/binaries/apache-maven-3.9.16-bin.tar.gz
@@ -13,7 +13,7 @@ RUN npm install -g allure
 USER c4
 RUN coursier fetch --classpath org.apache.kafka:kafka-clients:4.2.0 org.slf4j:slf4j-simple:1.7.36 > /tmp/c4classpath && mkdir /c4/c4lib \
  && perl -e 'system "cp", `cat /tmp/c4classpath`=~/[^\s:]+/g, "/c4/c4lib/" and die' && rm /tmp/c4classpath
-# playwright (we need venv to avoid conflicts with libs installed as deb-s):
+# playwright (we need venv to avoid conflicts with libs installed as deb-s), needs libatomic1:
 USER c4
 RUN python3 -m venv /c4/venv && /c4/venv/bin/pip install --no-cache-dir playwright
 USER root
